@@ -679,14 +679,12 @@ fn convert_map_to_var(field_name: &Ident, path_keys: &Path, path_values: &Path) 
 
 fn convert_vec_to_var(field_name: &Ident, path: &Path) -> TokenStream2 {
     match &path.segments.last().unwrap().arguments {
-        PathArguments::AngleBracketed(args) => {
-            match &args.args.iter().collect::<Vec<_>>()[..] {
-                [GenericArgument::Type(Type::Path(inner_path))] => {
-                    let converted_field_value_values = convert_vec_arg_type(&inner_path.path);
-                    quote!(pub #field_name: *mut rs_ffi_interfaces::VecFFI<#converted_field_value_values>)
-                }
-                _ => panic!("convert_vec_to_var: Unknown field {:?} {:?}", field_name, args)
+        PathArguments::AngleBracketed(args) => match &args.args.iter().collect::<Vec<_>>()[..] {
+            [GenericArgument::Type(Type::Path(inner_path))] => {
+                let converted_field_value_values = convert_vec_arg_type(&inner_path.path);
+                quote!(pub #field_name: *mut rs_ffi_interfaces::VecFFI<#converted_field_value_values>)
             }
+            _ => panic!("convert_vec_to_var: Unknown field {:?} {:?}", field_name, args)
         }
         _ => panic!("convert_vec_to_var: Unknown field {:?}", field_name)
     }
