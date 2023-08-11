@@ -26,20 +26,20 @@ pub fn impl_syn_extension(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     let Conversion { name, field, index } = parse_macro_input!(input as Conversion);
     let output = quote! {
         fn #name(ffi: *mut #name) -> #name {
-            dash_spv_ffi::FFIConversion::ffi_from((*(*ffi).#field.add(#index)))
+            rs_ffi_interfaces::FFIConversion::ffi_from((*(*ffi).#field.add(#index)))
         }
     };
     output.into()
 }
 
 
-// Construct the path "dash_spv_ffi::FFIConversion::ffi_from"
+// Construct the path "rs_ffi_interfaces::FFIConversion::ffi_from"
 
 
 
 const ffi_from_ident: Ident = Ident::new("ffi_from", Span::call_site());
 const ffi_conv_ident: Ident = Ident::new("FFIConversion", Span::call_site());
-const dash_spv_ffi_ident: Ident = Ident::new("dash_spv_ffi", Span::call_site());
+const dash_spv_ffi_ident: Ident = Ident::new("rs_ffi_interfaces", Span::call_site());
 
 const ffi_from_segment: PathSegment = PathSegment::from(ffi_from_ident);
 const ffi_conv_segment: PathSegment = PathSegment::from(ffi_conv_ident);

@@ -21,7 +21,7 @@ enum ConversionType {
 // }
 
 fn package() -> TokenStream2 {
-    quote!(dash_spv_ffi)
+    quote!(rs_ffi_interfaces)
 }
 
 fn interface() -> TokenStream2 {
@@ -127,7 +127,7 @@ fn ffi_to_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, ke
     let keys_conversion = package_boxed_vec_expression(quote!(#map_key_path.keys().cloned().map(|#key_index| #key_conversion).collect()));
     let values_conversion = package_boxed_vec_expression(quote!(#map_key_path.values().cloned().map(|#key_index| #value_conversion).collect()));
     package_boxed_expression(quote! {{
-        dash_spv_ffi::MapFFI {
+        rs_ffi_interfaces::MapFFI {
             count: #map_key_path.len(),
             keys: #keys_conversion,
             values: #values_conversion,
@@ -307,7 +307,7 @@ fn from_option(path: &Path, field_name: &Ident) -> TokenStream2 {
                                     let conversion = from_vec(path, field_name);
                                     quote!((!#ffi_field_name_quote.is_null()).then_some(#conversion))
                                     // match obj.script {
-                                    //     Some(vec) => dash_spv_ffi::boxed(dash_spv_ffi::VecFFI::new(vec)),
+                                    //     Some(vec) => rs_ffi_interfaces::boxed(dash_spv_ffi::VecFFI::new(vec)),
                                     //     None => std::ptr::null_mut()
                                     // }
                                 },
@@ -377,7 +377,7 @@ fn define_vec(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
                     println!("define_vec.2: {:?} {:?}", field_name, conversion);
                     define_field(field_name_quote, package_boxed_expression(quote! {{
                         let #vec = #obj_field_name_quote;
-                        dash_spv_ffi::VecFFI { count: #vec.len(), values: #conversion }
+                        rs_ffi_interfaces::VecFFI { count: #vec.len(), values: #conversion }
                     }}))
                 },
                 // _ => define_field(field_name_quote,obj_field_name_quote)
@@ -407,7 +407,7 @@ fn to_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
     let conversion = package_boxed_vec_expression(quote!(#vec.#transformer));
     package_boxed_expression(quote! {{
         let #vec = #obj.#field_name;
-        dash_spv_ffi::VecFFI { count: #vec.len(), values: #conversion }
+        rs_ffi_interfaces::VecFFI { count: #vec.len(), values: #conversion }
     }})
 }
 
@@ -439,7 +439,7 @@ fn define_map(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
                                                     ConversionType::Vec | ConversionType::Map => panic!("Don't support wrapping triple nested Map/Vec")
                                                 };
                                                 let values_conversion = package_boxed_vec_expression(quote!(o.values().cloned().map(#values_converter).collect()));
-                                                package_boxed_expression(quote!({dash_spv_ffi::VecFFI { count: o.len(), values: #values_conversion }}))
+                                                package_boxed_expression(quote!({rs_ffi_interfaces::VecFFI { count: o.len(), values: #values_conversion }}))
                                             },
                                             _ => panic!("to_path (nested_map): Unknown field {:?} {:?}", field_name, args)
                                         }
@@ -472,7 +472,7 @@ fn define_map(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
                                                 };
                                                 let keys_conversion = package_boxed_vec_expression(quote!(o.keys().cloned().map(#keys_converter).collect()));
                                                 let values_conversion = package_boxed_vec_expression(quote!(o.values().cloned().map(#values_converter).collect()));
-                                                package_boxed_expression(quote!({dash_spv_ffi::MapFFI { count: o.len(), keys: #keys_conversion, values: #values_conversion }}))
+                                                package_boxed_expression(quote!({rs_ffi_interfaces::MapFFI { count: o.len(), keys: #keys_conversion, values: #values_conversion }}))
                                             },
                                             _ => panic!("to_path (nested_map): Unknown field {:?} {:?}", field_name, args)
                                         }
@@ -488,7 +488,7 @@ fn define_map(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
                     let keys_conversion = package_boxed_vec_expression(quote!(#obj_field_name_quote.keys().cloned().map(#keys_converter).collect()));
                     let values_conversion = package_boxed_vec_expression(quote!(#obj_field_name_quote.values().cloned().map(#values_converter).collect()));
 
-                    define_field(field_name_quote, package_boxed_expression(quote!({dash_spv_ffi::MapFFI { count: #obj_field_name_quote.len(), keys: #keys_conversion, values: #values_conversion }})))
+                    define_field(field_name_quote, package_boxed_expression(quote!({rs_ffi_interfaces::MapFFI { count: #obj_field_name_quote.len(), keys: #keys_conversion, values: #values_conversion }})))
                 },
                 _ => panic!("to_path (map): Unknown field {:?} {:?}", field_name, args)
             }
@@ -533,7 +533,7 @@ fn define_option(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 
                                             ConversionType::Map => panic!("define_option: Map nested in Vec not supported yet"),
                                             ConversionType::Vec => panic!("define_option: Vec nested in Vec not supported yet"),
                                         };
-                                        let conversion = package_boxed_expression(quote!(dash_spv_ffi::VecFFI::new(#vec.#transformer)));
+                                        let conversion = package_boxed_expression(quote!(rs_ffi_interfaces::VecFFI::new(#vec.#transformer)));
                                         define_field(quote!(#field_name), quote! {
                                 match #obj.#field_name {
                                     Some(vec) => #conversion,
@@ -738,7 +738,7 @@ fn convert_map_arg_type(path: &Path) -> TokenStream2 {
                 [GenericArgument::Type(Type::Path(type_keys)), GenericArgument::Type(Type::Path(type_values))] => {
                     let key_type = convert_map_arg_type(&type_keys.path);
                     let value_type = convert_map_arg_type(&type_values.path);
-                    quote!(*mut dash_spv_ffi::MapFFI<#key_type, #value_type>)
+                    quote!(*mut rs_ffi_interfaces::MapFFI<#key_type, #value_type>)
                 },
                 _ => panic!("convert_map_arg_type: bad args {:?}", last_segment)
             },
@@ -757,7 +757,7 @@ fn convert_vec_arg_type(path: &Path) -> TokenStream2 {
                 [GenericArgument::Type(Type::Path(type_values))] => {
                     let value_type = convert_vec_arg_type(&type_values.path);
                     println!("convert_vec_arg_type.2: {:?} ====> {:?}", type_values, value_type);
-                    quote!(*mut dash_spv_ffi::VecFFI<#value_type>)
+                    quote!(*mut rs_ffi_interfaces::VecFFI<#value_type>)
                 },
                 _ => panic!("convert_vec_arg_type: bad args {:?}", last_segment)
             },
@@ -772,7 +772,7 @@ fn convert_map_to_var(field_name: &Ident, path_keys: &Path, path_values: &Path) 
     let converted_field_value_keys = convert_map_arg_type(path_keys);
     let converted_field_value_values = convert_map_arg_type(path_values);
     println!("convert_map_to_var.2: {:?} ===> {:?}, {:?}", field_name, converted_field_value_keys, converted_field_value_values);
-    quote!(pub #field_name: *mut dash_spv_ffi::MapFFI<#converted_field_value_keys, #converted_field_value_values>)
+    quote!(pub #field_name: *mut rs_ffi_interfaces::MapFFI<#converted_field_value_keys, #converted_field_value_values>)
 }
 
 // fn convert_vec_to_var(field: &Field) -> TokenStream2 {
@@ -785,7 +785,7 @@ fn convert_vec_to_var(field_name: &Ident, path: &Path) -> TokenStream2 {
                     println!("convert_vec_to_var.1: {:?} ===> {:?}", field_name, path);
                     let converted_field_value_values = convert_vec_arg_type(path);
                     println!("convert_vec_to_var.2: {:?} ===> {:?}", field_name, converted_field_value_values);
-                    quote!(pub #field_name: *mut dash_spv_ffi::VecFFI<#converted_field_value_values>)
+                    quote!(pub #field_name: *mut rs_ffi_interfaces::VecFFI<#converted_field_value_values>)
                 }
                 _ => panic!("from_path: Unknown field {:?} {:?}", field_name, args)
             }
@@ -981,7 +981,7 @@ fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
                                             [GenericArgument::Type(Type::Path(type_keys)), GenericArgument::Type(Type::Path(type_values))] => {
                                                 let field_value_keys = &type_keys.path.segments.last().unwrap().ident;
                                                 let field_value_values = &type_values.path.segments.last().unwrap().ident;
-                                                quote!(*mut dash_spv_ffi::MapFFI<#field_value_keys, #field_value_values>)
+                                                quote!(*mut rs_ffi_interfaces::MapFFI<#field_value_keys, #field_value_values>)
                                                 // quote!(*mut *mut #field_value_keys, *mut *mut #field_value_values, usize)
                                             },
                                             // [GenericArgument::Type(Type::Path(inner_path))] => convert_path_to_field_type(&inner_path.path),

@@ -3,7 +3,7 @@ use std::mem;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 
-// #[dash_spv_macro_derive::impl_syn_extension]
+// #[rs_ffi_macro_derive::impl_syn_extension]
 pub trait FFIConversion<T> {
     unsafe fn ffi_from(ffi: *mut Self) -> T;
     unsafe fn ffi_to(obj: T) -> *mut Self;
