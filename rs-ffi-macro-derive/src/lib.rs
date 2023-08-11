@@ -718,26 +718,20 @@ fn extract_struct_field(f: &Field) -> Box<dyn ToTokens> {
             match ident.to_string().as_str() {
                 "Vec" => convert_vec_to_var(field_name, path),
                 "BTreeMap" | "HashMap" => convert_path_arguments(field_name, args),
-                "Option" => {
-                    match &args {
-                        PathArguments::AngleBracketed(args) => {
-                            match &args.args.iter().collect::<Vec<_>>()[..] {
-                                [GenericArgument::Type(Type::Path(inner_path))] => {
-                                    let unwrapped_path = &inner_path.path;
-                                    let unwrapped_segment = unwrapped_path.segments.last().unwrap();
-                                    let unwrapped_ident = &unwrapped_segment.ident;
-                                    let unwrapped_args = &unwrapped_segment.arguments;
-                                    match unwrapped_ident.to_string().as_str() {
-                                        "Vec" => convert_vec_to_var(field_name, unwrapped_path),
-                                        "BTreeMap" | "HashMap" => convert_path_arguments(field_name, unwrapped_args),
-                                        _ => convert_struct_to_var(field_name, unwrapped_path)
-                                    }
-                                },
-                                _ => panic!("extract_struct_field: Unknown field {:?} {:?}", field_name, args)
+                "Option" => match &args {
+                    PathArguments::AngleBracketed(args) => match &args.args.iter().collect::<Vec<_>>()[..] {
+                        [GenericArgument::Type(Type::Path(inner_path))] => {
+                            let unwrapped_path = &inner_path.path;
+                            let unwrapped_segment = unwrapped_path.segments.last().unwrap();
+                            match unwrapped_segment.ident.to_string().as_str() {
+                                "Vec" => convert_vec_to_var(field_name, unwrapped_path),
+                                "BTreeMap" | "HashMap" => convert_path_arguments(field_name, &unwrapped_segment.arguments),
+                                _ => convert_struct_to_var(field_name, unwrapped_path)
                             }
-                        }
-                        _ => panic!("extract_struct_field: Unknown field {:?}", field_name)
+                        },
+                        _ => panic!("extract_struct_field: Unknown field {:?} {:?}", field_name, args)
                     }
+                    _ => panic!("extract_struct_field: Unknown field {:?}", field_name)
                 },
                 _ => convert_struct_to_var(field_name, path),
             }
@@ -773,22 +767,18 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
     let obj = obj();
     let ffi_deref = ffi_deref();
     let interface_impl = match fields.unnamed.first().unwrap().ty.clone() {
-        Type::Path(ffi_name) => {
-            impl_interface(
-                quote!(#ffi_name),
-                quote!(#target_name),
-                quote!(#target_name(#ffi_deref.0)),
-                package_boxed_expression(quote!(#ffi_name(#obj.0))),
-            )
-        },
-        Type::Array(ffi_name) => {
-            impl_interface(
-                quote!(#ffi_name),
-                quote!(#target_name),
-                quote!(#target_name(#ffi_deref)),
-                package_boxed_expression(quote!(#obj.0)),
-            )
-        },
+        Type::Path(ffi_name) => impl_interface(
+            quote!(#ffi_name),
+            quote!(#target_name),
+            quote!(#target_name(#ffi_deref.0)),
+            package_boxed_expression(quote!(#ffi_name(#obj.0)))
+        ),
+        Type::Array(ffi_name) => impl_interface(
+            quote!(#ffi_name),
+            quote!(#target_name),
+            quote!(#target_name(#ffi_deref)),
+            package_boxed_expression(quote!(#obj.0))
+        ),
         _ => panic!("Expected array type")
     };
     let expanded = quote! {
@@ -850,15 +840,13 @@ fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
                         match field_type.to_string().as_str() {
                             "Vec" => quote!(*mut *mut #field_type, usize),
                             "BTreeMap" | "HashMap" => match &args {
-                                PathArguments::AngleBracketed(args) => {
-                                    match &args.args.iter().collect::<Vec<_>>()[..] {
-                                        [GenericArgument::Type(Type::Path(type_keys)), GenericArgument::Type(Type::Path(type_values))] => {
-                                            let field_value_keys = &type_keys.path.segments.last().unwrap().ident;
-                                            let field_value_values = &type_values.path.segments.last().unwrap().ident;
-                                            quote!(*mut rs_ffi_interfaces::MapFFI<#field_value_keys, #field_value_values>)
-                                        },
-                                        _ => panic!("from_enum_variant: Unknown field {:?}", args)
-                                    }
+                                PathArguments::AngleBracketed(args) => match &args.args.iter().collect::<Vec<_>>()[..] {
+                                    [GenericArgument::Type(Type::Path(type_keys)), GenericArgument::Type(Type::Path(type_values))] => {
+                                        let field_value_keys = &type_keys.path.segments.last().unwrap().ident;
+                                        let field_value_values = &type_values.path.segments.last().unwrap().ident;
+                                        quote!(*mut rs_ffi_interfaces::MapFFI<#field_value_keys, #field_value_values>)
+                                    },
+                                    _ => panic!("from_enum_variant: Unknown field {:?}", args)
                                 }
                                 _ => panic!("from_enum_variant: Unknown field")
                             },
@@ -908,9 +896,8 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     let to_ffi_arms = data_enum.variants.iter().map(|v| {
         let ident = &v.ident;
         match &v.fields {
-            Fields::Unnamed(fields) => {
-                let field = &fields.unnamed.first().unwrap();
-                if let Type::Path(type_path) = &field.ty {
+            Fields::Unnamed(fields) => match &fields.unnamed.first().unwrap().ty {
+                Type::Path(type_path) => {
                     let obj = obj();
                     let conversion = if should_use_direct_conversion(&type_path.path) {
                         obj.clone()
@@ -918,9 +905,8 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                         ffi_to_conversion(obj.clone())
                     };
                     define_lambda(quote!(#target_name::#ident(#obj)), quote!(#ffi_name::#ident(#conversion)))
-                } else {
-                    panic!("Unsupported field type in enum variant");
-                }
+                },
+                _ => panic!("Unsupported field type in enum variant")
             },
             Fields::Unit => define_lambda(quote!(#target_name::#ident), quote!(#ffi_name::#ident)),
             _ => panic!("Unsupported fields in enum variant"),
@@ -940,7 +926,8 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                             converted_fields.push(if should_use_direct_conversion(&type_path.path) {
                                 quote!(#field_indexed)
                             } else {
-                                ffi_from_conversion(quote!(#field_indexed)) });
+                                ffi_from_conversion(quote!(#field_indexed))
+                            });
                         } else {
                             panic!("Unsupported field type in enum variant");
                         }
