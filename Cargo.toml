@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "rs-ffi-interfaces",
+    "rs-ffi-macro-derive",
+]
+
+[workspace.package]
+authors = ["Vladimir Pirogov <vladimir.pirogov@dash.org>"]
+description = "Procedural macro for FFI and its interfaces & helpers"
+homepage = "https://github.com/pankcuf/rs-ffi-macro"
+license = "MIT"
+keywords = ["ffi", "macro", "c-bindings"]
+
+[profile.release]
+lto = "thin"
+opt-level = 3
+
