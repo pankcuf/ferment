@@ -115,17 +115,17 @@ fn create_struct(name: TokenStream2, fields: Vec<Box<dyn ToTokens>>) -> TokenStr
 }
 
 
-fn ffi_to_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
-    let keys_conversion = package_boxed_vec_expression(quote!(#map_key_path.keys().cloned().map(|#key_index| #key_conversion).collect()));
-    let values_conversion = package_boxed_vec_expression(quote!(#map_key_path.values().cloned().map(|#key_index| #value_conversion).collect()));
-    package_boxed_expression(quote! {{
-        rs_ffi_interfaces::MapFFI {
-            count: #map_key_path.len(),
-            keys: #keys_conversion,
-            values: #values_conversion,
-        }
-    }})
-}
+// fn ffi_to_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
+//     let keys_conversion = package_boxed_vec_expression(quote!(#map_key_path.keys().cloned().map(|#key_index| #key_conversion).collect()));
+//     let values_conversion = package_boxed_vec_expression(quote!(#map_key_path.values().cloned().map(|#key_index| #value_conversion).collect()));
+//     package_boxed_expression(quote! {{
+//         rs_ffi_interfaces::MapFFI {
+//             count: #map_key_path.len(),
+//             keys: #keys_conversion,
+//             values: #values_conversion,
+//         }
+//     }})
+// }
 
 fn ffi_from_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, acc_type: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
     quote! {{
@@ -153,10 +153,10 @@ fn from_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
             match &args[..] {
                 [GenericArgument::Type(Type::Path(inner_path))] => {
                     let path = &inner_path.path;
-                    let key_index = quote!(i);
+                    // let key_index = quote!(i);
                     let ffi_deref = ffi_deref();
-                    let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
-                    let value_simple_conversion = simple_conversion(quote!(*vec.values));
+                    // let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
+                    // let value_simple_conversion = simple_conversion(quote!(*vec.values));
                     let field = quote!((#ffi_deref).#field_name);
                     let field_type = &path.segments.last().unwrap().ident;
                     match conversion_type_for_path(path) {
@@ -353,27 +353,6 @@ fn define_vec(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
         },
         _ => panic!("define_vec: bad arguments {:?}", arguments)
     })
-}
-
-fn to_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
-    let vec = quote!(vec);
-    let transformer = match conversion_type_for_path(path) {
-        ConversionType::Simple => {
-            quote!(clone())
-        },
-        ConversionType::Complex => {
-            let mapper = package_boxed_expression(ffi_to_conversion(quote!(o)));
-            quote!(iter().map(|o| #mapper).collect())
-        },
-        ConversionType::Map => panic!("Map nested in Vec not supported yet"),
-        ConversionType::Vec => panic!("Vec nested in Vec not supported yet"),
-    };
-    let conversion = package_boxed_vec_expression(quote!(#vec.#transformer));
-    let obj = obj();
-    package_boxed_expression(quote! {{
-        let #vec = #obj.#field_name;
-        rs_ffi_interfaces::VecFFI { count: #vec.len(), values: #conversion }
-    }})
 }
 
 fn define_map(field_name: &Ident, arguments: &PathArguments) -> TokenStream2 {
@@ -982,9 +961,9 @@ pub fn impl_ffi_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn impl_ffi_fn_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn impl_ffi_fn_conv(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the input tokens into a syntax tree
-    let mut function = parse_macro_input!(item as ItemFn);
+    let function = parse_macro_input!(item as ItemFn);
     println!("impl_ffi_fn_conv: input: {:?}", function);
     // Create the FFI function name
     let ffi_fn_name = format!("{}_ffi", function.sig.ident);
