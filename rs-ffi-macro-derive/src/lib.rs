@@ -112,7 +112,7 @@ fn obj_field_name(field_name: TokenStream2) -> TokenStream2 {
     quote!(#obj.#field_name)
 }
 
-fn create_struct(name: TokenStream2, fields: Vec<Box<dyn ToTokens>>) -> TokenStream2 {
+fn create_struct(name: TokenStream2, fields: Vec<Box<impl ToTokens>>) -> TokenStream2 {
     quote! {
         #[repr(C)]
         #[derive(Clone, Copy, Debug)]
@@ -587,17 +587,13 @@ fn ffi_struct_name(field_type: &Ident) -> Ident {
     format_ident!("{}FFI", field_type)
 }
 
-fn convert_struct_to_var(field_name: TokenStream2, path: &Path) -> TokenStream2 {
-    define_pub_field(field_name, convert_path_to_field_type(path))
-}
-
-fn convert_map_arg_type(path: &Path) -> TokenStream2 {
+fn extract_map_arg_type(path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "BTreeMap" | "HashMap" => match &last_segment.arguments {
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
                 [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
-                    ffi_map_field_type(convert_map_arg_type(path_keys), convert_map_arg_type(path_values)),
+                    ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
                 _ => panic!("convert_map_arg_type: bad args {:?}", last_segment)
             },
             _ => panic!("convert_map_arg_type: Unknown args {:?}", last_segment)
@@ -606,79 +602,56 @@ fn convert_map_arg_type(path: &Path) -> TokenStream2 {
     }
 }
 
-fn convert_vec_arg_type(path: &Path) -> TokenStream2 {
+fn extract_vec_arg_type(path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "Vec" => match &last_segment.arguments {
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
                 [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                    ffi_vec_field_type(convert_vec_arg_type(path)),
-                _ => panic!("convert_vec_arg_type: bad args {:?}", path)
+                    ffi_vec_field_type(extract_vec_arg_type(path)),
+                _ => panic!("extract_vec_arg_type: bad args {:?}", path)
             },
-            _ => panic!("convert_vec_arg_type: Unknown args {:?}", path)
+            _ => panic!("extract_vec_arg_type: Unknown args {:?}", path)
         },
         _ => convert_path_to_field_type(path)
     }
 }
 
-fn convert_map_to_var(field_name: TokenStream2, path_keys: &Path, path_values: &Path) -> TokenStream2 {
-    define_pub_field(quote!(#field_name), ffi_map_field_type(convert_map_arg_type(path_keys), convert_map_arg_type(path_values)))
-}
-
-fn convert_vec_to_var(field_name: TokenStream2, path: &Path) -> TokenStream2 {
-    let last_segment = path.segments.last().unwrap();
-    define_pub_field(field_name.clone(), match &last_segment.arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                 ffi_vec_field_type(convert_vec_arg_type(path)),
-            _ => panic!("convert_vec_to_var: Bad args {:?} {:?}", field_name, args)
-        }
-        _ => panic!("convert_vec_to_var: Bad arguments {:?}", field_name)
-    })
-}
-
-fn convert_path_arguments(field_name: TokenStream2, path_args: &PathArguments) -> TokenStream2 {
-    match &path_args {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
-                convert_map_to_var(field_name, path_keys, path_values),
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                convert_struct_to_var(field_name, path),
-            _ => panic!("from_path: Unknown field {:?} {:?}", field_name, args)
-        }
-        _ => panic!("from_path: Unknown field {:?}", field_name)
-    }
-}
-
-fn extract_struct_field(f: &Field) -> Box<dyn ToTokens> {
-    let field_name = &f.ident.clone().unwrap();
-    let field_name_quote = quote!(#field_name);
-    Box::new(match &f.ty {
-        // Type::Array(_type_arr) => convert_vec_to_var(field_name, _type_arr),
+fn extract_struct_field(field_type: &Type) -> TokenStream2 {
+    match field_type {
         Type::Path(TypePath { path, .. }) => {
             let last_segment = path.segments.last().unwrap();
+            let arguments = &last_segment.arguments;
             match last_segment.ident.to_string().as_str() {
-                "Vec" => convert_vec_to_var(field_name_quote, path),
-                "BTreeMap" | "HashMap" => convert_path_arguments(field_name_quote, &last_segment.arguments),
-                "Option" => match &last_segment.arguments {
+                "Vec" => match arguments {
                     PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                        [GenericArgument::Type(Type::Path(TypePath { path: unwrapped_path, .. }))] => {
-                            let unwrapped_segment = unwrapped_path.segments.last().unwrap();
-                            match unwrapped_segment.ident.to_string().as_str() {
-                                "Vec" => convert_vec_to_var(field_name_quote, unwrapped_path),
-                                "BTreeMap" | "HashMap" => convert_path_arguments(field_name_quote, &unwrapped_segment.arguments),
-                                _ => convert_struct_to_var(field_name_quote, unwrapped_path)
-                            }
-                        },
-                        _ => panic!("extract_struct_field: Unknown field {:?} {:?}", field_name, args)
+                        [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
+                            ffi_vec_field_type(extract_vec_arg_type(path)),
+                        _ => panic!("extract_struct_field: Vec: args: {:?} not supported", args)
                     }
-                    _ => panic!("extract_struct_field: Unknown field {:?}", field_name)
+                    _ => panic!("extract_struct_field: Vec: arguments: {:?} not supported", arguments)
                 },
-                _ => convert_struct_to_var(field_name_quote, path),
+                "BTreeMap" | "HashMap" => match arguments {
+                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
+                        [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
+                            ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
+                        _ => panic!("extract_struct_field: Map: args: {:?} not supported", args)
+                    }
+                    _ => panic!("extract_struct_field: Map: arguments: {:?} not supported", arguments)
+                },
+                "Option" => match arguments {
+                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
+                        [GenericArgument::Type(field_type)] =>
+                            extract_struct_field(field_type),
+                        _ => panic!("extract_struct_field: Option: {:?} not supported", args)
+                    }
+                    _ => panic!("extract_struct_field: Option: {:?} not supported", arguments)
+                },
+                _ => convert_path_to_field_type(path),
             }
         },
-        _ => panic!("Can't extract struct field")
-    })
+        _ => panic!("extract_struct_field: field type {:?} not supported", field_type)
+    }
 }
 
 
@@ -749,7 +722,10 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
             _ => ffi_deref_field_name(quote!(#field_name)),
         }))
     }).collect::<Vec<_>>();
-    let struct_fields = fields.named.iter().map(|f| extract_struct_field(f)).collect::<Vec<_>>();
+    let struct_fields = fields.named
+        .iter()
+        .map(|f| Box::new(define_pub_field(f.ident.clone().unwrap().to_token_stream(), extract_struct_field(&f.ty))))
+        .collect::<Vec<_>>();
     let ffi_name = ffi_struct_name(&ffi_name);
     let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
     let interface_impl = impl_interface(
@@ -772,50 +748,13 @@ fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
     match &variant.discriminant {
         Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
         None => {
-            let extract_field_value_type = |field: &Field| {
-                let field_type = &field.ty;
-                match field_type {
-                    // TODO: make it as for structs
-                    Type::Array(_type_arr) => quote!(*mut *mut #field_type, usize),
-                    Type::Path(type_path) => {
-                        let path = &type_path.path;
-                        let last_segment = path.segments.last().unwrap();
-                        match last_segment.ident.to_string().as_str() {
-                            "Vec" => match &last_segment.arguments {
-                                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                    [GenericArgument::Type(Type::Path(type_values))] =>
-                                        ffi_vec_field_type(convert_vec_arg_type(&type_values.path)),
-                                    _ => panic!("convert_vec_arg_type: bad args {:?}", path)
-                                },
-                                _ => panic!("convert_vec_arg_type: Unknown args {:?}", path)
-                            },
-                            "BTreeMap" | "HashMap" => match &last_segment.arguments {
-                                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                    [GenericArgument::Type(Type::Path(type_keys)), GenericArgument::Type(Type::Path(type_values))] =>
-                                        ffi_map_field_type(convert_map_arg_type(&type_keys.path), convert_map_arg_type(&type_values.path)),
-                                    _ => panic!("from_enum_variant: Unknown field {:?}", args)
-                                }
-                                _ => panic!("from_enum_variant: Unknown field")
-                            },
-                            "Option" => match &last_segment.arguments {
-                                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                    [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => convert_path_to_field_type(path),
-                                    _ => panic!("from_enum_variant: Unknown field {:?}", args)
-                                }
-                                _ => panic!("from_enum_variant: Unknown field")
-                            },
-                            _ => {
-                                let converted_type = convert_path_to_field_type(path);
-                                quote!(#variant_name(#converted_type))
-                            }
-                        }
-                    },
-                    _ => panic!("from_enum_variant: Can't extract struct field")
-                }
+            let extract_associated_type = |field_type: &Type| {
+                let converted_type = extract_struct_field(field_type);
+                quote!(#variant_name(#converted_type))
             };
             let enum_fields = match &variant.fields {
-                Fields::Named(ref fields) => fields.named.iter().map(|f| Box::new(extract_field_value_type(f))).collect::<Vec<_>>(),
-                Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|f| Box::new(extract_field_value_type(f))).collect::<Vec<_>>(),
+                Fields::Named(ref fields) => fields.named.iter().map(|f| Box::new(extract_associated_type(&f.ty))).collect::<Vec<_>>(),
+                Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|f| Box::new(extract_associated_type(&f.ty))).collect::<Vec<_>>(),
                 Fields::Unit => vec![Box::new(quote!(#variant_name))],
             };
             quote!(#(#enum_fields)*)
