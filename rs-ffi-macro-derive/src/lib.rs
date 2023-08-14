@@ -27,8 +27,9 @@ fn ffi() -> TokenStream2 {
 }
 
 fn ffi_deref() -> TokenStream2 {
-    let ffi = ffi();
-    quote!(*#ffi)
+    quote!(ffi_ref)
+    // let ffi = ffi();
+    // quote!(*#ffi)
 }
 
 fn obj() -> TokenStream2 {
@@ -103,7 +104,7 @@ fn unwrap_or(field_path: TokenStream2, or: TokenStream2) -> TokenStream2 {
 
 fn ffi_deref_field_name(field_name: TokenStream2) -> TokenStream2 {
     let ffi_deref = ffi_deref();
-    quote!((#ffi_deref).#field_name)
+    quote!(#ffi_deref.#field_name)
 }
 
 fn obj_field_name(field_name: TokenStream2) -> TokenStream2 {
@@ -167,7 +168,7 @@ fn from_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
                 let ffi_deref = ffi_deref();
                 // let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
                 // let value_simple_conversion = simple_conversion(quote!(*vec.values));
-                let field = quote!((#ffi_deref).#field_name);
+                let field = quote!(#ffi_deref.#field_name);
                 let field_type = &path.segments.last().unwrap().ident;
                 match conversion_type_for_path(path) {
                     ConversionType::Simple => quote!({
@@ -257,7 +258,7 @@ fn from_map(path: &Path, field_name: &Ident) -> TokenStream2 {
                         }
                     }
                 };
-                ffi_from_map_conversion(quote!((#ffi_deref).#field_name), key_index, quote!(#field_type), key_conversion, value_conversion)
+                ffi_from_map_conversion(quote!(#ffi_deref.#field_name), key_index, quote!(#field_type), key_conversion, value_conversion)
             },
             _ => panic!("from_map: Unknown field {:?} {:?}", field_name, args)
         },
@@ -636,13 +637,13 @@ fn convert_vec_to_var(field_name: TokenStream2, path: &Path) -> TokenStream2 {
     })
 }
 
-fn convert_path_arguments(field_name: &Ident, path_args: &PathArguments) -> TokenStream2 {
+fn convert_path_arguments(field_name: TokenStream2, path_args: &PathArguments) -> TokenStream2 {
     match &path_args {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
-                convert_map_to_var(quote!(#field_name), path_keys, path_values),
+                convert_map_to_var(field_name, path_keys, path_values),
             [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                convert_struct_to_var(quote!(#field_name), path),
+                convert_struct_to_var(field_name, path),
             _ => panic!("from_path: Unknown field {:?} {:?}", field_name, args)
         }
         _ => panic!("from_path: Unknown field {:?}", field_name)
@@ -651,28 +652,29 @@ fn convert_path_arguments(field_name: &Ident, path_args: &PathArguments) -> Toke
 
 fn extract_struct_field(f: &Field) -> Box<dyn ToTokens> {
     let field_name = &f.ident.clone().unwrap();
+    let field_name_quote = quote!(#field_name);
     Box::new(match &f.ty {
         // Type::Array(_type_arr) => convert_vec_to_var(field_name, _type_arr),
         Type::Path(TypePath { path, .. }) => {
             let last_segment = path.segments.last().unwrap();
             match last_segment.ident.to_string().as_str() {
-                "Vec" => convert_vec_to_var(quote!(#field_name), path),
-                "BTreeMap" | "HashMap" => convert_path_arguments(field_name, &last_segment.arguments),
+                "Vec" => convert_vec_to_var(field_name_quote, path),
+                "BTreeMap" | "HashMap" => convert_path_arguments(field_name_quote, &last_segment.arguments),
                 "Option" => match &last_segment.arguments {
                     PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
                         [GenericArgument::Type(Type::Path(TypePath { path: unwrapped_path, .. }))] => {
                             let unwrapped_segment = unwrapped_path.segments.last().unwrap();
                             match unwrapped_segment.ident.to_string().as_str() {
-                                "Vec" => convert_vec_to_var(quote!(#field_name), unwrapped_path),
-                                "BTreeMap" | "HashMap" => convert_path_arguments(field_name, &unwrapped_segment.arguments),
-                                _ => convert_struct_to_var(quote!(#field_name), unwrapped_path)
+                                "Vec" => convert_vec_to_var(field_name_quote, unwrapped_path),
+                                "BTreeMap" | "HashMap" => convert_path_arguments(field_name_quote, &unwrapped_segment.arguments),
+                                _ => convert_struct_to_var(field_name_quote, unwrapped_path)
                             }
                         },
                         _ => panic!("extract_struct_field: Unknown field {:?} {:?}", field_name, args)
                     }
                     _ => panic!("extract_struct_field: Unknown field {:?}", field_name)
                 },
-                _ => convert_struct_to_var(quote!(#field_name), path),
+                _ => convert_struct_to_var(field_name_quote, path),
             }
         },
         _ => panic!("Can't extract struct field")
@@ -712,13 +714,13 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
         Type::Path(ffi_name) => impl_interface(
             quote!(#ffi_name),
             quote!(#target_name),
-            quote!(#target_name(#ffi_deref.0)),
+            quote!(let ffi_ref = *ffi; #target_name(#ffi_deref.0)),
             package_boxed_expression(quote!(#ffi_name(#obj.0)))
         ),
         Type::Array(ffi_name) => impl_interface(
             quote!(#ffi_name),
             quote!(#target_name),
-            quote!(#target_name(#ffi_deref)),
+            quote!(let ffi_ref = *ffi; #target_name(#ffi_deref)),
             package_boxed_expression(quote!(#obj.0))
         ),
         _ => panic!("Expected array type")
@@ -887,7 +889,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     let interface_impl = impl_interface(
         quote!(#ffi_name),
         quote!(#target_name),
-        quote!(match #ffi_deref { #(#from_ffi_arms),* }),
+        quote!(let ffi_ref = *ffi; match #ffi_deref { #(#from_ffi_arms),* }),
         package_boxed_expression(quote!(match #obj { #(#to_ffi_arms),* })),
     );
 
