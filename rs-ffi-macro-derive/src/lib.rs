@@ -154,39 +154,35 @@ fn ffi_from_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, 
 
 fn ffi_from_vec_conversion(vec_key_path: TokenStream2, key_index: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
     quote! {{
-        (0..*#vec_key_path.count).map(|#key_index| #value_conversion).collect()
+        let vec = *#vec_key_path;
+        (0..vec.count).map(|#key_index| #value_conversion).collect()
     }}
 }
 
 fn from_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
-    let ffi_field_name_quote = ffi_deref_field_name(quote!(#field_name));
-    match &path.segments.last().unwrap().arguments {
+    let last_segment = path.segments.last().unwrap();
+    let arguments = &last_segment.arguments;
+    match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(inner_path))] => {
-                let path = &inner_path.path;
-                // let key_index = quote!(i);
+            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => {
                 let ffi_deref = ffi_deref();
-                // let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
-                // let value_simple_conversion = simple_conversion(quote!(*vec.values));
-                let field = quote!(#ffi_deref.#field_name);
-                let field_type = &path.segments.last().unwrap().ident;
-                match conversion_type_for_path(path) {
-                    ConversionType::Simple => quote!({
-                            let vec = *#field;
-                            std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec()
-                        }),
+                let conversion = match conversion_type_for_path(path) {
+                    ConversionType::Simple => {
+                        let field_type = &last_segment.ident;
+                        quote!(std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec())
+                    },
                     ConversionType::Complex => {
-                        let ffi_from_conversion = ffi_from_conversion(quote!(#field.values.add(i)));
-                        let count = quote!(#field.count);
-                        iter_map_collect(quote!((0..#count).into_iter()), quote!(|i| #ffi_from_conversion))
+                        let ffi_from_conversion = ffi_from_conversion(quote!(*vec.values.add(i)));
+                        quote!((0..vec.count).map(|i| #ffi_from_conversion).collect())
                     },
                     ConversionType::Map => panic!("from_vec (Map): Unknown field {:?} {:?}", field_name, args),
                     ConversionType::Vec => panic!("from_vec (Vec): Unknown field {:?} {:?}", field_name, args)
-                }
+                };
+                quote!({ let vec = *#ffi_deref.#field_name; #conversion })
             },
-            _ => panic!("from_path (vec): Unknown field {:?} {:?}", field_name, args)
+            _ => panic!("from_vec: Unknown field {:?} {:?}", field_name, args)
         },
-        _ => ffi_from_conversion(ffi_field_name_quote)
+        _ => panic!("from_vec: Bad arguments {:?} {:?}", field_name, arguments)
     }
 }
 
@@ -349,7 +345,7 @@ fn to_vec_conversion(field_name: &Ident, arguments: &PathArguments) -> TokenStre
                         ConversionType::Simple => quote!(vec.clone()),
                         ConversionType::Complex => {
                             let conversion = ffi_to_conversion(quote!(o));
-                            iter_map_collect(quote!(#obj_field_name_quote.into_iter()),  quote!(|o| #conversion))
+                            iter_map_collect(quote!(vec.into_iter()),  quote!(|o| #conversion))
                         },
                         ConversionType::Map => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
                         ConversionType::Vec => panic!("to_vec_conversion: Vec nested in Vec not supported yet"),
