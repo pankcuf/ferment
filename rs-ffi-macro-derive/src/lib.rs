@@ -112,7 +112,7 @@ fn obj_field_name(field_name: TokenStream2) -> TokenStream2 {
     quote!(#obj.#field_name)
 }
 
-fn create_struct(name: TokenStream2, fields: Vec<Box<impl ToTokens>>) -> TokenStream2 {
+fn create_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 {
     quote! {
         #[repr(C)]
         #[derive(Clone, Copy, Debug)]
@@ -263,7 +263,6 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 
 fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
-    // let ffi_field_name_quote = ffi_deref_field_name(quote!(#field_name));
     let arguments = &last_segment.arguments;
     match arguments {
         PathArguments::AngleBracketed(args) => match args.args.first() {
@@ -454,7 +453,6 @@ fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> 
 }
 
 fn to_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>) -> TokenStream2 {
-    // let obj_field_name_quote = obj_field_name(ident.clone());
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" |
@@ -500,14 +498,6 @@ fn ffi_to_opt_conversion(field_value: TokenStream2) -> TokenStream2 {
     let ffi_to_opt = ffi_to_opt();
     quote!(#package::#interface::#ffi_to_opt(#field_value))
 }
-
-// fn to_field(field_name: &Ident) -> TokenStream2 {
-//     define_field(quote!(#field_name), ffi_to_conversion(obj_field_name(quote!(#field_name))))
-// }
-//
-// fn to_opt_field(field_name: &Ident) -> TokenStream2 {
-//     define_field(quote!(#field_name), ffi_to_opt_conversion(obj_field_name(quote!(#field_name))))
-// }
 
 fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
     match &*type_ptr.elem {
@@ -710,28 +700,29 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
 fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let ffi_name = input.ident.clone();
     let conversions_to_ffi = fields.named.iter().map(|Field { ident, ty, .. }| {
-        let ident = &ident.clone().unwrap();
-        match ty {
-            Type::Ptr(type_ptr) => define_field(ident.to_token_stream(),to_ptr(obj_field_name(quote!(#ident)), type_ptr)),
+        let field_name = &ident.clone().unwrap();
+        let field_path = obj_field_name(field_name.to_token_stream());
+        define_field(field_name.to_token_stream(), match ty {
+            Type::Ptr(type_ptr) => to_ptr(field_path, type_ptr),
+            Type::Path(TypePath { path, .. }) => to_path(field_path, path, None),
+            Type::Reference(type_reference) => to_reference(field_path, type_reference),
             // Type::Array(type_array) => to_arr(f, type_array),
-            Type::Path(type_path) => define_field(ident.to_token_stream(), to_path(obj_field_name(quote!(#ident)), &type_path.path, None)),
-            Type::Reference(type_reference) => define_field(ident.to_token_stream(), to_reference(obj_field_name(quote!(#ident)), type_reference)),
-            _ => panic!("from_named_struct: Unknown field {:?} {:?}", ident, ty),
-        }
+            _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, ty),
+        })
     }).collect::<Vec<_>>();
     let conversions_from_ffi = fields.named.iter().map(|Field { ident, ty, .. } | {
         let field_name = &ident.clone().unwrap();
-        let field_path = ffi_deref_field_name(quote!(#field_name));
-        Box::new(define_field(quote!(#field_name),match ty {
+        let field_path = ffi_deref_field_name(field_name.to_token_stream());
+        define_field(field_name.to_token_stream(),match ty {
             Type::Ptr(type_ptr) => from_ptr(field_path, type_ptr),
-            Type::Path(type_path) => from_path(field_path, &type_path.path, None),
+            Type::Path(TypePath { path, .. }) => from_path(field_path, path, None),
             Type::Reference(type_reference) => from_reference(field_path, type_reference),
             _ => field_path,
-        }))
+        })
     }).collect::<Vec<_>>();
     let struct_fields = fields.named
         .iter()
-        .map(|f| Box::new(define_pub_field(f.ident.clone().unwrap().to_token_stream(), extract_struct_field(&f.ty))))
+        .map(|Field { ident, ty: field_type, .. }| define_pub_field(ident.clone().unwrap().to_token_stream(), extract_struct_field(field_type)))
         .collect::<Vec<_>>();
     let ffi_name = ffi_struct_name(&ffi_name);
     let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
