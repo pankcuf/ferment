@@ -159,7 +159,6 @@ fn ffi_from_vec_conversion(vec_key_path: TokenStream2, key_index: TokenStream2, 
     }}
 }
 
-// fn from_vec(path: &Path, field_name: &Ident) -> TokenStream2 {
 fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     match arguments {
@@ -266,25 +265,22 @@ fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &last_segment.arguments;
     match arguments {
         PathArguments::AngleBracketed(args) => match args.args.first() {
-            Some(GenericArgument::Type(Type::Path(inner_path))) => {
-                let path = &inner_path.path;
-                match path.segments.last() {
-                    Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
-                        // std convertible
-                        // TODO: what to use? 0 or ::MAX
-                        "i8" | "u8" | "i16" | "u16" |
-                        "i32" | "u32" | "i64" | "u64" |
-                        "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
-                        // TODO: mmm shit that's incorrect
-                        "bool" => quote!((#field_path > 0).then_some(#field_path)),
-                        "Vec" => {
-                            let conversion = from_vec(path, field_path.clone());
-                            quote!((!#field_path.is_null()).then_some(#conversion))
-                        },
-                        _ => ffi_from_opt_conversion(field_path)
+            Some(GenericArgument::Type(Type::Path(TypePath { path, .. }))) => match path.segments.last() {
+                Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
+                    // std convertible
+                    // TODO: what to use? 0 or ::MAX
+                    "i8" | "u8" | "i16" | "u16" |
+                    "i32" | "u32" | "i64" | "u64" |
+                    "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
+                    // TODO: mmm shit that's incorrect
+                    "bool" => quote!((#field_path > 0).then_some(#field_path)),
+                    "Vec" => {
+                        let conversion = from_vec(path, field_path.clone());
+                        quote!((!#field_path.is_null()).then_some(#conversion))
                     },
-                    _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, inner_path)
-                }
+                    _ => ffi_from_opt_conversion(field_path)
+                },
+                _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, path)
             },
             _ => panic!("from_option: Unknown field {:?} {:?}", field_path, args)
         },
