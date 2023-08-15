@@ -1,4 +1,6 @@
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, CString};
+use std::hash::Hash;
 use std::mem;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
@@ -30,6 +32,24 @@ impl FFIConversion<String> for c_char {
     }
 }
 
+impl FFIConversion<&str> for c_char {
+    unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
+        CStr::from_ptr(ffi).to_str().unwrap()
+    }
+
+    unsafe fn ffi_to(obj: &str) -> *mut Self {
+        CString::new(obj).unwrap().into_raw()
+    }
+
+    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<&'static str> {
+        (!ffi.is_null())
+            .then_some(<Self as FFIConversion<&str>>::ffi_from(ffi))
+    }
+
+    unsafe fn ffi_to_opt(obj: Option<&str>) -> *mut Self {
+        obj.map_or(null_mut(), |o| <Self as FFIConversion<&str>>::ffi_to(o))
+    }
+}
 
 pub fn boxed<T>(obj: T) -> *mut T {
     Box::into_raw(Box::new(obj))
@@ -69,6 +89,28 @@ pub struct MapFFI<K, V> {
     pub count: usize,
     pub keys: *mut K,
     pub values: *mut V,
+}
+
+impl<K, V> MapFFI<K, V> where K: Copy, V: Copy  {
+    pub unsafe fn fold_to_btree_map<K2: Ord, V2>(self, key_converter: impl Fn(K) -> K2, value_converter: impl Fn(V) -> V2) -> BTreeMap<K2, V2> {
+        (0..self.count).fold(BTreeMap::new(), |mut acc, i| {
+            let key = key_converter(*self.keys.add(i));
+            let value = value_converter(*self.values.add(i));
+            acc.insert(key, value);
+            acc
+        })
+    }
+}
+
+impl<K, V> MapFFI<K, V> where K: Copy, V: Copy  {
+    pub unsafe fn fold_to_hash_map<K2: Hash + PartialEq + Eq, V2>(self, key_converter: impl Fn(K) -> K2, value_converter: impl Fn(V) -> V2) -> HashMap<K2, V2> {
+        (0..self.count).fold(HashMap::new(), |mut acc, i| {
+            let key = key_converter(*self.keys.add(i));
+            let value = value_converter(*self.values.add(i));
+            acc.insert(key, value);
+            acc
+        })
+    }
 }
 
 #[repr(C)]
