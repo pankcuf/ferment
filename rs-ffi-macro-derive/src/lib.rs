@@ -516,16 +516,6 @@ fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> Tok
     }
 }
 
-// fn to_arr(f: &Field, _type_array: &TypeArray) -> TokenStream2 {
-//     let field_name = &f.ident.clone().unwrap();
-//     if let Type::Path(type_path) = &f.ty {
-//         if type_path.path.segments.last().unwrap().ident == "Option" {
-//             return to_opt_field(field_name)
-//         }
-//     }
-//     to_field(field_name)
-// }
-
 fn conversion_type_for_path(path: &Path) -> ConversionType {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
@@ -692,31 +682,29 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
 
 fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let ffi_name = input.ident.clone();
-    let conversions_to_ffi = fields.named.iter().map(|Field { ident, ty, .. }| {
+    let fields_count = fields.named.len();
+    let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
+    let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
+    let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
+    fields.named.iter().for_each(|Field { ident, ty: field_type, .. }| {
         let field_name = &ident.clone().unwrap();
-        let field_path = obj_field_name(field_name.to_token_stream());
-        define_field(field_name.to_token_stream(), match ty {
-            Type::Ptr(type_ptr) => to_ptr(field_path, type_ptr),
-            Type::Path(TypePath { path, .. }) => to_path(field_path, path, None),
-            Type::Reference(type_reference) => to_reference(field_path, type_reference),
-            // Type::Array(type_array) => to_arr(f, type_array),
-            _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, ty),
-        })
-    }).collect::<Vec<_>>();
-    let conversions_from_ffi = fields.named.iter().map(|Field { ident, ty, .. } | {
-        let field_name = &ident.clone().unwrap();
-        let field_path = ffi_deref_field_name(field_name.to_token_stream());
-        define_field(field_name.to_token_stream(),match ty {
-            Type::Ptr(type_ptr) => from_ptr(field_path, type_ptr),
-            Type::Path(TypePath { path, .. }) => from_path(field_path, path, None),
-            Type::Reference(type_reference) => from_reference(field_path, type_reference),
-            _ => field_path,
-        })
-    }).collect::<Vec<_>>();
-    let struct_fields = fields.named
-        .iter()
-        .map(|Field { ident, ty: field_type, .. }| define_pub_field(ident.clone().unwrap().to_token_stream(), extract_struct_field(field_type)))
-        .collect::<Vec<_>>();
+        let field_name_quote = field_name.to_token_stream();
+        let field_path_to = obj_field_name(field_name_quote.clone());
+        let field_path_from = ffi_deref_field_name(field_name_quote.clone());
+        conversions_to_ffi.push(define_field(field_name_quote.clone(), match field_type {
+            Type::Ptr(type_ptr) => to_ptr(field_path_to, type_ptr),
+            Type::Path(TypePath { path, .. }) => to_path(field_path_to, path, None),
+            Type::Reference(type_reference) => to_reference(field_path_to, type_reference),
+            _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, field_type),
+        }));
+        conversions_from_ffi.push(define_field(field_name_quote.clone(),match field_type {
+            Type::Ptr(type_ptr) => from_ptr(field_path_from, type_ptr),
+            Type::Path(TypePath { path, .. }) => from_path(field_path_from, path, None),
+            Type::Reference(type_reference) => from_reference(field_path_from, type_reference),
+            _ => field_path_from,
+        }));
+        struct_fields.push(define_pub_field(field_name_quote.clone(), extract_struct_field(field_type)));
+    });
     let ffi_name = ffi_struct_name(&ffi_name);
     let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
     let interface_impl = impl_interface(
