@@ -58,7 +58,10 @@ fn boxed() -> TokenStream2 {
 
 fn boxed_vec() -> TokenStream2 {
     quote!(boxed_vec)
+}
 
+fn unbox_any() -> TokenStream2 {
+    quote!(unbox_any)
 }
 
 fn package_boxed() -> TokenStream2 {
@@ -631,7 +634,7 @@ fn extract_struct_field(field_type: &Type) -> TokenStream2 {
 
 
 
-fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_conversion: TokenStream2, ffi_to_conversion: TokenStream2) -> TokenStream2 {
+fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_conversion: TokenStream2, ffi_to_conversion: TokenStream2, destroy_code: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
     let ffi = ffi();
@@ -640,6 +643,8 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
     let ffi_to = ffi_to();
     let ffi_from_opt = ffi_from_opt();
     let ffi_to_opt = ffi_to_opt();
+    let unbox_any = unbox_any();
+
     quote! {
         impl #package::#interface<#target_name> for #ffi_name {
             unsafe fn #ffi_from(#ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
@@ -649,6 +654,10 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
             }
             unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
                 #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
+            }
+            unsafe fn destroy(#ffi: *mut #ffi_name) {
+                let #obj = #package::#unbox_any(#ffi);
+                #destroy_code
             }
         }
     }
@@ -662,13 +671,15 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
             quote!(#ffi_name),
             quote!(#target_name),
             quote!(let ffi_ref = *ffi; #target_name(#ffi_deref.0)),
-            package_boxed_expression(quote!(#ffi_name(#obj.0)))
+            package_boxed_expression(quote!(#ffi_name(#obj.0))),
+            quote!()
         ),
         Type::Array(ffi_name) => impl_interface(
             quote!(#ffi_name),
             quote!(#target_name),
             quote!(let ffi_ref = *ffi; #target_name(#ffi_deref)),
-            package_boxed_expression(quote!(#obj.0))
+            package_boxed_expression(quote!(#obj.0)),
+            quote!()
         ),
         _ => panic!("Expected array type")
     };
@@ -686,6 +697,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
     let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
+    let mut destroy_fields = Vec::<TokenStream2>::with_capacity(fields_count);
     fields.named.iter().for_each(|Field { ident, ty: field_type, .. }| {
         let field_name = &ident.clone().unwrap();
         let field_name_quote = field_name.to_token_stream();
@@ -712,7 +724,9 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
         quote!(#target_name),
         quote!(let ffi_ref = &*ffi; #target_name { #(#conversions_from_ffi,)* }),
         package_boxed_expression(quote!(#ffi_name { #(#conversions_to_ffi,)* })),
+        quote!(#(#destroy_fields,)*)
     );
+
     let expanded = quote! {
         #input
         #ffi_struct
@@ -722,7 +736,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     TokenStream::from(expanded)
 }
 
-fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
+fn from_enum_variant(variant: &Variant) -> TokenStream2 {
     let variant_name = &variant.ident;
     match &variant.discriminant {
         Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
@@ -744,12 +758,47 @@ fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
 
 fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let variants = &data_enum.variants;
-    let variant_fields = variants
-        .iter()
-        .enumerate()
-        .map(|(index, variant)| from_enum_variant(variant, index))
-        .collect::<Vec<_>>();
+    let variants_count = variants.len();
     let ffi_name = ffi_struct_name(&target_name);
+    let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
+    let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
+    let mut variant_fields = Vec::<TokenStream2>::with_capacity(variants_count);
+    let mut destroy_fields = Vec::<TokenStream2>::with_capacity(variants_count);
+    variants.iter().for_each(|variant| {
+        let ident = &variant.ident;
+        let fields = &variant.fields;
+        variant_fields.push(from_enum_variant(variant));
+        let (variant_to_lvalue,
+            variant_to_rvalue,
+            variant_from_lvalue,
+            variant_from_rvalue) = match fields {
+            Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => {
+                let mut variant_fields = vec![];
+                let mut converted_fields_to = vec![];
+                let mut converted_fields_from = vec![];
+                unnamed.iter().enumerate().for_each(|(index, Field { ty, .. })| {
+                    let field_indexed = format_ident!("o_{}", index);
+                    let (ass_val_to, ass_val_from) = match ty {
+                        Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
+                            ConversionType::Simple => (quote!(#field_indexed), quote!(#field_indexed)),
+                            ConversionType::Complex => (ffi_to_conversion(quote!(#field_indexed)), ffi_from_conversion(quote!(#field_indexed))),
+                            _ => unimplemented!("Enum with Map/Vec as associated value not supported yet")
+                        },
+                        _ => unimplemented!("Unsupported field type in enum variant")
+                    };
+                    variant_fields.push(quote!(#field_indexed));
+                    converted_fields_to.push(ass_val_to);
+                    converted_fields_from.push(ass_val_from);
+                });
+                (quote!(#target_name::#ident(#(#variant_fields,)*)), quote!(#ffi_name::#ident(#(#converted_fields_to,)*)),
+                 quote!(#ffi_name::#ident(#(#variant_fields,)*)), quote!(#target_name::#ident(#(#converted_fields_from,)*)))
+            },
+            Fields::Unit => (quote!(#target_name::#ident), quote!(#ffi_name::#ident), quote!(#ffi_name::#ident), quote!(#target_name::#ident)),
+            _ => panic!("Unsupported fields in enum variant"),
+        };
+        conversions_to_ffi.push(define_lambda(variant_to_lvalue, variant_to_rvalue));
+        conversions_from_ffi.push(define_lambda(variant_from_lvalue, variant_from_rvalue));
+    });
 
     let converted = quote! {
         #[repr(C)]
@@ -758,57 +807,14 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
             #(#variant_fields,)*
         }
     };
-    let to_ffi_arms = data_enum.variants.iter().map(|v| {
-        let ident = &v.ident;
-        match &v.fields {
-            Fields::Unnamed(fields) => match &fields.unnamed.first().unwrap().ty {
-                Type::Path(TypePath { path, .. }) => {
-                    let obj = obj();
-                    let conversion = match conversion_type_for_path(path) {
-                        ConversionType::Simple => obj.clone(),
-                        ConversionType::Complex => ffi_to_conversion(obj.clone()),
-                        ConversionType::Vec | ConversionType::Map => unimplemented!("Enum with Map/Vec as associated value not supported yet")
-                    };
-                    define_lambda(quote!(#target_name::#ident(#obj)), quote!(#ffi_name::#ident(#conversion)))
-                },
-                _ => panic!("Unsupported field type in enum variant")
-            },
-            Fields::Unit => define_lambda(quote!(#target_name::#ident), quote!(#ffi_name::#ident)),
-            _ => panic!("Unsupported fields in enum variant"),
-        }
-    });
-
-    let from_ffi_arms = data_enum.variants.iter().map(|v| {
-        let ident = &v.ident;
-        match &v.fields {
-            Fields::Unnamed(fields) => {
-                let mut variant_fields = vec![];
-                let mut converted_fields = vec![];
-                fields.unnamed.iter().enumerate().for_each(|(index, field)| match &field.ty {
-                    Type::Path(TypePath { path, .. }) => {
-                        let field_indexed = format_ident!("o_{}", index);
-                        variant_fields.push(quote!(#field_indexed));
-                        converted_fields.push(match conversion_type_for_path(path) {
-                            ConversionType::Simple => quote!(#field_indexed),
-                            ConversionType::Complex => ffi_from_conversion(quote!(#field_indexed)),
-                            ConversionType::Vec | ConversionType::Map => unimplemented!("Enum with Map/Vec as associated value not supported yet")
-                        });
-                    },
-                    _ => panic!("Unsupported field type in enum variant")
-                });
-                define_lambda(quote!(#ffi_name::#ident(#(#variant_fields,)*)), quote!(#target_name::#ident(#(#converted_fields,)*)))
-            },
-            Fields::Unit => define_lambda(quote!(#ffi_name::#ident), quote!(#target_name::#ident)),
-            _ => panic!("Unsupported fields in enum variant"),
-        }
-    });
-    let obj = obj();
     let ffi_deref = ffi_deref();
+    let obj = obj();
     let interface_impl = impl_interface(
         quote!(#ffi_name),
         quote!(#target_name),
-        quote!(let ffi_ref = *ffi; match #ffi_deref { #(#from_ffi_arms),* }),
-        package_boxed_expression(quote!(match #obj { #(#to_ffi_arms),* })),
+        quote!(let ffi_ref = *ffi; match #ffi_deref { #(#conversions_from_ffi),* }),
+        package_boxed_expression(quote!(match #obj { #(#conversions_to_ffi),* })),
+        quote!(#(#destroy_fields,)*)
     );
 
     let expanded = quote! {
