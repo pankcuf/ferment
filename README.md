@@ -12,6 +12,14 @@ A procedural macro consists of 2 macros:
 1. `impl_ffi_conv` - for structures/enums
 2. `impl_ffi_fn_conv` - for functions
 
+**Usage**
+Crate is not published yet, so use it for example locally
+
+```toml
+rs-ffi-interfaces = { path = "../../rs-ffi-macro/rs-ffi-interfaces" }
+rs-ffi-macro-derive = { path = "../../rs-ffi-macro/rs-ffi-macro-derive" }
+```
+
 Using the macro implies using `cbindgen` with a configuration like:
 
 ```rust
