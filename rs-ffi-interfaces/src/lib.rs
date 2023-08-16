@@ -11,6 +11,8 @@ pub trait FFIConversion<T> {
     unsafe fn ffi_to(obj: T) -> *mut Self;
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T>;
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self;
+
+    unsafe fn destroy(ffi: *mut Self);
 }
 
 impl FFIConversion<String> for c_char {
@@ -30,6 +32,10 @@ impl FFIConversion<String> for c_char {
     unsafe fn ffi_to_opt(obj: Option<String>) -> *mut Self {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<String>>::ffi_to(o))
     }
+
+    unsafe fn destroy(ffi: *mut Self) {
+        let _ = CString::from_raw(ffi);
+    }
 }
 
 impl FFIConversion<&str> for c_char {
@@ -48,6 +54,10 @@ impl FFIConversion<&str> for c_char {
 
     unsafe fn ffi_to_opt(obj: Option<&str>) -> *mut Self {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<&str>>::ffi_to(o))
+    }
+
+    unsafe fn destroy(ffi: *mut Self) {
+        let _ = CString::from_raw(ffi);
     }
 }
 
