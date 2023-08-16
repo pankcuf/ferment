@@ -743,7 +743,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     let ffi_name = ffi_struct_name(&target_name);
     let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
-    let mut variant_fields = Vec::<TokenStream2>::with_capacity(variants_count);
+    let mut variants_fields = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut destroy_fields = Vec::<TokenStream2>::with_capacity(variants_count);
     variants.iter().for_each(|Variant { ident: variant_name, fields, discriminant, ..}| {
         let target_variant_path = quote!(#target_name::#variant_name);
@@ -800,7 +800,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
             _ => panic!("Error variant discriminant")
         };
 
-        variant_fields.push(variant_field);
+        variants_fields.push(variant_field);
         conversions_to_ffi.push(define_lambda(variant_to_lvalue, variant_to_rvalue));
         conversions_from_ffi.push(define_lambda(variant_from_lvalue, variant_from_rvalue));
     });
@@ -809,7 +809,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
         #[repr(C)]
         #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
         pub enum #ffi_name {
-            #(#variant_fields,)*
+            #(#variants_fields,)*
         }
     };
     let ffi_deref = ffi_deref();
