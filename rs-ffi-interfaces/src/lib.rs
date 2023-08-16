@@ -34,6 +34,9 @@ impl FFIConversion<String> for c_char {
     }
 
     unsafe fn destroy(ffi: *mut Self) {
+        if ffi.is_null() {
+            return;
+        }
         let _ = CString::from_raw(ffi);
     }
 }
@@ -57,6 +60,9 @@ impl FFIConversion<&str> for c_char {
     }
 
     unsafe fn destroy(ffi: *mut Self) {
+        if ffi.is_null() {
+            return;
+        }
         let _ = CString::from_raw(ffi);
     }
 }
