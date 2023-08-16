@@ -161,28 +161,25 @@ fn ffi_from_vec_conversion(vec_key_path: TokenStream2, key_index: TokenStream2, 
 
 fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
-    match arguments {
+    let conversion = match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => {
-                let conversion = match conversion_type_for_path(path) {
-                    ConversionType::Simple => {
-                        let field_type = &path.segments.last().unwrap().ident;
-                        quote!(std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec())
-                    },
-                    ConversionType::Complex => {
-                        let ffi_from_conversion = ffi_from_conversion(quote!(*vec.values.add(i)));
-                        quote!((0..vec.count).map(|i| #ffi_from_conversion).collect())
-                    },
-                    ConversionType::Map => panic!("from_vec (Map): Unknown field {:?} {:?}", field_path, args),
-                    ConversionType::Vec => panic!("from_vec (Vec): Unknown field {:?} {:?}", field_path, args)
-                };
-                // quote!({ let vec = &*#ffi_deref.#field_name; #conversion })
-                quote!({ let vec = &*#field_path; #conversion })
+            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
+                ConversionType::Simple => {
+                    let field_type = &path.segments.last().unwrap().ident;
+                    quote!(std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec())
+                },
+                ConversionType::Complex => {
+                    let ffi_from_conversion = ffi_from_conversion(quote!(*vec.values.add(i)));
+                    quote!((0..vec.count).map(|i| #ffi_from_conversion).collect())
+                },
+                ConversionType::Map => panic!("from_vec (Map): Unknown field {:?} {:?}", field_path, args),
+                ConversionType::Vec => panic!("from_vec (Vec): Unknown field {:?} {:?}", field_path, args)
             },
             _ => panic!("from_vec: Unknown field {:?} {:?}", field_path, args)
         },
         _ => panic!("from_vec: Bad arguments {:?} {:?}", field_path, arguments)
-    }
+    };
+    quote!({ let vec = &*#field_path; #conversion })
 }
 
 fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
