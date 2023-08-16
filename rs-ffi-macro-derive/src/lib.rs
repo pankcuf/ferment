@@ -767,7 +767,8 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     variants.iter().for_each(|variant| {
         let ident = &variant.ident;
         let fields = &variant.fields;
-        variant_fields.push(from_enum_variant(variant));
+        let target_ident = quote!(#target_name::#ident);
+        let ffi_ident = quote!(#ffi_name::#ident);
         let (variant_to_lvalue,
             variant_to_rvalue,
             variant_from_lvalue,
@@ -778,7 +779,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                 let mut converted_fields_from = vec![];
                 unnamed.iter().enumerate().for_each(|(index, Field { ty, .. })| {
                     let field_indexed = format_ident!("o_{}", index);
-                    let (ass_val_to, ass_val_from) = match ty {
+                    let (converted_field_to, converted_field_from) = match ty {
                         Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
                             ConversionType::Simple => (quote!(#field_indexed), quote!(#field_indexed)),
                             ConversionType::Complex => (ffi_to_conversion(quote!(#field_indexed)), ffi_from_conversion(quote!(#field_indexed))),
@@ -787,15 +788,23 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                         _ => unimplemented!("Unsupported field type in enum variant")
                     };
                     variant_fields.push(quote!(#field_indexed));
-                    converted_fields_to.push(ass_val_to);
-                    converted_fields_from.push(ass_val_from);
+                    converted_fields_to.push(converted_field_to);
+                    converted_fields_from.push(converted_field_from);
                 });
-                (quote!(#target_name::#ident(#(#variant_fields,)*)), quote!(#ffi_name::#ident(#(#converted_fields_to,)*)),
-                 quote!(#ffi_name::#ident(#(#variant_fields,)*)), quote!(#target_name::#ident(#(#converted_fields_from,)*)))
+                (quote!(#target_ident(#(#variant_fields,)*)),
+                 quote!(#ffi_ident(#(#converted_fields_to,)*)),
+                 quote!(#ffi_ident(#(#variant_fields,)*)),
+                 quote!(#target_ident(#(#converted_fields_from,)*)))
             },
-            Fields::Unit => (quote!(#target_name::#ident), quote!(#ffi_name::#ident), quote!(#ffi_name::#ident), quote!(#target_name::#ident)),
+            Fields::Unit => (
+                quote!(#target_ident),
+                quote!(#ffi_ident),
+                quote!(#ffi_ident),
+                quote!(#target_ident)
+            ),
             _ => panic!("Unsupported fields in enum variant"),
         };
+        variant_fields.push(from_enum_variant(variant));
         conversions_to_ffi.push(define_lambda(variant_to_lvalue, variant_to_rvalue));
         conversions_from_ffi.push(define_lambda(variant_from_lvalue, variant_from_rvalue));
     });
