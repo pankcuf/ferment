@@ -1,6 +1,6 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Variant, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference};
+use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
@@ -736,25 +736,6 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     TokenStream::from(expanded)
 }
 
-fn from_enum_variant(variant: &Variant) -> TokenStream2 {
-    let variant_name = &variant.ident;
-    match &variant.discriminant {
-        Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
-        None => {
-            let extract_associated_type = |field_type: &Type| {
-                let converted_type = extract_struct_field(field_type);
-                quote!(#variant_name(#converted_type))
-            };
-            let enum_fields = match &variant.fields {
-                Fields::Named(ref fields) => fields.named.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
-                Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
-                Fields::Unit => vec![quote!(#variant_name)],
-            };
-            quote!(#(#enum_fields)*)
-        },
-        _ => panic!("Error variant discriminant")
-    }
-}
 
 fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let variants = &data_enum.variants;
@@ -764,11 +745,9 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut variant_fields = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut destroy_fields = Vec::<TokenStream2>::with_capacity(variants_count);
-    variants.iter().for_each(|variant| {
-        let ident = &variant.ident;
-        let fields = &variant.fields;
-        let target_ident = quote!(#target_name::#ident);
-        let ffi_ident = quote!(#ffi_name::#ident);
+    variants.iter().for_each(|Variant { ident: variant_name, fields, discriminant, ..}| {
+        let target_variant_path = quote!(#target_name::#variant_name);
+        let ffi_variant_path = quote!(#ffi_name::#variant_name);
         let (variant_to_lvalue,
             variant_to_rvalue,
             variant_from_lvalue,
@@ -791,20 +770,37 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                     converted_fields_to.push(converted_field_to);
                     converted_fields_from.push(converted_field_from);
                 });
-                (quote!(#target_ident(#(#variant_fields,)*)),
-                 quote!(#ffi_ident(#(#converted_fields_to,)*)),
-                 quote!(#ffi_ident(#(#variant_fields,)*)),
-                 quote!(#target_ident(#(#converted_fields_from,)*)))
+                (quote!(#target_variant_path(#(#variant_fields,)*)),
+                 quote!(#ffi_variant_path(#(#converted_fields_to,)*)),
+                 quote!(#ffi_variant_path(#(#variant_fields,)*)),
+                 quote!(#target_variant_path(#(#converted_fields_from,)*)))
             },
             Fields::Unit => (
-                quote!(#target_ident),
-                quote!(#ffi_ident),
-                quote!(#ffi_ident),
-                quote!(#target_ident)
+                quote!(#target_variant_path),
+                quote!(#ffi_variant_path),
+                quote!(#ffi_variant_path),
+                quote!(#target_variant_path)
             ),
             _ => panic!("Unsupported fields in enum variant"),
         };
-        variant_fields.push(from_enum_variant(variant));
+        let variant_field = match discriminant {
+            Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
+            None => {
+                let extract_associated_type = |field_type: &Type| {
+                    let converted_type = extract_struct_field(field_type);
+                    quote!(#variant_name(#converted_type))
+                };
+                let enum_fields = match fields {
+                    Fields::Named(ref fields) => fields.named.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
+                    Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
+                    Fields::Unit => vec![quote!(#variant_name)],
+                };
+                quote!(#(#enum_fields)*)
+            },
+            _ => panic!("Error variant discriminant")
+        };
+
+        variant_fields.push(variant_field);
         conversions_to_ffi.push(define_lambda(variant_to_lvalue, variant_to_rvalue));
         conversions_from_ffi.push(define_lambda(variant_from_lvalue, variant_from_rvalue));
     });
@@ -909,93 +905,3 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     println!("{}", expanded);
     expanded.into()
 }
-
-// #[proc_macro_attribute]
-// pub fn impl_ffi_fn_conv(_attr: TokenStream, item: TokenStream) -> TokenStream {
-//     // Parse the input tokens into a syntax tree
-//     let function = parse_macro_input!(item as ItemFn);
-//     println!("impl_ffi_fn_conv: input: {:?}", function);
-//     let ident = function.sig.ident.clone();
-//     // Create the FFI function name
-//     let ffi_fn_name = format!("ffi_{}", function.sig.ident);
-//
-//     // Build the FFI function signature
-//     let ffi_fn_ident = Ident::new(&ffi_fn_name, ident.span());
-//     let inputs = &function.sig.inputs;
-//     let output = &function.sig.output;
-//
-//     println!("impl_ffi_fn_conv: ffi_fn_ident: {:?}", ffi_fn_ident);
-//     println!("impl_ffi_fn_conv: inputs: {:?}", inputs);
-//     println!("impl_ffi_fn_conv: output: {:?}", output);
-//     println!("impl_ffi_fn_conv: function: {:?}", function);
-//     // Generate the FFI function
-//     let ffi_fn = quote! {
-//         #[no_mangle] pub extern "C" fn #ffi_fn_ident(#inputs) #output {
-//             #ident(#inputs)
-//         }
-//     };
-//     let result = ffi_fn.into();
-//     println!("impl_ffi_fn_conv: output: {}", result);
-//     // Convert the generated function back into a TokenStream and return it
-//     result
-//
-// }
-
-// #[proc_macro_attribute]
-// pub fn ffi_chain_settings(_attr: TokenStream, item: TokenStream) -> TokenStream {
-//     let input = parse_macro_input!(item as ItemTrait);
-//
-//     let name = &input.ident;
-//     let ffi_name = format_ident!("{}FFI", name);
-//     let methods = input.items.into_iter().filter_map(|item| {
-//         if let TraitItem::Method(method) = item {
-//             Some(method)
-//         } else {
-//             None
-//         }
-//     });
-//
-//     // Generating FFI methods for the trait
-//     let ffi_methods = methods.map(|method| {
-//         let name = &method.sig.ident;
-//         let ffi_name = format_ident!("{}_ffi", name);
-//         let args = method.sig.inputs.iter().map(|arg| {
-//             if let FnArg::Typed(arg) = arg {
-//                 let arg_name = &arg.pat;
-//                 quote! { #arg_name: <#arg_name as FFIConversion<_>>::ffi_to(#arg_name) }
-//             } else {
-//                 panic!("Unexpected argument type");
-//             }
-//         });
-//
-//         quote! {
-//             unsafe fn #ffi_name(&self, #(#args),*) -> *mut _ {
-//                 <_ as FFIConversion<_>>::ffi_to(self.#name(#(#args)*))
-//             }
-//         }
-//     });
-//
-//     let expanded = quote! {
-//         pub trait #ffi_name {
-//             #(#ffi_methods)*
-//         }
-//
-//         impl #name for ChainType {
-//             // You need to put actual implementations here...
-//         }
-//
-//         impl #name for DevnetType {
-//             // You need to put actual implementations here...
-//         }
-//
-//         impl #ffi_name for ChainType {
-//             // FFI implementations...
-//         }
-//
-//         impl #ffi_name for DevnetType {
-//             // FFI implementations...
-//         }
-//     };
-//
-//     TokenStream::from(expanded)
-// }
