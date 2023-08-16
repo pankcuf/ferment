@@ -70,6 +70,17 @@ fn package_boxed() -> TokenStream2 {
     quote!(#package::#boxed)
 }
 
+fn package_unbox_any() -> TokenStream2 {
+    let package = package();
+    let unbox_any = unbox_any();
+    quote!(#package::#unbox_any)
+}
+
+fn package_unbox_any_expression(expr: TokenStream2) -> TokenStream2 {
+    let package_unbox_any = package_unbox_any();
+    quote!(#package_unbox_any(#expr))
+}
+
 fn package_boxed_expression(expr: TokenStream2) -> TokenStream2 {
     let package_boxed = package_boxed();
     quote!(#package_boxed(#expr))
@@ -643,7 +654,6 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
     let ffi_to = ffi_to();
     let ffi_from_opt = ffi_from_opt();
     let ffi_to_opt = ffi_to_opt();
-    let unbox_any = unbox_any();
 
     quote! {
         impl #package::#interface<#target_name> for #ffi_name {
@@ -656,7 +666,6 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
                 #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
             }
             unsafe fn destroy(#ffi: *mut #ffi_name) {
-                let #obj = #package::#unbox_any(#ffi);
                 #destroy_code
             }
         }
@@ -666,23 +675,26 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
 fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let obj = obj();
     let ffi_deref = ffi_deref();
-    let interface_impl = match fields.unnamed.first().unwrap().ty.clone() {
-        Type::Path(ffi_name) => impl_interface(
+    assert!(fields.unnamed.len() <= 1, "Unnamed structs with multiple fields not supported yet");
+    let (ffi_name, ffi_from_conversion, ffi_to_conversion, destroy_conversion) = match fields.unnamed.first().unwrap().ty.clone() {
+        // UInt256 etc
+        Type::Path(ffi_name) => (
             quote!(#ffi_name),
-            quote!(#target_name),
             quote!(let ffi_ref = *ffi; #target_name(#ffi_deref.0)),
             package_boxed_expression(quote!(#ffi_name(#obj.0))),
-            quote!()
+            package_unbox_any_expression(ffi())
         ),
-        Type::Array(ffi_name) => impl_interface(
+        // VarInt
+        Type::Array(ffi_name) => (
             quote!(#ffi_name),
-            quote!(#target_name),
             quote!(let ffi_ref = *ffi; #target_name(#ffi_deref)),
             package_boxed_expression(quote!(#obj.0)),
-            quote!()
+            quote!(())
         ),
-        _ => panic!("Expected array type")
+        _ => unimplemented!("from_unnamed_struct: not supported {:?}", fields.unnamed.first().unwrap().ty)
     };
+    let interface_impl = impl_interface(ffi_name, quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_conversion);
+
     let expanded = quote! {
         #input
         #interface_impl
@@ -699,23 +711,28 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
     let mut destroy_fields = Vec::<TokenStream2>::with_capacity(fields_count);
     fields.named.iter().for_each(|Field { ident, ty: field_type, .. }| {
-        let field_name = &ident.clone().unwrap();
-        let field_name_quote = field_name.to_token_stream();
-        let field_path_to = obj_field_name(field_name_quote.clone());
-        let field_path_from = ffi_deref_field_name(field_name_quote.clone());
-        conversions_to_ffi.push(define_field(field_name_quote.clone(), match field_type {
-            Type::Ptr(type_ptr) => to_ptr(field_path_to, type_ptr),
-            Type::Path(TypePath { path, .. }) => to_path(field_path_to, path, None),
-            Type::Reference(type_reference) => to_reference(field_path_to, type_reference),
+        let field_name = &ident.clone().unwrap().to_token_stream();
+        let field_path_to = obj_field_name(field_name.clone());
+        let field_path_from = ffi_deref_field_name(field_name.clone());
+
+        let (conversion_to, conversion_from) = match field_type {
+            Type::Ptr(type_ptr) => (
+                to_ptr(field_path_to, type_ptr),
+                from_ptr(field_path_from, type_ptr)
+            ),
+            Type::Path(TypePath { path, .. }) => (
+                to_path(field_path_to, path, None),
+                from_path(field_path_from, path, None)
+            ),
+            Type::Reference(type_reference) => (
+                to_reference(field_path_to, type_reference),
+                from_reference(field_path_from, type_reference)
+            ),
             _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, field_type),
-        }));
-        conversions_from_ffi.push(define_field(field_name_quote.clone(),match field_type {
-            Type::Ptr(type_ptr) => from_ptr(field_path_from, type_ptr),
-            Type::Path(TypePath { path, .. }) => from_path(field_path_from, path, None),
-            Type::Reference(type_reference) => from_reference(field_path_from, type_reference),
-            _ => field_path_from,
-        }));
-        struct_fields.push(define_pub_field(field_name_quote.clone(), extract_struct_field(field_type)));
+        };
+        conversions_to_ffi.push(define_field(field_name.clone(), conversion_to));
+        conversions_from_ffi.push(define_field(field_name.clone(),conversion_from));
+        struct_fields.push(define_pub_field(field_name.clone(), extract_struct_field(field_type)));
     });
     let ffi_name = ffi_struct_name(&ffi_name);
     let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
