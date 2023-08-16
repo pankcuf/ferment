@@ -732,9 +732,9 @@ fn from_enum_variant(variant: &Variant, _index: usize) -> TokenStream2 {
                 quote!(#variant_name(#converted_type))
             };
             let enum_fields = match &variant.fields {
-                Fields::Named(ref fields) => fields.named.iter().map(|f| Box::new(extract_associated_type(&f.ty))).collect::<Vec<_>>(),
-                Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|f| Box::new(extract_associated_type(&f.ty))).collect::<Vec<_>>(),
-                Fields::Unit => vec![Box::new(quote!(#variant_name))],
+                Fields::Named(ref fields) => fields.named.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
+                Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
+                Fields::Unit => vec![quote!(#variant_name)],
             };
             quote!(#(#enum_fields)*)
         },
