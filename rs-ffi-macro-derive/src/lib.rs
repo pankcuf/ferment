@@ -440,7 +440,7 @@ fn mapper_to(path: &Path) -> TokenStream2 {
 }
 
 fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    match arguments {
+    package_boxed_expression(match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(inner_path))] => {
                 let mapper = |path: &Path| {
@@ -455,16 +455,16 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
                     }
                 };
                 let values_conversion = package_boxed_vec_expression(mapper(&inner_path.path));
-                package_boxed_expression(quote! {{ let vec = #field_path; rs_ffi_interfaces::VecFFI { count: vec.len(), values: #values_conversion } }})
+                quote! {{ let vec = #field_path; rs_ffi_interfaces::VecFFI { count: vec.len(), values: #values_conversion } }}
             },
             _ => panic!("to_vec_conversion: bad args {:?}", args)
         },
         _ => panic!("to_vec_conversion: bad arguments {:?}", arguments)
-    }
+    })
 }
 
 fn to_map_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    match arguments {
+    package_boxed_expression(match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(inner_path_key)), GenericArgument::Type(Type::Path(inner_path_value))] => {
                 let mapper = |path: &Path| {
@@ -480,15 +480,12 @@ fn to_map_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
                 let value_mapper = mapper(&inner_path_value.path);
                 let keys_conversion = package_boxed_vec_expression(quote!(map.keys().cloned().map(#key_mapper).collect()));
                 let values_conversion = package_boxed_vec_expression(quote!(map.values().cloned().map(#value_mapper).collect()));
-                package_boxed_expression(quote!({
-                    let map = #field_path;
-                    rs_ffi_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }
-                }))
+                quote!({let map = #field_path; rs_ffi_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }})
             },
             _ => panic!("to_map_conversion: Bad args {:?} {:?}", field_path, args)
         },
         _ => panic!("to_map_conversion: Bad arguments {:?} {:?}", field_path, arguments)
-    }
+    })
 }
 
 fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
