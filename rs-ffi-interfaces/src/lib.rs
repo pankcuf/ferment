@@ -93,6 +93,12 @@ pub unsafe fn unbox_vec_ptr<T>(ptr: *mut T, count: usize) -> Vec<T> {
     Vec::from_raw_parts(ptr, count, count)
 }
 
+/// # Safety
+pub unsafe fn unbox_simple_vec<T>(vec: VecFFI<*mut T>) {
+    let mem = unbox_vec_ptr(vec.values, vec.count);
+    drop(mem)
+}
+
 pub fn convert_vec_to_fixed_array<const N: usize>(data: &Vec<u8>) -> *mut [u8; N] {
     let mut fixed_array = [0u8; N];
     fixed_array.copy_from_slice(data);
