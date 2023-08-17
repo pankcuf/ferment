@@ -256,18 +256,17 @@ fn to_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(inner_path))] => {
-                let var = quote!(vec);
-                let mapper = |var: TokenStream2, path: &Path| {
+                let mapper = |path: &Path| {
                     match conversion_type_for_path(path) {
-                        ConversionType::Simple => to_simple_vec_conversion(var.clone()),
-                        ConversionType::Complex => to_complex_vec_conversion(var.clone()),
+                        ConversionType::Simple => to_simple_vec_conversion(quote!(vec)),
+                        ConversionType::Complex => to_complex_vec_conversion(quote!(vec)),
                         ConversionType::Vec => to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
                         _ => panic!("No triple nested vec/map")
                     }
                 };
-                let values_conversion = package_boxed_vec_expression(mapper(var.clone(), &inner_path.path));
-                let boxed_conversion = box_vec(var.clone(), quote!(o), values_conversion);
-                iter_map_collect(quote!(#var.into_iter()), quote!(|o| #boxed_conversion))
+                let values_conversion = package_boxed_vec_expression(mapper(&inner_path.path));
+                let boxed_conversion = box_vec(quote!(vec), quote!(o), values_conversion);
+                iter_map_collect(quote!(vec.into_iter()), quote!(|o| #boxed_conversion))
             },
             _ => panic!("to_vec_conversion: bad args {:?}", args)
         },
@@ -549,18 +548,16 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(inner_path))] => {
-                let var = quote!(vec);
-                let mapper = |var: TokenStream2, path: &Path| {
+                let mapper = |path: &Path| {
                     match conversion_type_for_path(path) {
-                        ConversionType::Simple => to_simple_vec_conversion(var.clone()),
-                        ConversionType::Complex => to_complex_vec_conversion(var.clone()),
+                        ConversionType::Simple => to_simple_vec_conversion(quote!(vec)),
+                        ConversionType::Complex => to_complex_vec_conversion(quote!(vec)),
                         ConversionType::Vec => to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
                         ConversionType::Map => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
                     }
                 };
-
-                let values_conversion = package_boxed_vec_expression(mapper(var.clone(), &inner_path.path));
-                let boxed_conversion = box_vec(var, field_path, values_conversion);
+                let values_conversion = package_boxed_vec_expression(mapper(&inner_path.path));
+                let boxed_conversion = box_vec(quote!(vec), field_path, values_conversion);
                 boxed_conversion
             },
             _ => panic!("to_vec_conversion: bad args {:?}", args)
