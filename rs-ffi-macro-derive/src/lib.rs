@@ -217,34 +217,38 @@ fn box_vec(var: TokenStream2, field_path: TokenStream2, values_conversion: Token
         rs_ffi_interfaces::VecFFI { count: #var.len(), values: #values_conversion }
     }))
 }
+fn from_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
+    let ffi_from_conversion = ffi_from_conversion(quote!(*#field_path.values.add(i)));
+    iter_map_collect(quote!((0..#field_path.count)), quote!(|i| #ffi_from_conversion))
+}
 
+fn from_simple_vec_conversion(field_path: TokenStream2, field_type: TokenStream2) -> TokenStream2 {
+    quote!(std::slice::from_raw_parts(#field_path.values as *const #field_type, #field_path.count).to_vec())
+}
+
+fn to_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
+    let conversion = ffi_to_conversion(quote!(o));
+    iter_map_collect(quote!(#field_path.into_iter()),  quote!(|o| #conversion))
+}
+
+fn to_simple_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
+    quote!(#field_path.clone())
+}
 
 fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     let conversion = match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
-                ConversionType::Simple => {
-                    let field_type = &path.segments.last().unwrap().ident;
-                    quote!(std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec())
-                },
-                ConversionType::Complex => {
-                    let ffi_from_conversion = ffi_from_conversion(quote!(*vec.values.add(i)));
-                    quote!((0..vec.count).map(|i| #ffi_from_conversion).collect())
-                },
+                ConversionType::Simple => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
+                ConversionType::Complex => from_complex_vec_conversion(quote!(vec)),
                 ConversionType::Vec => {
                     let arguments = &path.segments.last().unwrap().arguments;
                     let conversion = match arguments {
                         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
                             [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
-                                ConversionType::Simple => {
-                                    let field_type = &path.segments.last().unwrap().ident;
-                                    quote!(std::slice::from_raw_parts(vec.values as *const #field_type, vec.count).to_vec())
-                                },
-                                ConversionType::Complex => {
-                                    let ffi_from_conversion = ffi_from_conversion(quote!(*vec.values.add(i)));
-                                    quote!((0..vec.count).map(|i| #ffi_from_conversion).collect())
-                                },
+                                ConversionType::Simple => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
+                                ConversionType::Complex => from_complex_vec_conversion(quote!(vec)),
                                 _ => panic!("from_vec: mappaappa")
                             },
                             _ => panic!("from_vec: Unknown field {:?} {:?}", field_path, args)
@@ -252,6 +256,7 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                         _ => panic!("from_vec: Bad arguments {:?} {:?}", field_path, arguments)
                     };
                     let unbox_conversion = unbox_vec(quote!(vec), quote!(&**vec.values.add(i)), conversion);
+
                     iter_map_collect(quote!((0..vec.count)), quote!(|i| #unbox_conversion))
                 },
                 ConversionType::Map => panic!("from_vec (Map): Unknown field {:?} {:?}", field_path, args),
@@ -522,11 +527,8 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
                 let var = quote!(vec);
                 let mapper = |var: TokenStream2, path: &Path| {
                     match conversion_type_for_path(path) {
-                        ConversionType::Simple => quote!(#var.clone()),
-                        ConversionType::Complex => {
-                            let conversion = ffi_to_conversion(quote!(o));
-                            iter_map_collect(quote!(#var.into_iter()),  quote!(|o| #conversion))
-                        },
+                        ConversionType::Simple => to_simple_vec_conversion(var.clone()),
+                        ConversionType::Complex => to_complex_vec_conversion(var.clone()),
                         ConversionType::Vec => {
                             let arguments = &path.segments.last().unwrap().arguments;
                             match arguments {
@@ -536,17 +538,15 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
 
                                         let mapper = |var: TokenStream2, path: &Path| {
                                             match conversion_type_for_path(path) {
-                                                ConversionType::Simple => quote!(#var.clone()),
-                                                ConversionType::Complex => {
-                                                    let conversion = ffi_to_conversion(quote!(o));
-                                                    iter_map_collect(quote!(#var.into_iter()),  quote!(|o| #conversion))
-                                                },
+                                                ConversionType::Simple => to_simple_vec_conversion(var.clone()),
+                                                ConversionType::Complex => to_complex_vec_conversion(var.clone()),
                                                 _ => panic!("No triple nested vec/map")
                                             }
                                         };
 
                                         let values_conversion = package_boxed_vec_expression(mapper(var.clone(), &inner_path.path));
                                         let boxed_conversion = box_vec(var.clone(), quote!(o), values_conversion);
+
                                         iter_map_collect(quote!(#var.into_iter()), quote!(|o| #boxed_conversion))
                                     },
                                     _ => panic!("to_vec_conversion: bad args {:?}", args)
