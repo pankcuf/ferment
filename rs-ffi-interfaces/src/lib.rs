@@ -11,8 +11,9 @@ pub trait FFIConversion<T> {
     unsafe fn ffi_to(obj: T) -> *mut Self;
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T>;
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self;
-
-    unsafe fn destroy(ffi: *mut Self);
+    unsafe fn destroy(ffi: *mut Self) {
+        unbox_any(ffi);
+    }
 }
 
 impl FFIConversion<String> for c_char {
@@ -89,15 +90,33 @@ pub unsafe fn unbox_vec<T>(vec: Vec<*mut T>) -> Vec<Box<T>> {
 }
 
 /// # Safety
+pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
+    for &x in vec.iter() {
+        unbox_any(x);
+    }
+}
+
+/// # Safety
+pub unsafe fn unbox_any_vec_ptr<T>(ptr: *mut *mut T, count: usize) {
+    unbox_any_vec(unbox_vec_ptr(ptr, count));
+}
+
+/// # Safety
 pub unsafe fn unbox_vec_ptr<T>(ptr: *mut T, count: usize) -> Vec<T> {
     Vec::from_raw_parts(ptr, count, count)
 }
 
 /// # Safety
-pub unsafe fn unbox_simple_vec<T>(vec: VecFFI<*mut T>) {
+pub unsafe fn unbox_simple_vec<T>(vec: VecFFI<T>) {
     let mem = unbox_vec_ptr(vec.values, vec.count);
     drop(mem)
 }
+
+pub unsafe fn unbox_vec_ffi<T>(vec: *mut VecFFI<T>) {
+    let vec_ffi = unbox_any(vec);
+    let _reconstructed_vec = unbox_vec_ptr(vec_ffi.values, vec_ffi.count);
+}
+
 
 pub fn convert_vec_to_fixed_array<const N: usize>(data: &Vec<u8>) -> *mut [u8; N] {
     let mut fixed_array = [0u8; N];
@@ -106,11 +125,25 @@ pub fn convert_vec_to_fixed_array<const N: usize>(data: &Vec<u8>) -> *mut [u8; N
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct MapFFI<K, V> {
     pub count: usize,
     pub keys: *mut K,
     pub values: *mut V,
+}
+
+impl<K, V> Drop for MapFFI<K, V> {
+    fn drop(&mut self) {
+        // TODO: Probably it needs to avoid drop for VecFFI and use chain of unbox_any_vec instead
+        unsafe {
+            // for complex maps:
+            // unbox_any_vec(unbox_vec_ptr(self.keys, self.count));
+            // unbox_any_vec(unbox_vec_ptr(self.values, self.count));
+            // for simple maps:
+            unbox_vec_ptr(self.keys, self.count);
+            unbox_vec_ptr(self.values, self.count);
+        }
+    }
 }
 
 impl<K, V> MapFFI<K, V> where K: Copy, V: Copy  {
@@ -136,7 +169,7 @@ impl<K, V> MapFFI<K, V> where K: Copy, V: Copy  {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct VecFFI<V> {
     pub count: usize,
     pub values: *mut V,
@@ -145,5 +178,17 @@ pub struct VecFFI<V> {
 impl<V> VecFFI<V> {
     pub fn new(vec: Vec<V>) -> VecFFI<V> {
         Self { count: vec.len(), values: boxed_vec(vec) }
+    }
+}
+
+impl<V> Drop for VecFFI<V> {
+    fn drop(&mut self) {
+        // TODO: Probably it needs to avoid drop for VecFFI and use chain of unbox_any_vec instead
+        unsafe {
+            // for complex vecs:
+            // unbox_any_vec(unbox_vec_ptr(self.values, self.count));
+            // for simple vecs:
+            unbox_vec_ptr(self.values, self.count);
+        }
     }
 }
