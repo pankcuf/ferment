@@ -147,5 +147,7 @@ pub unsafe extern "C" fn ffi_address_with_script_pubkey(
 }
 ```
 
-
+Current limitations:
+- doesn't work with type aliases yet
+- doesn't work with traits
 
