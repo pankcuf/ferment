@@ -1,6 +1,6 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant};
+use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant, Item, ItemType};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
@@ -1145,6 +1145,38 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
             let #obj = #fn_name(#(#args_conversions),*);
             #output_conversion
         }
+    };
+
+    println!("{}", expanded);
+    expanded.into()
+}
+
+#[proc_macro_attribute]
+pub fn impl_ffi_ty_conv(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Item);
+    // let attrs = parse_macro_input!(attr as AttributeArgs);
+    // let target_name = match attrs.first() {
+    //     Some(NestedMeta::Lit(literal)) => format_ident!("{}", literal.to_token_stream().to_string()),
+    //     Some(NestedMeta::Meta(Meta::Path(path))) => path.segments.first().unwrap().ident.clone(),
+    //     _ => {
+    //         // use default rules
+    //         // for unnamed structs like UInt256 -> #target_name = [u8; 32]
+    //         // for named structs -> generate ($StructName)FFI
+    //         input.ident.clone()
+    //     },
+    // };
+
+    let (target_name, alias_to) = match &input {
+        Item::Type(ItemType { ident, ty, .. }) => {
+            (ident, ty)
+        },
+        _ => panic!("Expected a type alias"),
+    };
+    let ffi_name = format_ident!("{}FFI", target_name);
+
+    let expanded = quote! {
+        #input
+        pub type #ffi_name = #alias_to;
     };
 
     println!("{}", expanded);

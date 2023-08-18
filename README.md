@@ -59,7 +59,7 @@ pub struct LLMQSnapshot {
 the following code with FFI-compatible fields and corresponding from/to conversions will be generated:
 ```rust
 #[repr(C)] 
-#[derive(Clone, Copy, Debug)] 
+#[derive(Clone, Debug)] 
 pub struct LLMQSnapshotFFI {
     pub member_list: *mut rs_ffi_interfaces::VecFFI<u8>, 
     pub skip_list: *mut rs_ffi_interfaces::VecFFI<i32>, 
@@ -104,6 +104,19 @@ impl rs_ffi_interfaces::FFIConversion<LLMQSnapshot> for LLMQSnapshotFFI {
     } 
     unsafe fn ffi_to_opt(obj: Option<LLMQSnapshot>) -> *mut LLMQSnapshotFFI {
         obj.map_or(std::ptr::null_mut(), |o| <Self as rs_ffi_interfaces::FFIConversion<LLMQSnapshot>>::ffi_to(o))
+    }
+    unsafe fn destroy(ffi: *mut LLMQSnapshotFFI) { 
+        rs_ffi_interfaces::unbox_any(ffi); 
+    }
+}
+impl Drop for LLMQSnapshotFFI {
+    fn drop(&mut self) {
+        unsafe {
+            let ffi_ref = self; 
+            rs_ffi_interfaces::unbox_any(ffi_ref.member_list); 
+            rs_ffi_interfaces::unbox_any(ffi_ref.skip_list);
+            <crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipModeFFI as rs_ffi_interfaces::FFIConversion<crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipMode>>::destroy(ffi_ref.skip_list_mode) ;
+        }
     }
 }
 ```
