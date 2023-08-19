@@ -366,6 +366,7 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     }
 }
 
+// TODO: doesn't work
 fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     let arguments = &last_segment.arguments;
@@ -377,14 +378,17 @@ fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                     // TODO: what to use? 0 or ::MAX
                     "i8" | "u8" | "i16" | "u16" |
                     "i32" | "u32" | "i64" | "u64" |
-                    "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
+                    "i128" | "u128" | "isize" | "usize" => quote!({}),
                     // TODO: mmm shit that's incorrect
-                    "bool" => quote!((#field_path > 0).then_some(#field_path)),
+                    "bool" => quote!({}),
                     "Vec" => {
-                        let conversion = from_vec(path, field_path.clone());
-                        quote!((!#field_path.is_null()).then_some(#conversion))
+                        let conversion = destroy_vec(path, field_path.clone());
+                        quote!(if !#field_path.is_null() { #conversion; })
                     },
-                    _ => ffi_from_opt_conversion(field_path)
+                    _ => {
+                        let conversion = package_unbox_any_expression(field_path.clone());
+                        quote!(if !#field_path.is_null() { #conversion; })
+                    }
                 },
                 _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, path)
             },
@@ -394,7 +398,7 @@ fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     }
 }
 
-
+// TODO: Option<Map>
 fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     let arguments = &last_segment.arguments;
@@ -408,7 +412,7 @@ fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                     "i32" | "u32" | "i64" | "u64" |
                     "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
                     // TODO: mmm shit that's incorrect
-                    "bool" => quote!((#field_path > 0).then_some(#field_path)),
+                    "bool" => quote!((#field_path).then_some(#field_path)),
                     "Vec" => {
                         let conversion = from_vec(path, field_path.clone());
                         quote!((!#field_path.is_null()).then_some(#conversion))
@@ -793,6 +797,9 @@ fn extract_struct_field(field_type: &Type) -> TokenStream2 {
                 _ => convert_path_to_field_type(path),
             }
         },
+        Type::Array(TypeArray { elem, len, .. }) => {
+            quote!(*mut [#elem; #len])
+        },
         Type::Reference(TypeReference { elem, .. }) => extract_struct_field(&**elem),
         _ => panic!("extract_struct_field: field type {:?} not supported", field_type)
     }
@@ -872,7 +879,7 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
         #drop_impl
     };
     println!("{}", expanded);
-    TokenStream::from(expanded)
+    expanded.into()
 }
 
 fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
@@ -1095,12 +1102,92 @@ pub fn impl_ffi_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
             match f {
                 Fields::Named(ref fields) => from_named_struct(fields, target_name, &input),
                 Fields::Unnamed(ref fields) => from_unnamed_struct(fields, target_name, &input),
-                Fields::Unit => panic!("Fields::Unit not supported"),
+                Fields::Unit => panic!("Fields::Unit is not supported yet"),
             }
         },
         Data::Enum(ref data_enum) => from_enum(data_enum, target_name, &input),
-        _ => panic!("FFIConversion can only be derived for structs & enums")
+        Data::Union(ref data_union) => panic!("Union is not supported yet")
     }
+}
+
+#[proc_macro_attribute]
+pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Item);
+
+    let (target_name, alias_to) = match &input {
+        Item::Type(ItemType { ident, ty, .. }) => (ident, ty),
+        _ => panic!("Expected a type alias"),
+    };
+    let ffi_name = format_ident!("{}FFI", target_name);
+
+    let ffi_struct_name = ffi_name.to_token_stream();
+
+    let obj = obj();
+    let alias_converted = extract_struct_field(alias_to);
+    let (ffi_name, ffi_from_conversion, ffi_to_conversion, destroy_code, drop_code) = match &*alias_to.clone() {
+        Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
+            ConversionType::Simple => (
+                ffi_struct_name.clone(),
+                quote!(let ffi_ref = &*ffi; ffi_ref.0),
+                package_boxed_expression(quote!(#ffi_struct_name(#obj))),
+                package_unbox_any_expression(ffi()),
+                None,
+            ),
+            ConversionType::Complex => (
+                ffi_struct_name.clone(),
+                quote!(let ffi_ref = &*ffi; ffi_ref.0),
+                package_boxed_expression(quote!(#ffi_struct_name(#obj))),
+                package_unbox_any_expression(ffi()),
+                None
+            ),
+            ConversionType::Vec => {
+
+                (
+                    ffi_struct_name.clone(),
+                    from_vec(path, quote!((&*ffi).0)),
+                    {
+                        let conversion = to_vec_conversion(obj.clone(), &path.segments.last().unwrap().arguments);
+                        package_boxed_expression(quote!(#ffi_struct_name(#conversion)))
+                    },
+                    package_unbox_any_expression(ffi()),
+                    Some({
+                        let field_path = quote!(self.0);
+                        let unboxed = package_unbox_any_expression(field_path);
+                        quote!(#unboxed;)
+                    })
+                )
+            },
+            _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
+        },
+        Type::Array(type_array) => (
+            ffi_struct_name.clone(),
+            quote!(let ffi_ref = &*ffi; *ffi_ref.0),
+            {
+                let inner_type = package_boxed_expression(obj);
+                package_boxed_expression(quote!(#ffi_struct_name(#inner_type)))
+            },
+            package_unbox_any_expression(ffi()),
+            Some({
+                let unboxed = package_unbox_any_expression(quote!(self.0));
+                quote!(#unboxed;)
+            })
+        ),
+        _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
+    };
+    let interface_impl = impl_interface(ffi_name.clone(), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_code);
+    let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name.clone(), drop_code));
+
+    let expanded = quote! {
+        #input
+        #[repr(C)]
+        #[derive(Clone, Debug)]
+        pub struct #ffi_name(#alias_converted);
+        #interface_impl
+        #drop_impl
+    };
+
+    println!("{}", expanded);
+    expanded.into()
 }
 
 #[proc_macro_attribute]
@@ -1151,34 +1238,3 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-#[proc_macro_attribute]
-pub fn impl_ffi_ty_conv(attr: TokenStream, input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as Item);
-    // let attrs = parse_macro_input!(attr as AttributeArgs);
-    // let target_name = match attrs.first() {
-    //     Some(NestedMeta::Lit(literal)) => format_ident!("{}", literal.to_token_stream().to_string()),
-    //     Some(NestedMeta::Meta(Meta::Path(path))) => path.segments.first().unwrap().ident.clone(),
-    //     _ => {
-    //         // use default rules
-    //         // for unnamed structs like UInt256 -> #target_name = [u8; 32]
-    //         // for named structs -> generate ($StructName)FFI
-    //         input.ident.clone()
-    //     },
-    // };
-
-    let (target_name, alias_to) = match &input {
-        Item::Type(ItemType { ident, ty, .. }) => {
-            (ident, ty)
-        },
-        _ => panic!("Expected a type alias"),
-    };
-    let ffi_name = format_ident!("{}FFI", target_name);
-
-    let expanded = quote! {
-        #input
-        pub type #ffi_name = #alias_to;
-    };
-
-    println!("{}", expanded);
-    expanded.into()
-}
