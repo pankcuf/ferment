@@ -274,7 +274,6 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     unbox_conversion
 }
 fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    // TODO: destroy map impl
     let arguments = &path.segments.last().unwrap().arguments;
     let package = package();
     match arguments {
@@ -310,51 +309,34 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                 let key_conversion = match conversion_type_for_path(inner_path_key_path) {
                     ConversionType::Simple => key_simple_conversion,
                     ConversionType::Complex => ffi_from_conversion(key_simple_conversion),
-                    ConversionType::Map | ConversionType::Vec => panic!("Vec/Map not supported as Map key")
+                    ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
+                    ConversionType::Map => panic!("Map not supported as Map key")
                 };
                 let inner_path_value_path_last_segment = inner_path_value_path.segments.last().unwrap();
                 let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
                 let value_conversion = match conversion_type_for_path(inner_path_value_path) {
                     ConversionType::Simple => value_simple_conversion,
                     ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
-                    ConversionType::Vec => { from_vec(inner_path_value_path, quote!(*map.values.add(#key_index)))
-                        /*match inner_path_value_path_last_segment_args {
-                            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => {
-                                    println!("•• from_map (from_vec)");
-                                    let key_index = quote!(i);
-                                    let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
-                                    let value_simple_conversion = simple_conversion(quote!(*map.values));
-                                    let value_conversion = match conversion_type_for_path(path) {
-                                        ConversionType::Simple => value_simple_conversion,
-                                        ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
-                                        _ => panic!("3 Nested Map/Vec not supported yet")
-                                    };
-                                    let ccc = simple_conversion(quote!(map.values));
-                                    ffi_from_vec_conversion(quote!(((*#ccc))), key_index, value_conversion)
-                                },
-                                _ => panic!("from_map: Unknown field {:?} {:?}", field_path, args)
-                            },
-                            _ => panic!("from_map: Unknown field {:?} {:?}", field_path, inner_path_value_path)
-                        }*/
-                    },
+                    ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
                     ConversionType::Map => {
                         let field_type = &inner_path_value_path_last_segment.ident;
                         match &inner_path_value_path_last_segment_args {
                             PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                [GenericArgument::Type(Type::Path(inner_path_key)), GenericArgument::Type(Type::Path(inner_path_value))] => {
+                                [GenericArgument::Type(Type::Path(TypePath { path: inner_path_key_path, ..})), GenericArgument::Type(Type::Path(TypePath { path: inner_path_value_path, ..}))] => {
                                     let key_index = quote!(i);
                                     let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
                                     let key_simple_conversion = simple_conversion(quote!(*map.keys));
                                     let value_simple_conversion = simple_conversion(quote!(*map.values));
-                                    let key_conversion = match conversion_type_for_path(&inner_path_key.path) {
+                                    let key_conversion = match conversion_type_for_path(inner_path_key_path) {
                                         ConversionType::Simple => key_simple_conversion,
                                         ConversionType::Complex  => ffi_from_conversion(key_simple_conversion),
-                                        ConversionType::Vec | ConversionType::Map => panic!("Vec/Map not supported as Map key")
+                                        ConversionType::Vec => from_vec(inner_path_key_path, quote!(*map.values.add(#key_index))),
+                                        ConversionType::Map => panic!("Vec/Map not supported as Map key")
                                     };
-                                    let value_conversion = match conversion_type_for_path(&inner_path_value.path) {
+                                    let value_conversion = match conversion_type_for_path(inner_path_value_path) {
                                         ConversionType::Simple => value_simple_conversion,
                                         ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
+                                        ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
                                         _ => panic!("from_map: 3 Nested Map/Vec not supported yet")
                                     };
                                     let ccc = simple_conversion(quote!(map.values));
