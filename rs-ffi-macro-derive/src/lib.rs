@@ -152,18 +152,6 @@ fn ffi_map_field_type(key_type: TokenStream2, value_type: TokenStream2) -> Token
     quote!(*mut rs_ffi_interfaces::MapFFI<#key_type, #value_type>)
 }
 
-// fn ffi_to_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
-//     let keys_conversion = package_boxed_vec_expression(quote!(#map_key_path.keys().cloned().map(|#key_index| #key_conversion).collect()));
-//     let values_conversion = package_boxed_vec_expression(quote!(#map_key_path.values().cloned().map(|#key_index| #value_conversion).collect()));
-//     package_boxed_expression(quote! {{
-//         rs_ffi_interfaces::MapFFI {
-//             count: #map_key_path.len(),
-//             keys: #keys_conversion,
-//             values: #values_conversion,
-//         }
-//     }})
-// }
-
 fn ffi_from_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, acc_type: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
     quote! {{
         let map = &*#map_key_path;
@@ -179,7 +167,7 @@ fn ffi_from_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, 
 fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     let package = package();
-    let conversion = match arguments {
+    match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
             [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
                 ConversionType::Simple => {
@@ -194,8 +182,7 @@ fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
             _ => panic!("destroy_vec: Unknown field {:?} {:?}", field_path, args)
         },
         _ => panic!("destroy_vec: Bad arguments {:?} {:?}", field_path, arguments)
-    };
-    conversion
+    }
 }
 
 fn unbox_vec(var: TokenStream2, field_path: TokenStream2, conversion: TokenStream2) -> TokenStream2 {
@@ -288,7 +275,25 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 }
 fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     // TODO: destroy map impl
-    quote!({})
+    let arguments = &path.segments.last().unwrap().arguments;
+    let package = package();
+    match arguments {
+        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
+            [GenericArgument::Type(Type::Path(TypePath { path: _path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: _path_values, .. }))] => match conversion_type_for_path(path) {
+                ConversionType::Simple => {
+                    quote!(#package::unbox_any(#field_path);)
+                },
+                ConversionType::Complex => {
+                    quote!(#package::unbox_any(#field_path);)
+                },
+                ConversionType::Vec => destroy_vec(path, quote!(#field_path)),
+                ConversionType::Map => quote!(#package::unbox_any(#field_path);),
+            },
+            _ => panic!("destroy_map: Unknown field {:?} {:?}", field_path, args)
+        },
+        _ => panic!("destroy_map: Bad arguments {:?} {:?}", field_path, arguments)
+    }
+
 }
 
 fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
@@ -445,9 +450,7 @@ fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 
 
 fn destroy_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
     match &*type_array.elem {
-        Type::Path(TypePath { path, .. }) => {
-            package_unbox_any_expression(quote!(#field_path))
-        },
+        Type::Path(_type_path) => package_unbox_any_expression(quote!(#field_path)),
         _ => panic!("from_array: unsupported {:?} {:?}", field_path, type_array.elem)
     }
 }
@@ -1251,7 +1254,7 @@ pub fn impl_ffi_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         },
         Data::Enum(ref data_enum) => from_enum(data_enum, target_name, &input),
-        Data::Union(ref data_union) => panic!("Union is not supported yet")
+        Data::Union(ref _data_union) => panic!("Union is not supported yet")
     }
 }
 
@@ -1304,7 +1307,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
             },
             _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
         },
-        Type::Array(type_array) => (
+        Type::Array(_type_array) => (
             ffi_struct_name.clone(),
             quote!(let ffi_ref = &*ffi; *ffi_ref.0),
             {
