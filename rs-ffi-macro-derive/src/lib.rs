@@ -287,6 +287,7 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     unbox_conversion
 }
 fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
+    // TODO: destroy map impl
     quote!({})
 }
 
@@ -429,6 +430,27 @@ fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     }
 }
 
+fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
+    match &*type_array.elem {
+        Type::Path(TypePath { path, .. }) => {
+            let last_segment = path.segments.last().unwrap();
+            match last_segment.ident.to_string().as_str() {
+                "u8" => quote!(*#field_path),
+                _ => panic!("from_array: unsupported ident {:?} {:?}", field_path, last_segment.ident)
+            }
+        },
+        _ => panic!("from_array: unsupported {:?} {:?}", field_path, type_array.elem)
+    }
+}
+
+fn destroy_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
+    match &*type_array.elem {
+        Type::Path(TypePath { path, .. }) => {
+            package_unbox_any_expression(quote!(#field_path))
+        },
+        _ => panic!("from_array: unsupported {:?} {:?}", field_path, type_array.elem)
+    }
+}
 
 fn destroy_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
@@ -603,8 +625,7 @@ fn destroy_conversion(field_value: TokenStream2, ffi_type: TokenStream2, field_t
     let package = package();
     let interface = interface();
     let destroy = destroy();
-    //quote!(#package::#interface::#destroy(#field_value))
-    quote!(<#ffi_type as #package::#interface<#field_type>>::destroy(#field_value))
+    quote!(<#ffi_type as #package::#interface<#field_type>>::#destroy(#field_value))
 }
 
 fn ffi_from_conversion(field_value: TokenStream2) -> TokenStream2 {
@@ -656,6 +677,15 @@ fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> Tok
     match &*type_reference.elem {
         Type::Path(type_path) => to_path(field_path, &type_path.path, None),
         _ => panic!("to_reference: Unknown field {:?} {:?}", field_path, type_reference.elem)
+    }
+}
+
+fn to_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
+    match &*type_array.elem {
+        Type::Path(type_path) => {
+            to_path(package_boxed_expression(field_path), &type_path.path, None)
+        },
+        _ => panic!("to_array: Unknown field {:?} {:?}", field_path, type_array.elem)
     }
 }
 
@@ -865,12 +895,11 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
                                 quote!(#path),
                                 quote!(let ffi_ref = *ffi; #target_name(ffi_ref.0)),
                                 package_boxed_expression(quote!(#path(#obj.0))),
-                                package_unbox_any_expression(ffi()),
+                                package_unboxed_root(),
                                 None
                             )
                         },
                         _ => {
-                            //struct_fields.push(extract_struct_field(field_type));
                             (
                                 quote!(#ffi_name),
                                 {
@@ -878,7 +907,7 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
                                     quote!(let ffi_ref = *ffi; #target_name(#conversion))
                                 },
                                 package_boxed_expression(quote!(#ffi_name(#obj.0))),
-                                package_unbox_any_expression(ffi()),
+                                package_unboxed_root(),
                                 None
                             )
                         }
@@ -906,7 +935,7 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
             let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
             let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
             let mut destroy_fields = Vec::<TokenStream2>::with_capacity(fields_count);
-            fields.unnamed.iter().enumerate().for_each(|(index, Field { ident, ty: field_type, .. })| {
+            fields.unnamed.iter().enumerate().for_each(|(index, Field { ty: field_type, .. })| {
                 let field_name = usize_to_tokenstream(index);
                 let field_path_to = obj_field_name(quote!(#field_name));
                 let field_path_from = ffi_deref_field_name(quote!(#field_name));
@@ -927,7 +956,12 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
                         from_reference(field_path_from.clone(), type_reference),
                         destroy_reference(field_path_from.clone(), type_reference)
                     ),
-                    _ => panic!("from_named_struct: Unknown field {:?} {:?}", index, field_type),
+                    Type::Array(type_array) => (
+                        to_array(field_path_to, type_array),
+                        from_array(field_path_from.clone(), type_array),
+                        destroy_array(field_path_from.clone(), type_array)
+                    ),
+                    _ => panic!("from_unnamed_struct: Unknown field {:?} {:?}", index, field_type),
                 };
                 conversions_to_ffi.push(conversion_to);
                 conversions_from_ffi.push(conversion_from);
@@ -939,7 +973,7 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
                 quote!(#target_name),
                 quote!(let ffi_ref = &*ffi; #target_name(#(#conversions_from_ffi,)*)),
                 package_boxed_expression(quote!(#ffi_name(#(#conversions_to_ffi,)*))),
-                package_unbox_any_expression(ffi())
+                package_unboxed_root()
             );
 
             let drop_code = match destroy_fields.len() {
@@ -1005,10 +1039,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     });
     let ffi_name = ffi_struct_name(&ffi_name);
     let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
-    let unboxed_root = package_unboxed_root();
-    // let obj = obj();
     let drop_code = match destroy_fields.len() {
-        // 0 => quote!(let _ = #unboxed_root;),
         0 => quote!(),
         _ => {
             quote! {
@@ -1022,9 +1053,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
         quote!(#target_name),
         quote!(let ffi_ref = &*ffi; #target_name { #(#conversions_from_ffi,)* }),
         package_boxed_expression(quote!(#ffi_name { #(#conversions_to_ffi,)* })),
-        package_unbox_any_expression(ffi())
-        // destroy_code
-        // quote!({#(#destroy_fields)*})
+        package_unboxed_root()
     );
     let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
 
@@ -1066,11 +1095,11 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                         Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
                             ConversionType::Simple => (
                                 quote!(#field_indexed),
-                                quote!(#field_indexed),
+                                quote!(*#field_indexed),
                                 quote!({})),
                             ConversionType::Complex => (
                                 ffi_to_conversion(quote!(#field_indexed)),
-                                ffi_from_conversion(quote!(#field_indexed.clone())),
+                                ffi_from_conversion(quote!(*#field_indexed)),
                                 {
                                     let expr = package_unbox_any_expression(quote!(#field_indexed));
                                     quote!(let #field_indexed = #expr;)
@@ -1099,21 +1128,58 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                 quote!(#target_variant_path),
                 quote!({})
             ),
-            _ => panic!("Unsupported fields in enum variant"),
+            Fields::Named(FieldsNamed { named, .. }) => {
+                let mut variant_fields = vec![];
+                let mut destroy_fields = vec![];
+                let mut converted_fields_to = vec![];
+                let mut converted_fields_from = vec![];
+                named.iter().for_each(|Field { ident, ty: field_type, .. }| {
+                    let field_name = &ident.clone().unwrap().to_token_stream();
+
+                    let (converted_field_to, converted_field_from, destroy_field) = match field_type {
+                        Type::Ptr(type_ptr) => (
+                            to_ptr(quote!(#field_name), type_ptr),
+                            from_ptr(quote!(*#field_name), type_ptr),
+                            destroy_ptr(field_name.clone(), type_ptr)
+                        ),
+                        Type::Path(TypePath { path, .. }) => (
+                            to_path(quote!(#field_name), path, None),
+                            from_path(quote!(*#field_name), path, None),
+                            destroy_path(field_name.clone(), path, None),
+                        ),
+                        Type::Reference(type_reference) => (
+                            to_reference(quote!(#field_name), type_reference),
+                            from_reference(quote!(*#field_name), type_reference),
+                            destroy_reference(field_name.clone(), type_reference)
+                        ),
+                        _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, field_type),
+                    };
+
+                    variant_fields.push(field_name.clone());
+                    converted_fields_to.push(define_field(field_name.clone(), converted_field_to));
+                    converted_fields_from.push(define_field(field_name.clone(),converted_field_from));
+                    destroy_fields.push(destroy_field);
+                });
+                (quote!(#target_variant_path { #(#variant_fields,)* }),
+                 quote!(#ffi_variant_path { #(#converted_fields_to,)* }),
+                 quote!(#ffi_variant_path { #(#variant_fields,)* }),
+                 quote!(#target_variant_path { #(#converted_fields_from,)* }),
+                 quote!({#(#destroy_fields)*})
+                )
+            },
         };
         let variant_field = match discriminant {
             Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
-            None => {
-                let extract_associated_type = |field_type: &Type| {
-                    let converted_type = extract_struct_field(field_type);
-                    quote!(#variant_name(#converted_type))
-                };
-                let enum_fields = match fields {
-                    Fields::Named(ref fields) => fields.named.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
-                    Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|Field { ty, .. }| extract_associated_type(ty)).collect::<Vec<_>>(),
-                    Fields::Unit => vec![quote!(#variant_name)],
-                };
-                quote!(#(#enum_fields)*)
+            None => match fields {
+                Fields::Named(ref fields) => {
+                    let enum_fields = fields.named.iter().map(|Field { ident, ty, .. }| define_field(quote!(#ident), extract_struct_field(ty))).collect::<Vec<_>>();
+                    quote!(#variant_name { #(#enum_fields),* })
+                },
+                Fields::Unnamed(ref fields) => {
+                    let enum_fields = fields.unnamed.iter().map(|Field { ty, .. }| extract_struct_field(ty)).collect::<Vec<_>>();
+                    quote!(#variant_name(#(#enum_fields),*))
+                },
+                Fields::Unit => quote!(#variant_name),
             },
             _ => panic!("Error variant discriminant")
         };
@@ -1148,7 +1214,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
         quote!(#target_name),
         quote!(let ffi_ref = &*ffi; match ffi_ref { #(#conversions_from_ffi),* }),
         package_boxed_expression(quote!(match #obj { #(#conversions_to_ffi),* })),
-        package_unbox_any_expression(ffi())
+        package_unboxed_root()
     );
     let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
 
@@ -1209,14 +1275,14 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
                 ffi_struct_name.clone(),
                 quote!(let ffi_ref = &*ffi; ffi_ref.0),
                 package_boxed_expression(quote!(#ffi_struct_name(#obj))),
-                package_unbox_any_expression(ffi()),
+                package_unboxed_root(),
                 None,
             ),
             ConversionType::Complex => (
                 ffi_struct_name.clone(),
                 quote!(let ffi_ref = &*ffi; ffi_ref.0),
                 package_boxed_expression(quote!(#ffi_struct_name(#obj))),
-                package_unbox_any_expression(ffi()),
+                package_unboxed_root(),
                 None
             ),
             ConversionType::Vec => {
@@ -1228,7 +1294,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
                         let conversion = to_vec_conversion(obj.clone(), &path.segments.last().unwrap().arguments);
                         package_boxed_expression(quote!(#ffi_struct_name(#conversion)))
                     },
-                    package_unbox_any_expression(ffi()),
+                    package_unboxed_root(),
                     Some({
                         let field_path = quote!(self.0);
                         let unboxed = package_unbox_any_expression(field_path);
@@ -1245,7 +1311,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
                 let inner_type = package_boxed_expression(obj);
                 package_boxed_expression(quote!(#ffi_struct_name(#inner_type)))
             },
-            package_unbox_any_expression(ffi()),
+            package_unboxed_root(),
             Some({
                 let unboxed = package_unbox_any_expression(quote!(self.0));
                 quote!(#unboxed;)
