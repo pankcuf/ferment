@@ -80,6 +80,11 @@ fn package_unbox_any_expression(expr: TokenStream2) -> TokenStream2 {
     quote!(#package_unbox_any(#expr))
 }
 
+fn package_unbox_any_expression_terminated(expr: TokenStream2) -> TokenStream2 {
+    let package_unbox_any_expr = package_unbox_any_expression(expr);
+    quote!(#package_unbox_any_expr;)
+}
+
 fn package_unboxed_root() -> TokenStream2 {
     package_unbox_any_expression(ffi())
 }
@@ -313,14 +318,14 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                     ConversionType::Map => panic!("Map not supported as Map key")
                 };
                 let inner_path_value_path_last_segment = inner_path_value_path.segments.last().unwrap();
-                let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
+                // let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
                 let value_conversion = match conversion_type_for_path(inner_path_value_path) {
                     ConversionType::Simple => value_simple_conversion,
                     ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
                     ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
                     ConversionType::Map => {
                         let field_type = &inner_path_value_path_last_segment.ident;
-                        match &inner_path_value_path_last_segment_args {
+                        match &inner_path_value_path_last_segment.arguments {
                             PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
                                 [GenericArgument::Type(Type::Path(TypePath { path: inner_path_key_path, ..})), GenericArgument::Type(Type::Path(TypePath { path: inner_path_value_path, ..}))] => {
                                     let key_index = quote!(i);
@@ -337,7 +342,7 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                                         ConversionType::Simple => value_simple_conversion,
                                         ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
                                         ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
-                                        _ => panic!("from_map: 3 Nested Map/Vec not supported yet")
+                                        ConversionType::Map => panic!("Vec/Map not supported as Map key")
                                     };
                                     let ccc = simple_conversion(quote!(map.values));
                                     ffi_from_map_conversion(quote!(((*#ccc))), key_index, quote!(#field_type), key_conversion, value_conversion)
@@ -376,8 +381,8 @@ fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                         quote!(if !#field_path.is_null() { #conversion; })
                     },
                     _ => {
-                        let conversion = package_unbox_any_expression(field_path.clone());
-                        quote!(if !#field_path.is_null() { #conversion; })
+                        let conversion = package_unbox_any_expression_terminated(field_path.clone());
+                        quote!(if !#field_path.is_null() { #conversion })
                     }
                 },
                 _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, path)
@@ -1081,17 +1086,22 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                             ConversionType::Simple => (
                                 quote!(#field_indexed),
                                 quote!(*#field_indexed),
-                                quote!({})),
+                                quote!()),
                             ConversionType::Complex => (
                                 ffi_to_conversion(quote!(#field_indexed)),
                                 ffi_from_conversion(quote!(*#field_indexed)),
                                 {
-                                    let expr = package_unbox_any_expression(quote!(#field_indexed));
-                                    quote!(let #field_indexed = #expr;)
+                                    let expr = package_unbox_any_expression_terminated(quote!(#field_indexed));
+                                    quote!(let #field_indexed = #expr)
                                 }
                             ),
                             _ => unimplemented!("Enum with Map/Vec as associated value not supported yet")
                         },
+                        Type::Reference(type_reference) => (
+                            to_reference(quote!(#field_indexed), type_reference),
+                            from_reference(quote!(*#field_indexed), type_reference),
+                            destroy_reference(quote!(#field_indexed.to_owned()), type_reference)
+                        ),
                         _ => unimplemented!("Unsupported field type in enum variant")
                     };
                     variant_fields.push(quote!(#field_indexed));
@@ -1280,11 +1290,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
                         package_boxed_expression(quote!(#ffi_struct_name(#conversion)))
                     },
                     package_unboxed_root(),
-                    Some({
-                        let field_path = quote!(self.0);
-                        let unboxed = package_unbox_any_expression(field_path);
-                        quote!(#unboxed;)
-                    })
+                    Some(package_unbox_any_expression_terminated(quote!(self.0)))
                 )
             },
             _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
@@ -1297,10 +1303,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
                 package_boxed_expression(quote!(#ffi_struct_name(#inner_type)))
             },
             package_unboxed_root(),
-            Some({
-                let unboxed = package_unbox_any_expression(quote!(self.0));
-                quote!(#unboxed;)
-            })
+            Some(package_unbox_any_expression_terminated(quote!(self.0)))
         ),
         _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
     };
