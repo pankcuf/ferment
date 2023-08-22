@@ -3,14 +3,19 @@ use std::ffi::{CStr, CString};
 use std::hash::Hash;
 use std::mem;
 use std::os::raw::c_char;
-use std::ptr::null_mut;
+use std::ptr::{NonNull, null_mut};
 
 // #[rs_ffi_macro_derive::impl_syn_extension]
 pub trait FFIConversion<T> {
     unsafe fn ffi_from(ffi: *mut Self) -> T;
     unsafe fn ffi_to(obj: T) -> *mut Self;
-    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T>;
-    unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self;
+    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
+        (!ffi.is_null()).then_some(< Self as FFIConversion<T>>::ffi_from(ffi))
+    }
+    unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
+        // obj.map_or(null_mut::<Self>(), |o| <Self as FFIConversion<T>>::ffi_to(o))
+        obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
+    }
     unsafe fn destroy(ffi: *mut Self) {
         unbox_any(ffi);
     }
