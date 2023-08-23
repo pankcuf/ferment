@@ -11,6 +11,7 @@ A procedural macro consists of 2 macros:
 
 1. `impl_ffi_conv` - for structures/enums
 2. `impl_ffi_fn_conv` - for functions
+3. `impl_ffi_ty_conv` - for type aliases
 
 **Usage**
 Crate is not published yet, so use it for example locally
@@ -20,7 +21,7 @@ rs-ffi-interfaces = { path = "../../rs-ffi-macro/rs-ffi-interfaces" }
 rs-ffi-macro-derive = { path = "../../rs-ffi-macro/rs-ffi-macro-derive" }
 ```
 
-Using the macro implies using `cbindgen` with a configuration like:
+Using the macro implies using `cbindgen` with a configuration like (has taken from actual apple-bindings):
 
 ```rust
 extern crate cbindgen;
@@ -31,11 +32,31 @@ fn main() {
     // Here we must list the names of the crates from which the generated structures will be exported in order to include them in the final C-header
     let includes = vec![/**/];
     config.language = cbindgen::Language::C;
-    config.parse = cbindgen::ParseConfig {
-    parse_deps: true,
-    include: Some(includes.clone()),
-    extra_bindings: includes,
-    ..Default::default()
+    config.parse = cbindgen::Config {
+        language: cbindgen::Language::C,
+        parse: cbindgen::ParseConfig {
+            parse_deps: true,
+            include: Some(includes.clone()),
+            extra_bindings: includes.clone(),
+            expand: cbindgen::ParseExpandConfig {
+                crates: includes.clone(),
+                all_features: false,
+                default_features: false,
+                features: None,
+                profile: cbindgen::Profile::Debug,
+            },
+            ..Default::default()
+        },
+        enumeration: cbindgen::EnumConfig {
+            prefix_with_name: true,
+            ..Default::default()
+        },
+        braces: cbindgen::Braces::SameLine,
+        line_length: 80,
+        tab_width: 4,
+        documentation_style: cbindgen::DocumentationStyle::C,
+        include_guard: Some("dash_shared_core_h".to_string()),
+        ..Default::default()
     };
     cbindgen::generate_with_config(&crate_dir, config)
         .unwrap()
@@ -99,15 +120,6 @@ impl rs_ffi_interfaces::FFIConversion<LLMQSnapshot> for LLMQSnapshotFFI {
             skip_list_mode: rs_ffi_interfaces::FFIConversion::ffi_to(obj.skip_list_mode),
         })
     } 
-    unsafe fn ffi_from_opt(ffi: *mut LLMQSnapshotFFI) -> Option<LLMQSnapshot> {
-        (!ffi.is_null()).then_some(<Self as rs_ffi_interfaces::FFIConversion<LLMQSnapshot>>::ffi_from(ffi))
-    } 
-    unsafe fn ffi_to_opt(obj: Option<LLMQSnapshot>) -> *mut LLMQSnapshotFFI {
-        obj.map_or(std::ptr::null_mut(), |o| <Self as rs_ffi_interfaces::FFIConversion<LLMQSnapshot>>::ffi_to(o))
-    }
-    unsafe fn destroy(ffi: *mut LLMQSnapshotFFI) { 
-        rs_ffi_interfaces::unbox_any(ffi); 
-    }
 }
 impl Drop for LLMQSnapshotFFI {
     fn drop(&mut self) {
@@ -147,7 +159,38 @@ pub unsafe extern "C" fn ffi_address_with_script_pubkey(
 }
 ```
 
+For type aliases labeled with `impl_ffi_ty_conv`
+
+```rust
+#[rs_ffi_macro_derive::impl_ffi_ty_conv]
+pub type HashID = [u8; 32];
+```
+the following code will be generated:
+```rust
+#[repr(C)]
+#[derive(Clone, Debug)] 
+pub struct HashIDFFI(*mut [u8; 32]); 
+
+impl rs_ffi_interfaces::FFIConversion<HashID> for HashIDFFI {
+    unsafe fn ffi_from(ffi : * mut HashIDFFI) -> HashID { 
+        let ffi_ref = &*ffi; 
+        *ffi_ref.0
+    } 
+    unsafe fn ffi_to(obj : HashID) -> *mut HashIDFFI { 
+        rs_ffi_interfaces::boxed(HashIDFFI(rs_ffi_interfaces::boxed(obj))) 
+    }
+} 
+impl Drop for HashIDFFI {
+    fn drop(&mut self) { 
+        unsafe { 
+            rs_ffi_interfaces::unbox_any(self.0);
+        }
+    }
+}
+```
+
 Current limitations:
 - doesn't work with traits and &self
+- We should mark all structures that involved into export with the macro definition
 - There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyIDFFI(u32)` The alternative is to store a hardcoded dictionary with them.
 Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
