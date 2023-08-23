@@ -14,7 +14,7 @@ pub trait FFIConversion<T> {
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
         obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
     }
-    unsafe fn destroy(ffi: *mut Self) {
+    unsafe extern "C" fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }
@@ -40,7 +40,7 @@ impl FFIConversion<String> for c_char {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<String>>::ffi_to(o))
     }
 
-    unsafe fn destroy(ffi: *mut Self) {
+    unsafe extern "C" fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }
@@ -66,7 +66,7 @@ impl FFIConversion<&str> for c_char {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<&str>>::ffi_to(o))
     }
 
-    unsafe fn destroy(ffi: *mut Self) {
+    unsafe extern "C" fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }

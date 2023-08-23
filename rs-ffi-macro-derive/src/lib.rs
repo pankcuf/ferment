@@ -850,7 +850,7 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
             unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
                 #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
             }
-            unsafe fn destroy(#ffi: *mut #ffi_name) {
+            unsafe extern "C" fn destroy(#ffi: *mut #ffi_name) {
                 #destroy_code;
             }
         }
@@ -982,6 +982,7 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
     };
     let expanded = quote! {
         #input
+        // FFI-representation of the #target_name
         #ffi_struct
         #interface_impl
         #drop_impl
@@ -1049,6 +1050,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
 
     let expanded = quote! {
         #input
+        // FFI-representation of the #target_name
         #ffi_struct
         #interface_impl
         #drop_impl
@@ -1198,6 +1200,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     };
 
     let converted = quote! {
+        // FFI-representation of the #target_name
         #[repr(C)]
         #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
         pub enum #ffi_name {
@@ -1309,9 +1312,9 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     };
     let interface_impl = impl_interface(ffi_name.clone(), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_code);
     let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name.clone(), drop_code));
-
     let expanded = quote! {
         #input
+        // FFI-representation of the #target_name
         #[repr(C)]
         #[derive(Clone, Debug)]
         pub struct #ffi_name(#alias_converted);
@@ -1322,6 +1325,11 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     println!("{}", expanded);
     expanded.into()
 }
+
+// #[proc_macro_attribute]
+// pub fn impl_ffi_opaque_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
+//
+// }
 
 #[proc_macro_attribute]
 pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -1360,6 +1368,8 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #input_fn
+        /// FFI-representation of the #fn_name
+        /// # Safety
         #[no_mangle]
         pub unsafe extern "C" fn #ffi_fn_name(#(#args_converted),*) -> #output_type {
             let #obj = #fn_name(#(#args_conversions),*);
