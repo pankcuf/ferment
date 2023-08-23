@@ -1050,7 +1050,7 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
 
     let expanded = quote! {
         #input
-        // FFI-representation of the #target_name
+        /// FFI-representation of the #target_name
         #ffi_struct
         #interface_impl
         #drop_impl
@@ -1200,7 +1200,7 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     };
 
     let converted = quote! {
-        // FFI-representation of the #target_name
+        /// FFI-representation of the #target_name
         #[repr(C)]
         #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
         pub enum #ffi_name {
@@ -1314,7 +1314,7 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name.clone(), drop_code));
     let expanded = quote! {
         #input
-        // FFI-representation of the #target_name
+        /// FFI-representation of the #target_name
         #[repr(C)]
         #[derive(Clone, Debug)]
         pub struct #ffi_name(#alias_converted);
