@@ -50,6 +50,27 @@ pub mod ffi {
         EncodingError2(&'static str),
         DataContractNotPresentError(self::DataContractNotPresentError),
     }
+
+    #[rs_ffi_macro_derive::impl_ffi_callback]
+    pub type AddInsightCallback = fn(block_hash: HashID, context: rs_ffi_interfaces::OpaqueContext);
+
+    #[rs_ffi_macro_derive::impl_ffi_callback]
+    pub type ShouldProcessDiffWithRangeCallback = fn(
+        base_block_hash: HashID,
+        block_hash: HashID,
+        context: rs_ffi_interfaces::OpaqueContext,
+    ) -> ProtocolError;
+
+    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    pub fn address_from_hash(hash: HashID) -> String {
+        format!("{:?}", hash)
+    }
+
+    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
+        Some(format!("{:?}", script))
+    }
+
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct TestStruct {
         pub map_key_simple_value_simple: BTreeMap<u32, u32>,
@@ -73,25 +94,5 @@ pub mod ffi {
             BTreeMap<self::HashID, BTreeMap<u32, Vec<u32>>>,
         pub map_key_complex_value_map_key_simple_value_vec_complex:
             BTreeMap<self::HashID, BTreeMap<u32, Vec<self::HashID>>>,
-    }
-
-    #[rs_ffi_macro_derive::impl_ffi_callback]
-    pub type AddInsightCallback = fn(block_hash: HashID, context: rs_ffi_interfaces::OpaqueContext);
-
-    #[rs_ffi_macro_derive::impl_ffi_callback]
-    pub type ShouldProcessDiffWithRangeCallback = fn(
-        base_block_hash: HashID,
-        block_hash: HashID,
-        context: rs_ffi_interfaces::OpaqueContext,
-    ) -> ProtocolError;
-
-    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
-    pub fn address_from_hash(hash: HashID) -> String {
-        format!("{:?}", hash)
-    }
-
-    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
-    pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
-        Some(format!("{:?}", script))
     }
 }

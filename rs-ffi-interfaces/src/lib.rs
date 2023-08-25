@@ -31,15 +31,6 @@ impl FFIConversion<String> for c_char {
         CString::new(obj).unwrap().into_raw()
     }
 
-    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<String> {
-        (!ffi.is_null())
-            .then_some(<Self as FFIConversion<String>>::ffi_from(ffi))
-    }
-
-    unsafe fn ffi_to_opt(obj: Option<String>) -> *mut Self {
-        obj.map_or(null_mut(), |o| <Self as FFIConversion<String>>::ffi_to(o))
-    }
-
     unsafe fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
@@ -55,15 +46,6 @@ impl FFIConversion<&str> for c_char {
 
     unsafe fn ffi_to(obj: &str) -> *mut Self {
         CString::new(obj).unwrap().into_raw()
-    }
-
-    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<&'static str> {
-        (!ffi.is_null())
-            .then_some(<Self as FFIConversion<&str>>::ffi_from(ffi))
-    }
-
-    unsafe fn ffi_to_opt(obj: Option<&str>) -> *mut Self {
-        obj.map_or(null_mut(), |o| <Self as FFIConversion<&str>>::ffi_to(o))
     }
 
     unsafe fn destroy(ffi: *mut Self) {
