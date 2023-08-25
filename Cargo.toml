@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "example",
     "rs-ffi-interfaces",
     "rs-ffi-macro-derive",
 ]

@@ -1,6 +1,6 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant, Item, ItemType};
+use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant, Item, ItemType, TypeBareFn, BareFnArg, parse_quote};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use quote::__private::Span;
 use syn::__private::TokenStream2;
@@ -9,10 +9,10 @@ use syn::spanned::Spanned;
 use syn::token::Comma;
 
 enum ConversionType {
-    Simple,
-    Complex,
-    Map,
-    Vec
+    Simple(Path),
+    Complex(Path),
+    Map(Path),
+    Vec(Path)
 }
 
 fn package() -> TokenStream2 {
@@ -136,7 +136,7 @@ fn obj_field_name(field_name: TokenStream2) -> TokenStream2 {
 fn create_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 {
     quote! {
         #[repr(C)]
-        #[derive(Clone, Debug)]
+        #[derive(Clone)]
         pub struct #name { #(#fields,)* }
     }
 }
@@ -144,7 +144,7 @@ fn create_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 
 fn create_unnamed_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 {
     quote! {
         #[repr(C)]
-        #[derive(Clone, Debug)]
+        #[derive(Clone)]
         pub struct #name(#(#fields,)*);
     }
 }
@@ -169,23 +169,58 @@ fn ffi_from_map_conversion(map_key_path: TokenStream2, key_index: TokenStream2, 
     }}
 }
 
+fn path_arguments_to_generic_arguments(arguments: &PathArguments) -> Vec<&GenericArgument> {
+    match arguments {
+        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => map_args(args),
+        _ => unimplemented!("map_arguments: arguments: {:?} not supported", arguments)
+    }
+}
+
+fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
+    match path_arguments_to_generic_arguments(arguments)[..] {
+        [GenericArgument::Type(type_path)] =>
+            vec![type_path],
+        [GenericArgument::Type(path_keys), GenericArgument::Type(path_values, .. )] =>
+            vec![path_keys, path_values],
+        _ => unimplemented!("map_types: unexpected args: {:?}", arguments)
+    }
+}
+
+fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
+    match path_arguments_to_types(arguments)[..] {
+        [Type::Path(TypePath { path, .. })] =>
+            vec![path],
+        [Type::Path(TypePath { path: path_keys, .. }), Type::Path(TypePath { path: path_values, .. })] =>
+            vec![path_keys, path_values],
+        _ => unimplemented!("map_types: unexpected args: {:?}", arguments)
+    }
+}
+fn path_arguments_to_conversion_types(arguments: &PathArguments) -> Vec<ConversionType> {
+    match path_arguments_to_paths(arguments)[..] {
+        [path] =>
+            vec![conversion_type_for_path(path)],
+        [path_keys, path_values] =>
+            vec![conversion_type_for_path(path_keys), conversion_type_for_path(path_values)],
+        _ => panic!("path_arguments_to_conversion_type: Bad argunments {:?}", arguments)
+    }
+}
+
+// fn path_arguments_to_conversion_types(arguments: &PathArguments) -> Vec<ConversionType> {
+//     match path_arguments_to_paths(arguments)[..] {
+//         [path] =>
+//             vec![conversion_type_for_path(path)],
+//         [path_keys, path_values] =>
+//             vec![conversion_type_for_path(path_keys), conversion_type_for_path(path_values)],
+//         _ => panic!("path_arguments_to_conversion_type: Bad argunments {:?}", arguments)
+//     }
+// }
+
 fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     let package = package();
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
-                ConversionType::Simple => {
-                    quote!(#package::unbox_any(#field_path);)
-                },
-                ConversionType::Complex => {
-                    quote!(#package::unbox_any(#field_path);)
-                },
-                ConversionType::Vec => destroy_vec(path, quote!(#field_path)),
-                ConversionType::Map => panic!("destroy_vec (Map): Unknown field {:?} {:?}", field_path, args),
-            },
-            _ => panic!("destroy_vec: Unknown field {:?} {:?}", field_path, args)
-        },
+    match path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(..) | ConversionType::Complex(..)] => quote!(#package::unbox_any(#field_path);),
+        [ConversionType::Vec(..)] => destroy_vec(path, quote!(#field_path)),
         _ => panic!("destroy_vec: Bad arguments {:?} {:?}", field_path, arguments)
     }
 }
@@ -213,16 +248,10 @@ fn from_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
 }
 
 fn from_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
-    let conversion = match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
-                ConversionType::Simple => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
-                ConversionType::Complex => from_complex_vec_conversion(quote!(vec)),
-                ConversionType::Vec => from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-                _ => panic!("from_vec_vec_conversion: Vec<Map<>> not supported yet")
-            },
-            _ => panic!("from_vec_vec_conversion: Bad args {:?}", args)
-        }
+    let conversion = match &path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(path)] => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
+        [ConversionType::Complex(..)] => from_complex_vec_conversion(quote!(vec)),
+        [ConversionType::Vec(path)] => from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
         _ => panic!("from_vec_vec_conversion: Bad arguments {:?}", arguments)
     };
     let unbox_conversion = unbox_vec(quote!(vec), quote!(&**vec.values.add(i)), conversion);
@@ -239,40 +268,24 @@ fn to_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
 }
 
 fn to_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(inner_path))] => {
-                let mapper = |path: &Path| {
-                    match conversion_type_for_path(path) {
-                        ConversionType::Simple => to_simple_vec_conversion(quote!(vec)),
-                        ConversionType::Complex => to_complex_vec_conversion(quote!(vec)),
-                        ConversionType::Vec => to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-                        _ => panic!("No triple nested vec/map")
-                    }
-                };
-                let values_conversion = package_boxed_vec_expression(mapper(&inner_path.path));
-                let boxed_conversion = box_vec(quote!(vec), quote!(o), values_conversion);
-                iter_map_collect(quote!(vec.into_iter()), quote!(|o| #boxed_conversion))
-            },
-            _ => panic!("to_vec_conversion: bad args {:?}", args)
-        },
+    let values_conversion = package_boxed_vec_expression(match &path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(..)] => to_simple_vec_conversion(quote!(vec)),
+        [ConversionType::Complex(..)] => to_complex_vec_conversion(quote!(vec)),
+        [ConversionType::Vec(Path { segments, .. })] => to_vec_vec_conversion(&segments.last().unwrap().arguments),
         _ => panic!("to_vec_conversion: bad arguments {:?}", arguments)
-    }
+    });
+    let boxed_conversion = box_vec(quote!(vec), quote!(o), values_conversion);
+    iter_map_collect(quote!(vec.into_iter()), quote!(|o| #boxed_conversion))
 }
 
 
 fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
-    let conversion = match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path, .. }))] => match conversion_type_for_path(path) {
-                ConversionType::Simple => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
-                ConversionType::Complex => from_complex_vec_conversion(quote!(vec)),
-                ConversionType::Vec => from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-                ConversionType::Map => panic!("from_vec (Map): Unknown field {:?} {:?}", field_path, args),
-            },
-            _ => panic!("from_vec: Unknown field {:?} {:?}", field_path, args)
-        },
+    let conversion = match &path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(path)] => from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
+        [ConversionType::Complex(..)] => from_complex_vec_conversion(quote!(vec)),
+        [ConversionType::Vec(path)] => from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
+        [ConversionType::Map(..)] => panic!("from_vec (Map): Unknown field {:?} {:?}", field_path, arguments),
         _ => panic!("from_vec: Bad arguments {:?} {:?}", field_path, arguments)
     };
     let unbox_conversion = unbox_vec(quote!(vec), quote!(&*#field_path), conversion);
@@ -281,19 +294,16 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     let package = package();
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path: _path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: _path_values, .. }))] => match conversion_type_for_path(path) {
-                ConversionType::Simple => {
-                    quote!(#package::unbox_any(#field_path);)
-                },
-                ConversionType::Complex => {
-                    quote!(#package::unbox_any(#field_path);)
-                },
-                ConversionType::Vec => destroy_vec(path, quote!(#field_path)),
-                ConversionType::Map => quote!(#package::unbox_any(#field_path);),
+    match path_arguments_to_paths(arguments)[..] {
+        [_path_keys, _path_values] => match conversion_type_for_path(path) {
+            ConversionType::Simple(..) => {
+                quote!(#package::unbox_any(#field_path);)
             },
-            _ => panic!("destroy_map: Unknown field {:?} {:?}", field_path, args)
+            ConversionType::Complex(..) => {
+                quote!(#package::unbox_any(#field_path);)
+            },
+            ConversionType::Vec(..) => destroy_vec(path, quote!(#field_path)),
+            ConversionType::Map(..) => quote!(#package::unbox_any(#field_path);),
         },
         _ => panic!("destroy_map: Bad arguments {:?} {:?}", field_path, arguments)
     }
@@ -304,58 +314,52 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     let field_type = &last_segment.ident;
     let arguments = &last_segment.arguments;
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(TypePath { path: inner_path_key_path, .. })), GenericArgument::Type(Type::Path(TypePath { path: inner_path_value_path, .. }))] => {
-                let key_index = quote!(i);
-                let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
-                let key_simple_conversion = simple_conversion(quote!(*map.keys));
-                let value_simple_conversion = simple_conversion(quote!(*map.values));
-                let key_conversion = match conversion_type_for_path(inner_path_key_path) {
-                    ConversionType::Simple => key_simple_conversion,
-                    ConversionType::Complex => ffi_from_conversion(key_simple_conversion),
-                    ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
-                    ConversionType::Map => panic!("Map not supported as Map key")
-                };
-                let inner_path_value_path_last_segment = inner_path_value_path.segments.last().unwrap();
-                // let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
-                let value_conversion = match conversion_type_for_path(inner_path_value_path) {
-                    ConversionType::Simple => value_simple_conversion,
-                    ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
-                    ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
-                    ConversionType::Map => {
-                        let field_type = &inner_path_value_path_last_segment.ident;
-                        match &inner_path_value_path_last_segment.arguments {
-                            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                                [GenericArgument::Type(Type::Path(TypePath { path: inner_path_key_path, ..})), GenericArgument::Type(Type::Path(TypePath { path: inner_path_value_path, ..}))] => {
-                                    let key_index = quote!(i);
-                                    let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
-                                    let key_simple_conversion = simple_conversion(quote!(*map.keys));
-                                    let value_simple_conversion = simple_conversion(quote!(*map.values));
-                                    let key_conversion = match conversion_type_for_path(inner_path_key_path) {
-                                        ConversionType::Simple => key_simple_conversion,
-                                        ConversionType::Complex  => ffi_from_conversion(key_simple_conversion),
-                                        ConversionType::Vec => from_vec(inner_path_key_path, quote!(*map.values.add(#key_index))),
-                                        ConversionType::Map => panic!("Vec/Map not supported as Map key")
-                                    };
-                                    let value_conversion = match conversion_type_for_path(inner_path_value_path) {
-                                        ConversionType::Simple => value_simple_conversion,
-                                        ConversionType::Complex => ffi_from_conversion(value_simple_conversion),
-                                        ConversionType::Vec => from_vec(inner_path_value_path, quote!(*map.values.add(#key_index))),
-                                        ConversionType::Map => panic!("Vec/Map not supported as Map key")
-                                    };
-                                    let ccc = simple_conversion(quote!(map.values));
-                                    ffi_from_map_conversion(quote!(((*#ccc))), key_index, quote!(#field_type), key_conversion, value_conversion)
-                                },
-                                _ => panic!("from_map: Unknown field {:?} {:?}", field_path, args)
-                            },
-                            _ => panic!("from_map: Unknown field {:?} {:?}", field_path, args)
-                        }
+    match path_arguments_to_paths(arguments)[..] {
+        [inner_path_key_path, inner_path_value_path] => {
+            let key_index = quote!(i);
+            let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
+            let key_simple_conversion = simple_conversion(quote!(*map.keys));
+            let value_simple_conversion = simple_conversion(quote!(*map.values));
+            let key_conversion = match conversion_type_for_path(inner_path_key_path) {
+                ConversionType::Simple(..) => key_simple_conversion,
+                ConversionType::Complex(..) => ffi_from_conversion(key_simple_conversion),
+                ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
+                ConversionType::Map(..) => panic!("Map not supported as Map key")
+            };
+            let inner_path_value_path_last_segment = inner_path_value_path.segments.last().unwrap();
+            // let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
+            let value_conversion = match conversion_type_for_path(inner_path_value_path) {
+                ConversionType::Simple(..) => value_simple_conversion,
+                ConversionType::Complex(..) => ffi_from_conversion(value_simple_conversion),
+                ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
+                ConversionType::Map(..) => {
+                    let field_type = &inner_path_value_path_last_segment.ident;
+                    match path_arguments_to_paths(&inner_path_value_path_last_segment.arguments)[..] {
+                        [inner_path_key_path, inner_path_value_path] => {
+                            let key_index = quote!(i);
+                            let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
+                            let key_simple_conversion = simple_conversion(quote!(*map.keys));
+                            let value_simple_conversion = simple_conversion(quote!(*map.values));
+                            let key_conversion = match conversion_type_for_path(inner_path_key_path) {
+                                ConversionType::Simple(..) => key_simple_conversion,
+                                ConversionType::Complex(..)  => ffi_from_conversion(key_simple_conversion),
+                                ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
+                                ConversionType::Map(..) => panic!("Vec/Map not supported as Map key")
+                            };
+                            let value_conversion = match conversion_type_for_path(inner_path_value_path) {
+                                ConversionType::Simple(..) => value_simple_conversion,
+                                ConversionType::Complex(..) => ffi_from_conversion(value_simple_conversion),
+                                ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
+                                ConversionType::Map(..) => panic!("Vec/Map not supported as Map key")
+                            };
+                            let ccc = simple_conversion(quote!(map.values));
+                            ffi_from_map_conversion(quote!(((*#ccc))), key_index, quote!(#field_type), key_conversion, value_conversion)
+                        },
+                        _ => panic!("from_map: Unknown field {:?} {:?}", field_path, arguments)
                     }
-                };
-                ffi_from_map_conversion(quote!(#field_path), key_index, quote!(#field_type), key_conversion, value_conversion)
-            },
-            _ => panic!("from_map: Unknown field {:?} {:?}", field_path, args)
+                }
+            };
+            ffi_from_map_conversion(quote!(#field_path), key_index, quote!(#field_type), key_conversion, value_conversion)
         },
         _ => panic!("from_map: Bad arguments {:?} {:?}", field_path, arguments)
     }
@@ -365,29 +369,26 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     let arguments = &last_segment.arguments;
-    match arguments {
-        PathArguments::AngleBracketed(args) => match args.args.first() {
-            Some(GenericArgument::Type(Type::Path(TypePath { path, .. }))) => match path.segments.last() {
-                Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
-                    // std convertible
-                    // TODO: what to use? 0 or ::MAX
-                    "i8" | "u8" | "i16" | "u16" |
-                    "i32" | "u32" | "i64" | "u64" |
-                    "i128" | "u128" | "isize" | "usize" => quote!({}),
-                    // TODO: mmm shit that's incorrect
-                    "bool" => quote!({}),
-                    "Vec" => {
-                        let conversion = destroy_vec(path, field_path.clone());
-                        quote!(if !#field_path.is_null() { #conversion; })
-                    },
-                    _ => {
-                        let conversion = package_unbox_any_expression_terminated(field_path.clone());
-                        quote!(if !#field_path.is_null() { #conversion })
-                    }
+    match path_arguments_to_paths(arguments)[..] {
+        [path] => match path.segments.last() {
+            Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
+                // std convertible
+                // TODO: what to use? 0 or ::MAX
+                "i8" | "u8" | "i16" | "u16" |
+                "i32" | "u32" | "i64" | "u64" |
+                "i128" | "u128" | "isize" | "usize" => quote!({}),
+                // TODO: mmm shit that's incorrect
+                "bool" => quote!({}),
+                "Vec" => {
+                    let conversion = destroy_vec(path, field_path.clone());
+                    quote!(if !#field_path.is_null() { #conversion; })
                 },
-                _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, path)
+                _ => {
+                    let conversion = package_unbox_any_expression_terminated(field_path.clone());
+                    quote!(if !#field_path.is_null() { #conversion })
+                }
             },
-            _ => panic!("from_option: Unknown field {:?} {:?}", field_path, args)
+            _ => panic!("from_option: Unknown field {:?} {:?}", field_path, arguments)
         },
         _ => panic!("from_option: Bad arguments {:?} {:?}", field_path, arguments)
     }
@@ -397,26 +398,23 @@ fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     let arguments = &last_segment.arguments;
-    match arguments {
-        PathArguments::AngleBracketed(args) => match args.args.first() {
-            Some(GenericArgument::Type(Type::Path(TypePath { path, .. }))) => match path.segments.last() {
-                Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
-                    // std convertible
-                    // TODO: what to use? 0 or ::MAX
-                    "i8" | "u8" | "i16" | "u16" |
-                    "i32" | "u32" | "i64" | "u64" |
-                    "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
-                    // TODO: mmm shit that's incorrect
-                    "bool" => quote!((#field_path).then_some(#field_path)),
-                    "Vec" => {
-                        let conversion = from_vec(path, field_path.clone());
-                        quote!((!#field_path.is_null()).then_some(#conversion))
-                    },
-                    _ => ffi_from_opt_conversion(field_path)
+    match path_arguments_to_paths(arguments)[..] {
+        [path] => match path.segments.last() {
+            Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
+                // std convertible
+                // TODO: what to use? 0 or ::MAX
+                "i8" | "u8" | "i16" | "u16" |
+                "i32" | "u32" | "i64" | "u64" |
+                "i128" | "u128" | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
+                // TODO: mmm shit that's incorrect
+                "bool" => quote!((#field_path).then_some(#field_path)),
+                "Vec" => {
+                    let conversion = from_vec(path, field_path.clone());
+                    quote!((!#field_path.is_null()).then_some(#conversion))
                 },
-                _ => panic!("from_option: (type->path) Unknown field {:?} {:?}", field_path, path)
+                _ => ffi_from_opt_conversion(field_path)
             },
-            _ => panic!("from_option: Unknown field {:?} {:?}", field_path, args)
+            _ => panic!("from_option: Bad arguments {:?} {:?}", field_path, arguments)
         },
         _ => panic!("from_option: Bad arguments {:?} {:?}", field_path, arguments)
     }
@@ -508,86 +506,67 @@ fn map_args(args: &Punctuated<GenericArgument, Comma>) -> Vec<&GenericArgument> 
 }
 
 fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(inner_path))] => {
-                let mapper = |path: &Path| {
-                    match conversion_type_for_path(path) {
-                        ConversionType::Simple => to_simple_vec_conversion(quote!(vec)),
-                        ConversionType::Complex => to_complex_vec_conversion(quote!(vec)),
-                        ConversionType::Vec => to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-                        ConversionType::Map => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
-                    }
-                };
-                let values_conversion = package_boxed_vec_expression(mapper(&inner_path.path));
-                let boxed_conversion = box_vec(quote!(vec), field_path, values_conversion);
-                boxed_conversion
-            },
-            _ => panic!("to_vec_conversion: bad args {:?}", args)
-        },
-        _ => panic!("to_vec_conversion: bad arguments {:?}", arguments)
-    }
+    let conversion = match &path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(..)] => to_simple_vec_conversion(quote!(vec)),
+        [ConversionType::Complex(..)] => to_complex_vec_conversion(quote!(vec)),
+        [ConversionType::Vec(path)] => to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
+        _ => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
+    };
+    let values_conversion = package_boxed_vec_expression(conversion);
+    let boxed_conversion = box_vec(quote!(vec), field_path, values_conversion);
+    boxed_conversion
 }
 
 fn to_map_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    package_boxed_expression(match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(inner_path_key)), GenericArgument::Type(Type::Path(inner_path_value))] => {
-                let mapper = |path: &Path| {
-                    let conversion = match conversion_type_for_path(path) {
-                        ConversionType::Simple => quote!(o),
-                        ConversionType::Complex => ffi_to_conversion(quote!(o)),
-                        ConversionType::Vec => to_vec_conversion(quote!(o), &path.segments.last().unwrap().arguments),
-                        ConversionType::Map => to_map_conversion(quote!(o), &path.segments.last().unwrap().arguments)
-                    };
-                    quote!(|o| #conversion)
+    package_boxed_expression(match path_arguments_to_paths(arguments)[..] {
+        [inner_path_key, inner_path_value] => {
+            let mapper = |path: &Path| {
+                let conversion = match conversion_type_for_path(path) {
+                    ConversionType::Simple(..) => quote!(o),
+                    ConversionType::Complex(..) => ffi_to_conversion(quote!(o)),
+                    ConversionType::Vec(..) => to_vec_conversion(quote!(o), &path.segments.last().unwrap().arguments),
+                    ConversionType::Map(..) => to_map_conversion(quote!(o), &path.segments.last().unwrap().arguments)
                 };
-                let key_mapper = mapper(&inner_path_key.path);
-                let value_mapper = mapper(&inner_path_value.path);
-                let keys_conversion = package_boxed_vec_expression(quote!(map.keys().cloned().map(#key_mapper).collect()));
-                let values_conversion = package_boxed_vec_expression(quote!(map.values().cloned().map(#value_mapper).collect()));
-                quote!({let map = #field_path; rs_ffi_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }})
-            },
-            _ => panic!("to_map_conversion: Bad args {:?} {:?}", field_path, args)
+                quote!(|o| #conversion)
+            };
+            let key_mapper = mapper(inner_path_key);
+            let value_mapper = mapper(inner_path_value);
+            let keys_conversion = package_boxed_vec_expression(quote!(map.keys().cloned().map(#key_mapper).collect()));
+            let values_conversion = package_boxed_vec_expression(quote!(map.values().cloned().map(#value_mapper).collect()));
+            quote!({let map = #field_path; rs_ffi_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }})
         },
         _ => panic!("to_map_conversion: Bad arguments {:?} {:?}", field_path, arguments)
     })
 }
 
 fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(Type::Path(inner_path))] => {
-                let last_segment = &inner_path.path.segments.last().unwrap();
-                match last_segment.ident.to_string().as_str() {
-                    // TODO: MAX/MIN? use optional primitive?
-                    "i8" | "u8" | "i16" | "u16" |
-                    "i32" | "u32" | "i64" | "u64" |
-                    "i128" | "u128" | "isize" | "usize" => unwrap_or(field_path, quote!(0)),
-                    "bool" => unwrap_or(field_path, quote!(false)),
-                    "Vec" => match &last_segment.arguments {
-                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                            [GenericArgument::Type(Type::Path(type_values))] => {
-                                let transformer = match conversion_type_for_path(&type_values.path) {
-                                    ConversionType::Simple => quote!(clone()),
-                                    ConversionType::Complex => {
-                                        let mapper = package_boxed_expression(ffi_to_conversion(quote!(o)));
-                                        iter_map_collect(quote!(iter()), quote!(|o| #mapper))
-                                    },
-                                    ConversionType::Map => panic!("define_option: Map nested in Vec not supported yet"),
-                                    ConversionType::Vec => panic!("define_option: Vec nested in Vec not supported yet"),
-                                };
-                                let conversion = package_boxed_expression(quote!(rs_ffi_interfaces::VecFFI::new(vec.#transformer)));
-                                quote!(match #field_path { Some(vec) => #conversion, None => std::ptr::null_mut()})
+    match path_arguments_to_paths(arguments)[..] {
+        [inner_path] => {
+            let last_segment = inner_path.segments.last().unwrap();
+            match last_segment.ident.to_string().as_str() {
+                // TODO: MAX/MIN? use optional primitive?
+                "i8" | "u8" | "i16" | "u16" |
+                "i32" | "u32" | "i64" | "u64" |
+                "i128" | "u128" | "isize" | "usize" => unwrap_or(field_path, quote!(0)),
+                "bool" => unwrap_or(field_path, quote!(false)),
+                "Vec" => match path_arguments_to_paths(&last_segment.arguments)[..] {
+                    [path] => {
+                        let transformer = match conversion_type_for_path(path) {
+                            ConversionType::Simple(..) => quote!(clone()),
+                            ConversionType::Complex(..) => {
+                                let mapper = package_boxed_expression(ffi_to_conversion(quote!(o)));
+                                iter_map_collect(quote!(iter()), quote!(|o| #mapper))
                             },
-                            _ => panic!("to_option_conversion: bad args {:?}", last_segment)
-                        },
-                        _ => panic!("to_option_conversion: Unknown args {:?}", last_segment)
+                            ConversionType::Map(..) => panic!("define_option: Map nested in Vec not supported yet"),
+                            ConversionType::Vec(..) => panic!("define_option: Vec nested in Vec not supported yet"),
+                        };
+                        let conversion = package_boxed_expression(quote!(rs_ffi_interfaces::VecFFI::new(vec.#transformer)));
+                        quote!(match #field_path { Some(vec) => #conversion, None => std::ptr::null_mut()})
                     },
-                    _ => ffi_to_opt_conversion(field_path)
-                }
-            },
-            _ => panic!("to_option_conversion: Bad args {:?}", args)
+                    _ => panic!("to_option_conversion: Unknown args {:?}", last_segment)
+                },
+                _ => ffi_to_opt_conversion(field_path)
+            }
         },
         _ => panic!("to_option_conversion: Bad arguments {:?}", arguments)
     }
@@ -685,10 +664,10 @@ fn conversion_type_for_path(path: &Path) -> ConversionType {
         // std convertible
         "i8" | "u8" | "i16" | "u16" |
         "i32" | "u32" | "i64" | "u64" |
-        "i128" | "u128" | "isize" | "usize" | "bool" => ConversionType::Simple,
-        "BTreeMap" | "HashMap" => ConversionType::Map,
-        "Vec" => ConversionType::Vec,
-        _ => ConversionType::Complex
+        "i128" | "u128" | "isize" | "usize" | "bool" => ConversionType::Simple(path.clone()),
+        "BTreeMap" | "HashMap" => ConversionType::Map(path.clone()),
+        "Vec" => ConversionType::Vec(path.clone()),
+        _ => ConversionType::Complex(path.clone())
     }
 }
 
@@ -751,20 +730,14 @@ fn ffi_struct_name(field_type: &Ident) -> Ident {
 fn extract_map_arg_type(path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "BTreeMap" | "HashMap" => match &last_segment.arguments {
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
-                    ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
-                _ => panic!("convert_map_arg_type: bad args {:?}", last_segment)
-            },
+        "BTreeMap" | "HashMap" => match path_arguments_to_paths(&last_segment.arguments)[..] {
+            [path_keys, path_values] =>
+                ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
             _ => panic!("convert_map_arg_type: Unknown args {:?}", last_segment)
         },
-        "Vec" => match &last_segment.arguments {
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                    ffi_vec_field_type(extract_vec_arg_type(path)),
-                _ => panic!("extract_vec_arg_type: bad args {:?}", path)
-            },
+        "Vec" => match path_arguments_to_paths(&last_segment.arguments)[..] {
+            [path] =>
+                ffi_vec_field_type(extract_vec_arg_type(path)),
             _ => panic!("extract_vec_arg_type: Unknown args {:?}", path)
         },
         _ => convert_path_to_field_type(path)
@@ -774,12 +747,9 @@ fn extract_map_arg_type(path: &Path) -> TokenStream2 {
 fn extract_vec_arg_type(path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "Vec" => match &last_segment.arguments {
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                    ffi_vec_field_type(extract_vec_arg_type(path)),
-                _ => panic!("extract_vec_arg_type: bad args {:?}", path)
-            },
+        "Vec" => match path_arguments_to_paths(&last_segment.arguments)[..] {
+            [path] =>
+                ffi_vec_field_type(extract_vec_arg_type(path)),
             _ => panic!("extract_vec_arg_type: Unknown args {:?}", path)
         },
         _ => convert_path_to_field_type(path)
@@ -792,30 +762,21 @@ fn extract_struct_field(field_type: &Type) -> TokenStream2 {
             let last_segment = path.segments.last().unwrap();
             let arguments = &last_segment.arguments;
             match last_segment.ident.to_string().as_str() {
-                "Vec" => match arguments {
-                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                        [GenericArgument::Type(Type::Path(TypePath { path, .. }))] =>
-                            ffi_vec_field_type(extract_vec_arg_type(path)),
-                        _ => panic!("extract_struct_field: Vec: args: {:?} not supported", args)
-                    }
+                "Vec" => match path_arguments_to_paths(arguments)[..] {
+                    [path] => ffi_vec_field_type(extract_vec_arg_type(path)),
                     _ => panic!("extract_struct_field: Vec: arguments: {:?} not supported", arguments)
                 },
-                "BTreeMap" | "HashMap" => match arguments {
-                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                        [GenericArgument::Type(Type::Path(TypePath { path: path_keys, .. })), GenericArgument::Type(Type::Path(TypePath { path: path_values, .. }))] =>
-                            ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
-                        _ => panic!("extract_struct_field: Map: args: {:?} not supported", args)
-                    }
+                "BTreeMap" | "HashMap" => match path_arguments_to_paths(arguments)[..] {
+                    [path_keys, path_values] =>
+                        ffi_map_field_type(extract_map_arg_type(path_keys), extract_map_arg_type(path_values)),
                     _ => panic!("extract_struct_field: Map: arguments: {:?} not supported", arguments)
                 },
-                "Option" => match arguments {
-                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-                        [GenericArgument::Type(field_type)] =>
-                            extract_struct_field(field_type),
-                        _ => panic!("extract_struct_field: Option: {:?} not supported", args)
-                    }
+                "Option" => match path_arguments_to_types(arguments)[..] {
+                    [field_type] => extract_struct_field(field_type),
                     _ => panic!("extract_struct_field: Option: {:?} not supported", arguments)
                 },
+                "OpaqueContext" => quote!(rs_ffi_interfaces::OpaqueContextFFI),
+                "OpaqueContextMut" => quote!(rs_ffi_interfaces::OpaqueContextMutFFI),
                 _ => convert_path_to_field_type(path),
             }
         },
@@ -823,6 +784,18 @@ fn extract_struct_field(field_type: &Type) -> TokenStream2 {
             quote!(*mut [#elem; #len])
         },
         Type::Reference(TypeReference { elem, .. }) => extract_struct_field(&**elem),
+        // Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
+        //     match &**elem {
+        //         Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
+        //             "c_void" => match (const_token, mutability) {
+        //                 (Some(const_token), None) => quote!(OpaqueContextFFI),
+        //                 (None, Some(mut_token)) => quote!(OpaqueContextMutFFI),
+        //                 _ => panic!("extract_struct_field: c_void with {:?} {:?} not supported", const_token, mutability)
+        //             },
+        //             ptr => panic!("extract_struct_field: ptr {:?} not supported {:?} {:?} {:?}", ptr, star_token, const_token, mutability)
+        //         },
+        //         _ => panic!("extract_struct_field: {:?} not supported", elem)
+        //     }
         _ => panic!("extract_struct_field: field type {:?} not supported", field_type)
     }
 }
@@ -837,20 +810,20 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
     let obj = obj();
     let ffi_from = ffi_from();
     let ffi_to = ffi_to();
-    let ffi_from_opt = ffi_from_opt();
-    let ffi_to_opt = ffi_to_opt();
+    // let ffi_from_opt = ffi_from_opt();
+    // let ffi_to_opt = ffi_to_opt();
 
     quote! {
         impl #package::#interface<#target_name> for #ffi_name {
             unsafe fn #ffi_from(#ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
             unsafe fn #ffi_to(#obj: #target_name) -> *mut #ffi_name { #ffi_to_conversion }
-            unsafe fn #ffi_from_opt(#ffi: *mut #ffi_name) -> Option<#target_name> {
-                (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(#ffi))
-            }
-            unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
-                #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
-            }
-            unsafe extern "C" fn destroy(#ffi: *mut #ffi_name) {
+            // unsafe fn #ffi_from_opt(#ffi: *mut #ffi_name) -> Option<#target_name> {
+            //     (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(#ffi))
+            // }
+            // unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
+            //     #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
+            // }
+            unsafe fn destroy(#ffi: *mut #ffi_name) {
                 #destroy_code;
             }
         }
@@ -980,9 +953,10 @@ fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &Deriv
             (ffi_struct, interface_impl, drop_impl)
         }
     };
+    let comment = doc(target_name.to_string());
     let expanded = quote! {
         #input
-        // FFI-representation of the #target_name
+        #comment
         #ffi_struct
         #interface_impl
         #drop_impl
@@ -1048,9 +1022,11 @@ fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInp
     );
     let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
 
+    let comment = doc(target_name.to_string());
+
     let expanded = quote! {
         #input
-        /// FFI-representation of the #target_name
+        #comment
         #ffi_struct
         #interface_impl
         #drop_impl
@@ -1085,11 +1061,11 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
                     let field_indexed = format_ident!("o_{}", index);
                     let (converted_field_to, converted_field_from, destroy_field) = match ty {
                         Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
-                            ConversionType::Simple => (
+                            ConversionType::Simple(..) => (
                                 quote!(#field_indexed),
                                 quote!(*#field_indexed),
                                 quote!()),
-                            ConversionType::Complex => (
+                            ConversionType::Complex(..) => (
                                 ffi_to_conversion(quote!(#field_indexed)),
                                 ffi_from_conversion(quote!(*#field_indexed)),
                                 {
@@ -1199,10 +1175,11 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
         }
     };
 
+    let comment = doc(target_name.to_string());
     let converted = quote! {
-        /// FFI-representation of the #target_name
+        #comment
         #[repr(C)]
-        #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Hash, Ord)]
+        #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Ord)]
         pub enum #ffi_name {
             #(#variants_fields,)*
         }
@@ -1269,21 +1246,21 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let alias_converted = extract_struct_field(alias_to);
     let (ffi_name, ffi_from_conversion, ffi_to_conversion, destroy_code, drop_code) = match &*alias_to.clone() {
         Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
-            ConversionType::Simple => (
+            ConversionType::Simple(..)  => (
                 ffi_struct_name.clone(),
                 quote!(let ffi_ref = &*ffi; ffi_ref.0),
                 package_boxed_expression(quote!(#ffi_struct_name(#obj))),
                 package_unboxed_root(),
                 None,
             ),
-            ConversionType::Complex => (
+            ConversionType::Complex(..)  => (
                 ffi_struct_name.clone(),
                 quote!(let ffi_ref = &*ffi; ffi_ref.0),
                 package_boxed_expression(quote!(#ffi_struct_name(#obj))),
                 package_unboxed_root(),
                 None
             ),
-            ConversionType::Vec => {
+            ConversionType::Vec(..)  => {
 
                 (
                     ffi_struct_name.clone(),
@@ -1308,15 +1285,24 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
             package_unboxed_root(),
             Some(package_unbox_any_expression_terminated(quote!(self.0)))
         ),
+        // Opaque ptr case
+        Type::Ptr(type_ptr) => (
+            ffi_struct_name.clone(),
+            from_ptr(quote!(ffi_ref), type_ptr),
+            to_ptr(quote!(ffi_ref), type_ptr),
+            quote!(),
+            None
+            ),
         _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
     };
     let interface_impl = impl_interface(ffi_name.clone(), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_code);
     let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name.clone(), drop_code));
+    let comment = doc(target_name.to_string());
     let expanded = quote! {
         #input
-        /// FFI-representation of the #target_name
+        #comment
         #[repr(C)]
-        #[derive(Clone, Debug)]
+        #[derive(Clone)]
         pub struct #ffi_name(#alias_converted);
         #interface_impl
         #drop_impl
@@ -1345,7 +1331,7 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let args_converted = signature.inputs.iter().map(|arg| match arg {
             FnArg::Typed(PatType { ty, pat, .. }) =>
-                Box::new(define_field(pat.to_token_stream(), extract_struct_field(&ty))),
+                define_field(pat.to_token_stream(), extract_struct_field(&ty)),
             _ => panic!("Arg type {:?} not supported", arg)
         }).collect::<Vec<_>>();
 
@@ -1365,10 +1351,10 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
             _ => panic!("error: output conversion: {:?}", field_type),
         },
     };
-
+    let comment = doc(fn_name.to_string());
     let expanded = quote! {
         #input_fn
-        /// FFI-representation of the #fn_name
+        #comment
         /// # Safety
         #[no_mangle]
         pub unsafe extern "C" fn #ffi_fn_name(#(#args_converted),*) -> #output_type {
@@ -1379,6 +1365,50 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
     println!("{}", expanded);
     expanded.into()
+}
+
+fn doc(target_name: String) -> TokenStream2 {
+    let comment = format!("FFI-representation of the {}", target_name);
+    parse_quote! {
+        #[doc = #comment]
+    }
+}
+
+#[proc_macro_attribute]
+pub fn impl_ffi_callback(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Item);
+    let (target_name, alias_to) = match &input {
+        Item::Type(ItemType { ident, ty, .. }) => (ident, ty),
+        _ => panic!("Expected a type alias"),
+    };
+    let (output_expr, args_converted) = match *alias_to.clone() {
+        Type::BareFn(TypeBareFn { inputs, output, .. }) => {
+            let output_type = match output {
+                ReturnType::Default => quote!(),
+                ReturnType::Type(_, field_type) => {
+                    let field = extract_struct_field(&field_type);
+                    quote!(-> #field)
+                },
+            };
+            let args = inputs.iter()
+                .map(|BareFnArg { ty: field_type, name, .. }|
+                    define_field(name.clone().unwrap().0.to_token_stream(), extract_struct_field(field_type)))
+                .collect::<Vec<_>>();
+            (output_type, args)
+        },
+        _ => panic!("Expected a function"),
+    };
+
+    let ffi_callback_name = format_ident!("{}FFI", target_name);
+
+    let expanded = quote! {
+        #input
+        pub type #ffi_callback_name = unsafe extern "C" fn(#(#args_converted),*) #output_expr;
+    };
+
+    println!("{}", expanded);
+    expanded.into()
+
 }
 
 

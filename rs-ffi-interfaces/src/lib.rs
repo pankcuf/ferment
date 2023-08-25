@@ -14,7 +14,7 @@ pub trait FFIConversion<T> {
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
         obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
     }
-    unsafe extern "C" fn destroy(ffi: *mut Self) {
+    unsafe fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }
@@ -40,7 +40,7 @@ impl FFIConversion<String> for c_char {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<String>>::ffi_to(o))
     }
 
-    unsafe extern "C" fn destroy(ffi: *mut Self) {
+    unsafe fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }
@@ -66,7 +66,7 @@ impl FFIConversion<&str> for c_char {
         obj.map_or(null_mut(), |o| <Self as FFIConversion<&str>>::ffi_to(o))
     }
 
-    unsafe extern "C" fn destroy(ffi: *mut Self) {
+    unsafe fn destroy(ffi: *mut Self) {
         if ffi.is_null() {
             return;
         }
@@ -198,3 +198,42 @@ impl<V> Drop for VecFFI<V> {
         }
     }
 }
+
+
+/// We pass here main context of parent program
+
+pub type OpaqueContext = *const std::os::raw::c_void;
+pub type OpaqueContextFFI = OpaqueContext;
+
+pub type OpaqueContextMut = *mut std::os::raw::c_void;
+pub type OpaqueContextMutFFI = OpaqueContextMut;
+
+impl FFIConversion<OpaqueContextFFI> for OpaqueContext {
+    unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextFFI {
+       *ffi
+    }
+
+    unsafe fn ffi_to(obj: OpaqueContextFFI) -> *mut Self {
+        // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
+        // behavior if the original memory location wasn't meant to be mutable
+        obj as *mut _
+    }
+
+    unsafe fn destroy(_ffi: *mut Self) {
+        // No destroy no ownership here
+    }
+}
+
+impl FFIConversion<OpaqueContextMutFFI> for OpaqueContextMut {
+    unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextMutFFI {
+        *ffi
+    }
+
+    unsafe fn ffi_to(obj: OpaqueContextMutFFI) -> *mut Self {
+        // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
+        // behavior if the original memory location wasn't meant to be mutable
+        boxed(obj)
+    }
+}
+
+// No Drop implementation for them

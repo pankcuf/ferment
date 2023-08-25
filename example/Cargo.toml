@@ -1,10 +1,12 @@
 [package]
-name = "rs-ffi-interfaces"
+name = "example"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rs-ffi-interfaces = { path = "../rs-ffi-interfaces" }
 rs-ffi-macro-derive = { path = "../rs-ffi-macro-derive" }
+
 [build-dependencies]
 cbindgen = "0.24.3"
 

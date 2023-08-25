@@ -5,8 +5,6 @@ edition = "2021"
 
 [dependencies]
 rs-ffi-macro-derive = { path = "../rs-ffi-macro-derive" }
-[build-dependencies]
-cbindgen = "0.24.3"
 
 [lib]
 name = "rs_ffi_interfaces"
