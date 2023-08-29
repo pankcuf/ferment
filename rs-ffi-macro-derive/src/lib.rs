@@ -1,5 +1,6 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
+use std::string::ToString;
 use syn::{parse_macro_input, AttributeArgs, Data, DeriveInput, ItemFn, Meta, NestedMeta, Type, PathArguments, GenericArgument, TypePtr, TypeArray, Ident, TypePath, DataStruct, Fields, FieldsUnnamed, FieldsNamed, DataEnum, Expr, Path, ReturnType, FnArg, PatType, AngleBracketedGenericArguments, Pat, PatIdent, Field, TypeReference, Variant, Item, ItemType, TypeBareFn, BareFnArg, parse_quote};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use quote::__private::Span;
@@ -13,6 +14,537 @@ enum ConversionType {
     Complex(Path),
     Map(Path),
     Vec(Path)
+}
+
+type ComposerContext = fn(context: &PresentationComposer) -> TokenStream2;
+/// token -> token
+type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
+/// token + token -> token
+type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
+/// token + type -> token
+type FieldTypedPresenter = fn(field_name: TokenStream2, field_type: &Type) -> TokenStream2;
+/// [token] -> token
+type IteratorPresenter = fn(items: Vec<TokenStream2>) -> TokenStream2;
+/// token + [token] -> token
+/// type OwnerIteratorPresenter = fn(owner: TokenStream2, items: Vec<TokenStream2>) -> TokenStream2;
+type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
+
+type InterfacePresenter = fn(ffi_name: TokenStream2, target_name: TokenStream2, from_presentation: TokenStream2, to_presentation: TokenStream2, destroy_presentation: TokenStream2) -> TokenStream2;
+
+
+
+const DEFAULT_INTERFACE_PRESENTER: InterfacePresenter = |ffi_name: TokenStream2, target_name: TokenStream2, from_presentation: TokenStream2, to_presentation: TokenStream2, destroy_presentation: TokenStream2|
+    impl_interface(ffi_name, target_name, from_presentation, to_presentation, destroy_presentation);
+
+
+
+// const EMPTY_COMPOSER_PRESENTER: ComposerContext = |_| quote!();
+const EMPTY_MAP_PRESENTER: MapPresenter = |_| quote!();
+const SIMPLE_PRESENTER: MapPresenter = |name| quote!(#name);
+const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
+const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
+const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
+// const FFI_TO_CONVERSION_PRESENTER: MapPresenter = |conversions: TokenStream2| package_boxed_expression(conversions);
+const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| doc(target_name.to_string());
+const SAFETY_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
+    let doc = DEFAULT_DOC_PRESENTER(target_name);
+    quote! {
+        #doc
+        /// # Safety
+    }
+};
+const FFI_DEREF_FIELD_NAME: MapPresenter = |field_name| quote!(ffi_ref.#field_name);
+const OBJ_FIELD_NAME: MapPresenter = |field_name| quote!(obj.#field_name);
+
+// const DROP_UNNAMED_PRESENTER: MapPresenter = |_| package_unbox_any_expression_terminated(quote!(self.0));
+
+// const CURVY_PAIR_PRESENTER: MapPairPresenter = |name, presentation| quote!(#name { #presentation });
+// const ROUND_PAIR_PRESENTER: MapPairPresenter = |name, presentation| quote!(#name ( #presentation ));
+
+const EMPTY_PAIR_PRESENTER: MapPairPresenter = |_, _| quote!();
+// const TYPE_ALIAS_DROP_PRESENTER: MapPairPresenter = |_, _| DROP_UNNAMED_PRESENTER(quote!());
+const SIMPLE_PAIR_PRESENTER: MapPairPresenter = |name, presentation| quote!(#name #presentation);
+const SIMPLE_CONVERSION_PRESENTER: MapPairPresenter = |_, conversion| quote!(#conversion);
+const NAMED_CONVERSION_PRESENTER: MapPairPresenter = define_field;
+const PUB_NAMED_CONVERSION_PRESENTER: MapPairPresenter = define_pub_field;
+const LAMBDA_CONVERSION_PRESENTER: MapPairPresenter = define_lambda;
+const DROP_INTERFACE_PRESENTER: MapPairPresenter = impl_drop;
+const FFI_FROM_CONVERSION_PRESENTER: MapPairPresenter = |field_path: TokenStream2, conversions: TokenStream2| quote!(let ffi_ref = #field_path; #conversions);
+const FFI_TO_CONVERSION_PRESENTER: MapPairPresenter = |_, conversions: TokenStream2| package_boxed_expression(conversions);
+const EMPTY_FIELD_TYPED_PRESENTER: FieldTypedPresenter = |_, _| quote!();
+const DEFAULT_FIELD_PRESENTER: FieldTypedPresenter = |field_name, _| quote!(#field_name);
+const DEFAULT_FIELD_TYPE_PRESENTER: FieldTypedPresenter = |_, field_type| extract_struct_field(field_type);
+const NAMED_FIELD_TYPE_PRESENTER: FieldTypedPresenter = |field_name, field_type| PUB_NAMED_CONVERSION_PRESENTER(field_name, extract_struct_field(field_type));
+
+// Iterator Presenters
+const EMPTY_ITERATOR_PRESENTER: IteratorPresenter = |_| quote!();
+const DEFAULT_DESTROY_FIELDS_PRESENTER: IteratorPresenter = |destructors| quote!({#(#destructors)*});
+const CURLY_ITER_PRESENTER: IteratorPresenter = |fields: Vec<TokenStream2>| quote!({ #(#fields,)* });
+const ROUND_ITER_PRESENTER: IteratorPresenter = |fields: Vec<TokenStream2>| quote!(( #(#fields,)* ));
+const STRUCT_DESTROY_PRESENTER: IteratorPresenter = |fields| match fields.len() {
+    0 => quote!(),
+    _ => quote!(let ffi_ref = self; #(#fields;)*)
+};
+
+const ENUM_DESTROY_PRESENTER: IteratorPresenter = |fields| match fields.len() {
+    0 => quote!(),
+    _ => MATCH_FIELDS_PRESENTER((quote!(self), fields))
+};
+
+// Owner Iterator Presenters
+const EMPTY_FIELDS_PRESENTER: OwnerIteratorPresenter = |_| quote!();
+
+
+
+const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)| SIMPLE_PAIR_PRESENTER(name, CURLY_ITER_PRESENTER(fields));
+const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)| SIMPLE_PAIR_PRESENTER(name, ROUND_ITER_PRESENTER(fields));
+const MATCH_FIELDS_PRESENTER: OwnerIteratorPresenter = |(field_path, fields)| SIMPLE_PAIR_PRESENTER(quote!(match #field_path), CURLY_ITER_PRESENTER(fields));
+const NO_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, _)| quote!(#name);
+const ENUM_UNIT_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)| quote!(#name = #(#fields)*);
+
+const TYPE_ALIAS_PRESENTER: OwnerIteratorPresenter = |(name, fields)| create_struct(name, SIMPLE_TERMINATED_PRESENTER(ROUND_ITER_PRESENTER(fields)));
+const UNNAMED_STRUCT_PRESENTER: OwnerIteratorPresenter = |(name, fields)| create_struct(name, SIMPLE_TERMINATED_PRESENTER(ROUND_ITER_PRESENTER(fields)));
+const NAMED_STRUCT_PRESENTER: OwnerIteratorPresenter = |(name, fields)| create_struct(name, CURLY_ITER_PRESENTER(fields));
+const ENUM_NAMED_VARIANT_PRESENTER: OwnerIteratorPresenter = |(name, fields)| quote!(#name { #(#fields),* });
+const ENUM_UNNAMED_VARIANT_PRESENTER: OwnerIteratorPresenter = |(name, fields)| SIMPLE_PAIR_PRESENTER(name, ROUND_ITER_PRESENTER(fields));
+const ENUM_PRESENTER: OwnerIteratorPresenter = |(name, fields)| {
+    let enum_presentation = CURLY_BRACES_FIELDS_PRESENTER((name, fields));
+    quote! {
+        #[repr(C)]
+        #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Ord)]
+        pub enum #enum_presentation
+    }
+};
+const TYPE_ALIAS_CONVERSION_FROM_PRESENTER: OwnerIteratorPresenter = |(_, fields)| quote!((#(#fields)*));
+const TYPE_ALIAS_CONVERSION_TO_PRESENTER: OwnerIteratorPresenter = |(name, fields)| quote!(#name(#(#fields),*));
+
+struct PresentationComposer {
+    pub ffi_name: TokenStream2,
+    pub target_name: TokenStream2,
+    pub conversion_from_path: TokenStream2,
+    pub conversion_to_path: TokenStream2,
+
+    pub from: MapPresenter,
+    pub to: MapPresenter,
+    pub destroy: MapPresenter,
+
+    pub root_presenter: OwnerIteratorPresenter,
+    pub root_conversion_from_presenter: OwnerIteratorPresenter,
+    pub root_conversion_to_presenter: OwnerIteratorPresenter,
+    pub root_destroy_presenter: IteratorPresenter,
+
+    pub doc_presenter: MapPresenter,
+
+    pub from_context_presenter: ComposerContext,
+    pub to_context_presenter: ComposerContext,
+
+    pub from_conversions_composer: MapPairPresenter,
+    pub to_conversions_composer: MapPairPresenter,
+
+    pub interface_presenter: InterfacePresenter,
+    pub field_presenter: FieldTypedPresenter,
+    pub conversion_presenter: MapPairPresenter,
+
+    pub destroy_code_context_presenter: MapPresenter,
+    pub destroy_presenter: MapPresenter,
+    pub drop_presenter: MapPairPresenter,
+
+
+
+    pub fields: Vec<TokenStream2>,
+    pub conversions_from: Vec<TokenStream2>,
+    pub conversions_to: Vec<TokenStream2>,
+    pub destructors: Vec<TokenStream2>,
+
+}
+
+impl PresentationComposer {
+    fn type_alias_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        root_presenter: OwnerIteratorPresenter,
+        field_presenter: FieldTypedPresenter,
+        from_context_presenter: ComposerContext,
+        to_context_presenter: ComposerContext,
+        from_conversions_composer: MapPairPresenter,
+        to_conversions_composer: MapPairPresenter,
+        root_conversion_from_presenter: OwnerIteratorPresenter,
+        root_conversion_to_presenter: OwnerIteratorPresenter,
+        conversion_presenter: MapPairPresenter,
+        root_destroy_presenter: IteratorPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        conversions_composer: I
+    ) -> Self {
+        let new = Self::new(
+            ffi_name,
+            target_name,
+            root_presenter,
+            field_presenter,
+            from_context_presenter,
+            to_context_presenter,
+            from_conversions_composer,
+            to_conversions_composer,
+            root_conversion_from_presenter,
+            root_conversion_to_presenter,
+            conversion_presenter,
+            root_destroy_presenter,
+            destroy_code_context_presenter,
+            SIMPLE_PRESENTER,
+            DROP_INTERFACE_PRESENTER,
+            DEFAULT_DOC_PRESENTER,
+            |_| quote!(ffi_ref.0),
+            |_| obj(),
+            FFI_DEREF_FIELD_NAME,
+            conversions_composer
+        );
+        // new.to = |_| obj();
+        // new.from = |_| quote!(ffi_ref.0);
+        // new.conversions_to = conversions_to;
+        // new.conversions_from = conversions_from;
+        new
+    }
+
+    fn struct_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        from_context_presenter: ComposerContext,
+        root_presenter: OwnerIteratorPresenter,
+        field_presenter: FieldTypedPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        root_conversion_presenter: OwnerIteratorPresenter,
+        conversion_presenter: MapPairPresenter,
+        conversions_composer: I) -> Self {
+        Self::new(
+            ffi_name,
+            target_name,
+            root_presenter,
+            field_presenter,
+            from_context_presenter,
+            |_| quote!(),
+            FFI_FROM_CONVERSION_PRESENTER,
+            FFI_TO_CONVERSION_PRESENTER,
+            root_conversion_presenter,
+            root_conversion_presenter,
+            conversion_presenter,
+            STRUCT_DESTROY_PRESENTER,
+            destroy_code_context_presenter,
+            SIMPLE_PRESENTER,
+            DROP_INTERFACE_PRESENTER,
+            DEFAULT_DOC_PRESENTER,
+            FFI_DEREF_FIELD_NAME,
+            OBJ_FIELD_NAME,
+            FFI_DEREF_FIELD_NAME,
+            conversions_composer
+        )
+    }
+
+    fn enum_variant_default_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        root_presenter: OwnerIteratorPresenter,
+        root_conversion_presenter: OwnerIteratorPresenter,
+        conversion_presenter: MapPairPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        destroy_presenter: MapPresenter,
+        conversions_presenter: I) -> Self {
+        Self::new(
+            ffi_name,
+            target_name,
+            root_presenter,
+            DEFAULT_FIELD_PRESENTER,
+            |composer| composer.fields_from(),
+            |composer| composer.fields_to(),
+            LAMBDA_CONVERSION_PRESENTER,
+            LAMBDA_CONVERSION_PRESENTER,
+            root_conversion_presenter,
+            root_conversion_presenter,
+            conversion_presenter,
+            DEFAULT_DESTROY_FIELDS_PRESENTER,
+            destroy_code_context_presenter,
+            destroy_presenter,
+            LAMBDA_CONVERSION_PRESENTER,
+            DEFAULT_DOC_PRESENTER,
+            deref_field_path,
+            SIMPLE_PRESENTER,
+            |f| quote!(#f.to_owned()), conversions_presenter)
+    }
+
+    fn enum_variant_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        root_presenter: OwnerIteratorPresenter,
+        conversion_presenter: MapPairPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        destroy_presenter: MapPresenter,
+        conversions_composer: I) -> Self {
+        Self::enum_variant_default_composer(
+            ffi_name,
+            target_name,
+            root_presenter,
+            root_presenter,
+            conversion_presenter,
+            destroy_code_context_presenter,
+            destroy_presenter,
+            conversions_composer)
+    }
+
+    fn primitive_composer(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        root_presenter: OwnerIteratorPresenter,
+        root_conversion_from_presenter: OwnerIteratorPresenter,
+        root_conversion_to_presenter: OwnerIteratorPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        drop_presenter: MapPairPresenter,
+        conversions_from: Vec<TokenStream2>,
+        conversion_to_path: TokenStream2) -> Self {
+        let new = Self {
+            ffi_name,
+            target_name: target_name.clone(),
+            interface_presenter: DEFAULT_INTERFACE_PRESENTER,
+            field_presenter: EMPTY_FIELD_TYPED_PRESENTER,
+            root_presenter,
+            from_context_presenter: |_| quote!(*ffi),
+            to_context_presenter: |_| quote!(),
+            from_conversions_composer: FFI_FROM_CONVERSION_PRESENTER,
+            to_conversions_composer: FFI_TO_CONVERSION_PRESENTER,
+            root_conversion_from_presenter,
+            root_conversion_to_presenter,
+            conversion_presenter: EMPTY_PAIR_PRESENTER,
+            destroy_presenter: EMPTY_MAP_PRESENTER,
+            root_destroy_presenter: EMPTY_ITERATOR_PRESENTER,
+            drop_presenter,
+            doc_presenter: DEFAULT_DOC_PRESENTER,
+            from: EMPTY_MAP_PRESENTER,
+            to: EMPTY_MAP_PRESENTER,
+            destroy: EMPTY_MAP_PRESENTER,
+            destroy_code_context_presenter,
+            fields: vec![],
+            conversions_from,
+            conversion_from_path: target_name.clone(),
+            conversions_to: vec![],
+            conversion_to_path,
+            destructors: vec![]
+        };
+        new
+    }
+
+
+
+    fn enum_unit_variant_composer(ffi_name: TokenStream2, target_name: TokenStream2, destroy_code_context_presenter: MapPresenter) -> Self {
+        Self::enum_variant_default_composer(
+            ffi_name,
+            target_name,
+            NO_FIELDS_PRESENTER,
+            NO_FIELDS_PRESENTER,
+            SIMPLE_CONVERSION_PRESENTER,
+            destroy_code_context_presenter,
+            EMPTY_DESTROY_PRESENTER,
+            IntoIterator::into_iter(vec![])
+        )
+    }
+
+    fn enum_unnamed_variant_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(ffi_name: TokenStream2, target_name: TokenStream2, destroy_code_context_presenter: MapPresenter, conversions_presenter: I) -> Self {
+        Self::enum_variant_composer(
+            ffi_name,
+            target_name,
+            ROUND_BRACES_FIELDS_PRESENTER,
+            SIMPLE_CONVERSION_PRESENTER,
+            destroy_code_context_presenter,
+            SIMPLE_TERMINATED_PRESENTER,
+            conversions_presenter
+        )
+    }
+
+    fn enum_named_variant_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(ffi_name: TokenStream2, target_name: TokenStream2, destroy_code_context_presenter: MapPresenter, conversions_presenter: I) -> Self {
+        Self::enum_variant_composer(
+            ffi_name,
+            target_name,
+            CURLY_BRACES_FIELDS_PRESENTER,
+            NAMED_CONVERSION_PRESENTER,
+            destroy_code_context_presenter,
+            SIMPLE_PRESENTER,
+            conversions_presenter
+        )
+    }
+
+
+
+    fn new<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
+        ffi_name: TokenStream2,
+        target_name: TokenStream2,
+        root_presenter: OwnerIteratorPresenter,
+        field_presenter: FieldTypedPresenter,
+        from_context_presenter: ComposerContext,
+        to_context_presenter: ComposerContext,
+        from_conversions_composer: MapPairPresenter,
+        to_conversions_composer: MapPairPresenter,
+        root_conversion_from_presenter: OwnerIteratorPresenter,
+        root_conversion_to_presenter: OwnerIteratorPresenter,
+        conversion_presenter: MapPairPresenter,
+        root_destroy_presenter: IteratorPresenter,
+        destroy_code_context_presenter: MapPresenter,
+        destroy_presenter: MapPresenter,
+        drop_presenter: MapPairPresenter,
+        doc_presenter: MapPresenter,
+        from: MapPresenter,
+        to: MapPresenter,
+        destroy: MapPresenter,
+        conversions_composer: I) -> Self where Self: Sized {
+        let mut new = Self {
+            ffi_name: ffi_name.clone(),
+            target_name: target_name.clone(),
+            interface_presenter: DEFAULT_INTERFACE_PRESENTER,
+            field_presenter,
+            root_presenter,
+            from_context_presenter,
+            to_context_presenter,
+            from_conversions_composer,
+            to_conversions_composer,
+            root_conversion_from_presenter,
+            root_conversion_to_presenter,
+            conversion_presenter,
+            destroy_code_context_presenter,
+            destroy_presenter,
+            root_destroy_presenter,
+            drop_presenter,
+            doc_presenter,
+            from,
+            to,
+            destroy,
+            fields: vec![],
+            conversions_from: vec![],
+            conversions_to: vec![],
+            conversion_from_path: target_name.clone(),
+            conversion_to_path: ffi_name.clone(),
+            destructors: vec![]
+        };
+        for (field_type, field_name) in conversions_composer {
+            new.add_conversion(&field_type, field_name);
+        }
+        println!("----->: fields: {:?}", new.fields);
+        println!("----->: conversions_from: {:?}", new.conversions_from);
+        println!("----->: conversions_to: {:?}", new.conversions_to);
+        println!("----->: destructors: {:?}", new.destructors);
+
+        new
+    }
+
+    fn add_conversion(&mut self, field_type: &Type, field_name: TokenStream2) {
+        println!("add_conversion: {:?} {:?}", field_name, field_type);
+        let field_path_to = (self.to)(field_name.clone());
+        let field_path_from = (self.from)(field_name.clone());
+        let field_path_destroy = (self.destroy)(field_name.clone());
+        let (converted_field_to, converted_field_from, destructor) = match field_type {
+            Type::Ptr(type_ptr) => (
+                to_ptr(field_path_to, type_ptr),
+                from_ptr(field_path_from, type_ptr),
+                destroy_ptr(field_path_destroy, type_ptr)
+            ),
+            Type::Path(TypePath { path, .. }) => (
+                to_path(field_path_to, path, None),
+                from_path(field_path_from, path, None),
+                destroy_path(field_path_destroy, path, None),
+            ),
+            Type::Reference(type_reference) => (
+                to_reference(field_path_to, type_reference),
+                from_reference(field_path_from, type_reference),
+                destroy_reference(field_path_destroy, type_reference)
+            ),
+            Type::Array(type_array) => (
+                to_array(field_path_to, type_array),
+                from_array(field_path_from, type_array),
+                destroy_array(field_path_destroy, type_array)
+            ),
+            _ => panic!("add_conversion: Unknown field {:?} {:?}", field_name, field_type),
+        };
+
+        self.fields.push((self.field_presenter)(field_name.clone(), field_type));
+        self.conversions_to.push((self.conversion_presenter)(field_name.clone(), converted_field_to));
+        self.conversions_from.push((self.conversion_presenter)(field_name.clone(), converted_field_from));
+        self.destructors.push((self.destroy_presenter)(destructor));
+    }
+
+    fn fields_from(&self) -> TokenStream2 {
+        self.fields(self.ffi_name.to_token_stream())
+    }
+
+    fn fields_to(&self) -> TokenStream2 {
+        (self.root_presenter)((self.target_name.to_token_stream(), self.fields.clone()))
+    }
+
+    fn fields(&self, root: TokenStream2) -> TokenStream2 {
+        (self.root_presenter)((root, self.fields.clone()))
+    }
+
+    fn conversions_from(&self) -> TokenStream2 {
+        (self.root_conversion_from_presenter)((self.conversion_from_path.to_token_stream(), self.conversions_from.clone()))
+    }
+
+    fn conversions_to(&self) -> TokenStream2 {
+        (self.root_conversion_to_presenter)((self.conversion_to_path.to_token_stream(), self.conversions_to.clone()))
+    }
+
+    fn destroy_presentation(&self) -> TokenStream2 {
+        (self.root_destroy_presenter)(self.destructors.clone())
+    }
+
+    fn drop_presentation(&self, context: TokenStream2) -> TokenStream2 {
+        (self.drop_presenter)(context, self.destroy_presentation())
+    }
+
+    fn doc_presentation(&self) -> TokenStream2 {
+        (self.doc_presenter)(self.target_name.clone())
+    }
+
+    fn interface_presentation(&self, destroy_code: TokenStream2) -> TokenStream2 {
+        (self.interface_presenter)(self.ffi_name.clone(), self.target_name.clone(), self.compose_from(), self.compose_to(), destroy_code)
+    }
+
+    fn compose_from(&self) -> TokenStream2 {
+        let context = (self.from_context_presenter)(self);
+        let conversions = self.conversions_from();
+        (self.from_conversions_composer)(context, conversions)
+    }
+
+    fn compose_to(&self) -> TokenStream2 {
+        let context = (self.to_context_presenter)(self);
+        let conversions = self.conversions_to();
+        (self.to_conversions_composer)(context, conversions)
+    }
+
+    fn expand(&self, input: TokenStream2) -> TokenStream {
+        let comment = self.doc_presentation();
+        let ffi_converted_input = self.fields_from();
+        let ffi_conversion_presentation = self.interface_presentation((self.destroy_code_context_presenter)(quote!()));
+        let drop_presentation = self.drop_presentation(self.ffi_name.clone());
+
+        expansion(
+            input.to_token_stream(),
+            comment,
+            ffi_converted_input,
+            ffi_conversion_presentation,
+            drop_presentation
+        )
+
+    }
+}
+
+fn expansion(input: TokenStream2, comment: TokenStream2, ffi_converted_input: TokenStream2, ffi_conversion_presentation: TokenStream2, drop_presentation: TokenStream2) -> TokenStream {
+    let expanded = quote! {
+        #input
+        #comment
+        #ffi_converted_input
+        #ffi_conversion_presentation
+        #drop_presentation
+    };
+    println!("{}", expanded);
+    expanded.into()
+}
+
+fn usize_to_tokenstream(value: usize) -> TokenStream2 {
+    let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
+    lit.to_token_stream()
 }
 
 fn package() -> TokenStream2 {
@@ -39,12 +571,19 @@ fn ffi_from() -> TokenStream2 {
     quote!(ffi_from)
 }
 
+fn ffi_from_const() -> TokenStream2 {
+    quote!(ffi_from_const)
+}
+
 fn ffi_from_opt() -> TokenStream2 {
     quote!(ffi_from_opt)
 }
 
 fn ffi_to() -> TokenStream2 {
     quote!(ffi_to)
+}
+fn ffi_to_const() -> TokenStream2 {
+    quote!(ffi_to_const)
 }
 
 fn ffi_to_opt() -> TokenStream2 {
@@ -124,28 +663,15 @@ fn unwrap_or(field_path: TokenStream2, or: TokenStream2) -> TokenStream2 {
     quote!(#field_path.unwrap_or(#or))
 }
 
-fn ffi_deref_field_name(field_name: TokenStream2) -> TokenStream2 {
-    quote!(ffi_ref.#field_name)
+fn deref_field_path(field_path: TokenStream2) -> TokenStream2 {
+    quote!(*#field_path)
 }
 
-fn obj_field_name(field_name: TokenStream2) -> TokenStream2 {
-    let obj = obj();
-    quote!(#obj.#field_name)
-}
-
-fn create_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 {
+fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {
     quote! {
         #[repr(C)]
         #[derive(Clone)]
-        pub struct #name { #(#fields,)* }
-    }
-}
-
-fn create_unnamed_struct(name: TokenStream2, fields: Vec<TokenStream2>) -> TokenStream2 {
-    quote! {
-        #[repr(C)]
-        #[derive(Clone)]
-        pub struct #name(#(#fields,)*);
+        pub struct #name #implementation
     }
 }
 
@@ -178,10 +704,10 @@ fn path_arguments_to_generic_arguments(arguments: &PathArguments) -> Vec<&Generi
 
 fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match path_arguments_to_generic_arguments(arguments)[..] {
-        [GenericArgument::Type(type_path)] =>
-            vec![type_path],
-        [GenericArgument::Type(path_keys), GenericArgument::Type(path_values, .. )] =>
-            vec![path_keys, path_values],
+        [GenericArgument::Type(value_type)] =>
+            vec![value_type],
+        [GenericArgument::Type(key_type), GenericArgument::Type(value_type, .. )] =>
+            vec![key_type, value_type],
         _ => unimplemented!("map_types: unexpected args: {:?}", arguments)
     }
 }
@@ -205,22 +731,11 @@ fn path_arguments_to_conversion_types(arguments: &PathArguments) -> Vec<Conversi
     }
 }
 
-// fn path_arguments_to_conversion_types(arguments: &PathArguments) -> Vec<ConversionType> {
-//     match path_arguments_to_paths(arguments)[..] {
-//         [path] =>
-//             vec![conversion_type_for_path(path)],
-//         [path_keys, path_values] =>
-//             vec![conversion_type_for_path(path_keys), conversion_type_for_path(path_values)],
-//         _ => panic!("path_arguments_to_conversion_type: Bad argunments {:?}", arguments)
-//     }
-// }
-
 fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
-    let package = package();
-    match path_arguments_to_conversion_types(arguments)[..] {
-        [ConversionType::Simple(..) | ConversionType::Complex(..)] => quote!(#package::unbox_any(#field_path);),
-        [ConversionType::Vec(..)] => destroy_vec(path, quote!(#field_path)),
+    match &path_arguments_to_conversion_types(arguments)[..] {
+        [ConversionType::Simple(..) | ConversionType::Complex(..)] => package_unbox_any_expression_terminated(field_path),
+        [ConversionType::Vec(path)] => destroy_vec(path, field_path),
         _ => panic!("destroy_vec: Bad arguments {:?} {:?}", field_path, arguments)
     }
 }
@@ -293,17 +808,12 @@ fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 }
 fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
-    let package = package();
     match path_arguments_to_paths(arguments)[..] {
         [_path_keys, _path_values] => match conversion_type_for_path(path) {
-            ConversionType::Simple(..) => {
-                quote!(#package::unbox_any(#field_path);)
-            },
-            ConversionType::Complex(..) => {
-                quote!(#package::unbox_any(#field_path);)
-            },
+            ConversionType::Simple(..) => package_unbox_any_expression_terminated(field_path),
+            ConversionType::Complex(..) => package_unbox_any_expression_terminated(field_path),
             ConversionType::Vec(..) => destroy_vec(path, quote!(#field_path)),
-            ConversionType::Map(..) => quote!(#package::unbox_any(#field_path);),
+            ConversionType::Map(..) => package_unbox_any_expression_terminated(field_path),
         },
         _ => panic!("destroy_map: Bad arguments {:?} {:?}", field_path, arguments)
     }
@@ -327,7 +837,6 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                 ConversionType::Map(..) => panic!("Map not supported as Map key")
             };
             let inner_path_value_path_last_segment = inner_path_value_path.segments.last().unwrap();
-            // let inner_path_value_path_last_segment_args = &inner_path_value_path_last_segment.arguments;
             let value_conversion = match conversion_type_for_path(inner_path_value_path) {
                 ConversionType::Simple(..) => value_simple_conversion,
                 ConversionType::Complex(..) => ffi_from_conversion(value_simple_conversion),
@@ -340,18 +849,16 @@ fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                             let simple_conversion = |buffer: TokenStream2| quote!(#buffer.add(#key_index));
                             let key_simple_conversion = simple_conversion(quote!(*map.keys));
                             let value_simple_conversion = simple_conversion(quote!(*map.values));
-                            let key_conversion = match conversion_type_for_path(inner_path_key_path) {
-                                ConversionType::Simple(..) => key_simple_conversion,
-                                ConversionType::Complex(..)  => ffi_from_conversion(key_simple_conversion),
+
+                            let converter = |inner_conversion: TokenStream2, inner_path: &Path| match conversion_type_for_path(inner_path) {
+                                ConversionType::Simple(..) => inner_conversion,
+                                ConversionType::Complex(..)  => ffi_from_conversion(inner_conversion),
                                 ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
                                 ConversionType::Map(..) => panic!("Vec/Map not supported as Map key")
                             };
-                            let value_conversion = match conversion_type_for_path(inner_path_value_path) {
-                                ConversionType::Simple(..) => value_simple_conversion,
-                                ConversionType::Complex(..) => ffi_from_conversion(value_simple_conversion),
-                                ConversionType::Vec(path) => from_vec(&path, quote!(*map.values.add(#key_index))),
-                                ConversionType::Map(..) => panic!("Vec/Map not supported as Map key")
-                            };
+
+                            let key_conversion = converter(key_simple_conversion, inner_path_key_path);
+                            let value_conversion = converter(value_simple_conversion, inner_path_value_path);
                             let ccc = simple_conversion(quote!(map.values));
                             ffi_from_map_conversion(quote!(((*#ccc))), key_index, quote!(#field_type), key_conversion, value_conversion)
                         },
@@ -422,10 +929,10 @@ fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 
 fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
     match &*type_array.elem {
-        Type::Path(TypePath { path, .. }) => {
-            let last_segment = path.segments.last().unwrap();
+        Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+            let last_segment = segments.last().unwrap();
             match last_segment.ident.to_string().as_str() {
-                "u8" => quote!(*#field_path),
+                "u8" => deref_field_path(field_path),
                 _ => panic!("from_array: unsupported ident {:?} {:?}", field_path, last_segment.ident)
             }
         },
@@ -520,17 +1027,17 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
 fn to_map_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
     package_boxed_expression(match path_arguments_to_paths(arguments)[..] {
         [inner_path_key, inner_path_value] => {
-            let mapper = |path: &Path| {
+            let mapper = |field_path: TokenStream2, path: &Path| {
                 let conversion = match conversion_type_for_path(path) {
-                    ConversionType::Simple(..) => quote!(o),
-                    ConversionType::Complex(..) => ffi_to_conversion(quote!(o)),
-                    ConversionType::Vec(..) => to_vec_conversion(quote!(o), &path.segments.last().unwrap().arguments),
-                    ConversionType::Map(..) => to_map_conversion(quote!(o), &path.segments.last().unwrap().arguments)
+                    ConversionType::Simple(..) => field_path,
+                    ConversionType::Complex(..) => ffi_to_conversion(field_path),
+                    ConversionType::Vec(path) => to_vec_conversion(field_path, &path.segments.last().unwrap().arguments),
+                    ConversionType::Map(path) => to_map_conversion(field_path, &path.segments.last().unwrap().arguments)
                 };
                 quote!(|o| #conversion)
             };
-            let key_mapper = mapper(inner_path_key);
-            let value_mapper = mapper(inner_path_value);
+            let key_mapper = mapper(quote!(o), inner_path_key);
+            let value_mapper = mapper(quote!(o),inner_path_value);
             let keys_conversion = package_boxed_vec_expression(quote!(map.keys().cloned().map(#key_mapper).collect()));
             let values_conversion = package_boxed_vec_expression(quote!(map.values().cloned().map(#value_mapper).collect()));
             quote!({let map = #field_path; rs_ffi_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }})
@@ -560,8 +1067,10 @@ fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> 
                             ConversionType::Map(..) => panic!("define_option: Map nested in Vec not supported yet"),
                             ConversionType::Vec(..) => panic!("define_option: Vec nested in Vec not supported yet"),
                         };
-                        let conversion = package_boxed_expression(quote!(rs_ffi_interfaces::VecFFI::new(vec.#transformer)));
-                        quote!(match #field_path { Some(vec) => #conversion, None => std::ptr::null_mut()})
+                        MATCH_FIELDS_PRESENTER((field_path, vec![
+                            LAMBDA_CONVERSION_PRESENTER(quote!(Some(vec)), package_boxed_expression(quote!(rs_ffi_interfaces::VecFFI::new(vec.#transformer)))),
+                            LAMBDA_CONVERSION_PRESENTER(quote!(None), quote!(std::ptr::null_mut())),
+                        ]))
                     },
                     _ => panic!("to_option_conversion: Unknown args {:?}", last_segment)
                 },
@@ -588,7 +1097,7 @@ fn to_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>) -
 
 fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray) -> TokenStream2 {
     let expr = package_boxed_expression(quote!(o));
-    package_boxed_vec_expression(iter_map_collect(obj_field_name(ident), quote!(|o| #expr)))
+    package_boxed_vec_expression(iter_map_collect(OBJ_FIELD_NAME(ident), quote!(|o| #expr)))
 }
 fn destroy_conversion(field_value: TokenStream2, ffi_type: TokenStream2, field_type: TokenStream2) -> TokenStream2 {
     let package = package();
@@ -651,9 +1160,7 @@ fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> Tok
 
 fn to_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
     match &*type_array.elem {
-        Type::Path(type_path) => {
-            to_path(package_boxed_expression(field_path), &type_path.path, None)
-        },
+        Type::Path(type_path) => to_path(package_boxed_expression(field_path), &type_path.path, None),
         _ => panic!("to_array: Unknown field {:?} {:?}", field_path, type_array.elem)
     }
 }
@@ -803,20 +1310,26 @@ fn extract_struct_field(field_type: &Type) -> TokenStream2 {
 
 
 
+
 fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_conversion: TokenStream2, ffi_to_conversion: TokenStream2, destroy_code: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
     let ffi = ffi();
     let obj = obj();
-    let ffi_from = ffi_from();
-    let ffi_to = ffi_to();
+    // let ffi_from = ffi_from();
+    let ffi_from_const = ffi_from_const();
+    // let ffi_to = ffi_to();
+    let ffi_to_const = ffi_to_const();
     // let ffi_from_opt = ffi_from_opt();
     // let ffi_to_opt = ffi_to_opt();
 
     quote! {
         impl #package::#interface<#target_name> for #ffi_name {
-            unsafe fn #ffi_from(#ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
-            unsafe fn #ffi_to(#obj: #target_name) -> *mut #ffi_name { #ffi_to_conversion }
+
+            unsafe fn #ffi_from_const(#ffi: *const #ffi_name) -> #target_name { #ffi_from_conversion }
+            unsafe fn #ffi_to_const(#obj: #target_name) -> *const #ffi_name { #ffi_to_conversion }
+            // unsafe fn #ffi_from(#ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
+            // unsafe fn #ffi_to(#obj: #target_name) -> *mut #ffi_name { #ffi_to_conversion }
             // unsafe fn #ffi_from_opt(#ffi: *mut #ffi_name) -> Option<#target_name> {
             //     (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(#ffi))
             // }
@@ -831,210 +1344,8 @@ fn impl_interface(ffi_name: TokenStream2, target_name: TokenStream2, ffi_from_co
 }
 
 fn impl_drop(ffi_name: TokenStream2, drop_code: TokenStream2) -> TokenStream2 {
-    quote! {
-        impl Drop for #ffi_name {
-            fn drop(&mut self) {
-                unsafe { #drop_code }
-            }
-        }
-
-    }
+    quote! { impl Drop for #ffi_name { fn drop(&mut self) { unsafe { #drop_code } } } }
 }
-
-fn from_unnamed_struct(fields: &FieldsUnnamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
-    let obj = obj();
-    // assert!(fields.unnamed.len() <= 1, "Unnamed structs with multiple fields not supported yet");
-    let ffi_name = ffi_struct_name(&target_name);
-    let (ffi_struct, interface_impl, drop_impl) = match target_name.clone().to_string().as_str() {
-        "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => {
-
-            let (ffi_name, ffi_from_conversion, ffi_to_conversion, destroy_code, drop_code) = match fields.unnamed.first().unwrap().ty.clone() {
-                // UInt256 etc
-                Type::Path(TypePath { path, .. }) => {
-                    // match  { }
-                    match path.segments.last().unwrap().ident.to_string().as_str() {
-                        "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" => {
-                            (
-                                quote!(#path),
-                                quote!(let ffi_ref = *ffi; #target_name(ffi_ref.0)),
-                                package_boxed_expression(quote!(#path(#obj.0))),
-                                package_unboxed_root(),
-                                None
-                            )
-                        },
-                        _ => {
-                            (
-                                quote!(#ffi_name),
-                                {
-                                    let conversion = from_path(quote!(ffi_ref.0), &path, None);
-                                    quote!(let ffi_ref = *ffi; #target_name(#conversion))
-                                },
-                                package_boxed_expression(quote!(#ffi_name(#obj.0))),
-                                package_unboxed_root(),
-                                None
-                            )
-                        }
-                    }
-                },
-                // VarInt
-                Type::Array(ffi_name) => (
-                    quote!(#ffi_name),
-                    quote!(let ffi_ref = *ffi; #target_name(ffi_ref)),
-                    package_boxed_expression(quote!(#obj.0)),
-                    quote!(),
-                    None
-                ),
-                _ => unimplemented!("from_unnamed_struct: not supported {:?}", fields.unnamed.first().unwrap().ty)
-            };
-            let interface_impl = impl_interface(ffi_name.clone(), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_code);
-
-            let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name, drop_code));
-            // let ffi_struct = create_unnamed_struct(quote!(#ffi_name), vec![quote!(#ffi_name)]);
-            (quote!(), interface_impl, drop_impl)
-        },
-        _ => {
-            let fields_count = fields.unnamed.len();
-            let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
-            let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
-            let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
-            let mut destroy_fields = Vec::<TokenStream2>::with_capacity(fields_count);
-            fields.unnamed.iter().enumerate().for_each(|(index, Field { ty: field_type, .. })| {
-                let field_name = usize_to_tokenstream(index);
-                let field_path_to = obj_field_name(quote!(#field_name));
-                let field_path_from = ffi_deref_field_name(quote!(#field_name));
-
-                let (conversion_to, conversion_from, destroy_field) = match field_type {
-                    Type::Ptr(type_ptr) => (
-                        to_ptr(field_path_to, type_ptr),
-                        from_ptr(field_path_from.clone(), type_ptr),
-                        destroy_ptr(field_path_from, type_ptr)
-                    ),
-                    Type::Path(TypePath { path, .. }) => (
-                        to_path(field_path_to, path, None),
-                        from_path(field_path_from.clone(), path, None),
-                        destroy_path(field_path_from, path, None),
-                    ),
-                    Type::Reference(type_reference) => (
-                        to_reference(field_path_to, type_reference),
-                        from_reference(field_path_from.clone(), type_reference),
-                        destroy_reference(field_path_from.clone(), type_reference)
-                    ),
-                    Type::Array(type_array) => (
-                        to_array(field_path_to, type_array),
-                        from_array(field_path_from.clone(), type_array),
-                        destroy_array(field_path_from.clone(), type_array)
-                    ),
-                    _ => panic!("from_unnamed_struct: Unknown field {:?} {:?}", index, field_type),
-                };
-                conversions_to_ffi.push(conversion_to);
-                conversions_from_ffi.push(conversion_from);
-                struct_fields.push(extract_struct_field(field_type));
-                destroy_fields.push(destroy_field);
-            });
-            let interface_impl = impl_interface(
-                quote!(#ffi_name),
-                quote!(#target_name),
-                quote!(let ffi_ref = &*ffi; #target_name(#(#conversions_from_ffi,)*)),
-                package_boxed_expression(quote!(#ffi_name(#(#conversions_to_ffi,)*))),
-                package_unboxed_root()
-            );
-
-            let drop_code = match destroy_fields.len() {
-                0 => quote!(),
-                _ => {
-                    quote! {
-                        let ffi_ref = self;
-                        #(#destroy_fields;)*
-                    }
-                }
-            };
-            let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
-            let ffi_struct = create_unnamed_struct(quote!(#ffi_name), struct_fields);
-            (ffi_struct, interface_impl, drop_impl)
-        }
-    };
-    let comment = doc(target_name.to_string());
-    let expanded = quote! {
-        #input
-        #comment
-        #ffi_struct
-        #interface_impl
-        #drop_impl
-    };
-    println!("{}", expanded);
-    return expanded.into();
-
-
-}
-
-fn from_named_struct(fields: &FieldsNamed, target_name: Ident, input: &DeriveInput) -> TokenStream {
-    let ffi_name = input.ident.clone();
-    let fields_count = fields.named.len();
-    let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
-    let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(fields_count);
-    let mut struct_fields = Vec::<TokenStream2>::with_capacity(fields_count);
-    let mut destroy_fields = Vec::<TokenStream2>::with_capacity(fields_count);
-    fields.named.iter().for_each(|Field { ident, ty: field_type, .. }| {
-        let field_name = &ident.clone().unwrap().to_token_stream();
-        let field_path_to = obj_field_name(field_name.clone());
-        let field_path_from = ffi_deref_field_name(field_name.clone());
-
-        let (conversion_to, conversion_from, destroy_field) = match field_type {
-            Type::Ptr(type_ptr) => (
-                to_ptr(field_path_to, type_ptr),
-                from_ptr(field_path_from.clone(), type_ptr),
-                destroy_ptr(field_path_from, type_ptr)
-            ),
-            Type::Path(TypePath { path, .. }) => (
-                to_path(field_path_to, path, None),
-                from_path(field_path_from.clone(), path, None),
-                destroy_path(field_path_from, path, None),
-            ),
-            Type::Reference(type_reference) => (
-                to_reference(field_path_to, type_reference),
-                from_reference(field_path_from.clone(), type_reference),
-                destroy_reference(field_path_from.clone(), type_reference)
-            ),
-            _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, field_type),
-        };
-        conversions_to_ffi.push(define_field(field_name.clone(), conversion_to));
-        conversions_from_ffi.push(define_field(field_name.clone(),conversion_from));
-        struct_fields.push(define_pub_field(field_name.clone(), extract_struct_field(field_type)));
-        destroy_fields.push(destroy_field);
-    });
-    let ffi_name = ffi_struct_name(&ffi_name);
-    let ffi_struct = create_struct(quote!(#ffi_name), struct_fields);
-    let drop_code = match destroy_fields.len() {
-        0 => quote!(),
-        _ => {
-            quote! {
-                let ffi_ref = self;
-                #(#destroy_fields;)*
-            }
-        }
-    };
-    let interface_impl = impl_interface(
-        quote!(#ffi_name),
-        quote!(#target_name),
-        quote!(let ffi_ref = &*ffi; #target_name { #(#conversions_from_ffi,)* }),
-        package_boxed_expression(quote!(#ffi_name { #(#conversions_to_ffi,)* })),
-        package_unboxed_root()
-    );
-    let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
-
-    let comment = doc(target_name.to_string());
-
-    let expanded = quote! {
-        #input
-        #comment
-        #ffi_struct
-        #interface_impl
-        #drop_impl
-    };
-    println!("{}", expanded);
-    TokenStream::from(expanded)
-}
-
 
 fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> TokenStream {
     let variants = &data_enum.variants;
@@ -1047,161 +1358,56 @@ fn from_enum(data_enum: &DataEnum, target_name: Ident, input: &DeriveInput) -> T
     variants.iter().for_each(|Variant { ident: variant_name, fields, discriminant, ..}| {
         let target_variant_path = quote!(#target_name::#variant_name);
         let ffi_variant_path = quote!(#ffi_name::#variant_name);
-        let (variant_to_lvalue,
-            variant_to_rvalue,
-            variant_from_lvalue,
-            variant_from_rvalue,
-            destroy_command) = match fields {
-            Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => {
-                let mut variant_fields = vec![];
-                let mut destroy_fields = vec![];
-                let mut converted_fields_to = vec![];
-                let mut converted_fields_from = vec![];
-                unnamed.iter().enumerate().for_each(|(index, Field { ty, .. })| {
-                    let field_indexed = format_ident!("o_{}", index);
-                    let (converted_field_to, converted_field_from, destroy_field) = match ty {
-                        Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
-                            ConversionType::Simple(..) => (
-                                quote!(#field_indexed),
-                                quote!(*#field_indexed),
-                                quote!()),
-                            ConversionType::Complex(..) => (
-                                ffi_to_conversion(quote!(#field_indexed)),
-                                ffi_from_conversion(quote!(*#field_indexed)),
-                                {
-                                    let expr = package_unbox_any_expression_terminated(quote!(#field_indexed));
-                                    quote!(let #field_indexed = #expr)
-                                }
-                            ),
-                            _ => unimplemented!("Enum with Map/Vec as associated value not supported yet")
-                        },
-                        Type::Reference(type_reference) => (
-                            to_reference(quote!(#field_indexed), type_reference),
-                            from_reference(quote!(*#field_indexed), type_reference),
-                            destroy_reference(quote!(#field_indexed.to_owned()), type_reference)
-                        ),
-                        _ => unimplemented!("Unsupported field type in enum variant")
-                    };
-                    variant_fields.push(quote!(#field_indexed));
-                    converted_fields_to.push(converted_field_to);
-                    converted_fields_from.push(converted_field_from);
-                    destroy_fields.push(destroy_field);
-                });
-                (quote!(#target_variant_path(#(#variant_fields,)*)),
-                 quote!(#ffi_variant_path(#(#converted_fields_to,)*)),
-                 quote!(#ffi_variant_path(#(#variant_fields,)*)),
-                 quote!(#target_variant_path(#(#converted_fields_from,)*)),
-                 quote!({#(#destroy_fields)*})
-                )
-            },
-            Fields::Unit => (
-                quote!(#target_variant_path),
-                quote!(#ffi_variant_path),
+
+        let composer = match fields {
+            Fields::Unit => PresentationComposer::enum_unit_variant_composer(quote!(#ffi_variant_path), quote!(#target_variant_path), ROOT_DESTROY_CONTEXT_PRESENTER),
+            Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => PresentationComposer::enum_unnamed_variant_composer(
                 quote!(#ffi_variant_path),
                 quote!(#target_variant_path),
-                quote!({})
+                ROOT_DESTROY_CONTEXT_PRESENTER,
+                unnamed.iter().enumerate().map(|(index, Field { ty, .. })| (ty, format_ident!("o_{}", index).to_token_stream()))
             ),
-            Fields::Named(FieldsNamed { named, .. }) => {
-                let mut variant_fields = vec![];
-                let mut destroy_fields = vec![];
-                let mut converted_fields_to = vec![];
-                let mut converted_fields_from = vec![];
-                named.iter().for_each(|Field { ident, ty: field_type, .. }| {
-                    let field_name = &ident.clone().unwrap().to_token_stream();
-
-                    let (converted_field_to, converted_field_from, destroy_field) = match field_type {
-                        Type::Ptr(type_ptr) => (
-                            to_ptr(quote!(#field_name), type_ptr),
-                            from_ptr(quote!(*#field_name), type_ptr),
-                            destroy_ptr(field_name.clone(), type_ptr)
-                        ),
-                        Type::Path(TypePath { path, .. }) => (
-                            to_path(quote!(#field_name), path, None),
-                            from_path(quote!(*#field_name), path, None),
-                            destroy_path(field_name.clone(), path, None),
-                        ),
-                        Type::Reference(type_reference) => (
-                            to_reference(quote!(#field_name), type_reference),
-                            from_reference(quote!(*#field_name), type_reference),
-                            destroy_reference(field_name.clone(), type_reference)
-                        ),
-                        _ => panic!("from_named_struct: Unknown field {:?} {:?}", field_name, field_type),
-                    };
-
-                    variant_fields.push(field_name.clone());
-                    converted_fields_to.push(define_field(field_name.clone(), converted_field_to));
-                    converted_fields_from.push(define_field(field_name.clone(),converted_field_from));
-                    destroy_fields.push(destroy_field);
-                });
-                (quote!(#target_variant_path { #(#variant_fields,)* }),
-                 quote!(#ffi_variant_path { #(#converted_fields_to,)* }),
-                 quote!(#ffi_variant_path { #(#variant_fields,)* }),
-                 quote!(#target_variant_path { #(#converted_fields_from,)* }),
-                 quote!({#(#destroy_fields)*})
-                )
-            },
+            Fields::Named(FieldsNamed { named, .. }) => PresentationComposer::enum_named_variant_composer(
+                quote!(#ffi_variant_path),
+                quote!(#target_variant_path),
+                ROOT_DESTROY_CONTEXT_PRESENTER,
+                named.iter().map(|Field { ident, ty, .. }| (ty, ident.clone().unwrap().to_token_stream()))
+            )
         };
-        let variant_field = match discriminant {
-            Some((_, Expr::Lit(lit, ..))) => quote!(#variant_name = #lit),
+        let (variants_presenter, fields) = match discriminant {
+            Some((_, Expr::Lit(lit, ..))) => (ENUM_UNIT_FIELDS_PRESENTER, vec![quote!(#lit)]),
             None => match fields {
-                Fields::Named(ref fields) => {
-                    let enum_fields = fields.named.iter().map(|Field { ident, ty, .. }| define_field(quote!(#ident), extract_struct_field(ty))).collect::<Vec<_>>();
-                    quote!(#variant_name { #(#enum_fields),* })
-                },
-                Fields::Unnamed(ref fields) => {
-                    let enum_fields = fields.unnamed.iter().map(|Field { ty, .. }| extract_struct_field(ty)).collect::<Vec<_>>();
-                    quote!(#variant_name(#(#enum_fields),*))
-                },
-                Fields::Unit => quote!(#variant_name),
+                Fields::Unit => (NO_FIELDS_PRESENTER, vec![]),
+                Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => (ENUM_UNNAMED_VARIANT_PRESENTER, unnamed.iter().map(|field: &Field| extract_struct_field(&field.ty)).collect::<Vec<_>>()),
+                Fields::Named(FieldsNamed { named, .. }) => (ENUM_NAMED_VARIANT_PRESENTER, named.iter().map(|field: &Field| NAMED_CONVERSION_PRESENTER(field.ident.clone().unwrap().to_token_stream(), extract_struct_field(&field.ty))).collect::<Vec<_>>())
             },
             _ => panic!("Error variant discriminant")
         };
-
-        variants_fields.push(variant_field);
-        conversions_to_ffi.push(define_lambda(variant_to_lvalue, variant_to_rvalue));
-        conversions_from_ffi.push(define_lambda(variant_from_lvalue.clone(), variant_from_rvalue));
-        destroy_fields.push(define_lambda(variant_from_lvalue, destroy_command));
+        variants_fields.push(variants_presenter((quote!(#variant_name), fields)));
+        conversions_from_ffi.push(composer.compose_from());
+        conversions_to_ffi.push(composer.compose_to());
+        destroy_fields.push(composer.drop_presentation(composer.fields_from()));
     });
-    let obj = obj();
 
-    let drop_code = match destroy_fields.len() {
-        0 => quote!(),
-        _ => {
-            quote! {
-                match self {
-                    #(#destroy_fields,)*
-                }
-            }
-        }
-    };
+    // let from_context_presenter = |_| quote!(&*ffi);
+    let comment = DEFAULT_DOC_PRESENTER(quote!(#target_name));
+    let ffi_converted_input = ENUM_PRESENTER((quote!(#ffi_name), variants_fields));
+    let from_conversions = MATCH_FIELDS_PRESENTER((quote!(ffi_ref), conversions_from_ffi));
+    let to_conversions = MATCH_FIELDS_PRESENTER((quote!(obj), conversions_to_ffi));
+    let ffi_from_conversion = FFI_FROM_CONVERSION_PRESENTER(quote!(&*ffi), from_conversions);
+    let ffi_to_conversion = FFI_TO_CONVERSION_PRESENTER(quote!(), to_conversions);
+    let ffi_conversion_presentation = DEFAULT_INTERFACE_PRESENTER(quote!(#ffi_name), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, package_unboxed_root());
+    let drop_presentation = DROP_INTERFACE_PRESENTER(quote!(#ffi_name), ENUM_DESTROY_PRESENTER(destroy_fields));
 
-    let comment = doc(target_name.to_string());
-    let converted = quote! {
-        #comment
-        #[repr(C)]
-        #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Ord)]
-        pub enum #ffi_name {
-            #(#variants_fields,)*
-        }
-    };
-    let interface_impl = impl_interface(
-        quote!(#ffi_name),
-        quote!(#target_name),
-        quote!(let ffi_ref = &*ffi; match ffi_ref { #(#conversions_from_ffi),* }),
-        package_boxed_expression(quote!(match #obj { #(#conversions_to_ffi),* })),
-        package_unboxed_root()
-    );
-    let drop_impl = impl_drop(quote!(#ffi_name), drop_code);
-
-    let expanded = quote! {
-        #input
-        #converted
-        #interface_impl
-        #drop_impl
-    };
-    println!("{}", expanded);
-    expanded.into()
+    expansion(
+        input.to_token_stream(),
+        comment,
+        ffi_converted_input,
+        ffi_conversion_presentation,
+        drop_presentation
+    )
 }
+
 
 #[proc_macro_attribute]
 pub fn impl_ffi_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -1219,11 +1425,82 @@ pub fn impl_ffi_conv(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
     match input.data {
         Data::Struct(DataStruct { fields: ref f, ..}) => {
-            match f {
-                Fields::Named(ref fields) => from_named_struct(fields, target_name, &input),
-                Fields::Unnamed(ref fields) => from_unnamed_struct(fields, target_name, &input),
+            let composer = match f {
+                Fields::Unnamed(ref fields) => match target_name.clone().to_string().as_str() {
+                    // Hack used to simplify some structures
+                    // Main problem here that without special dictionary of predefined non-std structures
+                    // we unable to filter out structures and provide them conversions when they are used as field types inside parent structures
+                    // Solution would be to write build script to preprocess and collect dictionary before macro expansion
+                    // in order to match struct field types with this predefined dictionary
+                    "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => {
+                        let (ffi_name,
+                            ffi_from_presenter,
+                            ffi_from_presentation_context,
+                            ffi_to_presenter,
+                            ffi_to_presentation_context,
+                            destroy_code_context_presenter) = match fields.unnamed.first().unwrap().ty.clone() {
+                            // VarInt
+                            Type::Path(TypePath { path, .. }) => {
+                                let ffi_name = ffi_struct_name(&target_name);
+                                (
+                                    quote!(#ffi_name),
+                                    CURLY_BRACES_FIELDS_PRESENTER,
+                                    vec![from_path(quote!(ffi_ref.0), &path, None)],
+                                    CURLY_BRACES_FIELDS_PRESENTER,
+                                    quote!(#ffi_name),
+                                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                                )
+                            },
+                            // UInt256 etc
+                            Type::Array(type_array) => (
+                                quote!(#type_array),
+                                ROUND_BRACES_FIELDS_PRESENTER,
+                                vec![quote!(ffi_ref)],
+                                NO_FIELDS_PRESENTER,
+                                quote!(obj.0),
+                                EMPTY_MAP_PRESENTER
+                            ),
+                            _ => unimplemented!("from_unnamed_struct: not supported {:?}", fields.unnamed.first().unwrap().ty)
+                        };
+                        PresentationComposer::primitive_composer(
+                                quote!(#ffi_name),
+                                quote!(#target_name),
+                                EMPTY_FIELDS_PRESENTER,
+                                ffi_from_presenter,
+                                ffi_to_presenter,
+                                destroy_code_context_presenter,
+                                EMPTY_PAIR_PRESENTER,
+                                ffi_from_presentation_context,
+                                ffi_to_presentation_context,
+                        )
+                    },
+                    _ =>
+                        PresentationComposer::struct_composer(
+                            ffi_struct_name(&target_name).to_token_stream(),
+                            quote!(#target_name),
+                            |_| quote!(&*ffi),
+                            UNNAMED_STRUCT_PRESENTER,
+                            DEFAULT_FIELD_TYPE_PRESENTER,
+                            ROOT_DESTROY_CONTEXT_PRESENTER,
+                            ROUND_BRACES_FIELDS_PRESENTER,
+                            SIMPLE_CONVERSION_PRESENTER,
+                            fields.unnamed.iter().enumerate().map(|(index, Field { ty, .. })| (ty, usize_to_tokenstream(index)))
+                        ),
+                },
+                Fields::Named(ref fields) => PresentationComposer::struct_composer(
+                        ffi_struct_name(&input.ident).to_token_stream(),
+                        quote!(#target_name),
+                        |_| quote!(&*ffi),
+                        NAMED_STRUCT_PRESENTER,
+                        NAMED_FIELD_TYPE_PRESENTER,
+                        ROOT_DESTROY_CONTEXT_PRESENTER,
+                        CURLY_BRACES_FIELDS_PRESENTER,
+                        NAMED_CONVERSION_PRESENTER,
+                        fields.named.iter().map(|Field { ident, ty, .. }| (ty, quote!(#ident)))
+                ),
                 Fields::Unit => panic!("Fields::Unit is not supported yet"),
-            }
+            };
+            composer.expand(input.to_token_stream())
         },
         Data::Enum(ref data_enum) => from_enum(data_enum, target_name, &input),
         Data::Union(ref _data_union) => panic!("Union is not supported yet")
@@ -1239,83 +1516,32 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
         _ => panic!("Expected a type alias"),
     };
     let ffi_name = format_ident!("{}FFI", target_name);
-
-    let ffi_struct_name = ffi_name.to_token_stream();
-
-    let obj = obj();
-    let alias_converted = extract_struct_field(alias_to);
-    let (ffi_name, ffi_from_conversion, ffi_to_conversion, destroy_code, drop_code) = match &*alias_to.clone() {
-        Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
-            ConversionType::Simple(..)  => (
-                ffi_struct_name.clone(),
-                quote!(let ffi_ref = &*ffi; ffi_ref.0),
-                package_boxed_expression(quote!(#ffi_struct_name(#obj))),
-                package_unboxed_root(),
-                None,
-            ),
-            ConversionType::Complex(..)  => (
-                ffi_struct_name.clone(),
-                quote!(let ffi_ref = &*ffi; ffi_ref.0),
-                package_boxed_expression(quote!(#ffi_struct_name(#obj))),
-                package_unboxed_root(),
-                None
-            ),
-            ConversionType::Vec(..)  => {
-
-                (
-                    ffi_struct_name.clone(),
-                    from_vec(path, quote!((&*ffi).0)),
-                    {
-                        let conversion = to_vec_conversion(obj.clone(), &path.segments.last().unwrap().arguments);
-                        package_boxed_expression(quote!(#ffi_struct_name(#conversion)))
-                    },
-                    package_unboxed_root(),
-                    Some(package_unbox_any_expression_terminated(quote!(self.0)))
-                )
+    let composer = PresentationComposer::type_alias_composer(
+        quote!(#ffi_name),
+        quote!(#target_name),
+        TYPE_ALIAS_PRESENTER,
+        DEFAULT_FIELD_TYPE_PRESENTER,
+        |_| quote!(&*ffi),
+        |_| quote!(obj),
+        FFI_FROM_CONVERSION_PRESENTER,
+        FFI_TO_CONVERSION_PRESENTER,
+        TYPE_ALIAS_CONVERSION_FROM_PRESENTER,
+        TYPE_ALIAS_CONVERSION_TO_PRESENTER,
+        SIMPLE_CONVERSION_PRESENTER,
+        STRUCT_DESTROY_PRESENTER,
+        ROOT_DESTROY_CONTEXT_PRESENTER,
+        IntoIterator::into_iter(vec![(&*alias_to.clone(), match &*alias_to.clone() {
+            Type::Path(TypePath { path, .. }) => match conversion_type_for_path(path) {
+                ConversionType::Simple(..) => obj(),
+                _ => usize_to_tokenstream(0),
             },
-            _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
-        },
-        Type::Array(_type_array) => (
-            ffi_struct_name.clone(),
-            quote!(let ffi_ref = &*ffi; *ffi_ref.0),
-            {
-                let inner_type = package_boxed_expression(obj);
-                package_boxed_expression(quote!(#ffi_struct_name(#inner_type)))
-            },
-            package_unboxed_root(),
-            Some(package_unbox_any_expression_terminated(quote!(self.0)))
-        ),
-        // Opaque ptr case
-        Type::Ptr(type_ptr) => (
-            ffi_struct_name.clone(),
-            from_ptr(quote!(ffi_ref), type_ptr),
-            to_ptr(quote!(ffi_ref), type_ptr),
-            quote!(),
-            None
-            ),
-        _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to)
-    };
-    let interface_impl = impl_interface(ffi_name.clone(), quote!(#target_name), ffi_from_conversion, ffi_to_conversion, destroy_code);
-    let drop_impl = drop_code.map_or(quote!(), |drop_code| impl_drop(ffi_name.clone(), drop_code));
-    let comment = doc(target_name.to_string());
-    let expanded = quote! {
-        #input
-        #comment
-        #[repr(C)]
-        #[derive(Clone)]
-        pub struct #ffi_name(#alias_converted);
-        #interface_impl
-        #drop_impl
-    };
-
-    println!("{}", expanded);
-    expanded.into()
+            Type::Array(_type_array) => usize_to_tokenstream(0),
+            Type::Ptr(_type_ptr) => obj(),
+            _ => unimplemented!("from_type_alias: not supported {:?}", &alias_to),
+        })])
+    );
+    composer.expand(input.to_token_stream())
 }
-
-// #[proc_macro_attribute]
-// pub fn impl_ffi_opaque_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
-//
-// }
 
 #[proc_macro_attribute]
 pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
@@ -1331,7 +1557,7 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let args_converted = signature.inputs.iter().map(|arg| match arg {
             FnArg::Typed(PatType { ty, pat, .. }) =>
-                define_field(pat.to_token_stream(), extract_struct_field(&ty)),
+                NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), extract_struct_field(&ty)),
             _ => panic!("Arg type {:?} not supported", arg)
         }).collect::<Vec<_>>();
 
@@ -1344,75 +1570,69 @@ pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
         _ => panic!("Expected typed function argument")
     }).collect::<Vec<_>>();
 
-    let output_conversion = match &signature.output {
-        ReturnType::Default => quote! { ; },
-        ReturnType::Type(_, field_type) => match &**field_type {
-            Type::Path(TypePath { path, .. }) => to_path(obj.clone(), path, None),
-            _ => panic!("error: output conversion: {:?}", field_type),
+    let comment = SAFETY_DOC_PRESENTER(fn_name.to_token_stream());
+    expansion(
+        input_fn.to_token_stream(),
+        comment,
+        {
+            let output_conversion = match &signature.output {
+                ReturnType::Default => quote! { ; },
+                ReturnType::Type(_, field_type) => match &**field_type {
+                    Type::Path(TypePath { path, .. }) => to_path(obj.clone(), path, None),
+                    _ => panic!("error: output conversion: {:?}", field_type),
+                },
+            };
+            let name_and_arguments = ROUND_BRACES_FIELDS_PRESENTER((quote!(#ffi_fn_name), args_converted));
+            let conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#fn_name), args_conversions));
+            quote! {
+                #[no_mangle]
+                pub unsafe extern "C" fn #name_and_arguments -> #output_type {
+                    let #obj = #conversions;
+                    #output_conversion
+                }
+            }
         },
-    };
-    let comment = doc(fn_name.to_string());
-    let expanded = quote! {
-        #input_fn
-        #comment
-        /// # Safety
-        #[no_mangle]
-        pub unsafe extern "C" fn #ffi_fn_name(#(#args_converted),*) -> #output_type {
-            let #obj = #fn_name(#(#args_conversions),*);
-            #output_conversion
-        }
-    };
-
-    println!("{}", expanded);
-    expanded.into()
+        quote!(),
+        quote!(),
+    )
 }
 
 fn doc(target_name: String) -> TokenStream2 {
     let comment = format!("FFI-representation of the {}", target_name);
-    parse_quote! {
-        #[doc = #comment]
-    }
+    parse_quote! { #[doc = #comment] }
 }
 
 #[proc_macro_attribute]
 pub fn impl_ffi_callback(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Item);
-    let (target_name, alias_to) = match &input {
-        Item::Type(ItemType { ident, ty, .. }) => (ident, ty),
-        _ => panic!("Expected a type alias"),
-    };
-    let (output_expr, args_converted) = match *alias_to.clone() {
-        Type::BareFn(TypeBareFn { inputs, output, .. }) => {
-            let output_type = match output {
-                ReturnType::Default => quote!(),
-                ReturnType::Type(_, field_type) => {
-                    let field = extract_struct_field(&field_type);
-                    quote!(-> #field)
-                },
-            };
-            let args = inputs.iter()
-                .map(|BareFnArg { ty: field_type, name, .. }|
-                    define_field(name.clone().unwrap().0.to_token_stream(), extract_struct_field(field_type)))
-                .collect::<Vec<_>>();
-            (output_type, args)
+    let (ffi_callback_name, output_expr, args_converted) = match &input {
+        Item::Type(ItemType { ident, ty, .. }) => match *ty.clone() {
+            Type::BareFn(TypeBareFn { inputs, output, .. }) => (
+                format_ident!("{}FFI", ident),
+                match output {
+                    ReturnType::Default => quote!(),
+                    ReturnType::Type(_, field_type) => {
+                        let field = extract_struct_field(&field_type);
+                        quote!(-> #field)
+                    },
+                }, inputs.iter()
+                    .map(|BareFnArg { ty: field_type, name, .. }|
+                        NAMED_CONVERSION_PRESENTER(name.clone().unwrap().0.to_token_stream(), extract_struct_field(field_type)))
+                    .collect::<Vec<_>>()
+            ),
+            _ => unimplemented!("Expected a function"),
         },
-        _ => panic!("Expected a function"),
+        _ => unimplemented!("Expected a type alias"),
     };
 
-    let ffi_callback_name = format_ident!("{}FFI", target_name);
-
-    let expanded = quote! {
-        #input
-        pub type #ffi_callback_name = unsafe extern "C" fn(#(#args_converted),*) #output_expr;
+    let comment = quote! {
+        /// FFI Callback
     };
-
-    println!("{}", expanded);
-    expanded.into()
-
-}
-
-
-fn usize_to_tokenstream(value: usize) -> TokenStream2 {
-    let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
-    lit.to_token_stream()
+    expansion(
+        input.to_token_stream(),
+        comment,
+        quote!(pub type #ffi_callback_name = unsafe extern "C" fn(#(#args_converted),*) #output_expr;),
+        quote!(),
+        quote!()
+    )
 }

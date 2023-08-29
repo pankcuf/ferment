@@ -3,13 +3,19 @@ use std::ffi::{CStr, CString};
 use std::hash::Hash;
 use std::mem;
 use std::os::raw::c_char;
-use std::ptr::{NonNull, null_mut};
+use std::ptr::NonNull;
 
 pub trait FFIConversion<T> {
-    unsafe fn ffi_from(ffi: *mut Self) -> T;
-    unsafe fn ffi_to(obj: T) -> *mut Self;
+    unsafe fn ffi_from_const(ffi: *const Self) -> T;
+    unsafe fn ffi_to_const(obj: T) -> *const Self;
+    unsafe fn ffi_from(ffi: *mut Self) -> T {
+        Self::ffi_from_const(ffi)
+    }
+    unsafe fn ffi_to(obj: T) -> *mut Self {
+        Self::ffi_to_const(obj) as *mut _
+    }
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
-        (!ffi.is_null()).then_some(< Self as FFIConversion<T>>::ffi_from(ffi))
+        (!ffi.is_null()).then_some(<Self as FFIConversion<T>>::ffi_from(ffi))
     }
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
         obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
@@ -23,8 +29,17 @@ pub trait FFIConversion<T> {
 }
 
 impl FFIConversion<String> for c_char {
-    unsafe fn ffi_from(ffi: *mut Self) -> String {
+    unsafe fn ffi_from_const(ffi: *const Self) -> String {
         CStr::from_ptr(ffi).to_str().unwrap().to_string()
+    }
+
+    unsafe fn ffi_to_const(obj: String) -> *const Self {
+        let s = CString::new(obj).unwrap();
+        s.as_ptr()
+    }
+
+    unsafe fn ffi_from(ffi: *mut Self) -> String {
+        Self::ffi_from_const(ffi as *const _)
     }
 
     unsafe fn ffi_to(obj: String) -> *mut Self {
@@ -40,8 +55,17 @@ impl FFIConversion<String> for c_char {
 }
 
 impl FFIConversion<&str> for c_char {
-    unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
+    unsafe fn ffi_from_const(ffi: *const Self) -> &'static str {
         CStr::from_ptr(ffi).to_str().unwrap()
+    }
+
+    unsafe fn ffi_to_const(obj: &str) -> *const Self {
+        let s = CString::new(obj).unwrap();
+        s.as_ptr()
+    }
+
+    unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
+        Self::ffi_from_const(ffi)
     }
 
     unsafe fn ffi_to(obj: &str) -> *mut Self {
@@ -191,6 +215,14 @@ pub type OpaqueContextMut = *mut std::os::raw::c_void;
 pub type OpaqueContextMutFFI = OpaqueContextMut;
 
 impl FFIConversion<OpaqueContextFFI> for OpaqueContext {
+    unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContextFFI {
+        *ffi
+    }
+
+    unsafe fn ffi_to_const(obj: OpaqueContextFFI) -> *const Self {
+        obj as *const _
+    }
+
     unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextFFI {
        *ffi
     }
@@ -207,6 +239,14 @@ impl FFIConversion<OpaqueContextFFI> for OpaqueContext {
 }
 
 impl FFIConversion<OpaqueContextMutFFI> for OpaqueContextMut {
+    unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContextMutFFI {
+        *ffi
+    }
+
+    unsafe fn ffi_to_const(obj: OpaqueContextMutFFI) -> *const Self {
+        obj as *const _
+    }
+
     unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextMutFFI {
         *ffi
     }

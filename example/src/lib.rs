@@ -1,6 +1,7 @@
 #[allow(unused_variables)]
 pub mod ffi {
     use std::collections::BTreeMap;
+
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
     pub type KeyID = u32;
 
@@ -11,13 +12,28 @@ pub mod ffi {
     pub type UsedKeyMatrix = Vec<bool>;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    pub type UsedStruct = HashID;
+
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
     pub type ArrayOfArraysOfHashes = Vec<Vec<self::HashID>>;
+
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    pub type MapOfHashes = BTreeMap<self::HashID, self::HashID>;
+
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    pub type MapOfVecHashes = BTreeMap<self::HashID, Vec<self::HashID>>;
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct BinaryData(pub Vec<u8>);
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
+    pub struct SimpleData(pub Vec<u32>);
+
+    #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct IdentifierBytes32(pub [u8; 32]);
+
+    #[rs_ffi_macro_derive::impl_ffi_conv]
+    pub struct UnnamedPair(pub [u8; 32], pub u32);
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct Identifier(pub self::IdentifierBytes32);
@@ -29,6 +45,7 @@ pub mod ffi {
         Variant2,
         Variant3(self::HashID, u32),
         Variant4(self::HashID, u32, String),
+        Variant5(BTreeMap<String, self::HashID>, u32, String),
     }
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
