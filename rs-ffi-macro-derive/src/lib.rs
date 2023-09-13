@@ -921,7 +921,6 @@ pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
 pub fn ffi_dictionary(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let expansions = ItemConversion::try_from(&parse_macro_input!(input as Item))
         .map_or(vec![], |conversion| conversion.expand_all_types());
-        // .map_or(vec![], |conversion| conversion.expand_generic_types());
     let expanded = quote! { #(#expansions)* };
     // println!("expansions: {}", expanded);
     TokenStream::from(expanded)

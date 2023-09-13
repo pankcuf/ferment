@@ -92,6 +92,11 @@ pub mod ffi {
         Some(format_args!("{0:?}", script).to_string())
     }
 
+    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    pub fn find_hash_by_u32(key: u32, map: BTreeMap<u32, HashID>) -> Option<HashID> {
+        map.get(&key).clone().copied()
+    }
+
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct TestStruct {
         pub vec_u8: Vec<u8>,
