@@ -1,4 +1,5 @@
 cargo build --release --verbose
-cargo fmt
+#cargo fmt
 cargo expand | sed '/#!/d' > target/expanded.rs
-cbindgen --config cbindgen.toml -o target/example.h target/expanded.rs
+sed -n '/#\[prelude_import\]/,$p' target/expanded.rs > target/expanded_reduced.rs
+cbindgen --config cbindgen.toml -o target/example.h target/expanded_reduced.rs

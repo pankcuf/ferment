@@ -194,3 +194,55 @@ Current limitations:
 - We should mark all structures that involved into export with the macro definition
 - There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyIDFFI(u32)` The alternative is to store a hardcoded dictionary with them.
 Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
+
+Generic mangling rules
+
+Macro `ffi-dictionary` should wrap the scope of the application context.
+It provides first-level expansion with mangled generic structures.
+Conversion follows some mangling rules and gives the name for ffi structure. 
+Examples for translated names:
+- `Vec<u8>` -> `Vec_u8_FFI`
+- `Vec<u32>` -> `Vec_u32_FFI`
+- `Vec<Vec<u32>>` -> `Vec_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, Vec<u32>>` -> `Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, Vec<u32>>` -> `Map_keys_u32_values_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, BTreeMap<crate::HashID, Vec<u32>>>` -> `Map_keys_crate_HashID_values_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- etc
+Then macro implements the necessary conversions for these structures. Example for such an expansion:
+```rust
+#[repr(C)] #[derive(Clone)] 
+pub struct Map_keys_self_HashID_values_self_HashID_FFI {
+    pub count: usize, 
+    pub keys: *mut *mut self::HashIDFFI, 
+    pub values: * mut * mut self::HashIDFFI,
+} 
+impl rs_ffi_interfaces::FFIConversion<BTreeMap<self::HashID, self::HashID>> for Map_keys_self_HashID_values_self_HashID_FFI {
+    unsafe fn ffi_from_const(ffi: *const Map_keys_self_HashID_values_self_HashID_FFI) -> BTreeMap<self::HashID, self::HashID> {
+        let ffi_ref = &*ffi;
+        (0..ffi_ref.count).fold(BTreeMap<self::HashID, self::HashID>::new(), |mut acc, i| {
+            let key = *ffi_ref.keys.add(i); 
+            let value = *ffi_ref.values.add(i); 
+            acc.insert(key, value); 
+            acc
+        })
+    } 
+    unsafe fn ffi_to_const(obj: BTreeMap<self::HashID, self::HashID>) -> *const Map_keys_self_HashID_values_self_HashID_FFI {
+        rs_ffi_interfaces::boxed(Self { 
+            count: obj.len(), 
+            keys: rs_ffi_interfaces::boxed_vec(obj.keys().map(|o| <self::HashID as rs_ffi_interfaces::FFIConversion>::ffi_from_const(o)).collect()), 
+            values: rs_ffi_interfaces::boxed_vec(obj.values().map(|o| <self::HashID as rs_ffi_interfaces::FFIConversion>::ffi_from_const(o)).collect())
+        })
+    } 
+    unsafe fn destroy(ffi: *mut Map_keys_self_HashID_values_self_HashID_FFI) { 
+        rs_ffi_interfaces::unbox_any(ffi); 
+    }
+} 
+impl Drop for Map_keys_self_HashID_values_self_HashID_FFI {
+    fn drop(&mut self) {
+        unsafe {
+            rs_ffi_interfaces::unbox_vec_ptr(self.keys, self.count);
+            rs_ffi_interfaces::unbox_vec_ptr(self.values, self.count);
+        }
+    }
+}
+```

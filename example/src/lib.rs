@@ -1,5 +1,13 @@
+mod expanded;
+
+extern crate rs_ffi_macro_derive;
+
+use std::collections::BTreeMap;
+
 #[allow(unused_variables)]
+#[rs_ffi_macro_derive::ffi_dictionary]
 pub mod ffi {
+    use rs_ffi_macro_derive::{impl_ffi_conv, impl_ffi_fn_conv, impl_ffi_ty_conv};
     use std::collections::BTreeMap;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
@@ -15,13 +23,13 @@ pub mod ffi {
     pub type UsedStruct = HashID;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
-    pub type ArrayOfArraysOfHashes = Vec<Vec<self::HashID>>;
+    pub type ArrayOfArraysOfHashes = Vec<Vec<HashID>>;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
-    pub type MapOfHashes = BTreeMap<self::HashID, self::HashID>;
+    pub type MapOfHashes = BTreeMap<HashID, HashID>;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
-    pub type MapOfVecHashes = BTreeMap<self::HashID, Vec<self::HashID>>;
+    pub type MapOfVecHashes = BTreeMap<HashID, Vec<HashID>>;
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct BinaryData(pub Vec<u8>);
@@ -36,21 +44,20 @@ pub mod ffi {
     pub struct UnnamedPair(pub [u8; 32], pub u32);
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
-    pub struct Identifier(pub self::IdentifierBytes32);
+    pub struct Identifier(pub IdentifierBytes32);
 
-    #[derive(Clone)]
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub enum TestEnum {
         Variant1(String),
         Variant2,
-        Variant3(self::HashID, u32),
-        Variant4(self::HashID, u32, String),
-        Variant5(BTreeMap<String, self::HashID>, u32, String),
+        Variant3(HashID, u32),
+        Variant4(HashID, u32, String),
+        Variant5(BTreeMap<String, HashID>, u32, String),
     }
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct DataContractNotPresentError {
-        data_contract_id: self::Identifier,
+        data_contract_id: Identifier,
     }
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
@@ -65,13 +72,13 @@ pub mod ffi {
         },
         EncodingError(String),
         EncodingError2(&'static str),
-        DataContractNotPresentError(self::DataContractNotPresentError),
+        DataContractNotPresentError(DataContractNotPresentError),
     }
 
-    #[rs_ffi_macro_derive::impl_ffi_callback]
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
     pub type AddInsightCallback = fn(block_hash: HashID, context: rs_ffi_interfaces::OpaqueContext);
 
-    #[rs_ffi_macro_derive::impl_ffi_callback]
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
     pub type ShouldProcessDiffWithRangeCallback = fn(
         base_block_hash: HashID,
         block_hash: HashID,
@@ -80,36 +87,35 @@ pub mod ffi {
 
     #[rs_ffi_macro_derive::impl_ffi_fn_conv]
     pub fn address_from_hash(hash: HashID) -> String {
-        format!("{:?}", hash)
+        format_args!("{0:?}", hash).to_string()
     }
 
     #[rs_ffi_macro_derive::impl_ffi_fn_conv]
     pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
-        Some(format!("{:?}", script))
+        Some(format_args!("{0:?}", script).to_string())
     }
 
     #[rs_ffi_macro_derive::impl_ffi_conv]
     pub struct TestStruct {
+        pub vec_u8: Vec<u8>,
+        pub vec_u32: Vec<u32>,
+        pub vec_vec_u32: Vec<Vec<u32>>,
         pub map_key_simple_value_simple: BTreeMap<u32, u32>,
-        pub map_key_simple_value_complex: BTreeMap<u32, self::HashID>,
+        pub map_key_simple_value_complex: BTreeMap<u32, HashID>,
         pub map_key_simple_value_vec_simple: BTreeMap<u32, Vec<u32>>,
-        pub map_key_simple_value_vec_complex: BTreeMap<u32, Vec<self::HashID>>,
+        pub map_key_simple_value_vec_complex: BTreeMap<u32, Vec<HashID>>,
         pub map_key_simple_value_map_key_simple_value_simple: BTreeMap<u32, BTreeMap<u32, u32>>,
-        pub map_key_simple_value_map_key_simple_value_complex:
-            BTreeMap<u32, BTreeMap<u32, self::HashID>>,
-        pub map_key_simple_value_map_key_simple_value_vec_simple:
-            BTreeMap<u32, BTreeMap<u32, Vec<u32>>>,
-        pub map_key_simple_value_map_key_simple_value_vec_complex:
-            BTreeMap<u32, BTreeMap<u32, Vec<self::HashID>>>,
+        pub map_key_simple_value_map_key_simple_value_complex: BTreeMap<u32, BTreeMap<u32, HashID>>,
+        pub map_key_simple_value_map_key_simple_value_vec_simple: BTreeMap<u32, BTreeMap<u32, Vec<u32>>>,
+        pub map_key_simple_value_map_key_simple_value_vec_complex: BTreeMap<u32, BTreeMap<u32, Vec<HashID>>>,
 
-        pub map_key_complex_value_simple: BTreeMap<self::HashID, u32>,
-        pub map_key_complex_value_complex: BTreeMap<self::HashID, self::HashID>,
-        pub map_key_complex_value_vec_simple: BTreeMap<self::HashID, Vec<u32>>,
-        pub map_key_complex_value_vec_complex: BTreeMap<self::HashID, Vec<self::HashID>>,
+        pub map_key_complex_value_simple: BTreeMap<HashID, u32>,
+        pub map_key_complex_value_complex: BTreeMap<HashID, HashID>,
+        pub map_key_complex_value_vec_simple: BTreeMap<HashID, Vec<u32>>,
+        pub map_key_complex_value_vec_complex: BTreeMap<HashID, Vec<HashID>>,
 
-        pub map_key_complex_value_map_key_simple_value_vec_simple:
-            BTreeMap<self::HashID, BTreeMap<u32, Vec<u32>>>,
-        pub map_key_complex_value_map_key_simple_value_vec_complex:
-            BTreeMap<self::HashID, BTreeMap<u32, Vec<self::HashID>>>,
+        pub map_key_complex_value_map_key_simple_value_vec_simple: BTreeMap<HashID, BTreeMap<u32, Vec<u32>>>,
+        pub map_key_complex_value_map_key_simple_value_vec_complex: BTreeMap<HashID, BTreeMap<u32, Vec<HashID>>>,
     }
+
 }

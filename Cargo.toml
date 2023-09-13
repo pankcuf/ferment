@@ -4,6 +4,7 @@ members = [
     "rs-ffi-interfaces",
     "rs-ffi-macro-derive",
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["Vladimir Pirogov <vladimir.pirogov@dash.org>"]
