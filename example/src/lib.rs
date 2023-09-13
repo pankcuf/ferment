@@ -1,5 +1,3 @@
-mod expanded;
-
 extern crate rs_ffi_macro_derive;
 
 use std::collections::BTreeMap;
@@ -7,7 +5,6 @@ use std::collections::BTreeMap;
 #[allow(unused_variables)]
 #[rs_ffi_macro_derive::ffi_dictionary]
 pub mod ffi {
-    use rs_ffi_macro_derive::{impl_ffi_conv, impl_ffi_fn_conv, impl_ffi_ty_conv};
     use std::collections::BTreeMap;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
