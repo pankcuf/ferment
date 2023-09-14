@@ -71,14 +71,14 @@ impl Presentable for Expansion {
         match self {
             Self::Empty => quote!(),
             Self::Callback { input, comment, ffi_presentation } =>
-                crate::expansion(
+                expansion(
                     input,
                     comment.present(),
                     ffi_presentation.present(),
                     ConversionInterfacePresentation::Empty.present(),
                     DropInterfacePresentation::Empty.present()),
             Self::Function { input, comment, ffi_presentation } =>
-                crate::expansion(
+                expansion(
                     input,
                     comment.present(),
                     ffi_presentation.present(),
@@ -86,7 +86,7 @@ impl Presentable for Expansion {
                     DropInterfacePresentation::Empty.present()
                 ),
             Self::Full { input, comment, ffi_presentation, conversion, drop} =>
-                crate::expansion(
+                expansion(
                     input,
                     comment.present(),
                     ffi_presentation.present(),
@@ -190,3 +190,21 @@ impl Presentable for DropInterfacePresentation {
 // Vec<Vec<self::HashID>>,
 // BTreeMap<self::HashID, self::HashID>,
 // Vec<u8>
+
+fn expansion(
+    input: TokenStream2,
+    comment: TokenStream2,
+    ffi_converted_input: TokenStream2,
+    ffi_conversion_presentation: TokenStream2,
+    drop_presentation: TokenStream2,
+) -> TokenStream2 {
+    let expanded = quote! {
+        #input
+        #comment
+        #ffi_converted_input
+        #ffi_conversion_presentation
+        #drop_presentation
+    };
+    println!("{}", expanded);
+    expanded
+}

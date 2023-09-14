@@ -27,47 +27,23 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, Item, parse_ma
 use item_conversion::ItemConversion;
 use crate::path_conversion::PathConversion;
 
-fn expansion(
-    input: TokenStream2,
-    comment: TokenStream2,
-    ffi_converted_input: TokenStream2,
-    ffi_conversion_presentation: TokenStream2,
-    drop_presentation: TokenStream2,
-) -> TokenStream2 {
-    let expanded = quote! {
-        #input
-        #comment
-        #ffi_converted_input
-        #ffi_conversion_presentation
-        #drop_presentation
-    };
-    println!("{}", expanded);
-    expanded
-}
-
 fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
     lit.to_token_stream()
 }
 
+
 fn path_arguments_to_generic_arguments(arguments: &PathArguments) -> Vec<&GenericArgument> {
     match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-            map_args(args)
-        }
-        _ => unimplemented!(
-            "map_arguments: arguments: {} not supported",
-            quote!(#arguments)
-        ),
+        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => map_args(args),
+        _ => unimplemented!("map_arguments: arguments: {} not supported", quote!(#arguments)),
     }
 }
 
 fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match path_arguments_to_generic_arguments(arguments)[..] {
         [GenericArgument::Type(value_type)] => vec![value_type],
-        [GenericArgument::Type(key_type), GenericArgument::Type(value_type, ..)] => {
-            vec![key_type, value_type]
-        }
+        [GenericArgument::Type(key_type), GenericArgument::Type(value_type, ..)] => vec![key_type, value_type],
         _ => unimplemented!("map_types: unexpected args: {}", quote!(#arguments)),
     }
 }
@@ -278,11 +254,7 @@ fn from_map2(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                 quote!(#value_path),
             )
         }
-        _ => panic!(
-            "from_map2: Bad arguments {} {}",
-            field_path,
-            quote!(#arguments)
-        ),
+        _ => panic!("from_map2: Bad arguments {} {}", field_path, quote!(#arguments)),
     }
 }
 

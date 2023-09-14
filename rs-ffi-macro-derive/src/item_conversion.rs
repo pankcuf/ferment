@@ -134,7 +134,7 @@ impl ItemConversion {
                         }
                     };
                 }),
-            _ => panic!("")
+            _ => panic!("WWWWWW")
         }
 
         type_and_paths
@@ -149,16 +149,13 @@ impl ItemConversion {
                 Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
                     PathConversion::Complex(path) => match path.segments.last().unwrap().ident.to_string().as_str() {
                         "str" | "String" => {},
-                        "Option" => match path_arguments_to_types(&path.segments.last().unwrap().arguments)[..] {
-                            [field_type] => match field_type {
-                                Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-                                    PathConversion::Complex(path) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                                        "str" | "String" => {},
-                                        _ => { custom_types.insert(TypePathComposition(field_type.clone(), path.clone())); }
-                                    },
-                                    _ => {},
+                        "Option" => match path_arguments_to_types(&path.segments.last().unwrap().arguments)[0] {
+                            Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+                                PathConversion::Complex(path) => match path.segments.last().unwrap().ident.to_string().as_str() {
+                                    "str" | "String" => {},
+                                    _ => { custom_types.insert(TypePathComposition(field_type.clone(), path.clone())); }
                                 },
-                                _ => {}
+                                _ => {},
                             },
                             _ => {},
                         },

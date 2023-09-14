@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use quote::{quote, ToTokens};
 use syn::{Path, Type, TypePath};
@@ -7,60 +7,35 @@ use syn::__private::TokenStream2;
 use crate::mangle_path;
 use crate::path_conversion::PathConversion;
 
+
+#[derive(Debug)]
 pub struct TypePathComposition(pub Type, pub Path);
 
-impl Debug for TypePathComposition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("TypePathComposition")?;
-        f.debug_list()
-            .entries([self.0.to_token_stream(), self.1.to_token_stream()])
-            .finish()
-    }
-}
-
-impl Display for TypePathComposition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("TypePathComposition")?;
-        f.debug_list()
-            .entries([self.0.to_token_stream(), self.1.to_token_stream()])
-            .finish()
-    }
-}
-
 impl PartialEq for TypePathComposition {
-    fn eq(&self, other: &TypePathComposition) -> bool {
-        let self_type = &self.0;
-        let self_path = &self.1;
-        let other_type = &other.0;
-        let other_path = &other.1;
-        let self_type_str = quote! { #self_type }.to_string();
-        let other_type_str = quote! { #other_type }.to_string();
-        let self_path_str = quote! { #self_path }.to_string();
-        let other_path_str = quote! { #other_path }.to_string();
-        self_type_str == other_type_str && self_path_str == other_path_str
+    fn eq(&self, other: &Self) -> bool {
+        let self_tokens = [self.0.to_token_stream(), self.1.to_token_stream()];
+        let other_tokens = [other.0.to_token_stream(), other.1.to_token_stream()];
+        self_tokens.iter()
+            .map(|t| t.to_string())
+            .zip(other_tokens.iter().map(|t| t.to_string()))
+            .all(|(a, b)| a == b)
     }
 }
+
 impl Eq for TypePathComposition {}
+
 impl Hash for TypePathComposition {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let self_type = &self.0;
-        let self_path = &self.1;
-        let type_str = quote! { #self_type }.to_string();
-        let path_str = quote! { #self_path }.to_string();
-        type_str.hash(state);
-        path_str.hash(state);
+        self.0.to_token_stream().to_string().hash(state);
+        self.1.to_token_stream().to_string().hash(state);
     }
 }
 
 pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypePathComposition>) {
-    match field_type {
-        Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-            PathConversion::Vec(path) | PathConversion::Map(path) => {
-                generics.insert(TypePathComposition(field_type.clone(), path.clone()));
-            },
-            _ => {}
-        },
-        _ => {}
+    if let Type::Path(TypePath { path, .. }) = field_type {
+        if let PathConversion::Vec(path) | PathConversion::Map(path) = PathConversion::from(path) {
+            generics.insert(TypePathComposition(field_type.clone(), path.clone()));
+        }
     }
 }
 
@@ -118,9 +93,6 @@ pub fn vec_ffi_complex_expansion(name: TokenStream2, t: &Path) -> TokenStream2 {
     let encode = quote!({
         rs_ffi_interfaces::boxed(Self { count: obj.len(), values: rs_ffi_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })
     });
-    // let encode = quote!({
-    //     rs_ffi_interfaces::boxed(Self { count: obj.len(), values: rs_ffi_interfaces::complex_vec_iterator(obj.into_iter()) })
-    // });
     let drop_code = quote!({rs_ffi_interfaces::unbox_any_vec_ptr(self.values, self.count);});
     vec_ffi_exp(name, quote!(#t), quote!(*mut #value_path), decode, encode, drop_code)
 }
