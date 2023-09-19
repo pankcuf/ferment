@@ -11,6 +11,9 @@ pub mod ffi {
     pub type KeyID = u32;
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    pub type Hash160 = [u8; 20];
+
+    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
     pub type HashID = [u8; 32];
 
     #[rs_ffi_macro_derive::impl_ffi_ty_conv]
@@ -90,6 +93,14 @@ pub mod ffi {
     #[rs_ffi_macro_derive::impl_ffi_fn_conv]
     pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
         Some(format_args!("{0:?}", script).to_string())
+    }
+
+    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    pub fn address_from_hash160(hash: Hash160, pubkey: u8) -> String {
+        let mut writer: Vec<u8> = Vec::new();
+        writer.push(pubkey);
+        writer.extend(hash);
+        String::from_utf8(writer).unwrap()
     }
 
     #[rs_ffi_macro_derive::impl_ffi_fn_conv]
