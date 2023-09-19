@@ -51,7 +51,7 @@ impl FFIConversion<String> for c_char {
         if ffi.is_null() {
             return;
         }
-        let _ = CString::from_raw(ffi);
+        unbox_string(ffi);
     }
 }
 
@@ -77,7 +77,7 @@ impl FFIConversion<&str> for c_char {
         if ffi.is_null() {
             return;
         }
-        let _ = CString::from_raw(ffi);
+        unbox_string(ffi);
     }
 }
 
@@ -103,6 +103,11 @@ pub fn boxed_vec<T>(vec: Vec<T>) -> *mut T {
 /// # Safety
 pub unsafe fn unbox_any<T: ?Sized>(any: *mut T) -> Box<T> {
     Box::from_raw(any)
+}
+
+/// # Safety
+pub unsafe fn unbox_string(data: *mut c_char) {
+    let _ = CString::from_raw(data);
 }
 
 /// # Safety
