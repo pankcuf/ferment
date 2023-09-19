@@ -9,6 +9,7 @@ use crate::composer::RootComposer;
 use crate::path_conversion::PathConversion;
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
 
+#[derive(Debug)]
 pub enum ItemConversion {
     Mod(ItemMod),
     Struct(ItemStruct),
@@ -60,9 +61,9 @@ impl From<DeriveInput> for ItemConversion {
         let DeriveInput { attrs, vis, ident, generics, data } = input;
         match data {
             Data::Struct(DataStruct { fields,  semi_token, struct_token, .. }) =>
-                ItemConversion::Struct(ItemStruct { attrs, vis, ident, generics, fields, semi_token, struct_token }),
+                Self::Struct(ItemStruct { attrs, vis, ident, generics, fields, semi_token, struct_token }),
             Data::Enum(DataEnum { enum_token, brace_token, variants }) =>
-                ItemConversion::Enum(ItemEnum { attrs, vis, ident, generics, variants, enum_token, brace_token }),
+                Self::Enum(ItemEnum { attrs, vis, ident, generics, variants, enum_token, brace_token }),
             Data::Union(DataUnion { union_token, fields }) =>
                 unimplemented!("Unions are not supported yet {:?}: {:?}", union_token, fields),
         }
@@ -70,32 +71,41 @@ impl From<DeriveInput> for ItemConversion {
 }
 
 impl<'a> TryFrom<&'a Item> for ItemConversion {
-    type Error = ();
+    type Error = String;
     fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
-        match value {
+        let result = match value {
             Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone())),
             Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone())),
             Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone())),
             Item::Type(item_type) => Ok(Self::Type(item_type.clone())),
             Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone())),
-            _ => Err(())
-        }
+            item => {
+                println!("Error: {:?}", item.to_token_stream().to_string());
+                Err(format!("Error: {}", item.to_token_stream().to_string()))
+            }
+        };
+        println!("result: {:?}", result);
+        result
     }
 }
 
 impl ItemConversion {
 
     pub fn collect_all_items(&self) -> Vec<ItemConversion> {
-        let mut all_labeled_items: Vec<ItemConversion> = Vec::new();
         match self {
-            Self::Mod(ItemMod { content: Some((_, items)), .. }) =>
-                items.iter()
-                    .flat_map(|m| Self::try_from(m))
-                    .for_each(|conversion| all_labeled_items.push(conversion)),
-            _ => {}
-            // &value => all_labeled_items.push(value)
+            Self::Mod(ItemMod { content: Some((_, items)), .. }) => {
+                let mut all_labeled_items: Vec<ItemConversion> = Vec::new();
+                items.iter().for_each(|item| match Self::try_from(item) {
+                    Ok(ItemConversion::Mod(item_mod)) =>
+                        all_labeled_items.extend(ItemConversion::Mod(item_mod.clone()).collect_all_items()),
+                    Ok(conversion) =>
+                        all_labeled_items.push(conversion),
+                    Err(e) => println!("Error during conversion: {}", e),
+                });
+                all_labeled_items
+            },
+            _ => vec![],
         }
-        all_labeled_items
     }
 
     pub fn collect_compositions(&self) -> Vec<TypePathComposition> {
@@ -448,9 +458,8 @@ fn item_fn_expansion(item_fn: &ItemFn) -> Expansion {
             FnArg::Typed(PatType { ty, pat, .. }) => (
                 NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), FFI_TYPE_PRESENTER(&ty)),
                 match (&**ty, &**pat) {
-                    (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) => {
-                        from_path(quote!(#ident), &path, None)
-                    }
+                    (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
+                        from_path(quote!(#ident), &path, None),
                     _ => panic!("error: Arg conversion not supported: {:?}", quote!(#ty)),
                 },
             ),
