@@ -10,6 +10,8 @@ rs-ffi-macro-derive = { path = "../rs-ffi-macro-derive" }
 
 [build-dependencies]
 cbindgen = "0.24.3"
+rs-ffi-analyzer = { path = "../rs-ffi-analyzer" }
+
 
 [lib]
 name = "rs_ffi_interfaces"

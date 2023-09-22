@@ -5,7 +5,7 @@ use syn::__private::TokenStream2;
 use syn::spanned::Spanned;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use crate::interface::{FFI_GENERIC_TYPE_PRESENTER, MANGLE_INNER_PATH_PRESENTER, MAP_PATH_PRESENTER, PathPresenter, VEC_PATH_PRESENTER};
-use crate::util::path_arguments_to_paths;
+use crate::helper::path_arguments_to_paths;
 
 macro_rules! format_mangled_ident {
     ($fmt:expr, $path_presentation:expr) => {

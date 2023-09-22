@@ -4,7 +4,7 @@ use quote::__private::{TokenStream as TokenStream2};
 
 use crate::generics;
 use crate::path_conversion::PathConversion;
-use crate::util::{path_arguments_to_path_conversions, path_arguments_to_paths, path_arguments_to_types};
+use crate::helper::{path_arguments_to_path_conversions, path_arguments_to_paths, path_arguments_to_types};
 
 pub trait Presentable where Self: Sized {
     fn present(self) -> TokenStream2;

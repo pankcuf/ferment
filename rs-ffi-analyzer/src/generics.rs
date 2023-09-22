@@ -4,7 +4,7 @@ use quote::{quote, ToTokens};
 use syn::{Path, Type, TypePath};
 use syn::__private::TokenStream2;
 use crate::path_conversion::PathConversion;
-use crate::util::mangle_path;
+use crate::helper::mangle_path;
 
 pub struct TypePathComposition(pub Type, pub Path);
 

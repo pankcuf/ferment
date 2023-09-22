@@ -4,7 +4,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
 use crate::generics::{add_generic_type, TypePathComposition};
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, FFI_TYPE_PRESENTER, GENERIC_MAP_COMPLEX_PRESENTER, GENERIC_MAP_COMPLEX_SIMPLE_PRESENTER, GENERIC_MAP_SIMPLE_COMPLEX_PRESENTER, GENERIC_MAP_SIMPLE_PRESENTER, GENERIC_VEC_COMPLEX_PRESENTER, GENERIC_VEC_SIMPLE_PRESENTER, MATCH_FIELDS_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, obj, package_unboxed_root, Presentable, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
-use crate::util::{ffi_struct_name, from_path, mangle_type, path_arguments_to_path_conversions, path_arguments_to_types, to_path};
+use crate::helper::{ffi_struct_name, from_path, mangle_type, path_arguments_to_path_conversions, path_arguments_to_types, to_path};
 use crate::composer::RootComposer;
 use crate::path_conversion::PathConversion;
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
@@ -195,7 +195,6 @@ impl ItemConversion {
         generics
     }
 
-    #[allow(unused)]
     fn find_generic_types(&self) -> HashSet<TypePathComposition> {
         self.find_generic_types_in_compositions(&self.collect_compositions())
     }
@@ -203,14 +202,13 @@ impl ItemConversion {
     pub fn expand_all_types(&self) -> Vec<TokenStream2> {
         let mut custom_items = self.collect_all_items()
             .into_iter()
-            .map(|item| Expansion::from(item).present())
+            .map(|conversion| Expansion::from(conversion).present())
             .collect::<Vec<_>>();
         // println!("expand_all_types: custom: {:?}", custom_items);
-        custom_items.extend(self.expand_types(self.find_generic_types()));
+        custom_items.extend(self.expand_generic_types());
         custom_items
     }
 
-    #[allow(unused)]
     pub fn expand_generic_types(&self) -> Vec<TokenStream2> {
         self.expand_types(self.find_generic_types())
     }
@@ -221,6 +219,7 @@ impl ItemConversion {
                 let mangled_type = mangle_type(&ty);
                 let ffi_name = ffi_struct_name(&mangled_type).to_token_stream();
                 let PathSegment { ident, arguments} = path.segments.last().unwrap();
+                // TODO: handle abstract generic types
                 match ident.to_string().as_str() {
                     "Vec" | "BTreeMap" | "HashMap" => match &path_arguments_to_path_conversions(arguments)[..] {
                         [PathConversion::Simple(value_path)] =>
