@@ -1,11 +1,11 @@
-mod composer;
-mod file_visitor;
-mod generics;
-mod helper;
-mod interface;
-mod item_conversion;
-mod path_conversion;
-mod presentation;
+pub mod composer;
+pub mod file_visitor;
+pub mod generics;
+pub mod helper;
+pub mod interface;
+pub mod item_conversion;
+pub mod path_conversion;
+pub mod presentation;
 #[cfg(test)]
 mod test;
 

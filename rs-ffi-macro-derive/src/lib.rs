@@ -1,19 +1,9 @@
 extern crate proc_macro;
 
-mod composer;
-mod interface;
-mod presentation;
-mod util;
-#[cfg(test)]
-mod test;
-mod generics;
-mod item_conversion;
-mod path_conversion;
-
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Item, parse_macro_input};
-use item_conversion::ItemConversion;
+use rs_ffi_analyzer::item_conversion::ItemConversion;
 
 
 /// The `impl_ffi_fn_conv` procedural macro facilitates FFI (Foreign Function Interface) conversion

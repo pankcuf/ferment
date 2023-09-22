@@ -107,19 +107,6 @@ impl FileVisitor {
         }
     }
 
-    // fn print_modified_struct(&self, node: &ItemStruct) {
-    //     println!("----> {}", quote!(#node));
-    //     let mut modified = node.clone();
-    //     modified
-    //         .fields
-    //         .iter_mut()
-    //         .for_each(|Field { ty, .. }| match self.matches.get(ty) {
-    //             Some(converted) => { *ty = converted.clone() },
-    //             None => {}
-    //         });
-    //     println!("<---- {}", quote!(#modified));
-    // }
-
     pub fn make_expansions(&self) -> Vec<TokenStream2> {
         let expansions = vec![];
         self.conversion_scopes.iter()

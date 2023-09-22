@@ -205,12 +205,8 @@ impl ItemConversion {
             .map(|conversion| Expansion::from(conversion).present())
             .collect::<Vec<_>>();
         // println!("expand_all_types: custom: {:?}", custom_items);
-        custom_items.extend(self.expand_generic_types());
+        custom_items.extend(self.expand_types(self.find_generic_types()));
         custom_items
-    }
-
-    pub fn expand_generic_types(&self) -> Vec<TokenStream2> {
-        self.expand_types(self.find_generic_types())
     }
 
     pub fn expand_types(&self, types: HashSet<TypePathComposition>) -> Vec<TokenStream2> {
