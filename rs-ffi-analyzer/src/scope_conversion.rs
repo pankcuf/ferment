@@ -44,14 +44,6 @@ impl ImportType {
             _ => Some((self, used_imports))
         }
     }
-
-    pub fn full_path_for(&self, ident: &Ident, scope: &Scope) -> Scope {
-        println!("full path for: {}: {} : {}", self.as_path().to_token_stream(), ident.to_token_stream(), scope.to_token_stream());
-        match self {
-            ImportType::Original => scope.clone(),
-            _ => scope.joined(ident),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -131,7 +123,6 @@ impl std::fmt::Debug for ScopeTreeExportItem {
                             let ppp = p.iter().map(|ImportConversion { ident: i, scope: p}| quote!(#i: #p)).collect::<Vec<_>>();
                             quote!(#import: #(#ppp,)*)
                         }).collect::<Vec<_>>();
-                        // println!("collect_imports_map (scope_imports): {}", quote!());
                         let all = quote!(#(#debug_imports,)*);
                         all.to_string()
                     })
@@ -176,13 +167,7 @@ impl ScopeTreeExportItem {
         // println!("                  generics: {}", quote!(#(#dbg2;)*));
         generics
             .iter()
-            .filter_map(|TypePathComposition { 0: value, .. }| {
-                let ss = scope_types.get(&TypeConversion::from(value));
-                // let ssss = ss.map_or(quote!(), |tu| quote!(#tu));
-                // println!("        {}", quote!(#value ==> #ssss));
-                // println!("GET:::: {}", ss.map_or(quote!(), |ty| quote!(#ty)));
-                ss
-            })
+            .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
             .map(GenericConversion::from)
             .collect()
     }

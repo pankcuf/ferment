@@ -11,9 +11,6 @@ use crate::Scope;
 use crate::scope_conversion::ScopeTreeExportItem;
 use crate::type_conversion::TypeConversion;
 
-pub type TypePair = (Type, Type);
-pub type IdentPath = (Ident, Path);
-
 pub struct Visitor {
     /// syn::Path to the file
     pub(crate) parent: Scope,
@@ -22,7 +19,6 @@ pub struct Visitor {
 
     pub(crate) inner_visitors: Vec<Visitor>,
 
-    // pub(crate) scope_exports: HashMap<Ident, ScopeTreeExportItem>,
     pub(crate) needed_conversions_for_scopes: HashMap<Scope, Vec<ItemConversion>>,
     pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
     pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
@@ -61,85 +57,20 @@ impl std::fmt::Display for ScopeComposition {
     }
 }
 
-impl ScopeComposition {
-
-    // pub fn generate_imports(&self, scope: &Scope, use_dictionary: &HashMap<Scope, HashMap<Ident, Path>>, matches: &HashMap<Scope, HashMap<TypeConversion, Type>>) -> HashSet<Scope> {
-    //     let dict: Punctuated<TokenStream2, syn::Token!(:)> = Punctuated::from_iter(use_dictionary.iter().map(|(id, paths)| {
-    //         let p = paths.iter().map(|(ident, path)| quote!(#ident: #path));
-    //         quote!(#id: [#(#p),*])
-    //     }));
-    //     let m: Punctuated<TokenStream2, syn::Token!(:)>  = Punctuated::from_iter(matches.iter().map(|(scope, m)| {
-    //         let m = m.iter().map(|(ty, full_ty)| quote!(#ty -> #full_ty));
-    //         quote!(#scope: [#(#m),*])
-    //     }));
-    //     // let ffi_imports = matches.iter().filter_map(|(ty, full_ty)| {
-    //     //     quote!(#ty: #full_ty)
-    //     // });
-    //     // let dict = use_dictionary.iter().map(|(id, path)| quote!(#id: #path)).collect::<Punctuated<_, _>>();
-    //     // let m = matches.iter().map(|(ty, full_ty)| quote!(#ty: #full_ty)).collect::<Punctuated<_, _>>();
-    //     // println!("generate_imports from: scope {}", quote!(#scope));
-    //     // println!("generate_imports from: imports {}", quote!(#(#dict)));
-    //     // println!("generate_imports from: matches {}", quote!(#(#m)));
-    //     let scope_dict = use_dictionary.get(scope);
-    //     let mut scope_imports: HashSet<_> = HashSet::from_iter(self.exports.clone());
-    //     let generic_imports = self.generics
-    //         .iter()
-    //         .filter_map(|TypePathComposition { 1: path, .. }| scope_dict.and_then(|dict| dict.get(&path.segments.last().unwrap().ident)))
-    //         .map(|path| Scope::new(path.clone()));
-    //
-    //     let types_imports = self.imports
-    //         .iter()
-    //         .filter(|s| !self.exports.contains(s))
-    //         .map(|s| parse_quote!(#s))
-    //         .filter_map(|full_ty: Type| {
-    //             // println!("Import.1 ==: {}", quote!(#full_ty));
-    //             let import = Scope::ffi_type_import(&full_ty);
-    //             // println!("Import ==: {}", quote!(#import));
-    //             import
-    //         });
-    //     let generic_imports2 = self.generics.iter().map(TypePathComposition::ffi_generic_import_scope);
-    //     {
-    //         let e_imports = self.exports.clone();
-    //         let t_imports = types_imports.clone();
-    //         let g_imports = generic_imports.clone();
-    //         let g2_imports = generic_imports2.clone();
-    //         // println!("generate_imports: exported: {}", quote!(#(#e_imports),*));
-    //         // println!("generate_imports: types: {}", quote!(#(#t_imports),*));
-    //         // println!("generate_imports: generic_imports: {}", quote!(#(#g_imports),*));
-    //         // println!("generate_imports: generic_imports2: {}", quote!(#(#g2_imports),*));
-    //     }
-    //     scope_imports.extend(types_imports);
-    //     scope_imports.extend(generic_imports);
-    //     scope_imports.extend(generic_imports2);
-    //     // scope_imports.extend(matches.values().filter_map(Scope::ffi_type_import));
-    //     // scope_imports.extend(self.exports.iter().filter_map(|scope| Scope::ffi_type_import(&parse_quote!(#scope))));
-    //     scope_imports
-    // }
-
-    // pub fn expand_conversions(self) -> Vec<TokenStream2> {
-    //     self.conversions
-    //         .into_iter()
-    //         .filter(ItemConversion::is_non_empty_mod)
-    //         .map(Expansion::from)
-    //         .map(Expansion::present)
-    //         .collect()
-    // }
-}
-
 impl std::fmt::Debug for Visitor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Visitor")
             .field("parent", &self.parent.to_token_stream().to_string())
-            // .field("used_types_at_scopes", {
-            //     let vec = vec![];
-            //     let v = self.used_types_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
-            //         let tme = tm.iter().map(|(ty, full_ty)| quote!(#ty -> #full_ty));
-            //         acc.push(quote!(#k: [#(#tme)*]));
-            //         acc
-            //     });
-            //     let expanded = quote!(#(#v),*);
-            //     &expanded.to_string().as_str()
-            // })
+            .field("used_types_at_scopes", {
+                let vec = vec![];
+                let v = self.used_types_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
+                    let tme = tm.iter().map(|(ty, full_ty)| quote!(#ty -> #full_ty));
+                    acc.push(quote!(#k: [#(#tme)*]));
+                    acc
+                });
+                let expanded = quote!(#(#v),*);
+                &expanded.to_string().as_str()
+            })
             // .field("used_imports_at_scopes", {
             //     let vec = vec![];
             //     let v = self.used_imports_at_scopes.iter().fold(vec, |mut acc, (k, scope_imports)| {
@@ -175,25 +106,14 @@ impl std::fmt::Display for Visitor {
 impl<'ast> Visit<'ast> for Visitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
-        // println!("Visit enum: {}", quote!(#node));
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit enum: {}: {}", quote!(#(#current_module::)*), quote!(#node));
         self.add_full_qualified_conversion(Item::Enum(node.clone()));
-        // syn::visit::visit_item_enum(self, node);
     }
 
     fn visit_item_fn(&mut self, node: &'ast ItemFn) {
-        // println!("Visit fn: {}", quote!(#node));
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit fn: {}: {}", quote!(#(#current_module::)*), quote!(#node));
         self.add_full_qualified_conversion(Item::Fn(node.clone()));
-        // syn::visit::visit_item_fn(self, node);
     }
 
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit mod: {}: {}", quote!(#(#current_module::)*), quote!(#node));
-        // println!("Visit mod: {}", quote!(#node));
         self.current_scope_stack.push(node.ident.clone());
         self.add_full_qualified_conversion(Item::Mod(node.clone()));
         if let Some(ref content) = node.content {
@@ -202,46 +122,22 @@ impl<'ast> Visit<'ast> for Visitor {
             }
         }
         self.current_scope_stack.pop();
-        // syn::visit::visit_item_mod(self, node);
     }
 
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit struct: {}: {}", quote!(#(#current_module::)*), quote!(#node));
         self.add_full_qualified_conversion(Item::Struct(node.clone()));
-        // syn::visit::visit_item_struct(self, node);
     }
 
     fn visit_item_type(&mut self, node: &'ast ItemType) {
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit type: {}: {}", quote!(#(#current_module::)*), quote!(#node));
-        // println!("Visit type: {}", quote!(#node));
         self.add_full_qualified_conversion(Item::Type(node.clone()));
-        // syn::visit::visit_item_type(self, node);
     }
 
     fn visit_item_use(&mut self, node: &'ast ItemUse) {
-        // let current_module = &self.current_scope_stack;
-        // println!("Visit use: {}: {}", quote!(#(#current_module::)*), quote!(#node));
-        // println!("Visit use: {}", quote!(#node));
         let item = Item::Use(node.clone());
         let scope = self.current_scope_for(&item);
-
         self.fold_import_tree(&scope, &node.tree, vec![]);
-        // syn::visit::visit_item_use(self, node);
     }
-
 }
-
-// fn expand_mod(directives: TokenStream2, name: TokenStream2, expansion: TokenStream2) -> TokenStream2 {
-//     quote! {
-//         #directives
-//         pub mod #name {
-//             #expansion
-//         }
-//     }
-// }
-//
 
 impl Visitor {
     /// path: full-qualified Path for file
@@ -272,192 +168,6 @@ impl Visitor {
             .or_insert_with(HashMap::new)
             .extend(all_involved_full_types);
     }
-
-    // fn build_tree_item(scope: Scope, generics: HashSet<GenericConversion>, imported: HashMap<ImportType, HashSet<Import>>, exported: HashMap<Ident, ScopeTreeExportItem>) -> ScopeTreeCompact {
-    //     ScopeTreeCompact {
-    //         scope,
-    //         generics,
-    //         imported,
-    //         exported,
-    //     }
-    // }
-
-    // fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem, inner_visitors: &[Visitor]) {
-    //     if let ScopeTreeExportItem::Tree(_, _, dest_exports) = destination {
-    //         if let ScopeTreeExportItem::Tree(_, _, source_exports) = source {
-    //             for (name, export_item) in source_exports {
-    //                 dest_exports.entry(name.clone())
-    //                     .and_modify(|e| { Self::merge_trees(e, export_item, inner_visitors); })
-    //                     .or_insert_with(|| export_item.clone());
-    //             }
-    //         }
-    //     }
-    //     inner_visitors.iter().for_each(|v|
-    //         Self::merge_trees(destination, &v.tree, &v.inner_visitors));
-    // }
-    //
-    // fn transform(visitor: &Visitor) -> ScopeTreeExportItem {
-    //     let mut result = visitor.tree.clone();
-    //     for v in &visitor.inner_visitors {
-    //         Self::merge_trees(&mut result, &v.tree, &v.inner_visitors);
-    //     }
-    //     result
-    // }
-
-    // fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
-    //     if let ScopeTreeExportItem::Tree(_, _, dest_exports) = destination {
-    //         if let ScopeTreeExportItem::Tree(_, _, source_exports) = source {
-    //             for (name, export_item) in source_exports {
-    //                 dest_exports.entry(name.clone())
-    //                     .and_modify(|e| Self::merge_trees(e, &export_item))
-    //                     .or_insert_with(|| export_item.clone());
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // fn transform(visitor: &Visitor) -> ScopeTreeExportItem {
-    //     let mut result = visitor.tree.clone();
-    //     for v in &visitor.inner_visitors {
-    //         Self::merge_trees(&mut result, &v.tree);
-    //         for inner_v in &v.inner_visitors {
-    //             Self::merge_trees(&mut result, &inner_v.tree);
-    //         }
-    //     }
-    //     result
-    // }
-
-    // fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
-    //     if let ScopeTreeExportItem::Tree(_, _, dest_exports) = destination {
-    //         if let ScopeTreeExportItem::Tree(_, _, source_exports) = source {
-    //             for (name, source_item) in source_exports {
-    //                 match dest_exports.entry(name.clone()) {
-    //                     std::collections::hash_map::Entry::Occupied(mut o) => {
-    //                         Self::merge_trees(o.get_mut(), &source_item);
-    //                     }
-    //                     std::collections::hash_map::Entry::Vacant(v) => {
-    //                         v.insert(source_item.clone());
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // fn transform(visitor: &Visitor) -> ScopeTreeExportItem {
-    //     let mut result = visitor.tree.clone();
-    //     for v in &visitor.inner_visitors {
-    //         Self::merge_trees(&mut result, &v.tree);
-    //         for inner_v in &v.inner_visitors {
-    //             Self::merge_trees(&mut result, &inner_v.tree);
-    //         }
-    //     }
-    //     result
-    // }
-    //
-    //
-    // fn transform(visitor: &Visitor) -> ScopeTreeExportItem {
-    //     let mut result = visitor.tree.clone();
-    //     for v in &visitor.inner_visitors {
-    //         merge_trees(&mut result, &v.tree);
-    //         for inner_v in &v.inner_visitors {
-    //             merge_trees(&mut result, &inner_v.tree);
-    //         }
-    //     }
-    //     result
-    // }
-
-    // pub fn expand(&mut self) -> TokenStream2 {
-    //
-    // }
-
-    // pub fn expand(&mut self) -> TokenStream2 {
-    //     let name = self.parent.ffi_name();
-    //     let inner_expansions = self.inner_visitors.iter().map(Visitor::expand);
-    //
-    //     // Self::transform()
-    //
-    //     // let inner_trees = self.inner_visitors.iter().map(Visitor::merge_trees);
-    //
-    //
-    //     let mut all_generics = HashSet::new();
-    //     let mut all_imports_for_generics = HashSet::new();
-    //     let mut item_expansions = vec![];
-    //
-    //     // let tree_item = Self::build_tree_item(scope.clone(), )
-    //
-    //
-    //     self.needed_conversions_for_scopes.iter().for_each(|(scope, conversions)| {
-    //         let mut generics = HashSet::new();
-    //         let mut exports = vec![];
-    //         let mut imports = vec![];
-    //         conversions.iter().for_each(|conversion| {
-    //             if let Some(generic_type_in_scope) = conversion.export_in_scope(scope) {
-    //                 exports.push(generic_type_in_scope);
-    //             }
-    //             generics.extend(conversion.find_generics());
-    //             if conversion.is_not_mod() {
-    //                 imports.extend(conversion.find_types().into_iter().map(|ty| {
-    //                     // println!("Found type for import: {}: [{} -> {}]", scope, ty.0.to_token_stream(), ty.1.to_token_stream());
-    //
-    //                     // scope.joined_path(ty.1)
-    //                     Scope::new(ty.1)
-    //                 }));
-    //             }
-    //         });
-    //         all_generics.extend(generics.clone());
-    //         all_imports_for_generics.extend(exports.clone());
-    //
-    //         let scope_composition = ScopeComposition {
-    //             scope: scope.clone(),
-    //             imports,
-    //             exports,
-    //             generics,
-    //             conversions: conversions.clone(),
-    //         };
-    //         // println!("{}", &scope_composition);
-    //         let scope_imports = scope_composition.generate_imports(scope, &self.used_imports_at_scopes, &self.used_types_at_scopes);
-    //         let scope_conversions = scope_composition.expand_conversions();
-    //         let scope_imports = Vec::from_iter(scope_imports.iter());
-    //         // println!("--- scope imports: {}", quote!(#(#scope_imports),*));
-    //         let expansion = quote! {
-    //             #(use #scope_imports;)*
-    //             #(#scope_conversions)*
-    //         };
-    //         let item_expansion = if scope.eq(&self.parent) {
-    //             expansion
-    //         } else {
-    //             expand_mod(quote!(), scope.ffi_name().to_token_stream(), expansion)
-    //         };
-    //         item_expansions.push(item_expansion);
-    //     });
-    //
-    //     if self.parent.is_crate() {
-    //         merge_visitor_trees(&mut self);
-    //
-    //         println!("Expand: {:#?}", self);
-    //         println!("RootTree: {}", self.tree);
-    //
-    //         let generic_expansions = all_generics.into_iter().map(TypePathComposition::expand_generic);
-    //         let mod_directives = quote!(#[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]);
-    //         let types_mod = expand_mod(mod_directives.clone(), quote!(#name), quote! {
-    //             #(#item_expansions)*
-    //             #(#inner_expansions)*
-    //         });
-    //         let generic_mod = expand_mod(mod_directives, quote!(generics), quote! {
-    //             #(#generic_expansions)*
-    //         });
-    //         quote! {
-    //             #types_mod
-    //             #generic_mod
-    //         }
-    //     } else {
-    //         expand_mod(quote!(), quote!(#name), quote! {
-    //             #(#item_expansions)*
-    //             #(#inner_expansions)*
-    //         })
-    //     }
-    // }
 
     /// Recursively processes Rust use paths to create a mapping
     /// between idents and their fully qualified paths.
@@ -563,28 +273,7 @@ impl Visitor {
             _ => self.current_module_scope.clone()
         }
     }
-
-
-    // pub fn get_tree_export_item(&mut self, scope: &Scope) -> &mut ScopeTreeExportItem {
-    //     let path_to_traverse: Vec<Ident> = scope.path.segments.iter().skip(1).map(|segment| segment.ident.clone()).collect();
-    //     let mut current_tree = &mut self.tree;
-    //
-    //     let mut current_tree_export_item: Option<&mut ScopeTreeExportItem> = None;
-    //     for ident in &path_to_traverse {
-    //         current_tree_export_item = match current_tree {
-    //             ScopeTreeExportItem::Item(..) => None,
-    //             ScopeTreeExportItem::Tree(_, _, exported) => Some(match exported.entry(ident.clone()) {
-    //                 Entry::Occupied(mut occupied) =>
-    //                     occupied.get_mut(),
-    //                 Entry::Vacant(vacant) =>
-    //                     vacant.insert(ScopeTreeExportItem::just_export(HashMap::new()))
-    //             })
-    //         };
-    //     }
-    //     current_tree_export_item.unwrap()
-    // }
-    //
-
+    
     pub fn get_tree_export_item(&mut self, scope: &Scope) -> &mut ScopeTreeExportItem {
         let path_to_traverse: Vec<Ident> = scope.path.segments.iter().skip(1).map(|segment| segment.ident.clone()).collect();
         let mut current_tree = &mut self.tree;

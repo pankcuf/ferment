@@ -851,11 +851,9 @@ pub fn mangle_type(ty: &Type) -> Ident {
             PathConversion::from(path)
                 .into_mangled_generic_ident(),
         ty => {
-            println!("mangle_type: (unknown): {}", quote!(#ty));
             let p: Path = parse_quote!(#ty);
             p.get_ident().unwrap().clone()
         }
-            // unimplemented!("Can't mangle type: {}", ),
     }
 }
 

@@ -37,30 +37,6 @@ impl ItemConversion {
             ItemConversion::Use(_, scope) => scope,
         }
     }
-    // pub(crate) fn is_not_mod(&self) -> bool {
-    //     match self {
-    //         Self::Mod(..) => false,
-    //         _ => true
-    //     }
-    // }
-
-    #[allow(unused)]
-    pub(crate) fn is_mod(&self) -> bool {
-        match self {
-            Self::Mod(..) => true,
-            _ => false
-        }
-    }
-
-    // pub(crate) fn export_in_scope(&self, scope: &Scope) -> Option<Scope> {
-    //     self.is_not_mod()
-    //         .then_some(scope.joined(self.ident()))
-    // }
-
-    // pub(crate) fn import_in_scope(&self, scope: &Scope) -> Option<Scope> {
-    //     self.is_not_mod()
-    //         .then_some(scope.joined(self.ident()))
-    // }
 }
 
 impl std::fmt::Debug for ItemConversion {
@@ -108,13 +84,6 @@ impl ItemConversion {
             Self::Fn(..) => "ferment",
             Self::Use(..) => "",
         }
-        // match self {
-        //     Self::Mod(..) => "ffi_dictionary",
-        //     Self::Struct(..) | Self::Enum(..) => "impl_ffi_conv",
-        //     Self::Type(..) => "impl_ffi_ty_conv",
-        //     Self::Fn(..) => "impl_ffi_fn_conv",
-        //     Self::Use(..) => "",
-        // }
     }
 
     fn fold_use(tree: &UseTree) -> Vec<&Ident> {
@@ -162,13 +131,10 @@ impl ItemConversion {
     fn handle_attributes_with_handler<F: FnMut(&Path)>(&self, attrs: &[Attribute], mut handler: F) {
         attrs.iter()
             .for_each(|Attribute { path, .. }|
-                          {
-                              //println!("handle_attributes_with_handler: {}", quote!(#path));
-
-                              if self.is_labeled_with_macro(path) {
-                                  handler(path)
-                              }
-                          })
+                if self.is_labeled_with_macro(path) {
+                    handler(path)
+                }
+            )
     }
 }
 
@@ -185,19 +151,6 @@ impl From<(ItemConversion, HashMap<TypeConversion, Type>)> for Expansion {
     }
 }
 
-// impl From<ItemConversion> for Expansion {
-//     fn from(conversion: ItemConversion) -> Self {
-//         match &conversion {
-//             ItemConversion::Mod(..) => Expansion::Empty,
-//             ItemConversion::Struct(item_struct, scope) =>
-//                 struct_expansion(item_struct, scope),
-//             ItemConversion::Enum(item_enum, scope) => enum_expansion(item_enum, scope),
-//             ItemConversion::Type(item_type, scope) => type_expansion(item_type, scope),
-//             ItemConversion::Fn(item_fn, scope) => fn_expansion(item_fn, scope),
-//             ItemConversion::Use(item_use, scope) => use_expansion(item_use, scope),
-//         }
-//     }
-// }
 
 impl From<DeriveInput> for ItemConversion {
     fn from(input: DeriveInput) -> Self {
@@ -370,8 +323,6 @@ impl ItemConversion {
     }
 
     fn import_pair(path: &Path, imports: &HashMap<Ident, Path>) -> (ImportType, Scope) {
-        // let debug = imports.iter().map(|(ident, path)| quote!(#ident: #path)).collect::<Vec<_>>();
-        // println!("import_pair: {}", quote!(#(#debug),*));
         let original_or_external_pair = |value| {
             let scope = Scope::from(value);
             (if scope.has_belong_to_current_crate() { ImportType::Original } else { ImportType::External }, scope)
@@ -410,7 +361,6 @@ impl ItemConversion {
             match path.segments.last() {
                 Some(PathSegment { ident, .. }) => {
                     let (import_type, scope) = Self::import_pair(path, imports);
-                    // println!("cache import for {}: {}: [{}]", ident.to_token_stream(), import_type.as_path().to_token_stream(), scope.to_token_stream());
                     container.entry(import_type)
                         .or_insert_with(HashSet::new)
                         .insert(ImportConversion::from((ident, &scope)));
@@ -438,33 +388,6 @@ impl ItemConversion {
             .filter_map(|(import_type, used_imports)| import_type.get_imports_for(used_imports))
             .collect()
     }
-
-    // pub fn find_all_generics(&self, imports: &HashMap<TypeConversion, Type>) -> HashSet<GenericConversion> {
-    //     let mut generics: HashSet<GenericConversion> = HashSet::new();
-    //     // let imports = self.classify_imports(imports);
-    //     print!("find_all_generics in: {:?}", imports);
-    //
-    //
-    //     let compositions = self.collect_compositions();
-    //     print!("find_all_generics comp: {:?}", compositions.iter().map(|TypePathComposition {0:ty, 1:path} | quote!(#ty: #path)).collect::<Vec<_>>());
-    //     compositions
-    //         .iter()
-    //         .for_each(|TypePathComposition(field_type, .. )| match field_type {
-    //             Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-    //                 PathConversion::Generic(generic_path_conversion) => {
-    //                     generic_path_conversion
-    //                         .generic_types()
-    //                         .iter()
-    //                         .for_each(|field_type| add_generic_type_2(field_type, &mut generics));
-    //                     generics.insert(GenericConversion::from(field_type));
-    //                 },
-    //                 _ => {}
-    //             },
-    //             _ => {}
-    //         });
-    //     generics
-    //
-    // }
 
     pub fn classify_imports(&self, imports: &HashMap<Ident, Path>) -> HashMap<ImportType, HashSet<ImportConversion>> {
         let mut container = HashMap::new();
@@ -499,37 +422,6 @@ impl ItemConversion {
         container
     }
 
-
-    // #[allow(unused)]
-    // fn find_custom_types_in_compositions(compositions: &Vec<TypePathComposition>) -> HashSet<TypePathComposition> {
-    //     let mut custom_types: HashSet<TypePathComposition> = HashSet::new();
-    //     compositions
-    //         .iter()
-    //         .for_each(|TypePathComposition(field_type, .. )| match field_type {
-    //             Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-    //                 PathConversion::Complex(path) => match path.segments.last().unwrap().ident.to_string().as_str() {
-    //                     "str" | "String" => {},
-    //                     "Option" => match path_arguments_to_types(&path.segments.last().unwrap().arguments)[0] {
-    //                         Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-    //                             PathConversion::Complex(path) => match path.segments.last().unwrap().ident.to_string().as_str() {
-    //                                 "str" | "String" => {},
-    //                                 _ => { custom_types.insert(TypePathComposition(field_type.clone(), path.clone())); }
-    //                             },
-    //                             _ => {},
-    //                         },
-    //                         _ => {},
-    //                     },
-    //                     _ => { custom_types.insert(TypePathComposition(field_type.clone(), path.clone())); }
-    //                 },
-    //                 _ => {}
-    //             },
-    //             _ => {}
-    //         });
-    //     // let unique_types = custom_types.iter().map(|TypePathComposition { 0: ty, .. }| quote!(#ty)).collect::<Vec<_>>();
-    //     //println!("Unique custom types: {}", quote!(#(#unique_types, )*));
-    //     custom_types
-    // }
-
     fn find_generic_types_in_compositions(compositions: &Vec<TypePathComposition>) -> HashSet<TypePathComposition> {
         // collect all types with generics and ensure their uniqueness
         // since we don't want to implement interface multiple times for same object
@@ -559,10 +451,6 @@ impl ItemConversion {
     pub(crate) fn find_generics(&self) -> HashSet<TypePathComposition> {
         Self::find_generic_types_in_compositions(&self.collect_compositions())
     }
-
-    // pub fn find_types(&self) -> HashSet<TypePathComposition> {
-    //     Self::find_custom_types_in_compositions(&self.collect_compositions())
-    // }
 
     pub fn add_full_qualified_conversion<'ast>(self, visitor: &'ast mut Visitor) -> ItemConversion {
         let converted = match self {
@@ -604,10 +492,7 @@ impl ItemConversion {
             },
             Self::Mod(item_mod, scope) => {
                 let ident = item_mod.ident.clone();
-                // println!("SSSSSSS:::: {}: {}", ident, scope);
-                // let scope = visitor.parent.joined(&ident);
                 let inner_scope = scope.joined(&ident);
-                // visitor.modules.insert(ident, visitor.parent.clone());
 
                 match &item_mod.content {
                     None => {},
@@ -648,19 +533,9 @@ impl ItemConversion {
                                     // visitor.convert_type(ty);
 
                                 },
-                                Item::Mod(_item_mod) => {
-
-                                },
-                                _ => {
-
-                                }
+                                Item::Mod(_item_mod) => {},
+                                _ => {}
                             }
-                            // match ItemConversion::try_from(item) {
-                            //     Ok(conversion) => {
-                            //         return conversion.add_full_qualified_conversion(visitor);
-                            //     },
-                            //     Err(_) => {}
-                            // }
                         })
                     }
                 }
@@ -671,9 +546,9 @@ impl ItemConversion {
     }
 }
 
-fn enum_expansion(item_enum: &ItemEnum, scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
+fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
     // println!("expansion (enum): in: {scope} => {}", quote!(#item_enum));
-    println!("enum_expansion: [{}]: {}", scope.to_token_stream(), item_enum.ident.to_token_stream());
+    // println!("enum_expansion: [{}]: {}", scope.to_token_stream(), item_enum.ident.to_token_stream());
     let ItemEnum { ident: target_name, variants, .. } = item_enum;
     let variants_count = variants.len();
     let ffi_name = ffi_struct_name(target_name);
@@ -767,9 +642,9 @@ fn enum_expansion(item_enum: &ItemEnum, scope: &Scope, tree: HashMap<TypeConvers
     Expansion::Full { input, comment, ffi_presentation, conversion, drop }
 }
 
-fn struct_expansion(item_struct: &ItemStruct, scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
+fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
     // println!("expansion (struct): in: {scope} => {}", quote!(#item_struct));
-    println!("struct_expansion: [{}]: {}", scope.to_token_stream(), item_struct.ident.to_token_stream());
+    // println!("struct_expansion: [{}]: {}", scope.to_token_stream(), item_struct.ident.to_token_stream());
     let ItemStruct { fields: ref f, ident: target_name, .. } = item_struct;
     let composer = match f {
         Fields::Unnamed(ref fields) => match target_name.clone().to_string().as_str() {
@@ -853,11 +728,9 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &Scope, tree: HashMap<TypeC
     composer_owned.make_expansion(quote!(#item_struct))
 }
 
-fn fn_expansion(item_fn: &ItemFn, scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
-    println!("fn_expansion: [{}]: {}", scope.to_token_stream(), item_fn.sig.ident.to_token_stream());
-    println!("fn_expansion: [{:?}]:", tree);
-    // let ffi_scope = scope.as_ffi_scope();
-    // println!("expansion (fn): in: {scope} ({ffi_scope}) => {}", quote!(#item_fn));
+fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
+    // println!("fn_expansion: [{}]: {}", scope.to_token_stream(), item_fn.sig.ident.to_token_stream());
+    // println!("fn_expansion: [{:?}]:", tree);
     let Signature {
         output,
         ident: fn_name,
@@ -909,8 +782,8 @@ fn use_expansion(item_use: &ItemUse, _scope: &Scope) -> Expansion {
     Expansion::Use { input: quote!(#item_use), comment: DocPresentation::Empty }
 }
 
-fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
-    println!("type_expansion: [{}]: {}", scope.to_token_stream(), item_type.ident.to_token_stream());
+fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
+    // println!("type_expansion: [{}]: {}", scope.to_token_stream(), item_type.ident.to_token_stream());
     // println!("expansion (type): in: {scope} => {}", quote!(#item_type));
     let ItemType { ident, ty, .. } = item_type;
     let ffi_name = ffi_struct_name(ident);
@@ -939,28 +812,6 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
             quote!(#ident),
             tree,
             IntoIterator::into_iter({
-                // let path = match &**ty {
-                //     Type::Path(TypePath { path, .. }) => {
-                //         println!("type_alias_composer conversion: {}: {}", ty.to_token_stream(), path.to_token_stream());
-                //         match PathConversion::from(path) {
-                //             PathConversion::Primitive(..) => obj(),
-                //             PathConversion::Generic(generic_conversion) => usize_to_tokenstream(0),
-                //             _ => usize_to_tokenstream(0),
-                //         }
-                //     },
-                //     Type::Array(_type_array) => usize_to_tokenstream(0),
-                //     Type::Ptr(_type_ptr) => obj(),
-                //     _ => unimplemented!("from_type_alias: not supported {:?}", quote!(#ty))
-                // };
-                //
-                // dictionary.iter().find(|(import_type, dd)| dd.iter().find(|(ident, scope)| {
-                //     let type_conversion = TypeConversion::from(&**ty);
-                //     let involved = type_conversion.get_all_type_paths_involved();
-                //     if ident.eq()
-                // }))
-                //
-                // vec![(, path)]
-
                 vec![(&**ty, match &**ty {
                     Type::Path(TypePath { path, .. }) => {
                         println!("type_alias_composer conversion: {}: {}", ty.to_token_stream(), path.to_token_stream());

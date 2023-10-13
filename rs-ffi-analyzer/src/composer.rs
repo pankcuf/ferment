@@ -150,53 +150,6 @@ impl RootComposer {
             conversions_composer)
     }
 
-    // pub(crate) fn generic_struct_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
-    //     ffi_name: TokenStream2,
-    //     target_name: TokenStream2,
-    //     from_conversions_presenter: OwnerIteratorPresenter,
-    //     to_conversions_presenter: OwnerIteratorPresenter,
-    //     conversion_presenter: MapPairPresenter,
-    //     drop_conversions_presenter: IteratorPresenter,
-    //     doc_presenter: MapPresenter,
-    //     from_conversions: Vec<TokenStream2>,
-    //     to_conversions: Vec<TokenStream2>,
-    //     conversions_composer: I) -> Rc<RefCell<Self>> {
-    //     let root = Rc::new(RefCell::new(Self {
-    //         ffi_name: ffi_name.clone(),
-    //         target_name: target_name.clone(),
-    //         fields_from_composer: FieldsComposer::new(NAMED_STRUCT_PRESENTER, FFI_NAME_CONTEXT_PRESENTER, NAMED_FIELD_TYPE_PRESENTER, vec![]),
-    //         fields_to_composer: FieldsComposer::new(NAMED_STRUCT_PRESENTER, TARGET_NAME_CONTEXT_PRESENTER, NAMED_FIELD_TYPE_PRESENTER, vec![]),
-    //         ffi_object_composer: FFI_STRUCT_COMPOSER,
-    //         from_conversion_composer: ConversionComposer::new(
-    //             FFI_FROM_ROOT_PRESENTER,
-    //             FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
-    //             from_conversions_presenter,
-    //             conversion_presenter,
-    //             target_name.clone(),
-    //             from_conversions),
-    //         to_conversion_composer: ConversionComposer::new(
-    //             FFI_TO_ROOT_PRESENTER,
-    //             EMPTY_CONTEXT_PRESENTER,
-    //             to_conversions_presenter,
-    //             conversion_presenter,
-    //             ffi_name.clone(),
-    //             to_conversions),
-    //         destroy_composer: DESTROY_STRUCT_COMPOSER,
-    //         drop_composer: DropComposer::new(SIMPLE_CONVERSION_PRESENTER, EMPTY_CONTEXT_PRESENTER, drop_conversions_presenter, SIMPLE_PRESENTER, vec![]),
-    //         doc_composer: FFIContextComposer::new(doc_presenter, |composer| composer.target_name.clone()),
-    //         from: FFI_DEREF_FIELD_NAME,
-    //         to: OBJ_FIELD_NAME,
-    //         destroy: FFI_DEREF_FIELD_NAME,
-    //     }));
-    //     {
-    //         let mut root_borrowed = root.borrow_mut();
-    //         root_borrowed.setup_composers(&root);
-    //         root_borrowed.setup_generic_conversion(conversions_composer);
-    //     }
-    //     root
-    //
-    // }
-
     fn enum_variant_default_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -316,13 +269,9 @@ impl RootComposer {
         conversions_from: Vec<TokenStream2>,
         conversion_to_path: TokenStream2) -> Rc<RefCell<Self>> {
         let root = Rc::new(RefCell::new(Self {
-            // ffi_name: ffi_name.clone(),
-            // target_name: target_name.clone(),
             tree,
             ffi_name_composer: NameComposer::new(ffi_name.clone()),
             target_name_composer: NameComposer::new(target_name.clone()),
-            // field_presenter: EMPTY_FIELD_TYPED_PRESENTER,
-            // root_presenter,
             ffi_object_composer: FFIContextComposer::new(SIMPLE_PRESENTER, EMPTY_CONTEXT_PRESENTER),
             from_conversion_composer: ConversionComposer::new(FFI_FROM_ROOT_PRESENTER, FROM_DEREF_FFI_CONTEXT_PRESENTER, root_conversion_from_presenter, EMPTY_PAIR_PRESENTER, target_name.clone(), conversions_from),
             to_conversion_composer: ConversionComposer::new(FFI_TO_ROOT_PRESENTER, EMPTY_CONTEXT_PRESENTER, root_conversion_to_presenter, EMPTY_PAIR_PRESENTER, conversion_to_path, vec![]),
@@ -332,7 +281,6 @@ impl RootComposer {
             from: EMPTY_MAP_PRESENTER,
             to: EMPTY_MAP_PRESENTER,
             destroy: EMPTY_MAP_PRESENTER,
-            // fields: vec![],
             fields_from_composer: FieldsComposer::new(root_presenter, FFI_NAME_CONTEXT_PRESENTER, EMPTY_DICT_FIELD_TYPED_PRESENTER, vec![]),
             fields_to_composer: FieldsComposer::new(root_presenter, TARGET_NAME_CONTEXT_PRESENTER, EMPTY_DICT_FIELD_TYPED_PRESENTER, vec![]),
         }));
@@ -361,8 +309,6 @@ impl RootComposer {
         destroy: MapPresenter,
         conversions_composer: I) -> Rc<RefCell<RootComposer>> where Self: Sized {
         let root = Rc::new(RefCell::new(Self {
-            // ffi_name: ffi_name.clone(),
-            // target_name: target_name.clone(),
             tree,
             ffi_name_composer: NameComposer::new(ffi_name),
             target_name_composer: NameComposer::new(target_name),
@@ -399,87 +345,11 @@ impl RootComposer {
         self.doc_composer.set_parent(root);
     }
 
-    // fn setup_generic_conversion<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(&mut self, conversions_composer: I) {
-    //     for (field_type, field_name) in conversions_composer {
-    //         self.add_generic_conversion(&field_type, field_name);
-    //     }
-    // }
-
     fn setup_conversion<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(&mut self, conversions_composer: I) {
         for (field_type, field_name) in conversions_composer {
             self.add_conversion(&field_type, field_name);
         }
     }
-
-    // fn add_generic_conversion(&mut self, field_type: &Type, field_name: TokenStream2) {
-    //     println!("add_generic_conversion: {}: {}", quote!(#field_name), quote!(#field_type));
-    //     // let field_path_to = (self.to)(field_name.clone());
-    //     // let field_path_from = (self.from)(field_name.clone());
-    //     // let field_path_destroy = (self.destroy)(field_name.clone());
-    //
-    //     let field_path_to = field_name.clone();
-    //     let field_path_from = field_name.clone();
-    //     let field_path_destroy = field_name.clone();
-    //
-    //     // match field_type {
-    //     //     Type::Ptr(TypePtr { elem, .. }) => match &**elem {
-    //     //         Type::Ptr(TypePtr { elem, .. }) => match &**elem {
-    //     //             Type::Path(TypePath { path, .. }) => {
-    //     //                 match PathConversion::from(path) {
-    //     //                     PathConversion::Simple(path) => {
-    //     //                         quote!(std::slice::from_raw_parts(#field_path.values as *const #field_type, #field_path.count).to_vec())
-    //     //                     },
-    //     //                     PathConversion::Complex(path) => {
-    //     //
-    //     //                         ffi_from_conversion()
-    //     //                     },
-    //     //                     _ => panic!("cfff")
-    //     //                 }
-    //     //             },
-    //     //             Type::Array(TypeArray { elem, len, .. }) => {
-    //     //
-    //     //             },
-    //     //             _ => panic!("add_generic_conversion: Unknown ptr ptr field {:?}", field_type),
-    //     //         },
-    //     //         Type::Path(TypePath { path, .. }) => {},
-    //     //         Type::Array(TypeArray { elem, len, .. }) => {},
-    //     //         _ => panic!("add_generic_conversion: Unknown ptr field {:?}", field_type),
-    //     //     },
-    //     //     Type::Path(TypePath { path, .. }) => {},
-    //     //     _ => panic!("add_generic_conversion: Unknown field {:?}", field_type),
-    //     // }
-    //
-    //     let (converted_field_to, converted_field_from, destructor) = match field_type {
-    //         Type::Ptr(type_ptr) => (
-    //             to_ptr(field_path_to, type_ptr),
-    //             from_ptr(field_path_from, type_ptr),
-    //             destroy_ptr(field_path_destroy, type_ptr)
-    //         ),
-    //         Type::Path(TypePath { path, .. }) => (
-    //             to_path(field_path_to, path, None),
-    //             from_path(field_path_from, path, None),
-    //             destroy_path(field_path_destroy, path, None),
-    //         ),
-    //         Type::Reference(type_reference) => (
-    //             to_reference(field_path_to, type_reference),
-    //             from_reference(field_path_from, type_reference),
-    //             destroy_reference(field_path_destroy, type_reference)
-    //         ),
-    //         Type::Array(type_array) => (
-    //             to_array(field_path_to, type_array),
-    //             from_array(field_path_from, type_array),
-    //             destroy_array(field_path_destroy, type_array)
-    //         ),
-    //         _ => panic!("add_conversion: Unknown field {:?} {:?}", field_name, field_type),
-    //     };
-    //
-    //     self.fields_from_composer.add_conversion(field_name.clone(), field_type);
-    //     self.fields_to_composer.add_conversion(field_name.clone(), field_type);
-    //     self.to_conversion_composer.add_conversion(field_name.clone(), converted_field_to);
-    //     self.from_conversion_composer.add_conversion(field_name.clone(), converted_field_from);
-    //     self.drop_composer.add_conversion(destructor);
-    // }
-
 
     fn add_conversion(&mut self, field_type: &Type, field_name: TokenStream2) {
         // println!("add_conversion: {}: {}", quote!(#field_name), quote!(#field_type));

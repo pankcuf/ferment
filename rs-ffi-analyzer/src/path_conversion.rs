@@ -332,13 +332,11 @@ impl PathConversion {
             .join("_")
     }
 
-    // #[cfg(test)]
     pub fn into_mangled_generic_ident(self) -> Ident {
         format_ident!("{}", Self::mangled_inner_generic_ident_string(self.as_path())
         )
     }
 
-    // #[cfg(test)]
     #[allow(unused)]
     pub fn mangled_generic_arguments_types_strings(&self) -> Vec<String> {
         self.mangled_generic_arguments_types()
@@ -347,7 +345,6 @@ impl PathConversion {
             .collect::<Vec<_>>()
     }
 
-    // #[cfg(test)]
     #[allow(unused)]
     pub fn mangled_generic_arguments_types(&self) -> Vec<Type> {
         self.as_path()
@@ -376,14 +373,6 @@ impl PathConversion {
             PathConversion::Generic(GenericPathConversion::Vec(path)) => format_mangled_ident!("Vec_{}", presenter(path, tree)),
         }
     }
-
-    // #[allow(unused)]
-    // pub fn mangled_root_ident(&self) -> Ident {
-    //     self.mangled_ident(match self {
-    //         PathConversion::Generic(..) => FFI_GENERIC_TYPE_PRESENTER,
-    //         _ => unimplemented!("can't mangle type"),
-    //     })
-    // }
 
     #[allow(unused)]
     pub fn mangled_map_ident(&self, tree: &HashMap<TypeConversion, Type>) -> Ident {

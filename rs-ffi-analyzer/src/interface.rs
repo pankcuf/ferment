@@ -57,13 +57,11 @@ pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { iden
 
 /// Type Presenters
 pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, tree| {
-    // let full_type = dictionary.fin
-    let result = match field_type {
+    match field_type {
         Type::Path(TypePath { path, .. }) =>
             (match path.segments.last().unwrap().ident.to_string().as_str() {
                 "Vec" | "BTreeMap" | "HashMap" => FFI_GENERIC_TYPE_PRESENTER,
                 "Option" => OPTION_PATH_PRESENTER,
-                // "String" =>
                 "OpaqueContext" => OPAQUE_CONTEXT_PATH_PRESENTER,
                 "OpaqueContextMut" => OPAQUE_CONTEXT_MUT_PATH_PRESENTER,
                 _ => DEFAULT_DICT_PATH_PRESENTER,
@@ -86,9 +84,7 @@ pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_typ
                 _ => panic!("extract_struct_field: {} not supported", quote!(#elem))
             }
         _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", quote!(#field_type))
-    };
-    println!("FFI_DICTIONARY_TYPE_PRESENTER: {} --> {}", field_type.to_token_stream(), result);
-    result
+    }
 };
 
 /// Map Presenters
@@ -125,15 +121,6 @@ pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream
     package_boxed_expression(conversions);
 
 /// Field Type Presenters
-// pub const EMPTY_FIELD_TYPED_PRESENTER: FieldTypedPresenter = |_, _|
-//     quote!();
-// pub const DEFAULT_FIELD_PRESENTER: FieldTypedPresenter = |field_name, _|
-//     quote!(#field_name);
-// pub const DEFAULT_FIELD_TYPE_PRESENTER: FieldTypedPresenter = |_, field_type|
-//     FFI_TYPE_PRESENTER(field_type);
-// pub const NAMED_FIELD_TYPE_PRESENTER: FieldTypedPresenter = |field_name, field_type|
-//     PUB_NAMED_CONVERSION_PRESENTER(field_name, FFI_TYPE_PRESENTER(field_type));
-
 pub const FFI_ARRAY_FIELD_TYPED_PRESENTER: FieldTypedPresenter = |len, elem|
     quote!(*mut [#elem; #len]);
 
@@ -240,14 +227,14 @@ pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presen
 
 /// Path Presenters
 pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _dictionary|
-    PathConversion::from(path).as_ffi_type().to_token_stream();
+    PathConversion::from(path)
+        .as_ffi_type()
+        .to_token_stream();
 
 pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
-    println!("FFI_GENERIC_TYPE_PRESENTER: {}", path.to_token_stream());
     match PathConversion::from(path) {
         PathConversion::Primitive(path) => path.to_token_stream(),
         PathConversion::Complex(path) => {
-            println!("FFI_GENERIC_TYPE_PRESENTER: COMPLEX: {}", path.to_token_stream());
             path.to_token_stream()
         },
         PathConversion::Generic(GenericPathConversion::Map(path)) |
@@ -258,41 +245,15 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
                 Some((_, full_type)) => {
                     let ident = mangle_type(full_type);
                     let full_ty = ffi_struct_name(&ident);
-                    println!("FFI_GENERIC_TYPE_PRESENTER:: GENERIC FOUND: {} -> {} -> {}", path.to_token_stream(), quote!(#full_type), quote!(#full_ty));
-
                     quote!(*mut #full_ty)
                 },
                 _ => {
-                    println!("FFI_GENERIC_TYPE_PRESENTER:: GENERIC NOT FOUND: {} -> {}", path.to_token_stream(), quote!(#short_ty));
                     quote!(*mut #short_ty)
                 }
             }
-            // PathConversion::Primitive(path) => parse_quote!(#path),
-            // PathConversion::Complex(path) => {
-            //     let ty = Scope::ffi_type_converted_or_same(&parse_quote!(#path));
-            //     parse_quote!(*mut #ty)
-            // },
-            // PathConversion::Generic(GenericPathConversion::Map(path)) |
-            //     PathConversion::Generic(GenericPathConversion::Vec(path)) => {
-            //     let ty = Self::convert_to_ffi_type(path);
-            //     parse_quote!(*mut #ty)
         }
     }
 };
-// PathConversion::from(path).make_full_qualified_ffi_type_if_need(dictionary)
-//         .to_token_stream();
-
-// pub const FFI_STRUCT_PATH_PRESENTER: PathPresenter = |path| {
-//     (match path.segments.last().unwrap().ident.to_string().as_str() {
-//         // "Vec" => VEC_PATH_PRESENTER, //|path| PathConversion::from(path).as_ffi_path(),
-//         // "BTreeMap" | "HashMap" => MAP_PATH_PRESENTER,
-//         "Vec" | "BTreeMap" | "HashMap" => FFI_GENERIC_TYPE_PRESENTER,
-//         "Option" => OPTION_PATH_PRESENTER,
-//         "OpaqueContext" => OPAQUE_CONTEXT_PATH_PRESENTER,
-//         "OpaqueContextMut" => OPAQUE_CONTEXT_MUT_PATH_PRESENTER,
-//         _ => DEFAULT_PATH_PRESENTER,
-//     })(path)
-// };
 
 pub const FFI_TYPE_PATH_PRESENTER: PathPresenter = |path|
     FFI_TYPE_PATH_CONVERTER(path)
@@ -301,24 +262,6 @@ pub const FFI_TYPE_PATH_PRESENTER: PathPresenter = |path|
 pub const FFI_TYPE_PATH_CONVERTER: fn(&Path) -> Path = |path|
     PathConversion::from(path)
         .as_ffi_path();
-
-// pub const GENERIC_VEC_SIMPLE_PRESENTER: GenericVecPresenter = |(ffi_name, value_path)|
-//     generics::vec_ffi_simple_expansion(ffi_name, value_path);
-//
-// pub const GENERIC_VEC_COMPLEX_PRESENTER: GenericVecPresenter = |(ffi_name, value_path)|
-//     generics::vec_ffi_complex_expansion(ffi_name, value_path);
-//
-// pub const GENERIC_MAP_SIMPLE_PRESENTER: GenericMapPresenter = |(ffi_name, root, key_path, value_path)|
-//     generics::map_ffi_simple_expansion(ffi_name, root, key_path, value_path);
-//
-// pub const GENERIC_MAP_SIMPLE_COMPLEX_PRESENTER: GenericMapPresenter = |(ffi_name, root, key_path, value_path)|
-//     generics::map_ffi_simple_complex_expansion(ffi_name, root, key_path, value_path);
-//
-// pub const GENERIC_MAP_COMPLEX_SIMPLE_PRESENTER: GenericMapPresenter = |(ffi_name, root, key_path, value_path)|
-//     generics::map_ffi_complex_simple_expansion(ffi_name, root, key_path, value_path);
-//
-// pub const GENERIC_MAP_COMPLEX_PRESENTER: GenericMapPresenter = |(ffi_name, root, key_path, value_path)|
-//     generics::map_ffi_complex_expansion(ffi_name, root, key_path, value_path);
 
 pub const MANGLE_INNER_PATH_PRESENTER: ScopeTreePathPresenter = |path, tree| match PathConversion::from(path) {
     PathConversion::Primitive(path) |

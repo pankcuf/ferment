@@ -1,6 +1,5 @@
 pub mod composer;
 pub mod error;
-// pub mod file_visitor;
 pub mod generics;
 pub mod helper;
 pub mod interface;
@@ -31,7 +30,6 @@ use crate::scope_conversion::ScopeTreeCompact;
 pub fn process(input: &std::path::Path, output: &mut File) -> Result<(), error::Error> {
     let file_path = std::path::Path::new(input);
     let root_scope = Scope::new(parse_quote!(crate));
-    // let root_scope = Scope(parse_quote!(root));
     let mut root_visitor = process_recursive(file_path, root_scope);
     merge_visitor_trees(&mut root_visitor);
     let expansion =
@@ -46,14 +44,9 @@ pub fn process(input: &std::path::Path, output: &mut File) -> Result<(), error::
                 .map_err(error::Error::from)
         }
     }
-
-    // println!("Expand root::: {}", tree);
-
-    // Ok(())
 }
 
 fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
-    println!("read_syntax_tree:: {:?}", file_path);
     let content = std::fs::read_to_string(file_path)
         .expect("Failed to read file");
     syn::parse_file(&content)
@@ -61,14 +54,10 @@ fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
 }
 
 fn process_recursive(file_path: &std::path::Path, scope: Scope) -> Visitor {
-    // println!("- process: {:?}:", file_path);
-    // println!("--- scope: [{}]", scope);
     let syntax_tree = read_syntax_tree(file_path);
     let mut visitor = Visitor::new(scope.clone());
     visitor.visit_file(&syntax_tree);
     let items = syntax_tree.items;
-    // println!("-- process: ");
-    // println!("---- items: {}", quote!(#(#items)*));
     let mut visitors = vec![];
     for item in items {
         if let syn::Item::Mod(module) = item {

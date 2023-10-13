@@ -1,12 +1,11 @@
 use std::hash::{Hash, Hasher};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Ident, parse_quote, Path, PathSegment, Type, TypePath};
-use syn::__private::{Span, TokenStream2};
+use syn::__private::TokenStream2;
 use syn::parse::ParseStream;
 use syn::parse_quote::ParseQuote;
 use syn::punctuated::Punctuated;
 use crate::helper::{ffi_struct_name, mangle_type, path_arguments_to_types};
-use crate::scope_conversion::ImportType;
 
 fn ffi_generic_path(ty: &Type) -> Path {
     let mangled_ident = mangle_type(ty);
@@ -118,20 +117,12 @@ impl Scope {
         Scope::new(ffi_generic_path(ty))
     }
 
-    // pub fn is_globally_visible(ty: &Type) -> bool {
-    //     match ty {
-    //
-    //     }
-    // }
     pub fn ffi_type_converted_or_same(ty: &Type) -> Type {
         Self::ffi_type_converted(ty).unwrap_or(ty.clone())
     }
 
-    // pub fn ffi_type_path_converted(type_path: TypePath) -> Option<TypePath> {
-    //     let TypePath { path: Path { segments, .. }, .. } = type_path;
-    // }
     pub fn ffi_type_converted(ty: &Type) -> Option<Type> {
-        let converted = match ty {
+        match ty {
             Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
                 let first_segment = segments.first().unwrap();
                 let first_ident = &first_segment.ident;
@@ -159,7 +150,6 @@ impl Scope {
                             _ => segments.iter().take(segments.len() - 1).collect()
                         };
                         let new_ident = ffi_struct_name(last_ident);
-                        // let new_ident = last_ident;
                         let middle = if segments.len() == 0 {
                             quote!(#new_ident)
                         } else {
@@ -171,34 +161,7 @@ impl Scope {
                 }
             },
             _ => None
-        };
-        println!("ffi_type_converted:::: {}: {}", ty.to_token_stream(), converted.clone().map(|t| t.to_token_stream()).unwrap_or(quote!()));
-        converted
-    }
-
-    pub fn ffi_type_import(ty: &Type) -> Option<Scope> {
-
-        let s = Self::ffi_type_converted(ty)
-            .map(|ty| Scope::new(parse_quote!(#ty)));
-        // println!("ffi_type_import: {} => {}", quote!(#ty), quote!(#s));
-        s
-    }
-
-    pub fn as_ffi_scope(&self) -> Scope {
-        // println!("as_ffi_scope: {}", self);
-        let target_segments = self.path.segments.clone();
-        let mut ffi_segments = vec![
-            target_segments.first().unwrap().clone(),
-            PathSegment {
-                ident: Ident::new("ffi_expansions", Span::call_site()),
-                arguments: Default::default(),
-            }
-        ];
-        ffi_segments.extend(target_segments.into_iter().skip(1));
-        Scope::new(Path {
-            leading_colon: self.path.leading_colon,
-            segments: Punctuated::from_iter(ffi_segments),
-        })
+        }
     }
 
     pub fn is_crate(&self) -> bool {
@@ -227,17 +190,6 @@ impl Scope {
         let segments = self.path.segments.clone();
         let n = segments.len() - 1;
         Scope::new(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
-    }
-
-    pub fn determine_import_type(&self) -> ImportType {
-        if self.is_crate() {
-            ImportType::Original
-        } else {
-            ImportType::External
-        }
-        // self.path.segments.first()
-
-        //match &self.path {  }
     }
 }
 

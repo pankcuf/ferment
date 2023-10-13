@@ -176,16 +176,3 @@ impl Presentable for DropInterfacePresentation {
         }
     }
 }
-
-
-
-// Vec<Vec<u32>> -> Vec_Vec_u32_FFI -> { pub count : usize, pub values : * mut * mut Vec_u32_FFI, },
-// Vec<bool> -> Vec_bool_FFI -> pub count : usize, pub values : * mut bool, },
-// BTreeMap<self::HashID, Vec<self::HashID>> -> Map_keys_self_HashID_values_self_HashID_FFI -> { pub count : usize, pub keys : * mut * mut self :: HashIDFFI, pub values : * mut * mut Vec_self_HashID_FFI,}
-// BTreeMap<String, self::HashID>,
-// Vec<u32>,
-// Vec<Vec<self::HashID>>,
-// BTreeMap<self::HashID, self::HashID>,
-// Vec<u8>
-
-
