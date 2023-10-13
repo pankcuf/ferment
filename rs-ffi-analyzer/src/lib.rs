@@ -2,6 +2,7 @@ pub mod composer;
 pub mod error;
 pub mod generics;
 pub mod helper;
+pub mod import_conversion;
 pub mod interface;
 pub mod item_conversion;
 pub mod path_conversion;

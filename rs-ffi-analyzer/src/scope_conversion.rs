@@ -1,106 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use std::hash::{Hash, Hasher};
 use quote::{quote, ToTokens};
 use syn::{Ident, Item, ItemMod,parse_quote, Path,Type};
 use syn::__private::TokenStream2;
 use crate::generics::{GenericConversion, TypePathComposition};
-use crate::helper::{ffi_struct_name, mangle_type};
+use crate::helper::ffi_struct_name;
+use crate::import_conversion::{ImportConversion, ImportType};
 use crate::interface::Presentable;
 use crate::item_conversion::ItemConversion;
 use crate::presentation::Expansion;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum ImportType {
-    Original,
-    External,
-    // full or partial import
-    ExternalChunk,
-    FfiType,
-    FfiGeneric,
-    Inner,
-    None,
-}
-
-impl ImportType {
-
-    pub fn as_path(&self) -> Path {
-        match self {
-            ImportType::Original => parse_quote!(ImportType::Original),
-            ImportType::External => parse_quote!(ImportType::External),
-            ImportType::ExternalChunk => parse_quote!(ImportType::ExternalChunk),
-            ImportType::FfiType => parse_quote!(ImportType::FfiType),
-            ImportType::FfiGeneric => parse_quote!(ImportType::FfiGeneric),
-            ImportType::Inner => parse_quote!(ImportType::Inner),
-            ImportType::None => parse_quote!(ImportType::None),
-        }
-    }
-
-    pub fn get_imports_for(self, used_imports: HashSet<ImportConversion>) -> Option<(ImportType, HashSet<ImportConversion>)> {
-        match self {
-            ImportType::Inner | ImportType::None => None,
-            _ => Some((self, used_imports))
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ImportConversion {
-    pub ident: Ident,
-    pub scope: Scope,
-}
-
-impl<'a> From<(&'a Ident, &'a Scope)> for ImportConversion {
-    fn from(value: (&'a Ident, &'a Scope)) -> Self {
-        Self { ident: value.0.clone(), scope: value.1.clone() }
-    }
-}
-
-impl<'a> From<&'a GenericConversion> for ImportConversion {
-    fn from(value: &'a GenericConversion) -> Self {
-        let mangled_ident = mangle_type(&value.full_type);
-        let ident = ffi_struct_name(&mangled_ident);
-        ImportConversion { ident, scope: Scope::ffi_generics_scope() }
-    }
-
-}
-
-impl std::fmt::Debug for ImportConversion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("[")?;
-        f.write_str(&self.scope.to_string())?;
-        f.write_str("]: ")?;
-        f.write_str(&self.ident.to_token_stream().to_string())
-    }
-}
-
-impl std::fmt::Display for ImportConversion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
-}
-
-impl PartialEq for ImportConversion {
-    fn eq(&self, other: &Self) -> bool {
-        let self_tokens = [self.ident.to_token_stream(), self.scope.to_token_stream()];
-        let other_tokens = [other.ident.to_token_stream(), other.scope.to_token_stream()];
-        self_tokens.iter()
-            .map(|t| t.to_string())
-            .zip(other_tokens.iter().map(TokenStream2::to_string))
-            .all(|(a, b)| a == b)
-    }
-}
-
-impl Eq for ImportConversion {}
-
-impl Hash for ImportConversion {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.ident.to_token_stream().to_string().hash(state);
-        self.scope.to_token_stream().to_string().hash(state);
-    }
-}
 
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
@@ -154,18 +65,7 @@ impl ScopeTreeExportItem {
     }
 
     fn non_mod_generic_full_types(item: &ItemConversion, scope_types: &HashMap<TypeConversion, Type>) -> HashSet<GenericConversion> {
-        let generics = item.find_generics();
-        // let dbg1 = scope_types.iter().map(|(TypeConversion { 0: conversion_ty }, ty)| quote!(#ty: #conversion_ty)).collect::<Vec<_>>();
-        // let dbg2 = generics.iter().map(|TypePathComposition {0:ty, 1: path }| {
-        //     let path_str = path.to_token_stream().to_string().split_whitespace().collect::<String>();
-        //     let ty_str = ty.to_token_stream().to_string().split_whitespace().collect::<String>();
-        //     let s = path_str.to_owned() + "," + &ty_str;
-        //     quote!(#s)
-        // }).collect::<Vec<_>>();
-        // println!("non_mod_generic_full_types: {}", item.ident().to_token_stream());
-        // println!("               scope_types: {}", quote!(#(#dbg1;)*));
-        // println!("                  generics: {}", quote!(#(#dbg2;)*));
-        generics
+        item.find_generics()
             .iter()
             .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
             .map(GenericConversion::from)
@@ -173,7 +73,6 @@ impl ScopeTreeExportItem {
     }
 
     fn add_non_mod_item(&mut self, item: &ItemConversion, scope_type_dictionary: Option<&HashMap<TypeConversion, Type>>, scope_imports: Option<&HashMap<Ident, Path>>) {
-        // println!("add ITEM [{}]: {} : {:?}", item.scope().to_token_stream(), item.ident().to_token_stream(), scope_type_dictionary);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => {
@@ -184,7 +83,6 @@ impl ScopeTreeExportItem {
                 if let Some(used_imports) = scope_imports {
                     imported.extend(item.get_used_imports(used_imports))
                 }
-                // println!("add ITEM (scope_types) {:?}", scope_type_dictionary);
                 exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(item.into()));
             }
         }
@@ -196,22 +94,13 @@ impl ScopeTreeExportItem {
             Some((_, items)) => {
                 let ident = item_mod.ident.clone();
                 let inner_scope = scope.joined(&ident);
-                let inner_used_types = used_types_at_scopes.get(&inner_scope);
-                let inner_used_types_init = if let Some(inner_used_types) = inner_used_types {
-                    inner_used_types.clone()
-                } else {
-                    HashMap::new()
-                };
-                let mut inner_tree = ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), inner_used_types_init);
+                let mut inner_tree = ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), HashMap::new());
                 items.iter().for_each(|item| {
                     match ItemConversion::try_from((item, &inner_scope)) {
                         Ok(ItemConversion::Mod(item_mod, scope)) =>
                             inner_tree.add_mod_item(&item_mod, &scope, used_types_at_scopes, used_imports_at_scopes),
                         Ok(inner_item) =>
-                            {
-                                // Self::print_used_types_at_scopes("inner tree add item", used_types_at_scopes, scope);
-                                inner_tree.add_non_mod_item(&inner_item, used_types_at_scopes.get(&inner_scope), used_imports_at_scopes.get(&inner_scope))
-                            },
+                            inner_tree.add_non_mod_item(&inner_item, used_types_at_scopes.get(&inner_scope), used_imports_at_scopes.get(&inner_scope)),
                         _ => {}
                     };
                 });
@@ -249,10 +138,7 @@ impl ScopeTreeExportItem {
                     ItemConversion::Mod(item_mod, scope) =>
                         self.add_mod_item(item_mod, scope, used_types_at_scopes, used_imports_at_scopes),
                     _ =>
-                        {
-                            // Self::print_used_types_at_scopes("self tree add item", used_types_at_scopes, scope);
-                            self.add_non_mod_item(&item, used_types_at_scopes.get(scope), used_imports_at_scopes.get(scope))
-                        }
+                        self.add_non_mod_item(&item, used_types_at_scopes.get(scope), used_imports_at_scopes.get(scope))
                 };
             },
             _ => {}
@@ -280,7 +166,6 @@ impl Into<ScopeTreeItem> for ScopeTreeCompact {
 }
 impl ScopeTreeCompact {
     pub fn init_with(item: ScopeTreeExportItem, scope: Scope) -> Option<Self> {
-        println!("Merged TREE: {}", item);
         match item {
             ScopeTreeExportItem::Item(_) => None,
             ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => {
@@ -318,35 +203,18 @@ pub enum ScopeTreeItem {
 impl Presentable for ScopeTreeItem {
     fn present(self) -> TokenStream2 {
         match self {
-            Self::Item { item, scope, scope_types } => {
-                // println!("ScopeTreeItem::present ITEM: [{}]: {}", scope, item.to_token_stream());
-                // println!("ScopeTreeItem::present ITEM: {:?}", scope_types);
+            Self::Item { item, scope, scope_types } =>
                 ItemConversion::try_from((&item, scope))
                     .map(|conversion| Expansion::from((conversion, scope_types)))
-                    .map_or(quote!(), Expansion::present)
-            }
-            Self::Tree { item: _, tree} => {
-                // println!("ScopeTreeItem::present TREE: [{}]", tree.scope);
-                let name = tree.scope.head();
-                let imports = tree.imported.iter().map(|(import_type, imports)| {
-                    // println!("make import.1: {}: [{:?}]", import_type.as_path().to_token_stream(), imports);
-                    let unique_imports: Vec<Scope> = imports.iter().map(|ImportConversion { ident, scope }| {
-                        let unique = match import_type {
-                            ImportType::External => scope.clone(),
-                            ImportType::Original => scope.clone(),
-                            ImportType::FfiType => scope.clone(),
-                            ImportType::ExternalChunk => scope.popped(),
-                            _ => scope.joined(ident)
-                        };
-                        // println!("make import.2: {}: {} [{}] -> {}", import_type.as_path().to_token_stream(), ident.to_token_stream(), scope.to_token_stream(), unique.to_token_stream());
-                        unique
-                    }).collect();
-                    let imports = unique_imports.iter().map(|import| quote!(use #import)).collect::<Vec<_>>();
-                    quote!(#(#imports;)*)
-                });
-                let conversions = tree.exported.into_iter().map(|(_, tree_item)| tree_item.present());
+                    .map_or(quote!(), Expansion::present),
+            Self::Tree { item: _, tree: ScopeTree { scope, imported, exported, .. }} => {
+                let name = scope.head();
+                let imports = imported
+                    .iter()
+                    .flat_map(|(import_type, imports)| imports.iter().map(move |import| import.expand(import_type)));
+                let conversions = exported.into_iter().map(|(_, tree_item)| tree_item.present());
                 quote!(pub mod #name {
-                    #(#imports)*
+                    #(use #imports;)*
                     #(#conversions)*
                 })
             }
@@ -378,12 +246,12 @@ pub struct ScopeTree {
 impl Into<ScopeTree> for ScopeTreeCompact {
     fn into(self) -> ScopeTree {
         let ScopeTreeCompact { scope, generics, imported, exported, scope_types } = self;
-        println!("ScopeTree: {}", quote!(#scope));
-        let debug_gen = generics.iter().map(|g| quote!(#g)).collect::<Vec<_>>();
-        let debug_tp = scope_types.iter().map(|(tc, full_ty)| quote!(#tc: #full_ty)).collect::<Vec<_>>();
-        println!(" generics: {}", quote!(#(#debug_gen;)*));
-        println!("         : {:?}", imported);
-        println!(" scope_types : {}", quote!(#(#debug_tp;)*));
+        // println!("ScopeTree: {}", quote!(#scope));
+        // let debug_gen = generics.iter().map(|g| quote!(#g)).collect::<Vec<_>>();
+        // let debug_tp = scope_types.iter().map(|(tc, full_ty)| quote!(#tc: #full_ty)).collect::<Vec<_>>();
+        // println!(" generics: {}", quote!(#(#debug_gen;)*));
+        // println!("         : {:?}", imported);
+        // println!(" scope_types : {}", quote!(#(#debug_tp;)*));
         let mut new_imported = imported.clone();
         let generics = HashSet::from_iter(generics.into_iter());
         if let Some(used_originals) = imported.get(&ImportType::Original) {
@@ -408,9 +276,7 @@ impl Into<ScopeTree> for ScopeTreeCompact {
             .extend(generics.iter()
             .map(ImportConversion::from));
 
-        println!("         : {:?}", new_imported);
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| (ident.clone(), {
-            // println!("into tree join.2: {} + {}", scope.to_token_stream(), ident.to_token_stream());
             let scope = scope.joined(&ident);
             match tree_item_raw {
                 ScopeTreeExportItem::Item(item) => ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone() },

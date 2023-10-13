@@ -11,7 +11,8 @@ use crate::visitor::Visitor;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
 use crate::{Scope, scope};
-use crate::scope_conversion::{ImportConversion, ImportType, ScopeTreeItem};
+use crate::import_conversion::{ImportConversion, ImportType};
+use crate::scope_conversion::ScopeTreeItem;
 use crate::type_conversion::TypeConversion;
 
 
