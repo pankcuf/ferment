@@ -240,7 +240,7 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
         PathConversion::Generic(GenericPathConversion::Map(path)) |
         PathConversion::Generic(GenericPathConversion::Vec(path)) => {
             let short_ty: Type = parse_quote!(#path);
-            let found = tree.iter().find(|(tc, _full_ty)| short_ty.eq(&tc.0));
+            let found = tree.iter().find(|(TypeConversion{ 0: ty}, _full_ty)| short_ty.eq(ty));
             match found {
                 Some((_, full_type)) => {
                     let ident = mangle_type(full_type);
