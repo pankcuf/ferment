@@ -1,9 +1,6 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{Item, parse_macro_input};
-use rs_ffi_analyzer::item_conversion::ItemConversion;
 
 
 /// The `impl_ffi_fn_conv` procedural macro facilitates FFI (Foreign Function Interface) conversion
@@ -64,56 +61,57 @@ use rs_ffi_analyzer::item_conversion::ItemConversion;
 /// - The macro currently does not support Rust async functions.
 /// - Nested data structures may not be fully supported.
 ///
+// #[proc_macro_attribute]
+// pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
+//     // TokenStream::from(quote!())
+//     input
+//     // Expansion::from(ItemConversion::Fn(parse_macro_input!(input as ItemFn)))
+//     //     .present()
+//     //     .into()
+// }
+//
+// #[proc_macro_attribute]
+// pub fn impl_ffi_conv(_attr: TokenStream, item: TokenStream) -> TokenStream {
+//     // println!(">> process item {}", item);
+//     // TokenStream::from(quote!())
+//     // let attrs = parse_macro_input!(attr as AttributeArgs);
+//     // let target_name = match attrs.first() {
+//     //     Some(NestedMeta::Lit(literal)) => {
+//     //         format_ident!("{}", literal.to_token_stream().to_string())
+//     //     }
+//     //     Some(NestedMeta::Meta(Meta::Path(path))) => path.segments.first().unwrap().ident.clone(),
+//     //     _ => {
+//     //         // use default rules
+//     //         // for unnamed structs like UInt256 -> #target_name = [u8; 32]
+//     //         // for named structs -> generate ($StructName)FFI
+//     //         input.ident.clone()
+//     //     }
+//     // };
+//     item
+//     // Expansion::from(ItemConversion::from(parse_macro_input!(item as DeriveInput)))
+//     //     .present()
+//     //     .into()
+// }
+//
+// #[proc_macro_attribute]
+// pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
+//     // just marker macro
+//     input
+//     // TokenStream::from(quote!())
+//     // Expansion::from(ItemConversion::try_from(&parse_macro_input!(input as Item)).unwrap())
+//     //     .present()
+//     //     .into()
+// }
+
 #[proc_macro_attribute]
-pub fn impl_ffi_fn_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    // TokenStream::from(quote!())
+pub fn ferment(_attr: TokenStream, input: TokenStream) -> TokenStream {
     input
-    // Expansion::from(ItemConversion::Fn(parse_macro_input!(input as ItemFn)))
-    //     .present()
-    //     .into()
 }
 
-#[proc_macro_attribute]
-pub fn impl_ffi_conv(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    // println!(">> process item {}", item);
-    // TokenStream::from(quote!())
-    // let attrs = parse_macro_input!(attr as AttributeArgs);
-    // let target_name = match attrs.first() {
-    //     Some(NestedMeta::Lit(literal)) => {
-    //         format_ident!("{}", literal.to_token_stream().to_string())
-    //     }
-    //     Some(NestedMeta::Meta(Meta::Path(path))) => path.segments.first().unwrap().ident.clone(),
-    //     _ => {
-    //         // use default rules
-    //         // for unnamed structs like UInt256 -> #target_name = [u8; 32]
-    //         // for named structs -> generate ($StructName)FFI
-    //         input.ident.clone()
-    //     }
-    // };
-    item
-    // Expansion::from(ItemConversion::from(parse_macro_input!(item as DeriveInput)))
-    //     .present()
-    //     .into()
-}
-
-#[proc_macro_attribute]
-pub fn impl_ffi_ty_conv(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    // just marker macro
-    input
-    // TokenStream::from(quote!())
-    // Expansion::from(ItemConversion::try_from(&parse_macro_input!(input as Item)).unwrap())
-    //     .present()
-    //     .into()
-}
-
-#[proc_macro_attribute]
-pub fn ffi_item(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    input
-}
-
-#[proc_macro_attribute]
-pub fn ffi_dictionary(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    TokenStream::from(ItemConversion::try_from(&parse_macro_input!(input as Item))
-        .map(|conversion| conversion.expand_all_types())
-        .map_or(quote!(), |expansions| quote!(#(#expansions)*)))
-}
+// #[proc_macro_attribute]
+// pub fn ffi_dictionary(_attr: TokenStream, input: TokenStream) -> TokenStream {
+//     let item =
+//     TokenStream::from(ItemConversion::try_from(&parse_macro_input!(input as Item))
+//         .map(|conversion| conversion.expand_all_types())
+//         .map_or(quote!(), |expansions| quote!(#(#expansions)*)))
+// }

@@ -1,27 +1,24 @@
-// use crate::dash_spv_masternode_processor::chain::common::chain_type::ChainType;
-// use crate::ffi::{Hash160, HashID};
+use std::collections::BTreeMap;
+use crate::ffi::HashID;
+use crate::chain::common::chain_type::ChainType;
 
-// #[rs_ffi_macro_derive::impl_ffi_fn_conv]
-// pub fn address_from_hash(hash: HashID) -> String {
-//     format_args!("{0:?}", hash).to_string()
-// }
-
-#[rs_ffi_macro_derive::impl_ffi_fn_conv]
+#[rs_ffi_macro_derive::ferment]
 pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
     Some(format_args!("{0:?}", script).to_string())
 }
 
-// #[rs_ffi_macro_derive::impl_ffi_fn_conv]
-// pub fn address_from_hash160(hash: Hash160, pubkey: u8) -> String {
-//     let mut writer: Vec<u8> = Vec::new();
-//     writer.push(pubkey);
-//     writer.extend(hash);
-//     String::from_utf8(writer).unwrap()
-// }
-//
-// #[rs_ffi_macro_derive::impl_ffi_fn_conv]
-// pub fn address_from_hash160_2(
-//     chain_type: ChainType,
-// ) -> String {
-//     chain_type.get_string()
-// }
+#[rs_ffi_macro_derive::ferment]
+pub fn get_chain_type_string(chain_type: ChainType) -> String {
+    chain_type.get_string()
+}
+
+
+#[rs_ffi_macro_derive::ferment]
+pub fn get_chain_hashes_by_map(map: BTreeMap<ChainType, HashID>) -> String {
+    map.iter().fold(String::new(), |mut acc, (chain_type, hash_id)| {
+        acc += &chain_type.get_string();
+        acc += " => ";
+        acc += &String::from_utf8_lossy(hash_id);
+        acc
+    })
+}

@@ -1,11 +1,15 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::__private::TokenStream2;
 use syn::spanned::Spanned;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
-use crate::interface::{FFI_GENERIC_TYPE_PRESENTER, MANGLE_INNER_PATH_PRESENTER, MAP_PATH_PRESENTER, PathPresenter, VEC_PATH_PRESENTER};
-use crate::helper::path_arguments_to_paths;
+use crate::generics::{map_ffi_expansion, vec_ffi_exp};
+use crate::interface::{MANGLE_INNER_PATH_PRESENTER, MAP_PATH_PRESENTER, MapPresenter, package_boxed_expression, ScopeTreePathPresenter, VEC_PATH_PRESENTER};
+use crate::helper::{ffi_struct_name, path_arguments_to_path_conversions, path_arguments_to_paths, path_arguments_to_types};
+use crate::scope::Scope;
+use crate::type_conversion::TypeConversion;
 
 macro_rules! format_mangled_ident {
     ($fmt:expr, $path_presentation:expr) => {
@@ -13,11 +17,174 @@ macro_rules! format_mangled_ident {
     };
 }
 
-pub enum PathConversion {
-    Simple(Path),
-    Complex(Path),
+pub enum GenericPathConversion {
     Map(Path),
     Vec(Path),
+}
+
+impl GenericPathConversion {
+    pub fn generic_types(&self) -> Vec<&Type> {
+        match self {
+            GenericPathConversion::Map(path) => path_arguments_to_types(&path.segments.last().unwrap().arguments),
+            GenericPathConversion::Vec(path) => path_arguments_to_types(&path.segments.last().unwrap().arguments),
+        }
+    }
+    pub fn generic_paths(&self) -> Vec<&Path> {
+        match self {
+            GenericPathConversion::Map(path) => path_arguments_to_paths(&path.segments.last().unwrap().arguments),
+            GenericPathConversion::Vec(path) => path_arguments_to_paths(&path.segments.last().unwrap().arguments),
+        }
+    }
+}
+
+pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(rs_ffi_interfaces::unbox_vec_ptr(#p, self.count););
+pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(rs_ffi_interfaces::unbox_any_vec_ptr(#p, self.count););
+
+
+
+impl GenericPathConversion {
+    pub fn expand(&self, ffi_name: Ident) -> TokenStream2 {
+        match self {
+            GenericPathConversion::Map(path) => {
+                let PathSegment { arguments, ..} = path.segments.last().unwrap();
+                let (key, value, from, to, drop_code) = match &path_arguments_to_path_conversions(arguments)[..] {
+                    [PathConversion::Primitive(k), PathConversion::Primitive(v)] => (
+                        quote!(#k),
+                        quote!(#v),
+                        quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                        package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: rs_ffi_interfaces::to_simple_vec(obj.values().cloned().collect()) })),
+                        vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                    ),
+                    [PathConversion::Primitive(k), PathConversion::Complex(v)] => {
+                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                        (
+                            quote!(#k),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_simple_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                        )
+                    },
+                    [PathConversion::Primitive(k), PathConversion::Generic(GenericPathConversion::Vec(v)) | PathConversion::Generic(GenericPathConversion::Map(v))] => {
+                        let value_path = PathConversion::from(v).as_ffi_path();
+                        (
+                            quote!(#k),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_simple_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                        )
+                    },
+                    [PathConversion::Complex(k), PathConversion::Primitive(v)] => {
+                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
+                        (
+                            quote!(*mut #key_path),
+                            quote!(#v),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::to_simple_vec(obj.values().cloned().collect::<Vec<_>>()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    [PathConversion::Complex(k), PathConversion::Complex(v)] => {
+                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
+                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                        (
+                            quote!(*mut #key_path),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    [PathConversion::Complex(k), PathConversion::Generic(GenericPathConversion::Vec(v)) | PathConversion::Generic(GenericPathConversion::Map(v))] => {
+                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
+                        let value_path = PathConversion::from(v).as_ffi_path();
+                        (
+                            quote!(*mut #key_path),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    [PathConversion::Generic(GenericPathConversion::Vec(k)) | PathConversion::Generic(GenericPathConversion::Map(k)), PathConversion::Primitive(v)] => {
+                        let key_path = PathConversion::from(k).as_ffi_path();
+                        (
+                            quote!(*mut #key_path),
+                            quote!(#v),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::to_simple_vec(obj.values().cloned().collect::<Vec<_>>()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    [PathConversion::Generic(GenericPathConversion::Vec(k)) |  PathConversion::Generic(GenericPathConversion::Map(k)), PathConversion::Complex(v)] => {
+                        let key_path = PathConversion::from(k).as_ffi_path();
+                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                        (
+                            quote!(*mut #key_path),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    [PathConversion::Generic(GenericPathConversion::Vec(k)) | PathConversion::Generic(GenericPathConversion::Map(k)), PathConversion::Generic(GenericPathConversion::Vec(v)) | PathConversion::Generic(GenericPathConversion::Map(v))] => {
+                        let key_path = PathConversion::from(k).as_ffi_path();
+                        let value_path = PathConversion::from(v).as_ffi_path();
+                        (
+                            quote!(*mut #key_path),
+                            quote!(*mut #value_path),
+                            quote!(let ffi_ref = &*ffi; rs_ffi_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), keys: rs_ffi_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: rs_ffi_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                        )
+                    },
+                    _ => unimplemented!("Generic path arguments conversion error"),
+                };
+                map_ffi_expansion(ffi_name.to_token_stream(), quote!(#path), key, value, from, to, quote!(#(#drop_code)*))
+            },
+            GenericPathConversion::Vec(path) => {
+                let PathSegment { arguments, ..} = path.segments.last().unwrap();
+                let (original, mangled_t, decode, encode, drop_code) = match &path_arguments_to_path_conversions(arguments)[..] {
+                    [PathConversion::Primitive(t)] => (
+                        quote!(#t),
+                        quote!(#t),
+                        quote!(rs_ffi_interfaces::from_simple_vec(self.values as *const Self::Value, self.count)),
+                        package_boxed_expression(quote!(Self { count: obj.len(), values: rs_ffi_interfaces::boxed_vec(obj) })),
+                        vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))]
+                    ),
+                    [PathConversion::Complex(t)] => {
+                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#t));
+                        (
+                            quote!(#t),
+                            quote!(*mut #value_path),
+                            quote!({ let count = self.count; let values = self.values; (0..count).map(|i| rs_ffi_interfaces::FFIConversion::ffi_from_const(*values.add(i))).collect() }),
+                            package_boxed_expression(quote!(Self { count: obj.len(), values: rs_ffi_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                        )
+                    },
+                    [PathConversion::Generic(GenericPathConversion::Vec(t)) | PathConversion::Generic(GenericPathConversion::Map(t))] => {
+                        let value_path = PathConversion::from(t).as_ffi_path();
+                        (
+                            quote!(#t),
+                            quote!(*mut #value_path),
+                            quote!({ let count = self.count; let values = self.values; (0..count).map(|i| rs_ffi_interfaces::FFIConversion::ffi_from_const(*values.add(i))).collect() }),
+                            package_boxed_expression(quote!(Self { count: obj.len(), values: rs_ffi_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })),
+                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                        )
+                    },
+                    _ => unimplemented!("Generic path arguments conversion error"),
+                };
+                vec_ffi_exp(ffi_name.to_token_stream(), original, mangled_t, decode, encode, quote!(#(#drop_code)*))
+            }
+        }
+    }
+}
+
+pub enum PathConversion {
+    Primitive(Path),
+    Complex(Path),
+    Generic(GenericPathConversion),
 }
 
 impl Debug for PathConversion {
@@ -52,9 +219,9 @@ impl From<&Path> for PathConversion {
         match last_segment.ident.to_string().as_str() {
             // std convertible
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-            | "isize" | "usize" | "bool" => PathConversion::Simple(path.clone()),
-            "BTreeMap" | "HashMap" => PathConversion::Map(path.clone()),
-            "Vec" => PathConversion::Vec(path.clone()),
+            | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
+            "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
+            "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
             _ => PathConversion::Complex(path.clone()),
         }
     }
@@ -66,13 +233,14 @@ impl From<Path> for PathConversion {
     }
 }
 
+
 impl PathConversion {
-    pub fn as_ffi_path(&self) -> Path {
-        let path = self.as_path();
+
+    pub fn convert_to_ffi_path(path: &Path) -> Path {
         let mut cloned_segments = path.segments.clone();
         let last_segment = cloned_segments.iter_mut().last().unwrap();
         let last_ident = &last_segment.ident;
-        match last_ident.to_string().as_str() {
+        let result = match last_ident.to_string().as_str() {
             // simple primitive type
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
             | "isize" | "usize" | "bool" => parse_quote!(#last_ident),
@@ -85,46 +253,42 @@ impl PathConversion {
             "UInt512" => parse_quote!([u8; 64]),
             "UInt768" => parse_quote!([u8; 96]),
             "VarInt" => parse_quote!(u64),
-            // vec expanded type
-            "Vec" => {
-                let ident = format_ident!("{}_FFI", Self::mangled_inner_generic_ident_string(path));
-                parse_quote!(#ident)
-            }
-            // map expanded type
-            "BTreeMap" | "HashMap" => {
-                let ident = format_ident!("{}_FFI", Self::mangled_inner_generic_ident_string(path));
+            // generic expanded type
+            "Vec" | "BTreeMap" | "HashMap" => {
+                let ident = format_ident!("{}_FFI", PathConversion::mangled_inner_generic_ident_string(path));
                 parse_quote!(#ident)
             }
             // complex/vec/map generated type
             _ => {
-                last_segment.ident = Ident::new(
-                    &format!("{}_FFI", last_segment.ident),
-                    last_segment.ident.span(),
-                );
+                last_segment.ident = ffi_struct_name(&last_segment.ident);
                 let new_segments = cloned_segments
                     .into_iter()
                     .map(|segment| quote_spanned! { segment.span() => #segment })
                     .collect::<Vec<_>>();
                 parse_quote!(#(#new_segments)::*)
             }
-        }
+        };
+        // println!("convert_to_ffi_path:: {} --> {}", quote!(#path), quote!(#result));
+        result
+    }
+
+    pub fn as_ffi_path(&self) -> Path {
+        Self::convert_to_ffi_path(self.as_path())
     }
     pub fn as_ffi_type(&self) -> Type {
         let path = self.as_ffi_path();
         match self {
-            PathConversion::Simple(..) => parse_quote!(#path),
+            PathConversion::Primitive(..) => parse_quote!(#path),
             _ => parse_quote!(*mut #path),
         }
     }
-}
 
-impl PathConversion {
     pub fn as_path(&self) -> &Path {
         match self {
-            PathConversion::Simple(path)
-            | PathConversion::Complex(path)
-            | PathConversion::Map(path)
-            | PathConversion::Vec(path) => path,
+            PathConversion::Primitive(path) |
+            PathConversion::Complex(path) |
+            PathConversion::Generic(GenericPathConversion::Map(path)) |
+            PathConversion::Generic(GenericPathConversion::Vec(path)) => path,
         }
     }
     #[allow(unused)]
@@ -151,11 +315,7 @@ impl PathConversion {
                                     GenericArgument::Type(Type::Path(TypePath { path, .. })) => {
                                         let mangled = Self::mangled_inner_generic_ident_string(path);
                                         if is_map {
-                                            format!(
-                                                "{}{}",
-                                                if i == 0 { "keys_" } else { "values_" },
-                                                mangled
-                                            )
+                                            format!("{}{}", if i == 0 { "keys_" } else { "values_" }, mangled)
                                         } else {
                                             mangled
                                         }
@@ -174,9 +334,7 @@ impl PathConversion {
 
     // #[cfg(test)]
     pub fn into_mangled_generic_ident(self) -> Ident {
-        format_ident!(
-            "{}",
-            Self::mangled_inner_generic_ident_string(self.as_path())
+        format_ident!("{}", Self::mangled_inner_generic_ident_string(self.as_path())
         )
     }
 
@@ -210,50 +368,35 @@ impl PathConversion {
 impl PathConversion {
 
     #[allow(unused)]
-    fn mangled_ident(&self, presenter: PathPresenter) -> Ident {
+    fn mangled_ident(&self, presenter: ScopeTreePathPresenter, tree: &HashMap<TypeConversion, Type>) -> Ident {
         match self {
-            PathConversion::Simple(path) => format_mangled_ident!("{}", presenter(path)),
-            PathConversion::Complex(path) => format_mangled_ident!("{}", presenter(path)),
-            PathConversion::Vec(path) => format_mangled_ident!("Vec_{}", presenter(path)),
-            PathConversion::Map(path) => format_mangled_ident!("Map_{}", presenter(path)),
+            PathConversion::Primitive(path) => format_mangled_ident!("{}", presenter(path, tree)),
+            PathConversion::Complex(path) => format_mangled_ident!("{}", presenter(path, tree)),
+            PathConversion::Generic(GenericPathConversion::Map(path)) => format_mangled_ident!("Map_{}", presenter(path, tree)),
+            PathConversion::Generic(GenericPathConversion::Vec(path)) => format_mangled_ident!("Vec_{}", presenter(path, tree)),
         }
     }
 
+    // #[allow(unused)]
+    // pub fn mangled_root_ident(&self) -> Ident {
+    //     self.mangled_ident(match self {
+    //         PathConversion::Generic(..) => FFI_GENERIC_TYPE_PRESENTER,
+    //         _ => unimplemented!("can't mangle type"),
+    //     })
+    // }
+
     #[allow(unused)]
-    pub fn mangled_root_ident(&self) -> Ident {
-        self.mangled_ident(match self {
-            PathConversion::Vec(..) => FFI_GENERIC_TYPE_PRESENTER,
-            PathConversion::Map(..) => FFI_GENERIC_TYPE_PRESENTER,
-            _ => unimplemented!("can't mangle type"),
-        })
+    pub fn mangled_map_ident(&self, tree: &HashMap<TypeConversion, Type>) -> Ident {
+        self.mangled_ident(MANGLE_INNER_PATH_PRESENTER, tree)
     }
 
     #[allow(unused)]
-    pub fn mangled_map_ident(&self) -> Ident {
-        self.mangled_ident(MANGLE_INNER_PATH_PRESENTER)
-    }
-
-    #[allow(unused)]
-    pub fn mangled_vec_arguments(&self) -> TokenStream2 {
+    pub fn mangled_vec_arguments(&self, tree: &HashMap<TypeConversion, Type>) -> TokenStream2 {
         match self {
-            PathConversion::Simple(path) | PathConversion::Complex(path) => {
-                quote!(#path)
-            }
-            PathConversion::Vec(..) => self.mangled_ident(VEC_PATH_PRESENTER).to_token_stream(),
-            PathConversion::Map(..) => self.mangled_ident(MAP_PATH_PRESENTER).to_token_stream(),
+            PathConversion::Primitive(path) |
+            PathConversion::Complex(path) => quote!(#path),
+            PathConversion::Generic(GenericPathConversion::Map(..)) => self.mangled_ident(MAP_PATH_PRESENTER, tree).to_token_stream(),
+            PathConversion::Generic(GenericPathConversion::Vec(..)) => self.mangled_ident(VEC_PATH_PRESENTER, tree).to_token_stream(),
         }
-    }
-}
-
-#[allow(unused)]
-fn conversion_type_for_path(path: &Path) -> PathConversion {
-    let last_segment = path.segments.last().unwrap();
-    match last_segment.ident.to_string().as_str() {
-        // std convertible
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
-        | "usize" | "bool" => PathConversion::Simple(path.clone()),
-        "BTreeMap" | "HashMap" => PathConversion::Map(path.clone()),
-        "Vec" => PathConversion::Vec(path.clone()),
-        _ => PathConversion::Complex(path.clone()),
     }
 }

@@ -1,6 +1,7 @@
 use quote::quote;
 use syn::__private::TokenStream2;
 use crate::interface::{doc, ffi, ffi_from_const, ffi_to_const, interface, obj, package, Presentable};
+use crate::scope_conversion::ScopeTree;
 
 /// Root-level composer chain
 pub enum Expansion {
@@ -22,10 +23,18 @@ pub enum Expansion {
         conversion: ConversionInterfacePresentation,
         drop: DropInterfacePresentation,
     },
+    Scope {
+        root: ScopeTree,
+    },
+    Use {
+        input: TokenStream2,
+        comment: DocPresentation,
+    }
 }
 
+
 pub enum DocPresentation {
-    // Empty,
+    Empty,
     Default(TokenStream2),
     Safety(TokenStream2),
 }
@@ -68,38 +77,27 @@ pub enum DropInterfacePresentation {
 
 impl Presentable for Expansion {
     fn present(self) -> TokenStream2 {
-        match self {
-            Self::Empty => quote!(),
-            Self::Callback { input, comment, ffi_presentation } =>
-                expansion(
-                    input,
-                    comment.present(),
-                    ffi_presentation.present(),
-                    ConversionInterfacePresentation::Empty.present(),
-                    DropInterfacePresentation::Empty.present()),
-            Self::Function { input, comment, ffi_presentation } =>
-                expansion(
-                    input,
-                    comment.present(),
-                    ffi_presentation.present(),
-                    ConversionInterfacePresentation::Empty.present(),
-                    DropInterfacePresentation::Empty.present()
-                ),
-            Self::Full { input, comment, ffi_presentation, conversion, drop} =>
-                expansion(
-                    input,
-                    comment.present(),
-                    ffi_presentation.present(),
-                    conversion.present(),
-                    drop.present()),
-        }
+        let presentations = match self {
+            Self::Empty | Self::Use { input: _, comment: _ } => vec![],
+            Self::Callback { input: _, comment, ffi_presentation } =>
+                vec![comment.present(), ffi_presentation.present()],
+            Self::Function { input: _, comment, ffi_presentation } =>
+                vec![comment.present(), ffi_presentation.present()],
+            Self::Full { input: _, comment, ffi_presentation, conversion, drop} =>
+                vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present()],
+            Self::Scope { root} =>
+                vec![root.present()]
+        };
+        let expanded = quote!(#(#presentations)*);
+        // println!("{}", expanded);
+        expanded
     }
 }
 
 impl Presentable for DocPresentation {
     fn present(self) -> TokenStream2 {
         match self {
-            // Self::Empty => quote!(),
+            Self::Empty => quote!(),
             Self::Default(target_name) => doc(target_name.to_string()),
             Self::Safety(target_name) => {
                 let doc = doc(target_name.to_string());
@@ -115,7 +113,6 @@ impl Presentable for DocPresentation {
 impl Presentable for FFIObjectPresentation {
     fn present(self) -> TokenStream2 {
         match self {
-            // Self::Empty => quote!(),
             Self::Callback { name, arguments, output_expression} =>
                 quote! {
                     #[allow(non_camel_case_types)]
@@ -191,20 +188,4 @@ impl Presentable for DropInterfacePresentation {
 // BTreeMap<self::HashID, self::HashID>,
 // Vec<u8>
 
-fn expansion(
-    input: TokenStream2,
-    comment: TokenStream2,
-    ffi_converted_input: TokenStream2,
-    ffi_conversion_presentation: TokenStream2,
-    drop_presentation: TokenStream2,
-) -> TokenStream2 {
-    let expanded = quote! {
-        #input
-        #comment
-        #ffi_converted_input
-        #ffi_conversion_presentation
-        #drop_presentation
-    };
-    println!("{}", expanded);
-    expanded
-}
+

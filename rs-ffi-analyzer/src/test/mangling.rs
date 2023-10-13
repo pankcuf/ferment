@@ -108,7 +108,7 @@ fn mangle_generic_ident_test() {
         PathConversion::from(
             "BTreeMap<module::HashID, BTreeMap<module::HashID, Vec<module::KeyID>>>"
         )
-        .into_mangled_generic_ident(),
+            .into_mangled_generic_ident(),
         ident_from_str(
             "Map_keys_module_HashID_values_Map_keys_module_HashID_values_Vec_module_KeyID"
         )
@@ -251,7 +251,7 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from(
             "BTreeMap<module::HashID, BTreeMap<module::HashID, Vec<module::KeyID>>>"
         )
-        .mangled_generic_arguments_types_strings(),
+            .mangled_generic_arguments_types_strings(),
         vec![
             quote!(*mut module::HashID_FFI).to_string(),
             quote!(*mut Map_keys_module_HashID_values_Vec_module_KeyID_FFI).to_string()

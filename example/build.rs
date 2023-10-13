@@ -3,6 +3,7 @@ extern crate rs_ffi_analyzer;
 
 use std::fs::File;
 use std::path::Path;
+use std::process::Command;
 
 // use std::process::Command;
 
@@ -15,6 +16,16 @@ fn main() {
          // run cbindgen
       },
       Err(err) => panic!("Can't create FFI expansion: {}", err)
+   }
+
+
+   let status = Command::new("cargo")
+       .args(&["fmt", output_path.to_str().unwrap()])
+       .status()
+       .expect("Failed to run cargo fmt");
+
+   if !status.success() {
+      println!("cargo:warning=cargo fmt failed");
    }
 
    // Command::new("cbindgen")

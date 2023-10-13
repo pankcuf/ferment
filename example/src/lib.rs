@@ -1,81 +1,63 @@
+mod chain;
 mod example;
 mod ffi_expansions;
 
 extern crate rs_ffi_macro_derive;
 
-use std::collections::BTreeMap;
+use rs_ffi_macro_derive::ferment;
 
-#[allow(unused_variables)]
-// #[rs_ffi_macro_derive::ffi_dictionary]
-pub mod dash_spv_masternode_processor {
-    pub mod chain {
-        pub mod common {
-            pub mod chain_type {
-                #[rs_ffi_macro_derive::impl_ffi_conv]
-                pub enum ChainType {
-                    MainNet,
-                    TestNet,
-                }
-
-                impl ChainType {
-                    pub fn get_string(&self) -> String {
-                        match self {
-                            Self::MainNet => "mainnet".to_string(),
-                            Self::TestNet => "testnet".to_string(),
-                        }
-                    }
-                }
-            }
-        }
-    }
+#[ferment]
+pub struct RootStruct {
+    pub name: String,
 }
+// pub struct RootStruct<'a> {
+//     pub name: &'a str,
+// }
 
-#[allow(unused_variables)]
-// #[rs_ffi_macro_derive::ffi_dictionary]
 pub mod ffi {
-    use super::dash_spv_masternode_processor;
+    use rs_ffi_macro_derive::ferment;
     use std::collections::BTreeMap;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type KeyID = u32;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type Hash160 = [u8; 20];
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type HashID = [u8; 32];
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type UsedKeyMatrix = Vec<bool>;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type UsedStruct = HashID;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type ArrayOfArraysOfHashes = Vec<Vec<HashID>>;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type MapOfHashes = BTreeMap<HashID, HashID>;
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type MapOfVecHashes = BTreeMap<HashID, Vec<HashID>>;
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct BinaryData(pub Vec<u8>);
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct SimpleData(pub Vec<u32>);
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct IdentifierBytes32(pub [u8; 32]);
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct UnnamedPair(pub [u8; 32], pub u32);
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct Identifier(pub IdentifierBytes32);
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub enum TestEnum {
         Variant1(String),
         Variant2,
@@ -84,12 +66,12 @@ pub mod ffi {
         Variant5(BTreeMap<String, HashID>, u32, String),
     }
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct DataContractNotPresentError {
-        data_contract_id: Identifier,
+        pub data_contract_id: Identifier,
     }
 
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub enum ProtocolError {
         IdentifierError(String),
         StringDecodeError(String),
@@ -104,27 +86,27 @@ pub mod ffi {
         DataContractNotPresentError(DataContractNotPresentError),
     }
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type AddInsightCallback = fn(block_hash: HashID, context: rs_ffi_interfaces::OpaqueContext);
 
-    #[rs_ffi_macro_derive::impl_ffi_ty_conv]
+    #[ferment]
     pub type ShouldProcessDiffWithRangeCallback = fn(
         base_block_hash: HashID,
         block_hash: HashID,
         context: rs_ffi_interfaces::OpaqueContext,
     ) -> ProtocolError;
 
-    // #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    // #[ferment]
     // pub fn address_from_hash(hash: HashID) -> String {
     //     format_args!("{0:?}", hash).to_string()
     // }
     //
-    // #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    // #[ferment]
     // pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
     //     Some(format_args!("{0:?}", script).to_string())
     // }
     //
-    // #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    // #[ferment]
     // pub fn address_from_hash160(hash: Hash160, pubkey: u8) -> String {
     //     let mut writer: Vec<u8> = Vec::new();
     //     writer.push(pubkey);
@@ -132,20 +114,19 @@ pub mod ffi {
     //     String::from_utf8(writer).unwrap()
     // }
     //
-    // #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    // #[ferment]
     // pub fn address_from_hash160_2(
     //     chain_type: dash_spv_masternode_processor::chain::common::chain_type::ChainType,
     // ) -> String {
     //     chain_type.get_string()
     // }
     //
-    #[rs_ffi_macro_derive::impl_ffi_fn_conv]
+    #[ferment]
     pub fn find_hash_by_u32(key: u32, map: BTreeMap<u32, HashID>) -> Option<HashID> {
         map.get(&key).clone().copied()
     }
 
-
-    #[rs_ffi_macro_derive::impl_ffi_conv]
+    #[ferment]
     pub struct TestStruct {
         pub vec_u8: Vec<u8>,
         pub vec_u32: Vec<u32>,
@@ -156,22 +137,25 @@ pub mod ffi {
         pub map_key_simple_value_vec_complex: BTreeMap<u32, Vec<HashID>>,
         pub map_key_simple_value_map_key_simple_value_simple: BTreeMap<u32, BTreeMap<u32, u32>>,
         pub map_key_simple_value_map_key_simple_value_complex: BTreeMap<u32, BTreeMap<u32, HashID>>,
-        pub map_key_simple_value_map_key_simple_value_vec_simple: BTreeMap<u32, BTreeMap<u32, Vec<u32>>>,
-        pub map_key_simple_value_map_key_simple_value_vec_complex: BTreeMap<u32, BTreeMap<u32, Vec<HashID>>>,
+        pub map_key_simple_value_map_key_simple_value_vec_simple:
+            BTreeMap<u32, BTreeMap<u32, Vec<u32>>>,
+        pub map_key_simple_value_map_key_simple_value_vec_complex:
+            BTreeMap<u32, BTreeMap<u32, Vec<HashID>>>,
 
         pub map_key_complex_value_simple: BTreeMap<HashID, u32>,
         pub map_key_complex_value_complex: BTreeMap<HashID, HashID>,
         pub map_key_complex_value_vec_simple: BTreeMap<HashID, Vec<u32>>,
         pub map_key_complex_value_vec_complex: BTreeMap<HashID, Vec<HashID>>,
 
-        pub map_key_complex_value_map_key_simple_value_vec_simple: BTreeMap<HashID, BTreeMap<u32, Vec<u32>>>,
-        pub map_key_complex_value_map_key_simple_value_vec_complex: BTreeMap<HashID, BTreeMap<u32, Vec<HashID>>>,
+        pub map_key_complex_value_map_key_simple_value_vec_simple:
+            BTreeMap<HashID, BTreeMap<u32, Vec<u32>>>,
+        pub map_key_complex_value_map_key_simple_value_vec_complex:
+            BTreeMap<HashID, BTreeMap<u32, Vec<HashID>>>,
 
-        pub map_key_complex_value_map_key_simple_value_map_key_complex_value_complex: BTreeMap<HashID, BTreeMap<u32, BTreeMap<HashID, HashID>>>,
+        pub map_key_complex_value_map_key_simple_value_map_key_complex_value_complex:
+            BTreeMap<HashID, BTreeMap<u32, BTreeMap<HashID, HashID>>>,
     }
 }
-
-
 
 // mod trait_bindings {
 //     pub struct DashPlatformSdk {
@@ -275,3 +259,4 @@ pub mod ffi {
 //
 //
 // }
+
