@@ -241,7 +241,7 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
         PathConversion::Generic(GenericPathConversion::Vec(path)) => {
             let short_ty: Type = parse_quote!(#path);
             tree.iter()
-                .find_map(|(TypeConversion{ 0: other}, t)| short_ty.eq(other).then_some(t))
+                .find_map(|(TypeConversion{ 0: other}, full_type)| short_ty.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()).then_some(full_type))
                 .map_or(quote!(*mut #short_ty), |full_type| {
                     let full_ty = ffi_mangled_ident(full_type);
                     quote!(*mut #full_ty)
