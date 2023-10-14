@@ -64,14 +64,6 @@ impl ScopeTreeExportItem {
         Self::Tree(HashSet::new(), HashMap::from([]), export, HashMap::from([]))
     }
 
-    fn non_mod_generic_full_types(item: &ItemConversion, scope_types: &HashMap<TypeConversion, Type>) -> HashSet<GenericConversion> {
-        item.find_generics()
-            .iter()
-            .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
-            .map(GenericConversion::from)
-            .collect()
-    }
-
     fn add_non_mod_item(&mut self, item: &ItemConversion, scope_type_dictionary: Option<&HashMap<TypeConversion, Type>>, scope_imports: Option<&HashMap<Ident, Path>>) {
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
@@ -79,7 +71,10 @@ impl ScopeTreeExportItem {
                 if let Some(used_types) = scope_type_dictionary {
                     scope_types.extend(used_types.clone());
                 }
-                generics.extend(Self::non_mod_generic_full_types(&item, scope_types));
+                generics.extend(item.find_generics()
+                    .iter()
+                    .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
+                    .map(GenericConversion::from));
                 if let Some(used_imports) = scope_imports {
                     imported.extend(item.get_used_imports(used_imports))
                 }

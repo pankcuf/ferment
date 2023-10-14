@@ -7,6 +7,57 @@ use syn::parse_quote::ParseQuote;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, Type, TypeArray, TypeBareFn, TypePath, TypePtr, TypeReference, TypeTuple};
 
 #[derive(Clone)]
+pub struct TypePathConversion(pub TypePath);
+
+impl PartialEq for TypePathConversion {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_token_stream().to_string().eq(&other.0.to_token_stream().to_string())
+    }
+}
+impl Eq for TypePathConversion {}
+
+impl Hash for TypePathConversion {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_token_stream().to_string().hash(state);
+    }
+}
+
+impl std::fmt::Debug for TypePathConversion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0.to_token_stream().to_string().as_str())
+    }
+}
+
+impl std::fmt::Display for TypePathConversion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+impl ParseQuote for TypePathConversion {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        TypePath::parse(input)
+            .map(TypePathConversion::new)
+    }
+}
+impl ToTokens for TypePathConversion {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        self.0.to_tokens(tokens)
+    }
+}
+
+impl<'a> From<&'a TypePath> for TypePathConversion {
+    fn from(value: &'a TypePath) -> Self {
+        TypePathConversion(value.clone())
+    }
+}
+
+impl TypePathConversion {
+    pub fn new(type_path: TypePath) -> Self {
+        TypePathConversion(type_path)
+    }
+}
+
+#[derive(Clone)]
 pub struct TypeConversion(pub Type);
 
 impl PartialEq for TypeConversion {
@@ -65,11 +116,11 @@ impl TypeConversion {
         TypeConversion(ty)
     }
 
-    fn add_involved_types_into_container(ty: &Type, container: &mut HashSet<TypePath>) {
+    fn add_involved_types_into_container(ty: &Type, container: &mut HashSet<TypePathConversion>) {
         container.extend(TypeConversion::from(ty).get_all_type_paths_involved());
     }
 
-    pub fn get_all_type_paths_involved(&self) -> HashSet<TypePath> {
+    pub fn get_all_type_paths_involved(&self) -> HashSet<TypePathConversion> {
         let mut involved = HashSet::new();
         match &self.0 {
             Type::Array(TypeArray { elem: ty, .. }) =>
@@ -85,7 +136,7 @@ impl TypeConversion {
                 }
             }
             Type::Path(type_path) => {
-                involved.insert(type_path.clone());
+                involved.insert(TypePathConversion::from(type_path));
                 match type_path.path.segments.last() {
                     Some(last_segment) =>
                         match &last_segment.arguments {

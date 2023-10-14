@@ -358,7 +358,7 @@ impl ItemConversion {
         // Types which are used as a part of types (for generics and composite types)
         let involved_type_paths = TypeConversion::from(ty).get_all_type_paths_involved();
         involved_type_paths.iter().for_each(|type_path| {
-            let path = &type_path.path;
+            let path = &type_path.0.path;
             match path.segments.last() {
                 Some(PathSegment { ident, .. }) => {
                     let (import_type, scope) = Self::import_pair(path, imports);
@@ -814,12 +814,9 @@ fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConver
             tree,
             IntoIterator::into_iter({
                 vec![(&**ty, match &**ty {
-                    Type::Path(TypePath { path, .. }) => {
-                        println!("type_alias_composer conversion: {}: {}", ty.to_token_stream(), path.to_token_stream());
-                        match PathConversion::from(path) {
-                            PathConversion::Primitive(..) => obj(),
-                            _ => usize_to_tokenstream(0),
-                        }
+                    Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+                        PathConversion::Primitive(..) => obj(),
+                        _ => usize_to_tokenstream(0),
                     },
                     Type::Array(_type_array) => usize_to_tokenstream(0),
                     Type::Ptr(_type_ptr) => obj(),

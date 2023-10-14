@@ -32,13 +32,6 @@ impl Hash for TypePathComposition {
     }
 }
 
-impl TypePathComposition {
-
-    pub fn ffi_generic_import_scope(&self) -> Scope {
-        Scope::ffi_generic_import(&self.0)
-    }
-}
-
 pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypePathComposition>) {
     if let Type::Path(TypePath { path, .. }) = field_type {
         if let PathConversion::Generic(GenericPathConversion::Vec(path)) | PathConversion::Generic(GenericPathConversion::Map(path)) = PathConversion::from(path) {

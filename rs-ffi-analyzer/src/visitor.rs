@@ -63,16 +63,16 @@ impl std::fmt::Display for Visitor {
 impl<'ast> Visit<'ast> for Visitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
-        self.add_full_qualified_conversion(Item::Enum(node.clone()));
+        self.add_conversion(Item::Enum(node.clone()));
     }
 
     fn visit_item_fn(&mut self, node: &'ast ItemFn) {
-        self.add_full_qualified_conversion(Item::Fn(node.clone()));
+        self.add_conversion(Item::Fn(node.clone()));
     }
 
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
         self.current_scope_stack.push(node.ident.clone());
-        self.add_full_qualified_conversion(Item::Mod(node.clone()));
+        self.add_conversion(Item::Mod(node.clone()));
         if let Some(ref content) = node.content {
             for item in &content.1 {
                 syn::visit::visit_item(self, item);
@@ -82,11 +82,11 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
-        self.add_full_qualified_conversion(Item::Struct(node.clone()));
+        self.add_conversion(Item::Struct(node.clone()));
     }
 
     fn visit_item_type(&mut self, node: &'ast ItemType) {
-        self.add_full_qualified_conversion(Item::Type(node.clone()));
+        self.add_conversion(Item::Type(node.clone()));
     }
 
     fn visit_item_use(&mut self, node: &'ast ItemUse) {
@@ -239,26 +239,18 @@ impl Visitor {
         current_tree
     }
 
-    pub fn add_full_qualified_conversion<'ast>(&mut self, item: Item) {
+    pub fn add_conversion<'ast>(&mut self, item: Item) {
         let scope = self.current_scope_for(&item);
-        let conversion = match &item {
-            Item::Mod(item_mod) => ItemConversion::Mod(item_mod.clone(), scope.clone()),
-            Item::Struct(item_struct) => ItemConversion::Struct(item_struct.clone(), scope.clone()),
-            Item::Enum(item_enum) => ItemConversion::Enum(item_enum.clone(), scope.clone()),
-            Item::Type(item_type) => ItemConversion::Type(item_type.clone(), scope.clone()),
-            Item::Fn(item_fn) => ItemConversion::Fn(item_fn.clone(), scope.clone()),
-            item => unimplemented!("add_full_qualified_conversion error: {:?} ", quote!(#item))
-        };
-        let converted = conversion.add_full_qualified_conversion(self);
-        let used_types_at_scopes = self.used_types_at_scopes.clone();
-        let used_imports_at_scopes = self.used_imports_at_scopes.clone();
-
-        match ItemConversion::try_from((&item, converted.scope())) {
-            Ok(conversion) => self.get_tree_export_item(&scope)
-                .add_item(conversion, &used_types_at_scopes, &used_imports_at_scopes),
-            _ => panic!("Unknown conversion")
-        };
-
+        match ItemConversion::try_from((&item, &scope)) {
+            Ok(conversion) => {
+                let full_qualified = conversion.add_full_qualified_conversion(self);
+                let used_types_at_scopes = self.used_types_at_scopes.clone();
+                let used_imports_at_scopes = self.used_imports_at_scopes.clone();
+                self.get_tree_export_item(&scope)
+                    .add_item(full_qualified, &used_types_at_scopes, &used_imports_at_scopes);
+            },
+            _ => {}
+        }
     }
 }
 
