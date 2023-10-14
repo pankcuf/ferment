@@ -182,7 +182,7 @@ impl ScopeTreeCompact {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum ScopeTreeItem {
     Item {
         item: Item,
@@ -227,7 +227,7 @@ impl ScopeTreeItem {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ScopeTree {
     pub scope: Scope,
     pub imported: HashMap<ImportType, HashSet<ImportConversion>>,
