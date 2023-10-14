@@ -4,11 +4,10 @@ use quote::{quote, ToTokens};
 use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, Type, TypePath, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
-use crate::generics::TypePathComposition;
 use crate::item_conversion::ItemConversion;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
-use crate::Scope;
 use crate::scope_conversion::ScopeTreeExportItem;
+use crate::Scope;
 use crate::type_conversion::TypeConversion;
 
 pub struct Visitor {
@@ -19,42 +18,10 @@ pub struct Visitor {
 
     pub(crate) inner_visitors: Vec<Visitor>,
 
-    pub(crate) needed_conversions_for_scopes: HashMap<Scope, Vec<ItemConversion>>,
     pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
     pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
 
     pub tree: ScopeTreeExportItem,
-}
-
-pub struct ScopeComposition {
-    pub scope: Scope,
-    pub imports: Vec<Scope>,
-    pub exports: Vec<Scope>,
-    pub generics: HashSet<TypePathComposition>,
-    pub conversions: Vec<ItemConversion>,
-}
-
-
-impl std::fmt::Debug for ScopeComposition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let ScopeComposition { scope, imports, exports, generics, conversions, } = self;
-        let generics = generics.iter().map(|TypePathComposition { 0: ty, 1: path}| quote!(#ty: #path));
-        let exports = quote!(#(#exports),*).to_string();
-        let imports = quote!(#(#imports),*).to_string();
-        let generics = quote!(#(#generics),*).to_string();
-        let conversions = quote!(#(#conversions),*).to_string();
-        f.write_fmt(format_args!("----------- scope: {}\n", scope))?;
-        f.write_fmt(format_args!("-------- generics: {}\n", generics))?;
-        f.write_fmt(format_args!("--------- exports: {}\n", exports))?;
-        f.write_fmt(format_args!("--------- imports: {}\n", imports))?;
-        f.write_fmt(format_args!("----- conversions: {}\n", conversions))
-    }
-}
-
-impl std::fmt::Display for ScopeComposition {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
 }
 
 impl std::fmt::Debug for Visitor {
@@ -71,26 +38,16 @@ impl std::fmt::Debug for Visitor {
                 let expanded = quote!(#(#v),*);
                 &expanded.to_string().as_str()
             })
-            // .field("used_imports_at_scopes", {
-            //     let vec = vec![];
-            //     let v = self.used_imports_at_scopes.iter().fold(vec, |mut acc, (k, scope_imports)| {
-            //         let si = scope_imports.iter().map(|(k, v)| quote!(#k: #v)).collect::<Vec<_>>();
-            //         acc.push(quote!(#k: #(#si),*));
-            //         acc
-            //     });
-            //     let expanded = quote!(#(#v),*);
-            //     &expanded.to_string().as_str()
-            // })
-            // .field("needed_conversions_for_scopes", {
-            //     let vec = vec![];
-            //     let v = self.needed_conversions_for_scopes.iter().fold(vec, |mut acc, (k, v)| {
-            //         let ck = k.as_ffi_scope();
-            //         acc.push(quote!(#k (#ck): #(#v),*));
-            //         acc
-            //     });
-            //     let expanded = quote!(#(#v),*);
-            //     &expanded.to_string().as_str()
-            // })
+            .field("used_imports_at_scopes", {
+                let vec = vec![];
+                let v = self.used_imports_at_scopes.iter().fold(vec, |mut acc, (k, scope_imports)| {
+                    let si = scope_imports.iter().map(|(k, v)| quote!(#k: #v)).collect::<Vec<_>>();
+                    acc.push(quote!(#k: #(#si),*));
+                    acc
+                });
+                let expanded = quote!(#(#v),*);
+                &expanded.to_string().as_str()
+            })
             .field("visitors", &self.inner_visitors)
             .field("tree", &self.tree)
             .finish()
@@ -146,12 +103,9 @@ impl Visitor {
             parent: scope.clone(),
             current_scope_stack: vec![],
             current_module_scope: scope.clone(),
-
             used_types_at_scopes: HashMap::new(),
             used_imports_at_scopes: HashMap::new(),
-            needed_conversions_for_scopes: HashMap::new(),
             inner_visitors: vec![],
-
             tree: ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default())
         }
     }
@@ -177,19 +131,13 @@ impl Visitor {
                 current_path.push(ident.clone());
                 self.fold_import_tree(scope,&*tree, current_path);
             },
-            UseTree::Name(UseName { ident, .. }) => {
+            UseTree::Name(UseName { ident, .. }) |
+            UseTree::Rename(UseRename { rename: ident, .. }) => {
                 current_path.push(ident.clone());
                 self.used_imports_at_scopes
                     .entry(scope.clone())
                     .or_insert_with(HashMap::new)
                     .insert(ident.clone(), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
-            },
-            UseTree::Rename(UseRename { rename, .. }) => {
-                current_path.push(rename.clone());
-                self.used_imports_at_scopes
-                    .entry(scope.clone())
-                    .or_insert_with(HashMap::new)
-                    .insert(rename.clone(), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
             },
             UseTree::Group(UseGroup { items, .. }) =>
                 items.iter()
@@ -273,7 +221,7 @@ impl Visitor {
             _ => self.current_module_scope.clone()
         }
     }
-    
+
     pub fn get_tree_export_item(&mut self, scope: &Scope) -> &mut ScopeTreeExportItem {
         let path_to_traverse: Vec<Ident> = scope.path.segments.iter().skip(1).map(|segment| segment.ident.clone()).collect();
         let mut current_tree = &mut self.tree;
@@ -302,15 +250,15 @@ impl Visitor {
             item => unimplemented!("add_full_qualified_conversion error: {:?} ", quote!(#item))
         };
         let converted = conversion.add_full_qualified_conversion(self);
-        // println!("visitor.add scope: [{}], {}", scope, converted);
         let used_types_at_scopes = self.used_types_at_scopes.clone();
         let used_imports_at_scopes = self.used_imports_at_scopes.clone();
-        self.needed_conversions_for_scopes
-            .entry(scope.clone())
-            .or_insert_with(Vec::new)
-            .push(converted.clone());
-        self.get_tree_export_item(&scope)
-            .add_item(ItemConversion::try_from((&item, converted.scope())).unwrap(), &used_types_at_scopes, &used_imports_at_scopes);
+
+        match ItemConversion::try_from((&item, converted.scope())) {
+            Ok(conversion) => self.get_tree_export_item(&scope)
+                .add_item(conversion, &used_types_at_scopes, &used_imports_at_scopes),
+            _ => panic!("Unknown conversion")
+        };
+
     }
 }
 
