@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::__private::TokenStream2;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
-use crate::helper::{ffi_struct_name, mangle_type};
+use crate::helper::{ffi_mangled_ident, mangle_type};
 use crate::interface::Presentable;
 use crate::scope::Scope;
 
@@ -155,10 +155,8 @@ impl Presentable for GenericConversion {
     fn present(self) -> TokenStream2 {
         let Self { full_type } = self;
         let path: Path = parse_quote!(#full_type);
-        let field_type = mangle_type(&full_type);
-        let ffi_name = ffi_struct_name(&field_type);
         match PathConversion::from(path) {
-            PathConversion::Generic(generic_conversion) => generic_conversion.expand(ffi_name),
+            PathConversion::Generic(generic_conversion) => generic_conversion.expand(ffi_mangled_ident(&full_type)),
             conversion => unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
         }
     }

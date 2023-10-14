@@ -844,6 +844,11 @@ pub fn ffi_struct_name(field_type: &Ident) -> Ident {
     format_ident!("{}_FFI", field_type)
 }
 
+pub fn ffi_mangled_ident(ty: &Type) -> Ident {
+    let ident = mangle_type(ty);
+    ffi_struct_name(&ident)
+}
+
 pub fn mangle_type(ty: &Type) -> Ident {
     match ty {
         // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now

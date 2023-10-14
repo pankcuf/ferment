@@ -5,12 +5,11 @@ use syn::__private::TokenStream2;
 use syn::parse::ParseStream;
 use syn::parse_quote::ParseQuote;
 use syn::punctuated::Punctuated;
-use crate::helper::{ffi_struct_name, mangle_type, path_arguments_to_types};
+use crate::helper::{ffi_mangled_ident, ffi_struct_name, path_arguments_to_types};
 
 fn ffi_generic_path(ty: &Type) -> Path {
-    let mangled_ident = mangle_type(ty);
-    let name = ffi_struct_name(&mangled_ident);
-    parse_quote!(crate::ffi_expansions::generics::#name)
+    let ffi_mangled_ident = ffi_mangled_ident(ty);
+    parse_quote!(crate::ffi_expansions::generics::#ffi_mangled_ident)
 }
 
 pub const EMPTY: Scope = Scope { path: Path { leading_colon: None, segments: Punctuated::new() } };
@@ -137,7 +136,7 @@ impl Scope {
                     "VarInt" => None,
                     "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
                     "Vec" | "BTreeMap" | "HashMap" => {
-                        let ffi_name = ffi_struct_name(&mangle_type(ty));
+                        let ffi_name = ffi_mangled_ident(ty);
                         Some(parse_quote!(crate::ffi_expansions::generics::#ffi_name))
                     },
                     "Option" => path_arguments_to_types(&last_segment.arguments)

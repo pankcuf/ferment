@@ -5,7 +5,7 @@ use quote::__private::{TokenStream as TokenStream2};
 use syn::__private::Span;
 
 use crate::path_conversion::{GenericPathConversion, PathConversion};
-use crate::helper::{ffi_struct_name, mangle_type, path_arguments_to_path_conversions, path_arguments_to_types};
+use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions, path_arguments_to_types};
 use crate::type_conversion::TypeConversion;
 
 pub trait Presentable where Self: Sized {
@@ -231,26 +231,21 @@ pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _dictiona
         .as_ffi_type()
         .to_token_stream();
 
+
 pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
     match PathConversion::from(path) {
-        PathConversion::Primitive(path) => path.to_token_stream(),
-        PathConversion::Complex(path) => {
-            path.to_token_stream()
-        },
+        PathConversion::Primitive(path) |
+        PathConversion::Complex(path) =>
+            path.to_token_stream(),
         PathConversion::Generic(GenericPathConversion::Map(path)) |
         PathConversion::Generic(GenericPathConversion::Vec(path)) => {
             let short_ty: Type = parse_quote!(#path);
-            let found = tree.iter().find(|(TypeConversion{ 0: ty}, _full_ty)| short_ty.eq(ty));
-            match found {
-                Some((_, full_type)) => {
-                    let ident = mangle_type(full_type);
-                    let full_ty = ffi_struct_name(&ident);
+            tree.iter()
+                .find_map(|(TypeConversion{ 0: other}, t)| short_ty.eq(other).then_some(t))
+                .map_or(quote!(*mut #short_ty), |full_type| {
+                    let full_ty = ffi_mangled_ident(full_type);
                     quote!(*mut #full_ty)
-                },
-                _ => {
-                    quote!(*mut #short_ty)
-                }
-            }
+                })
         }
     }
 };

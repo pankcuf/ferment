@@ -4,7 +4,7 @@ use quote::ToTokens;
 use syn::{Ident, parse_quote, Path};
 use syn::__private::TokenStream2;
 use crate::generics::GenericConversion;
-use crate::helper::{ffi_struct_name, mangle_type};
+use crate::helper::ffi_mangled_ident;
 use crate::scope::Scope;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -61,9 +61,10 @@ impl<'a> From<(&'a Ident, &'a Scope)> for ImportConversion {
 
 impl<'a> From<&'a GenericConversion> for ImportConversion {
     fn from(value: &'a GenericConversion) -> Self {
-        let mangled_ident = mangle_type(&value.full_type);
-        let ident = ffi_struct_name(&mangled_ident);
-        ImportConversion { ident, scope: Scope::ffi_generics_scope() }
+        ImportConversion {
+            ident: ffi_mangled_ident(&value.full_type),
+            scope: Scope::ffi_generics_scope()
+        }
     }
 
 }
