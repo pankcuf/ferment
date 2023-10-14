@@ -3,10 +3,12 @@ use quote::quote;
 use syn::parse_quote;
 use syn::__private::TokenStream2;
 use crate::generics::GenericConversion;
+use crate::import_conversion::ImportConversion;
 use crate::interface::Presentable;
 use crate::presentation::Expansion;
 use crate::scope::Scope;
 use crate::scope_conversion::{ImportType, ScopeTreeCompact, ScopeTreeExportItem};
+use crate::type_conversion::TypeConversion;
 
 
 #[test]
@@ -17,6 +19,9 @@ fn decompose_module() {
 fn root_scope_tree_item() -> ScopeTreeCompact {
     ScopeTreeCompact {
         scope: Scope::crate_root(),
+        scope_types: HashMap::from([
+            (TypeConversion(parse_quote!(String)), parse_quote!(String)),
+        ]),
         generics: HashSet::from([]),
         imported: HashMap::from([]),
         exported: HashMap::from([
@@ -29,15 +34,29 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
                     GenericConversion::new(parse_quote!(std::collections::BTreeMap<crate::ffi::HashID, crate::ffi::HashID>)),
                 ]),
                 HashMap::from([
-                    (ImportType::External, vec![(parse_quote!(BTreeMap), Scope::new(parse_quote!(std::collections)))])
+                    (ImportType::External, HashSet::from([
+                        ImportConversion::new(parse_quote!(BTreeMap), Scope::new(parse_quote!(std::collections)))]))
                 ]),
                 HashMap::from([
                     (parse_quote!(HashID), ScopeTreeExportItem::Item(parse_quote!(pub type HashID = [u8; 32];))),
                     (parse_quote!(KeyID), ScopeTreeExportItem::Item(parse_quote!(pub type KeyID = [u8; 20];))),
                     (parse_quote!(UsedKeyMatrix), ScopeTreeExportItem::Item(parse_quote!(pub type UsedKeyMatrix = Vec<bool>;))),
                     (parse_quote!(ArrayOfArraysOfHashes), ScopeTreeExportItem::Item(parse_quote!(pub type ArrayOfArraysOfHashes = Vec<Vec<crate::ffi::HashID>>;))),
-                ]))
-            ),
+                ]),
+                HashMap::from([
+                    (TypeConversion(parse_quote!(bool)), parse_quote!(bool)),
+                    (TypeConversion(parse_quote!([u8; 20])), parse_quote!([u8; 20])),
+                    (TypeConversion(parse_quote!([u8; 32])), parse_quote!([u8; 32])),
+                    (TypeConversion(parse_quote!([u8; 32])), parse_quote!([u8; 32])),
+                    (TypeConversion(parse_quote!(Vec)), parse_quote!(Vec)),
+                    (TypeConversion(parse_quote!(HashID)), parse_quote!(crate::ffi::HashID)),
+                    (TypeConversion(parse_quote!(BTreeMap)), parse_quote!(std::collections::BTreeMap)),
+                    (TypeConversion(parse_quote!(Vec<bool>)), parse_quote!(Vec<bool>)),
+                    (TypeConversion(parse_quote!(Vec<HashID>)), parse_quote!(Vec<crate::ffi::HashID>)),
+                    (TypeConversion(parse_quote!(Vec<Vec<HashID>>)), parse_quote!(Vec<Vec<crate::ffi::HashID>>)),
+                    (TypeConversion(parse_quote!(BTreeMap<HashID, HashID>)), parse_quote!(std::collections::BTreeMap<crate::ffi::HashID, crate::ffi::HashID>)),
+                ]),
+            )),
             (parse_quote!(chain),
              ScopeTreeExportItem::single_export(
                  parse_quote!(common),
@@ -58,20 +77,30 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
                             GenericConversion::new(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::ffi::HashID>)),
                         ]),
                         HashMap::from([
-                            (ImportType::External, vec![
-                                (parse_quote!(BTreeMap), Scope::new(parse_quote!(std::collections))),
-                            ]),
-                            (ImportType::FfiType, vec![
-                                (parse_quote!(ChainType_FFI), Scope::ffi_types_and(quote!(chain::common::chain_type))),
-                            ]),
+                            (ImportType::External, HashSet::from([
+                                ImportConversion::new(parse_quote!(BTreeMap), Scope::new(parse_quote!(std::collections)))])),
+                            (ImportType::FfiType, HashSet::from([
+                                ImportConversion::new(parse_quote!(ChainType_FFI), Scope::ffi_types_and(quote!(chain::common::chain_type)))])),
                         ]),
                         HashMap::from([
                             (parse_quote!(address_with_script_pubkey), ScopeTreeExportItem::Item(parse_quote!(pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> { Some(format_args!("{0:?}", script).to_string()) }))),
                             (parse_quote!(get_chain_type_string), ScopeTreeExportItem::Item(parse_quote!(pub fn get_chain_type_string(chain_type: ChainType) -> String { chain_type.get_string() }))),
                             (parse_quote!(get_chain_hashes_by_map), ScopeTreeExportItem::Item(parse_quote!(pub fn get_chain_hashes_by_map(map: BTreeMap<ChainType, HashID>) -> String { map.iter().fold(String::new(), |mut acc, (chain_type, hash_id)| { acc.add(chain_type.get_string()); acc.add(" => "); acc.add(hash_id.to_string().as_str()); acc }) } ))),
                         ]),
+                        HashMap::from([
+                            (TypeConversion(parse_quote!(u8)), parse_quote!(u8)),
+                            (TypeConversion(parse_quote!(String)), parse_quote!(String)),
+                            (TypeConversion(parse_quote!(Option)), parse_quote!(Option)),
+                            (TypeConversion(parse_quote!(Option<String>)), parse_quote!(Option<String>)),
+                            (TypeConversion(parse_quote!(Vec<u8>)), parse_quote!(Vec<u8>)),
+                            (TypeConversion(parse_quote!(ChainType)), parse_quote!(crate::chain::common::chain_type::ChainType)),
+                            (TypeConversion(parse_quote!(HashID)), parse_quote!(crate::ffi::HashID)),
+                            (TypeConversion(parse_quote!(BTreeMap)), parse_quote!(std::collections::BTreeMap)),
+                            (TypeConversion(parse_quote!(BTreeMap<ChainType, HashID>)), parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::ffi::HashID>)),
+                        ]),
                     ))
                 ]),
+                HashMap::from([])
             ))
         ]),
     }

@@ -47,6 +47,12 @@ pub struct ImportConversion {
     pub scope: Scope,
 }
 
+impl ImportConversion {
+    pub fn new(ident: Ident, scope: Scope) -> Self {
+        Self { ident, scope }
+    }
+}
+
 impl<'a> From<(&'a Ident, &'a Scope)> for ImportConversion {
     fn from(value: (&'a Ident, &'a Scope)) -> Self {
         Self { ident: value.0.clone(), scope: value.1.clone() }
