@@ -1,0 +1,10 @@
+[package]
+name = "ferment-interfaces"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ferment-macro = { path = "../ferment-macro" }
+
+[lib]
+name = "ferment_interfaces"

@@ -1,0 +1,11 @@
+[package]
+name = "ferment"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+syn = { version = "1.0.109", features = ["full", "visit"] }
+quote = "1.0.28"
+
+[lib]
+name = "ferment"
