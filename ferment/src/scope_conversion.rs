@@ -196,17 +196,8 @@ impl Presentable for ScopeTreeItem {
                 ItemConversion::try_from((&item, scope))
                     .map(|conversion| Expansion::from((conversion, scope_types)))
                     .map_or(quote!(), Expansion::present),
-            Self::Tree { item: _, tree: ScopeTree { scope, imported, exported, .. }} => {
-                let name = scope.head();
-                let imports = imported
-                    .iter()
-                    .flat_map(|(import_type, imports)| imports.iter().map(move |import| import.expand(import_type)));
-                let conversions = exported.into_iter().map(|(_, tree_item)| tree_item.present());
-                quote!(pub mod #name {
-                    #(use #imports;)*
-                    #(#conversions)*
-                })
-            }
+            Self::Tree { item: _, tree} =>
+                tree.present()
         }
     }
 }
@@ -300,47 +291,52 @@ impl ScopeTree {
             .flat_map(|(_, tree)| tree.generic_conversions())
             .collect()
     }
-
 }
 
 // For root tree only
 impl Presentable for ScopeTree {
     fn present(self) -> TokenStream2 {
         let scope_imports = self.imported.iter()
-            .flat_map(|(import_type, vec)| {
-                vec.iter().map(move |ImportConversion { ident, scope }| {
-                    // println!("scope import: {}: {}: {}", import_type.as_path().to_token_stream(), ident.to_token_stream(), scope.to_token_stream());
-                    let import_path = match import_type {
-                        ImportType::Original => scope.clone(),
-                        _ => scope.joined(ident),
-                    };
-                    // quote!(use #scope::#ident;)
-                    quote!(use #import_path;)
-                })
-            });
-        let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.into_iter());
-        let scope_conversions = self.exported.into_iter().map(|(_, tree_item)| {
-            generics.extend(tree_item.generic_conversions());
-            tree_item.present()
-        }).collect::<Vec<_>>();
-        let mut generic_imports = HashSet::new();
-        let mut generic_conversions = vec![];
-        for generic in generics {
-            generic_imports.extend(generic.used_imports());
-            generic_conversions.push(generic.present());
-        }
-        let generic_unique_imports = Vec::from_iter(generic_imports.iter());
-        quote! {
-            #[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]
-            pub mod types {
-                #(#scope_imports)*
-                #(#scope_conversions)*
+            .flat_map(|(import_type, imports)|
+                imports.iter()
+                    .map(move |import| import.present(import_type)));
+        if self.scope.is_crate() {
+            let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.into_iter());
+            let scope_conversions = self.exported.into_iter().map(|(_, tree_item)| {
+                generics.extend(tree_item.generic_conversions());
+                tree_item.present()
+            }).collect::<Vec<_>>();
+            let mut generic_imports = HashSet::new();
+            let mut generic_conversions = vec![];
+            for generic in generics {
+                generic_imports.extend(generic.used_imports());
+                generic_conversions.push(generic.present());
             }
-            #[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]
-            pub mod generics {
-                #(use #generic_unique_imports;)*
-                #(#generic_conversions)*
+            let types_expansion = Expansion::Mod {
+                directives: quote!(#[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                name: quote!(types),
+                imports: scope_imports.collect(),
+                conversions: scope_conversions
             }
+                .present();
+            let generics_expansion = Expansion::Mod {
+                directives: quote!(#[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                name: quote!(generics),
+                imports: generic_imports.into_iter().collect(),
+                conversions: generic_conversions
+            }
+                .present();
+            quote! {
+                #types_expansion
+                #generics_expansion
+            }
+        } else {
+            Expansion::Mod {
+                directives: quote!(),
+                name: self.scope.head().to_token_stream(),
+                imports: scope_imports.collect(),
+                conversions: self.exported.into_values().map(ScopeTreeItem::present).collect()
+            }.present()
         }
     }
 }

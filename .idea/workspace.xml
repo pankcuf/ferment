@@ -9,7 +9,15 @@
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/fermented.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/fermented.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/helper.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/import_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/import_conversion.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/interface.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/item_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/item_conversion.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/path_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/path_conversion.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/presentation.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/presentation.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/test/composing.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/test/composing.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,7 +54,7 @@
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feat/import-lookup&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;last_opened_file_path&quot;: &quot;/Users/vladimirpirogov/Documents/work/dash/ferment&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
@@ -167,7 +175,7 @@
       <workItem from="1695293148587" duration="131690000" />
       <workItem from="1695821992857" duration="453201000" />
       <workItem from="1697361795694" duration="156000" />
-      <workItem from="1697361967054" duration="7393000" />
+      <workItem from="1697361967054" duration="9866000" />
     </task>
     <servers />
   </component>

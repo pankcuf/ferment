@@ -105,12 +105,12 @@ impl Hash for ImportConversion {
 }
 
 impl ImportConversion {
-    pub fn expand(&self, import_type: &ImportType) -> Scope {
+    pub fn present(&self, import_type: &ImportType) -> Scope {
         match import_type {
-            ImportType::External => self.scope.clone(),
-            ImportType::Original => self.scope.clone(),
-            ImportType::FfiType => self.scope.clone(),
-            ImportType::ExternalChunk => self.scope.popped(),
+            ImportType::External | ImportType::Original | ImportType::FfiType =>
+                self.scope.clone(),
+            ImportType::ExternalChunk =>
+                self.scope.popped(),
             _ => self.scope.joined(&self.ident)
         }
 

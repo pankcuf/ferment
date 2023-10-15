@@ -213,7 +213,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, P
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_map_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FFI_TYPE_PATH_PRESENTER, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated, unwrap_or};
+use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FFI_TYPE_PATH_PRESENTER, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated, unwrap_or};
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
@@ -277,19 +277,19 @@ pub fn from_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
     })
 }
 
-pub fn from_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
-    let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
-        [PathConversion::Primitive(path)] =>
-            from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream(), ),
-        [PathConversion::Complex(..)] =>
-            from_complex_vec_conversion(quote!(vec)),
-        [PathConversion::Generic(GenericPathConversion::Vec(path))] =>
-            from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-        _ => panic!("from_vec_vec_conversion: Bad arguments {}", quote!(#arguments)
-        ),
-    };
-    conversion
-}
+// pub fn from_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
+//     let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
+//         [PathConversion::Primitive(path)] =>
+//             from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream(), ),
+//         [PathConversion::Complex(..)] =>
+//             from_complex_vec_conversion(quote!(vec)),
+//         [PathConversion::Generic(GenericPathConversion::Vec(path))] =>
+//             from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
+//         _ => panic!("from_vec_vec_conversion: Bad arguments {}", quote!(#arguments)
+//         ),
+//     };
+//     conversion
+// }
 
 #[allow(unused)]
 pub fn to_simple_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
@@ -318,25 +318,25 @@ pub fn to_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
     iter_map_collect(quote!(vec.into_iter()), quote!(|o| #boxed_conversion))
 }
 
-pub fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    // println!("from_vec: {:?} {}", path, &field_path);
-    let arguments = &path.segments.last().unwrap().arguments;
-    let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
-        [PathConversion::Primitive(path)] =>
-            from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream(), ),
-        [PathConversion::Complex(..)] =>
-            from_complex_vec_conversion(quote!(vec)),
-        [PathConversion::Generic(GenericPathConversion::Vec(path))] =>
-            from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-        [PathConversion::Generic(..)] =>
-            panic!("from_vec (Map): Unknown field {} {}", field_path, quote!(#arguments)),
-        _ => panic!("from_vec: Bad arguments {} {}", field_path, quote!(#arguments)),
-    };
-    quote!({
-        let vec = &*#field_path;
-        #conversion
-    })
-}
+// pub fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
+//     // println!("from_vec: {:?} {}", path, &field_path);
+//     let arguments = &path.segments.last().unwrap().arguments;
+//     let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
+//         [PathConversion::Primitive(path)] =>
+//             from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream(), ),
+//         [PathConversion::Complex(..)] =>
+//             from_complex_vec_conversion(quote!(vec)),
+//         [PathConversion::Generic(GenericPathConversion::Vec(path))] =>
+//             from_vec_vec_conversion(&path.segments.last().unwrap().arguments),
+//         [PathConversion::Generic(..)] =>
+//             panic!("from_vec (Map): Unknown field {} {}", field_path, quote!(#arguments)),
+//         _ => panic!("from_vec: Bad arguments {} {}", field_path, quote!(#arguments)),
+//     };
+//     quote!({
+//         let vec = &*#field_path;
+//         #conversion
+//     })
+// }
 
 pub fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
@@ -377,97 +377,93 @@ pub fn from_vec2(path: &Path, field_path: TokenStream2) -> TokenStream2 {
         _ => panic!("from_vec2: Bad arguments {} {}", field_path, quote!(#arguments)),
 
     };
-    // let value_path = mangle_path(inner_path_value_path);
-    quote!({
-        let vec = &*#field_path;
-        #conversion
-    })
+    quote!({ let vec = &*#field_path; #conversion })
 }
 
-#[allow(unused)]
-pub fn from_map2(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    let last_segment = path.segments.last().unwrap();
-    let field_type = &last_segment.ident;
-    let arguments = &last_segment.arguments;
-    // let simple_conversion = FROM_OFFSET_MAP_PRESENTER;
-    // let key_simple_conversion = simple_conversion(quote!(*map.keys));
-    // let value_simple_conversion = simple_conversion(quote!(*map.values));
-    // println!("from_map2: {} {}", quote!(#path), &field_path);
-    match path_arguments_to_paths(arguments)[..] {
-        [inner_path_key_path, inner_path_value_path] => {
-            let key_path = mangle_path(inner_path_key_path);
-            let value_path = mangle_path(inner_path_value_path);
-            ffi_from_map_conversion(
-                quote!(#field_path),
-                quote!(#field_type),
-                quote!(#key_path),
-                quote!(#value_path),
-            )
-        }
-        _ => panic!("from_map2: Bad arguments {} {}", field_path, quote!(#arguments)),
-    }
-}
-
-#[allow(dead_code)]
-pub fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    let last_segment = path.segments.last().unwrap();
-    let field_type = &last_segment.ident;
-    let arguments = &last_segment.arguments;
-    let simple_conversion = FROM_OFFSET_MAP_PRESENTER;
-    let key_simple_conversion = simple_conversion(quote!(*map.keys));
-    let value_simple_conversion = simple_conversion(quote!(*map.values));
-
-    match path_arguments_to_paths(arguments)[..] {
-        [inner_path_key_path, inner_path_value_path] => {
-            let convert =
-                |path: &Path, parent_conversion: TokenStream2| match PathConversion::from(path)
-                {
-                    PathConversion::Primitive(..) => value_simple_conversion.clone(),
-                    PathConversion::Complex(..) => ffi_from_conversion(value_simple_conversion.clone()),
-                    PathConversion::Generic(GenericPathConversion::Vec(path)) => from_vec(&path, value_simple_conversion.clone()),
-                    PathConversion::Generic(GenericPathConversion::Map(path)) => {
-                        let inner_path_last_segment = path.segments.last().unwrap();
-                        let field_type = &inner_path_last_segment.ident;
-                        match path_arguments_to_paths(&inner_path_last_segment.arguments)[..] {
-                            [inner_path_key_path, inner_path_value_path] => {
-                                let converter =
-                                    |inner_conversion: TokenStream2, inner_path: &Path| {
-                                        match PathConversion::from(inner_path) {
-                                            PathConversion::Primitive(..) => inner_conversion,
-                                            PathConversion::Complex(..) => ffi_from_conversion(inner_conversion),
-                                            PathConversion::Generic(GenericPathConversion::Vec(path)) => from_vec(&path, inner_conversion.clone()),
-                                            _ => panic!("Vec/Map not supported as Map key")
-                                        }
-                                    };
-                                let key_conversion =
-                                    converter(key_simple_conversion.clone(), inner_path_key_path);
-                                let value_conversion = converter(
-                                    value_simple_conversion.clone(),
-                                    inner_path_value_path,
-                                );
-                                ffi_from_map_conversion(
-                                    quote!(((#parent_conversion))),
-                                    quote!(#field_type),
-                                    key_conversion,
-                                    value_conversion,
-                                )
-                            }
-                            _ => panic!("from_map: Unknown field {} {}", field_path, quote!(#arguments)),
-                        }
-                    }
-                };
-            let key_conversion = convert(inner_path_key_path, key_simple_conversion.clone());
-            let value_conversion = convert(inner_path_value_path, value_simple_conversion.clone());
-            ffi_from_map_conversion(
-                quote!(#field_path),
-                quote!(#field_type),
-                key_conversion,
-                value_conversion,
-            )
-        }
-        _ => panic!("from_map: Bad arguments {} {}", field_path, quote!(#arguments)),
-    }
-}
+// #[allow(unused)]
+// pub fn from_map2(path: &Path, field_path: TokenStream2) -> TokenStream2 {
+//     let last_segment = path.segments.last().unwrap();
+//     let field_type = &last_segment.ident;
+//     let arguments = &last_segment.arguments;
+//     // let simple_conversion = FROM_OFFSET_MAP_PRESENTER;
+//     // let key_simple_conversion = simple_conversion(quote!(*map.keys));
+//     // let value_simple_conversion = simple_conversion(quote!(*map.values));
+//     // println!("from_map2: {} {}", quote!(#path), &field_path);
+//     match path_arguments_to_paths(arguments)[..] {
+//         [inner_path_key_path, inner_path_value_path] => {
+//             let key_path = mangle_path(inner_path_key_path);
+//             let value_path = mangle_path(inner_path_value_path);
+//             ffi_from_map_conversion(
+//                 quote!(#field_path),
+//                 quote!(#field_type),
+//                 quote!(#key_path),
+//                 quote!(#value_path),
+//             )
+//         }
+//         _ => panic!("from_map2: Bad arguments {} {}", field_path, quote!(#arguments)),
+//     }
+// }
+//
+// #[allow(dead_code)]
+// pub fn from_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
+//     let last_segment = path.segments.last().unwrap();
+//     let field_type = &last_segment.ident;
+//     let arguments = &last_segment.arguments;
+//     let simple_conversion = FROM_OFFSET_MAP_PRESENTER;
+//     let key_simple_conversion = simple_conversion(quote!(*map.keys));
+//     let value_simple_conversion = simple_conversion(quote!(*map.values));
+//
+//     match path_arguments_to_paths(arguments)[..] {
+//         [inner_path_key_path, inner_path_value_path] => {
+//             let convert =
+//                 |path: &Path, parent_conversion: TokenStream2| match PathConversion::from(path)
+//                 {
+//                     PathConversion::Primitive(..) => value_simple_conversion.clone(),
+//                     PathConversion::Complex(..) => ffi_from_conversion(value_simple_conversion.clone()),
+//                     PathConversion::Generic(GenericPathConversion::Vec(path)) => from_vec(&path, value_simple_conversion.clone()),
+//                     PathConversion::Generic(GenericPathConversion::Map(path)) => {
+//                         let inner_path_last_segment = path.segments.last().unwrap();
+//                         let field_type = &inner_path_last_segment.ident;
+//                         match path_arguments_to_paths(&inner_path_last_segment.arguments)[..] {
+//                             [inner_path_key_path, inner_path_value_path] => {
+//                                 let converter =
+//                                     |inner_conversion: TokenStream2, inner_path: &Path| {
+//                                         match PathConversion::from(inner_path) {
+//                                             PathConversion::Primitive(..) => inner_conversion,
+//                                             PathConversion::Complex(..) => ffi_from_conversion(inner_conversion),
+//                                             PathConversion::Generic(GenericPathConversion::Vec(path)) => from_vec(&path, inner_conversion.clone()),
+//                                             _ => panic!("Vec/Map not supported as Map key")
+//                                         }
+//                                     };
+//                                 let key_conversion =
+//                                     converter(key_simple_conversion.clone(), inner_path_key_path);
+//                                 let value_conversion = converter(
+//                                     value_simple_conversion.clone(),
+//                                     inner_path_value_path,
+//                                 );
+//                                 ffi_from_map_conversion(
+//                                     quote!(((#parent_conversion))),
+//                                     quote!(#field_type),
+//                                     key_conversion,
+//                                     value_conversion,
+//                                 )
+//                             }
+//                             _ => panic!("from_map: Unknown field {} {}", field_path, quote!(#arguments)),
+//                         }
+//                     }
+//                 };
+//             let key_conversion = convert(inner_path_key_path, key_simple_conversion.clone());
+//             let value_conversion = convert(inner_path_value_path, value_simple_conversion.clone());
+//             ffi_from_map_conversion(
+//                 quote!(#field_path),
+//                 quote!(#field_type),
+//                 key_conversion,
+//                 value_conversion,
+//             )
+//         }
+//         _ => panic!("from_map: Bad arguments {} {}", field_path, quote!(#arguments)),
+//     }
+// }
 
 // TODO: doesn't work for some cases
 pub fn destroy_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
@@ -677,7 +673,6 @@ fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> Tok
             to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
         _ => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
     };
-    println!("to_vec_conversion: {} {}", &field_path, &conversion);
     box_vec(field_path, package_boxed_vec_expression(conversion))
 }
 
@@ -777,7 +772,6 @@ fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray) -
 }
 
 pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
-    println!("to_ptr: {} {}", field_path, quote!(#type_ptr));
     match &*type_ptr.elem {
         Type::Array(TypeArray { elem, .. }) => match &**elem {
             Type::Path(type_path) => to_path(field_path, &type_path.path, Some(type_ptr)),
@@ -796,8 +790,7 @@ pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStrea
 pub(crate) fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
     match &*type_reference.elem {
         Type::Path(type_path) => to_path(field_path, &type_path.path, None),
-        _ => panic!("to_reference: Unknown type {}", quote!(#type_reference)
-        ),
+        _ => panic!("to_reference: Unknown type {}", quote!(#type_reference)),
     }
 }
 
@@ -830,7 +823,7 @@ pub fn mangle_type(ty: &Type) -> Ident {
     }
 }
 
-pub fn mangle_path(path: &Path) -> Path {
-    PathConversion::from(path)
-        .as_ffi_path()
-}
+// pub fn mangle_path(path: &Path) -> Path {
+//     PathConversion::from(path)
+//         .as_ffi_path()
+// }

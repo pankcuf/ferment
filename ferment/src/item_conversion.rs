@@ -729,6 +729,16 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
     composer_owned.make_expansion(quote!(#item_struct))
 }
 
+fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
+    match (ty, pat) {
+        (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
+            from_path(quote!(#ident), &path, None),
+        (Type::Reference(type_reference), pat) => handle_arg_type(&type_reference.elem, pat),
+        // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
+        _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
+    }
+}
+
 fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, Type>) -> Expansion {
     // println!("fn_expansion: [{}]: {}", scope.to_token_stream(), item_fn.sig.ident.to_token_stream());
     // println!("fn_expansion: [{:?}]:", tree);
@@ -748,23 +758,14 @@ fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, 
             },
         ),
     };
+
     // TODO: replace Fn arguments with crate::fermented::generics::#ident or #import
     let (fn_args, conversions) = inputs
         .iter()
         .map(|arg| match arg {
             FnArg::Typed(PatType { ty, pat, .. }) => (
                 NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(&ty, &tree)),
-                match (&**ty, &**pat) {
-                    (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
-                        from_path(quote!(#ident), &path, None),
-                    (Type::Reference(type_reference), pat) => {
-                        println!("fn_expansion: reference: {}: {}", type_reference.to_token_stream(), pat.to_token_stream());
-                        panic!("error: Arg conversion not supported: {:?}", quote!(#ty))
-                    },
-                    // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
-
-                    _ => panic!("error: Arg conversion not supported: {:?}", quote!(#ty)),
-                },
+                handle_arg_type(&**ty, &**pat)
             ),
             _ => panic!("Arg type not supported: {:?}", quote!(#arg)),
         })
@@ -826,7 +827,7 @@ fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConver
                     },
                     Type::Array(_type_array) => usize_to_tokenstream(0),
                     Type::Ptr(_type_ptr) => obj(),
-                    _ => unimplemented!("from_type_alias: not supported {:?}", quote!(#ty)) })]
+                    _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
             }))
             .borrow()
             .make_expansion(quote!(#item_type))

@@ -45,6 +45,7 @@ pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { iden
 
 /// Type Presenters
 pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, tree| {
+    println!("FFI_DICTIONARY_TYPE_PRESENTER: {}", quote!(#field_type));
     match field_type {
         Type::Path(TypePath { path, .. }) =>
             (match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -239,12 +240,9 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
 };
 
 pub const FFI_TYPE_PATH_PRESENTER: PathPresenter = |path|
-    FFI_TYPE_PATH_CONVERTER(path)
-        .to_token_stream();
-
-pub const FFI_TYPE_PATH_CONVERTER: fn(&Path) -> Path = |path|
     PathConversion::from(path)
-        .as_ffi_path();
+        .as_ffi_path()
+        .to_token_stream();
 
 pub const MANGLE_INNER_PATH_PRESENTER: ScopeTreePathPresenter = |path, tree| match PathConversion::from(path) {
     PathConversion::Primitive(path) |
@@ -395,17 +393,17 @@ pub fn unwrap_or(field_path: TokenStream2, or: TokenStream2) -> TokenStream2 {
 }
 
 
-pub fn ffi_from_map_conversion(map_key_path: TokenStream2, acc_type: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
-    quote! {{
-        let map = &*#map_key_path;
-        (0..map.count).fold(#acc_type::new(), |mut acc, i| {
-            let key = #key_conversion;
-            let value = #value_conversion;
-            acc.insert(key, value);
-            acc
-        })
-    }}
-}
+// pub fn ffi_from_map_conversion(map_key_path: TokenStream2, acc_type: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
+//     quote! {{
+//         let map = &*#map_key_path;
+//         (0..map.count).fold(#acc_type::new(), |mut acc, i| {
+//             let key = #key_conversion;
+//             let value = #value_conversion;
+//             acc.insert(key, value);
+//             acc
+//         })
+//     }}
+// }
 
 
 pub fn ffi_from_conversion(field_value: TokenStream2) -> TokenStream2 {

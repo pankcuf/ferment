@@ -1,6 +1,7 @@
 use quote::quote;
 use syn::__private::TokenStream2;
 use crate::interface::{doc, ffi, ffi_from_const, ffi_to_const, interface, obj, package, Presentable};
+use crate::scope::Scope;
 use crate::scope_conversion::{ScopeTree, ScopeTreeCompact};
 
 /// Root-level composer chain
@@ -23,8 +24,14 @@ pub enum Expansion {
         conversion: ConversionInterfacePresentation,
         drop: DropInterfacePresentation,
     },
-    Scope {
-        root: ScopeTree,
+    Root {
+        tree: ScopeTree,
+    },
+    Mod {
+        directives: TokenStream2,
+        name: TokenStream2,
+        imports: Vec<Scope>,
+        conversions: Vec<TokenStream2>
     },
     Use {
         input: TokenStream2,
@@ -41,7 +48,7 @@ pub enum DocPresentation {
 
 impl From<ScopeTreeCompact> for Expansion {
     fn from(value: ScopeTreeCompact) -> Self {
-        Expansion::Scope { root: value.into() }
+        Expansion::Root { tree: value.into() }
     }
 }
 
@@ -87,7 +94,16 @@ impl Presentable for Expansion {
                 vec![comment.present(), ffi_presentation.present()],
             Self::Full { input: _, comment, ffi_presentation, conversion, drop} =>
                 vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present()],
-            Self::Scope { root} =>
+            Self::Mod { directives, name, imports, conversions } =>
+                vec![
+                    quote!(
+                        #directives
+                        pub mod #name {
+                        #(use #imports;)*
+                        #(#conversions)*
+                    })
+                ],
+            Self::Root { tree: root } =>
                 vec![root.present()]
         };
         let expanded = quote!(#(#presentations)*);

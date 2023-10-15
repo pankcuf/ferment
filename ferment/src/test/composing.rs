@@ -13,7 +13,7 @@ use crate::type_conversion::TypeConversion;
 
 #[test]
 fn decompose_module() {
-    let expansion = Expansion::Scope { root: root_scope_tree_item().into() };
+    let expansion = Expansion::Root { tree: root_scope_tree_item().into() };
     println!("{}", expansion.present());
 }
 fn root_scope_tree_item() -> ScopeTreeCompact {

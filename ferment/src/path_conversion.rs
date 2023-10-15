@@ -219,7 +219,7 @@ impl From<Path> for PathConversion {
 
 impl PathConversion {
 
-    pub fn convert_to_ffi_path(path: &Path) -> Path {
+    pub fn convert_to_ffi_path(path: &Path) -> Type {
         println!("convert_to_ffi_path.1:: {} ....", quote!(#path));
         let mut cloned_segments = path.segments.clone();
         let last_segment = cloned_segments.iter_mut().last().unwrap();
@@ -257,7 +257,7 @@ impl PathConversion {
         result
     }
 
-    pub fn as_ffi_path(&self) -> Path {
+    pub fn as_ffi_path(&self) -> Type {
         Self::convert_to_ffi_path(self.as_path())
     }
     pub fn as_ffi_type(&self) -> Type {
