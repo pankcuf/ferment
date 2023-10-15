@@ -14,59 +14,47 @@ A procedural macro consists of 1 macros:
 1. `export` - for structures / enums / functions / types
 
 **Usage**
+
 Crate is not published yet, so use it for example locally
 
 ```toml
 ferment-interfaces = { path = "../../ferment/ferment-interfaces" }
 ferment-macro = { path = "../../ferment/ferment-macro" }
+ferment-example = { path = "../../ferment/ferment-example" }
+ferment = { path = "../../ferment/ferment" }
 ```
 
-Using the macro implies using `cbindgen` with a configuration like (has taken from actual apple-bindings):
+Using the tool implies using `cbindgen` with a configuration like this:
 
 ```rust
 extern crate cbindgen;
 
 fn main() {
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let mut config = cbindgen::Config::from_file("./cbindgen.toml").expect("Error config");
-    // Here we must list the names of the crates from which the generated structures will be exported in order to include them in the final C-header
-    let includes = vec![/**/];
-    config.language = cbindgen::Language::C;
-    config.parse = cbindgen::Config {
-        language: cbindgen::Language::C,
-        parse: cbindgen::ParseConfig {
-            parse_deps: true,
-            include: Some(includes.clone()),
-            extra_bindings: includes.clone(),
-            expand: cbindgen::ParseExpandConfig {
-                crates: includes.clone(),
-                all_features: false,
-                default_features: false,
-                features: None,
-                profile: cbindgen::Profile::Debug,
-            },
-            ..Default::default()
-        },
-        enumeration: cbindgen::EnumConfig {
-            prefix_with_name: true,
-            ..Default::default()
-        },
-        braces: cbindgen::Braces::SameLine,
-        line_length: 80,
-        tab_width: 4,
-        documentation_style: cbindgen::DocumentationStyle::C,
-        include_guard: Some("dash_shared_core_h".to_string()),
-        ..Default::default()
-    };
-    cbindgen::generate_with_config(&crate_dir, config)
-        .unwrap()
-        .write_to_file("target/bindings.h");
+    extern crate cbindgen;
+    extern crate ferment;
+
+    use std::process::Command;
+
+    fn main() {
+
+        match ferment::Builder::new()
+            .with_mod_name("fermented")
+            .generate() {
+            Ok(()) => match Command::new("cbindgen")
+                .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
+                .status() {
+                Ok(status) => println!("Bindings generated into target/example.h with status: {status}"),
+                Err(err) => panic!("Can't generate bindings: {err}")
+            }
+            Err(err) => panic!("Can't create FFI expansion: {err}")
+        }
+    }
 }
 ```
 
 **Examples**
 
-For the structure labeled with `ferment:export`
+For the structure labeled with `ferment::export`
 
 ```rust
 #[derive(Clone)]
@@ -202,20 +190,21 @@ Examples for translated names:
 - `Vec<u8>` -> `Vec_u8_FFI`
 - `Vec<u32>` -> `Vec_u32_FFI`
 - `Vec<Vec<u32>>` -> `Vec_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, Vec<u32>>` -> `Map_keys_crate_HashID_values_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, Vec<u32>>` -> `Map_keys_u32_values_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, BTreeMap<crate::HashID, Vec<u32>>>` -> `Map_keys_crate_HashID_values_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, Vec<u32>>` -> `std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, Vec<u32>>` -> `std_collections_Map_keys_u32_values_Vec_u32_FFI`
+- `BTreeMap<crate::HashID, BTreeMap<crate::HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
 - etc
 Then macro implements the necessary conversions for these structures. Example for such an expansion:
 ```rust
-#[repr(C)] #[derive(Clone)] 
-pub struct Map_keys_self_HashID_values_self_HashID_FFI {
+#[repr(C)] 
+#[derive(Clone)] 
+pub struct std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
     pub count: usize, 
-    pub keys: *mut *mut self::HashIDFFI, 
-    pub values: * mut * mut self::HashIDFFI,
+    pub keys: *mut *mut self::HashID_FFI, 
+    pub values: * mut * mut self::HashID_FFI,
 } 
-impl ferment_interfaces::FFIConversion<BTreeMap<self::HashID, self::HashID>> for Map_keys_self_HashID_values_self_HashID_FFI {
-    unsafe fn ffi_from_const(ffi: *const Map_keys_self_HashID_values_self_HashID_FFI) -> BTreeMap<self::HashID, self::HashID> {
+impl ferment_interfaces::FFIConversion<std::collections::BTreeMap<self::HashID, self::HashID>> for std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
+    unsafe fn ffi_from_const(ffi: *const std_collections_Map_keys_self_HashID_values_self_HashID_FFI) -> std::collections::BTreeMap<self::HashID, self::HashID> {
         let ffi_ref = &*ffi;
         (0..ffi_ref.count).fold(BTreeMap<self::HashID, self::HashID>::new(), |mut acc, i| {
             let key = *ffi_ref.keys.add(i); 
@@ -224,23 +213,39 @@ impl ferment_interfaces::FFIConversion<BTreeMap<self::HashID, self::HashID>> for
             acc
         })
     } 
-    unsafe fn ffi_to_const(obj: BTreeMap<self::HashID, self::HashID>) -> *const Map_keys_self_HashID_values_self_HashID_FFI {
+    unsafe fn ffi_to_const(obj: BTreeMap<self::HashID, self::HashID>) -> *const std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
         ferment_interfaces::boxed(Self { 
             count: obj.len(), 
             keys: ferment_interfaces::boxed_vec(obj.keys().map(|o| <self::HashID as ferment_interfaces::FFIConversion>::ffi_from_const(o)).collect()), 
             values: ferment_interfaces::boxed_vec(obj.values().map(|o| <self::HashID as ferment_interfaces::FFIConversion>::ffi_from_const(o)).collect())
         })
     } 
-    unsafe fn destroy(ffi: *mut Map_keys_self_HashID_values_self_HashID_FFI) {
+    unsafe fn destroy(ffi: *mut std_collections_Map_keys_self_HashID_values_self_HashID_FFI) {
         ferment_interfaces::unbox_any(ffi); 
     }
 } 
-impl Drop for Map_keys_self_HashID_values_self_HashID_FFI {
+impl Drop for std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
     fn drop(&mut self) {
         unsafe {
             ferment_interfaces::unbox_vec_ptr(self.keys, self.count);
             ferment_interfaces::unbox_vec_ptr(self.values, self.count);
         }
     }
+}
+```
+
+The final generated code is placed in the file specified in the configuration like this:
+```rust
+pub mod types {
+    // package relationships are inherited
+    // so type like crate::some_module::SomeStruct will be expanded like this:
+    pub mod some_module {
+        pub struct SomeStruct {
+            // ...
+        }
+    }
+}
+pub mod generics {
+    // We expand generic types separately here to avoid duplication
 }
 ```
