@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use syn::{Attribute, BareFnArg, Data, DataEnum, DataStruct, DataUnion, DeriveInput, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, FnArg, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemType, ItemUse, parse_quote, Pat, Path, PathSegment, PatIdent, PatType, ReturnType, Signature, Type, TypeBareFn, TypePath, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
+use syn::{Attribute, BareFnArg, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, FnArg, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemType, ItemUse, parse_quote, Pat, Path, PathSegment, PatIdent, PatType, ReturnType, Signature, Type, TypeBareFn, TypePath, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
 use crate::generics::{add_generic_type, TypePathComposition};
@@ -12,7 +12,6 @@ use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
 use crate::scope::{EMPTY, Scope};
 use crate::import_conversion::{ImportConversion, ImportType};
-use crate::scope_conversion::ScopeTreeItem;
 use crate::type_conversion::TypeConversion;
 
 
@@ -24,20 +23,6 @@ pub enum ItemConversion {
     Type(ItemType, Scope),
     Fn(ItemFn, Scope),
     Use(ItemUse, Scope),
-}
-
-impl ItemConversion {
-
-    pub fn scope(&self) -> &Scope {
-        match self {
-            ItemConversion::Mod(_, scope) => scope,
-            ItemConversion::Struct(_, scope) => scope,
-            ItemConversion::Enum(_, scope) => scope,
-            ItemConversion::Type(_, scope) => scope,
-            ItemConversion::Fn(_, scope) => scope,
-            ItemConversion::Use(_, scope) => scope,
-        }
-    }
 }
 
 impl std::fmt::Debug for ItemConversion {
@@ -63,7 +48,74 @@ impl ToTokens for ItemConversion {
             ItemConversion::Use(item, ..) => item.to_tokens(tokens),
         }
     }
+}
 
+impl From<(ItemConversion, HashMap<TypeConversion, Type>)> for Expansion {
+    fn from(conversion: (ItemConversion, HashMap<TypeConversion, Type>)) -> Self {
+        match &conversion.0 {
+            ItemConversion::Mod(..) => Expansion::Empty,
+            ItemConversion::Struct(item_struct, scope) => struct_expansion(item_struct, scope, conversion.1),
+            ItemConversion::Enum(item_enum, scope) => enum_expansion(item_enum, scope, conversion.1),
+            ItemConversion::Type(item_type, scope) => type_expansion(item_type, scope, conversion.1),
+            ItemConversion::Fn(item_fn, scope) => fn_expansion(item_fn, scope, conversion.1),
+            ItemConversion::Use(item_use, scope) => use_expansion(item_use, scope),
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a Item> for ItemConversion {
+    type Error = String;
+    fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
+        match value {
+            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), EMPTY)),
+            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), EMPTY)),
+            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), EMPTY)),
+            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), EMPTY)),
+            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), EMPTY)),
+            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+        }
+    }
+}
+
+impl<'a> TryFrom<(&'a Item, &'a Scope)> for ItemConversion {
+    type Error = String;
+    fn try_from(value: (&'a Item, &'a Scope)) -> Result<Self, Self::Error> {
+        match value.0 {
+            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), value.1.clone())),
+            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), value.1.clone())),
+            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), value.1.clone())),
+            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), value.1.clone())),
+            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), value.1.clone())),
+            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+        }
+    }
+}
+
+impl<'a> TryFrom<(&'a Item, Scope)> for ItemConversion {
+    type Error = String;
+    fn try_from(value: (&'a Item, Scope)) -> Result<Self, Self::Error> {
+        match value.0 {
+            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), value.1)),
+            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), value.1)),
+            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), value.1)),
+            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), value.1)),
+            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), value.1)),
+            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+        }
+    }
+}
+
+impl<'a> Into<Item> for &'a ItemConversion {
+    fn into(self) -> Item {
+        match self {
+            ItemConversion::Mod(item, _) => parse_quote!(#item),
+            ItemConversion::Struct(item, _) =>  parse_quote!(#item),
+            ItemConversion::Enum(item, _) =>  parse_quote!(#item),
+            ItemConversion::Type(item, _) =>  parse_quote!(#item),
+            ItemConversion::Fn(item, _) =>  parse_quote!(#item),
+            ItemConversion::Use(item, _) =>  parse_quote!(#item),
+        }
+    }
 }
 
 impl ItemConversion {
@@ -84,6 +136,17 @@ impl ItemConversion {
             Self::Type(..) => "export",
             Self::Fn(..) => "export",
             Self::Use(..) => "",
+        }
+    }
+
+    pub fn scope(&self) -> &Scope {
+        match self {
+            ItemConversion::Mod(_, scope) => scope,
+            ItemConversion::Struct(_, scope) => scope,
+            ItemConversion::Enum(_, scope) => scope,
+            ItemConversion::Type(_, scope) => scope,
+            ItemConversion::Fn(_, scope) => scope,
+            ItemConversion::Use(_, scope) => scope,
         }
     }
 
@@ -137,124 +200,6 @@ impl ItemConversion {
                 }
             )
     }
-}
-
-impl From<(ItemConversion, HashMap<TypeConversion, Type>)> for Expansion {
-    fn from(conversion: (ItemConversion, HashMap<TypeConversion, Type>)) -> Self {
-        match &conversion.0 {
-            ItemConversion::Mod(..) => Expansion::Empty,
-            ItemConversion::Struct(item_struct, scope) => struct_expansion(item_struct, scope, conversion.1),
-            ItemConversion::Enum(item_enum, scope) => enum_expansion(item_enum, scope, conversion.1),
-            ItemConversion::Type(item_type, scope) => type_expansion(item_type, scope, conversion.1),
-            ItemConversion::Fn(item_fn, scope) => fn_expansion(item_fn, scope, conversion.1),
-            ItemConversion::Use(item_use, scope) => use_expansion(item_use, scope),
-        }
-    }
-}
-
-
-impl From<DeriveInput> for ItemConversion {
-    fn from(input: DeriveInput) -> Self {
-        let DeriveInput { attrs, vis, ident, generics, data } = input;
-        match data {
-            Data::Struct(DataStruct { fields,  semi_token, struct_token, .. }) =>
-                Self::Struct(ItemStruct { attrs, vis, ident, generics, fields, semi_token, struct_token }, EMPTY),
-            Data::Enum(DataEnum { enum_token, brace_token, variants }) =>
-                Self::Enum(ItemEnum { attrs, vis, ident, generics, variants, enum_token, brace_token }, EMPTY),
-            Data::Union(DataUnion { union_token, fields }) =>
-                unimplemented!("Unions are not supported yet {}: {}", union_token.to_token_stream(), fields.to_token_stream()),
-        }
-    }
-}
-impl<'a> TryFrom<&'a ScopeTreeItem> for ItemConversion {
-    type Error = String;
-    fn try_from(value: &'a ScopeTreeItem) -> Result<Self, Self::Error> {
-        match value {
-            ScopeTreeItem::Tree { tree, item} => Ok(Self::Mod(parse_quote!(#item), tree.scope.clone())),
-            ScopeTreeItem::Item { scope, item, scope_types: _ } => match item {
-                Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), scope.clone())),
-                Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), scope.clone())),
-                Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), scope.clone())),
-                Item::Type(item_type) => Ok(Self::Type(item_type.clone(), scope.clone())),
-                Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), scope.clone())),
-                item => Err(format!("Error: {}: {}", scope, item.to_token_stream().to_string()))
-            }
-        }
-    }
-}
-
-impl<'a> TryFrom<&'a Item> for ItemConversion {
-    type Error = String;
-    fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
-        match value {
-            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), EMPTY)),
-            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), EMPTY)),
-            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), EMPTY)),
-            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), EMPTY)),
-            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), EMPTY)),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
-        }
-    }
-}
-
-impl<'a> TryFrom<(&'a Item, &'a Scope)> for ItemConversion {
-    type Error = String;
-    fn try_from(value: (&'a Item, &'a Scope)) -> Result<Self, Self::Error> {
-        match value.0 {
-            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), value.1.clone())),
-            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), value.1.clone())),
-            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), value.1.clone())),
-            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), value.1.clone())),
-            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), value.1.clone())),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
-        }
-    }
-}
-impl<'a> TryFrom<(&'a Item, Scope)> for ItemConversion {
-    type Error = String;
-    fn try_from(value: (&'a Item, Scope)) -> Result<Self, Self::Error> {
-        match value.0 {
-            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), value.1)),
-            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), value.1)),
-            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), value.1)),
-            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), value.1)),
-            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), value.1)),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
-        }
-    }
-}
-
-impl<'a> From<&'a ItemStruct> for ItemConversion {
-    fn from(item_struct: &'a ItemStruct) -> Self {
-        Self::Struct(item_struct.clone(), EMPTY)
-    }
-}
-
-impl Into<Item> for ItemConversion {
-    fn into(self) -> Item {
-        match self {
-            ItemConversion::Mod(item, _) => parse_quote!(#item),
-            ItemConversion::Struct(item, _) =>  parse_quote!(#item),
-            ItemConversion::Enum(item, _) =>  parse_quote!(#item),
-            ItemConversion::Type(item, _) =>  parse_quote!(#item),
-            ItemConversion::Fn(item, _) =>  parse_quote!(#item),
-            ItemConversion::Use(item, _) =>  parse_quote!(#item),
-        }
-    }
-}
-impl<'a> Into<Item> for &'a ItemConversion {
-    fn into(self) -> Item {
-        match self {
-            ItemConversion::Mod(item, _) => parse_quote!(#item),
-            ItemConversion::Struct(item, _) =>  parse_quote!(#item),
-            ItemConversion::Enum(item, _) =>  parse_quote!(#item),
-            ItemConversion::Type(item, _) =>  parse_quote!(#item),
-            ItemConversion::Fn(item, _) =>  parse_quote!(#item),
-            ItemConversion::Use(item, _) =>  parse_quote!(#item),
-        }
-    }
-}
-impl ItemConversion {
 
     pub fn collect_all_items(&self) -> Vec<ItemConversion> {
         // println!("collect_all_items {}", self);

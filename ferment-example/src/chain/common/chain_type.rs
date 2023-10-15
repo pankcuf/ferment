@@ -13,3 +13,8 @@ impl ChainType {
         }
     }
 }
+
+pub enum ExcludedEnum {
+    Variant1,
+    Variant2,
+}

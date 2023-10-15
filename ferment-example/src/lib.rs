@@ -9,6 +9,10 @@ pub struct RootStruct {
     pub name: String,
 }
 
+pub struct ExcludedStruct {
+    pub name: String,
+}
+
 pub mod nested {
     use std::collections::BTreeMap;
 

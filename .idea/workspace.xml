@@ -9,15 +9,11 @@
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ferment-example/src/fermented.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/fermented.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/helper.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/helper.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/import_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/import_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/interface.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/lib.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ferment/src/item_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/item_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/path_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/path_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/presentation.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/presentation.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/test/composing.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/test/composing.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/src/visitor.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/visitor.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -80,23 +76,6 @@
     </key>
   </component>
   <component name="RunManager" selected="Cargo.ferment-example">
-    <configuration name="Run" type="CargoCommandRunConfiguration" factoryName="Cargo Command" nameIsGenerated="true">
-      <option name="command" value="run" />
-      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-      <option name="emulateTerminal" value="true" />
-      <option name="channel" value="DEFAULT" />
-      <option name="requiredFeatures" value="true" />
-      <option name="allFeatures" value="false" />
-      <option name="withSudo" value="false" />
-      <option name="buildTarget" value="REMOTE" />
-      <option name="backtrace" value="SHORT" />
-      <envs />
-      <option name="isRedirectInput" value="false" />
-      <option name="redirectInputPath" value="" />
-      <method v="2">
-        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
-      </method>
-    </configuration>
     <configuration name="Test test::composing::decompose_module" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package ferment --lib test::composing::decompose_module -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
@@ -150,7 +129,6 @@
     </configuration>
     <list>
       <item itemvalue="Cargo.ferment-example" />
-      <item itemvalue="Cargo.Run" />
       <item itemvalue="Cargo.ferment" />
       <item itemvalue="Cargo.Test test::composing::decompose_module" />
     </list>
@@ -175,7 +153,7 @@
       <workItem from="1695293148587" duration="131690000" />
       <workItem from="1695821992857" duration="453201000" />
       <workItem from="1697361795694" duration="156000" />
-      <workItem from="1697361967054" duration="9866000" />
+      <workItem from="1697361967054" duration="11820000" />
     </task>
     <servers />
   </component>
