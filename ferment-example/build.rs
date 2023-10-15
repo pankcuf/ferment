@@ -1,25 +1,19 @@
 extern crate cbindgen;
 extern crate ferment;
 
+use std::process::Command;
+
 fn main() {
-   match ferment::build("fermented") {
-      Ok(()) => {
-         // run cbindgen
-      },
-      Err(err) => panic!("Can't create FFI expansion: {}", err)
+
+   match ferment::Builder::new()
+       .with_mod_name("fermented")
+       .generate() {
+      Ok(()) => match Command::new("cbindgen")
+          .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
+          .status() {
+         Ok(status) => println!("Bindings generated into target/example.h with status: {status}"),
+         Err(err) => panic!("Can't generate bindings: {err}")
+      }
+      Err(err) => panic!("Can't create FFI expansion: {err}")
    }
-
-   // let status = Command::new("cargo")
-   //     .args(&["fmt", output_path.to_str().unwrap()])
-   //     .status()
-   //     .expect("Failed to run cargo fmt");
-   //
-   // if !status.success() {
-   //    println!("cargo:warning=cargo fmt failed");
-   // }
-
-   // Command::new("cbindgen")
-   //     .args(&["--config", "cbindgen.toml", "-o", "target/ferment-example.h", "target/expanded_reduced.rs"])
-   //     .status()
-   //     .expect("Failed to run cbindgen");
 }

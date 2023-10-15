@@ -63,7 +63,6 @@ pub enum FFIObjectPresentation {
 }
 
 pub enum ConversionInterfacePresentation {
-    Empty,
     Interface {
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -75,9 +74,7 @@ pub enum ConversionInterfacePresentation {
 
 
 pub enum DropInterfacePresentation {
-    Empty,
     Full(TokenStream2, TokenStream2)
-    // Enum(TokenStream2, TokenStream2)
 }
 
 impl Presentable for Expansion {
@@ -139,7 +136,6 @@ impl Presentable for FFIObjectPresentation {
 impl Presentable for ConversionInterfacePresentation {
     fn present(self) -> TokenStream2 {
         match self {
-            Self::Empty => quote!(),
             Self::Interface { ffi_name, target_name, from_presentation, to_presentation, destroy_presentation} => {
                 let package = package();
                 let interface = interface();
@@ -166,7 +162,7 @@ impl Presentable for ConversionInterfacePresentation {
                         unsafe fn destroy(#ffi: *mut #ffi_name) { #destroy_presentation; }
                     }
                 }
-            },
+            }
         }
     }
 }
@@ -174,8 +170,6 @@ impl Presentable for ConversionInterfacePresentation {
 impl Presentable for DropInterfacePresentation {
     fn present(self) -> TokenStream2 {
         match self {
-            Self::Empty => quote!(),
-            // Self::Full(presenter, name, code) => presenter(name, code)
             Self::Full(name, code) =>
                 quote!(impl Drop for #name { fn drop(&mut self) { unsafe { #code } } })
         }

@@ -7,7 +7,7 @@ use syn::visit::Visit;
 use crate::item_conversion::ItemConversion;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::scope_conversion::ScopeTreeExportItem;
-use crate::Scope;
+use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
 pub struct Visitor {

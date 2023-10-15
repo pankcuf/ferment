@@ -10,7 +10,7 @@ use crate::composer::RootComposer;
 use crate::visitor::Visitor;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
-use crate::{Scope, scope};
+use crate::scope::{EMPTY, Scope};
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::scope_conversion::ScopeTreeItem;
 use crate::type_conversion::TypeConversion;
@@ -158,9 +158,9 @@ impl From<DeriveInput> for ItemConversion {
         let DeriveInput { attrs, vis, ident, generics, data } = input;
         match data {
             Data::Struct(DataStruct { fields,  semi_token, struct_token, .. }) =>
-                Self::Struct(ItemStruct { attrs, vis, ident, generics, fields, semi_token, struct_token }, scope::EMPTY),
+                Self::Struct(ItemStruct { attrs, vis, ident, generics, fields, semi_token, struct_token }, EMPTY),
             Data::Enum(DataEnum { enum_token, brace_token, variants }) =>
-                Self::Enum(ItemEnum { attrs, vis, ident, generics, variants, enum_token, brace_token }, scope::EMPTY),
+                Self::Enum(ItemEnum { attrs, vis, ident, generics, variants, enum_token, brace_token }, EMPTY),
             Data::Union(DataUnion { union_token, fields }) =>
                 unimplemented!("Unions are not supported yet {}: {}", union_token.to_token_stream(), fields.to_token_stream()),
         }
@@ -187,11 +187,11 @@ impl<'a> TryFrom<&'a Item> for ItemConversion {
     type Error = String;
     fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
         match value {
-            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), scope::EMPTY)),
-            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), scope::EMPTY)),
-            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), scope::EMPTY)),
-            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), scope::EMPTY)),
-            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), scope::EMPTY)),
+            Item::Mod(item_mod) => Ok(Self::Mod(item_mod.clone(), EMPTY)),
+            Item::Struct(item_struct) => Ok(Self::Struct(item_struct.clone(), EMPTY)),
+            Item::Enum(item_enum) => Ok(Self::Enum(item_enum.clone(), EMPTY)),
+            Item::Type(item_type) => Ok(Self::Type(item_type.clone(), EMPTY)),
+            Item::Fn(item_fn) => Ok(Self::Fn(item_fn.clone(), EMPTY)),
             item => Err(format!("Error: {}", item.to_token_stream().to_string()))
         }
     }
@@ -226,7 +226,7 @@ impl<'a> TryFrom<(&'a Item, Scope)> for ItemConversion {
 
 impl<'a> From<&'a ItemStruct> for ItemConversion {
     fn from(item_struct: &'a ItemStruct) -> Self {
-        Self::Struct(item_struct.clone(), scope::EMPTY)
+        Self::Struct(item_struct.clone(), EMPTY)
     }
 }
 
@@ -349,7 +349,7 @@ impl ItemConversion {
                             _ => (ImportType::ExternalChunk, Scope::from(path)),
                         }, original_or_external_pair)
                 },
-                _ => (ImportType::None, scope::EMPTY),
+                _ => (ImportType::None, EMPTY),
             }
         }
     }

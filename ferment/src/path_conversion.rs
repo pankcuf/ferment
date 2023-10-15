@@ -7,7 +7,7 @@ use syn::spanned::Spanned;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use crate::generics::{map_ffi_expansion, vec_ffi_exp};
 use crate::interface::{MANGLE_INNER_PATH_PRESENTER, MAP_PATH_PRESENTER, MapPresenter, package_boxed_expression, ScopeTreePathPresenter, VEC_PATH_PRESENTER};
-use crate::helper::{ffi_struct_name, path_arguments_to_path_conversions, path_arguments_to_paths, path_arguments_to_types};
+use crate::helper::{ffi_struct_name, path_arguments_to_path_conversions, path_arguments_to_paths};
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
@@ -22,25 +22,8 @@ pub enum GenericPathConversion {
     Vec(Path),
 }
 
-impl GenericPathConversion {
-    pub fn generic_types(&self) -> Vec<&Type> {
-        match self {
-            GenericPathConversion::Map(path) => path_arguments_to_types(&path.segments.last().unwrap().arguments),
-            GenericPathConversion::Vec(path) => path_arguments_to_types(&path.segments.last().unwrap().arguments),
-        }
-    }
-    pub fn generic_paths(&self) -> Vec<&Path> {
-        match self {
-            GenericPathConversion::Map(path) => path_arguments_to_paths(&path.segments.last().unwrap().arguments),
-            GenericPathConversion::Vec(path) => path_arguments_to_paths(&path.segments.last().unwrap().arguments),
-        }
-    }
-}
-
 pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(ferment_interfaces::unbox_vec_ptr(#p, self.count););
 pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(ferment_interfaces::unbox_any_vec_ptr(#p, self.count););
-
-
 
 impl GenericPathConversion {
     pub fn expand(&self, ffi_name: Ident) -> TokenStream2 {

@@ -16,17 +16,11 @@ pub trait Presentable where Self: Sized {
 pub type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
 /// token + token -> token
 pub type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
-/// token + type -> token
-pub type FieldPresenter = fn(field: &Field) -> TokenStream2;
-// pub type DictionaryFieldPresenter = fn(field: &Field, dictionary: &HashMap<ImportType, HashSet<ImportConversion>>) -> TokenStream2;
-pub type ScopeTreeFieldPresenter = fn(field: &Field, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
 
-pub type TypePresenter = fn(field_type: &Type) -> TokenStream2;
-// pub type DictionaryTypePresenter = fn(field_type: &Type, dictionary: &HashMap<ImportType, HashSet<ImportConversion>>) -> TokenStream2;
+pub type ScopeTreeFieldPresenter = fn(field: &Field, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
 
 /// token + type -> token
 pub type FieldTypedPresenter = fn(field_name: TokenStream2, field_type: &Type) -> TokenStream2;
-// pub type DictionaryFieldTypedPresenter = fn(field_name: TokenStream2, field_type: &Type, dictionary: &HashMap<ImportType, HashSet<ImportConversion>>) -> TokenStream2;
 pub type ScopeTreeFieldTypedPresenter = fn(field_name: TokenStream2, field_type: &Type, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
 /// [token] -> token
 pub type IteratorPresenter = fn(items: Vec<TokenStream2>) -> TokenStream2;
@@ -36,14 +30,8 @@ pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, tree: &HashMap<TypeC
 /// type OwnerIteratorPresenter = fn(owner: TokenStream2, items: Vec<TokenStream2>) -> TokenStream2;
 pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
 pub type PathPresenter = fn(path: &Path) -> TokenStream2;
-// pub type DictionaryPathPresenter = fn(path: &Path, dictionary: &HashMap<ImportType, HashSet<ImportConversion>>) -> TokenStream2;
 pub type ScopeTreePathPresenter = fn(path: &Path, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
-pub type PathArgumentsPresenter = fn(arguments: &PathArguments) -> TokenStream2;
-// pub type DictionaryPathArgumentsPresenter = fn(arguments: &PathArguments, dictionary: &HashMap<ImportType, HashSet<ImportConversion>>) -> TokenStream2;
 pub type ScopeTreePathArgumentsPresenter = fn(arguments: &PathArguments, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
-
-pub type GenericVecPresenter = fn((TokenStream2, &Path)) -> TokenStream2;
-pub type GenericMapPresenter = fn((TokenStream2, &Path, &Path, &Path)) -> TokenStream2;
 
 pub type GenericPathPresenter = fn(path: &Path, arguments_presenter: ScopeTreePathArgumentsPresenter, tree: &HashMap<TypeConversion, Type>) -> TokenStream2;
 

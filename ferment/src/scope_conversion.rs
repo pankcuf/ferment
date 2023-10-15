@@ -174,12 +174,6 @@ impl ScopeTreeCompact {
             }
         }
     }
-    pub fn init(scope: Scope) -> Self {
-        Self::new(scope, HashSet::new(), HashMap::new(), HashMap::new(), HashMap::new())
-    }
-    pub fn new(scope: Scope, generics: HashSet<GenericConversion>, imported: HashMap<ImportType, HashSet<ImportConversion>>, exported: HashMap<Ident, ScopeTreeExportItem>, scope_types: HashMap<TypeConversion, Type>) -> Self {
-        Self { scope, generics, imported, exported, scope_types }
-    }
 }
 
 #[derive(Clone)]
