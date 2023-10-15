@@ -1,0 +1,17 @@
+[package]
+name = "ferment-example"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+
+[build-dependencies]
+cbindgen = "0.24.3"
+ferment = { path = "../ferment" }
+
+
+[lib]
+name = "ferment_example"

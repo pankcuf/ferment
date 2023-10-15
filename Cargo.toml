@@ -1,18 +1,18 @@
 [workspace]
 members = [
-    "example",
-    "rs-ffi-analyzer",
-    "rs-ffi-interfaces",
-    "rs-ffi-macro-derive",
+    "ferment",
+    "ferment-example",
+    "ferment-interfaces",
+    "ferment-macro",
 ]
 resolver = "2"
 
 [workspace.package]
 authors = ["Vladimir Pirogov <vladimir.pirogov@dash.org>"]
 description = "Procedural macro for FFI and its interfaces & helpers"
-homepage = "https://github.com/pankcuf/rs-ffi-macro"
+homepage = "https://github.com/pankcuf/ferment"
 license = "MIT"
-keywords = ["ffi", "macro", "c-bindings"]
+keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]
 
 [profile.release]
 lto = "thin"

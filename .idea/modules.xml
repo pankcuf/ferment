@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/rs-ffi-macro.iml" filepath="$PROJECT_DIR$/rs-ffi-macro.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ferment.iml" filepath="$PROJECT_DIR$/.idea/ferment.iml" />
     </modules>
   </component>
 </project>
