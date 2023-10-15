@@ -1,7 +1,7 @@
-# rs-ffi-macro
-Proc macro for FFI (work in progress)
+# ferment
+Syntax-tree morphing tool for FFI (work in progress)
 
-Allows to generate an FFI-compliant equivalent for rust types (structures, enums, arrays, functions).
+Allows to generate an FFI-compliant equivalent for rust types (structures, enums, types, functions).
 
 The project is a rust-workspace consisting of 2 crates:
 1. `rs-ffi-interfaces`: A trait that provides conversion methods from/to FFI-compatible types and some helper functions and structures
