@@ -7,12 +7,8 @@ use syn::parse_quote::ParseQuote;
 use syn::punctuated::Punctuated;
 use crate::helper::{ffi_mangled_ident, ffi_struct_name, path_arguments_to_types};
 
-fn ffi_generic_path(ty: &Type) -> Path {
-    let ffi_mangled_ident = ffi_mangled_ident(ty);
-    parse_quote!(crate::fermented::generics::#ffi_mangled_ident)
-}
-
 pub const EMPTY: Scope = Scope { path: Path { leading_colon: None, segments: Punctuated::new() } };
+
 #[derive(Clone)]
 pub struct Scope {
     pub path: Path,
@@ -48,7 +44,7 @@ impl std::fmt::Debug for Scope {
 
 impl std::fmt::Display for Scope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.path.to_token_stream().to_string().split_whitespace().collect::<String>().as_str())
+        std::fmt::Debug::fmt(self, f)
     }
 }
 
@@ -79,9 +75,6 @@ impl Scope {
     pub fn ffi_types_scope() -> Self {
         Self::ffi_expansion_scope().joined_path(parse_quote!(types))
     }
-    pub fn standard_scope() -> Self {
-        Self::new(parse_quote!(std))
-    }
 
     pub fn crate_and(path: TokenStream2) -> Self {
         Self::crate_root().joined_path(parse_quote!(#path))
@@ -90,34 +83,13 @@ impl Scope {
         Self::ffi_types_scope().joined_path(parse_quote!(#path))
     }
 
-    pub fn std_collections() -> Self {
-        Self::standard_and(quote!(collections))
-    }
-    pub fn standard_and(path: TokenStream2) -> Self {
-        Self::standard_scope().joined_path(parse_quote!(#path))
-    }
-
-    pub fn ffi_generics_and(path: TokenStream2) -> Self {
-        Self::ffi_generics_scope().joined_path(parse_quote!(#path))
-    }
-
     pub fn new(path: Path) -> Self {
         Scope { path }
     }
-    pub fn ffi_name(&self) -> Ident {
-        if self.is_crate() {
-            format_ident!("types")
-        } else {
-            self.head()
-        }
-    }
-
-    pub fn ffi_generic_import(ty: &Type) -> Scope {
-        Scope::new(ffi_generic_path(ty))
-    }
 
     pub fn ffi_type_converted_or_same(ty: &Type) -> Type {
-        Self::ffi_type_converted(ty).unwrap_or(ty.clone())
+        Self::ffi_type_converted(ty)
+            .unwrap_or(ty.clone())
     }
 
     pub fn ffi_type_converted(ty: &Type) -> Option<Type> {
@@ -131,8 +103,13 @@ impl Scope {
 
                 match last_ident.to_string().as_str() {
                     "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-                    | "isize" | "usize" | "bool" |
-                    "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" |
+                    | "isize" | "usize" | "bool" => None,
+                    "UInt128" => Some(parse_quote!([u8; 16])),
+                    "UInt160" => Some(parse_quote!([u8; 20])),
+                    "UInt256" => Some(parse_quote!([u8; 32])),
+                    "UInt384" => Some(parse_quote!([u8; 48])),
+                    "UInt512" => Some(parse_quote!([u8; 64])),
+                    "UInt768" => Some(parse_quote!([u8; 96])),
                     "VarInt" => None,
                     "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
                     "Vec" | "BTreeMap" | "HashMap" => {

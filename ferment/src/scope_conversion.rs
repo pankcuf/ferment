@@ -110,20 +110,6 @@ impl ScopeTreeExportItem {
         }
     }
 
-    pub fn print_used_types_at_scopes(prefix: &str, used_types_at_scopes: &HashMap<Scope, HashMap<TypeConversion, Type>>, scope: &Scope) {
-        let all = used_types_at_scopes.iter().map(|(scope, map)| {
-            let conversions = map.iter()
-                .map(|(tc, full_ty)| quote!(#tc: #full_ty))
-                .collect::<Vec<_>>();
-            quote! {
-                #scope: [
-                    #(#conversions;)*
-                ]
-            }
-        }).collect::<Vec<_>>();
-        println!("{}: {}", prefix, scope.to_token_stream());
-        println!("                      {}", quote!(#(#all;)*));
-    }
     pub fn add_item(&mut self, item: ItemConversion, used_types_at_scopes: &HashMap<Scope, HashMap<TypeConversion, Type>>, used_imports_at_scopes: &HashMap<Scope, HashMap<Ident, Path>>) {
         let scope = item.scope();
         match self {
@@ -226,22 +212,21 @@ pub struct ScopeTree {
 impl Into<ScopeTree> for ScopeTreeCompact {
     fn into(self) -> ScopeTree {
         let ScopeTreeCompact { scope, generics, imported, exported, scope_types } = self;
-        // println!("ScopeTree: {}", quote!(#scope));
-        // let debug_gen = generics.iter().map(|g| quote!(#g)).collect::<Vec<_>>();
-        // let debug_tp = scope_types.iter().map(|(tc, full_ty)| quote!(#tc: #full_ty)).collect::<Vec<_>>();
-        // println!(" generics: {}", quote!(#(#debug_gen;)*));
-        // println!("         : {:?}", imported);
-        // println!(" scope_types : {}", quote!(#(#debug_tp;)*));
         let mut new_imported = imported.clone();
         let generics = HashSet::from_iter(generics.into_iter());
         if let Some(used_originals) = imported.get(&ImportType::Original) {
             new_imported.entry(ImportType::FfiType)
                 .or_insert_with(HashSet::new)
-                .extend(used_originals.iter().map(|ImportConversion { ident, scope}| {
-                    let ty = Scope::ffi_type_converted_or_same(&parse_quote!(#scope));
-                    ImportConversion {
-                        ident: ffi_struct_name(ident),
-                        scope: parse_quote!(#ty)
+                .extend(used_originals.iter().filter_map(|ImportConversion { ident, scope}| {
+                    match ident.to_string().as_str() {
+                        "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
+                        _ => {
+                            let ty = Scope::ffi_type_converted_or_same(&parse_quote!(#scope));
+                            Some(ImportConversion {
+                                ident: ffi_struct_name(ident),
+                                scope: parse_quote!(#ty)
+                            })
+                        }
                     }
                 }));
         }
@@ -293,7 +278,6 @@ impl ScopeTree {
     }
 }
 
-// For root tree only
 impl Presentable for ScopeTree {
     fn present(self) -> TokenStream2 {
         let scope_imports = self.imported.iter()
@@ -301,6 +285,7 @@ impl Presentable for ScopeTree {
                 imports.iter()
                     .map(move |import| import.present(import_type)));
         if self.scope.is_crate() {
+            // For root tree only
             let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.into_iter());
             let scope_conversions = self.exported.into_iter().map(|(_, tree_item)| {
                 generics.extend(tree_item.generic_conversions());

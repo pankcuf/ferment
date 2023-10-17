@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use syn::{Field, parse_quote, Path, PathArguments, Type, TypeArray, TypePath, TypePtr, TypeReference};
 use quote::{format_ident, quote, ToTokens};
-use quote::__private::{TokenStream as TokenStream2};
-use syn::__private::Span;
+use syn::__private::{Span, TokenStream2};
 
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions, path_arguments_to_types};
@@ -10,6 +9,12 @@ use crate::type_conversion::TypeConversion;
 
 pub trait Presentable where Self: Sized {
     fn present(self) -> TokenStream2;
+}
+
+impl Presentable for TokenStream2 {
+    fn present(self) -> TokenStream2 {
+        self
+    }
 }
 
 /// token -> token
@@ -45,7 +50,7 @@ pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { iden
 
 /// Type Presenters
 pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, tree| {
-    println!("FFI_DICTIONARY_TYPE_PRESENTER: {}", quote!(#field_type));
+    // println!("FFI_DICTIONARY_TYPE_PRESENTER: {}", quote!(#field_type));
     match field_type {
         Type::Path(TypePath { path, .. }) =>
             (match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -174,7 +179,6 @@ pub const ENUM_UNNAMED_VARIANT_PRESENTER: OwnerIteratorPresenter = |(name, field
     SIMPLE_PAIR_PRESENTER(name, ROUND_ITER_PRESENTER(fields));
 pub const ENUM_PRESENTER: OwnerIteratorPresenter = |(name, fields)| {
     let enum_presentation = CURLY_BRACES_FIELDS_PRESENTER((name, fields));
-    // #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Ord)]
     quote! {
         #[repr(C)]
         #[allow(non_camel_case_types)]
@@ -200,7 +204,7 @@ pub const MANGLE_MAP_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arg
         syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
     },
     _ => panic!("MANGLE_MAP_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet"),
-}.to_token_stream();
+};
 
 
 pub const MANGLE_VEC_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
@@ -392,20 +396,6 @@ pub fn unwrap_or(field_path: TokenStream2, or: TokenStream2) -> TokenStream2 {
     quote!(#field_path.unwrap_or(#or))
 }
 
-
-// pub fn ffi_from_map_conversion(map_key_path: TokenStream2, acc_type: TokenStream2, key_conversion: TokenStream2, value_conversion: TokenStream2) -> TokenStream2 {
-//     quote! {{
-//         let map = &*#map_key_path;
-//         (0..map.count).fold(#acc_type::new(), |mut acc, i| {
-//             let key = #key_conversion;
-//             let value = #value_conversion;
-//             acc.insert(key, value);
-//             acc
-//         })
-//     }}
-// }
-
-
 pub fn ffi_from_conversion(field_value: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
@@ -434,6 +424,7 @@ pub fn ffi_to_opt_conversion(field_value: TokenStream2) -> TokenStream2 {
     quote!(#package::#interface::#ffi_to_opt(#field_value))
 }
 
+// TODO: provide full type or make an import
 pub fn destroy_conversion(field_value: TokenStream2, ffi_type: TokenStream2, field_type: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();

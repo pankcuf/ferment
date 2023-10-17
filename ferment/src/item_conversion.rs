@@ -6,7 +6,7 @@ use syn::__private::{Span, TokenStream2};
 use crate::generics::{add_generic_type, TypePathComposition};
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_TYPE_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, MATCH_FIELDS_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, obj, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
 use crate::helper::{ffi_struct_name, from_path, path_arguments_to_types, to_path};
-use crate::composer::RootComposer;
+use crate::composer::ItemComposer;
 use crate::visitor::Visitor;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation};
@@ -33,7 +33,7 @@ impl std::fmt::Debug for ItemConversion {
 
 impl std::fmt::Display for ItemConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{}: {}", self.name(), self.ident().to_token_stream()))
+        std::fmt::Debug::fmt(self, f)
     }
 }
 
@@ -150,6 +150,17 @@ impl ItemConversion {
         }
     }
 
+    pub fn attrs(&self) -> &Vec<Attribute> {
+        match self {
+            ItemConversion::Mod(item, _) => &item.attrs,
+            ItemConversion::Struct(item, _) => &item.attrs,
+            ItemConversion::Enum(item, _) => &item.attrs,
+            ItemConversion::Type(item, _) => &item.attrs,
+            ItemConversion::Fn(item, _) => &item.attrs,
+            ItemConversion::Use(item, _) => &item.attrs,
+        }
+    }
+
     fn fold_use(tree: &UseTree) -> Vec<&Ident> {
         match tree {
             UseTree::Path(UsePath { ident, .. }) => vec![ident],
@@ -172,27 +183,21 @@ impl ItemConversion {
         }
     }
 
-    pub fn is_empty_mod(&self) -> bool {
-        match self {
-            ItemConversion::Mod(ItemMod { content, .. }, ..) => content.is_none(),
-            _ => false
-        }
-    }
-    pub fn is_non_empty_mod(&self) -> bool {
-        !self.is_empty_mod()
-    }
-
     fn macro_ident(&self) -> Ident {
         format_ident!("{}", self.r#type())
     }
 
-    fn is_labeled_with_macro(&self, path: &Path) -> bool {
+    pub fn is_labeled_with_macro(&self, path: &Path) -> bool {
         path.segments
             .iter()
             .any(|segment| segment.ident == self.macro_ident())
     }
 
-    fn handle_attributes_with_handler<F: FnMut(&Path)>(&self, attrs: &[Attribute], mut handler: F) {
+    pub fn has_macro_attribute(&self) -> bool {
+        self.attrs().iter().filter(|Attribute { path, .. }| self.is_labeled_with_macro(path)).count() > 0
+    }
+
+    pub fn handle_attributes_with_handler<F: FnMut(&Path)>(&self, attrs: &[Attribute], mut handler: F) {
         attrs.iter()
             .for_each(|Attribute { path, .. }|
                 if self.is_labeled_with_macro(path) {
@@ -202,7 +207,6 @@ impl ItemConversion {
     }
 
     pub fn collect_all_items(&self) -> Vec<ItemConversion> {
-        // println!("collect_all_items {}", self);
         match self {
             Self::Mod(ItemMod { content: Some((_, items)), .. }, scope) => {
                 let mut all_labeled_items: Vec<ItemConversion> = Vec::new();
@@ -229,7 +233,6 @@ impl ItemConversion {
                 fields.iter().for_each(|field| cache_type(&field.ty, path)),
             Fields::Unit => {}
         };
-
         match self {
             Self::Mod(ItemMod { content: Some((_, items)), .. }, scope) =>
                 items.iter()
@@ -367,6 +370,29 @@ impl ItemConversion {
         }
         container
     }
+    fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypePathComposition>) {
+        match field_type {
+            Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+                PathConversion::Complex(path) => {
+                    match path.segments.last().unwrap().ident.to_string().as_str() {
+                        "Option" =>
+                            Self::collect_generic_types_in_type(path_arguments_to_types(&path.segments.last().unwrap().arguments)[0], generics),
+                        _ => {}
+                    }
+                },
+                PathConversion::Generic(GenericPathConversion::Vec(path)) |
+                PathConversion::Generic(GenericPathConversion::Map(path)) => {
+                    path_arguments_to_types(&path.segments.last().unwrap().arguments)
+                        .iter()
+                        .for_each(|field_type|
+                            add_generic_type(field_type, generics));
+                    generics.insert(TypePathComposition(field_type.clone(), path.clone()));
+                },
+                _ => {}
+            },
+            _ => {}
+        }
+    }
 
     fn find_generic_types_in_compositions(compositions: &Vec<TypePathComposition>) -> HashSet<TypePathComposition> {
         // collect all types with generics and ensure their uniqueness
@@ -374,23 +400,8 @@ impl ItemConversion {
         let mut generics: HashSet<TypePathComposition> = HashSet::new();
         compositions
             .iter()
-            .for_each(|TypePathComposition(field_type, .. )| {
-                // println!("find_generic_types_in_compositions: {}", quote!(#field_type));
-                match field_type {
-                    Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-                        PathConversion::Generic(GenericPathConversion::Vec(path)) |
-                        PathConversion::Generic(GenericPathConversion::Map(path)) => {
-                            path_arguments_to_types(&path.segments.last().unwrap().arguments)
-                                .iter()
-                                .for_each(|field_type|
-                                    add_generic_type(field_type, &mut generics));
-                            generics.insert(TypePathComposition(field_type.clone(), path.clone()));
-                        },
-                        _ => {}
-                    },
-                    _ => {}
-                }
-            });
+            .for_each(|TypePathComposition(field_type, .. )|
+                Self::collect_generic_types_in_type(field_type, &mut generics));
         generics
     }
 
@@ -402,18 +413,16 @@ impl ItemConversion {
         let converted = match self {
             Self::Struct(item_struct, scope) => {
                 item_struct.fields.iter().for_each(|Field { ty, .. }| visitor.add_full_qualified_type_match(scope.clone(), ty));
-                // item_struct.fields.iter_mut().for_each(|Field { ty, .. }| visitor.convert_type(ty));
                 Self::Struct(item_struct, scope)
             },
             Self::Enum(item_enum, scope) => {
-                item_enum.variants.iter().for_each(|Variant { fields, .. }| fields.iter().for_each(|Field { ty, .. }| visitor.add_full_qualified_type_match(scope.clone(), ty)));
-                // item_enum.variants.iter_mut().for_each(|Variant { fields, .. }| fields.iter_mut().for_each(|Field { ty, .. }| visitor.convert_type(ty)));
+                item_enum.variants.iter().for_each(|Variant { fields, .. }|
+                    fields.iter().for_each(|Field { ty, .. }|
+                        visitor.add_full_qualified_type_match(scope.clone(), ty)));
                 Self::Enum(item_enum, scope)
             },
             Self::Type(item_type, scope) => {
-                let ty = &*item_type.ty;
-                visitor.add_full_qualified_type_match(scope.clone(), ty);
-                // visitor.convert_type(ty);
+                visitor.add_full_qualified_type_match(scope.clone(), &*item_type.ty);
                 Self::Type(item_type, scope)
             },
             Self::Fn(item_fn, scope) => {
@@ -421,67 +430,47 @@ impl ItemConversion {
                     ReturnType::Default => {},
                     ReturnType::Type(_, ty) => {
                         visitor.add_full_qualified_type_match(scope.clone(), ty);
-                        // visitor.convert_type(&mut *ty);
                     }
                 }
                 item_fn.sig.inputs.iter().for_each(|arg| match arg {
                     FnArg::Typed(PatType { ty, .. }) => {
                         visitor.add_full_qualified_type_match(scope.clone(), ty);
-                        // visitor.convert_type(&mut *ty);
                     },
                     _ => {}
                 });
                 Self::Fn(item_fn, scope)
             },
-            Self::Use(item_use, scope) => {
-                Self::Use(item_use, scope)
-            },
+            Self::Use(item_use, scope) =>
+                Self::Use(item_use, scope),
             Self::Mod(item_mod, scope) => {
                 let ident = item_mod.ident.clone();
                 let inner_scope = scope.joined(&ident);
-
                 match &item_mod.content {
                     None => {},
                     Some((_, items)) => {
-                        items.clone().into_iter().for_each(|item| {
-                            match item {
-                                Item::Use(node) => {
-                                    visitor.fold_import_tree(&inner_scope, &node.tree, vec![]);
-                                },
-                                Item::Fn(item_fn) => {
-                                    match &item_fn.sig.output {
-                                        ReturnType::Default => {},
-                                        ReturnType::Type(_, ty) => {
-                                            visitor.add_full_qualified_type_match(inner_scope.clone(), ty);
-                                            // visitor.convert_type(&mut *ty);
-                                        }
-                                    }
-                                    item_fn.sig.inputs.iter().for_each(|arg| match arg {
-                                        FnArg::Typed(PatType { ty, .. }) => {
-                                            visitor.add_full_qualified_type_match(inner_scope.clone(), ty);
-                                            // visitor.convert_type(&mut *ty);
-                                        },
-                                        _ => {}
-                                    });
-                                },
-                                Item::Struct(item_struct) => {
-                                    item_struct.fields.iter().for_each(|Field { ty, .. }| visitor.add_full_qualified_type_match(inner_scope.clone(), ty));
-                                    // item_struct.fields.iter_mut().for_each(|Field { ty, .. }| visitor.convert_type(ty));
-                                },
-                                Item::Enum(item_enum) => {
-                                    item_enum.variants.iter().for_each(|Variant { fields, .. }| fields.iter().for_each(|Field { ty, .. }| visitor.add_full_qualified_type_match(inner_scope.clone(), ty)));
-                                    // item_enum.variants.iter_mut().for_each(|Variant { fields, .. }| fields.iter_mut().for_each(|Field { ty, .. }| visitor.convert_type(ty)));
-
-                                },
-                                Item::Type(item_type) => {
-                                    let ty = &*item_type.ty;
-                                    visitor.add_full_qualified_type_match(inner_scope.clone(), ty);
-                                    // visitor.convert_type(ty);
-
-                                },
-                                Item::Mod(_item_mod) => {},
-                                _ => {}
-                            }
+                        items.clone().into_iter().for_each(|item| match item {
+                            Item::Use(node) =>
+                                visitor.fold_import_tree(&inner_scope, &node.tree, vec![]),
+                            Item::Fn(ItemFn { sig, .. }) => {
+                                if let ReturnType::Type(_, ty) = &sig.output {
+                                    visitor.add_full_qualified_type_match(inner_scope.clone(), ty)
+                                }
+                                sig.inputs.iter().for_each(|arg| match arg {
+                                    FnArg::Typed(PatType { ty, .. }) =>
+                                        visitor.add_full_qualified_type_match(inner_scope.clone(), ty),
+                                    _ => {}
+                                });
+                            },
+                            Item::Struct(item_struct) =>
+                                item_struct.fields.iter().for_each(|Field { ty, .. }|
+                                    visitor.add_full_qualified_type_match(inner_scope.clone(), ty)),
+                            Item::Enum(item_enum) =>
+                                item_enum.variants.iter().for_each(|Variant { fields, .. }|
+                                    fields.iter().for_each(|Field { ty, .. }|
+                                        visitor.add_full_qualified_type_match(inner_scope.clone(), ty))),
+                            Item::Type(item_type) =>
+                                visitor.add_full_qualified_type_match(inner_scope.clone(), &*item_type.ty),
+                            _ => {}
                         })
                     }
                 }
@@ -528,29 +517,26 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
             _ => panic!("Error variant discriminant"),
         };
         let composer = match fields {
-            Fields::Unit => RootComposer::enum_unit_variant_composer(
+            Fields::Unit => ItemComposer::enum_unit_variant_composer(
                 quote!(#ffi_variant_path),
                 quote!(#target_variant_path),
-                tree.clone(),
-                |_| quote!(),
+                tree.clone()
             ),
             Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => {
-                RootComposer::enum_unnamed_variant_composer(
+                ItemComposer::enum_unnamed_variant_composer(
                     quote!(#ffi_variant_path),
                     quote!(#target_variant_path),
                     tree.clone(),
-                    |_| quote!(),
                     unnamed.iter().enumerate().map(|(index, Field { ty, .. })| {
                         (ty, format_ident!("o_{}", index).to_token_stream())
                     }),
                 )
             }
             Fields::Named(FieldsNamed { named, .. }) => {
-                RootComposer::enum_named_variant_composer(
+                ItemComposer::enum_named_variant_composer(
                     quote!(#ffi_variant_path),
                     quote!(#target_variant_path),
                     tree.clone(),
-                    |_| quote!(),
                     named.iter().map(|Field { ident, ty, .. }|
                         (ty, ident.clone().unwrap().to_token_stream())),
                 )
@@ -635,7 +621,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
                         quote!(#fields)
                     ),
                 };
-                RootComposer::primitive_composer(
+                ItemComposer::primitive_composer(
                     quote!(#ffi_name),
                     quote!(#target_name),
                     tree,
@@ -648,7 +634,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
                     ffi_to_presentation_context,
                 )
             }
-            _ => RootComposer::unnamed_struct_composer(
+            _ => ItemComposer::unnamed_struct_composer(
                 ffi_struct_name(target_name).to_token_stream(),
                 quote!(#target_name),
                 tree,
@@ -659,7 +645,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
                     .map(|(index, Field { ty, .. })| (ty, usize_to_tokenstream(index))),
             ),
         },
-        Fields::Named(ref fields) => RootComposer::named_struct_composer(
+        Fields::Named(ref fields) => ItemComposer::named_struct_composer(
             ffi_struct_name(target_name).to_token_stream(),
             quote!(#target_name),
             tree,
@@ -709,7 +695,9 @@ fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, 
         .iter()
         .map(|arg| match arg {
             FnArg::Typed(PatType { ty, pat, .. }) => (
-                NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(&ty, &tree)),
+                NAMED_CONVERSION_PRESENTER(
+                    pat.to_token_stream(),
+                    FFI_DICTIONARY_TYPE_PRESENTER(&ty, &tree)),
                 handle_arg_type(&**ty, &**pat)
             ),
             _ => panic!("Arg type not supported: {:?}", quote!(#arg)),
@@ -724,7 +712,8 @@ fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, 
                 format_ident!("ffi_{}", fn_name).to_token_stream(),
                 fn_args,
             )),
-            input_conversions: ROUND_BRACES_FIELDS_PRESENTER((quote!(#fn_name), conversions)),
+            input_conversions: ROUND_BRACES_FIELDS_PRESENTER(
+                (quote!(#fn_name), conversions)),
             output_expression,
             output_conversions,
         },
@@ -750,17 +739,22 @@ fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConver
                     name: quote!(#ffi_name),
                     arguments: inputs
                         .iter()
-                        .map(|BareFnArg { ty, name, .. }| NAMED_CONVERSION_PRESENTER(name.clone().unwrap().0.to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(ty, &tree)))
+                        .map(|BareFnArg { ty, name, .. }|
+                            NAMED_CONVERSION_PRESENTER(
+                                name.clone().unwrap().0.to_token_stream(),
+                                FFI_DICTIONARY_TYPE_PRESENTER(ty, &tree)))
                         .collect::<Vec<_>>(),
                     output_expression: match output {
                         ReturnType::Default => quote!(),
                         ReturnType::Type(token, field_type) =>
-                            SIMPLE_PAIR_PRESENTER(quote!(#token), FFI_DICTIONARY_TYPE_PRESENTER(&field_type, &tree))
+                            SIMPLE_PAIR_PRESENTER(
+                                quote!(#token),
+                                FFI_DICTIONARY_TYPE_PRESENTER(&field_type, &tree))
                     },
                 }
             }
         },
-        _ => RootComposer::type_alias_composer(
+        _ => ItemComposer::type_alias_composer(
             quote!(#ffi_name),
             quote!(#ident),
             tree,

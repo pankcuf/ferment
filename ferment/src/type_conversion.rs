@@ -128,9 +128,8 @@ impl TypeConversion {
             Type::BareFn(TypeBareFn { inputs, output, .. }) => {
                 inputs
                     .iter()
-                    .for_each(|BareFnArg { ty, .. }| {
-                        Self::add_involved_types_into_container(ty, &mut involved);
-                    });
+                    .for_each(|BareFnArg { ty, .. }|
+                        Self::add_involved_types_into_container(ty, &mut involved));
                 if let ReturnType::Type(_, ty) = output {
                     Self::add_involved_types_into_container(ty,&mut involved);
                 }

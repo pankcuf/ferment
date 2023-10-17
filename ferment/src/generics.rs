@@ -7,6 +7,7 @@ use syn::__private::TokenStream2;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::helper::{ffi_mangled_ident, mangle_type};
 use crate::interface::Presentable;
+use crate::presentation::DropInterfacePresentation;
 use crate::scope::Scope;
 
 #[derive(Clone)]
@@ -40,7 +41,8 @@ pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypePathCompos
     }
 }
 
-pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2, decode: TokenStream2, encode: TokenStream2, drop_code: TokenStream2) -> TokenStream2 {
+pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2, decode: TokenStream2, encode: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
+    let drop_presentation = drop_presentation.present();
     quote! {
         #[repr(C)]
         #[derive(Clone)]
@@ -66,17 +68,13 @@ pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2,
             unsafe fn decode(&self) -> Vec<Self::Value> { #decode }
             unsafe fn encode(obj: Vec<Self::Value>) -> *mut Self { #encode }
         }
-        impl Drop for #name {
-            fn drop(&mut self) {
-                unsafe {
-                    #drop_code
-                }
-            }
-        }
+        #drop_presentation
     }
 }
 
-pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2, v: TokenStream2, from: TokenStream2, to: TokenStream2, drop_code: TokenStream2) -> TokenStream2 {
+pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2, v: TokenStream2, from: TokenStream2, to: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
+    // println!("map_ffi_expansion: {}: {}: {}: {}", name, map, k, v);
+    let drop_presentation = drop_presentation.present();
     quote! {
         #[repr(C)]
         #[derive(Clone)]
@@ -97,14 +95,7 @@ pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2,
                 ferment_interfaces::unbox_any(ffi);
             }
         }
-
-        impl Drop for #name {
-            fn drop(&mut self) {
-                unsafe {
-                    #drop_code
-                }
-            }
-        }
+        #drop_presentation
     }
 }
 
@@ -156,8 +147,10 @@ impl Presentable for GenericConversion {
         let Self { full_type } = self;
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
-            PathConversion::Generic(generic_conversion) => generic_conversion.expand(ffi_mangled_ident(&full_type)),
-            conversion => unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
+            PathConversion::Generic(generic_conversion) =>
+                generic_conversion.expand(ffi_mangled_ident(&full_type)),
+            conversion =>
+                unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
         }
     }
 }

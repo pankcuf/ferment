@@ -8,6 +8,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, P
 use crate::generics::{map_ffi_expansion, vec_ffi_exp};
 use crate::interface::{MANGLE_INNER_PATH_PRESENTER, MAP_PATH_PRESENTER, MapPresenter, package_boxed_expression, ScopeTreePathPresenter, VEC_PATH_PRESENTER};
 use crate::helper::{ffi_struct_name, path_arguments_to_path_conversions, path_arguments_to_paths};
+use crate::presentation::DropInterfacePresentation;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
@@ -22,8 +23,10 @@ pub enum GenericPathConversion {
     Vec(Path),
 }
 
-pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(ferment_interfaces::unbox_vec_ptr(#p, self.count););
-pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p| quote!(ferment_interfaces::unbox_any_vec_ptr(#p, self.count););
+pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p|
+    quote!(ferment_interfaces::unbox_vec_ptr(#p, self.count););
+pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p|
+    quote!(ferment_interfaces::unbox_any_vec_ptr(#p, self.count););
 
 impl GenericPathConversion {
     pub fn expand(&self, ffi_name: Ident) -> TokenStream2 {
@@ -124,7 +127,16 @@ impl GenericPathConversion {
                     },
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                map_ffi_expansion(ffi_name.to_token_stream(), quote!(#path), key, value, from, to, quote!(#(#drop_code)*))
+                map_ffi_expansion(
+                    ffi_name.to_token_stream(),
+                    quote!(#path),
+                    key,
+                    value,
+                    from,
+                    to,
+                    DropInterfacePresentation::Full(
+                        ffi_name.to_token_stream(),
+                        quote!(#(#drop_code)*)))
             },
             GenericPathConversion::Vec(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
@@ -140,7 +152,12 @@ impl GenericPathConversion {
                         let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#t));
                         (
                             quote!(#t),
-                            quote!(*mut #value_path),
+                            match t.segments.last().unwrap().ident.to_string().as_str() {
+                                "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" => {
+                                    quote!(*mut #value_path)
+                                },
+                                _ => quote!(*mut #value_path)
+                            },
                             quote!({ let count = self.count; let values = self.values; (0..count).map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i))).collect() }),
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })),
                             vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
@@ -158,7 +175,13 @@ impl GenericPathConversion {
                     },
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                vec_ffi_exp(ffi_name.to_token_stream(), original, mangled_t, decode, encode, quote!(#(#drop_code)*))
+                vec_ffi_exp(
+                    ffi_name.to_token_stream(),
+                    original,
+                    mangled_t,
+                    decode,
+                    encode,
+                    DropInterfacePresentation::Full(ffi_name.to_token_stream(), quote!(#(#drop_code)*)))
             }
         }
     }
@@ -220,11 +243,10 @@ impl From<Path> for PathConversion {
 impl PathConversion {
 
     pub fn convert_to_ffi_path(path: &Path) -> Type {
-        println!("convert_to_ffi_path.1:: {} ....", quote!(#path));
         let mut cloned_segments = path.segments.clone();
         let last_segment = cloned_segments.iter_mut().last().unwrap();
         let last_ident = &last_segment.ident;
-        let result = match last_ident.to_string().as_str() {
+        match last_ident.to_string().as_str() {
             // simple primitive type
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
             | "isize" | "usize" | "bool" => parse_quote!(#last_ident),
@@ -251,10 +273,7 @@ impl PathConversion {
                     .collect::<Vec<_>>();
                 parse_quote!(#(#new_segments)::*)
             }
-        };
-        // println!("PathConversion::convert_to_ffi_path: {}", path.to_token_stream());
-        println!("convert_to_ffi_path.2:: {} --> {}", quote!(#path), quote!(#result));
-        result
+        }
     }
 
     pub fn as_ffi_path(&self) -> Type {
@@ -275,10 +294,6 @@ impl PathConversion {
             PathConversion::Generic(GenericPathConversion::Map(path)) |
             PathConversion::Generic(GenericPathConversion::Vec(path)) => path,
         }
-    }
-    #[allow(unused)]
-    pub fn to_mangled_inner_generic_ident_string(&self) -> String {
-        Self::mangled_inner_generic_ident_string(self.as_path())
     }
 
     pub fn mangled_inner_generic_ident_string(path: &Path) -> String {
@@ -318,8 +333,7 @@ impl PathConversion {
     }
 
     pub fn into_mangled_generic_ident(self) -> Ident {
-        format_ident!("{}", Self::mangled_inner_generic_ident_string(self.as_path())
-        )
+        format_ident!("{}", Self::mangled_inner_generic_ident_string(self.as_path()))
     }
 
     #[allow(unused)]
@@ -368,9 +382,12 @@ impl PathConversion {
     pub fn mangled_vec_arguments(&self, tree: &HashMap<TypeConversion, Type>) -> TokenStream2 {
         match self {
             PathConversion::Primitive(path) |
-            PathConversion::Complex(path) => quote!(#path),
-            PathConversion::Generic(GenericPathConversion::Map(..)) => self.mangled_ident(MAP_PATH_PRESENTER, tree).to_token_stream(),
-            PathConversion::Generic(GenericPathConversion::Vec(..)) => self.mangled_ident(VEC_PATH_PRESENTER, tree).to_token_stream(),
+            PathConversion::Complex(path) =>
+                quote!(#path),
+            PathConversion::Generic(GenericPathConversion::Map(..)) =>
+                self.mangled_ident(MAP_PATH_PRESENTER, tree).to_token_stream(),
+            PathConversion::Generic(GenericPathConversion::Vec(..)) =>
+                self.mangled_ident(VEC_PATH_PRESENTER, tree).to_token_stream(),
         }
     }
 }

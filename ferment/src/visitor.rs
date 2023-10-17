@@ -63,10 +63,12 @@ impl std::fmt::Display for Visitor {
 impl<'ast> Visit<'ast> for Visitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
+        //println!("visit_item_enum: {}: {:?}", node.ident.to_token_stream(), node.attrs);
         self.add_conversion(Item::Enum(node.clone()));
     }
 
     fn visit_item_fn(&mut self, node: &'ast ItemFn) {
+        //println!("visit_item_fn: {}: {:?}", node.sig.ident.to_token_stream(), node.attrs);
         self.add_conversion(Item::Fn(node.clone()));
     }
 
@@ -82,10 +84,12 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_struct(&mut self, node: &'ast ItemStruct) {
+        //println!("visit_item_struct: {}: {:?}", node.ident.to_token_stream(), node.attrs);
         self.add_conversion(Item::Struct(node.clone()));
     }
 
     fn visit_item_type(&mut self, node: &'ast ItemType) {
+        //println!("visit_item_type: {}: {:?}", node.ident.to_token_stream(), node.attrs);
         self.add_conversion(Item::Type(node.clone()));
     }
 
@@ -243,11 +247,14 @@ impl Visitor {
         let scope = self.current_scope_for(&item);
         match ItemConversion::try_from((&item, &scope)) {
             Ok(conversion) => {
-                let full_qualified = conversion.add_full_qualified_conversion(self);
-                let used_types_at_scopes = self.used_types_at_scopes.clone();
-                let used_imports_at_scopes = self.used_imports_at_scopes.clone();
-                self.get_tree_export_item(&scope)
-                    .add_item(full_qualified, &used_types_at_scopes, &used_imports_at_scopes);
+                if conversion.has_macro_attribute() {
+                    // println!("handle_attributes_with_handler: {}", path.to_token_stream());
+                    let full_qualified = conversion.add_full_qualified_conversion(self);
+                    let used_types_at_scopes = self.used_types_at_scopes.clone();
+                    let used_imports_at_scopes = self.used_imports_at_scopes.clone();
+                    self.get_tree_export_item(&scope)
+                        .add_item(full_qualified, &used_types_at_scopes, &used_imports_at_scopes);
+                }
             },
             _ => {}
         }

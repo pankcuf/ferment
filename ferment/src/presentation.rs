@@ -81,6 +81,7 @@ pub enum ConversionInterfacePresentation {
 
 
 pub enum DropInterfacePresentation {
+    Empty,
     Full(TokenStream2, TokenStream2)
 }
 
@@ -186,6 +187,7 @@ impl Presentable for ConversionInterfacePresentation {
 impl Presentable for DropInterfacePresentation {
     fn present(self) -> TokenStream2 {
         match self {
+            Self::Empty => quote!(),
             Self::Full(name, code) =>
                 quote!(impl Drop for #name { fn drop(&mut self) { unsafe { #code } } })
         }
