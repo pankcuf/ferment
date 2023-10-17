@@ -9,7 +9,7 @@ ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
 
 [build-dependencies]
-cbindgen = "0.24.3"
+cbindgen = "0.26.0"
 ferment = { path = "../ferment" }
 
 

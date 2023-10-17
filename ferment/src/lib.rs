@@ -14,6 +14,7 @@ mod type_conversion;
 mod visitor;
 #[cfg(test)]
 mod test;
+mod trait_conversion;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;
