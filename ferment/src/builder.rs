@@ -17,17 +17,18 @@ pub struct Builder {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub mod_name: String,
+    pub crate_names: Vec<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { mod_name: String::from("fermented") }
+        Self { mod_name: String::from("fermented"), crate_names: vec![] }
     }
 }
 
 impl Config {
     pub fn new(mod_name: &'static str) -> Self {
-        Self { mod_name: String::from(mod_name) }
+        Self { mod_name: String::from(mod_name), crate_names: vec![] }
     }
 }
 
@@ -42,6 +43,13 @@ impl Builder {
         self.config.mod_name = String::from(mod_name.as_ref());
         self
     }
+
+    #[allow(unused)]
+    pub fn with_crates(mut self, crates: Vec<String>) -> Builder {
+        self.config.crate_names = crates;
+        self
+    }
+
 
     /// Reads rust file and its nested dependencies
     /// Creates syntax tree which we'll use later
@@ -92,15 +100,18 @@ impl Builder {
                 let root_scope = Scope::new(parse_quote!(crate));
                 let mut root_visitor = process_recursive(file_path, root_scope);
                 merge_visitor_trees(&mut root_visitor);
-                ScopeTreeCompact::init_with(root_visitor.tree, Scope::crate_root())
+                ScopeTreeCompact::init_with(
+                    root_visitor.tree,
+                    Scope::crate_root())
                     .map_or(
                         Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree|
-                            output.write_all(Expansion::from(tree)
-                                .present()
-                                .to_string()
-                                .as_bytes())
-                                .map_err(error::Error::from))
+                            output.write_all(
+                                Expansion::from(tree)
+                                    .present()
+                                    .to_string()
+                                    .as_bytes())
+                                    .map_err(error::Error::from))
             })
 
     }
