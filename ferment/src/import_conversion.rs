@@ -13,8 +13,10 @@ pub enum ImportType {
     External,
     // full or partial import
     ExternalChunk,
-    FfiType,
+    // external crate that uses `ferment`
+    FfiExternal,
     FfiGeneric,
+    FfiType,
     Inner,
     None,
 }
@@ -26,6 +28,7 @@ impl ImportType {
             ImportType::Original => parse_quote!(ImportType::Original),
             ImportType::External => parse_quote!(ImportType::External),
             ImportType::ExternalChunk => parse_quote!(ImportType::ExternalChunk),
+            ImportType::FfiExternal => parse_quote!(ImportType::FfiExternal),
             ImportType::FfiType => parse_quote!(ImportType::FfiType),
             ImportType::FfiGeneric => parse_quote!(ImportType::FfiGeneric),
             ImportType::Inner => parse_quote!(ImportType::Inner),
@@ -106,8 +109,9 @@ impl Hash for ImportConversion {
 
 impl ImportConversion {
     pub fn present(&self, import_type: &ImportType) -> Scope {
+        println!("ImportConversion::present: {}: {}", self.scope, import_type.as_path().to_token_stream());
         match import_type {
-            ImportType::External | ImportType::Original | ImportType::FfiType =>
+            ImportType::External | ImportType::Original | ImportType::FfiType | ImportType::FfiExternal =>
                 self.scope.clone(),
             ImportType::ExternalChunk =>
                 self.scope.popped(),

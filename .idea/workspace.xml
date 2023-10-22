@@ -8,11 +8,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ferment/src/trait_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-example/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/interface.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/Cargo.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,29 +39,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/vladimirpirogov/Documents/work/dash/ferment&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "git-widget-placeholder": "feat/builder-with-crates",
+    "last_opened_file_path": "/Users/vladimirpirogov/Documents/work/dash/ferment",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "preferences.lookFeel",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
       <recent name="$PROJECT_DIR$/rs-ffi-analyzer/src" />
       <recent name="$PROJECT_DIR$/example/src" />
       <recent name="$PROJECT_DIR$/example" />
@@ -74,11 +71,28 @@
       <recent name="$PROJECT_DIR$/example/src" />
     </key>
   </component>
-  <component name="RunManager" selected="Cargo.ferment-example">
+  <component name="RunManager" selected="Cargo.ferment-example-nested">
     <configuration name="Test test::composing::decompose_module" type="CargoCommandRunConfiguration" factoryName="Cargo Command" temporary="true">
       <option name="command" value="test --package ferment --lib test::composing::decompose_module -- --exact" />
       <option name="workingDirectory" value="file://$PROJECT_DIR$" />
       <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <envs />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="ferment-example-nested" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="build" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$/ferment-example-nested" />
+      <option name="emulateTerminal" value="false" />
       <option name="channel" value="DEFAULT" />
       <option name="requiredFeatures" value="true" />
       <option name="allFeatures" value="false" />
@@ -128,6 +142,7 @@
     </configuration>
     <list>
       <item itemvalue="Cargo.ferment-example" />
+      <item itemvalue="Cargo.ferment-example-nested" />
       <item itemvalue="Cargo.ferment" />
       <item itemvalue="Cargo.Test test::composing::decompose_module" />
     </list>

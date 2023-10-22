@@ -1,0 +1,18 @@
+[package]
+name = "ferment-example-nested"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+ferment-example = { path = "../ferment-example" }
+
+[build-dependencies]
+cbindgen = "0.26.0"
+ferment = { path = "../ferment" }
+
+
+[lib]
+name = "ferment_example_nested"

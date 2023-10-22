@@ -2,6 +2,7 @@
 members = [
     "ferment",
     "ferment-example",
+    "ferment-example-nested",
     "ferment-interfaces",
     "ferment-macro",
 ]

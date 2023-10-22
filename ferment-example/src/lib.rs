@@ -1,6 +1,6 @@
 mod chain;
 mod example;
-mod fermented;
+pub mod fermented;
 
 extern crate ferment_macro;
 

@@ -3,7 +3,7 @@ pub mod builder;
 mod error;
 mod generics;
 mod helper;
-mod import_conversion;
+pub mod import_conversion;
 mod interface;
 mod item_conversion;
 mod path_conversion;
@@ -15,6 +15,7 @@ mod visitor;
 #[cfg(test)]
 mod test;
 mod trait_conversion;
+mod context;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

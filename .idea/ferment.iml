@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="EMPTY_MODULE" version="4">
-  <component name="NewModuleRootManager">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/ferment-example/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ferment-interfaces/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ferment-macro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ferment/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/ferment-example-nested/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/ferment-example-nested/target" />
+      <excludeFolder url="file://$MODULE_DIR$/ferment-example/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

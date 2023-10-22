@@ -5,6 +5,7 @@ use syn::__private::TokenStream2;
 use syn::parse::ParseStream;
 use syn::parse_quote::ParseQuote;
 use syn::punctuated::Punctuated;
+use crate::context::Context;
 use crate::helper::{ffi_mangled_ident, ffi_struct_name, path_arguments_to_types};
 
 pub const EMPTY: Scope = Scope { path: Path { leading_colon: None, segments: Punctuated::new() } };
@@ -140,6 +141,79 @@ impl Scope {
         }
     }
 
+    pub fn ffi_external_type_converted_or_same(ty: &Type, context: &Context) -> Type {
+        Self::ffi_external_type_converted(ty, context)
+            .unwrap_or(ty.clone())
+    }
+
+    pub fn ffi_external_type_converted(ty: &Type, context: &Context) -> Option<Type> {
+        match ty {
+            Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+                let first_segment = segments.first().unwrap();
+                let first_ident = &first_segment.ident;
+
+                let last_segment = segments.iter().last().unwrap();
+                let last_ident = &last_segment.ident;
+
+                match last_ident.to_string().as_str() {
+                    "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+                    | "isize" | "usize" | "bool" => None,
+                    "UInt128" => Some(parse_quote!([u8; 16])),
+                    "UInt160" => Some(parse_quote!([u8; 20])),
+                    "UInt256" => Some(parse_quote!([u8; 32])),
+                    "UInt384" => Some(parse_quote!([u8; 48])),
+                    "UInt512" => Some(parse_quote!([u8; 64])),
+                    "UInt768" => Some(parse_quote!([u8; 96])),
+                    "VarInt" => None,
+                    "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
+                    "Vec" | "BTreeMap" | "HashMap" => {
+                        let ffi_name = ffi_mangled_ident(ty);
+                        Some(parse_quote!(crate::fermented::generics::#ffi_name))
+                    },
+                    "Option" => path_arguments_to_types(&last_segment.arguments)
+                        .first()
+                        .cloned()
+                        .and_then(|ty| Self::ffi_external_type_converted(ty, context)),
+                    _ => {
+                        let new_ident = ffi_struct_name(last_ident);
+
+                        match first_ident.to_string().as_str() {
+                            "crate" => {
+                                let segments: Vec<_> = segments.iter().skip(1).take(segments.len() - 2).collect();
+                                let middle = if segments.is_empty() {
+                                    quote!(#new_ident)
+                                } else {
+                                    quote!(#(#segments)::*::#new_ident)
+                                };
+                                Some(parse_quote!(crate::fermented::types::#middle))
+                            },
+                            _ if context.contains_fermented_crate(first_ident) => {
+                                let segments: Vec<_> = segments.iter().skip(1).take(segments.len() - 2).collect();
+                                let middle = if segments.is_empty() {
+                                    quote!(#new_ident)
+                                } else {
+                                    quote!(#(#segments)::*::#new_ident)
+                                };
+                                Some(parse_quote!(#first_ident::fermented::types::#middle))
+                            },
+                            _ => {
+                                let segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
+                                let middle = if segments.is_empty() {
+                                    quote!(#new_ident)
+                                } else {
+                                    quote!(#(#segments)::*::#new_ident)
+                                };
+                                Some(parse_quote!(#middle))
+                            }
+                        }
+                    }
+
+                }
+            },
+            _ => None
+        }
+    }
+
     pub fn is_crate(&self) -> bool {
         self.path.segments.last().unwrap().ident == format_ident!("crate")
     }
@@ -148,6 +222,9 @@ impl Scope {
         self.path.segments.first().unwrap().ident == format_ident!("crate")
     }
 
+    pub fn root_ident(&self) -> Ident {
+        self.path.segments.first().unwrap().ident.clone()
+    }
     pub fn head(&self) -> Ident {
         self.path.segments.last().unwrap().ident.clone()
     }

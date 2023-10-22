@@ -14,6 +14,7 @@ impl ChainType {
     }
 }
 
+#[allow(unused)]
 pub enum ExcludedEnum {
     Variant1,
     Variant2,
