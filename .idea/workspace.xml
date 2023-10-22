@@ -8,11 +8,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/ferment/src/trait_conversion.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ferment-example/src/traits/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/ferment-example/src/traits/settings.rs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-example/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/interface.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/interface.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/build.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/build.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/example/address.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/example/address.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/fermented.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/fermented.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-example/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/lib.rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -153,7 +156,7 @@
       <workItem from="1695821992857" duration="453201000" />
       <workItem from="1697361795694" duration="156000" />
       <workItem from="1697361967054" duration="11820000" />
-      <workItem from="1697409199868" duration="30676000" />
+      <workItem from="1697409199868" duration="46126000" />
     </task>
     <servers />
   </component>
