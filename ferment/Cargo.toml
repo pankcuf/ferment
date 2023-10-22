@@ -3,6 +3,7 @@ name = "ferment"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "Syntax tree morphing of FFI-compatible stuff"
 
 [dependencies]
 syn = { version = "1.0.109", features = ["full", "visit"] }

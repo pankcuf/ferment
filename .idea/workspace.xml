@@ -8,9 +8,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-interfaces/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-interfaces/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-macro/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-macro/Cargo.toml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ferment/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/Cargo.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
