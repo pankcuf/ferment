@@ -3,6 +3,7 @@ name = "ferment-interfaces"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "Traits for FFI conversions and some helper methods"
 
 [lib]
 name = "ferment_interfaces"
