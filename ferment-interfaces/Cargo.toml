@@ -4,8 +4,5 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 
-[dependencies]
-ferment-macro = { path = "../ferment-macro" }
-
 [lib]
 name = "ferment_interfaces"
