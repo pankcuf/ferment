@@ -7,6 +7,7 @@ The project is a rust-workspace consisting several crates:
 1. `ferment-interfaces`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
 2. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
 3. `ferment-example`: provides basic example.
+3. `ferment-example-nested`: provides example with dependent fermented crate.
 4. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
 
 A procedural macro consists of 1 macros:
@@ -39,14 +40,15 @@ fn main() {
 
         match ferment::Builder::new()
             .with_mod_name("fermented")
+            .with_crates(vec![])
             .generate() {
             Ok(()) => match Command::new("cbindgen")
                 .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
                 .status() {
-                Ok(status) => println!("Bindings generated into target/example.h with status: {status}"),
-                Err(err) => panic!("Can't generate bindings: {err}")
+                Ok(status) => println!("Bindings generated into target/example.h with status: {}", status),
+                Err(err) => panic!("Can't generate bindings: {}", err)
             }
-            Err(err) => panic!("Can't create FFI expansion: {err}")
+            Err(err) => panic!("Can't create FFI expansion: {}", err)
         }
     }
 }
@@ -251,4 +253,6 @@ pub mod generics {
 ```
 
 
-**TODO:**
+**[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
+
+**[CHANGELOG](https://github.com/pankcuf/ferment/blob/master/CHANGELOG.md)**
