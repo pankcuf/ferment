@@ -8,29 +8,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ecc24323-e45b-4800-a8a9-387eedfbd6b1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/TODO.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/Cargo.toml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/build.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/cbindgen.toml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/src/fermented.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/src/lib.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/src/model/mod.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment-example-nested/src/model/snapshot.rs" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/ferment/src/context.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/ferment.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/ferment.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/chain/common/chain_type.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-example/src/fermented.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/fermented.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment-example/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-example/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/builder.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/builder.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/import_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/import_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/lib.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/scope.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/scope.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/scope_conversion.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/test/composing.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/test/composing.rs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ferment/src/visitor.rs" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/src/visitor.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-interfaces/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-interfaces/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment-macro/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment-macro/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ferment/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/ferment/Cargo.toml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
