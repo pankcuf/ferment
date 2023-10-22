@@ -10,6 +10,4 @@ proc-macro = true
 
 [dependencies]
 syn = { version = "1.0.109", features = ["full", "visit-mut"] }
-#syn = "2.0.18"
 quote = "1.0.28"
-ferment = { path = "../ferment" }
