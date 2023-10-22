@@ -4,7 +4,6 @@ extern crate ferment;
 use std::process::Command;
 
 fn main() {
-
    match ferment::Builder::new()
        .with_mod_name("fermented")
        .with_crates(vec!["ferment_example".to_string()])
