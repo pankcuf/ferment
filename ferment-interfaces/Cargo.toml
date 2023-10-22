@@ -1,10 +1,9 @@
 [package]
 name = "ferment-interfaces"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-
-[dependencies]
-ferment-macro = { path = "../ferment-macro" }
+license = "MIT"
+description = "Traits for FFI conversions and some helper methods"
 
 [lib]
 name = "ferment_interfaces"

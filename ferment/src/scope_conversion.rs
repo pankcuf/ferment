@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::{Ident, Item, ItemMod,parse_quote, Path,Type};
 use syn::__private::TokenStream2;
+use crate::context::Context;
 use crate::generics::{GenericConversion, TypePathComposition};
 use crate::helper::ffi_struct_name;
 use crate::import_conversion::{ImportConversion, ImportType};
@@ -15,8 +16,8 @@ use crate::type_conversion::TypeConversion;
 
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
-    Item(Item),
-    Tree(HashSet<GenericConversion>, HashMap<ImportType, HashSet<ImportConversion>>, HashMap<Ident, ScopeTreeExportItem>, HashMap<TypeConversion, Type>),
+    Item(Context, Item),
+    Tree(Context, HashSet<GenericConversion>, HashMap<ImportType, HashSet<ImportConversion>>, HashMap<Ident, ScopeTreeExportItem>, HashMap<TypeConversion, Type>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -25,8 +26,9 @@ impl std::fmt::Debug for ScopeTreeExportItem {
             ScopeTreeExportItem::Item(..) => {
                 f.write_str("ScopeTreeExportItem::Item")
             }
-            ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => {
+            ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => {
                 f.debug_struct("ScopeTreeExportItem::Tree")
+                    .field("context", context)
                     .field("generics", generics)
                     .field("imported", &{
                         let debug_imports = imported.iter().map(|(i, p)| {
@@ -58,16 +60,17 @@ impl std::fmt::Display for ScopeTreeExportItem {
 
 impl ScopeTreeExportItem {
     pub fn single_export(ident: Ident, item: ScopeTreeExportItem) -> ScopeTreeExportItem {
-        Self::Tree(HashSet::new(), HashMap::from([]), HashMap::from([(ident, item)]), HashMap::from([]))
+        Self::Tree(Context::default(), HashSet::new(), HashMap::from([]), HashMap::from([(ident, item)]), HashMap::from([]))
     }
-    pub fn just_export(export: HashMap<Ident, ScopeTreeExportItem>) -> ScopeTreeExportItem {
-        Self::Tree(HashSet::new(), HashMap::from([]), export, HashMap::from([]))
+
+    pub fn just_export_with_context(export: HashMap<Ident, ScopeTreeExportItem>, context: Context) -> ScopeTreeExportItem {
+        Self::Tree(context, HashSet::new(), HashMap::from([]), export, HashMap::from([]))
     }
 
     fn add_non_mod_item(&mut self, item: &ItemConversion, scope_type_dictionary: Option<&HashMap<TypeConversion, Type>>, scope_imports: Option<&HashMap<Ident, Path>>) {
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
-            ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => {
+            ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => {
                 if let Some(used_types) = scope_type_dictionary {
                     scope_types.extend(used_types.clone());
                 }
@@ -75,10 +78,15 @@ impl ScopeTreeExportItem {
                     .iter()
                     .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
                     .map(GenericConversion::from));
-                if let Some(used_imports) = scope_imports {
-                    imported.extend(item.get_used_imports(used_imports))
+                if let Some(scope_imports) = scope_imports {
+                    item.get_used_imports(scope_imports)
+                        .iter()
+                        .for_each(|(import_type, imports)|
+                            imported.entry(import_type.clone())
+                                .or_insert_with(HashSet::new)
+                                .extend(imports.clone()));
                 }
-                exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(item.into()));
+                exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(context.clone(), item.into()));
             }
         }
     }
@@ -89,7 +97,7 @@ impl ScopeTreeExportItem {
             Some((_, items)) => {
                 let ident = item_mod.ident.clone();
                 let inner_scope = scope.joined(&ident);
-                let mut inner_tree = ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), HashMap::new());
+                let mut inner_tree = ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::new());
                 items.iter().for_each(|item| {
                     match ItemConversion::try_from((item, &inner_scope)) {
                         Ok(ItemConversion::Mod(item_mod, scope)) =>
@@ -100,8 +108,8 @@ impl ScopeTreeExportItem {
                     };
                 });
                 match self {
-                    ScopeTreeExportItem::Item(_) => {},
-                    ScopeTreeExportItem::Tree(_, _, exported, _) => {
+                    ScopeTreeExportItem::Item(_, _) => {},
+                    ScopeTreeExportItem::Tree(_, _, _, exported, _) => {
                         exported.insert(ident.clone(), inner_tree);
                     }
                 };
@@ -129,6 +137,7 @@ impl ScopeTreeExportItem {
 
 
 pub struct ScopeTreeCompact {
+    pub(crate) context: Context,
     pub(crate) scope: Scope,
     pub(crate) generics: HashSet<GenericConversion>,
     pub(crate) imported: HashMap<ImportType, HashSet<ImportConversion>>,
@@ -146,11 +155,12 @@ impl Into<ScopeTreeItem> for ScopeTreeCompact {
     }
 }
 impl ScopeTreeCompact {
-    pub fn init_with(item: ScopeTreeExportItem, scope: Scope) -> Option<Self> {
+    pub fn init_with(item: ScopeTreeExportItem, scope: Scope, context: Context) -> Option<Self> {
         match item {
-            ScopeTreeExportItem::Item(_) => None,
-            ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => {
+            ScopeTreeExportItem::Item(_, _) => None,
+            ScopeTreeExportItem::Tree(_, generics, imported, exported, scope_types) => {
                 Some(ScopeTreeCompact {
+                    context,
                     scope,
                     generics,
                     imported,
@@ -211,7 +221,7 @@ pub struct ScopeTree {
 
 impl Into<ScopeTree> for ScopeTreeCompact {
     fn into(self) -> ScopeTree {
-        let ScopeTreeCompact { scope, generics, imported, exported, scope_types } = self;
+        let ScopeTreeCompact { context, scope, generics, imported, exported, scope_types } = self;
         let mut new_imported = imported.clone();
         let generics = HashSet::from_iter(generics.into_iter());
         if let Some(used_originals) = imported.get(&ImportType::Original) {
@@ -230,6 +240,25 @@ impl Into<ScopeTree> for ScopeTreeCompact {
                     }
                 }));
         }
+        // external fermented crates
+        if let Some(used_external_fermented) = imported.get(&ImportType::External) {
+            new_imported.entry(ImportType::FfiExternal)
+                .or_insert_with(HashSet::new)
+                .extend(used_external_fermented.iter().filter_map(|ImportConversion { ident, scope}| {
+                    println!("check external fermented crates: {}", ident.to_token_stream());
+                    match ident.to_string().as_str() {
+                        "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
+                        _ if context.contains_fermented_crate(&scope.root_ident()) => {
+                            let ty = Scope::ffi_external_type_converted_or_same(&parse_quote!(#scope), &context);
+                            Some(ImportConversion {
+                                ident: ffi_struct_name(&ident),
+                                scope: parse_quote!(#ty)
+                            })
+                        },
+                        _ => None
+                    }
+                }));
+        }
         new_imported.entry(ImportType::Original)
             .or_insert_with(HashSet::new)
             .extend(exported.iter().filter_map(|(ident, tree_item_raw)| match tree_item_raw {
@@ -244,8 +273,9 @@ impl Into<ScopeTree> for ScopeTreeCompact {
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| (ident.clone(), {
             let scope = scope.joined(&ident);
             match tree_item_raw {
-                ScopeTreeExportItem::Item(item) => ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone() },
-                ScopeTreeExportItem::Tree(generics, imported, exported, scope_types) => ScopeTreeCompact {
+                ScopeTreeExportItem::Item(_, item) => ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone() },
+                ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => ScopeTreeCompact {
+                    context,
                     scope,
                     generics,
                     imported,

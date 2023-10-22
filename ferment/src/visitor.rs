@@ -4,6 +4,8 @@ use quote::{quote, ToTokens};
 use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, Type, TypePath, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
+use crate::Config;
+use crate::context::Context;
 use crate::item_conversion::ItemConversion;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::scope_conversion::ScopeTreeExportItem;
@@ -12,6 +14,7 @@ use crate::type_conversion::TypeConversion;
 
 pub struct Visitor {
     /// syn::Path to the file
+    pub(crate) context: Context,
     pub(crate) parent: Scope,
     pub(crate) current_scope_stack: Vec<Ident>,
     pub(crate) current_module_scope: Scope,
@@ -27,6 +30,7 @@ pub struct Visitor {
 impl std::fmt::Debug for Visitor {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Visitor")
+            .field("context", &self.context)
             .field("parent", &self.parent.to_token_stream().to_string())
             .field("used_types_at_scopes", {
                 let vec = vec![];
@@ -102,15 +106,16 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub(crate) fn new(scope: Scope) -> Self {
+    pub(crate) fn new(scope: Scope, config: &Config) -> Self {
         Self {
+            context: Context::new(config.crate_names.clone()),
             parent: scope.clone(),
             current_scope_stack: vec![],
             current_module_scope: scope.clone(),
             used_types_at_scopes: HashMap::new(),
             used_imports_at_scopes: HashMap::new(),
             inner_visitors: vec![],
-            tree: ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default())
+            tree: ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default())
         }
     }
 
@@ -226,15 +231,16 @@ impl Visitor {
         }
     }
 
-    pub fn get_tree_export_item(&mut self, scope: &Scope) -> &mut ScopeTreeExportItem {
+    pub fn get_tree_export_item(&mut self, scope: &Scope, context: Context) -> &mut ScopeTreeExportItem {
         let path_to_traverse: Vec<Ident> = scope.path.segments.iter().skip(1).map(|segment| segment.ident.clone()).collect();
         let mut current_tree = &mut self.tree;
         for ident in &path_to_traverse {
             match current_tree {
                 ScopeTreeExportItem::Item(..) => panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(_, _, exported, _) => {
+                ScopeTreeExportItem::Tree(inner_context, _, _, exported, _) => {
+                    inner_context.merge(&context);
                     if !exported.contains_key(ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::just_export(HashMap::new()));
+                        exported.insert(ident.clone(), ScopeTreeExportItem::just_export_with_context(HashMap::new(), context.clone()));
                     }
                     current_tree = exported.get_mut(ident).unwrap();
                 }
@@ -252,7 +258,7 @@ impl Visitor {
                     let full_qualified = conversion.add_full_qualified_conversion(self);
                     let used_types_at_scopes = self.used_types_at_scopes.clone();
                     let used_imports_at_scopes = self.used_imports_at_scopes.clone();
-                    self.get_tree_export_item(&scope)
+                    self.get_tree_export_item(&scope, self.context.clone())
                         .add_item(full_qualified, &used_types_at_scopes, &used_imports_at_scopes);
                 }
             },
@@ -276,8 +282,8 @@ pub fn merge_visitor_trees(visitor: &mut Visitor) {
 
 fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
     match (destination, source) {
-        (ScopeTreeExportItem::Tree(_, _, dest_exports, _),
-            ScopeTreeExportItem::Tree(_, _, source_exports, _), ) => {
+        (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _),
+            ScopeTreeExportItem::Tree(_, _, _, source_exports, _), ) => {
             for (name, source_tree) in source_exports.iter() {
                 match dest_exports.entry(name.clone()) {
                     std::collections::hash_map::Entry::Occupied(mut o) =>

@@ -1,14 +1,13 @@
 [package]
 name = "ferment-macro"
-version = "0.1.0"
+version = "0.1.1"
 description = "Macros for boilerplate"
 edition = "2021"
+license = "MIT"
 
 [lib]
 proc-macro = true
 
 [dependencies]
 syn = { version = "1.0.109", features = ["full", "visit-mut"] }
-#syn = "2.0.18"
 quote = "1.0.28"
-ferment = { path = "../ferment" }

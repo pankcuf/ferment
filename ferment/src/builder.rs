@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use quote::{format_ident, quote};
 use syn::{visit::Visit, ItemMod, parse_quote};
+use crate::context::Context;
 use crate::error;
 use crate::interface::Presentable;
 use crate::presentation::Expansion;
@@ -98,11 +99,12 @@ impl Builder {
                 let input = input_path.as_path();
                 let file_path = std::path::Path::new(input);
                 let root_scope = Scope::new(parse_quote!(crate));
-                let mut root_visitor = process_recursive(file_path, root_scope);
+                let mut root_visitor = process_recursive(file_path, root_scope, &self.config);
                 merge_visitor_trees(&mut root_visitor);
                 ScopeTreeCompact::init_with(
                     root_visitor.tree,
-                    Scope::crate_root())
+                    Scope::crate_root(),
+                    Context::new(self.config.crate_names))
                     .map_or(
                         Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree|
@@ -124,16 +126,16 @@ fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
         .expect("Failed to parse file")
 }
 
-fn process_recursive(file_path: &std::path::Path, scope: Scope) -> Visitor {
+fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config) -> Visitor {
     let syntax_tree = read_syntax_tree(file_path);
-    let mut visitor = Visitor::new(scope.clone());
+    let mut visitor = Visitor::new(scope.clone(), config);
     visitor.visit_file(&syntax_tree);
     let items = syntax_tree.items;
     let mut visitors = vec![];
     for item in items {
         if let syn::Item::Mod(module) = item {
-            if module.ident != format_ident!("fermented") {
-                if let Some(visitor) = process_module(file_path, &module, scope.clone()) {
+            if module.ident != format_ident!("{}", config.mod_name) {
+                if let Some(visitor) = process_module(file_path, &module, scope.clone(), config) {
                     visitors.push(visitor);
                 }
             }
@@ -143,21 +145,21 @@ fn process_recursive(file_path: &std::path::Path, scope: Scope) -> Visitor {
     visitor
 }
 
-fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: Scope) -> Option<Visitor> {
+fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: Scope, config: &Config) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
         let file_path = base_path.parent().unwrap().join(&mod_name.to_string());
         let scope = file_scope.joined(mod_name);
         if file_path.is_file() {
-            return Some(process_recursive(&file_path, scope));
+            return Some(process_recursive(&file_path, scope, config));
         } else {
             let mod_dir_path = file_path.join("mod.rs");
             if mod_dir_path.is_file() {
-                return Some(process_recursive(&mod_dir_path, scope));
+                return Some(process_recursive(&mod_dir_path, scope, config));
             } else {
                 let file_path = file_path.parent().unwrap().join(format!("{}.rs", quote!(#mod_name)));
                 if file_path.is_file() {
-                    return Some(process_recursive(&file_path, scope));
+                    return Some(process_recursive(&file_path, scope, config));
                 }
             }
         }
