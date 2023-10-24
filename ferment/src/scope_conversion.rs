@@ -270,20 +270,20 @@ impl Into<ScopeTree> for ScopeTreeCompact {
             .extend(generics.iter()
             .map(ImportConversion::from));
 
-        let exported = exported.into_iter().map(|(ident, tree_item_raw)| (ident.clone(), {
+        let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
             let scope = scope.joined(&ident);
-            match tree_item_raw {
-                ScopeTreeExportItem::Item(_, item) => ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone() },
-                ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => ScopeTreeCompact {
-                    context,
-                    scope,
-                    generics,
-                    imported,
-                    exported,
-                    scope_types
-                }.into(),
-            }
-        })).collect();
+            (ident, match tree_item_raw {
+                    ScopeTreeExportItem::Item(_, item) => ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone() },
+                    ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => ScopeTreeCompact {
+                        context,
+                        scope,
+                        generics,
+                        imported,
+                        exported,
+                        scope_types
+                    }.into(),
+                })
+        }).collect();
         ScopeTree {
             scope,
             imported: new_imported,
