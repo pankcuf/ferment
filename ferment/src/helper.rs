@@ -418,6 +418,10 @@ pub fn ffi_trait_obj_name(trait_name: &Ident) -> Ident {
     format_ident!("{}_TraitObject", trait_name)
 }
 
+pub fn ffi_destructor_name(item_name: &Ident) -> Ident {
+    format_ident!("{}_ffi_destroy", item_name)
+}
+
 pub fn ffi_mangled_ident(ty: &Type) -> Ident {
     let ident = mangle_type(ty);
     ffi_struct_name(&ident)

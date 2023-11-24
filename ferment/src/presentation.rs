@@ -23,6 +23,7 @@ pub enum Expansion {
         ffi_presentation: FFIObjectPresentation,
         conversion: ConversionInterfacePresentation,
         drop: DropInterfacePresentation,
+        destructor: ConversionInterfacePresentation,
         traits: Vec<TraitVTablePresentation>,
     },
     Root {
@@ -91,6 +92,10 @@ pub enum ConversionInterfacePresentation {
         from_presentation: TokenStream2,
         to_presentation: TokenStream2,
         destroy_presentation: TokenStream2
+    },
+    Destructor {
+        ffi_name: TokenStream2,
+        destructor_ident: TokenStream2
     }
 }
 
@@ -114,8 +119,8 @@ impl Presentable for Expansion {
                 vec![comment.present(), ffi_presentation.present()],
             Self::Function { input: _, comment, ffi_presentation } =>
                 vec![comment.present(), ffi_presentation.present()],
-            Self::Full { input: _, comment, ffi_presentation, conversion, drop, traits} => {
-                let mut full = vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present()];
+            Self::Full { input: _, comment, ffi_presentation, conversion, drop, destructor, traits} => {
+                let mut full = vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present(), destructor.present()];
                 full.extend(traits.into_iter().map(|trait_presentation| trait_presentation.present()));
                 full
             },
@@ -213,6 +218,16 @@ impl Presentable for ConversionInterfacePresentation {
                         //     #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
                         // }
                         unsafe fn destroy(#ffi: *mut #ffi_name) { #destroy_presentation; }
+                    }
+
+                }
+            },
+            Self::Destructor { ffi_name, destructor_ident } => {
+                quote! {
+                    #[allow(non_snake_case)]
+                    #[no_mangle]
+                    unsafe fn #destructor_ident(ffi: *mut #ffi_name) {
+                        ferment_interfaces::unbox_any(ffi);
                     }
                 }
             }
