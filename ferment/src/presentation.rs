@@ -73,11 +73,6 @@ pub enum FFIObjectPresentation {
         output_conversions: TokenStream2,
 
     },
-    // TraitVTableField {
-    //     name: TokenStream2,
-    //     arguments: Vec<TokenStream2>,
-    //     output_expression: TokenStream2,
-    // },
     TraitVTable {
         name: TokenStream2,
         fields: Vec<TokenStream2>
@@ -180,10 +175,6 @@ impl Presentable for FFIObjectPresentation {
                 }
             },
             Self::Full(presentation) => presentation,
-            // Self::TraitVTableField { name, arguments, output_expression } => {
-            //     let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments));
-            //     quote!(pub #name: #name_and_args -> #output_expression)
-            // }
             Self::TraitVTable { name, fields } =>
                 NAMED_STRUCT_PRESENTER((name, fields)),
             Self::TraitObject { name, vtable_name } =>
