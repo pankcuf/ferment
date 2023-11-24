@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::generics::{add_generic_type, TypePathComposition};
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_TYPE_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, MATCH_FIELDS_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, obj, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_PAIR_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
-use crate::helper::{ffi_struct_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
+use crate::helper::{ffi_destructor_name, ffi_struct_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::ItemComposer;
 use crate::visitor::Visitor;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
@@ -697,8 +697,12 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
         quote!(#ffi_name),
         ENUM_DESTROY_PRESENTER(drop_fields),
     );
+    let destructor = ConversionInterfacePresentation::Destructor {
+        ffi_name: quote!(#ffi_name),
+        destructor_ident: ffi_destructor_name(&ffi_name).to_token_stream()
+    };
     let traits = item_traits_expansions(target_name, _scope, &item_enum.attrs, &tree, traits);
-    Expansion::Full { input, comment, ffi_presentation, conversion, drop, traits }
+    Expansion::Full { input, comment, ffi_presentation, conversion, drop, destructor, traits }
 }
 
 fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scope: &Scope, trait_export_scope: &Scope, tree: &HashMap<TypeConversion, Type>) -> TraitVTablePresentation {
@@ -738,6 +742,7 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
         };
     };
     let binding_ident = format_ident!("{}_as_{}", item_name, trait_object_ident);
+    let destructor_binding_ident = ffi_destructor_name(&binding_ident);
     let export = quote! {
         #[no_mangle]
         #[allow(non_snake_case)]
@@ -748,8 +753,14 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
             }
         }
     };
-
-    TraitVTablePresentation::Full { vtable, export }
+    let destructor = quote! {
+        #[no_mangle]
+        #[allow(non_snake_case)]
+        pub unsafe extern "C" fn #destructor_binding_ident(obj: #fq_trait_object) {
+            ferment_interfaces::unbox_any(obj.object as *mut #item_name);
+        }
+    };
+    TraitVTablePresentation::Full { vtable, export, destructor }
 }
 
 fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attrs: &[Attribute], tree: &HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Vec<TraitVTablePresentation> {
@@ -853,7 +864,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
     };
     let composer_owned = composer.borrow();
 
-    composer_owned.make_expansion(quote!(#item_struct), traits)
+    composer_owned.make_expansion(quote!(#item_struct), ffi_destructor_name(&ffi_struct_name(target_name)).to_token_stream(), traits)
 }
 
 fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
@@ -1012,7 +1023,7 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
                         _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
                 }))
                 .borrow()
-                .make_expansion(quote!(#item_type), traits)
+                .make_expansion(quote!(#item_type), ffi_destructor_name(&ffi_name).to_token_stream(), traits)
         }
     }
 }

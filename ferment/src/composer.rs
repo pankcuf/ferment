@@ -445,17 +445,23 @@ impl ItemComposer {
     pub(crate) fn compose_drop(&self) -> TokenStream2 {
         self.ffi_conversions_composer.drop_composer.compose()
     }
-    pub(crate) fn make_expansion(&self, input: TokenStream2, traits: Vec<TraitVTablePresentation>) -> Expansion {
+    pub(crate) fn make_expansion(&self, input: TokenStream2, destructor_ident: TokenStream2, traits: Vec<TraitVTablePresentation>) -> Expansion {
+        let ffi_name = self.ffi_name_composer.compose();
+        let target_name = self.target_name_composer.compose();
         Expansion::Full {
             input,
             comment: DocPresentation::Default(self.doc_composer.compose()),
             ffi_presentation: FFIObjectPresentation::Full(self.ffi_object_composer.compose()),
             conversion: ConversionInterfacePresentation::Interface {
-                ffi_name: self.ffi_name_composer.compose(),
-                target_name: self.target_name_composer.compose(),
+                ffi_name: ffi_name.clone(),
+                target_name: target_name.clone(),
                 from_presentation: self.compose_from(),
                 to_presentation: self.compose_to(),
                 destroy_presentation: self.compose_destroy()
+            },
+            destructor: ConversionInterfacePresentation::Destructor {
+                ffi_name: ffi_name.clone(),
+                destructor_ident
             },
             drop: if self.need_drop_presentation {
                 DropInterfacePresentation::Full(self.ffi_name_composer.compose(), self.compose_drop())
