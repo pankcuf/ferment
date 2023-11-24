@@ -14,6 +14,11 @@ use crate::scope_conversion::ScopeTreeCompact;
 pub struct Builder {
     config: Config,
 }
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -151,7 +156,7 @@ fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config)
 fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: Scope, config: &Config) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
-        let file_path = base_path.parent().unwrap().join(&mod_name.to_string());
+        let file_path = base_path.parent().unwrap().join(mod_name.to_string());
         let scope = file_scope.joined(mod_name);
         if file_path.is_file() {
             return Some(process_recursive(&file_path, scope, config));

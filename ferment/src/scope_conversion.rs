@@ -15,6 +15,7 @@ use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 use crate::visitor::UsageInfo;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
     Item(Context, Item),
@@ -64,7 +65,7 @@ impl ScopeTreeExportItem {
                     .iter()
                     .filter_map(|TypePathComposition { 0: value, .. }| scope_types.get(&TypeConversion::from(value)))
                     .map(GenericConversion::from));
-                if let Some(scope_imports) = usage_info.used_imports_at_scopes.get(&scope) {
+                if let Some(scope_imports) = usage_info.used_imports_at_scopes.get(scope) {
                     item.get_used_imports(scope_imports)
                         .iter()
                         .for_each(|(import_type, imports)|
@@ -106,17 +107,14 @@ impl ScopeTreeExportItem {
 
     pub fn add_item(&mut self, item: ItemConversion, usage_info: &UsageInfo) {
         let scope = item.scope();
-        match self {
-            ScopeTreeExportItem::Tree(..) => {
-                match &item {
-                    ItemConversion::Use(..) => {},
-                    ItemConversion::Mod(item_mod, scope) =>
-                        self.add_mod_item(item_mod, scope, usage_info),
-                    _ =>
-                        self.add_non_mod_item(&item, scope, usage_info)
-                };
-            },
-            _ => {}
+        if let ScopeTreeExportItem::Tree(..) = self {
+            match &item {
+                ItemConversion::Use(..) => {},
+                ItemConversion::Mod(item_mod, scope) =>
+                    self.add_mod_item(item_mod, scope, usage_info),
+                _ =>
+                    self.add_non_mod_item(&item, scope, usage_info)
+            };
         }
     }
 }
@@ -132,15 +130,16 @@ pub struct ScopeTreeCompact {
     pub(crate) used_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>
 }
 
-impl Into<ScopeTreeItem> for ScopeTreeCompact {
-    fn into(self) -> ScopeTreeItem {
-        let name = self.scope.head();
+impl From<ScopeTreeCompact> for ScopeTreeItem {
+    fn from(value: ScopeTreeCompact) -> Self {
+        let name = value.scope.head();
         ScopeTreeItem::Tree {
             item: parse_quote!(pub mod #name;),
-            tree: self.into()
+            tree: value.into()
         }
     }
 }
+
 impl ScopeTreeCompact {
     pub fn init_with(item: ScopeTreeExportItem, scope: Scope, context: Context) -> Option<Self> {
         match item {
@@ -207,11 +206,11 @@ pub struct ScopeTree {
     pub used_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>,
 }
 
-impl Into<ScopeTree> for ScopeTreeCompact {
-    fn into(self) -> ScopeTree {
-        let ScopeTreeCompact { context, scope, generics, imported, exported, scope_types, used_traits } = self;
+impl From<ScopeTreeCompact> for ScopeTree {
+    fn from(value: ScopeTreeCompact) -> Self {
+        let ScopeTreeCompact { context, scope, generics, imported, exported, scope_types, used_traits } = value;
         let mut new_imported = imported.clone();
-        let generics = HashSet::from_iter(generics.into_iter());
+        let generics = HashSet::from_iter(generics);
         if let Some(used_originals) = imported.get(&ImportType::Original) {
             new_imported.entry(ImportType::FfiType)
                 .or_insert_with(HashSet::new)
@@ -233,16 +232,16 @@ impl Into<ScopeTree> for ScopeTreeCompact {
             new_imported.entry(ImportType::FfiExternal)
                 .or_insert_with(HashSet::new)
                 .extend(used_external_fermented.iter().filter_map(|ImportConversion { ident, scope}| match ident.to_string().as_str() {
-                        "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
-                        _ if context.contains_fermented_crate(&scope.root_ident()) => {
-                            let ty = Scope::ffi_external_type_converted_or_same(&parse_quote!(#scope), &context);
-                            Some(ImportConversion {
-                                ident: ffi_struct_name(&ident),
-                                scope: parse_quote!(#ty)
-                            })
-                        },
-                        _ => None
-                    }
+                    "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
+                    _ if context.contains_fermented_crate(&scope.root_ident()) => {
+                        let ty = Scope::ffi_external_type_converted_or_same(&parse_quote!(#scope), &context);
+                        Some(ImportConversion {
+                            ident: ffi_struct_name(ident),
+                            scope: parse_quote!(#ty)
+                        })
+                    },
+                    _ => None
+                }
                 ));
         }
         new_imported.entry(ImportType::Original)
@@ -254,23 +253,23 @@ impl Into<ScopeTree> for ScopeTreeCompact {
         new_imported.entry(ImportType::FfiGeneric)
             .or_insert_with(HashSet::new)
             .extend(generics.iter()
-            .map(ImportConversion::from));
+                .map(ImportConversion::from));
 
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
             let scope = scope.joined(&ident);
             (ident, match tree_item_raw {
-                    ScopeTreeExportItem::Item(_, item) =>
-                        ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone(), scope_traits: used_traits.clone()  },
-                    ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types, used_traits) => ScopeTreeCompact {
-                        context,
-                        scope,
-                        generics,
-                        imported,
-                        exported,
-                        scope_types,
-                        used_traits
-                    }.into(),
-                })
+                ScopeTreeExportItem::Item(_, item) =>
+                    ScopeTreeItem::Item { item, scope, scope_types: scope_types.clone(), scope_traits: used_traits.clone()  },
+                ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types, used_traits) => ScopeTreeCompact {
+                    context,
+                    scope,
+                    generics,
+                    imported,
+                    exported,
+                    scope_types,
+                    used_traits
+                }.into(),
+            })
         }).collect();
         ScopeTree {
             scope,
@@ -305,8 +304,8 @@ impl Presentable for ScopeTree {
                     .map(move |import| import.present(import_type)));
         if self.scope.is_crate() {
             // For root tree only
-            let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.into_iter());
-            let scope_conversions = self.exported.into_iter().map(|(_, tree_item)| {
+            let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics);
+            let scope_conversions = self.exported.into_values().map(|tree_item| {
                 generics.extend(tree_item.generic_conversions());
                 tree_item.present()
             }).collect::<Vec<_>>();
@@ -317,14 +316,14 @@ impl Presentable for ScopeTree {
                 generic_conversions.push(generic.present());
             }
             let types_expansion = Expansion::Mod {
-                directives: quote!(#[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                directives: quote!(#[allow(clippy::all, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
                 name: quote!(types),
                 imports: scope_imports.collect(),
                 conversions: scope_conversions
             }
                 .present();
             let generics_expansion = Expansion::Mod {
-                directives: quote!(#[allow(dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                directives: quote!(#[allow(clippy::all, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
                 name: quote!(generics),
                 imports: generic_imports.into_iter().collect(),
                 conversions: generic_conversions

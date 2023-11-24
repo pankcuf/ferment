@@ -141,7 +141,7 @@ impl Visitor {
         match use_tree {
             UseTree::Path(UsePath { ident, tree, .. }) => {
                 current_path.push(ident.clone());
-                self.fold_import_tree(scope,&*tree, current_path);
+                self.fold_import_tree(scope,tree, current_path);
             },
             UseTree::Name(UseName { ident, .. }) |
             UseTree::Rename(UseRename { rename: ident, .. }) => {
@@ -227,7 +227,7 @@ impl Visitor {
     }
 
     fn current_scope_for(&self, item: &Item) -> Scope {
-        let is_mod = if let Item::Mod(..) = item { true } else { false };
+        let is_mod = matches!(item, Item::Mod(..));
         match self.current_scope_stack.first() {
             Some(current_mod) if !is_mod => self.current_module_scope.joined(current_mod),
             _ => self.current_module_scope.clone()
@@ -252,18 +252,15 @@ impl Visitor {
         current_tree
     }
 
-    pub fn add_conversion<'ast>(&mut self, item: Item) {
+    pub fn add_conversion(&mut self, item: Item) {
         let scope = self.current_scope_for(&item);
-        match ItemConversion::try_from((item, &scope)) {
-            Ok(conversion) => {
-                if conversion.has_macro_attribute() {
-                    let full_qualified = conversion.add_full_qualified_conversion(self);
-                    let usage_info = self.usage_info.clone();
-                    self.get_tree_export_item(&scope, self.context.clone())
-                        .add_item(full_qualified, &usage_info);
-                }
-            },
-            _ => {}
+        if let Ok(conversion) = ItemConversion::try_from((item, &scope)) {
+            if conversion.has_macro_attribute() {
+                let full_qualified = conversion.add_full_qualified_conversion(self);
+                let usage_info = self.usage_info.clone();
+                self.get_tree_export_item(&scope, self.context.clone())
+                    .add_item(full_qualified, &usage_info);
+            }
         }
     }
 }
@@ -282,19 +279,16 @@ pub fn merge_visitor_trees(visitor: &mut Visitor) {
 }
 
 fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
-    match (destination, source) {
-        (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _, _),
-            ScopeTreeExportItem::Tree(_, _, _, source_exports, _, _), ) => {
-            for (name, source_tree) in source_exports.iter() {
-                match dest_exports.entry(name.clone()) {
-                    std::collections::hash_map::Entry::Occupied(mut o) =>
-                        merge_trees(o.get_mut(), source_tree),
-                    std::collections::hash_map::Entry::Vacant(v) => {
-                        v.insert(source_tree.clone());
-                    }
+    if let (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _, _),
+        ScopeTreeExportItem::Tree(_, _, _, source_exports, _, _), ) = (destination, source) {
+        for (name, source_tree) in source_exports.iter() {
+            match dest_exports.entry(name.clone()) {
+                std::collections::hash_map::Entry::Occupied(mut o) =>
+                    merge_trees(o.get_mut(), source_tree),
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(source_tree.clone());
                 }
             }
         }
-        _ => {}
     }
 }

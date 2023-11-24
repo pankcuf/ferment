@@ -42,7 +42,7 @@ pub fn format_types_dict(dict: &HashMap<TypeConversion, Type>) -> String {
 
 pub fn format_types_dict_full(dict: &HashMap<Scope, HashMap<TypeConversion, Type>>) -> String {
     dict.iter()
-        .map(|(scope, dict)| format!("{}: {}", quote!(#scope).to_string(), format_types_dict(dict)))
+        .map(|(scope, dict)| format!("{}: {}", quote!(#scope), format_types_dict(dict)))
         .collect::<Vec<_>>()
         .join(", ")
 }

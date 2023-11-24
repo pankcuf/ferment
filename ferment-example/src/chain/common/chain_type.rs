@@ -14,6 +14,7 @@ pub trait IHaveChainSettings {
     fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool;
 }
 
+#[allow(clippy::enum_variant_names)]
 #[ferment_macro::export(IHaveChainSettings)]
 #[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
 pub enum ChainType {

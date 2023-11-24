@@ -136,29 +136,27 @@ impl TypeConversion {
             }
             Type::Path(type_path) => {
                 involved.insert(TypePathConversion::from(type_path));
-                match type_path.path.segments.last() {
-                    Some(last_segment) =>
-                        match &last_segment.arguments {
-                            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                                args.iter().for_each(|arg| match arg {
-                                    GenericArgument::Type(ty) =>
-                                        Self::add_involved_types_into_container(ty, &mut involved),
-                                    GenericArgument::Binding(Binding { ty, .. }) =>
-                                        Self::add_involved_types_into_container(ty, &mut involved),
-                                    _ => {}
-                                }),
-                            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                                inputs
-                                    .iter()
-                                    .for_each(|ty|
-                                        Self::add_involved_types_into_container(ty, &mut involved));
-                                if let ReturnType::Type(_, ty) = output {
-                                    Self::add_involved_types_into_container(ty, &mut involved);
-                                }
-                            },
-                            PathArguments::None => {}
+                if let Some(last_segment) = type_path.path.segments.last() {
+                    match &last_segment.arguments {
+                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+                            args.iter().for_each(|arg| match arg {
+                                GenericArgument::Type(ty) =>
+                                    Self::add_involved_types_into_container(ty, &mut involved),
+                                GenericArgument::Binding(Binding { ty, .. }) =>
+                                    Self::add_involved_types_into_container(ty, &mut involved),
+                                _ => {}
+                            }),
+                        PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+                            inputs
+                                .iter()
+                                .for_each(|ty|
+                                    Self::add_involved_types_into_container(ty, &mut involved));
+                            if let ReturnType::Type(_, ty) = output {
+                                Self::add_involved_types_into_container(ty, &mut involved);
+                            }
                         },
-                    None => {},
+                        PathArguments::None => {}
+                    }
                 }
             },
             Type::Ptr(TypePtr { elem: ty, .. }) =>

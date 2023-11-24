@@ -10,7 +10,7 @@ fn main() {
        .with_crates(vec!["ferment_example".to_string()])
        .generate() {
       Ok(()) => match Command::new("cbindgen")
-          .args(&["--config", "cbindgen.toml", "-o", c_header])
+          .args(["--config", "cbindgen.toml", "-o", c_header])
           .status() {
          Ok(status) => println!("[cbindgen] [ok] generated into {c_header} with status: {status}"),
          Err(err) => panic!("[cbindgen] [error] {err}")

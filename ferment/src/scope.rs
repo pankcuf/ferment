@@ -142,7 +142,7 @@ impl Scope {
                             _ => segments.iter().take(segments.len() - 1).collect()
                         };
                         let new_ident = ffi_struct_name(last_ident);
-                        let middle = if segments.len() == 0 {
+                        let middle = if segments.is_empty() {
                             quote!(#new_ident)
                         } else {
                             quote!(#(#segments)::*::#new_ident)

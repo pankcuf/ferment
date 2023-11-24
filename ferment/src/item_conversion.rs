@@ -114,7 +114,7 @@ impl<'a> TryFrom<&'a Item> for ItemConversion {
             Item::Type(item) => Ok(Self::Type(item.clone(), EMPTY)),
             Item::Fn(item) => Ok(Self::Fn(item.clone(), EMPTY)),
             Item::Trait(item) => Ok(Self::Trait(item.clone(), EMPTY)),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+            item => Err(format!("Error: {}", item.to_token_stream()))
         }
     }
 }
@@ -129,7 +129,7 @@ impl<'a> TryFrom<(&'a Item, &'a Scope)> for ItemConversion {
             Item::Type(item) => Ok(Self::Type(item.clone(), value.1.clone())),
             Item::Fn(item) => Ok(Self::Fn(item.clone(), value.1.clone())),
             Item::Trait(item) => Ok(Self::Trait(item.clone(), value.1.clone())),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+            item => Err(format!("Error: {}", item.to_token_stream()))
         }
     }
 }
@@ -144,7 +144,7 @@ impl<'a> TryFrom<(Item, &'a Scope)> for ItemConversion {
             Item::Type(item) => Ok(Self::Type(item, value.1.clone())),
             Item::Fn(item) => Ok(Self::Fn(item, value.1.clone())),
             Item::Trait(item) => Ok(Self::Trait(item, value.1.clone())),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+            item => Err(format!("Error: {}", item.to_token_stream()))
         }
     }
 }
@@ -159,14 +159,14 @@ impl<'a> TryFrom<(&'a Item, Scope)> for ItemConversion {
             Item::Type(item) => Ok(Self::Type(item.clone(), value.1)),
             Item::Fn(item) => Ok(Self::Fn(item.clone(), value.1)),
             Item::Trait(item) => Ok(Self::Trait(item.clone(), value.1)),
-            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+            item => Err(format!("Error: {}", item.to_token_stream()))
         }
     }
 }
 
-impl<'a> Into<Item> for &'a ItemConversion {
-    fn into(self) -> Item {
-        match self {
+impl<'a> From<&'a ItemConversion> for Item {
+    fn from(value: &'a ItemConversion) -> Self {
+        match value {
             ItemConversion::Mod(item, _) => parse_quote!(#item),
             ItemConversion::Struct(item, _) =>  parse_quote!(#item),
             ItemConversion::Enum(item, _) =>  parse_quote!(#item),
@@ -232,9 +232,8 @@ impl ItemConversion {
             UseTree::Name(UseName { ident }) => vec![ident],
             UseTree::Rename(UseRename { rename, .. }) => vec![rename],
             UseTree::Glob(UseGlob { .. }) => vec![],
-            UseTree::Group(UseGroup { items , .. }) => {
-                items.iter().flat_map(|tree| Self::fold_use(tree)).collect()
-            }
+            UseTree::Group(UseGroup { items , .. }) =>
+                items.iter().flat_map(Self::fold_use).collect()
         }
     }
     pub fn ident(&self) -> &Ident {
@@ -311,45 +310,36 @@ impl ItemConversion {
             Self::Enum(item_enum, ..) =>
                 self.handle_attributes_with_handler(&item_enum.attrs, |path|
                     item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                        cache_fields(&fields, path))),
+                        cache_fields(fields, path))),
             Self::Type(ItemType { attrs, ty, .. }, ..) =>
                 self.handle_attributes_with_handler(attrs, |path|
                     cache_type(ty, path)),
             Self::Fn(item_fn, ..) =>
                 self.handle_attributes_with_handler(&item_fn.attrs, |path| {
-                    item_fn.sig.inputs.iter().for_each(|arg| match arg {
-                        FnArg::Typed(PatType { ty, .. }) =>
-                            cache_type(ty, path),
-                        _ => {}
-                    });
-                    match &item_fn.sig.output {
-                        ReturnType::Default => {},
-                        ReturnType::Type(_, ty) => match &**ty {
-                            Type::Path(TypePath { path, .. }) =>
-                                cache_type(ty, path),
-                            _ => {}
+                    item_fn.sig.inputs.iter().for_each(|arg|
+                        if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            cache_type(ty, path);
+                        });
+                    if let ReturnType::Type(_, ty) = &item_fn.sig.output {
+                        if let Type::Path(TypePath { path, .. }) = &**ty {
+                            cache_type(ty, path);
                         }
-                    };
+                    }
                 }),
             Self::Trait(item_trait, ..) => self.handle_attributes_with_handler(&item_trait.attrs, |path| {
                 item_trait.items.iter().for_each(|trait_item| match trait_item {
                     TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>
                         cache_type(ty, path),
                     TraitItem::Method(TraitItemMethod { sig, .. }) => {
-                        sig.inputs.iter().for_each(|arg| match arg {
-                            FnArg::Typed(PatType { ty, .. }) =>
-                                cache_type(ty, path),
-                            _ => {}
-                        });
-                        match &sig.output {
-                            ReturnType::Default => {},
-                            ReturnType::Type(_, ty) => match &**ty {
-                                Type::Path(TypePath { path, .. }) =>
-                                    cache_type(ty, path),
-                                _ => {}
+                        sig.inputs.iter().for_each(|arg|
+                            if let FnArg::Typed(PatType { ty, .. }) = arg {
+                                cache_type(ty, path);
+                            });
+                        if let ReturnType::Type(_, ty) = &sig.output {
+                            if let Type::Path(TypePath { path, .. }) = &**ty {
+                                cache_type(ty, path);
                             }
-                        };
-
+                        }
                     },
                     _ => {}
                 });
@@ -396,26 +386,23 @@ impl ItemConversion {
         let involved_type_paths = TypeConversion::from(ty).get_all_type_paths_involved();
         involved_type_paths.iter().for_each(|type_path| {
             let path = &type_path.0.path;
-            match path.segments.last() {
-                Some(PathSegment { ident, .. }) => {
-                    let (import_type, scope) = Self::import_pair(path, imports);
-                    container.entry(import_type)
-                        .or_insert_with(HashSet::new)
-                        .insert(ImportConversion::from((ident, &scope)));
-                },
-                None => {},
+            if let Some(PathSegment { ident, .. }) = path.segments.last() {
+                let (import_type, scope) = Self::import_pair(path, imports);
+                container.entry(import_type)
+                    .or_insert_with(HashSet::new)
+                    .insert(ImportConversion::from((ident, &scope)));
             }
         });
     }
 
 
 
-    fn cache_fields_in(mut container: &mut HashMap<ImportType, HashSet<ImportConversion>>, fields: &Fields, imports: &HashMap<Ident, Path>) {
+    fn cache_fields_in(container: &mut HashMap<ImportType, HashSet<ImportConversion>>, fields: &Fields, imports: &HashMap<Ident, Path>) {
         match fields {
             Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
             Fields::Named(FieldsNamed { named: fields, .. }) =>
                 fields.iter()
-                    .for_each(|field| Self::cache_type_in(&mut container, &field.ty, imports)),
+                    .for_each(|field| Self::cache_type_in(container, &field.ty, imports)),
             Fields::Unit => {}
         }
     }
@@ -440,34 +427,36 @@ impl ItemConversion {
                     Self::cache_fields_in(&mut container, &item_struct.fields, imports)),
             Self::Enum(item_enum, ..) =>
                 self.handle_attributes_with_handler(&item_enum.attrs, |_path| item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                    Self::cache_fields_in(&mut container, &fields, imports))),
+                    Self::cache_fields_in(&mut container, fields, imports))),
             Self::Type(ItemType { attrs, ty, .. }, ..) =>
                 self.handle_attributes_with_handler(attrs, |_path|
                     Self::cache_type_in(&mut container, ty, imports)),
             Self::Fn(item_fn, ..) =>
                 self.handle_attributes_with_handler(&item_fn.attrs, |_path| {
-                    item_fn.sig.inputs.iter().for_each(|arg| match arg {
-                        FnArg::Typed(PatType { ty, .. }) =>
-                            Self::cache_type_in(&mut container, ty, imports),
-                        _ => {}
+                    item_fn.sig.inputs.iter().for_each(|arg| {
+                        if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            Self::cache_type_in(&mut container, ty, imports)
+                        }
                     });
                     if let ReturnType::Type(_, ty) = &item_fn.sig.output {
-                        Self::cache_type_in(&mut container, &**ty, imports)
+                        Self::cache_type_in(&mut container, ty, imports)
                     };
                 }),
             Self::Trait(item_trait, ..) =>
                 self.handle_attributes_with_handler(&item_trait.attrs, |_path| {
                     item_trait.items.iter().for_each(|trait_item| match trait_item {
                         TraitItem::Method(TraitItemMethod { sig, .. }) => {
-                            sig.inputs.iter().for_each(|arg| match arg {
-                                FnArg::Typed(PatType { ty, .. }) =>
-                                    Self::cache_type_in(&mut container, ty, imports),
-                                _ => {}
+                            sig.inputs.iter().for_each(|arg| {
+                                if let FnArg::Typed(PatType { ty, .. }) = arg {
+                                    Self::cache_type_in(&mut container, ty, imports)
+                                }
                             });
                             if let ReturnType::Type(_, ty) = &sig.output {
-                                Self::cache_type_in(&mut container, &**ty, imports)
+                                Self::cache_type_in(&mut container, ty, imports)
                             };
                         },
+                        TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>
+                            Self::cache_type_in(&mut container, ty, imports),
                         _ => {}
                     });
                 }),
@@ -476,13 +465,13 @@ impl ItemConversion {
         container
     }
     fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypePathComposition>) {
-        match field_type {
-            Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+        if let Type::Path(TypePath { path, .. }) = field_type {
+            match PathConversion::from(path) {
                 PathConversion::Complex(path) => {
-                    match path.segments.last().unwrap().ident.to_string().as_str() {
-                        "Option" =>
-                            Self::collect_generic_types_in_type(path_arguments_to_types(&path.segments.last().unwrap().arguments)[0], generics),
-                        _ => {}
+                    if let Some(last_segment) = path.segments.last() {
+                        if last_segment.ident.to_string().as_str() == "Option" {
+                            Self::collect_generic_types_in_type(path_arguments_to_types(&last_segment.arguments)[0], generics);
+                        }
                     }
                 },
                 PathConversion::Generic(GenericPathConversion::Vec(path)) |
@@ -494,12 +483,11 @@ impl ItemConversion {
                     generics.insert(TypePathComposition(field_type.clone(), path.clone()));
                 },
                 _ => {}
-            },
-            _ => {}
+            }
         }
     }
 
-    fn find_generic_types_in_compositions(compositions: &Vec<TypePathComposition>) -> HashSet<TypePathComposition> {
+    fn find_generic_types_in_compositions(compositions: &[TypePathComposition]) -> HashSet<TypePathComposition> {
         // collect all types with generics and ensure their uniqueness
         // since we don't want to implement interface multiple times for same object
         let mut generics: HashSet<TypePathComposition> = HashSet::new();
@@ -514,34 +502,30 @@ impl ItemConversion {
         Self::find_generic_types_in_compositions(&self.collect_compositions())
     }
 
-    fn add_full_qualified_signature<'ast>(visitor: &'ast mut Visitor, sig: &Signature, scope: &Scope) {
+    fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &Scope) {
         if let ReturnType::Type(_, ty) = &sig.output {
             visitor.add_full_qualified_type_match(scope.clone(), ty)
         }
-        sig.inputs.iter().for_each(|arg| match arg {
-            FnArg::Typed(PatType { ty, .. }) => {
-                visitor.add_full_qualified_type_match(scope.clone(), ty);
-            },
-            _ => {}
+        sig.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+            visitor.add_full_qualified_type_match(scope.clone(), ty);
         });
     }
-    fn add_full_qualified_trait<'ast>(visitor: &'ast mut Visitor, item_trait: &ItemTrait, scope: &Scope) {
+    fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope: &Scope) {
         visitor.add_full_qualified_trait_match(scope.clone(), item_trait);
-        item_trait.items.iter().for_each(|trait_item| match trait_item {
-            TraitItem::Method(TraitItemMethod { sig, .. }) =>
-                Self::add_full_qualified_signature(visitor, sig, &scope),
-            _ => {}
-        })
+        item_trait.items.iter().for_each(|trait_item|
+            if let TraitItem::Method(TraitItemMethod { sig, .. }) = trait_item {
+                Self::add_full_qualified_signature(visitor, sig, scope)
+            })
     }
 
-    fn add_full_qualified_trait_type_from_macro<'ast>(visitor: &'ast mut Visitor, item_trait_attrs: &[Attribute], scope: &Scope) {
+    fn add_full_qualified_trait_type_from_macro(visitor: &mut Visitor, item_trait_attrs: &[Attribute], scope: &Scope) {
         let trait_names = extract_trait_names(item_trait_attrs);
         trait_names.iter().for_each(|trait_name|
             visitor.add_full_qualified_type_match(scope.clone(), &parse_quote!(#trait_name)));
 
     }
 
-    pub fn add_full_qualified_conversion<'ast>(self, visitor: &'ast mut Visitor) -> ItemConversion {
+    pub fn add_full_qualified_conversion(self, visitor: &mut Visitor) -> ItemConversion {
         let converted = match self {
             Self::Struct(item_struct, scope) => {
                 Self::add_full_qualified_trait_type_from_macro(visitor, &item_struct.attrs, &scope);
@@ -556,7 +540,7 @@ impl ItemConversion {
                 Self::Enum(item_enum, scope)
             },
             Self::Type(item_type, scope) => {
-                visitor.add_full_qualified_type_match(scope.clone(), &*item_type.ty);
+                visitor.add_full_qualified_type_match(scope.clone(), &item_type.ty);
                 Self::Type(item_type, scope)
             },
             Self::Fn(item_fn, scope) => {
@@ -590,7 +574,7 @@ impl ItemConversion {
                                     fields.iter().for_each(|Field { ty, .. }|
                                         visitor.add_full_qualified_type_match(inner_scope.clone(), ty))),
                             Item::Type(item_type) =>
-                                visitor.add_full_qualified_type_match(inner_scope.clone(), &*item_type.ty),
+                                visitor.add_full_qualified_type_match(inner_scope.clone(), &item_type.ty),
                             _ => {}
                         })
                     }
@@ -609,15 +593,12 @@ fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
         if attr.path.segments
             .iter()
             .any(|segment| segment.ident == format_ident!("export")) {
-            match attr.parse_meta() {
-                Ok(Meta::List(meta_list)) => {
-                    meta_list.nested.iter().for_each(|meta| {
-                        if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                            paths.push(path.clone());
-                        }
-                    });
-                },
-                _ => {}
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                meta_list.nested.iter().for_each(|meta| {
+                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
+                        paths.push(path.clone());
+                    }
+                });
             }
         }
     });
@@ -720,7 +701,7 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
 }
 
 fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scope: &Scope, trait_export_scope: &Scope, tree: &HashMap<TypeConversion, Type>) -> TraitVTablePresentation {
-    let field_compositions = trait_fields_compositions(&item_trait.items, &tree);
+    let field_compositions = trait_fields_compositions(&item_trait.items, tree);
     let trait_ident = &item_trait.ident;
     let (vtable_methods_implentations, vtable_methods_declarations): (Vec<TokenStream2>, Vec<TokenStream2>) = field_compositions.into_iter()
         .map(|signature_decomposition| {
@@ -817,7 +798,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
                 ) = match fields.unnamed.first().unwrap().ty.clone() {
                     // VarInt
                     Type::Path(TypePath { path, .. }) => {
-                        let ffi_name = ffi_struct_name(&target_name);
+                        let ffi_name = ffi_struct_name(target_name);
                         (
                             quote!(#ffi_name),
                             CURLY_BRACES_FIELDS_PRESENTER,
@@ -884,7 +865,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
 fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
     match (ty, pat) {
         (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
-            from_path(quote!(#ident), &path, None),
+            from_path(quote!(#ident), path, None),
         (Type::Reference(type_reference), pat) => handle_arg_type(&type_reference.elem, pat),
         // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
         _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
@@ -895,9 +876,9 @@ fn handle_fn_return_type(output: &ReturnType, tree: &HashMap<TypeConversion, Typ
     match output {
         ReturnType::Default => FnReturnTypeDecomposition { presentation: quote!(()), conversion: quote!(;) },
         ReturnType::Type(_, field_type) => FnReturnTypeDecomposition {
-            presentation: FFI_DICTIONARY_TYPE_PRESENTER(&field_type, tree),
+            presentation: FFI_DICTIONARY_TYPE_PRESENTER(field_type, tree),
             conversion: match &**field_type {
-                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), &path, None),
+                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path, None),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             },
         },
@@ -919,8 +900,8 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, tree: &HashMap<TypeConversi
             },
             FnArg::Typed(PatType { ty, pat, .. }) => FnArgDecomposition {
                 name: Some(pat.to_token_stream()),
-                name_type_original: NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(&ty, tree)),
-                name_type_conversion: handle_arg_type(&**ty, &**pat)
+                name_type_original: NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(ty, tree)),
+                name_type_conversion: handle_arg_type(ty, pat)
             },
         })
         .collect()
@@ -951,7 +932,7 @@ fn trait_item_presentation(trait_item: &TraitItem, tree: &HashMap<TypeConversion
     }
 }
 
-fn trait_fields_compositions(trait_items: &Vec<TraitItem>, tree: &HashMap<TypeConversion, Type>) -> Vec<FnSignatureDecomposition> {
+fn trait_fields_compositions(trait_items: &[TraitItem], tree: &HashMap<TypeConversion, Type>) -> Vec<FnSignatureDecomposition> {
     trait_items
         .iter()
         .filter_map(|trait_item| trait_item_presentation(trait_item, tree))
@@ -1012,7 +993,7 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
                         ReturnType::Type(token, field_type) =>
                             SIMPLE_PAIR_PRESENTER(
                                 quote!(#token),
-                                FFI_DICTIONARY_TYPE_PRESENTER(&field_type, &tree))
+                                FFI_DICTIONARY_TYPE_PRESENTER(field_type, &tree))
                     },
                 }
             }

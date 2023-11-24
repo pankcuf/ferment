@@ -60,9 +60,9 @@ pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_typ
                 _ => DEFAULT_DICT_PATH_PRESENTER,
             })(path, tree),
         Type::Array(TypeArray { elem, len, .. }) =>
-            FFI_ARRAY_DICT_FIELD_TYPED_PRESENTER(quote!(#len), &elem, tree),
+            FFI_ARRAY_DICT_FIELD_TYPED_PRESENTER(quote!(#len), elem, tree),
         Type::Reference(TypeReference { elem, .. }) =>
-            FFI_DICTIONARY_TYPE_PRESENTER(&**elem, tree),
+            FFI_DICTIONARY_TYPE_PRESENTER(elem, tree),
         Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
             match &**elem {
                 Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -93,7 +93,7 @@ pub const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
 pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
 pub const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
 pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
-    let comment = format!("FFI-representation of the {}", target_name.to_string());
+    let comment = format!("FFI-representation of the {}", target_name);
     parse_quote! { #[doc = #comment] }
 };
 

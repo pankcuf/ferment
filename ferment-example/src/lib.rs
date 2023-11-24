@@ -97,7 +97,7 @@ pub mod nested {
 
     #[ferment_macro::export]
     pub fn find_hash_by_u32(key: u32, map: BTreeMap<u32, HashID>) -> Option<HashID> {
-        map.get(&key).clone().copied()
+        map.get(&key).copied()
     }
 
     #[ferment_macro::export]

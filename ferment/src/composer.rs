@@ -97,6 +97,7 @@ impl ItemComposer {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn struct_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -171,6 +172,7 @@ impl ItemComposer {
             conversions_composer)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn enum_variant_default_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -291,6 +293,7 @@ impl ItemComposer {
     }
 
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn primitive_composer(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -358,6 +361,7 @@ impl ItemComposer {
     }
 
 
+    #[allow(clippy::too_many_arguments)]
     fn new<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -412,7 +416,7 @@ impl ItemComposer {
 
     fn setup_conversion<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(&mut self, conversions_composer: I) {
         for (field_type, field_name) in conversions_composer {
-            self.add_conversion(&field_type, field_name);
+            self.add_conversion(field_type, field_name);
         }
     }
 
@@ -598,7 +602,6 @@ impl NameComposer {
         Self { parent: None, name }
     }
 }
-
 #[macro_export]
 macro_rules! composer_impl {
     ($name:ident, $composition:expr) => {
@@ -607,6 +610,7 @@ macro_rules! composer_impl {
             fn set_parent(&mut self, root: &Rc<RefCell<ItemComposer>>) {
                 self.parent = Some(Rc::clone(root));
             }
+            #[allow(clippy::redundant_closure_call)]
             fn compose(&self) -> Self::Item {
                 $composition(self)
             }
@@ -617,24 +621,24 @@ macro_rules! composer_impl {
 composer_impl!(FFIContextComposer, |context_composer: &FFIContextComposer|
     (context_composer.composer)(
         (context_composer.context_presenter)(
-            &*context_composer.parent.as_ref().unwrap().borrow())));
+            &context_composer.parent.as_ref().unwrap().borrow())));
 composer_impl!(ConversionComposer, |itself: &ConversionComposer|
     (itself.composer)(
         (itself.context_presenter)(
-            &*itself.parent.as_ref().unwrap().borrow()),
+            &itself.parent.as_ref().unwrap().borrow()),
         (itself.conversions_presenter)(
             (itself.path.to_token_stream(), itself.conversions.clone()))));
 
 composer_impl!(DropComposer, |itself: &DropComposer|
     (itself.composer)(
         (itself.context_presenter)(
-            &*itself.parent.as_ref().unwrap().borrow()),
+            &itself.parent.as_ref().unwrap().borrow()),
         (itself.conversions_presenter)(
             itself.conversions.clone())));
 composer_impl!(FieldsComposer, |itself: &FieldsComposer|
     (itself.root_presenter)(
         ((itself.context_presenter)(
-            &*itself.parent.as_ref().unwrap().borrow()),
+            &itself.parent.as_ref().unwrap().borrow()),
             itself.fields.clone())));
 composer_impl!(NameComposer, |itself: &NameComposer|
     itself.name.clone());
