@@ -735,7 +735,7 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
         quote!(#trait_export_scope::#trait_vtable_ident)
     };
     let vtable = quote! {
-        #[allow(non_snake_case)]
+        #[allow(non_snake_case, non_upper_case_globals)]
         static #trait_implementor_vtable_ident: #full_qualified_trait_vtable = {
             #(#vtable_methods_implentations)*
             #full_qualified_trait_vtable {
