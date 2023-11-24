@@ -315,15 +315,16 @@ impl Presentable for ScopeTree {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.present());
             }
+            let directives = quote!(#[allow(clippy::let_and_return, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]);
             let types_expansion = Expansion::Mod {
-                directives: quote!(#[allow(clippy::all, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                directives: directives.clone(),
                 name: quote!(types),
                 imports: scope_imports.collect(),
                 conversions: scope_conversions
             }
                 .present();
             let generics_expansion = Expansion::Mod {
-                directives: quote!(#[allow(clippy::all, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables)]),
+                directives,
                 name: quote!(generics),
                 imports: generic_imports.into_iter().collect(),
                 conversions: generic_conversions

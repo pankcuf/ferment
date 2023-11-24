@@ -219,6 +219,7 @@ impl Presentable for ConversionInterfacePresentation {
             },
             Self::Destructor { ffi_name, destructor_ident } => {
                 quote! {
+                    /// # Safety
                     #[allow(non_snake_case)]
                     #[no_mangle]
                     pub unsafe extern "C" fn #destructor_ident(ffi: *mut #ffi_name) {
