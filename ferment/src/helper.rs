@@ -44,55 +44,6 @@ pub fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     }
 }
 
-#[allow(unused)]
-pub fn box_vec(field_path: TokenStream2, values_conversion: TokenStream2) -> TokenStream2 {
-    quote!(ferment_interfaces::FFIConversion::ffi_to(vec))
-}
-
-pub fn from_simple_vec_conversion(field_path: TokenStream2, _field_type: TokenStream2) -> TokenStream2 {
-    quote!({
-        let vec = #field_path;
-        ferment_interfaces::from_simple_vec(vec.values, vec.count)
-    })
-}
-
-#[allow(unused)]
-pub fn from_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
-    quote!({
-        let vec = #field_path;
-        (0..vec.count)
-            .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*vec.add(i)))
-            .collect()
-    })
-}
-
-#[allow(unused)]
-pub fn to_simple_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
-    quote!(#field_path.clone())
-}
-
-#[allow(unused)]
-pub fn to_complex_vec_conversion(field_path: TokenStream2) -> TokenStream2 {
-    let conversion = ffi_to_conversion(quote!(o));
-    iter_map_collect(quote!(#field_path.into_iter()), quote!(|o| #conversion))
-}
-
-#[allow(unused)]
-pub fn to_vec_vec_conversion(arguments: &PathArguments) -> TokenStream2 {
-    let values_conversion =
-        package_boxed_vec_expression(match &path_arguments_to_path_conversions(arguments)[..] {
-            [PathConversion::Primitive(..)] =>
-                to_simple_vec_conversion(quote!(vec)),
-            [PathConversion::Complex(..)] =>
-                to_complex_vec_conversion(quote!(vec)),
-            [PathConversion::Generic(GenericPathConversion::Vec(Path { segments, .. }))] =>
-                to_vec_vec_conversion(&segments.last().unwrap().arguments),
-            _ => panic!("to_vec_conversion: bad arguments {}", quote!(#arguments)),
-        });
-    let boxed_conversion = box_vec(quote!(o), values_conversion);
-    iter_map_collect(quote!(vec.into_iter()), quote!(|o| #boxed_conversion))
-}
-
 pub fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     match path_arguments_to_paths(arguments)[..] {
@@ -115,8 +66,8 @@ pub fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
 pub fn from_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
     let arguments = &path.segments.last().unwrap().arguments;
     let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
-        [PathConversion::Primitive(path)] =>
-            from_simple_vec_conversion(quote!(vec), path.segments.last().unwrap().ident.to_token_stream()),
+        [PathConversion::Primitive(_path)] =>
+            quote!(ferment_interfaces::from_simple_vec(vec.values, vec.count)),
         [PathConversion::Complex(_path)] =>
             quote!(ferment_interfaces::from_complex_vec(vec.values, vec.count)),
         [PathConversion::Generic(GenericPathConversion::Vec(..))] =>
