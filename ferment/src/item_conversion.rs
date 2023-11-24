@@ -705,7 +705,6 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
 fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scope: &Scope, trait_export_scope: &Scope, tree: &HashMap<TypeConversion, Type>) -> TraitVTablePresentation {
     let field_compositions = trait_fields_compositions(&item_trait.items, &tree);
     let trait_ident = &item_trait.ident;
-
     let (vtable_methods_implentations, vtable_methods_declarations): (Vec<TokenStream2>, Vec<TokenStream2>) = field_compositions.into_iter()
         .map(|signature_decomposition| {
         let FnReturnTypeDecomposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
@@ -721,45 +720,40 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
             #output_conversions
         }), quote!(#fn_name: #ffi_method_ident))
     }).unzip();
-
-    // println!("---- implement_trait_for_item ----");
-    // println!("{}", quote!(#item_name: [#item_scope]));
-    // println!("{}", quote!(#trait_ident: [#trait_export_scope]));
-    // println!("----------------------------------");
     let trait_vtable_ident = format_ident!("{}_VTable", trait_ident);
+    let trait_object_ident = format_ident!("{}_TraitObject", trait_ident);
     let trait_implementor_vtable_ident = format_ident!("{}_{}", item_name, trait_vtable_ident);
     let item_module = item_scope.popped();
-    let full_qualified_trait_vtable = if item_module.eq(trait_export_scope) {
-        quote!(#trait_vtable_ident)
+    let (fq_trait_vtable, fq_trait_object) = if item_module.eq(trait_export_scope) {
+        (quote!(#trait_vtable_ident), quote!(#trait_object_ident))
     } else {
-        quote!(#trait_export_scope::#trait_vtable_ident)
+        (quote!(#trait_export_scope::#trait_vtable_ident), quote!(#trait_export_scope::#trait_object_ident))
     };
     let vtable = quote! {
         #[allow(non_snake_case, non_upper_case_globals)]
-        static #trait_implementor_vtable_ident: #full_qualified_trait_vtable = {
+        static #trait_implementor_vtable_ident: #fq_trait_vtable = {
             #(#vtable_methods_implentations)*
-            #full_qualified_trait_vtable {
+            #fq_trait_vtable {
                 #(#vtable_methods_declarations,)*
             }
         };
     };
+    let binding_ident = format_ident!("{}_as_{}", item_name, trait_object_ident);
+    let export = quote! {
+        #[no_mangle]
+        #[allow(non_snake_case)]
+        pub extern "C" fn #binding_ident(obj: *const #item_name) -> #fq_trait_object {
+            #fq_trait_object {
+                object: obj as *const (),
+                vtable: &#trait_implementor_vtable_ident,
+            }
+        }
+    };
 
-    TraitVTablePresentation::Full { vtable, export: Default::default() }
+    TraitVTablePresentation::Full { vtable, export }
 }
 
 fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attr_traits: Vec<Path>, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Vec<TraitVTablePresentation> {
-    // println!("---- item_traits_expansions ----");
-    // let tree_items = tree.iter().map(|(ident, ty)| quote!(#ident: #ty)).collect::<Vec<_>>();
-    // let tree_traits = traits.iter()
-    //     .map(|(scope, traits)| {
-    //         let trait_idents = traits.iter().map(|ItemTrait { ident, .. }| quote!(#ident { .. }));
-    //         quote!(#scope: #(#trait_idents,) *).to_string()
-    //     })
-    //     .collect::<Vec<_>>();
-    // println!("{}", quote!(#(#tree_items),*));
-    // println!("{}", quote!(#(#tree_traits),*));
-    // println!("{}", quote!(#(#attr_traits),*));
-
     attr_traits.iter()
         .map(|trait_name| {
             let tc = TypeConversion::new(parse_quote!(#trait_name));
