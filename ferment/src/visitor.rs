@@ -1,17 +1,33 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, Type, TypePath, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use crate::Config;
 use crate::context::Context;
+use crate::formatter::{format_imports, format_types_dict_full, format_used_traits};
 use crate::item_conversion::ItemConversion;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::scope_conversion::ScopeTreeExportItem;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
+#[derive(Default, Clone)]
+pub struct UsageInfo {
+    pub(crate) used_traits_at_scopes: HashMap<Scope, HashMap<Ident, ItemTrait>>,
+    pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
+    pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
+}
+impl std::fmt::Debug for UsageInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UsageInfo")
+            .field("used_traits_at_scopes", &format_used_traits(&self.used_traits_at_scopes))
+            .field("used_types_at_scopes", &format_types_dict_full(&self.used_types_at_scopes))
+            .field("used_imports_at_scopes", &format_imports(&self.used_imports_at_scopes))
+            .finish()
+    }
+}
 pub struct Visitor {
     /// syn::Path to the file
     pub(crate) context: Context,
@@ -21,9 +37,7 @@ pub struct Visitor {
 
     pub(crate) inner_visitors: Vec<Visitor>,
 
-    pub(crate) used_traits_at_scopes: HashMap<Scope, HashMap<Ident, ItemTrait>>,
-    pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
-    pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
+    pub(crate) usage_info: UsageInfo,
 
     pub tree: ScopeTreeExportItem,
 }
@@ -33,36 +47,7 @@ impl std::fmt::Debug for Visitor {
         f.debug_struct("Visitor")
             .field("context", &self.context)
             .field("parent", &self.parent.to_token_stream().to_string())
-            // .field("used_traits_at_scopes", {
-            //     let vec = vec![];
-            //     let v = self.used_traits_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
-            //         let tme = tm.iter().map(|(ty, ItemTrait { ident, .. })| quote!(#ty -> #ident));
-            //         acc.push(quote!(#k: [#(#tme)*]));
-            //         acc
-            //     });
-            //     let expanded = quote!(#(#v),*);
-            //     &expanded.to_string().as_str()
-            // })
-            .field("used_types_at_scopes", {
-                let vec = vec![];
-                let v = self.used_types_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
-                    let tme = tm.iter().map(|(ty, full_ty)| quote!(#ty -> #full_ty));
-                    acc.push(quote!(#k: [#(#tme)*]));
-                    acc
-                });
-                let expanded = quote!(#(#v),*);
-                &expanded.to_string().as_str()
-            })
-            .field("used_imports_at_scopes", {
-                let vec = vec![];
-                let v = self.used_imports_at_scopes.iter().fold(vec, |mut acc, (k, scope_imports)| {
-                    let si = scope_imports.iter().map(|(k, v)| quote!(#k: #v)).collect::<Vec<_>>();
-                    acc.push(quote!(#k: #(#si),*));
-                    acc
-                });
-                let expanded = quote!(#(#v),*);
-                &expanded.to_string().as_str()
-            })
+            .field("usage", &self.usage_info)
             .field("visitors", &self.inner_visitors)
             .field("tree", &self.tree)
             .finish()
@@ -126,17 +111,14 @@ impl Visitor {
             parent: scope.clone(),
             current_scope_stack: vec![],
             current_module_scope: scope.clone(),
-            used_traits_at_scopes: HashMap::new(),
-            used_types_at_scopes: HashMap::new(),
-            used_imports_at_scopes: HashMap::new(),
+            usage_info: UsageInfo::default(),
             inner_visitors: vec![],
             tree: ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default(), HashMap::default()),
         }
     }
 
     pub(crate) fn add_full_qualified_trait_match(&mut self, scope: Scope, item_trait: &ItemTrait) {
-        println!("add_full_qualified_trait_match: {}: -> {}", quote!(#scope), quote!(#item_trait));
-        self.used_traits_at_scopes.entry(scope.clone())
+        self.usage_info.used_traits_at_scopes.entry(scope.clone())
             .or_insert_with(HashMap::new)
             .insert(item_trait.ident.clone(), item_trait.clone());
     }
@@ -148,7 +130,7 @@ impl Visitor {
             let full_ty = self.update_nested_generics(&scope, &ty);
             (TypeConversion::new(ty), full_ty)
         }).collect::<HashMap<_, _>>();
-        self.used_types_at_scopes.entry(scope)
+        self.usage_info.used_types_at_scopes.entry(scope)
             .or_insert_with(HashMap::new)
             .extend(all_involved_full_types);
     }
@@ -164,7 +146,7 @@ impl Visitor {
             UseTree::Name(UseName { ident, .. }) |
             UseTree::Rename(UseRename { rename: ident, .. }) => {
                 current_path.push(ident.clone());
-                self.used_imports_at_scopes
+                self.usage_info.used_imports_at_scopes
                     .entry(scope.clone())
                     .or_insert_with(HashMap::new)
                     .insert(ident.clone(), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
@@ -195,7 +177,7 @@ impl Visitor {
                         }
                     }
                 }
-                if let Some(scope_imports) = self.used_imports_at_scopes.get(scope) {
+                if let Some(scope_imports) = self.usage_info.used_imports_at_scopes.get(scope) {
                     let ident = &segments.last().unwrap().ident;
                     if let Some(replacement_path) = scope_imports.get(ident) {
                         let last_segment = segments.pop().unwrap();
@@ -272,16 +254,13 @@ impl Visitor {
 
     pub fn add_conversion<'ast>(&mut self, item: Item) {
         let scope = self.current_scope_for(&item);
-        match ItemConversion::try_from((&item, &scope)) {
+        match ItemConversion::try_from((item, &scope)) {
             Ok(conversion) => {
                 if conversion.has_macro_attribute() {
-                    // println!("handle_attributes_with_handler: {}", path.to_token_stream());
                     let full_qualified = conversion.add_full_qualified_conversion(self);
-                    let used_traits_at_scopes = self.used_traits_at_scopes.clone();
-                    let used_types_at_scopes = self.used_types_at_scopes.clone();
-                    let used_imports_at_scopes = self.used_imports_at_scopes.clone();
+                    let usage_info = self.usage_info.clone();
                     self.get_tree_export_item(&scope, self.context.clone())
-                        .add_item(full_qualified, Some(&used_traits_at_scopes), &used_types_at_scopes, &used_imports_at_scopes);
+                        .add_item(full_qualified, &usage_info);
                 }
             },
             _ => {}

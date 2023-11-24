@@ -36,7 +36,7 @@ impl std::fmt::Display for TypePathConversion {
 impl ParseQuote for TypePathConversion {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         TypePath::parse(input)
-            .map(TypePathConversion::new)
+            .map(TypePathConversion::from)
     }
 }
 impl ToTokens for TypePathConversion {
@@ -45,15 +45,15 @@ impl ToTokens for TypePathConversion {
     }
 }
 
-impl<'a> From<&'a TypePath> for TypePathConversion {
-    fn from(value: &'a TypePath) -> Self {
-        TypePathConversion(value.clone())
+impl From<TypePath> for TypePathConversion {
+    fn from(value: TypePath) -> Self {
+        TypePathConversion(value)
     }
 }
 
-impl TypePathConversion {
-    pub fn new(type_path: TypePath) -> Self {
-        TypePathConversion(type_path)
+impl<'a> From<&'a TypePath> for TypePathConversion {
+    fn from(value: &'a TypePath) -> Self {
+        TypePathConversion(value.clone())
     }
 }
 

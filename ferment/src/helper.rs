@@ -3,7 +3,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, P
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FFI_TYPE_PATH_PRESENTER, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated, unwrap_or};
+use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FFI_TYPE_PATH_PRESENTER, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
@@ -279,56 +279,6 @@ pub fn map_args(args: &Punctuated<GenericArgument, Comma>) -> Vec<&GenericArgume
     args.iter().collect::<Vec<_>>()
 }
 
-
-
-#[allow(unused)]
-fn to_vec_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    let conversion = match &path_arguments_to_path_conversions(arguments)[..] {
-        [PathConversion::Primitive(..)] =>
-            to_simple_vec_conversion(quote!(vec)),
-        [PathConversion::Complex(..)] =>
-            to_complex_vec_conversion(quote!(vec)),
-        [PathConversion::Generic(GenericPathConversion::Vec(path))] =>
-            to_vec_vec_conversion(&path.segments.last().unwrap().arguments),
-        _ => panic!("to_vec_conversion: Map nested in Vec not supported yet"),
-    };
-    box_vec(field_path, package_boxed_vec_expression(conversion))
-}
-
-#[allow(unused)]
-fn to_map_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    package_boxed_expression(match path_arguments_to_paths(arguments)[..] {
-        [inner_path_key, inner_path_value] => {
-            let mapper = |field_path: TokenStream2, path: &Path| {
-                let conversion = match PathConversion::from(path) {
-                    PathConversion::Primitive(..) =>
-                        field_path,
-                    PathConversion::Complex(..) =>
-                        ffi_to_conversion(field_path),
-                    PathConversion::Generic(GenericPathConversion::Vec(path)) =>
-                        to_vec_conversion(field_path, &path.segments.last().unwrap().arguments),
-                    PathConversion::Generic(GenericPathConversion::Map(path)) => {
-                        to_map_conversion(field_path, &path.segments.last().unwrap().arguments)
-                    }
-                };
-                quote!(|o| #conversion)
-            };
-            let key_mapper = mapper(quote!(o), inner_path_key);
-            let value_mapper = mapper(quote!(o), inner_path_value);
-            let keys_conversion = package_boxed_vec_expression(iter_map_collect(
-                quote!(map.keys().cloned()),
-                key_mapper,
-            ));
-            let values_conversion = package_boxed_vec_expression(iter_map_collect(
-                quote!(map.values().cloned()),
-                value_mapper,
-            ));
-            quote!({let map = #field_path; ferment_interfaces::MapFFI { count: map.len(), keys: #keys_conversion, values: #values_conversion }})
-        }
-        _ => panic!("to_map_conversion: Bad arguments {} {}", field_path, quote!(#arguments)),
-    })
-}
-
 fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
     match path_arguments_to_paths(arguments)[..] {
         [inner_path] => {
@@ -336,8 +286,8 @@ fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> 
             match last_segment.ident.to_string().as_str() {
                 // TODO: MAX/MIN? use optional primitive?
                 "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-                | "isize" | "usize" => unwrap_or(field_path, quote!(0)),
-                "bool" => unwrap_or(field_path, quote!(false)),
+                | "isize" | "usize" => quote!(#field_path.unwrap_or(0)),
+                "bool" => quote!(#field_path.unwrap_or(false)),
                 "Vec" => MATCH_FIELDS_PRESENTER((
                     field_path,
                     vec![

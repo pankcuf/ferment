@@ -134,6 +134,21 @@ impl<'a> TryFrom<(&'a Item, &'a Scope)> for ItemConversion {
     }
 }
 
+impl<'a> TryFrom<(Item, &'a Scope)> for ItemConversion {
+    type Error = String;
+    fn try_from(value: (Item, &'a Scope)) -> Result<Self, Self::Error> {
+        match value.0 {
+            Item::Mod(item) => Ok(Self::Mod(item, value.1.clone())),
+            Item::Struct(item) => Ok(Self::Struct(item, value.1.clone())),
+            Item::Enum(item) => Ok(Self::Enum(item, value.1.clone())),
+            Item::Type(item) => Ok(Self::Type(item, value.1.clone())),
+            Item::Fn(item) => Ok(Self::Fn(item, value.1.clone())),
+            Item::Trait(item) => Ok(Self::Trait(item, value.1.clone())),
+            item => Err(format!("Error: {}", item.to_token_stream().to_string()))
+        }
+    }
+}
+
 impl<'a> TryFrom<(&'a Item, Scope)> for ItemConversion {
     type Error = String;
     fn try_from(value: (&'a Item, Scope)) -> Result<Self, Self::Error> {

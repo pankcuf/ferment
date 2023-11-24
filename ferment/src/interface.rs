@@ -92,7 +92,10 @@ pub const SIMPLE_PRESENTER: MapPresenter = |name| quote!(#name);
 pub const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
 pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
 pub const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
-pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| doc(target_name.to_string());
+pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
+    let comment = format!("FFI-representation of the {}", target_name.to_string());
+    parse_quote! { #[doc = #comment] }
+};
 
 
 /// Map Pair Presenters
@@ -292,21 +295,12 @@ fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStrea
     }
 }
 
-pub fn doc(target_name: String) -> TokenStream2 {
-    let comment = format!("FFI-representation of the {}", target_name);
-    parse_quote! { #[doc = #comment] }
-}
-
 pub fn package() -> TokenStream2 {
     quote!(ferment_interfaces)
 }
 
 pub fn interface() -> TokenStream2 {
     quote!(FFIConversion)
-}
-
-pub fn ffi() -> TokenStream2 {
-    quote!(ffi)
 }
 
 pub fn obj() -> TokenStream2 {
@@ -340,33 +334,9 @@ pub fn ffi_to_opt() -> TokenStream2 {
     quote!(ffi_to_opt)
 }
 
-pub fn boxed() -> TokenStream2 {
-    quote!(boxed)
-}
-
-pub fn boxed_vec() -> TokenStream2 {
-    quote!(boxed_vec)
-}
-
-pub fn unbox_any() -> TokenStream2 {
-    quote!(unbox_any)
-}
-
-pub fn package_boxed() -> TokenStream2 {
-    let package = package();
-    let boxed = boxed();
-    quote!(#package::#boxed)
-}
-
-pub fn package_unbox_any() -> TokenStream2 {
-    let package = package();
-    let unbox_any = unbox_any();
-    quote!(#package::#unbox_any)
-}
-
 pub fn package_unbox_any_expression(expr: TokenStream2) -> TokenStream2 {
-    let package_unbox_any = package_unbox_any();
-    quote!(#package_unbox_any(#expr))
+    let package = package();
+    quote!(#package::unbox_any(#expr))
 }
 
 pub fn package_unbox_any_expression_terminated(expr: TokenStream2) -> TokenStream2 {
@@ -375,31 +345,21 @@ pub fn package_unbox_any_expression_terminated(expr: TokenStream2) -> TokenStrea
 }
 
 pub fn package_unboxed_root() -> TokenStream2 {
-    package_unbox_any_expression(ffi())
+    package_unbox_any_expression(quote!(ffi))
 }
 
 pub fn package_boxed_expression(expr: TokenStream2) -> TokenStream2 {
-    let package_boxed = package_boxed();
-    quote!(#package_boxed(#expr))
-}
-
-pub fn package_boxed_vec() -> TokenStream2 {
     let package = package();
-    let boxed_vec = boxed_vec();
-    quote!(#package::#boxed_vec)
+    quote!(#package::boxed(#expr))
 }
 
 pub fn package_boxed_vec_expression(expr: TokenStream2) -> TokenStream2 {
-    let package_boxed_vec = package_boxed_vec();
-    quote!(#package_boxed_vec(#expr))
+    let package = package();
+    quote!(#package::boxed_vec(#expr))
 }
 
 pub fn iter_map_collect(iter: TokenStream2, mapper: TokenStream2) -> TokenStream2 {
     quote!(#iter.map(#mapper).collect())
-}
-
-pub fn unwrap_or(field_path: TokenStream2, or: TokenStream2) -> TokenStream2 {
-    quote!(#field_path.unwrap_or(#or))
 }
 
 pub fn ffi_from_conversion(field_value: TokenStream2) -> TokenStream2 {

@@ -1,6 +1,6 @@
 use quote::quote;
 use syn::__private::TokenStream2;
-use crate::interface::{doc, ffi, ffi_from_const, ffi_to_const, interface, NAMED_STRUCT_PRESENTER, obj, package, Presentable};
+use crate::interface::{DEFAULT_DOC_PRESENTER, ffi_from_const, ffi_to_const, interface, NAMED_STRUCT_PRESENTER, obj, package, Presentable};
 use crate::scope::Scope;
 use crate::scope_conversion::{ScopeTree, ScopeTreeCompact};
 
@@ -145,9 +145,9 @@ impl Presentable for DocPresentation {
     fn present(self) -> TokenStream2 {
         match self {
             Self::Empty => quote!(),
-            Self::Default(target_name) => doc(target_name.to_string()),
+            Self::Default(target_name) => DEFAULT_DOC_PRESENTER(target_name),
             Self::Safety(target_name) => {
-                let doc = doc(target_name.to_string());
+                let doc = DEFAULT_DOC_PRESENTER(target_name);
                 quote! {
                     #doc
                     /// # Safety
@@ -193,7 +193,6 @@ impl Presentable for ConversionInterfacePresentation {
             Self::Interface { ffi_name, target_name, from_presentation, to_presentation, destroy_presentation} => {
                 let package = package();
                 let interface = interface();
-                let ffi = ffi();
                 let obj = obj();
                 // let ffi_from = ffi_from();
                 let ffi_from_const = ffi_from_const();
@@ -203,17 +202,17 @@ impl Presentable for ConversionInterfacePresentation {
                 // let ffi_to_opt = ffi_to_opt();
                 quote! {
                     impl #package::#interface<#target_name> for #ffi_name {
-                        unsafe fn #ffi_from_const(#ffi: *const #ffi_name) -> #target_name { #from_presentation }
+                        unsafe fn #ffi_from_const(ffi: *const #ffi_name) -> #target_name { #from_presentation }
                         unsafe fn #ffi_to_const(#obj: #target_name) -> *const #ffi_name { #to_presentation }
-                        // unsafe fn #ffi_from(#ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
+                        // unsafe fn #ffi_from(ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
                         // unsafe fn #ffi_to(#obj: #target_name) -> *mut #ffi_name { #ffi_to_conversion }
-                        // unsafe fn #ffi_from_opt(#ffi: *mut #ffi_name) -> Option<#target_name> {
-                        //     (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(#ffi))
+                        // unsafe fn #ffi_from_opt(ffi: *mut #ffi_name) -> Option<#target_name> {
+                        //     (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(ffi))
                         // }
                         // unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
                         //     #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
                         // }
-                        unsafe fn destroy(#ffi: *mut #ffi_name) { #destroy_presentation; }
+                        unsafe fn destroy(ffi: *mut #ffi_name) { #destroy_presentation; }
                     }
 
                 }

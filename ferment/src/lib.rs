@@ -15,6 +15,7 @@ mod visitor;
 #[cfg(test)]
 mod test;
 mod context;
+mod formatter;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;
