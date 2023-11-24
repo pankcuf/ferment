@@ -699,7 +699,7 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
     );
     let destructor = ConversionInterfacePresentation::Destructor {
         ffi_name: quote!(#ffi_name),
-        destructor_ident: ffi_destructor_name(target_name).to_token_stream()
+        destructor_ident: ffi_destructor_name(&ffi_name).to_token_stream()
     };
     let traits = item_traits_expansions(target_name, _scope, &item_enum.attrs, &tree, traits);
     Expansion::Full { input, comment, ffi_presentation, conversion, drop, destructor, traits }
@@ -857,7 +857,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
     };
     let composer_owned = composer.borrow();
 
-    composer_owned.make_expansion(quote!(#item_struct), ffi_destructor_name(target_name).to_token_stream(), traits)
+    composer_owned.make_expansion(quote!(#item_struct), ffi_destructor_name(&ffi_struct_name(target_name)).to_token_stream(), traits)
 }
 
 fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
@@ -1016,7 +1016,7 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
                         _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
                 }))
                 .borrow()
-                .make_expansion(quote!(#item_type), ffi_destructor_name(ident).to_token_stream(), traits)
+                .make_expansion(quote!(#item_type), ffi_destructor_name(&ffi_name).to_token_stream(), traits)
         }
     }
 }

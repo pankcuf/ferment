@@ -419,7 +419,7 @@ pub fn ffi_trait_obj_name(trait_name: &Ident) -> Ident {
 }
 
 pub fn ffi_destructor_name(item_name: &Ident) -> Ident {
-    format_ident!("{}_ffi_destroy", item_name)
+    format_ident!("{}_destroy", item_name)
 }
 
 pub fn ffi_mangled_ident(ty: &Type) -> Ident {
