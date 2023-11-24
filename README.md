@@ -179,8 +179,58 @@ impl Drop for HashID_FFI {
 }
 ```
 
+For traits labeled with `export`
+```rust
+#[ferment_macro::export]
+pub trait IHaveChainSettings { 
+    // ..
+}
+```
+There will be vtable and trait obj generated
+```rust
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct IHaveChainSettings_VTable { 
+    // ..
+}
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct IHaveChainSettings_TraitObject {
+    pub object: *const (),
+    pub vtable: *const IHaveChainSettings_VTable,
+}
+```
+And then for items marked like this:
+```rust
+#[ferment_macro::export(IHaveChainSettings)]
+#[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
+pub enum ChainType {
+    MainNet,
+    TestNet,
+    DevNet(DevnetType)
+}
+```
+there will be additional code generated
+```rust
+#[allow(non_snake_case, non_upper_case_globals)]
+static ChainType_IHaveChainSettings_VTable: IHaveChainSettings_VTable = { 
+    // ..
+};
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(
+    obj: *const ChainType,
+) -> IHaveChainSettings_TraitObject {
+    IHaveChainSettings_TraitObject {
+        object: obj as *const (),
+        vtable: &ChainType_IHaveChainSettings_VTable,
+    }
+}
+
+```
 Current limitations:
-- doesn't work with traits and &self
 - We should mark all structures that involved into export with the macro definition
 - There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyIDFFI(u32)` The alternative is to store a hardcoded dictionary with them.
 Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
@@ -251,6 +301,7 @@ pub mod generics {
     // We expand generic types separately here to avoid duplication
 }
 ```
+
 
 
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
