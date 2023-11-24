@@ -755,6 +755,7 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
     };
     let destructor = quote! {
         #[no_mangle]
+        #[allow(non_snake_case)]
         pub unsafe extern "C" fn #destructor_binding_ident(obj: #fq_trait_object) {
             ferment_interfaces::unbox_any(obj.object as *mut #item_name);
         }
