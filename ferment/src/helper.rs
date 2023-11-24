@@ -319,6 +319,14 @@ pub fn ffi_trait_obj_name(trait_name: &Ident) -> Ident {
     format_ident!("{}_TraitObject", trait_name)
 }
 
+pub fn ffi_fn_name(fn_name: &Ident) -> Ident {
+    format_ident!("ffi_{}", fn_name)
+}
+
+pub fn ffi_unnamed_arg_name(index: usize) -> Ident {
+    format_ident!("o_{}", index)
+}
+
 pub fn ffi_destructor_name(item_name: &Ident) -> Ident {
     format_ident!("{}_destroy", item_name)
 }

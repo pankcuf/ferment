@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::generics::{add_generic_type, TypePathComposition};
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_TYPE_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, MATCH_FIELDS_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, obj, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_PAIR_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
-use crate::helper::{ffi_destructor_name, ffi_struct_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
+use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_struct_name, ffi_trait_obj_name, ffi_unnamed_arg_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::ItemComposer;
 use crate::visitor::Visitor;
 use crate::path_conversion::{GenericPathConversion, PathConversion};
@@ -45,7 +45,7 @@ impl FnSignatureDecomposition {
         let arguments = self.arguments.iter().map(|arg| arg.name_type_original.clone()).collect();
         let fn_name = self.ident;
         let argument_conversions = self.arguments.iter().map(|arg| arg.name_type_conversion.clone()).collect();
-        let name_and_arguments = ROUND_BRACES_FIELDS_PRESENTER((format_ident!("ffi_{}", fn_name).to_token_stream(), arguments));
+        let name_and_arguments = ROUND_BRACES_FIELDS_PRESENTER((ffi_fn_name(&fn_name).to_token_stream(), arguments));
         let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#fn_name), argument_conversions));
         let output_expression = self.return_type.presentation;
         let output_conversions = self.return_type.conversion;
@@ -669,9 +669,9 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
                     quote!(#ffi_variant_path),
                     quote!(#target_variant_path),
                     tree.clone(),
-                    unnamed.iter().enumerate().map(|(index, Field { ty, .. })| {
-                        (ty, format_ident!("o_{}", index).to_token_stream())
-                    }),
+                    unnamed.iter().enumerate().map(|(index, Field { ty, .. })|
+                        (ty, ffi_unnamed_arg_name(index).to_token_stream())
+                    ),
                 )
             }
             Fields::Named(FieldsNamed { named, .. }) => {
@@ -737,8 +737,8 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
             #output_conversions
         }), quote!(#fn_name: #ffi_method_ident))
     }).unzip();
-    let trait_vtable_ident = format_ident!("{}_VTable", trait_ident);
-    let trait_object_ident = format_ident!("{}_TraitObject", trait_ident);
+    let trait_vtable_ident = ffi_vtable_name(trait_ident);
+    let trait_object_ident = ffi_trait_obj_name(trait_ident);
     let trait_implementor_vtable_ident = format_ident!("{}_{}", item_name, trait_vtable_ident);
     let item_module = item_scope.popped();
     let (fq_trait_vtable, fq_trait_object) = if item_module.eq(trait_export_scope) {
