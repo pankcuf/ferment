@@ -13,47 +13,6 @@ use crate::presentation::Expansion;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
-// pub struct ScopeTreeItemComposer {
-//     parent: Option<Rc<RefCell<ScopeTree>>>,
-//     scope: Scope,
-//     export_item: ScopeTreeExportItem,
-// }
-//
-// impl ScopeTreeItemComposer {
-//     pub fn new(scope: Scope, export_item: ScopeTreeExportItem) -> Self {
-//         Self { scope, export_item, parent: None }
-//     }
-// }
-//
-// impl Composer for ScopeTreeItemComposer {
-//     type Item = ScopeTreeItem;
-//     fn set_parent(&mut self, root: &Rc<RefCell<ScopeTree>>) {
-//         self.parent = Some(Rc::clone(root));
-//     }
-//     fn compose(&self) -> Self::Item {
-//         let ScopeTreeItemComposer { scope, export_item, .. } = self;
-//         match export_item {
-//             ScopeTreeExportItem::Item(_, item) => {
-//                 ScopeTreeItem::Item { item: item.clone(), scope: scope.clone(), parent: self.parent.unwrap().borrow() }
-//             },
-//             ScopeTreeExportItem::Tree(_, _, _, _, _) => {}
-//         }
-//
-//     //     match tree_item_raw {
-//     //         ScopeTreeExportItem::Item(_, item) =>
-//     //             ScopeTreeItem::Item { item, scope, parent: None/*, scope_types: scope_types.clone()*/ },
-//     //         ScopeTreeExportItem::Tree(context, generics, imported, exported, scope_types) => ScopeTreeCompact {
-//     //             context,
-//     //             scope,
-//     //             generics,
-//     //             imported,
-//     //             exported,
-//     //             scope_types
-//     //         }.into(),
-//     //         ScopeTreeItem::Item { }
-//     }
-// }
-
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
     Item(Context, Item),
@@ -231,30 +190,15 @@ pub enum ScopeTreeItem {
     Item {
         item: Item,
         scope: Scope,
-        // parent: Option<Rc<RefCell<ScopeTreeItemComposer>>>,
         scope_types: HashMap<TypeConversion, Type>,
         scope_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>
     },
     Tree {
         item: Item,
         tree: ScopeTree
-        // tree: Rc<RefCell<ScopeTree>>
     }
 }
 
-// impl ScopeTreeItem {
-//     fn set_parent(&mut self, root: &Rc<RefCell<ScopeTree>>) {
-//         match self {
-//             ScopeTreeItem::Item { item, scope, parent } => {
-//
-//                 parent = Some(Rc::clone(root));
-//             }
-//             ScopeTreeItem::Tree { .. } => {}
-//         }
-//         self.parent = Some(Rc::clone(root));
-//     }
-// }
-//
 impl Presentable for ScopeTreeItem {
     fn present(self) -> TokenStream2 {
         match self {
@@ -288,12 +232,6 @@ pub struct ScopeTree {
     pub used_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>,
 }
 
-// impl ScopeTree {
-//     pub fn setup(root: &Rc<RefCell<ItemComposer>>) {
-//
-//     }
-// }
-//
 impl Into<ScopeTree> for ScopeTreeCompact {
     fn into(self) -> ScopeTree {
         let ScopeTreeCompact { context, scope, generics, imported, exported, scope_types, used_traits } = self;
@@ -361,35 +299,14 @@ impl Into<ScopeTree> for ScopeTreeCompact {
                     }.into(),
                 })
         }).collect();
-        let tree = ScopeTree {
+        ScopeTree {
             scope,
             imported: new_imported,
             exported,
             generics,
             scope_types: scope_types.clone(),
             used_traits: used_traits.clone()
-        };
-        // let tree = Rc::new(RefCell::new(ScopeTree {
-        //     scope,
-        //     imported: new_imported,
-        //     exported,
-        //     generics,
-        //     scope_types: scope_types.clone()
-        // }));
-        // {
-        //     let mut root_borrowed = tree.borrow_mut();
-        //     root_borrowed.exported.iter_mut().for_each(|(ident, tree_item)| {
-        //         match tree_item {
-        //             ScopeTreeItem::Item { parent, .. } => {
-        //                 parent = Some(Rc::clone(&tree));
-        //             }
-        //             ScopeTreeItem::Tree { .. } => {}
-        //         }
-        //     });
-        //     root_borrowed.setup_composers(&tree);
-        // }
-
-        tree
+        }
     }
 }
 
