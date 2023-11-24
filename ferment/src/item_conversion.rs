@@ -697,8 +697,7 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
         quote!(#ffi_name),
         ENUM_DESTROY_PRESENTER(drop_fields),
     );
-    let attr_traits = extract_trait_names(&item_enum.attrs);
-    let traits = item_traits_expansions(target_name, _scope, attr_traits, tree, traits);
+    let traits = item_traits_expansions(target_name, _scope, &item_enum.attrs, &tree, traits);
     Expansion::Full { input, comment, ffi_presentation, conversion, drop, traits }
 }
 
@@ -753,7 +752,8 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
     TraitVTablePresentation::Full { vtable, export }
 }
 
-fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attr_traits: Vec<Path>, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Vec<TraitVTablePresentation> {
+fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attrs: &[Attribute], tree: &HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Vec<TraitVTablePresentation> {
+    let attr_traits = extract_trait_names(attrs);
     attr_traits.iter()
         .map(|trait_name| {
             let tc = TypeConversion::new(parse_quote!(#trait_name));
@@ -762,16 +762,17 @@ fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attr_traits: Ve
             let scope_trait = traits.get(&trait_export_scope).unwrap();
             let ident = parse_quote!(#trait_name);
             let item_trait = scope_trait.get(&ident).unwrap();
-            implement_trait_for_item(item_trait, item_name, item_scope, &trait_export_scope,  &tree)
+            implement_trait_for_item(item_trait, item_name, item_scope, &trait_export_scope,  tree)
         })
         .collect()
 
 }
 
-fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<TypeConversion, Type>, _traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
+fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
     // println!("expansion (struct): in: {scope} => {}", quote!(#item_struct));
     // println!("struct_expansion: [{}]: {}", scope.to_token_stream(), item_struct.ident.to_token_stream());
     let ItemStruct { fields: ref f, ident: target_name, .. } = item_struct;
+    let traits = item_traits_expansions(target_name, _scope, &item_struct.attrs, &tree, traits);
     let composer = match f {
         Fields::Unnamed(ref fields) => match target_name.clone().to_string().as_str() {
             // Hack used to simplify some structures
@@ -851,7 +852,8 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
         Fields::Unit => panic!("Fields::Unit is not supported yet"),
     };
     let composer_owned = composer.borrow();
-    composer_owned.make_expansion(quote!(#item_struct))
+
+    composer_owned.make_expansion(quote!(#item_struct), traits)
 }
 
 fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
@@ -963,7 +965,7 @@ fn use_expansion(item_use: &ItemUse, _scope: &Scope) -> Expansion {
     Expansion::Use { input: quote!(#item_use), comment: DocPresentation::Empty }
 }
 
-fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConversion, Type>, _traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
+fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
     // println!("type_expansion: [{}]: {}", scope.to_token_stream(), item_type.ident.to_token_stream());
     // println!("expansion (type): in: {scope} => {}", quote!(#item_type));
     let ItemType { ident, ty, .. } = item_type;
@@ -993,22 +995,25 @@ fn type_expansion(item_type: &ItemType, _scope: &Scope, tree: HashMap<TypeConver
                 }
             }
         },
-        _ => ItemComposer::type_alias_composer(
-            quote!(#ffi_name),
-            quote!(#ident),
-            tree,
-            IntoIterator::into_iter({
-                vec![(&**ty, match &**ty {
-                    Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-                        PathConversion::Primitive(..) => obj(),
-                        _ => usize_to_tokenstream(0),
-                    },
-                    Type::Array(_type_array) => usize_to_tokenstream(0),
-                    Type::Ptr(_type_ptr) => obj(),
-                    _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
-            }))
-            .borrow()
-            .make_expansion(quote!(#item_type))
+        _ => {
+            let traits = item_traits_expansions(ident, scope, &item_type.attrs, &tree, traits);
+            ItemComposer::type_alias_composer(
+                quote!(#ffi_name),
+                quote!(#ident),
+                tree,
+                IntoIterator::into_iter({
+                    vec![(&**ty, match &**ty {
+                        Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+                            PathConversion::Primitive(..) => obj(),
+                            _ => usize_to_tokenstream(0),
+                        },
+                        Type::Array(_type_array) => usize_to_tokenstream(0),
+                        Type::Ptr(_type_ptr) => obj(),
+                        _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
+                }))
+                .borrow()
+                .make_expansion(quote!(#item_type), traits)
+        }
     }
 }
 
