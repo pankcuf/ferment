@@ -1,9 +1,17 @@
 use crate::nested::HashID;
 
+#[ferment_macro::export]
 pub trait IHaveChainSettings {
     fn name(&self) -> String;
     fn genesis_hash(&self) -> HashID;
     fn genesis_height(&self) -> u32;
+    fn has_genesis_hash(&self, hash: HashID) -> bool {
+        self.genesis_hash() == hash
+    }
+    fn get_hash_by_hash(&self, hash: HashID) -> HashID {
+        hash
+    }
+    fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool;
 }
 
 #[ferment_macro::export(IHaveChainSettings)]
@@ -41,6 +49,10 @@ impl IHaveChainSettings for ChainType {
     fn genesis_height(&self) -> u32 {
         0
     }
+
+    fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool {
+        llmq_type != 0
+    }
 }
 
 impl IHaveChainSettings for DevnetType {
@@ -61,16 +73,23 @@ impl IHaveChainSettings for DevnetType {
     fn genesis_height(&self) -> u32 {
         1
     }
+
+    fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool {
+        llmq_type != 0
+    }
 }
 
-// // FFI Opaque
-// // Trait scope
+// FFI Opaque
+// Trait scope
 // #[allow(non_camel_case_types)]
 // #[repr(C)]
 // pub struct IHaveChainSettings_VTable {
 //     pub name: unsafe extern "C" fn(*const ()) -> *mut std::os::raw::c_char,
 //     pub genesis_hash: unsafe extern "C" fn(*const ()) -> *mut crate::fermented::types::nested::HashID_FFI,
 //     pub genesis_height: unsafe extern "C" fn(*const ()) -> u32,
+//     pub should_process_llmq_of_type: unsafe extern "C" fn(*const (), llmq_type: u16) -> bool,
+//     pub has_genesis_hash: unsafe extern "C" fn(*const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> bool,
+//     pub get_hash_by_hash: unsafe extern "C" fn(*const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> *mut crate::fermented::types::nested::HashID_FFI,
 // }
 //
 // #[allow(non_camel_case_types)]
@@ -82,51 +101,107 @@ impl IHaveChainSettings for DevnetType {
 //
 //
 // // Trait implementation scope
-// static CHAIN_TYPE_VTABLE: IHaveChainSettings_VTable = {
-//     unsafe extern "C" fn chain_type_name(obj: *const ()) -> *mut std::os::raw::c_char {
-//         ferment_interfaces::FFIConversion::ffi_to(&(*(obj as *const ChainType)).name())
+// #[allow(non_snake_case)]
+// static ChainType_IHaveChainSettings_VTable: IHaveChainSettings_VTable = {
+//     unsafe extern "C" fn ChainType_name(obj: *const ()) -> *mut std::os::raw::c_char {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let result = cast_obj.name();
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
-//     unsafe extern "C" fn chain_type_genesis_hash(obj: *const ()) -> *mut crate::fermented::types::nested::HashID_FFI {
-//         ferment_interfaces::FFIConversion::ffi_to(&(*(obj as *const ChainType)).genesis())
+//     unsafe extern "C" fn ChainType_genesis_hash(obj: *const ()) -> *mut crate::fermented::types::nested::HashID_FFI {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let result = cast_obj.genesis_hash();
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
-//     unsafe extern "C" fn chain_type_genesis_height(obj: *const ()) -> u32 {
-//         (*(obj as *const ChainType)).genesis_height()
+//     unsafe extern "C" fn ChainType_genesis_height(obj: *const ()) -> u32 {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let result = cast_obj.genesis_height();
+//         result
+//     }
+//     unsafe extern "C" fn ChainType_should_process_llmq_of_type(obj: *const (), llmq_type: u16) -> bool {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let result = cast_obj.should_process_llmq_of_type(llmq_type);
+//         result
+//     }
+//     unsafe extern "C" fn ChainType_has_genesis_hash(obj: *const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> bool {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let hash = ferment_interfaces::FFIConversion::ffi_from_const(hash);
+//         let result = cast_obj.has_genesis_hash(hash);
+//         result
+//     }
+//     unsafe extern "C" fn ChainType_get_hash_by_hash(obj: *const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> *mut crate::fermented::types::nested::HashID_FFI {
+//         let cast_obj = &(*(obj as *const ChainType));
+//         let hash = ferment_interfaces::FFIConversion::ffi_from_const(hash);
+//         let result = cast_obj.get_hash_by_hash(hash);
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
 //     IHaveChainSettings_VTable {
-//         name: chain_type_name,
-//         genesis_hash: chain_type_genesis_hash,
-//         genesis_height: chain_type_genesis_height,
+//         name: ChainType_name,
+//         genesis_hash: ChainType_genesis_hash,
+//         genesis_height: ChainType_genesis_height,
+//         should_process_llmq_of_type: ChainType_should_process_llmq_of_type,
+//         has_genesis_hash: ChainType_has_genesis_hash,
+//         get_hash_by_hash: ChainType_get_hash_by_hash,
 //     }
 // };
 // #[no_mangle]
-// pub extern "C" fn chain_type_as_ihavechainsettings_trait(obj: *const ChainType) -> IHaveChainSettings_TraitObject {
+// #[allow(non_snake_case)]
+// pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(obj: *const ChainType) -> IHaveChainSettings_TraitObject {
 //     IHaveChainSettings_TraitObject {
 //         object: obj as *const (),
-//         vtable: &CHAIN_TYPE_VTABLE,
+//         vtable: &ChainType_IHaveChainSettings_VTable,
 //     }
 // }
 //
-// static DEVNET_TYPE_VTABLE: IHaveChainSettings_VTable = {
-//     unsafe extern "C" fn devnet_type_name(obj: *const ()) -> *mut std::os::raw::c_char {
-//         ferment_interfaces::FFIConversion::ffi_to(&(*(obj as *const DevnetType)).name())
+// #[allow(non_snake_case)]
+// static DevnetType_IHaveChainSettings_VTable: IHaveChainSettings_VTable = {
+//     unsafe extern "C" fn DevnetType_name(obj: *const ()) -> *mut std::os::raw::c_char {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let result = cast_obj.name();
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
-//     unsafe extern "C" fn devnet_type_genesis_hash(obj: *const ()) -> *mut crate::fermented::types::nested::HashID_FFI {
-//         ferment_interfaces::FFIConversion::ffi_to(&(*(obj as *const DevnetType)).genesis())
+//     unsafe extern "C" fn DevnetType_genesis_hash(obj: *const ()) -> *mut crate::fermented::types::nested::HashID_FFI {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let result = cast_obj.genesis_hash();
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
-//     unsafe extern "C" fn devnet_type_genesis_height(obj: *const ()) -> u32 {
-//         (*(obj as *const DevnetType)).genesis_height()
+//     unsafe extern "C" fn DevnetType_genesis_height(obj: *const ()) -> u32 {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let result = cast_obj.genesis_height();
+//         result
+//     }
+//     unsafe extern "C" fn DevnetType_should_process_llmq_of_type(obj: *const (), llmq_type: u16) -> bool {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let result = cast_obj.should_process_llmq_of_type(llmq_type);
+//         result
+//     }
+//     unsafe extern "C" fn DevnetType_has_genesis_hash(obj: *const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> bool {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let hash = ferment_interfaces::FFIConversion::ffi_from_const(hash);
+//         let result = cast_obj.has_genesis_hash(hash);
+//         result
+//     }
+//     unsafe extern "C" fn DevnetType_get_hash_by_hash(obj: *const (), hash: *const crate::fermented::types::nested::HashID_FFI) -> *mut crate::fermented::types::nested::HashID_FFI {
+//         let cast_obj = &(*(obj as *const DevnetType));
+//         let hash = ferment_interfaces::FFIConversion::ffi_from_const(hash);
+//         let result = cast_obj.get_hash_by_hash(hash);
+//         ferment_interfaces::FFIConversion::ffi_to(result)
 //     }
 //     IHaveChainSettings_VTable {
-//         name: devnet_type_name,
-//         genesis_hash: devnet_type_genesis_hash,
-//         genesis_height: devnet_type_genesis_height,
+//         name: DevnetType_name,
+//         genesis_hash: DevnetType_genesis_hash,
+//         genesis_height: DevnetType_genesis_height,
+//         should_process_llmq_of_type: DevnetType_should_process_llmq_of_type,
+//         has_genesis_hash: DevnetType_has_genesis_hash,
+//         get_hash_by_hash: DevnetType_get_hash_by_hash,
 //     }
 // };
 // #[no_mangle]
-// pub extern "C" fn devnet_type_as_ihavechainsettings_trait(obj: *const DevnetType) -> IHaveChainSettings_TraitObject {
+// #[allow(non_snake_case)]
+// pub extern "C" fn DevnetType_as_IHaveChainSettings_TraitObject(obj: *const DevnetType) -> IHaveChainSettings_TraitObject {
 //     IHaveChainSettings_TraitObject {
 //         object: obj as *const (),
-//         vtable: &DEVNET_TYPE_VTABLE,
+//         vtable: &DevnetType_IHaveChainSettings_VTable,
 //     }
 // }
 

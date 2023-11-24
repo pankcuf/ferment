@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use quote::{quote, ToTokens};
-use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, Type, TypePath, UseGroup, UseName, UsePath, UseRename, UseTree};
+use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, Type, TypePath, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use crate::Config;
@@ -21,6 +21,7 @@ pub struct Visitor {
 
     pub(crate) inner_visitors: Vec<Visitor>,
 
+    pub(crate) used_traits_at_scopes: HashMap<Scope, HashMap<Ident, ItemTrait>>,
     pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
     pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
 
@@ -32,6 +33,16 @@ impl std::fmt::Debug for Visitor {
         f.debug_struct("Visitor")
             .field("context", &self.context)
             .field("parent", &self.parent.to_token_stream().to_string())
+            // .field("used_traits_at_scopes", {
+            //     let vec = vec![];
+            //     let v = self.used_traits_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
+            //         let tme = tm.iter().map(|(ty, ItemTrait { ident, .. })| quote!(#ty -> #ident));
+            //         acc.push(quote!(#k: [#(#tme)*]));
+            //         acc
+            //     });
+            //     let expanded = quote!(#(#v),*);
+            //     &expanded.to_string().as_str()
+            // })
             .field("used_types_at_scopes", {
                 let vec = vec![];
                 let v = self.used_types_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
@@ -67,7 +78,6 @@ impl std::fmt::Display for Visitor {
 impl<'ast> Visit<'ast> for Visitor {
 
     fn visit_item_enum(&mut self, node: &'ast ItemEnum) {
-        //println!("visit_item_enum: {}: {:?}", node.ident.to_token_stream(), node.attrs);
         self.add_conversion(Item::Enum(node.clone()));
     }
 
@@ -102,6 +112,10 @@ impl<'ast> Visit<'ast> for Visitor {
         let scope = self.current_scope_for(&item);
         self.fold_import_tree(&scope, &node.tree, vec![]);
     }
+
+    fn visit_item_trait(&mut self, node: &'ast ItemTrait) {
+        self.add_conversion(Item::Trait(node.clone()));
+    }
 }
 
 impl Visitor {
@@ -112,13 +126,20 @@ impl Visitor {
             parent: scope.clone(),
             current_scope_stack: vec![],
             current_module_scope: scope.clone(),
+            used_traits_at_scopes: HashMap::new(),
             used_types_at_scopes: HashMap::new(),
             used_imports_at_scopes: HashMap::new(),
             inner_visitors: vec![],
-            tree: ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default())
+            tree: ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default(), HashMap::default()),
         }
     }
 
+    pub(crate) fn add_full_qualified_trait_match(&mut self, scope: Scope, item_trait: &ItemTrait) {
+        println!("add_full_qualified_trait_match: {}: -> {}", quote!(#scope), quote!(#item_trait));
+        self.used_traits_at_scopes.entry(scope.clone())
+            .or_insert_with(HashMap::new)
+            .insert(item_trait.ident.clone(), item_trait.clone());
+    }
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: Scope, ty: &Type) {
         let conversion = TypeConversion::from(ty);
         let all_involved_types = conversion.get_all_type_paths_involved();
@@ -237,7 +258,7 @@ impl Visitor {
         for ident in &path_to_traverse {
             match current_tree {
                 ScopeTreeExportItem::Item(..) => panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(inner_context, _, _, exported, _) => {
+                ScopeTreeExportItem::Tree(inner_context, _, _, exported, _, _) => {
                     inner_context.merge(&context);
                     if !exported.contains_key(ident) {
                         exported.insert(ident.clone(), ScopeTreeExportItem::just_export_with_context(HashMap::new(), context.clone()));
@@ -256,10 +277,11 @@ impl Visitor {
                 if conversion.has_macro_attribute() {
                     // println!("handle_attributes_with_handler: {}", path.to_token_stream());
                     let full_qualified = conversion.add_full_qualified_conversion(self);
+                    let used_traits_at_scopes = self.used_traits_at_scopes.clone();
                     let used_types_at_scopes = self.used_types_at_scopes.clone();
                     let used_imports_at_scopes = self.used_imports_at_scopes.clone();
                     self.get_tree_export_item(&scope, self.context.clone())
-                        .add_item(full_qualified, &used_types_at_scopes, &used_imports_at_scopes);
+                        .add_item(full_qualified, Some(&used_traits_at_scopes), &used_types_at_scopes, &used_imports_at_scopes);
                 }
             },
             _ => {}
@@ -282,8 +304,8 @@ pub fn merge_visitor_trees(visitor: &mut Visitor) {
 
 fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
     match (destination, source) {
-        (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _),
-            ScopeTreeExportItem::Tree(_, _, _, source_exports, _), ) => {
+        (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _, _),
+            ScopeTreeExportItem::Tree(_, _, _, source_exports, _, _), ) => {
             for (name, source_tree) in source_exports.iter() {
                 match dest_exports.entry(name.clone()) {
                     std::collections::hash_map::Entry::Occupied(mut o) =>

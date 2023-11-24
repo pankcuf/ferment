@@ -410,6 +410,14 @@ pub fn ffi_struct_name(field_type: &Ident) -> Ident {
     format_ident!("{}_FFI", field_type)
 }
 
+pub fn ffi_vtable_name(trait_name: &Ident) -> Ident {
+    format_ident!("{}_VTable", trait_name)
+}
+
+pub fn ffi_trait_obj_name(trait_name: &Ident) -> Ident {
+    format_ident!("{}_TraitObject", trait_name)
+}
+
 pub fn ffi_mangled_ident(ty: &Type) -> Ident {
     let ident = mangle_type(ty);
     ffi_struct_name(&ident)

@@ -186,7 +186,6 @@ pub const ENUM_PRESENTER: OwnerIteratorPresenter = |(name, fields)| {
     }
 };
 
-
 /// PathArguments Presenters
 pub const OPAQUE_CONTEXT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |_, _|
     quote!(ferment_interfaces::OpaqueContextFFI);

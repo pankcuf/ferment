@@ -58,6 +58,7 @@ pub struct ItemComposer {
 }
 
 impl ItemComposer {
+
     pub(crate) fn type_alias_composer<'a, I: IntoIterator<Item = (&'a Type, TokenStream2)>>(
         ffi_name: TokenStream2,
         target_name: TokenStream2,
@@ -461,6 +462,7 @@ impl ItemComposer {
             } else {
                 DropInterfacePresentation::Empty
             },
+            traits: vec![]
         }
     }
 }

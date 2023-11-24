@@ -120,10 +120,13 @@ impl Builder {
 }
 
 fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
-    let content = std::fs::read_to_string(file_path)
-        .expect("Failed to read file");
-    syn::parse_file(&content)
-        .expect("Failed to parse file")
+    match std::fs::read_to_string(file_path) {
+        Ok(content) => match syn::parse_file(&content) {
+            Ok(file) => file,
+            Err(err) => panic!("Failed to parse file: {:?}: {}", file_path, err)
+        },
+        Err(err) => panic!("Failed to read file: {:?}: {}", file_path, err)
+    }
 }
 
 fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config) -> Visitor {
