@@ -445,11 +445,10 @@ impl ItemComposer {
     pub(crate) fn compose_drop(&self) -> TokenStream2 {
         self.ffi_conversions_composer.drop_composer.compose()
     }
-    pub(crate) fn make_expansion(&self, input: TokenStream2, destructor_ident: TokenStream2, traits: Vec<TraitVTablePresentation>) -> Expansion {
+    pub(crate) fn make_expansion(&self, destructor_ident: TokenStream2, traits: Vec<TraitVTablePresentation>) -> Expansion {
         let ffi_name = self.ffi_name_composer.compose();
         let target_name = self.target_name_composer.compose();
         Expansion::Full {
-            input,
             comment: DocPresentation::Default(self.doc_composer.compose()),
             ffi_presentation: FFIObjectPresentation::Full(self.ffi_object_composer.compose()),
             conversion: ConversionInterfacePresentation::Interface {
@@ -521,15 +520,6 @@ impl FFIConversionComposer {
     }
 
 }
-// impl Composer for FFIConversionComposer {
-//     fn set_parent(&mut self, root: &Rc<RefCell<RootComposer>>) {
-//         self.parent = Some(Rc::clone(root));
-//     }
-//     fn compose(&self) -> TokenStream2 {
-//         // let context = (self.context_presenter)(&*self.parent.as_ref().unwrap().borrow());
-//         // (self.composer)(context)
-//     }
-// }
 
 pub struct FFIContextComposer {
     parent: Option<Rc<RefCell<ItemComposer>>>,

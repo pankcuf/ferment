@@ -676,7 +676,6 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
         destroy_fields.push(composer_owned.compose_destroy());
         drop_fields.push(composer_owned.compose_drop());
     });
-    let input = quote!(#item_enum);
     let comment = DocPresentation::Default(quote!(#target_name));
     let ffi_presentation =
         FFIObjectPresentation::Full(ENUM_PRESENTER((quote!(#ffi_name), variants_fields)));
@@ -702,7 +701,7 @@ fn enum_expansion(item_enum: &ItemEnum, _scope: &Scope, tree: HashMap<TypeConver
         destructor_ident: ffi_destructor_name(&ffi_name).to_token_stream()
     };
     let traits = item_traits_expansions(target_name, _scope, &item_enum.attrs, &tree, traits);
-    Expansion::Full { input, comment, ffi_presentation, conversion, drop, destructor, traits }
+    Expansion::Full { comment, ffi_presentation, conversion, drop, destructor, traits }
 }
 
 fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scope: &Scope, trait_export_scope: &Scope, tree: &HashMap<TypeConversion, Type>) -> TraitVTablePresentation {
@@ -864,7 +863,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
     };
     let composer_owned = composer.borrow();
 
-    composer_owned.make_expansion(quote!(#item_struct), ffi_destructor_name(&ffi_struct_name(target_name)).to_token_stream(), traits)
+    composer_owned.make_expansion(ffi_destructor_name(&ffi_struct_name(target_name)).to_token_stream(), traits)
 }
 
 fn handle_arg_type(ty: &Type, pat: &Pat) -> TokenStream2 {
@@ -920,7 +919,6 @@ fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, 
         arguments: handle_fn_args(inputs, &tree)
     };
     Expansion::Function {
-        input: quote!(#item_fn),
         comment: DocPresentation::Safety(quote!(#ident)),
         ffi_presentation: signature_decomposition.present_fn(),
     }
@@ -959,7 +957,6 @@ fn trait_expansion(item_trait: &ItemTrait, _scope: &Scope, tree: HashMap<TypeCon
     let trait_name = &item_trait.ident;
     let vtable_name = ffi_vtable_name(trait_name).to_token_stream();
     Expansion::Trait {
-        input: quote!(#item_trait),
         comment: DocPresentation::Empty,
         vtable: FFIObjectPresentation::TraitVTable {
             name: vtable_name.clone(),
@@ -972,8 +969,8 @@ fn trait_expansion(item_trait: &ItemTrait, _scope: &Scope, tree: HashMap<TypeCon
     }
 }
 
-fn use_expansion(item_use: &ItemUse, _scope: &Scope) -> Expansion {
-    Expansion::Use { input: quote!(#item_use), comment: DocPresentation::Empty }
+fn use_expansion(_item_use: &ItemUse, _scope: &Scope) -> Expansion {
+    Expansion::Use { comment: DocPresentation::Empty }
 }
 
 fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
@@ -985,7 +982,6 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
         // Type::Tuple()
         Type::BareFn(TypeBareFn { inputs, output, .. }) => {
             Expansion::Callback {
-                input: quote!(#item_type),
                 comment: DocPresentation::Default(quote!(#ffi_name)),
                 ffi_presentation: FFIObjectPresentation::Callback {
                     name: quote!(#ffi_name),
@@ -1023,7 +1019,7 @@ fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConvers
                         _ => unimplemented!("from_type_alias: not supported {}", quote!(#ty)) })]
                 }))
                 .borrow()
-                .make_expansion(quote!(#item_type), ffi_destructor_name(&ffi_name).to_token_stream(), traits)
+                .make_expansion(ffi_destructor_name(&ffi_name).to_token_stream(), traits)
         }
     }
 }

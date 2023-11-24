@@ -8,17 +8,14 @@ use crate::scope_conversion::{ScopeTree, ScopeTreeCompact};
 pub enum Expansion {
     Empty,
     Callback {
-        input: TokenStream2,
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
     },
     Function {
-        input: TokenStream2,
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
     },
     Full {
-        input: TokenStream2,
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
         conversion: ConversionInterfacePresentation,
@@ -36,11 +33,9 @@ pub enum Expansion {
         conversions: Vec<TokenStream2>
     },
     Use {
-        input: TokenStream2,
         comment: DocPresentation,
     },
     Trait {
-        input: TokenStream2,
         comment: DocPresentation,
         vtable: FFIObjectPresentation,
         trait_object: FFIObjectPresentation,
@@ -115,12 +110,12 @@ pub enum DropInterfacePresentation {
 impl Presentable for Expansion {
     fn present(self) -> TokenStream2 {
         let presentations = match self {
-            Self::Empty | Self::Use { input: _, comment: _ } => vec![],
-            Self::Callback { input: _, comment, ffi_presentation } =>
+            Self::Empty | Self::Use { comment: _ } => vec![],
+            Self::Callback { comment, ffi_presentation } =>
                 vec![comment.present(), ffi_presentation.present()],
-            Self::Function { input: _, comment, ffi_presentation } =>
+            Self::Function { comment, ffi_presentation } =>
                 vec![comment.present(), ffi_presentation.present()],
-            Self::Full { input: _, comment, ffi_presentation, conversion, drop, destructor, traits} => {
+            Self::Full { comment, ffi_presentation, conversion, drop, destructor, traits} => {
                 let mut full = vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present(), destructor.present()];
                 full.extend(traits.into_iter().map(|trait_presentation| trait_presentation.present()));
                 full
@@ -135,10 +130,10 @@ impl Presentable for Expansion {
                         }
                     }
                 ],
-            Self::Trait { input: _, comment, vtable, trait_object } =>
+            Self::Trait { comment, vtable, trait_object } =>
                 vec![comment.present(), vtable.present(), trait_object.present()],
-            Self::Root { tree: root } =>
-                vec![root.present()]
+            Self::Root { tree } =>
+                vec![tree.present()]
         };
         let expanded = quote!(#(#presentations)*);
         // println!("{}", expanded);
