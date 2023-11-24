@@ -228,6 +228,10 @@ pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(
         vtable: &ChainType_IHaveChainSettings_VTable,
     }
 }
+```
+using this code cbindgen will be able to generate binding 
+```
+struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObject(const struct ChainType *obj);
 
 ```
 Current limitations:
