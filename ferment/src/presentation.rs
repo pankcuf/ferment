@@ -227,7 +227,7 @@ impl Presentable for ConversionInterfacePresentation {
                 quote! {
                     #[allow(non_snake_case)]
                     #[no_mangle]
-                    pub unsafe fn #destructor_ident(ffi: *mut #ffi_name) {
+                    pub unsafe extern "C" fn #destructor_ident(ffi: *mut #ffi_name) {
                         ferment_interfaces::unbox_any(ffi);
                     }
                 }
