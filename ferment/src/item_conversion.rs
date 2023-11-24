@@ -742,6 +742,7 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
         };
     };
     let binding_ident = format_ident!("{}_as_{}", item_name, trait_object_ident);
+    let destructor_binding_ident = ffi_destructor_name(&binding_ident);
     let export = quote! {
         #[no_mangle]
         #[allow(non_snake_case)]
@@ -752,8 +753,13 @@ fn implement_trait_for_item(item_trait: &ItemTrait, item_name: &Ident, item_scop
             }
         }
     };
-
-    TraitVTablePresentation::Full { vtable, export }
+    let destructor = quote! {
+        #[no_mangle]
+        pub unsafe extern "C" fn #destructor_binding_ident(obj: #fq_trait_object) {
+            ferment_interfaces::unbox_any(obj.object as *mut #item_name);
+        }
+    };
+    TraitVTablePresentation::Full { vtable, export, destructor }
 }
 
 fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attrs: &[Attribute], tree: &HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Vec<TraitVTablePresentation> {

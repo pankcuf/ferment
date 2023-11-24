@@ -103,6 +103,7 @@ pub enum TraitVTablePresentation {
     Full {
         vtable: TokenStream2,
         export: TokenStream2,
+        destructor: TokenStream2,
     }
 }
 
@@ -248,9 +249,10 @@ impl Presentable for DropInterfacePresentation {
 impl Presentable for TraitVTablePresentation {
     fn present(self) -> TokenStream2 {
         match self {
-            TraitVTablePresentation::Full { vtable, export } => quote! {
+            TraitVTablePresentation::Full { vtable, export, destructor } => quote! {
                 #vtable
                 #export
+                #destructor
             }
         }
     }
