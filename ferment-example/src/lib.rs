@@ -1,6 +1,7 @@
 mod chain;
 mod example;
 pub mod fermented;
+mod traits;
 
 extern crate ferment_macro;
 

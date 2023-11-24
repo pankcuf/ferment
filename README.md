@@ -7,6 +7,7 @@ The project is a rust-workspace consisting several crates:
 1. `ferment-interfaces`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
 2. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
 3. `ferment-example`: provides basic example.
+3. `ferment-example-nested`: provides example with dependent fermented crate.
 4. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
 
 A procedural macro consists of 1 macros:
@@ -39,14 +40,15 @@ fn main() {
 
         match ferment::Builder::new()
             .with_mod_name("fermented")
+            .with_crates(vec![])
             .generate() {
             Ok(()) => match Command::new("cbindgen")
                 .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
                 .status() {
-                Ok(status) => println!("Bindings generated into target/example.h with status: {status}"),
-                Err(err) => panic!("Can't generate bindings: {err}")
+                Ok(status) => println!("Bindings generated into target/example.h with status: {}", status),
+                Err(err) => panic!("Can't generate bindings: {}", err)
             }
-            Err(err) => panic!("Can't create FFI expansion: {err}")
+            Err(err) => panic!("Can't create FFI expansion: {}", err)
         }
     }
 }
@@ -177,8 +179,62 @@ impl Drop for HashID_FFI {
 }
 ```
 
+For traits labeled with `export`
+```rust
+#[ferment_macro::export]
+pub trait IHaveChainSettings { 
+    // ..
+}
+```
+There will be vtable and trait obj generated
+```rust
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct IHaveChainSettings_VTable { 
+    // ..
+}
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct IHaveChainSettings_TraitObject {
+    pub object: *const (),
+    pub vtable: *const IHaveChainSettings_VTable,
+}
+```
+And then for items marked like this:
+```rust
+#[ferment_macro::export(IHaveChainSettings)]
+#[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
+pub enum ChainType {
+    MainNet,
+    TestNet,
+    DevNet(DevnetType)
+}
+```
+there will be additional code generated
+```rust
+#[allow(non_snake_case, non_upper_case_globals)]
+static ChainType_IHaveChainSettings_VTable: IHaveChainSettings_VTable = { 
+    // ..
+};
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(
+    obj: *const ChainType,
+) -> IHaveChainSettings_TraitObject {
+    IHaveChainSettings_TraitObject {
+        object: obj as *const (),
+        vtable: &ChainType_IHaveChainSettings_VTable,
+    }
+}
+```
+using this code cbindgen will be able to generate binding 
+```
+struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObject(const struct ChainType *obj);
+
+```
 Current limitations:
-- doesn't work with traits and &self
 - We should mark all structures that involved into export with the macro definition
 - There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyIDFFI(u32)` The alternative is to store a hardcoded dictionary with them.
 Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
@@ -251,4 +307,7 @@ pub mod generics {
 ```
 
 
-**TODO:**
+
+**[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
+
+**[CHANGELOG](https://github.com/pankcuf/ferment/blob/master/CHANGELOG.md)**

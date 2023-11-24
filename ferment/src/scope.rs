@@ -88,6 +88,21 @@ impl Scope {
         Scope { path }
     }
 
+    pub fn extract_type_scope(ty: &Type) -> Scope {
+        match ty {
+            Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+                let new_segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
+                if new_segments.is_empty() {
+                    EMPTY
+                } else {
+                    let scope_path = quote!(#(#new_segments)::*);
+                    Scope::new(parse_quote!(#scope_path))
+                }
+            },
+            _ => EMPTY
+        }
+    }
+
     pub fn ffi_type_converted_or_same(ty: &Type) -> Type {
         Self::ffi_type_converted(ty)
             .unwrap_or(ty.clone())

@@ -3,6 +3,7 @@ use syn::Ident;
 #[derive(Clone, Debug, Default)]
 pub struct Context {
     pub crate_names: Vec<String>,
+    // pub traits: HashMap<Scope, >
 }
 
 impl Context {

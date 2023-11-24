@@ -1,6 +1,6 @@
 use quote::quote;
 use syn::__private::TokenStream2;
-use crate::interface::{doc, ffi, ffi_from_const, ffi_to_const, interface, obj, package, Presentable};
+use crate::interface::{doc, ffi, ffi_from_const, ffi_to_const, interface, NAMED_STRUCT_PRESENTER, obj, package, Presentable};
 use crate::scope::Scope;
 use crate::scope_conversion::{ScopeTree, ScopeTreeCompact};
 
@@ -23,6 +23,7 @@ pub enum Expansion {
         ffi_presentation: FFIObjectPresentation,
         conversion: ConversionInterfacePresentation,
         drop: DropInterfacePresentation,
+        traits: Vec<TraitVTablePresentation>,
     },
     Root {
         tree: ScopeTree,
@@ -36,6 +37,12 @@ pub enum Expansion {
     Use {
         input: TokenStream2,
         comment: DocPresentation,
+    },
+    Trait {
+        input: TokenStream2,
+        comment: DocPresentation,
+        vtable: FFIObjectPresentation,
+        trait_object: FFIObjectPresentation,
     }
 }
 
@@ -66,6 +73,14 @@ pub enum FFIObjectPresentation {
         output_conversions: TokenStream2,
 
     },
+    TraitVTable {
+        name: TokenStream2,
+        fields: Vec<TokenStream2>
+    },
+    TraitObject {
+        name: TokenStream2,
+        vtable_name: TokenStream2,
+    },
     Full(TokenStream2)
 }
 
@@ -79,6 +94,12 @@ pub enum ConversionInterfacePresentation {
     }
 }
 
+pub enum TraitVTablePresentation {
+    Full {
+        vtable: TokenStream2,
+        export: TokenStream2,
+    }
+}
 
 pub enum DropInterfacePresentation {
     Empty,
@@ -93,17 +114,23 @@ impl Presentable for Expansion {
                 vec![comment.present(), ffi_presentation.present()],
             Self::Function { input: _, comment, ffi_presentation } =>
                 vec![comment.present(), ffi_presentation.present()],
-            Self::Full { input: _, comment, ffi_presentation, conversion, drop} =>
-                vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present()],
+            Self::Full { input: _, comment, ffi_presentation, conversion, drop, traits} => {
+                let mut full = vec![comment.present(), ffi_presentation.present(), conversion.present(), drop.present()];
+                full.extend(traits.into_iter().map(|trait_presentation| trait_presentation.present()));
+                full
+            },
             Self::Mod { directives, name, imports, conversions } =>
                 vec![
-                    quote!(
+                    quote! {
                         #directives
                         pub mod #name {
-                        #(use #imports;)*
-                        #(#conversions)*
-                    })
+                            #(use #imports;)*
+                            #(#conversions)*
+                        }
+                    }
                 ],
+            Self::Trait { input: _, comment, vtable, trait_object } =>
+                vec![comment.present(), vtable.present(), trait_object.present()],
             Self::Root { tree: root } =>
                 vec![root.present()]
         };
@@ -137,15 +164,24 @@ impl Presentable for FFIObjectPresentation {
                     #[allow(non_camel_case_types)]
                     pub type #name = unsafe extern "C" fn(#(#arguments),*) #output_expression;
                 },
-            Self::Function { name_and_arguments, input_conversions, output_expression, output_conversions, } =>
+            Self::Function { name_and_arguments, input_conversions, output_expression, output_conversions, } => {
+                let macros = quote!(#[no_mangle]);
+                let signature = quote!(pub unsafe extern "C" fn #name_and_arguments -> #output_expression);
+                let body = quote!({ let obj = #input_conversions; #output_conversions });
                 quote! {
-                    #[no_mangle]
-                    pub unsafe extern "C" fn #name_and_arguments -> #output_expression {
-                        let obj = #input_conversions;
-                        #output_conversions
-                    }
-                },
+                    #macros
+                    #signature
+                    #body
+                }
+            },
             Self::Full(presentation) => presentation,
+            Self::TraitVTable { name, fields } =>
+                NAMED_STRUCT_PRESENTER((name, fields)),
+            Self::TraitObject { name, vtable_name } =>
+                NAMED_STRUCT_PRESENTER((name, vec![
+                    quote!(pub object: *const ()),
+                    quote!(pub vtable: *const #vtable_name)]))
+
         }
     }
 }
@@ -193,3 +229,15 @@ impl Presentable for DropInterfacePresentation {
         }
     }
 }
+
+impl Presentable for TraitVTablePresentation {
+    fn present(self) -> TokenStream2 {
+        match self {
+            TraitVTablePresentation::Full { vtable, export } => quote! {
+                #vtable
+                #export
+            }
+        }
+    }
+}
+
