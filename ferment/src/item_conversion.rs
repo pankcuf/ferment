@@ -51,6 +51,14 @@ impl FnSignatureDecomposition {
         let output_conversions = self.return_type.conversion;
         FFIObjectPresentation::Function { name_and_arguments, input_conversions, output_expression, output_conversions }
     }
+
+    pub fn present_trait_vtable_inner_fn(self) -> TokenStream2 {
+        let arguments = self.arguments.iter().map(|arg| arg.name_type_original.clone()).collect();
+        let fn_name = self.ident;
+        let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments));
+        let output_expression = self.return_type.presentation;
+        quote!(pub #fn_name: #name_and_args -> #output_expression)
+    }
 }
 
 #[derive(Clone)]
@@ -86,20 +94,6 @@ impl ToTokens for ItemConversion {
             ItemConversion::Fn(item, ..) => item.to_tokens(tokens),
             ItemConversion::Trait(item, ..) => item.to_tokens(tokens),
             ItemConversion::Use(item, ..) => item.to_tokens(tokens),
-        }
-    }
-}
-
-impl From<(ItemConversion, HashMap<TypeConversion, Type>, HashMap<Scope, HashMap<Ident, ItemTrait>>)> for Expansion {
-    fn from(conversion: (ItemConversion, HashMap<TypeConversion, Type>, HashMap<Scope, HashMap<Ident, ItemTrait>>)) -> Self {
-        match &conversion.0 {
-            ItemConversion::Mod(..) => Expansion::Empty,
-            ItemConversion::Struct(item, scope) => struct_expansion(item, scope, conversion.1, conversion.2),
-            ItemConversion::Enum(item, scope) => enum_expansion(item, scope, conversion.1, conversion.2),
-            ItemConversion::Type(item, scope) => type_expansion(item, scope, conversion.1, conversion.2),
-            ItemConversion::Fn(item, scope) => fn_expansion(item, scope, conversion.1, conversion.2),
-            ItemConversion::Trait(item, scope) => trait_expansion(item, scope, conversion.1, conversion.2),
-            ItemConversion::Use(item, scope) => use_expansion(item, scope),
         }
     }
 }
@@ -395,8 +389,6 @@ impl ItemConversion {
         });
     }
 
-
-
     fn cache_fields_in(container: &mut HashMap<ImportType, HashSet<ImportConversion>>, fields: &Fields, imports: &HashMap<Ident, Path>) {
         match fields {
             Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
@@ -522,21 +514,30 @@ impl ItemConversion {
         let trait_names = extract_trait_names(item_trait_attrs);
         trait_names.iter().for_each(|trait_name|
             visitor.add_full_qualified_type_match(scope.clone(), &parse_quote!(#trait_name)));
-
     }
 
+    fn add_full_qualified_type_from_enum(visitor: &mut Visitor, item_enum: &ItemEnum, scope: &Scope) {
+        item_enum.variants.iter().for_each(|Variant { fields, .. }|
+            fields.iter().for_each(|Field { ty, .. }|
+                visitor.add_full_qualified_type_match(scope.clone(), ty)));
+    }
+
+    fn add_full_qualified_type_from_struct(visitor: &mut Visitor, item_struct: &ItemStruct, scope: &Scope) {
+        item_struct.fields.iter().for_each(|Field { ty, .. }|
+            visitor.add_full_qualified_type_match(scope.clone(), ty));
+    }
+
+
     pub fn add_full_qualified_conversion(self, visitor: &mut Visitor) -> ItemConversion {
-        let converted = match self {
+        match self {
             Self::Struct(item_struct, scope) => {
                 Self::add_full_qualified_trait_type_from_macro(visitor, &item_struct.attrs, &scope);
-                item_struct.fields.iter().for_each(|Field { ty, .. }| visitor.add_full_qualified_type_match(scope.clone(), ty));
+                Self::add_full_qualified_type_from_struct(visitor, &item_struct, &scope);
                 Self::Struct(item_struct, scope)
             },
             Self::Enum(item_enum, scope) => {
                 Self::add_full_qualified_trait_type_from_macro(visitor, &item_enum.attrs, &scope);
-                item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                    fields.iter().for_each(|Field { ty, .. }|
-                        visitor.add_full_qualified_type_match(scope.clone(), ty)));
+                Self::add_full_qualified_type_from_enum(visitor, &item_enum, &scope);
                 Self::Enum(item_enum, scope)
             },
             Self::Type(item_type, scope) => {
@@ -567,12 +568,9 @@ impl ItemConversion {
                             Item::Trait(item_trait) =>
                                 Self::add_full_qualified_trait(visitor, &item_trait, &inner_scope),
                             Item::Struct(item_struct) =>
-                                item_struct.fields.iter().for_each(|Field { ty, .. }|
-                                    visitor.add_full_qualified_type_match(inner_scope.clone(), ty)),
+                                Self::add_full_qualified_type_from_struct(visitor, &item_struct, &inner_scope),
                             Item::Enum(item_enum) =>
-                                item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                                    fields.iter().for_each(|Field { ty, .. }|
-                                        visitor.add_full_qualified_type_match(inner_scope.clone(), ty))),
+                                Self::add_full_qualified_type_from_enum(visitor, &item_enum, &inner_scope),
                             Item::Type(item_type) =>
                                 visitor.add_full_qualified_type_match(inner_scope.clone(), &item_type.ty),
                             _ => {}
@@ -581,8 +579,25 @@ impl ItemConversion {
                 }
                 Self::Mod(item_mod, scope)
             },
-        };
-        converted
+        }
+    }
+
+    pub fn make_expansion(&self, scope_types: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
+        match self {
+            ItemConversion::Mod(..) => Expansion::Empty,
+            ItemConversion::Struct(item, scope) => struct_expansion(item, scope, scope_types, traits),
+            ItemConversion::Enum(item, scope) => enum_expansion(item, scope, scope_types, traits),
+            ItemConversion::Type(item, scope) => type_expansion(item, scope, scope_types, traits),
+            ItemConversion::Fn(item, _scope) => {
+                let signature = FnSignatureDecomposition::from_signature(&item.sig, &scope_types);
+                Expansion::Function {
+                    comment: DocPresentation::Safety(signature.ident.to_token_stream()),
+                    ffi_presentation: signature.present_fn(),
+                }
+            },
+            ItemConversion::Trait(item, scope) => trait_expansion(item, scope, scope_types, traits),
+            ItemConversion::Use(_item, _scope) => Expansion::Use { comment: DocPresentation::Empty },
+        }
     }
 }
 
@@ -770,7 +785,7 @@ fn item_traits_expansions(item_name: &Ident, item_scope: &Scope, attrs: &[Attrib
             let scope_trait = traits.get(&trait_export_scope).unwrap();
             let ident = parse_quote!(#trait_name);
             let item_trait = scope_trait.get(&ident).unwrap();
-            implement_trait_for_item(item_trait, item_name, item_scope, &trait_export_scope,  tree)
+            implement_trait_for_item(item_trait, item_name, item_scope, &trait_export_scope, tree)
         })
         .collect()
 
@@ -819,10 +834,7 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, tree: HashMap<Type
                         quote!(obj.0),
                         EMPTY_MAP_PRESENTER,
                     ),
-                    _ => unimplemented!(
-                        "from_unnamed_struct: not supported {:?}",
-                        quote!(#fields)
-                    ),
+                    _ => unimplemented!("from_unnamed_struct: not supported {:?}", quote!(#fields)),
                 };
                 ItemComposer::primitive_composer(
                     quote!(#ffi_name),
@@ -909,20 +921,6 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, tree: &HashMap<TypeConversi
         .collect()
 }
 
-fn fn_expansion(item_fn: &ItemFn, _scope: &Scope, tree: HashMap<TypeConversion, Type>, _traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
-    let Signature { output, ident, inputs, .. } = &item_fn.sig;
-    let signature_decomposition = FnSignatureDecomposition {
-        ident: ident.clone(),
-        return_type: handle_fn_return_type(output, &tree),
-        arguments: handle_fn_args(inputs, &tree)
-    };
-    Expansion::Function {
-        comment: DocPresentation::Safety(quote!(#ident)),
-        ffi_presentation: signature_decomposition.present_fn(),
-    }
-}
-
-
 fn trait_item_presentation(trait_item: &TraitItem, tree: &HashMap<TypeConversion, Type>)
     -> Option<FnSignatureDecomposition> {
     match trait_item {
@@ -943,14 +941,7 @@ fn trait_fields_compositions(trait_items: &[TraitItem], tree: &HashMap<TypeConve
 
 fn trait_expansion(item_trait: &ItemTrait, _scope: &Scope, tree: HashMap<TypeConversion, Type>, _traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {
     let field_compositions = trait_fields_compositions(&item_trait.items, &tree);
-
-    let fields = field_compositions.into_iter().map(|signature| {
-        let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), signature.arguments.iter().map(|arg| arg.name_type_original.clone()).collect()));
-        let fn_name = signature.ident;
-        let output_expression = signature.return_type.presentation;
-        quote!(pub #fn_name: #name_and_args -> #output_expression)
-
-    }).collect();
+    let fields = field_compositions.into_iter().map(FnSignatureDecomposition::present_trait_vtable_inner_fn).collect();
 
     let trait_name = &item_trait.ident;
     let vtable_name = ffi_vtable_name(trait_name).to_token_stream();
@@ -965,10 +956,6 @@ fn trait_expansion(item_trait: &ItemTrait, _scope: &Scope, tree: HashMap<TypeCon
             vtable_name
         }
     }
-}
-
-fn use_expansion(_item_use: &ItemUse, _scope: &Scope) -> Expansion {
-    Expansion::Use { comment: DocPresentation::Empty }
 }
 
 fn type_expansion(item_type: &ItemType, scope: &Scope, tree: HashMap<TypeConversion, Type>, traits: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Expansion {

@@ -178,7 +178,7 @@ impl Presentable for ScopeTreeItem {
         match self {
             Self::Item { item, scope, scope_types, scope_traits } =>
                 ItemConversion::try_from((&item, scope))
-                    .map(|conversion| Expansion::from((conversion, scope_types, scope_traits)))
+                    .map(|conversion| conversion.make_expansion(scope_types, scope_traits))
                     .map_or(quote!(), Expansion::present),
             Self::Tree { item: _, tree} =>
                 tree.present()
