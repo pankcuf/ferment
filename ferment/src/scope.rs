@@ -110,13 +110,12 @@ impl Scope {
 
     pub fn ffi_type_converted(ty: &Type) -> Option<Type> {
         match ty {
-            Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+            Type::Path(TypePath { path, .. }) => {
+                let segments = &path.segments;
                 let first_segment = segments.first().unwrap();
                 let first_ident = &first_segment.ident;
-
                 let last_segment = segments.iter().last().unwrap();
                 let last_ident = &last_segment.ident;
-
                 match last_ident.to_string().as_str() {
                     "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
                     | "isize" | "usize" | "bool" => None,
@@ -128,26 +127,32 @@ impl Scope {
                     "UInt768" => Some(parse_quote!([u8; 96])),
                     "VarInt" => None,
                     "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
-                    "Vec" | "BTreeMap" | "HashMap" => {
+                    "Vec" | "BTreeMap" | "HashMap" | "Result" => {
                         let ffi_name = ffi_mangled_ident(ty);
-                        Some(parse_quote!(crate::fermented::generics::#ffi_name))
+                        let result = parse_quote!(crate::fermented::generics::#ffi_name);
+                        println!("ffi_type_converted (generic): {} -> {}", quote!(#ty), quote!(#result));
+                        Some(result)
                     },
                     "Option" => path_arguments_to_types(&last_segment.arguments)
                         .first()
                         .cloned()
                         .and_then(Self::ffi_type_converted),
+                    "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
+                    "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
                     _ => {
                         let segments: Vec<_> = match first_ident.to_string().as_str() {
                             "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
                             _ => segments.iter().take(segments.len() - 1).collect()
                         };
                         let new_ident = ffi_struct_name(last_ident);
-                        let middle = if segments.is_empty() {
+                        println!("ffi_type_converted (complex): {} --> {}", quote!(#path), quote!(#new_ident));
+                        let tail = if segments.is_empty() {
                             quote!(#new_ident)
                         } else {
                             quote!(#(#segments)::*::#new_ident)
                         };
-                        Some(parse_quote!(crate::fermented::types::#middle))
+                        println!("------ tail: {}", quote!(#tail));
+                        Some(parse_quote!(crate::fermented::types::#tail))
                     }
 
                 }
@@ -181,16 +186,21 @@ impl Scope {
                     "UInt768" => Some(parse_quote!([u8; 96])),
                     "VarInt" => None,
                     "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
-                    "Vec" | "BTreeMap" | "HashMap" => {
+                    "Vec" | "BTreeMap" | "HashMap" | "Result" => {
                         let ffi_name = ffi_mangled_ident(ty);
-                        Some(parse_quote!(crate::fermented::generics::#ffi_name))
+                        let result = parse_quote!(crate::fermented::generics::#ffi_name);
+                        println!("ffi_external_type_converted: {} -> {}", quote!(#ty), quote!(#result));
+                        Some(result)
                     },
                     "Option" => path_arguments_to_types(&last_segment.arguments)
                         .first()
                         .cloned()
                         .and_then(|ty| Self::ffi_external_type_converted(ty, context)),
+                    "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
+                    "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
                     _ => {
                         let new_ident = ffi_struct_name(last_ident);
+                        println!("ffi_external_type_converted: {} --> {}", quote!(#last_ident), quote!(#new_ident));
 
                         match first_ident.to_string().as_str() {
                             "crate" => {
@@ -258,6 +268,10 @@ impl Scope {
         let segments = self.path.segments.clone();
         let n = segments.len() - 1;
         Scope::new(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
+    }
+
+    pub fn to_type(&self) -> Type {
+        parse_quote!(#self)
     }
 }
 

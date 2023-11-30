@@ -16,6 +16,7 @@ pub struct ExcludedStruct {
 
 pub mod nested {
     use std::collections::BTreeMap;
+    use ferment_interfaces::OpaqueContext;
 
     #[ferment_macro::export]
     pub type KeyID = u32;
@@ -86,13 +87,13 @@ pub mod nested {
     }
 
     #[ferment_macro::export]
-    pub type AddInsightCallback = fn(block_hash: HashID, context: ferment_interfaces::OpaqueContext);
+    pub type AddInsightCallback = fn(block_hash: HashID, context: OpaqueContext);
 
     #[ferment_macro::export]
     pub type ShouldProcessDiffWithRangeCallback = fn(
         base_block_hash: HashID,
         block_hash: HashID,
-        context: ferment_interfaces::OpaqueContext,
+        context: OpaqueContext,
     ) -> ProtocolError;
 
     #[ferment_macro::export]

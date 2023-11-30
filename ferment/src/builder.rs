@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::Write;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{visit::Visit, ItemMod, parse_quote};
-use crate::context::Context;
 use crate::error;
-use crate::interface::Presentable;
 use crate::presentation::Expansion;
 use crate::visitor::{merge_visitor_trees, Visitor};
 use crate::scope::Scope;
@@ -109,13 +107,14 @@ impl Builder {
                 ScopeTreeCompact::init_with(
                     root_visitor.tree,
                     Scope::crate_root(),
-                    Context::new(self.config.crate_names))
+                    // Context::new(self.config.crate_names)
+                    )
                     .map_or(
                         Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree|
                             output.write_all(
                                 Expansion::from(tree)
-                                    .present()
+                                    .to_token_stream()
                                     .to_string()
                                     .as_bytes())
                                     .map_err(error::Error::from))

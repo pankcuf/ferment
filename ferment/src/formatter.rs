@@ -3,9 +3,10 @@ use quote::quote;
 use syn::{Ident, ItemTrait, Path, Type};
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::scope::Scope;
-use crate::scope_conversion::ScopeTreeExportItem;
+use crate::scope_conversion::{ScopeTreeExportItem, ScopeTreeItem};
 use crate::type_conversion::TypeConversion;
 
+#[allow(unused)]
 pub fn format_imported_dict(dict: &HashMap<ImportType, HashSet<ImportConversion>>) -> String {
     let debug_imports = dict.iter().map(|(i, p)| {
         let import = i.as_path();
@@ -16,6 +17,7 @@ pub fn format_imported_dict(dict: &HashMap<ImportType, HashSet<ImportConversion>
     all.to_string()
 }
 
+#[allow(unused)]
 pub fn format_imports(dict: &HashMap<Scope, HashMap<Ident, Path>>) -> String {
     let vec = vec![];
     let v = dict.iter().fold(vec, |mut acc, (k, scope_imports)| {
@@ -27,19 +29,28 @@ pub fn format_imports(dict: &HashMap<Scope, HashMap<Ident, Path>>) -> String {
     expanded.to_string()
 }
 
-pub fn format_exported_dict(dict: &HashMap<Ident, ScopeTreeExportItem>) -> String {
+#[allow(unused)]
+pub fn format_tree_exported_dict(dict: &HashMap<Ident, ScopeTreeExportItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("{}: {}", ident, tree_item))
         .collect::<Vec<_>>()
         .join(", ")
 }
-pub fn format_types_dict(dict: &HashMap<TypeConversion, Type>) -> String {
+#[allow(unused)]
+pub fn format_tree_item_dict(dict: &HashMap<Ident, ScopeTreeItem>) -> String {
     dict.iter()
-        .map(|(tc, full_ty)| quote!(#tc: #full_ty).to_string())
+        .map(|(ident, tree_item)| format!("{}: {:?}", ident, quote!(#tree_item)))
         .collect::<Vec<_>>()
         .join(", ")
 }
+#[allow(unused)]
+pub fn format_types_dict(dict: &HashMap<TypeConversion, Type>) -> String {
+    let iter = dict.iter()
+        .map(|(tc, full_ty)| quote!(#tc: #full_ty));
+    quote!(#(#iter),*).to_string()
+}
 
+#[allow(unused)]
 pub fn format_types_dict_full(dict: &HashMap<Scope, HashMap<TypeConversion, Type>>) -> String {
     dict.iter()
         .map(|(scope, dict)| format!("{}: {}", quote!(#scope), format_types_dict(dict)))
@@ -47,6 +58,7 @@ pub fn format_types_dict_full(dict: &HashMap<Scope, HashMap<TypeConversion, Type
         .join(", ")
 }
 
+#[allow(unused)]
 pub fn format_used_traits(dict: &HashMap<Scope, HashMap<Ident, ItemTrait>>) -> String {
     dict.iter()
         .map(|(scope, traits)| {

@@ -1,4 +1,5 @@
-use crate::nested::HashID;
+use std::collections::BTreeMap;
+use crate::nested::{HashID, ProtocolError};
 
 #[ferment_macro::export]
 pub trait IHaveChainSettings {
@@ -12,11 +13,20 @@ pub trait IHaveChainSettings {
         hash
     }
     fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool;
+    fn find_masternode_list(&self, cached_mn_lists: &BTreeMap<HashID, HashID>, unknown_mn_lists: &mut Vec<HashID>) -> Result<HashID, ProtocolError> {
+        if let Some(first) = unknown_mn_lists.first() {
+            Ok(first.clone())
+        } else if let Some(first) = cached_mn_lists.first_key_value() {
+            Ok(first.1.clone())
+        } else {
+            Err(ProtocolError::IdentifierError(format!("ERRERERERERE")))
+        }
+    }
 }
 
 #[allow(clippy::enum_variant_names)]
-#[ferment_macro::export(IHaveChainSettings)]
 #[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
+#[ferment_macro::export(IHaveChainSettings)]
 pub enum ChainType {
     MainNet,
     TestNet,
@@ -78,6 +88,7 @@ impl IHaveChainSettings for DevnetType {
     fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool {
         llmq_type != 0
     }
+
 }
 
 #[allow(dead_code)]

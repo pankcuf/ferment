@@ -4,9 +4,8 @@ use std::hash::{Hash, Hasher};
 use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::__private::TokenStream2;
-use crate::path_conversion::{GenericPathConversion, PathConversion};
+use crate::path_conversion::PathConversion;
 use crate::helper::{ffi_mangled_ident, mangle_type};
-use crate::interface::Presentable;
 use crate::presentation::DropInterfacePresentation;
 use crate::scope::Scope;
 
@@ -35,14 +34,13 @@ impl Hash for TypePathComposition {
 
 pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypePathComposition>) {
     if let Type::Path(TypePath { path, .. }) = field_type {
-        if let PathConversion::Generic(GenericPathConversion::Vec(path)) | PathConversion::Generic(GenericPathConversion::Map(path)) = PathConversion::from(path) {
-            generics.insert(TypePathComposition(field_type.clone(), path.clone()));
+        if let PathConversion::Generic(generic_path_conversion) = PathConversion::from(path) {
+            generics.insert(TypePathComposition(field_type.clone(), generic_path_conversion.path()));
         }
     }
 }
 
 pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2, decode: TokenStream2, encode: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
-    let drop_presentation = drop_presentation.present();
     quote! {
         #[repr(C)]
         #[derive(Clone)]
@@ -73,8 +71,6 @@ pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2,
 }
 
 pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2, v: TokenStream2, from: TokenStream2, to: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
-    // println!("map_ffi_expansion: {}: {}: {}: {}", name, map, k, v);
-    let drop_presentation = drop_presentation.present();
     quote! {
         #[repr(C)]
         #[derive(Clone)]
@@ -84,7 +80,7 @@ pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2,
             pub keys: *mut #k,
             pub values: *mut #v,
         }
-         impl ferment_interfaces::FFIConversion<#map> for #name {
+        impl ferment_interfaces::FFIConversion<#map> for #name {
             unsafe fn ffi_from_const(ffi: *const #name) -> #map {
                 #from
             }
@@ -142,8 +138,8 @@ impl Hash for GenericConversion {
     }
 }
 
-impl Presentable for GenericConversion {
-    fn present(self) -> TokenStream2 {
+impl ToTokens for GenericConversion {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { full_type } = self;
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
@@ -151,16 +147,9 @@ impl Presentable for GenericConversion {
                 generic_conversion.expand(ffi_mangled_ident(&full_type)),
             conversion =>
                 unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
-        }
+        }.to_tokens(tokens)
     }
 }
-
-impl ToTokens for GenericConversion {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.full_type.to_tokens(tokens);
-    }
-}
-
 
 impl GenericConversion {
     pub fn new(full_type: Type) -> Self {

@@ -1,3 +1,5 @@
+pub mod fermented;
+
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, CString};
 use std::hash::Hash;
@@ -98,14 +100,6 @@ pub fn boxed_vec<T>(vec: Vec<T>) -> *mut T {
     ptr
 }
 
-// pub fn boxed_vec_iterator<T, I: IntoIterator<Item = T>>(vec: I) -> *mut T {
-//     vec.into_iter().into
-//     let mut slice = vec.into_boxed_slice();
-//     let ptr = slice.as_mut_ptr();
-//     mem::forget(slice);
-//     ptr
-// }
-
 /// # Safety
 pub unsafe fn unbox_any<T: ?Sized>(any: *mut T) -> Box<T> {
     Box::from_raw(any)
@@ -144,6 +138,8 @@ pub fn convert_vec_to_fixed_array<const N: usize>(data: &[u8]) -> *mut [u8; N] {
     boxed(fixed_array)
 }
 
+
+/// Vec conversions
 /// # Safety
 pub unsafe fn from_simple_vec<N: Clone>(vec: *const N, count: usize) -> Vec<N> {
     std::slice::from_raw_parts(vec, count).to_vec()
@@ -155,13 +151,11 @@ pub unsafe fn from_complex_vec<N, V: FFIConversion<N>>(vec: *mut *mut V, count: 
         .map(|i| FFIConversion::ffi_from_const(*vec.add(i)))
         .collect()
 }
-
 /// # Safety
 pub unsafe fn to_simple_vec<O>(obj: Vec<O>) -> *mut O
     where Vec<*mut O>: FromIterator<*mut O> {
     boxed_vec(obj)
 }
-
 /// # Safety
 pub unsafe fn to_complex_vec<O, FFI>(obj: Vec<O>) -> *mut *mut FFI
     where
@@ -171,7 +165,30 @@ pub unsafe fn to_complex_vec<O, FFI>(obj: Vec<O>) -> *mut *mut FFI
         .map(|o| <FFI as FFIConversion<O>>::ffi_to(o))
         .collect::<Vec<*mut FFI>>())
 }
+// /// Result conversions
+// /// # Safety
+// pub unsafe fn from_simple_result<T, V>(ok: T, error: V) -> Result<T, V> {
+//     fold_to_result(ok, error, |o| o, |o| o)
+// }
+//
+// /// # Safety
+// pub unsafe fn from_simple_complex_result<T, V, V2>(ok: T, error: *mut V2) -> Result<T, V>
+//     where V2: FFIConversion<V> {
+//     fold_to_result(ok, error, |o| o, |o| FFIConversion::ffi_from(o))
+// }
+// /// # Safety
+// pub unsafe fn from_complex_simple_result<T, V, T2>(ok: *mut T2, error: V) -> Result<T, V>
+//     where T2: FFIConversion<T> {
+//     fold_to_result(ok, error, |o| FFIConversion::ffi_from(o), |o| o)
+// }
+// /// # Safety
+// pub unsafe fn from_complex_result<T, V, T2, V2>(ok: *mut T2, error: *mut V2) -> Result<T, V>
+//     where T2: FFIConversion<T>, V2: FFIConversion<V> {
+//     fold_to_result(ok, error, |o| FFIConversion::ffi_from(o), |o| FFIConversion::ffi_from(o))
+// }
 
+
+/// Map conversions
 /// # Safety
 pub unsafe fn from_simple_map<M, K, V>(count: usize, keys: *mut K, values: *mut V) -> M
     where
@@ -223,54 +240,8 @@ pub unsafe fn fold_to_btree_map<K: Copy, V: Copy, K2: Ord, V2>(count: usize, key
 /// We pass here main context of parent program
 
 pub type OpaqueContext = *const std::os::raw::c_void;
-pub type OpaqueContextFFI = OpaqueContext;
 
 pub type OpaqueContextMut = *mut std::os::raw::c_void;
-pub type OpaqueContextMutFFI = OpaqueContextMut;
-
-impl FFIConversion<OpaqueContextFFI> for OpaqueContext {
-    unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContextFFI {
-        *ffi
-    }
-
-    unsafe fn ffi_to_const(obj: OpaqueContextFFI) -> *const Self {
-        obj as *const _
-    }
-
-    unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextFFI {
-       *ffi
-    }
-
-    unsafe fn ffi_to(obj: OpaqueContextFFI) -> *mut Self {
-        // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
-        // behavior if the original memory location wasn't meant to be mutable
-        obj as *mut _
-    }
-
-    unsafe fn destroy(_ffi: *mut Self) {
-        // No destroy no ownership here
-    }
-}
-
-impl FFIConversion<OpaqueContextMutFFI> for OpaqueContextMut {
-    unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContextMutFFI {
-        *ffi
-    }
-
-    unsafe fn ffi_to_const(obj: OpaqueContextMutFFI) -> *const Self {
-        obj as *const _
-    }
-
-    unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextMutFFI {
-        *ffi
-    }
-
-    unsafe fn ffi_to(obj: OpaqueContextMutFFI) -> *mut Self {
-        // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
-        // behavior if the original memory location wasn't meant to be mutable
-        boxed(obj)
-    }
-}
 
 // No Drop implementation for them
 
@@ -303,6 +274,23 @@ impl<K: Hash + Eq, V> FFIMapConversion for HashMap<K, V> {
     fn new() -> Self { HashMap::new() }
     fn insert(&mut self, key: K, value: V) { HashMap::insert(self, key, value); }
 }
+
+// pub trait FFIResultConversion {
+//     type Ok;
+//     type Error;
+//     fn new(ok: Self::Ok, error: Self::Error) -> Self;
+// }
+// pub unsafe fn fold_to_result<T, V, T2, V2>(
+//     ok: T,
+//     error: V,
+//     ok_converter: impl Fn(T) -> T2,
+//     error_converter: impl Fn(V) -> V2)
+//     -> Result<T2, V2> {
+//     let t = ok_converter(ok);
+//     let v = error_converter(error);
+//
+//     M::new(key_converter(ok), value_converter(error))
+// }
 
 /// # Safety
 pub unsafe fn fold_to_map<M, K, V, K2, V2>(
