@@ -236,7 +236,7 @@ struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObjec
 ```
 Current limitations:
 - We should mark all structures that involved into export with the macro definition
-- There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyIDFFI(u32)` The alternative is to store a hardcoded dictionary with them.
+- There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyID_FFI(u32)` The alternative is to store a hardcoded dictionary with them.
 Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
 
 Generic mangling rules

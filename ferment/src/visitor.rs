@@ -6,12 +6,28 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use crate::Config;
 use crate::context::Context;
-use crate::item_conversion::ItemConversion;
+use crate::formatter::{format_types_dict_full, format_used_traits};
+use crate::item_conversion::{ItemContext, ItemConversion};
 use crate::path_conversion::{GenericPathConversion, PathConversion};
 use crate::scope_conversion::ScopeTreeExportItem;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
 
+#[derive(Default, Clone)]
+pub struct UsageInfo {
+    pub(crate) used_traits_at_scopes: HashMap<Scope, HashMap<Ident, ItemTrait>>,
+    pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
+    pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
+}
+impl std::fmt::Debug for UsageInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UsageInfo")
+            .field("used_traits_at_scopes", &format_used_traits(&self.used_traits_at_scopes))
+            .field("used_types_at_scopes", &format_types_dict_full(&self.used_types_at_scopes))
+            // .field("used_imports_at_scopes", &format_imports(&self.used_imports_at_scopes))
+            .finish()
+    }
+}
 pub struct Visitor {
     /// syn::Path to the file
     pub(crate) context: Context,
@@ -21,9 +37,7 @@ pub struct Visitor {
 
     pub(crate) inner_visitors: Vec<Visitor>,
 
-    pub(crate) used_traits_at_scopes: HashMap<Scope, HashMap<Ident, ItemTrait>>,
-    pub(crate) used_types_at_scopes: HashMap<Scope, HashMap<TypeConversion, Type>>,
-    pub(crate) used_imports_at_scopes: HashMap<Scope, HashMap<Ident, Path>>,
+    pub(crate) usage_info: UsageInfo,
 
     pub tree: ScopeTreeExportItem,
 }
@@ -33,36 +47,7 @@ impl std::fmt::Debug for Visitor {
         f.debug_struct("Visitor")
             .field("context", &self.context)
             .field("parent", &self.parent.to_token_stream().to_string())
-            // .field("used_traits_at_scopes", {
-            //     let vec = vec![];
-            //     let v = self.used_traits_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
-            //         let tme = tm.iter().map(|(ty, ItemTrait { ident, .. })| quote!(#ty -> #ident));
-            //         acc.push(quote!(#k: [#(#tme)*]));
-            //         acc
-            //     });
-            //     let expanded = quote!(#(#v),*);
-            //     &expanded.to_string().as_str()
-            // })
-            .field("used_types_at_scopes", {
-                let vec = vec![];
-                let v = self.used_types_at_scopes.iter().fold(vec, |mut acc, (k, tm)| {
-                    let tme = tm.iter().map(|(ty, full_ty)| quote!(#ty -> #full_ty));
-                    acc.push(quote!(#k: [#(#tme)*]));
-                    acc
-                });
-                let expanded = quote!(#(#v),*);
-                &expanded.to_string().as_str()
-            })
-            .field("used_imports_at_scopes", {
-                let vec = vec![];
-                let v = self.used_imports_at_scopes.iter().fold(vec, |mut acc, (k, scope_imports)| {
-                    let si = scope_imports.iter().map(|(k, v)| quote!(#k: #v)).collect::<Vec<_>>();
-                    acc.push(quote!(#k: #(#si),*));
-                    acc
-                });
-                let expanded = quote!(#(#v),*);
-                &expanded.to_string().as_str()
-            })
+            .field("usage", &self.usage_info)
             .field("visitors", &self.inner_visitors)
             .field("tree", &self.tree)
             .finish()
@@ -126,17 +111,14 @@ impl Visitor {
             parent: scope.clone(),
             current_scope_stack: vec![],
             current_module_scope: scope.clone(),
-            used_traits_at_scopes: HashMap::new(),
-            used_types_at_scopes: HashMap::new(),
-            used_imports_at_scopes: HashMap::new(),
+            usage_info: UsageInfo::default(),
             inner_visitors: vec![],
-            tree: ScopeTreeExportItem::Tree(Context::default(), HashSet::new(), HashMap::default(), HashMap::default(), HashMap::default(), HashMap::default()),
+            tree: ScopeTreeExportItem::Tree(HashSet::new(), HashMap::default(), HashMap::default(), ItemContext::default()),
         }
     }
 
     pub(crate) fn add_full_qualified_trait_match(&mut self, scope: Scope, item_trait: &ItemTrait) {
-        println!("add_full_qualified_trait_match: {}: -> {}", quote!(#scope), quote!(#item_trait));
-        self.used_traits_at_scopes.entry(scope.clone())
+        self.usage_info.used_traits_at_scopes.entry(scope.clone())
             .or_insert_with(HashMap::new)
             .insert(item_trait.ident.clone(), item_trait.clone());
     }
@@ -145,10 +127,14 @@ impl Visitor {
         let all_involved_types = conversion.get_all_type_paths_involved();
         let all_involved_full_types = all_involved_types.into_iter().map(|tp| {
             let ty: Type = parse_quote!(#tp);
+
             let full_ty = self.update_nested_generics(&scope, &ty);
             (TypeConversion::new(ty), full_ty)
         }).collect::<HashMap<_, _>>();
-        self.used_types_at_scopes.entry(scope)
+        // println!("add_full_qualified_type_match: [{}]: {}", quote!(#scope), quote!(#ty));
+        // println!(" ------------: {}" , format_types_dict(&all_involved_full_types));
+
+        self.usage_info.used_types_at_scopes.entry(scope)
             .or_insert_with(HashMap::new)
             .extend(all_involved_full_types);
     }
@@ -159,12 +145,12 @@ impl Visitor {
         match use_tree {
             UseTree::Path(UsePath { ident, tree, .. }) => {
                 current_path.push(ident.clone());
-                self.fold_import_tree(scope,&*tree, current_path);
+                self.fold_import_tree(scope,tree, current_path);
             },
             UseTree::Name(UseName { ident, .. }) |
             UseTree::Rename(UseRename { rename: ident, .. }) => {
                 current_path.push(ident.clone());
-                self.used_imports_at_scopes
+                self.usage_info.used_imports_at_scopes
                     .entry(scope.clone())
                     .or_insert_with(HashMap::new)
                     .insert(ident.clone(), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
@@ -175,6 +161,28 @@ impl Visitor {
             UseTree::Glob(_) => {
                 // For a glob import, we can't determine the full path statically
                 // Just ignore them for now
+            }
+        }
+    }
+
+    fn update_local_path(path: &Path, scope: &Scope) -> Option<Scope> {
+        match PathConversion::from(path) {
+            PathConversion::Primitive(_p) => None,
+            PathConversion::Complex(p) => {
+                match p.segments.last().unwrap().ident.to_string().as_str() {
+                    "str" | "String" | "Option" => None,
+                    _ => {
+                        // println!("update_nested_generics: join: {} + {}", scope.to_token_stream(), p.to_token_stream());
+                        Some(scope.joined_path(p))
+                    },
+                }
+
+            },
+            PathConversion::Generic(GenericPathConversion::Result(_p)) |
+            PathConversion::Generic(GenericPathConversion::Vec(_p)) |
+            PathConversion::Generic(GenericPathConversion::Map(_p)) => {
+                // println!("update_nested_generics: (no import, so it exports generic: ) [{}]: {} ", quote!(#scope), quote!(#p))
+                None
             }
         }
     }
@@ -195,44 +203,24 @@ impl Visitor {
                         }
                     }
                 }
-                if let Some(scope_imports) = self.used_imports_at_scopes.get(scope) {
+                if let Some(scope_imports) = self.usage_info.used_imports_at_scopes.get(scope) {
                     let ident = &segments.last().unwrap().ident;
                     if let Some(replacement_path) = scope_imports.get(ident) {
+                        println!("replacement_path: {}", quote!(#replacement_path));
                         let last_segment = segments.pop().unwrap();
                         segments.extend(replacement_path.segments.clone());
                         segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                    } else {
-                        let local_type = match PathConversion::from(path) {
-                            PathConversion::Primitive(_p) => None,
-                            PathConversion::Complex(p) => {
-                                match p.segments.last().unwrap().ident.to_string().as_str() {
-                                    "str" | "String" | "Option" => None,
-                                    _ => {
-                                        // println!("update_nested_generics: join: {} + {}", scope.to_token_stream(), p.to_token_stream());
-                                        Some(scope.joined_path(p))
-                                    },
-                                }
-
-                            },
-                            PathConversion::Generic(GenericPathConversion::Vec(_p)) |
-                            PathConversion::Generic(GenericPathConversion::Map(_p)) => {
-                                // println!("update_nested_generics: (no import, so it exports generic: ) [{}]: {} ", quote!(#scope), quote!(#p))
-                                None
-                            }
-                        };
-                        if let Some(local) = local_type {
-                            let last_segment = segments.pop().unwrap();
-                            segments.extend(local.path.segments.clone());
-                            segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                            // println!("update_nested_generics: (no import, so it exports type: ) {} ", quote!(#local))
-                        }
-
-                        // let last_segment = segments.pop().unwrap();
-                        // segments.extend(replacement_path.segments.clone());
-                        // segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-
-
+                    } else if let Some(local_type) = Self::update_local_path(path, scope) {
+                        println!("local_type (has scope): {}", quote!(#local_type));
+                        let last_segment = segments.pop().unwrap();
+                        segments.extend(local_type.path.segments.clone());
+                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                     }
+                } else if let Some(local_type) = Self::update_local_path(path, scope) {
+                    println!("local_type (no scope): {}", quote!(#local_type));
+                    let last_segment = segments.pop().unwrap();
+                    segments.extend(local_type.path.segments.clone());
+                    segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                 }
 
                 Type::Path(TypePath {
@@ -245,7 +233,7 @@ impl Visitor {
     }
 
     fn current_scope_for(&self, item: &Item) -> Scope {
-        let is_mod = if let Item::Mod(..) = item { true } else { false };
+        let is_mod = matches!(item, Item::Mod(..));
         match self.current_scope_stack.first() {
             Some(current_mod) if !is_mod => self.current_module_scope.joined(current_mod),
             _ => self.current_module_scope.clone()
@@ -258,8 +246,8 @@ impl Visitor {
         for ident in &path_to_traverse {
             match current_tree {
                 ScopeTreeExportItem::Item(..) => panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(inner_context, _, _, exported, _, _) => {
-                    inner_context.merge(&context);
+                ScopeTreeExportItem::Tree(_, _, exported, item_context) => {
+                    item_context.context.merge(&context);
                     if !exported.contains_key(ident) {
                         exported.insert(ident.clone(), ScopeTreeExportItem::just_export_with_context(HashMap::new(), context.clone()));
                     }
@@ -270,21 +258,17 @@ impl Visitor {
         current_tree
     }
 
-    pub fn add_conversion<'ast>(&mut self, item: Item) {
+    pub fn add_conversion(&mut self, item: Item) {
         let scope = self.current_scope_for(&item);
-        match ItemConversion::try_from((&item, &scope)) {
-            Ok(conversion) => {
-                if conversion.has_macro_attribute() {
-                    // println!("handle_attributes_with_handler: {}", path.to_token_stream());
-                    let full_qualified = conversion.add_full_qualified_conversion(self);
-                    let used_traits_at_scopes = self.used_traits_at_scopes.clone();
-                    let used_types_at_scopes = self.used_types_at_scopes.clone();
-                    let used_imports_at_scopes = self.used_imports_at_scopes.clone();
-                    self.get_tree_export_item(&scope, self.context.clone())
-                        .add_item(full_qualified, Some(&used_traits_at_scopes), &used_types_at_scopes, &used_imports_at_scopes);
-                }
-            },
-            _ => {}
+        if let Ok(conversion) = ItemConversion::try_from((item, &scope)) {
+            // println!("add_conversion.1: [{}]: [{}]", conversion.has_macro_attribute(), conversion.ident().to_token_stream());
+            if conversion.has_macro_attribute() {
+                let full_qualified = conversion.add_full_qualified_conversion(self);
+                let usage_info = self.usage_info.clone();
+                //println!("add_conversion.2: [{}] {:#?}", quote!(#scope), usage_info);
+                self.get_tree_export_item(&scope, self.context.clone())
+                    .add_item(full_qualified, &usage_info);
+            }
         }
     }
 }
@@ -303,19 +287,16 @@ pub fn merge_visitor_trees(visitor: &mut Visitor) {
 }
 
 fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportItem) {
-    match (destination, source) {
-        (ScopeTreeExportItem::Tree(_, _, _, dest_exports, _, _),
-            ScopeTreeExportItem::Tree(_, _, _, source_exports, _, _), ) => {
-            for (name, source_tree) in source_exports.iter() {
-                match dest_exports.entry(name.clone()) {
-                    std::collections::hash_map::Entry::Occupied(mut o) =>
-                        merge_trees(o.get_mut(), source_tree),
-                    std::collections::hash_map::Entry::Vacant(v) => {
-                        v.insert(source_tree.clone());
-                    }
+    if let (ScopeTreeExportItem::Tree(_, _, dest_exports, _),
+        ScopeTreeExportItem::Tree(_, _, source_exports, _), ) = (destination, source) {
+        for (name, source_tree) in source_exports.iter() {
+            match dest_exports.entry(name.clone()) {
+                std::collections::hash_map::Entry::Occupied(mut o) =>
+                    merge_trees(o.get_mut(), source_tree),
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(source_tree.clone());
                 }
             }
         }
-        _ => {}
     }
 }

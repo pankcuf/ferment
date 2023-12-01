@@ -18,6 +18,8 @@ pub enum ImportType {
     FfiGeneric,
     FfiType,
     Inner,
+    OriginalTrait,
+    FfiTrait,
     None,
 }
 
@@ -25,14 +27,17 @@ impl ImportType {
 
     pub fn as_path(&self) -> Path {
         match self {
-            ImportType::Original => parse_quote!(ImportType::Original),
-            ImportType::External => parse_quote!(ImportType::External),
-            ImportType::ExternalChunk => parse_quote!(ImportType::ExternalChunk),
-            ImportType::FfiExternal => parse_quote!(ImportType::FfiExternal),
-            ImportType::FfiType => parse_quote!(ImportType::FfiType),
-            ImportType::FfiGeneric => parse_quote!(ImportType::FfiGeneric),
-            ImportType::Inner => parse_quote!(ImportType::Inner),
-            ImportType::None => parse_quote!(ImportType::None),
+            ImportType::Original => parse_quote!(Original),
+            ImportType::External => parse_quote!(External),
+            ImportType::ExternalChunk => parse_quote!(ExternalChunk),
+            ImportType::FfiExternal => parse_quote!(FfiExternal),
+            ImportType::FfiType => parse_quote!(FfiType),
+            ImportType::FfiGeneric => parse_quote!(FfiGeneric),
+            ImportType::Inner => parse_quote!(Inner),
+            ImportType::None => parse_quote!(None),
+
+            ImportType::OriginalTrait => parse_quote!(OriginalTrait),
+            ImportType::FfiTrait => parse_quote!(FfiTrait),
         }
     }
 

@@ -8,7 +8,7 @@ fn main() {
        .with_mod_name("fermented")
        .generate() {
       Ok(()) => match Command::new("cbindgen")
-          .args(&["--config", "cbindgen.toml", "-o", c_header])
+          .args(["--config", "cbindgen.toml", "-o", c_header])
           .status() {
          Ok(status) => println!("Bindings generated into {c_header} with status: {status}"),
          Err(err) => panic!("Can't generate bindings: {}", err)

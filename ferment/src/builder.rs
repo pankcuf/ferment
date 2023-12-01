@@ -1,10 +1,8 @@
 use std::fs::File;
 use std::io::Write;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{visit::Visit, ItemMod, parse_quote};
-use crate::context::Context;
 use crate::error;
-use crate::interface::Presentable;
 use crate::presentation::Expansion;
 use crate::visitor::{merge_visitor_trees, Visitor};
 use crate::scope::Scope;
@@ -13,6 +11,11 @@ use crate::scope_conversion::ScopeTreeCompact;
 #[derive(Debug, Clone)]
 pub struct Builder {
     config: Config,
+}
+impl Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -104,13 +107,14 @@ impl Builder {
                 ScopeTreeCompact::init_with(
                     root_visitor.tree,
                     Scope::crate_root(),
-                    Context::new(self.config.crate_names))
+                    // Context::new(self.config.crate_names)
+                    )
                     .map_or(
                         Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree|
                             output.write_all(
                                 Expansion::from(tree)
-                                    .present()
+                                    .to_token_stream()
                                     .to_string()
                                     .as_bytes())
                                     .map_err(error::Error::from))
@@ -151,7 +155,7 @@ fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config)
 fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: Scope, config: &Config) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
-        let file_path = base_path.parent().unwrap().join(&mod_name.to_string());
+        let file_path = base_path.parent().unwrap().join(mod_name.to_string());
         let scope = file_scope.joined(mod_name);
         if file_path.is_file() {
             return Some(process_recursive(&file_path, scope, config));
