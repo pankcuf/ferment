@@ -7,7 +7,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, P
 use crate::generic_path_conversion::GenericPathConversion;
 use crate::helper::ffi_struct_name;
 use crate::item_conversion::ItemContext;
-
+use crate::scope::Scope;
 
 
 pub enum PathConversion {
@@ -67,13 +67,13 @@ impl From<&Path> for PathConversion {
 
 impl PathConversion {
 
-    // pub fn as_generic_arg_type(&self) -> TokenStream2 {
-    //     match self {
-    //         PathConversion::Primitive(path) => quote!(#path),
-    //         PathConversion::Complex(path) => Scope::ffi_type_converted_or_same(&parse_quote!(#path)).to_token_stream(),
-    //         PathConversion::Generic(conversion) => PathConversion::from(conversion.as_path()).as_ffi_path().to_token_stream()
-    //     }
-    // }
+    pub fn as_generic_arg_type(&self) -> TokenStream2 {
+        match self {
+            PathConversion::Primitive(path) => quote!(#path),
+            PathConversion::Complex(path) => Scope::ffi_type_converted_or_same(&parse_quote!(#path)).to_token_stream(),
+            PathConversion::Generic(conversion) => PathConversion::from(conversion.as_path()).as_ffi_path().to_token_stream()
+        }
+    }
 
     pub fn convert_to_ffi_path(path: &Path) -> Type {
         let mut cloned_segments = path.segments.clone();

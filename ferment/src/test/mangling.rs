@@ -1,5 +1,6 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{Ident, PathSegment, Type};
+use syn::__private::TokenStream2;
 use crate::helper::path_arguments_to_paths;
 use crate::path_conversion::PathConversion;
 
@@ -9,7 +10,8 @@ fn ident_from_str(s: &str) -> Ident {
 }
 
 impl PathConversion {
-    fn mangled_generic_arguments_types(&self) -> Vec<Type> {
+    fn mangled_generic_arguments_types(&self) -> Vec<TokenStream2> {
+
         self.as_path()
             .segments
             .iter()
@@ -17,7 +19,7 @@ impl PathConversion {
                 path_arguments_to_paths(arguments)
                     .into_iter()
                     .map(Self::from)
-                    .map(|arg| arg.as_ffi_type())
+                    .map(|arg| arg.as_generic_arg_type())
                     .collect::<Vec<_>>()
             })
             .collect()
@@ -26,7 +28,7 @@ impl PathConversion {
     fn mangled_generic_arguments_types_strings(&self) -> Vec<String> {
         self.mangled_generic_arguments_types()
             .iter()
-            .map(|ty| ty.to_token_stream().to_string())
+            .map(|ty| ty.to_string())
             .collect::<Vec<_>>()
     }
 
@@ -168,39 +170,39 @@ fn mangle_generic_arguments_types_test() {
     // Vec<Complex>
     assert_eq!(
         PathConversion::from("Vec<module::HashID>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut module::HashID_FFI).to_string()]
+        vec![quote!(crate::fermented::types::module::HashID).to_string()]
     );
     // Vec<Vec<Simple>
     assert_eq!(
         PathConversion::from("Vec<Vec<u8>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Vec_u8_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Vec_u8).to_string()]
     );
     // Vec<Vec<Complex>
     assert_eq!(
         PathConversion::from("Vec<Vec<module::HashID>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Vec_module_HashID_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Vec_module_HashID).to_string()]
     );
     // Vec<Vec<Vec<Simple>>
     assert_eq!(
         PathConversion::from("Vec<Vec<Vec<u8>>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Vec_Vec_u8_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Vec_Vec_u8).to_string()]
     );
     // Vec<Vec<Vec<Complex>>
     assert_eq!(
         PathConversion::from("Vec<Vec<Vec<module::HashID>>>")
             .mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Vec_Vec_module_HashID_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Vec_Vec_module_HashID).to_string()]
     );
     // Vec<Map<Simple, Simple>>
     assert_eq!(
         PathConversion::from("Vec<BTreeMap<u32, u32>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Map_keys_u32_values_u32_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Map_keys_u32_values_u32).to_string()]
     );
     // Vec<Map<Complex, Complex>>
     assert_eq!(
         PathConversion::from("Vec<BTreeMap<module::HashID, module::KeyID>>")
             .mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut Map_keys_module_HashID_values_module_KeyID_FFI).to_string()]
+        vec![quote!(crate::fermented::generics::Map_keys_module_HashID_values_module_KeyID).to_string()]
     );
 
     // Map<Simple, Simple>
@@ -214,7 +216,7 @@ fn mangle_generic_arguments_types_test() {
             .mangled_generic_arguments_types_strings(),
         vec![
             quote!(u32).to_string(),
-            quote!(*mut module::HashID_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string()
         ]
     );
     // Map<Complex, Simple>
@@ -222,7 +224,7 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, u32>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
+            quote!(crate::fermented::types::module::HashID).to_string(),
             quote!(u32).to_string()
         ]
     );
@@ -231,8 +233,8 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, module::HashID>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut module::HashID_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::types::module::HashID).to_string()
         ]
     );
     // Map<Complex, Vec<Simple>>
@@ -240,8 +242,8 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, Vec<u32>>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut Vec_u32_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Vec_u32).to_string()
         ]
     );
     // Map<Complex, Vec<Complex>>
@@ -249,8 +251,8 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, Vec<module::KeyID>>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut Vec_module_KeyID_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Vec_module_KeyID).to_string()
         ]
     );
     // Map<Complex, Map<Complex, Complex>>
@@ -258,8 +260,8 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, BTreeMap<module::HashID, module::KeyID>>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut Map_keys_module_HashID_values_module_KeyID_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Map_keys_module_HashID_values_module_KeyID).to_string()
         ]
     );
     // Map<Complex, Map<Complex, Vec<Simple>>>
@@ -267,8 +269,8 @@ fn mangle_generic_arguments_types_test() {
         PathConversion::from("BTreeMap<module::HashID, BTreeMap<module::HashID, Vec<u32>>>")
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut Map_keys_module_HashID_values_Vec_u32_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Map_keys_module_HashID_values_Vec_u32).to_string()
         ]
     );
     // Map<Complex, Map<Complex, Vec<Complex>>>
@@ -278,16 +280,20 @@ fn mangle_generic_arguments_types_test() {
         )
             .mangled_generic_arguments_types_strings(),
         vec![
-            quote!(*mut module::HashID_FFI).to_string(),
-            quote!(*mut Map_keys_module_HashID_values_Vec_module_KeyID_FFI).to_string()
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Map_keys_module_HashID_values_Vec_module_KeyID).to_string()
         ]
     );
     // Map<Complex, Map<Complex, Map<Complex, Complex>>>
     assert_eq!(
         PathConversion::from("BTreeMap<module::HashID, BTreeMap<module::HashID, BTreeMap<module::HashID, module::KeyID>>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut module::HashID_FFI).to_string(), quote!(*mut Map_keys_module_HashID_values_Map_keys_module_HashID_values_module_KeyID_FFI).to_string()]);
+        vec![
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Map_keys_module_HashID_values_Map_keys_module_HashID_values_module_KeyID).to_string()]);
     // Map<Complex, Map<Complex, Map<Complex, Vec<Complex>>>>
     assert_eq!(
         PathConversion::from("BTreeMap<module::HashID, BTreeMap<module::HashID, BTreeMap<module::HashID, Vec<module::KeyID>>>>").mangled_generic_arguments_types_strings(),
-        vec![quote!(*mut module::HashID_FFI).to_string(), quote!(*mut Map_keys_module_HashID_values_Map_keys_module_HashID_values_Vec_module_KeyID_FFI).to_string()]);
+        vec![
+            quote!(crate::fermented::types::module::HashID).to_string(),
+            quote!(crate::fermented::generics::Map_keys_module_HashID_values_Map_keys_module_HashID_values_Vec_module_KeyID).to_string()]);
 }
