@@ -38,14 +38,14 @@ fn unnamed_struct_fields_comp(ty: &Type, index: usize) -> TokenStream2 {
 pub enum FieldType {
     Named(Type, TokenStream2),
     Unnamed(Type, TokenStream2),
-    Itself(Type, TokenStream2),
+    //Itself(Type, TokenStream2),
 }
 impl ToTokens for FieldType {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             FieldType::Named(ty, field_name) => quote!(#field_name: #ty),
             FieldType::Unnamed(ty, index) => quote!(#index: #ty),
-            FieldType::Itself(ty, field_name) => quote!(#field_name: #ty),
+            //FieldType::Itself(ty, field_name) => quote!(#field_name: #ty),
         }.to_tokens(tokens)
     }
 }
@@ -55,14 +55,14 @@ impl FieldType {
         match self {
             FieldType::Named(ty, _) => ty,
             FieldType::Unnamed(ty, _) => ty,
-            FieldType::Itself(ty, _) => ty
+            //FieldType::Itself(ty, _) => ty
         }
     }
     pub fn name(&self) -> TokenStream2 {
         match self {
             FieldType::Named(_, field_name) => field_name.clone(),
             FieldType::Unnamed(_, field_name) => field_name.clone(),
-            FieldType::Itself(_, field_name) => field_name.clone()
+            //FieldType::Itself(_, field_name) => field_name.clone()
         }
 
     }
@@ -686,7 +686,7 @@ impl FFIBindingsComposer {
         let fields = self.field_types.iter().map(|field_type| match field_type {
             FieldType::Named(_ty, name) => quote!(#name),
             FieldType::Unnamed(_ty, name) => format_ident!("o_{}", name.to_string()).to_token_stream(),
-            FieldType::Itself(_ty, name) => quote!(#name)
+            //FieldType::Itself(_ty, name) => quote!(#name)
         }).collect::<Vec<_>>();
         let result = (self.root_presenter)(fields.clone());
         //println!("FFIBindingsComposer::compose_field_names: {} => {}", quote!(#(#fields), *), result);
@@ -706,10 +706,10 @@ impl FFIBindingsComposer {
                     let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
                     quote!(#field_name: #full_ty)
                 },
-                FieldType::Itself(_ty, name) => {
-                    let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
-                    quote!(#name: #full_ty)
-                },
+                // FieldType::Itself(_ty, name) => {
+                //     let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
+                //     quote!(#name: #full_ty)
+                // },
             })
             .collect()
     }

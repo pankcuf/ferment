@@ -1096,6 +1096,8 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                     ),
                     _ => unimplemented!("from_unnamed_struct: not supported {:?}", quote!(#fields)),
                 };
+                println!("primitive_composer: {} --> {}", quote!(#target_name), quote!(#ffi_name));
+                let ffi_name = ffi_struct_name(target_name).to_token_stream();
                 ItemComposer::primitive_composer(
                     parse_quote!(#ffi_name),
                     parse_quote!(#target_name),
@@ -1113,10 +1115,11 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                 {
                     // let full_ty = item_context.ffi_full_type_for(&parse_quote!(#target_name));
                     let ffi_name = ffi_struct_name(target_name).to_token_stream();
-                    println!("unnamed_struct_composer: {} --> {}", quote!(#target_name), quote!(#ffi_name));
+                    println!("unnamed_struct_composer.2: {} --> {}", quote!(#target_name), quote!(#ffi_name));
                     parse_quote!(#ffi_name)
                 },
                 {
+                    println!("unnamed_struct_composer.3: {}", quote!(#target_name));
                     let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
                     parse_quote!(#full_ty)
                 },

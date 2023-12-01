@@ -24,7 +24,7 @@ pub type IteratorPresenter = fn(items: Vec<TokenStream2>) -> TokenStream2;
 pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, context: &ItemContext) -> TokenStream2;
 /// token + [token] -> token
 pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
-// pub type PathPresenter = fn(path: &Path) -> TokenStream2;
+
 pub type ScopeTreePathPresenter = fn(path: &Path, context: &ItemContext) -> TokenStream2;
 pub type ScopeTreePathArgumentsPresenter = fn(arguments: &PathArguments, context: &ItemContext) -> TokenStream2;
 
@@ -219,7 +219,6 @@ pub const MANGLE_RESULT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |
     match &path_arguments_to_path_conversions(arguments)[..] {
         [ok_conversion, error_conversion] => {
             let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(tree), error_conversion.mangled_map_ident(tree));
-            println!("MANGLE_RESULT_ARGUMENTS_PRESENTER: {}", ident_string);
             syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
         },
         _ => panic!("MANGLE_RESULT_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet")
@@ -233,8 +232,6 @@ pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presen
 /// Path Presenters
 pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _context|
     {
-        //println!("DEFAULT_DICT_PATH_PRESENTER: {} --> {} --> {}", quote!(#path), context.full_type_for(&parse_quote!(#path)).to_token_stream(), context.ffi_full_type_for(&parse_quote!(#path)).to_token_stream());
-        // ffi_full
         PathConversion::from(path)
             .as_ffi_type()
             .to_token_stream()
@@ -263,31 +260,18 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
     }
 };
 
-// pub const FFI_TYPE_PATH_PRESENTER: PathPresenter = |path| {
-//     path.to_token_stream()
-//     // println!("FFI_TYPE_PATH_PRESENTER: {}", quote!(#path));
-//     // PathConversion::from(path)
-//     //     .as_ffi_path()
-//     //     .to_token_stream()
-// };
-
-pub const MANGLE_INNER_PATH_PRESENTER: ScopeTreePathPresenter = |path, tree|
+pub const MANGLE_INNER_PATH_PRESENTER: ScopeTreePathPresenter = |path, context|
     match PathConversion::from(path) {
         PathConversion::Primitive(path) |
         PathConversion::Complex(path) =>
-            MANGLE_PATH_PRESENTER(&path, tree),
-        PathConversion::Generic(generic_path_conversion) =>
-            generic_path_conversion.mangle_arguments(tree),
+            MANGLE_PATH_PRESENTER(&path, context),
+        PathConversion::Generic(GenericPathConversion::Vec(path)) =>
+            MANGLE_VEC_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
+        PathConversion::Generic(GenericPathConversion::Map(path)) =>
+            MANGLE_MAP_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
+        PathConversion::Generic(GenericPathConversion::Result(path)) =>
+            MANGLE_RESULT_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
 };
-
-pub const VEC_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, MANGLE_VEC_ARGUMENTS_PRESENTER, dictionary);
-
-pub const MAP_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, MANGLE_MAP_ARGUMENTS_PRESENTER, dictionary);
-
-pub const RESULT_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, MANGLE_RESULT_ARGUMENTS_PRESENTER, dictionary);
 
 pub const OPTION_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
     GENERIC_PATH_PRESENTER(path, OPTION_ARGUMENTS_PRESENTER, dictionary);

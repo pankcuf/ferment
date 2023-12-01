@@ -5,7 +5,7 @@ use syn::__private::TokenStream2;
 use syn::spanned::Spanned;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use crate::generics::{map_ffi_expansion, vec_ffi_exp};
-use crate::interface::{ffi_to_conversion, MANGLE_INNER_PATH_PRESENTER, MANGLE_MAP_ARGUMENTS_PRESENTER, MANGLE_RESULT_ARGUMENTS_PRESENTER, MANGLE_VEC_ARGUMENTS_PRESENTER, MAP_PATH_PRESENTER, MapPresenter, package_boxed_expression, RESULT_PATH_PRESENTER, ScopeTreePathArgumentsPresenter, ScopeTreePathPresenter, VEC_PATH_PRESENTER};
+use crate::interface::{ffi_to_conversion, MANGLE_INNER_PATH_PRESENTER, MANGLE_MAP_ARGUMENTS_PRESENTER, MANGLE_RESULT_ARGUMENTS_PRESENTER, MANGLE_VEC_ARGUMENTS_PRESENTER, MapPresenter, package_boxed_expression};
 use crate::helper::{destroy_map, destroy_result, destroy_vec, ffi_struct_name, path_arguments_to_path_conversions, path_arguments_to_paths};
 use crate::item_conversion::ItemContext;
 use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation};
@@ -16,45 +16,45 @@ macro_rules! format_mangled_ident {
         format_ident!($fmt, format!("{}", $path_presentation))
     };
 }
-fn mangle_generic_with_prefix(segment: &PathSegment, segment_str: &str, prefix1: &str, prefix2: &str) -> String {
-    let ss = match &segment.arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-            format!("{}_{}",
-                    segment_str,
-                    args.iter()
-                        .enumerate()
-                        .map(|(i, gen_arg)| match gen_arg {
-                            GenericArgument::Type(Type::Path(TypePath { path, .. })) => {
-                                let mangled = mangled_inner_generic_ident_string(path);
-                                format!("{}{}", if i == 0 { prefix1 } else { prefix2 }, mangled)
-                            }
-                            _ => panic!("Unknown generic argument: {}", quote!(#gen_arg)),
-                        })
-                        .collect::<Vec<_>>()
-                        .join("_")
-            ),
-        _ => segment_str.to_string(),
-    };
-    println!("mangle_generic_with_prefix: {}: {}", quote!(#segment), ss);
-    ss
-}
-pub fn mangled_inner_generic_ident_string(path: &Path) -> String {
-    path.segments
-        .iter()
-        .map(|segment| {
-            let segment_str = segment.ident.to_string();
-            match segment_str.as_str() {
-                "BTreeMap" | "HashMap" =>
-                    mangle_generic_with_prefix(segment, "Map", "keys_", "values_"),
-                "Result" =>
-                    mangle_generic_with_prefix(segment, "Result", "ok_", "err_"),
-                _ =>
-                    segment.ident.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("_")
-}
+// fn mangle_generic_with_prefix(segment: &PathSegment, segment_str: &str, prefix1: &str, prefix2: &str) -> String {
+//     let ss = match &segment.arguments {
+//         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+//             format!("{}_{}",
+//                     segment_str,
+//                     args.iter()
+//                         .enumerate()
+//                         .map(|(i, gen_arg)| match gen_arg {
+//                             GenericArgument::Type(Type::Path(TypePath { path, .. })) => {
+//                                 let mangled = mangled_inner_generic_ident_string(path);
+//                                 format!("{}{}", if i == 0 { prefix1 } else { prefix2 }, mangled)
+//                             }
+//                             _ => panic!("Unknown generic argument: {}", quote!(#gen_arg)),
+//                         })
+//                         .collect::<Vec<_>>()
+//                         .join("_")
+//             ),
+//         _ => segment_str.to_string(),
+//     };
+//     println!("mangle_generic_with_prefix: {}: {}", quote!(#segment), ss);
+//     ss
+// }
+// pub fn mangled_inner_generic_ident_string(path: &Path) -> String {
+//     path.segments
+//         .iter()
+//         .map(|segment| {
+//             let segment_str = segment.ident.to_string();
+//             match segment_str.as_str() {
+//                 "BTreeMap" | "HashMap" =>
+//                     mangle_generic_with_prefix(segment, "Map", "keys_", "values_"),
+//                 "Result" =>
+//                     mangle_generic_with_prefix(segment, "Result", "ok_", "err_"),
+//                 _ =>
+//                     segment.ident.to_string()
+//             }
+//         })
+//         .collect::<Vec<_>>()
+//         .join("_")
+// }
 
 pub trait Mangle {
     fn mangle(&self) -> TokenStream2;
@@ -83,22 +83,6 @@ impl GenericPathConversion {
         }
     }
 
-    pub fn path_presenter(&self) -> ScopeTreePathPresenter {
-        match self {
-            GenericPathConversion::Map(_) => MAP_PATH_PRESENTER,
-            GenericPathConversion::Vec(_) => VEC_PATH_PRESENTER,
-            GenericPathConversion::Result(_) => RESULT_PATH_PRESENTER
-        }
-    }
-
-    pub fn path_arguments_presenter(&self) -> ScopeTreePathArgumentsPresenter {
-        match self {
-            GenericPathConversion::Map(_) => MANGLE_MAP_ARGUMENTS_PRESENTER,
-            GenericPathConversion::Vec(_) => MANGLE_VEC_ARGUMENTS_PRESENTER,
-            GenericPathConversion::Result(_) => MANGLE_RESULT_ARGUMENTS_PRESENTER
-        }
-    }
-
     pub fn destroy_field(&self, field_path: TokenStream2) -> TokenStream2 {
         match self {
             GenericPathConversion::Map(path) => destroy_map(path, field_path),
@@ -106,43 +90,6 @@ impl GenericPathConversion {
             GenericPathConversion::Result(path) => destroy_result(path, field_path)
         }
     }
-
-    pub fn mangle_arguments(&self, context: &ItemContext) -> TokenStream2 {
-        let presenter = self.path_arguments_presenter();
-        match self {
-            GenericPathConversion::Map(path) =>
-                presenter(&path.segments.last().unwrap().arguments, context),
-            GenericPathConversion::Vec(path) =>
-                presenter(&path.segments.last().unwrap().arguments, context),
-            GenericPathConversion::Result(path) =>
-                presenter(&path.segments.last().unwrap().arguments, context)
-        }
-    }
-
-    pub fn mangle_path(&self, context: &ItemContext) -> TokenStream2 {
-        self.mangle_ident(self.path_presenter(), context).to_token_stream()
-    }
-
-    pub fn mangle_ident(&self, presenter: ScopeTreePathPresenter, context: &ItemContext) -> Ident {
-        match self {
-            GenericPathConversion::Map(path) => format_mangled_ident!("Map_{}", presenter(path, context)),
-            GenericPathConversion::Vec(path) => format_mangled_ident!("Vec_{}", presenter(path, context)),
-            GenericPathConversion::Result(path) => format_mangled_ident!("Result_{}", presenter(path, context)),
-        }
-    }
-
-    fn mangle_map_generic(segment: &PathSegment) -> String {
-        mangle_generic_with_prefix(segment, "Map", "keys_", "values_")
-    }
-
-    fn mangle_result_generic(segment: &PathSegment) -> String {
-        mangle_generic_with_prefix(segment, "Result", "ok_", "err_")
-    }
-
-    fn mangle_generic(segment: &PathSegment) -> String {
-        segment.ident.to_string()
-    }
-
 }
 
 pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p|
@@ -559,19 +506,6 @@ impl PathConversion {
         }
     }
 
-    fn mangle_map_generic(segment: &PathSegment) -> String {
-        mangle_generic_with_prefix(segment, "Map", "keys_", "values_")
-    }
-
-    fn mangle_result_generic(segment: &PathSegment) -> String {
-        mangle_generic_with_prefix(segment, "Result", "ok_", "err_")
-    }
-
-    fn mangle_generic(segment: &PathSegment) -> String {
-        segment.ident.to_string()
-    }
-
-
     pub fn mangled_inner_generic_ident_string(path: &Path) -> String {
         path.segments
             .iter()
@@ -641,17 +575,19 @@ impl PathConversion {
 }
 
 impl PathConversion {
-
-    fn mangled_ident(&self, presenter: ScopeTreePathPresenter, context: &ItemContext) -> Ident {
-        match self {
-            PathConversion::Primitive(path) => format_mangled_ident!("{}", presenter(path, context)),
-            PathConversion::Complex(path) => format_mangled_ident!("{}", presenter(path, context)),
-            PathConversion::Generic(generic_path_conversion) => generic_path_conversion.mangle_ident(presenter, context),
-        }
-    }
-
     pub fn mangled_map_ident(&self, context: &ItemContext) -> Ident {
-        self.mangled_ident(MANGLE_INNER_PATH_PRESENTER, context)
+        match self {
+            PathConversion::Primitive(path) =>
+                format_mangled_ident!("{}", MANGLE_INNER_PATH_PRESENTER(path, context)),
+            PathConversion::Complex(path) =>
+                format_mangled_ident!("{}", MANGLE_INNER_PATH_PRESENTER(path, context)),
+            PathConversion::Generic(GenericPathConversion::Vec(path)) =>
+                format_mangled_ident!("Vec_{}", MANGLE_INNER_PATH_PRESENTER(path, context)),
+            PathConversion::Generic(GenericPathConversion::Map(path)) =>
+                format_mangled_ident!("Map_{}", MANGLE_INNER_PATH_PRESENTER(path, context)),
+            PathConversion::Generic(GenericPathConversion::Result(path)) =>
+                format_mangled_ident!("Result_{}", MANGLE_INNER_PATH_PRESENTER(path, context)),
+        }
     }
 
     pub fn mangled_vec_arguments(&self, context: &ItemContext) -> TokenStream2 {
@@ -659,8 +595,12 @@ impl PathConversion {
             PathConversion::Primitive(path) |
             PathConversion::Complex(path) =>
                 quote!(#path),
-            PathConversion::Generic(generic_path_conversion) =>
-                generic_path_conversion.mangle_path(context),
+            PathConversion::Generic(GenericPathConversion::Vec(path)) =>
+                MANGLE_VEC_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
+            PathConversion::Generic(GenericPathConversion::Map(path)) =>
+                MANGLE_MAP_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
+            PathConversion::Generic(GenericPathConversion::Result(path)) =>
+                MANGLE_RESULT_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
         }
     }
 }
