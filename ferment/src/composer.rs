@@ -610,6 +610,7 @@ pub struct FFIConversionComposer {
 }
 
 impl FFIConversionComposer {
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         from_conversion_composer: ConversionComposer,
         to_conversion_composer: ConversionComposer,
@@ -678,8 +679,6 @@ impl FFIBindingsComposer {
     }
     pub(crate) fn add_conversion(&mut self, field_type: &FieldType) {
         self.field_types.push(field_type.clone());
-        // self.fields.push(field_type.to_token_stream());
-        // self.field_names.push(field_type.name());
     }
 
     pub fn compose_field_names(&self) -> TokenStream2 {
@@ -688,13 +687,10 @@ impl FFIBindingsComposer {
             FieldType::Unnamed(_ty, name) => format_ident!("o_{}", name.to_string()).to_token_stream(),
             //FieldType::Itself(_ty, name) => quote!(#name)
         }).collect::<Vec<_>>();
-        let result = (self.root_presenter)(fields.clone());
-        //println!("FFIBindingsComposer::compose_field_names: {} => {}", quote!(#(#fields), *), result);
-        result
+        (self.root_presenter)(fields.clone())
     }
 
     pub fn compose_arguments(&self, context: &ItemContext) -> Vec<TokenStream2> {
-        // println!("FFIBindingsComposer::compose_arguments: {} ", quote!(#(#fields), *));
         self.field_types.iter()
             .map(|field_type| match field_type {
                 FieldType::Named(_ty, name) => {
@@ -723,11 +719,7 @@ impl Composer for FFIBindingsComposer {
     }
 
     fn compose(&self) -> Self::Item {
-        // let context = (self.context_presenter)(&self.parent.as_ref().unwrap().borrow());
-        let fields = self.field_types.iter().map(|ff| ff.name()).collect::<Vec<_>>();
-        let result = (self.root_presenter)(fields.clone());
-        //println!("FFIBindingsComposer::compose: {} => {}", quote!(#(#fields), *), result);
-        result
+        (self.root_presenter)(self.field_types.iter().map(|ff| ff.name()).collect::<Vec<_>>())
     }
 }
 

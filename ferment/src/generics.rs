@@ -86,7 +86,7 @@ impl ToTokens for GenericConversion {
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
-                generic_conversion.expand(ffi_mangled_ident(&full_type)),
+                generic_conversion.expand(ffi_mangled_ident(full_type)),
             conversion =>
                 unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
         }.to_tokens(tokens)

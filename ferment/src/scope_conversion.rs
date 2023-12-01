@@ -264,7 +264,7 @@ impl ToTokens for ScopeTree {
         if self.scope.is_crate() {
             // For root tree only
             let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.iter().cloned());
-            let scope_conversions = self.exported.iter().map(|(_, tree_item)| {
+            let scope_conversions = self.exported.values().map(|tree_item| {
                 generics.extend(tree_item.generic_conversions());
                 tree_item.to_token_stream()
             }).collect::<Vec<_>>();
@@ -274,7 +274,7 @@ impl ToTokens for ScopeTree {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.to_token_stream());
             }
-            let directives = quote!(#[allow(clippy::let_and_return, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
             let types_expansion = Expansion::Mod {
                 directives: directives.clone(),
                 name: quote!(types),
@@ -298,7 +298,7 @@ impl ToTokens for ScopeTree {
                 directives: quote!(),
                 name: self.scope.head().to_token_stream(),
                 imports: scope_imports.collect(),
-                conversions: self.exported.iter().map(|(_, tree_item)| tree_item.to_token_stream()).collect()
+                conversions: self.exported.values().map(ScopeTreeItem::to_token_stream).collect()
             }.to_token_stream()
         }.to_tokens(tokens)
     }}
@@ -370,16 +370,13 @@ impl From<ScopeTreeCompact> for ScopeTree {
                 }.into(),
             })
         }).collect();
-        let tree = ScopeTree {
+        ScopeTree {
             scope,
             imported: new_imported,
             exported,
             generics,
             item_context,
-        };
-        // println!("ScopeTree:::: {:?}", tree);
-
-        tree
+        }
     }
 }
 

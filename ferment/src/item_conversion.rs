@@ -136,10 +136,8 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, context: &ItemContext) -> V
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 let full_ty = context.ffi_full_type_for(ty);
                 let pres = FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context);
-                // println!("handle_fn_args: {} --> {} ---> {}", quote!(#ty), quote!(#full_ty), quote!(#pres));
                 let name_type_original = NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), quote!(#pres));
                 let name_type_conversion = handle_arg_type(ty, pat, context);
-                // println!("handle_fn_args: [{}: {}] ---> {} +++ {}", quote!(#pat), quote!(#ty), quote!(#name_type_original), quote!(#name_type_conversion));
                 FnArgDecomposition {
                     name: Some(pat.to_token_stream()),
                     name_type_original,
@@ -495,9 +493,7 @@ impl ItemConversion {
                             cache_type(ty, &attrs.path);
                         });
                     if let ReturnType::Type(_, ty) = &item_fn.sig.output {
-                        // if let Type::Path(TypePath { path, .. }) = &**ty {
-                            cache_type(ty, &attrs.path);
-                        // }
+                        cache_type(ty, &attrs.path);
                     }
                 }),
             Self::Trait(item_trait, ..) => self.handle_attributes_with_handler(&item_trait.attrs, |attrs| {
@@ -510,9 +506,7 @@ impl ItemConversion {
                                 cache_type(ty, &attrs.path);
                             });
                         if let ReturnType::Type(_, ty) = &sig.output {
-                            // if let Type::Path(TypePath { path, .. }) = &**ty {
-                                cache_type(ty, &attrs.path);
-                            // }
+                            cache_type(ty, &attrs.path);
                         }
                     },
                     _ => {}
@@ -563,7 +557,7 @@ impl ItemConversion {
             if let Some(PathSegment { ident, .. }) = path.segments.last() {
                 let (import_type, scope) = Self::import_pair(path, imports);
                 container.entry(import_type)
-                    .or_insert_with(HashSet::new)
+                    .or_default()
                     .insert(ImportConversion::from((ident, &scope)));
             }
         });
@@ -718,7 +712,7 @@ impl ItemConversion {
 
     fn add_itself_conversion(visitor: &mut Visitor, scope: &Scope, ident: &Ident, ty: Type) {
         visitor.usage_info.used_types_at_scopes.entry(scope.clone())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(TypeConversion::new(parse_quote!(#ident)), ty);
     }
 
@@ -972,19 +966,11 @@ fn implement_trait_for_item(item_trait: (&ItemTrait, &Scope), item: (&Ident, &Sc
             argument_conversions.extend(signature_decomposition.arguments.iter().filter(|arg| arg.name.is_some()).map(|arg| arg.name_type_conversion.clone()));
             let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_method_ident), arguments));
             let argument_names = ROUND_ITER_PRESENTER(argument_conversions);
-                // let cast_obj = &(*(obj as *const crate::chain::common::chain_type::DevnetType));
-                // let obj = <crate::chain::common::chain_type::DevnetType as crate::chain::common::chain_type::IHaveChainSettings>::should_process_llmq_of_type(cast_obj, llmq_type);
-                // obj
                 (quote!(#name_and_args -> #output_expression {
                 let cast_obj = &(*(obj as *const #item_full_ty));
                 let obj = <#item_full_ty as #trait_full_ty>::#fn_name #argument_names;
                 #output_conversions
             }), quote!(#fn_name: #ffi_method_ident))
-            // (quote!(#name_and_args -> #output_expression {
-            //     let cast_obj = &(*(obj as *const #item_name));
-            //     let obj = cast_obj.#fn_name #argument_names;
-            //     #output_conversions
-            // }), quote!(#fn_name: #ffi_method_ident))
     }).unzip();
     let trait_vtable_ident = ffi_vtable_name(trait_ident);
     let trait_object_ident = ffi_trait_obj_name(trait_ident);
@@ -1028,15 +1014,15 @@ fn implement_trait_for_item(item_trait: (&ItemTrait, &Scope), item: (&Ident, &Sc
     TraitVTablePresentation::Full { vtable, export, destructor }
 }
 
-pub fn trait_items_from_attributes(attrs: &[Attribute], item_context: &ItemContext) -> Vec<(ItemTrait, Scope)> {
+pub fn trait_items_from_attributes(attrs: &[Attribute], context: &ItemContext) -> Vec<(ItemTrait, Scope)> {
     let attr_traits = extract_trait_names(attrs);
     attr_traits.iter()
         .map(|trait_name| {
             let trait_ty = parse_quote!(#trait_name);
             let trait_ty_conversion = TypeConversion::new(trait_ty);
-            let full_trait_ty = item_context.scope_types.get(&trait_ty_conversion).unwrap();
+            let full_trait_ty = context.scope_types.get(&trait_ty_conversion).unwrap();
             let trait_scope = Scope::extract_type_scope(full_trait_ty);
-            let scope_traits = item_context.traits_dictionary.get(&trait_scope).unwrap();
+            let scope_traits = context.traits_dictionary.get(&trait_scope).unwrap();
             let trait_ident = parse_quote!(#trait_name);
             let item_trait = scope_traits.get(&trait_ident).cloned().unwrap();
             (item_trait, trait_scope)
@@ -1047,7 +1033,7 @@ pub fn trait_items_from_attributes(attrs: &[Attribute], item_context: &ItemConte
 fn item_traits_expansions(item: (&Ident, &Scope), attrs: &[Attribute], context: &ItemContext) -> Vec<TraitVTablePresentation> {
     let trait_types = trait_items_from_attributes(attrs, context);
     trait_types.iter()
-        .map(|(item_trait, trait_scope)| implement_trait_for_item((item_trait, trait_scope), item, &context))
+        .map(|(item_trait, trait_scope)| implement_trait_for_item((item_trait, trait_scope), item, context))
         .collect()
 }
 

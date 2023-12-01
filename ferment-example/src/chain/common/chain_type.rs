@@ -15,11 +15,11 @@ pub trait IHaveChainSettings {
     fn should_process_llmq_of_type(&self, llmq_type: u16) -> bool;
     fn find_masternode_list(&self, cached_mn_lists: &BTreeMap<HashID, HashID>, unknown_mn_lists: &mut Vec<HashID>) -> Result<HashID, ProtocolError> {
         if let Some(first) = unknown_mn_lists.first() {
-            Ok(first.clone())
+            Ok(*first)
         } else if let Some(first) = cached_mn_lists.first_key_value() {
-            Ok(first.1.clone())
+            Ok(*first.1)
         } else {
-            Err(ProtocolError::IdentifierError(format!("ERRERERERERE")))
+            Err(ProtocolError::IdentifierError("ERRERERERERE".to_string()))
         }
     }
 }

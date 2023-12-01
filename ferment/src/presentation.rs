@@ -163,7 +163,7 @@ impl ToTokens for Expansion {
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Full { comment, ffi_presentation, conversion, drop, constructor, destructor, traits } => {
                 let mut full = vec![comment.to_token_stream(), ffi_presentation.to_token_stream(), conversion.to_token_stream(), drop.to_token_stream(), constructor.to_token_stream(), destructor.to_token_stream()];
-                full.extend(traits.into_iter().map(|trait_presentation| trait_presentation.to_token_stream()));
+                full.extend(traits.iter().map(TraitVTablePresentation::to_token_stream));
                 full
             },
             Self::Mod { directives, name, imports: _, conversions } =>

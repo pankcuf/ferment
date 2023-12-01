@@ -45,7 +45,6 @@ pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { iden
 
 /// Type Presenters
 pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context| {
-    // println!("FFI_DICTIONARY_TYPE_PRESENTER: {}", quote!(#field_type));
     match field_type {
         Type::Path(TypePath { path, .. }) =>
             (match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -57,7 +56,6 @@ pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_typ
             })(path, context),
         Type::Array(TypeArray { elem, len, .. }) =>
             quote!(*mut [#elem; #len]),
-            // FFI_ARRAY_DICT_FIELD_TYPED_PRESENTER(&FieldType::Unnamed((&**elem).clone(),quote!(#len)), context),
         Type::Reference(TypeReference { elem, .. }) =>
             FFI_DICTIONARY_TYPE_PRESENTER(elem, context),
         Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
@@ -115,8 +113,6 @@ pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream
 
 /// Field Type Presenters
 
-// pub const FFI_ARRAY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |len, elem, _|
-//     quote!(*mut [#elem; #len]);
 pub const EMPTY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |_, _|
     quote!();
 pub const DEFAULT_DICT_FIELD_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, _|
@@ -125,7 +121,7 @@ pub const DEFAULT_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |fie
     FFI_DICTIONARY_TYPE_PRESENTER(&context.ffi_full_type_for(field_type.ty()), context)
 };
 pub const NAMED_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    let ffi_type = context.ffi_full_type_for(&field_type.ty());
+    let ffi_type = context.ffi_full_type_for(field_type.ty());
     PUB_NAMED_CONVERSION_PRESENTER(field_type.name(), FFI_DICTIONARY_TYPE_PRESENTER(&ffi_type, context))
 };
 
@@ -200,30 +196,6 @@ pub const OPTION_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |argumen
         [field_type] => FFI_DICTIONARY_TYPE_PRESENTER(field_type, tree),
         _ => panic!("OPTION_ARGUMENTS_PRESENTER: arguments: {} not supported", quote!(#arguments))
 };
-// pub const MANGLE_MAP_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-//     match &path_arguments_to_path_conversions(arguments)[..] {
-//         [key_conversion, value_conversion] => {
-//             let ident_string = format!("keys_{}_values_{}", key_conversion.mangled_map_ident(tree), value_conversion.mangled_map_ident(tree));
-//             syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-//         },
-//         _ => panic!("MANGLE_MAP_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet"),
-// };
-//
-//
-// pub const MANGLE_VEC_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-//     path_arguments_to_path_conversions(arguments)
-//         .first()
-//         .unwrap()
-//         .mangled_vec_arguments(tree);
-//
-// pub const MANGLE_RESULT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-//     match &path_arguments_to_path_conversions(arguments)[..] {
-//         [ok_conversion, error_conversion] => {
-//             let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(tree), error_conversion.mangled_map_ident(tree));
-//             syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-//         },
-//         _ => panic!("MANGLE_RESULT_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet")
-//     };
 
 pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presenter, dictionary|
     arguments_presenter(&path.segments.last().unwrap().arguments, dictionary);
@@ -231,12 +203,11 @@ pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presen
 
 
 /// Path Presenters
-pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _context|
-    {
-        PathConversion::from(path)
-            .as_ffi_type()
-            .to_token_stream()
-    };
+pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _context| {
+    PathConversion::from(path)
+        .as_ffi_type()
+        .to_token_stream()
+};
 
 
 pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
@@ -254,7 +225,6 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
                         .then_some(full_type))
                 .map_or(quote!(*mut #short_ty), |full_type| {
                     let full_ty = ffi_mangled_ident(full_type);
-                    //println!("FFI_GENERIC_TYPE_PRESENTER: {} -> {}", quote!(#path), quote!(#full_ty));
                     quote!(*mut #full_ty)
                 })
         }

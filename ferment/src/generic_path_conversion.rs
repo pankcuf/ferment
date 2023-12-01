@@ -30,10 +30,10 @@ pub enum GenericPathConversion {
 impl GenericPathConversion {
     pub fn prefix(&self) -> String {
         match self {
-            GenericPathConversion::Map(_) => format!("Map_"),
-            GenericPathConversion::Vec(_) => format!("Vec_"),
-            GenericPathConversion::Result(_) => format!("Result_")
-        }
+            GenericPathConversion::Map(_) => "Map_",
+            GenericPathConversion::Vec(_) => "Vec_",
+            GenericPathConversion::Result(_) => "Result_"
+        }.to_string()
     }
 
     pub fn arguments_presentation(&self, context: &ItemContext) -> TokenStream2 {
