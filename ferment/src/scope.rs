@@ -129,9 +129,7 @@ impl Scope {
                     "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
                     "Vec" | "BTreeMap" | "HashMap" | "Result" => {
                         let ffi_name = ffi_mangled_ident(ty);
-                        let result = parse_quote!(crate::fermented::generics::#ffi_name);
-                        println!("ffi_type_converted (generic): {} -> {}", quote!(#ty), quote!(#result));
-                        Some(result)
+                        Some(parse_quote!(crate::fermented::generics::#ffi_name))
                     },
                     "Option" => path_arguments_to_types(&last_segment.arguments)
                         .first()
@@ -145,14 +143,12 @@ impl Scope {
                             _ => segments.iter().take(segments.len() - 1).collect()
                         };
                         let new_ident = ffi_struct_name(last_ident);
-                        println!("ffi_type_converted (complex): {} --> {}", quote!(#path), quote!(#new_ident));
-                        let tail = if segments.is_empty() {
+                        let ffi_name = if segments.is_empty() {
                             quote!(#new_ident)
                         } else {
                             quote!(#(#segments)::*::#new_ident)
                         };
-                        println!("------ tail: {}", quote!(#tail));
-                        Some(parse_quote!(crate::fermented::types::#tail))
+                        Some(parse_quote!(crate::fermented::types::#ffi_name))
                     }
 
                 }

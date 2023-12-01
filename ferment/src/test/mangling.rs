@@ -1,6 +1,5 @@
-use quote::{format_ident, quote, ToTokens};
-use syn::{Ident, Path, PathSegment, Type};
-use syn::__private::TokenStream2;
+use quote::{format_ident, quote};
+use syn::{Ident, Path, PathSegment};
 use crate::helper::path_arguments_to_paths;
 use crate::path_conversion::PathConversion;
 
