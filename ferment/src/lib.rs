@@ -16,6 +16,7 @@ mod visitor;
 mod test;
 mod context;
 mod formatter;
+mod generic_path_conversion;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

@@ -1,10 +1,11 @@
 use syn::{Field, parse_quote, Path, PathArguments, Type, TypeArray, TypePath, TypePtr, TypeReference};
-use quote::{format_ident, quote, ToTokens};
-use syn::__private::{Span, TokenStream2};
+use quote::{quote, ToTokens};
+use syn::__private::TokenStream2;
 use crate::composer::FieldType;
 
-use crate::path_conversion::{GenericPathConversion, PathConversion};
-use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions, path_arguments_to_types};
+use crate::generic_path_conversion::GenericPathConversion;
+use crate::path_conversion::PathConversion;
+use crate::helper::{ffi_mangled_ident, path_arguments_to_types};
 use crate::item_conversion::ItemContext;
 use crate::type_conversion::TypeConversion;
 
@@ -199,30 +200,30 @@ pub const OPTION_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |argumen
         [field_type] => FFI_DICTIONARY_TYPE_PRESENTER(field_type, tree),
         _ => panic!("OPTION_ARGUMENTS_PRESENTER: arguments: {} not supported", quote!(#arguments))
 };
-pub const MANGLE_MAP_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-    match &path_arguments_to_path_conversions(arguments)[..] {
-        [key_conversion, value_conversion] => {
-            let ident_string = format!("keys_{}_values_{}", key_conversion.mangled_map_ident(tree), value_conversion.mangled_map_ident(tree));
-            syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-        },
-        _ => panic!("MANGLE_MAP_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet"),
-};
-
-
-pub const MANGLE_VEC_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-    path_arguments_to_path_conversions(arguments)
-        .first()
-        .unwrap()
-        .mangled_vec_arguments(tree);
-
-pub const MANGLE_RESULT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-    match &path_arguments_to_path_conversions(arguments)[..] {
-        [ok_conversion, error_conversion] => {
-            let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(tree), error_conversion.mangled_map_ident(tree));
-            syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-        },
-        _ => panic!("MANGLE_RESULT_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet")
-    };
+// pub const MANGLE_MAP_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
+//     match &path_arguments_to_path_conversions(arguments)[..] {
+//         [key_conversion, value_conversion] => {
+//             let ident_string = format!("keys_{}_values_{}", key_conversion.mangled_map_ident(tree), value_conversion.mangled_map_ident(tree));
+//             syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
+//         },
+//         _ => panic!("MANGLE_MAP_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet"),
+// };
+//
+//
+// pub const MANGLE_VEC_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
+//     path_arguments_to_path_conversions(arguments)
+//         .first()
+//         .unwrap()
+//         .mangled_vec_arguments(tree);
+//
+// pub const MANGLE_RESULT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
+//     match &path_arguments_to_path_conversions(arguments)[..] {
+//         [ok_conversion, error_conversion] => {
+//             let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(tree), error_conversion.mangled_map_ident(tree));
+//             syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
+//         },
+//         _ => panic!("MANGLE_RESULT_ARGUMENTS_PRESENTER: Map nested in Vec not supported yet")
+//     };
 
 pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presenter, dictionary|
     arguments_presenter(&path.segments.last().unwrap().arguments, dictionary);
@@ -260,18 +261,6 @@ pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
     }
 };
 
-pub const MANGLE_INNER_PATH_PRESENTER: ScopeTreePathPresenter = |path, context|
-    match PathConversion::from(path) {
-        PathConversion::Primitive(path) |
-        PathConversion::Complex(path) =>
-            MANGLE_PATH_PRESENTER(&path, context),
-        PathConversion::Generic(GenericPathConversion::Vec(path)) =>
-            MANGLE_VEC_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
-        PathConversion::Generic(GenericPathConversion::Map(path)) =>
-            MANGLE_MAP_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
-        PathConversion::Generic(GenericPathConversion::Result(path)) =>
-            MANGLE_RESULT_ARGUMENTS_PRESENTER(&path.segments.last().unwrap().arguments, context),
-};
 
 pub const OPTION_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
     GENERIC_PATH_PRESENTER(path, OPTION_ARGUMENTS_PRESENTER, dictionary);
@@ -281,12 +270,6 @@ pub const OPAQUE_CONTEXT_PATH_PRESENTER: ScopeTreePathPresenter = |path, diction
 pub const OPAQUE_CONTEXT_MUT_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
     GENERIC_PATH_PRESENTER(path, OPAQUE_CONTEXT_MUT_ARGUMENTS_PRESENTER, dictionary);
 
-pub const MANGLE_PATH_PRESENTER: ScopeTreePathPresenter = |path, _dictionary|
-    format_ident!("{}",
-        path.segments.iter()
-        .map(|segment| segment.ident.to_string())
-        .collect::<Vec<String>>().join("_"))
-        .to_token_stream();
 
 
 fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {

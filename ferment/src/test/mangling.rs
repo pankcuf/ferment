@@ -1,10 +1,35 @@
-use quote::{format_ident, quote};
-use syn::Ident;
+use quote::{format_ident, quote, ToTokens};
+use syn::{Ident, PathSegment, Type};
+use crate::helper::path_arguments_to_paths;
 use crate::path_conversion::PathConversion;
 
 #[cfg(test)]
 fn ident_from_str(s: &str) -> Ident {
     format_ident!("{}", s)
+}
+
+impl PathConversion {
+    fn mangled_generic_arguments_types(&self) -> Vec<Type> {
+        self.as_path()
+            .segments
+            .iter()
+            .flat_map(|PathSegment { arguments, .. }| {
+                path_arguments_to_paths(arguments)
+                    .into_iter()
+                    .map(Self::from)
+                    .map(|arg| arg.as_ffi_type())
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    fn mangled_generic_arguments_types_strings(&self) -> Vec<String> {
+        self.mangled_generic_arguments_types()
+            .iter()
+            .map(|ty| ty.to_token_stream().to_string())
+            .collect::<Vec<_>>()
+    }
+
 }
 
 #[test]

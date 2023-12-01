@@ -5,7 +5,8 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
 use crate::item_conversion::ItemContext;
-use crate::path_conversion::{GenericPathConversion, PathConversion};
+use crate::generic_path_conversion::GenericPathConversion;
+use crate::path_conversion::PathConversion;
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match arguments {
@@ -92,12 +93,6 @@ pub fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
                 | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
                 // TODO: mmm shit that's incorrect
                 "bool" => quote!((#field_path).then_some(#field_path)),
-                // "Vec" => {
-                //
-                //     let conversion = from_vec(field_path.clone());
-                //     // TODO: maybe we can't do that without deref
-                //     quote!((!#field_path.is_null()).then_some(#conversion))
-                // }
                 _ => ffi_from_opt_conversion(field_path),
             },
             _ => panic!("from_option: Bad arguments {} {}", field_path, quote!(#arguments)),
@@ -188,8 +183,7 @@ pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr, context:
 }
 
 pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr, _context: &ItemContext) -> TokenStream2 {
-    println!("from_ptr.1: {} {}", field_path, quote!(#type_ptr));
-    let result = match &*type_ptr.elem {
+    match &*type_ptr.elem {
         // Type::Ptr(type_ptr) => from_ptr(quote!(*#field_path.add(i)), type_ptr),
         Type::Ptr(type_ptr) => match &*type_ptr.elem {
             Type::Path(_type_path) => {
@@ -210,9 +204,7 @@ pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr, _context: &
             quote!(std::slice::from_raw_parts(values as *const #field_type, count).to_vec())
         }
         _ => ffi_from_conversion(field_path),
-    };
-    println!("from_ptr.2: {}", result);
-    result
+    }
 }
 
 pub(crate) fn destroy_reference(field_path: TokenStream2, type_reference: &TypeReference, context: &ItemContext) -> TokenStream2 {
@@ -262,14 +254,6 @@ pub(crate) fn to_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
         | "usize" | "bool" => field_path,
         "VarInt" => quote!(#field_path.0),
-        // "Vec" => match path_arguments_to_path_conversions(&last_segment.arguments)[..] {
-        //     [PathConversion::Primitive(..)] =>
-        //         quote!(ferment_interfaces::FFIConversion::ffi_to(#field_path)),
-        //     [PathConversion::Complex(..) | PathConversion::Generic(..)] =>
-        //         quote!(ferment_interfaces::FFIConversion::ffi_to(#field_path)),
-        //     _ => unimplemented!("Generic path arguments conversion error"),
-        // },
-        // "BTreeMap" | "HashMap" | "Result" => quote!(ferment_interfaces::FFIConversion::ffi_to(#field_path)),
         "Option" => to_option_conversion(field_path, &last_segment.arguments),
         _ => ffi_to_conversion(field_path),
     }
@@ -338,14 +322,7 @@ pub fn ffi_destructor_name(item_name: &Ident) -> Ident {
 }
 
 pub fn ffi_mangled_ident(ty: &Type) -> Ident {
-    let ident = mangle_type(ty);
-    let name = ffi_struct_name(&ident);
-    //println!("ffi_mangled_ident: {} --> {}", quote!(#ty), quote!(#name));
-    name
-}
-
-pub fn mangle_type(ty: &Type) -> Ident {
-    match ty {
+    let ident = match ty {
         // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
         Type::Path(TypePath { path, .. }) =>
             PathConversion::from(path)
@@ -354,5 +331,6 @@ pub fn mangle_type(ty: &Type) -> Ident {
             let p: Path = parse_quote!(#ty);
             p.get_ident().unwrap().clone()
         }
-    }
+    };
+    ffi_struct_name(&ident)
 }

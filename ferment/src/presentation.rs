@@ -88,8 +88,25 @@ pub enum FFIObjectPresentation {
         error_type: TokenStream2,
         from_conversion: TokenStream2,
         to_conversion: TokenStream2,
-        drop_presentation: TokenStream2,
+        drop_presentation: DropInterfacePresentation,
     },
+    Map {
+        target_type: TokenStream2,
+        ffi_type: TokenStream2,
+        key: TokenStream2,
+        value: TokenStream2,
+        from: TokenStream2,
+        to: TokenStream2,
+        drop_presentation: DropInterfacePresentation,
+    },
+    Vec {
+        target_arg_type: TokenStream2,
+        ffi_type: TokenStream2,
+        ffi_arg_type: TokenStream2,
+        decode: TokenStream2,
+        encode: TokenStream2,
+        drop_presentation: DropInterfacePresentation
+    }
 }
 
 pub enum ConversionInterfacePresentation {
@@ -246,6 +263,59 @@ impl ToTokens for FFIObjectPresentation {
                     }
                     #drop_presentation
                 }
+            },
+            Self::Map { target_type, ffi_type, key, value, from, to, drop_presentation } => {
+                quote! {
+                    #[repr(C)]
+                    #[derive(Clone)]
+                    #[allow(non_camel_case_types)]
+                    pub struct #ffi_type {
+                        pub count: usize,
+                        pub keys: *mut #key,
+                        pub values: *mut #value,
+                    }
+                    impl ferment_interfaces::FFIConversion<#target_type> for #ffi_type {
+                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type {
+                            #from
+                        }
+                        unsafe fn ffi_to_const(obj: #target_type) -> *const #ffi_type {
+                            #to
+                        }
+                        unsafe fn destroy(ffi: *mut #ffi_type) {
+                            ferment_interfaces::unbox_any(ffi);
+                        }
+                    }
+                    #drop_presentation
+                }
+            },
+            FFIObjectPresentation::Vec { target_arg_type, ffi_type, ffi_arg_type, decode, encode, drop_presentation } => {
+                quote! {
+                    #[repr(C)]
+                    #[derive(Clone)]
+                    #[allow(non_camel_case_types)]
+                    pub struct #ffi_type {
+                        pub count: usize,
+                        pub values: *mut #ffi_arg_type,
+                    }
+                    impl ferment_interfaces::FFIConversion<Vec<#target_arg_type >> for #ffi_type {
+                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> Vec<#target_arg_type> {
+                            ferment_interfaces::FFIVecConversion::decode(&*ffi)
+                        }
+                        unsafe fn ffi_to_const(obj: Vec<#target_arg_type>) -> *const #ffi_type {
+                            ferment_interfaces::FFIVecConversion::encode(obj)
+                        }
+                        unsafe fn destroy(ffi: *mut #ffi_type) {
+                            ferment_interfaces::unbox_any(ffi);
+                        }
+                    }
+                    impl ferment_interfaces::FFIVecConversion for #ffi_type {
+                        type Value = #target_arg_type;
+                        unsafe fn decode(&self) -> Vec<Self::Value> { #decode }
+                        unsafe fn encode(obj: Vec<Self::Value>) -> *mut Self { #encode }
+                    }
+                    #drop_presentation
+                }
+
             }
         }.to_tokens(tokens)
     }
