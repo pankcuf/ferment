@@ -36,12 +36,6 @@ impl PartialEq for PathConversion {
 }
 impl Eq for PathConversion {}
 
-impl From<&str> for PathConversion {
-    fn from(s: &str) -> Self {
-        PathConversion::from(&syn::parse_str::<Path>(s).unwrap())
-    }
-}
-
 impl From<Path> for PathConversion {
     fn from(path: Path) -> Self {
         Self::from(&path)
