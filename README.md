@@ -7,8 +7,8 @@ The project is a rust-workspace consisting several crates:
 1. `ferment-interfaces`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
 2. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
 3. `ferment-example`: provides basic example.
-3. `ferment-example-nested`: provides example with dependent fermented crate.
-4. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
+4. `ferment-example-nested`: provides example with dependent fermented crate.
+5. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
 
 A procedural macro consists of 1 macros:
 
@@ -21,7 +21,6 @@ Crate is not published yet, so use it for example locally
 ```toml
 ferment-interfaces = { path = "../../ferment/ferment-interfaces" }
 ferment-macro = { path = "../../ferment/ferment-macro" }
-ferment-example = { path = "../../ferment/ferment-example" }
 ferment = { path = "../../ferment/ferment" }
 ```
 
@@ -55,96 +54,128 @@ fn main() {
 ```
 
 **Examples**
+For traits marked for export like this:
+```rust
+#[ferment_macro::export]
+pub trait IHaveChainSettings {
+    fn name(&self) -> String;
+}
+```
+You can also use macro with comma-separated trait names 
+```rust
+#[ferment_macro::export(IHaveChainSettings)]
+pub enum ChainType {
+    MainNet,
+    TestNet,
+    DevNet(DevnetType)
+}
+```
+This will expose bindings for trait methods for particular types
 
 For the structure labeled with `ferment::export`
 
 ```rust
 #[derive(Clone)]
-#[ferment:export]
+#[ferment_macro::export]
 pub struct LLMQSnapshot {
     pub member_list: Vec<u8>,
     pub skip_list: Vec<i32>,
-    pub skip_list_mode: crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipMode,
+    pub skip_list_mode: LLMQSnapshotSkipMode,
+    pub option_vec: Option<Vec<u8>>,
 }
 ```
 the following code with FFI-compatible fields and corresponding from/to conversions will be generated:
 ```rust
-#[repr(C)] 
-#[derive(Clone, Debug)] 
-pub struct LLMQSnapshotFFI {
-    pub member_list: *mut crate::fermented::generics::Vec_u8_FFI, 
-    pub skip_list: *mut crate::fermented::generics::Vec_i32_FFI, 
-    pub skip_list_mode: *mut crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipModeFFI,
-} 
-impl ferment_interfaces::FFIConversion<LLMQSnapshot> for LLMQSnapshotFFI {
-    unsafe fn ffi_from(ffi: *mut LLMQSnapshotFFI) -> LLMQSnapshot {
-        let ffi_ref = &*ffi; 
-        LLMQSnapshot { 
-            member_list: { 
-                let vec = &*ffi_ref.member_list; 
-                std::slice::from_raw_parts(vec.values as *const u8, vec.count).to_vec()
-            }, 
-            skip_list: { 
-                let vec = &*ffi_ref.skip_list; 
-                std::slice::from_raw_parts(vec.values as *const i32, vec.count).to_vec()
-            }, 
-            skip_list_mode: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.skip_list_mode),
-        }
-    } 
-    unsafe fn ffi_to(obj: LLMQSnapshot) -> *mut LLMQSnapshotFFI {
-        ferment_interfaces::boxed(LLMQSnapshotFFI { 
-            member_list: ferment_interfaces::boxed({ 
-                let vec = obj.member_list;
-                crate::fermented::generics::Vec_u8_FFI { 
-                    count: vec.len(), 
-                    values: ferment_interfaces::boxed_vec(vec.clone())
-                } 
-            }), 
-            skip_list: ferment_interfaces::boxed({ 
-                let vec = obj.skip_list;
-                crate::fermented::generics::Vec_i32_FFI {
-                    count: vec.len(), 
-                    values: ferment_interfaces::boxed_vec(vec.clone())
-                }
-            }), 
-            skip_list_mode: ferment_interfaces::FFIConversion::ffi_to(obj.skip_list_mode),
-        })
-    } 
+#[doc = "FFI-representation of the "crate::model::snapshot::LLMQSnapshot""]
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct LLMQSnapshot {
+    pub member_list: *mut crate::fermented::generics::Vec_u8,
+    pub skip_list: *mut crate::fermented::generics::Vec_i32,
+    pub skip_list_mode: *mut crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode,
+    pub option_vec: *mut crate::fermented::generics::Vec_u8,
 }
-impl Drop for LLMQSnapshotFFI {
+impl ferment_interfaces::FFIConversion<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
+    unsafe fn ffi_from_const(ffi: *const LLMQSnapshot) -> crate::model::snapshot::LLMQSnapshot {
+        let ffi_ref = &*ffi;
+        crate::model::snapshot::LLMQSnapshot {
+            member_list: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.member_list),
+            skip_list: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.skip_list),
+            skip_list_mode: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.skip_list_mode),
+            option_vec: ferment_interfaces::FFIConversion::ffi_from_opt(ffi_ref.option_vec),
+        }
+    }
+    unsafe fn ffi_to_const(obj: crate::model::snapshot::LLMQSnapshot) -> *const LLMQSnapshot {
+        ferment_interfaces::boxed(LLMQSnapshot {
+            member_list: ferment_interfaces::FFIConversion::ffi_to(obj.member_list),
+            skip_list: ferment_interfaces::FFIConversion::ffi_to(obj.skip_list),
+            skip_list_mode: ferment_interfaces::FFIConversion::ffi_to(obj.skip_list_mode),
+            option_vec: match obj.option_vec {
+                Some(vec) => ferment_interfaces::FFIConversion::ffi_to(vec),
+                None => std::ptr::null_mut(),
+            },
+        })
+    }
+    unsafe fn destroy(ffi: *mut LLMQSnapshot) {
+        ferment_interfaces::unbox_any(ffi);
+    }
+}
+impl Drop for LLMQSnapshot {
     fn drop(&mut self) {
         unsafe {
             let ffi_ref = self;
             ferment_interfaces::unbox_any(ffi_ref.member_list);
             ferment_interfaces::unbox_any(ffi_ref.skip_list);
-            <crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipModeFFI as ferment_interfaces::FFIConversion<crate::common::llmq_snapshot_skip_mode::LLMQSnapshotSkipMode>>::destroy(ffi_ref.skip_list_mode) ;
+            <crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode as ferment_interfaces::FFIConversion<crate::model::snapshot::LLMQSnapshotSkipMode>>::
+            destroy(ffi_ref.skip_list_mode);
+            if !ffi_ref.option_vec.is_null() {
+                ferment_interfaces::unbox_any(ffi_ref.option_vec);
+            };
         }
     }
 }
+#[doc = "# Safety"]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub unsafe extern "C" fn LLMQSnapshot_ctor(
+    member_list: *mut crate::fermented::generics::Vec_u8,
+    skip_list: *mut crate::fermented::generics::Vec_i32,
+    skip_list_mode: *mut crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode,
+    option_vec: *mut crate::fermented::generics::Vec_u8)
+    -> *mut LLMQSnapshot {
+    ferment_interfaces::boxed(LLMQSnapshot {
+        member_list,
+        skip_list,
+        skip_list_mode,
+        option_vec,
+    })
+}
+#[doc = "# Safety"]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub unsafe extern "C" fn LLMQSnapshot_destroy(ffi: *mut LLMQSnapshot) {
+    ferment_interfaces::unbox_any(ffi);
+}
+
 ```
 
 For the function labeled with `export`
 
 ```rust
-#[ferment::export]
-pub fn address_with_script_pubkey(script: Vec<u8>, chain_type: crate::chain::common::chain_type::ChainType) -> Option<String> {
-    address::with_script_pub_key(&script, &chain_type.script_map())
+#[ferment_macro::export]
+pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> {
+    Some(format_args!("{0:?}", script).to_string())
 }
 ```
 the following code will be generated:
 ```rust
-#[no_mangle] 
-pub unsafe extern "C" fn ffi_address_with_script_pubkey(
-    script: *mut ferment_interfaces::Vec_u8_FFI, 
-    chain_type: *mut crate::chain::common::chain_type::ChainTypeFFI) 
-    -> *mut std::os::raw::c_char {
-    let obj = address_with_script_pubkey(
-        {
-            let vec = &*script;
-            std::slice::from_raw_parts(vec.values as *const u8, vec.count).to_vec()
-        }, 
-        ferment_interfaces::FFIConversion::ffi_from(chain_type)
-    );
+#[doc = "FFI-representation of the "address_with_script_pubkey""]
+#[doc = "# Safety"]
+#[no_mangle]
+pub unsafe extern "C" fn ffi_address_with_script_pubkey(script: *mut crate::fermented::generics::Vec_u8) -> *mut std::os::raw::c_char {
+    let conversion = ferment_interfaces::FFIConversion::ffi_from(script);
+    let obj = crate::example::address::address_with_script_pubkey(conversion);
     ferment_interfaces::FFIConversion::ffi_to_opt(obj)
 }
 ```
@@ -155,28 +186,11 @@ For type aliases labeled with `export`
 #[ferment::export]
 pub type HashID = [u8; 32];
 ```
-the following code will be generated:
+the following code will be generated in `crate::fermented::types::*` with similar conversions and bindings:
 ```rust
 #[repr(C)]
-#[derive(Clone, Debug)] 
-pub struct HashID_FFI(*mut [u8; 32]); 
-
-impl ferment_interfaces::FFIConversion<HashID> for HashID_FFI {
-    unsafe fn ffi_from(ffi : * mut HashID_FFI) -> HashID { 
-        let ffi_ref = &*ffi; 
-        *ffi_ref.0
-    } 
-    unsafe fn ffi_to(obj : HashID) -> *mut HashID_FFI { 
-        ferment_interfaces::boxed(HashID_FFI(ferment_interfaces::boxed(obj))) 
-    }
-} 
-impl Drop for HashID_FFI {
-    fn drop(&mut self) { 
-        unsafe { 
-            ferment_interfaces::unbox_any(self.0);
-        }
-    }
-}
+#[derive(Clone, Debug)]
+pub struct HashID(*mut [u8; 32]);
 ```
 
 For traits labeled with `export`
@@ -202,42 +216,36 @@ pub struct IHaveChainSettings_TraitObject {
     pub vtable: *const IHaveChainSettings_VTable,
 }
 ```
-And then for items marked like this:
+and bindings for their implementors like this:
 ```rust
-#[ferment_macro::export(IHaveChainSettings)]
-#[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
-pub enum ChainType {
-    MainNet,
-    TestNet,
-    DevNet(DevnetType)
-}
-```
-there will be additional code generated
-```rust
-#[allow(non_snake_case, non_upper_case_globals)]
-static ChainType_IHaveChainSettings_VTable: IHaveChainSettings_VTable = { 
-    // ..
-};
-#[no_mangle]
+#[doc = "# Safety"]
 #[allow(non_snake_case)]
+#[no_mangle]
 pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(
-    obj: *const ChainType,
-) -> IHaveChainSettings_TraitObject {
+    obj: *const crate::chain::common::chain_type::ChainType) 
+    -> IHaveChainSettings_TraitObject {
     IHaveChainSettings_TraitObject {
         object: obj as *const (),
         vtable: &ChainType_IHaveChainSettings_VTable,
     }
 }
+#[doc = "# Safety"]
+#[allow(non_snake_case)]
+#[no_mangle]
+pub unsafe extern "C" fn ChainType_as_IHaveChainSettings_TraitObject_destroy(obj: IHaveChainSettings_TraitObject) {
+    ferment_interfaces::unbox_any(obj.object as *mut crate::chain::common::chain_type::ChainType);
+}
+
 ```
 using this code cbindgen will be able to generate binding 
 ```
 struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObject(const struct ChainType *obj);
+void ChainType_as_IHaveChainSettings_TraitObject_destroy(struct IHaveChainSettings_TraitObject obj);
 
 ```
 Current limitations:
 - We should mark all structures that involved into export with the macro definition
-- There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyID_FFI(u32)` The alternative is to store a hardcoded dictionary with them.
-Another alternative is to write a separate build script that collects these types before running the macro to generate this dictionary on the fly. But for now, this is too much of a complication. 
+- There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyID_FFI(u32)` There will be a support at some point.
 
 Generic mangling rules
 
@@ -246,45 +254,47 @@ Examples for translated names:
 - `Vec<u8>` -> `Vec_u8_FFI`
 - `Vec<u32>` -> `Vec_u32_FFI`
 - `Vec<Vec<u32>>` -> `Vec_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, Vec<u32>>` -> `std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, Vec<u32>>` -> `std_collections_Map_keys_u32_values_Vec_u32_FFI`
-- `BTreeMap<crate::HashID, BTreeMap<crate::HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_u32_values_Vec_u32_FFI`
+- `BTreeMap<HashID, BTreeMap<HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
 - etc
-Then macro implements the necessary conversions for these structures. Example for such an expansion:
+
+Then macro implements the necessary conversions for these structures. Example for `BTreeMap<HashID, Vec<HashID>>`:
 ```rust
-#[repr(C)] 
-#[derive(Clone)] 
-pub struct std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
-    pub count: usize, 
-    pub keys: *mut *mut self::HashID_FFI, 
-    pub values: * mut * mut self::HashID_FFI,
-} 
-impl ferment_interfaces::FFIConversion<std::collections::BTreeMap<self::HashID, self::HashID>> for std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
-    unsafe fn ffi_from_const(ffi: *const std_collections_Map_keys_self_HashID_values_self_HashID_FFI) -> std::collections::BTreeMap<self::HashID, self::HashID> {
+#[repr(C)]
+#[derive(Clone)]
+#[allow(non_camel_case_types)]
+pub struct std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
+    pub count: usize,
+    pub keys: *mut *mut crate::fermented::types::nested::HashID,
+    pub values: *mut *mut crate::fermented::generics::Vec_crate_nested_HashID,
+}
+impl ferment_interfaces::FFIConversion<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
+for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
+    unsafe fn ffi_from_const(
+        ffi: *const std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID)
+        -> std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>> {
         let ffi_ref = &*ffi;
-        (0..ffi_ref.count).fold(BTreeMap<self::HashID, self::HashID>::new(), |mut acc, i| {
-            let key = *ffi_ref.keys.add(i); 
-            let value = *ffi_ref.values.add(i); 
-            acc.insert(key, value); 
-            acc
-        })
-    } 
-    unsafe fn ffi_to_const(obj: BTreeMap<self::HashID, self::HashID>) -> *const std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
-        ferment_interfaces::boxed(Self { 
-            count: obj.len(), 
-            keys: ferment_interfaces::boxed_vec(obj.keys().map(|o| <self::HashID as ferment_interfaces::FFIConversion>::ffi_from_const(o)).collect()), 
-            values: ferment_interfaces::boxed_vec(obj.values().map(|o| <self::HashID as ferment_interfaces::FFIConversion>::ffi_from_const(o)).collect())
-        })
-    } 
-    unsafe fn destroy(ffi: *mut std_collections_Map_keys_self_HashID_values_self_HashID_FFI) {
-        ferment_interfaces::unbox_any(ffi); 
+        ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)
     }
-} 
-impl Drop for std_collections_Map_keys_self_HashID_values_self_HashID_FFI {
+    unsafe fn ffi_to_const(
+        obj: std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>)
+        -> *const std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
+        ferment_interfaces::boxed(Self {
+            count: obj.len(),
+            keys: ferment_interfaces::complex_vec_iterator::<crate::nested::HashID, crate::fermented::types::nested::HashID>(obj.keys().cloned()),
+            values: ferment_interfaces::complex_vec_iterator::<Vec<crate::nested::HashID>, crate::fermented::generics::Vec_crate_nested_HashID>(obj.values().cloned()),
+        })
+    }
+    unsafe fn destroy(ffi: *mut std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID) {
+        ferment_interfaces::unbox_any(ffi);
+    }
+}
+impl Drop for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
     fn drop(&mut self) {
         unsafe {
-            ferment_interfaces::unbox_vec_ptr(self.keys, self.count);
-            ferment_interfaces::unbox_vec_ptr(self.values, self.count);
+            ferment_interfaces::unbox_any_vec_ptr(self.keys, self.count);
+            ferment_interfaces::unbox_any_vec_ptr(self.values, self.count);
         }
     }
 }
@@ -303,10 +313,11 @@ pub mod types {
 }
 pub mod generics {
     // We expand generic types separately here to avoid duplication
+    pub struct std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
+        // ..
+    }
 }
 ```
-
-
 
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
 
