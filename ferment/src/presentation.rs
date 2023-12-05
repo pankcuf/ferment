@@ -85,11 +85,18 @@ pub enum FFIObjectPresentation {
         output_expression: TokenStream2,
     },
     Function {
-        name_and_arguments: TokenStream2,
+        name: TokenStream2,
+        arguments: Vec<TokenStream2>,
         input_conversions: TokenStream2,
         output_expression: TokenStream2,
         output_conversions: TokenStream2,
-
+    },
+    AsyncFunction {
+        name: TokenStream2,
+        arguments: Vec<TokenStream2>,
+        input_conversions: TokenStream2,
+        output_expression: TokenStream2,
+        output_conversions: TokenStream2,
     },
     TraitVTable {
         name: TokenStream2,
@@ -265,14 +272,28 @@ impl ToTokens for FFIObjectPresentation {
                     #[allow(non_camel_case_types)]
                     pub type #name = unsafe extern "C" fn(#(#arguments),*) #output_expression;
                 },
-            Self::Function { name_and_arguments, input_conversions, output_expression, output_conversions, } => {
+            Self::Function { name, arguments, input_conversions, output_expression, output_conversions } => {
                 let macros = quote!(#[no_mangle]);
-                let signature = quote!(pub unsafe extern "C" fn #name_and_arguments -> #output_expression);
-                let body = quote!({ let obj = #input_conversions; #output_conversions });
                 quote! {
                     #macros
-                    #signature
-                    #body
+                    pub unsafe extern "C" fn #name (#(#arguments,)*) -> #output_expression {
+                        let obj = #input_conversions;
+                        #output_conversions
+                    }
+                }
+            },
+            Self::AsyncFunction { name, arguments, input_conversions, output_expression, output_conversions } => {
+                let macros = quote!(#[no_mangle]);
+                quote! {
+                    #macros
+                    pub unsafe extern "C" fn #name(runtime: *mut std::os::raw::c_void, #(#arguments,)*) -> #output_expression {
+                        let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
+                        let obj = rt.block_on(async {
+                            let obj = #input_conversions .await;
+                            obj
+                        });
+                        #output_conversions
+                    }
                 }
             },
             Self::Full(presentation) => quote!(#presentation),

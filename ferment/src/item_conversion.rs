@@ -83,6 +83,7 @@ pub struct FnArgDecomposition {
     pub name_type_conversion: TokenStream2,
 }
 pub struct FnSignatureDecomposition {
+    pub is_async: bool,
     pub ident: Option<Ident>,
     pub scope: Scope,
     pub return_type: FnReturnTypeDecomposition,
@@ -162,12 +163,11 @@ impl FnSignatureDecomposition {
     pub fn from_signature(sig: &Signature, scope: Scope, context: &ItemContext) -> Self {
         let Signature { output, ident, inputs, .. } = sig;
         // TODO: make a path
-        FnSignatureDecomposition {
-            ident: Some(ident.clone()),
-            scope,
-            return_type: handle_fn_return_type(output, context),
-            arguments: handle_fn_args(inputs, context)
-        }
+        let return_type = handle_fn_return_type(output, context);
+        let ident = Some(ident.clone());
+        let arguments = handle_fn_args(inputs, context);
+        let is_async = sig.asyncness.is_some();
+        FnSignatureDecomposition { is_async, ident, scope, return_type, arguments }
     }
 
     pub fn from_bare_fn(bare_fn: &TypeBareFn, ident: &Ident, scope: Scope, context: &ItemContext) -> Self {
@@ -175,6 +175,7 @@ impl FnSignatureDecomposition {
         let arguments = handle_bare_fn_args(inputs, context);
         let return_type = handle_bare_fn_return_type(output, context);
         FnSignatureDecomposition {
+            is_async: false,
             ident: Some(ident.clone()),
             scope,
             arguments,
@@ -197,11 +198,15 @@ impl FnSignatureDecomposition {
         let fn_name = self.ident.unwrap();
         let full_fn_path = self.scope.joined(&fn_name);
         let argument_conversions = self.arguments.iter().map(|arg| arg.name_type_conversion.clone()).collect();
-        let name_and_arguments = ROUND_BRACES_FIELDS_PRESENTER((ffi_fn_name(&fn_name).to_token_stream(), arguments));
+        let name = ffi_fn_name(&fn_name).to_token_stream();
         let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions));
         let output_expression = self.return_type.presentation;
         let output_conversions = self.return_type.conversion;
-        FFIObjectPresentation::Function { name_and_arguments, input_conversions, output_expression, output_conversions }
+        if self.is_async {
+            FFIObjectPresentation::AsyncFunction { name, arguments, input_conversions, output_expression, output_conversions }
+        } else {
+            FFIObjectPresentation::Function { name, arguments, input_conversions, output_expression, output_conversions }
+        }
     }
 
     pub fn present_trait_vtable_inner_fn(self) -> TokenStream2 {
