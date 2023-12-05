@@ -5,6 +5,7 @@ mod traits;
 mod asyn;
 
 extern crate ferment_macro;
+extern crate tokio;
 
 #[ferment_macro::export]
 pub struct RootStruct {
