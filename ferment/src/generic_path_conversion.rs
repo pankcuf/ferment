@@ -1,26 +1,20 @@
 use quote::{quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
-use syn::{Ident, parse_quote, Path, PathSegment};
-use crate::helper::{destroy_map, destroy_result, destroy_vec, path_arguments_to_path_conversions};
+use syn::{Ident, parse_quote, Path, PathSegment, Type};
+use crate::helper::path_arguments_to_path_conversions;
+use crate::idents::{convert_to_ffi_path, ffi_path_converted_or_same};
 use crate::interface::{ffi_to_conversion, MapPresenter, package_boxed_expression};
 use crate::item_conversion::ItemContext;
 use crate::path_conversion::PathConversion;
-use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation};
-use crate::scope::Scope;
+use crate::presentation::FFIObjectPresentation;
 
 pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p|
     quote!(ferment_interfaces::unbox_vec_ptr(#p, self.count););
 pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p|
     quote!(ferment_interfaces::unbox_any_vec_ptr(#p, self.count););
+pub const UNBOX_OPTION: MapPresenter = |p|
+    quote!(if !#p.is_null() { ferment_interfaces::unbox_any(#p); });
 
-pub const UNBOX_OPTION: MapPresenter = |p| quote!(if !#p.is_null() { ferment_interfaces::unbox_any(#p); });
-
-// macro_rules! format_mangled_ident {
-//     ($fmt:expr, $path_presentation:expr) => {
-//         format_ident!($fmt, format!("{}", $path_presentation))
-//     };
-// }
-//
 pub enum GenericPathConversion {
     Map(Path),
     Vec(Path),
@@ -46,11 +40,6 @@ impl GenericPathConversion {
                     },
                     _ => panic!("arguments_presentation: Map nested in Vec not supported yet"),
                 },
-            GenericPathConversion::Vec(path) =>
-                path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
-                    .first()
-                    .unwrap()
-                    .mangled_vec_arguments(context),
             GenericPathConversion::Result(path) =>
                 match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
                     [ok_conversion, error_conversion] => {
@@ -58,7 +47,12 @@ impl GenericPathConversion {
                         syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
                     },
                     _ => panic!("arguments_presentation: Map nested in Vec not supported yet")
-                }
+                },
+            GenericPathConversion::Vec(path) =>
+                path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
+                    .first()
+                    .unwrap()
+                    .mangled_vec_arguments(context),
         }
     }
 
@@ -77,279 +71,370 @@ impl GenericPathConversion {
             GenericPathConversion::Result(path) => path
         }
     }
+}
 
-    pub fn destroy_field(&self, field_path: TokenStream2) -> TokenStream2 {
-        match self {
-            GenericPathConversion::Map(path) => destroy_map(path, field_path),
-            GenericPathConversion::Vec(path) => destroy_vec(path, field_path),
-            GenericPathConversion::Result(path) => destroy_result(path, field_path)
+
+impl<'a> From<&'a GenericPathConversion> for Type {
+    fn from(generic_path_conversion: &'a GenericPathConversion) -> Self {
+        convert_to_ffi_path(generic_path_conversion.as_path())
+    }
+}
+
+
+impl<'a> From<&'a PathConversion> for Type {
+    fn from(path_conversion: &'a PathConversion) -> Self {
+        match path_conversion {
+            PathConversion::Primitive(path) => parse_quote!(#path),
+            PathConversion::Complex(path) => ffi_path_converted_or_same(path),
+            PathConversion::Generic(generic_path_conversion) => Type::from(generic_path_conversion),
         }
     }
 }
 
-fn from_result(ok_conversion: TokenStream2, err_conversion: TokenStream2) -> TokenStream2 {
-    quote! {
-        let ffi_ref = &*ffi;
-        if ffi_ref.error.is_null() {
-            Ok(#ok_conversion)
-        } else {
-            Err(#err_conversion)
-        }
-    }
+pub struct GenericArgPresentation {
+    pub ty: Type,
+    pub destructor: TokenStream2,
+    pub from_conversion: TokenStream2,
+    pub to_conversion: TokenStream2,
 }
 
-fn to_result(ok_conversion: TokenStream2, err_conversion: TokenStream2) -> TokenStream2 {
-    let result = package_boxed_expression(quote!(Self { ok, error }));
-    quote! {
-        let (ok, error) = match obj {
-            Ok(obj) => (#ok_conversion, std::ptr::null_mut()),
-            Err(err) => (std::ptr::null_mut(), #err_conversion)
-        };
-        #result
+impl GenericArgPresentation {
+    pub fn new(ty: Type, destructor: TokenStream2, from_conversion: TokenStream2, to_conversion: TokenStream2) -> Self {
+        Self { ty, destructor, from_conversion, to_conversion }
     }
 }
 
 impl GenericPathConversion {
 
     pub fn expand(&self, ffi_name: Ident) -> TokenStream2 {
+
+
+
         match self {
             GenericPathConversion::Result(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
 
-                let from_ok_simple_conversion = quote!(*ffi_ref.ok);
-                let from_ok_complex_conversion = quote!(ferment_interfaces::FFIConversion::ffi_from_const(ffi_ref.ok));
-                let from_error_simple_conversion = quote!(*ffi_ref.error);
-                let from_error_complex_conversion = quote!(ferment_interfaces::FFIConversion::ffi_from_const(ffi_ref.error));
+                let arg_0_name = quote!(ok);
+                let arg_1_name = quote!(error);
 
-                let to_ok_simple_conversion = quote!(obj as *mut _);
-                let to_error_simple_conversion = quote!(err as *mut _);
-                let to_ok_complex_conversion = ffi_to_conversion(quote!(obj));
-                let to_error_complex_conversion = ffi_to_conversion(quote!(err));
-
-                let (ok, error, from, to, drop_code) = match &path_arguments_to_path_conversions(arguments)[..] {
+                let (arg_0_presentation, arg_1_presentation) = match &path_arguments_to_path_conversions(arguments)[..] {
                     [PathConversion::Primitive(ok), PathConversion::Primitive(error)] => {
                         (
-                            quote!(#ok), quote!(#error),
-                            from_result(from_ok_simple_conversion, from_error_simple_conversion),
-                            to_result(to_ok_simple_conversion, to_error_simple_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                parse_quote!(#ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
+                            GenericArgPresentation::new(
+                                parse_quote!(#error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
                         )
                     },
                     [PathConversion::Primitive(ok), PathConversion::Complex(error)] => {
                         (
-                            quote!(#ok), Scope::ffi_type_converted_or_same(&parse_quote!(#error)).to_token_stream(),
-                            from_result(from_ok_simple_conversion, from_error_complex_conversion),
-                            to_result(to_ok_simple_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                parse_quote!(#ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Primitive(ok), PathConversion::Generic(generic_error)] => {
                         (
-                            quote!(#ok), PathConversion::from(generic_error.as_path()).as_ffi_path().to_token_stream(),
-                            from_result(from_ok_simple_conversion, from_error_complex_conversion),
-                            to_result(to_ok_simple_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                parse_quote!(#ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
+                            GenericArgPresentation::new(
+                                Type::from(generic_error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Primitive(error)] => {
                         (
-                            Scope::ffi_type_converted_or_same(&parse_quote!(#ok)).to_token_stream(), quote!(#error),
-                            from_result(from_ok_complex_conversion, from_error_simple_conversion),
-                            to_result(to_ok_complex_conversion, to_error_simple_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                parse_quote!(#error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Complex(error)] => {
                         (
-                            Scope::ffi_type_converted_or_same(&parse_quote!(#ok)).to_token_stream(), Scope::ffi_type_converted_or_same(&parse_quote!(#error)).to_token_stream(),
-                            from_result(from_ok_complex_conversion, from_error_complex_conversion),
-                            to_result(to_ok_complex_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Generic(generic_error)] => {
                         (
-                            Scope::ffi_type_converted_or_same(&parse_quote!(#ok)).to_token_stream(), PathConversion::from(generic_error.as_path()).as_ffi_path().to_token_stream(),
-                            from_result(from_ok_complex_conversion, from_error_complex_conversion),
-                            to_result(to_ok_complex_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                Type::from(generic_error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Primitive(error)] => {
                         (
-                            PathConversion::from(generic_ok.as_path()).as_ffi_path().to_token_stream(), quote!(#error),
-                            from_result(from_ok_complex_conversion, from_error_simple_conversion),
-                            to_result(to_ok_complex_conversion, to_error_simple_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                Type::from(generic_ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                parse_quote!(#error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| *o),
+                                quote!(o as *mut _)),
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Complex(error)] => {
                         (
-                            PathConversion::from(generic_ok.as_path()).as_ffi_path().to_token_stream(), Scope::ffi_type_converted_or_same(&parse_quote!(#error)).to_token_stream(),
-                            from_result(from_ok_complex_conversion, from_error_complex_conversion),
-                            to_result(to_ok_complex_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                Type::from(generic_ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                ffi_path_converted_or_same(error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Generic(generic_error)] => {
                         (
-                            PathConversion::from(generic_ok.as_path()).as_ffi_path().to_token_stream(), PathConversion::from(generic_error.as_path()).as_ffi_path().to_token_stream(),
-                            from_result(from_ok_complex_conversion, from_error_complex_conversion),
-                            to_result(to_ok_complex_conversion, to_error_complex_conversion),
-                            vec![UNBOX_OPTION(quote!(self.ok)), UNBOX_OPTION(quote!(self.error))]
+                            GenericArgPresentation::new(
+                                Type::from(generic_ok),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
+                            GenericArgPresentation::new(
+                                Type::from(generic_error),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                ffi_to_conversion(quote!(o))),
                         )
                     },
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                FFIObjectPresentation::Result {
-                    target_type: quote!(#path),
-                    ffi_type: quote!(#ffi_name),
-                    ok_type: ok,
-                    error_type: error,
-                    from_conversion: from,
-                    to_conversion: to,
-                    drop_presentation: DropInterfacePresentation::Full(quote!(#ffi_name), quote!(#(#drop_code)*))
-                }
+
+                FFIObjectPresentation::Result { target_type: quote!(#path), ffi_type: quote!(#ffi_name), ok_presentation: arg_0_presentation, error_presentation: arg_1_presentation }
             },
             GenericPathConversion::Map(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
-                let (key, value, from, to, drop_code) = match &path_arguments_to_path_conversions(arguments)[..] {
-                    [PathConversion::Primitive(k), PathConversion::Primitive(v)] => {
+
+                let arg_0_name = quote!(keys);
+                let arg_1_name = quote!(values);
+                let (arg_0_presentation, arg_1_presentation) = match &path_arguments_to_path_conversions(arguments)[..] {
+                    [PathConversion::Primitive(arg_0_target_path), PathConversion::Primitive(arg_1_target_path)] => {
                         (
-                            quote!(#k), quote!(#v),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: ferment_interfaces::to_simple_vec(obj.values().cloned().collect()) })),
-                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_0_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_1_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Primitive(k), PathConversion::Complex(v)] => {
-                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                    }
+                    [PathConversion::Primitive(arg_0_target_path), PathConversion::Complex(arg_1_target_path)] => {
+                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
                         (
-                            quote!(#k), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_simple_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_0_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned())))
                         )
-                    },
-                    [PathConversion::Primitive(k), PathConversion::Generic(v_conversion)] => {
-                        let v = v_conversion.as_path();
-                        let value_path = PathConversion::from(v).as_ffi_path();
+                    }
+                    [PathConversion::Primitive(arg_0_target_path), PathConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
                         (
-                            quote!(#k), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_simple_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::to_simple_vec(obj.keys().cloned().collect()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_0_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Complex(k), PathConversion::Primitive(v)] => {
-                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
+                    }
+                    [PathConversion::Complex(arg_0_target_path), PathConversion::Primitive(arg_1_target_path)] => {
+                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
                         (
-                            quote!(*mut #key_path), quote!(#v),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::to_simple_vec(obj.values().cloned().collect::<Vec<_>>()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_1_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Complex(k), PathConversion::Complex(v)] => {
-                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
-                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                    }
+                    [PathConversion::Complex(arg_0_target_path), PathConversion::Complex(arg_1_target_path)] => {
+                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
                         (
-                            quote!(*mut #key_path), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Complex(k), PathConversion::Generic(v_conversion)] => {
-                        let key_path = Scope::ffi_type_converted_or_same(&parse_quote!(#k));
-                        let v = v_conversion.as_path();
-                        let value_path = PathConversion::from(v).as_ffi_path();
+                    }
+                    [PathConversion::Complex(arg_0_target_path), PathConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
                         (
-                            quote!(*mut #key_path), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Generic(k_conversion), PathConversion::Primitive(v)] => {
-                        let k = k_conversion.as_path();
-                        let key_path = PathConversion::from(k).as_ffi_path();
+                    }
+                    [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Primitive(arg_1_target_path)] => {
+                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
                         (
-                            quote!(*mut #key_path), quote!(#v),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_simple_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::to_simple_vec(obj.values().cloned().collect::<Vec<_>>()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_1_target_path),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| o),
+                                quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Generic(k_conversion), PathConversion::Complex(v)] => {
-                        let k = k_conversion.as_path();
-                        let key_path = PathConversion::from(k).as_ffi_path();
-                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#v));
+                    }
+                    [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Complex(arg_1_target_path)] => {
+                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
+                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
                         (
-                            quote!(*mut #key_path), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
-                    },
-                    [PathConversion::Generic(k_conversion), PathConversion::Generic(v_conversion)] => {
-                        let k = k_conversion.as_path();
-                        let v = v_conversion.as_path();
-                        let key_path = PathConversion::from(k).as_ffi_path();
-                        let value_path = PathConversion::from(v).as_ffi_path();
+                    }
+                    [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
+                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
                         (
-                            quote!(*mut #key_path), quote!(*mut #value_path),
-                            quote!(let ffi_ref = &*ffi; ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), keys: ferment_interfaces::complex_vec_iterator::<#k, #key_path>(obj.keys().cloned()), values: ferment_interfaces::complex_vec_iterator::<#v, #value_path>(obj.values().cloned()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.keys)), COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))],
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_0_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
+                            GenericArgPresentation::new(
+                                parse_quote!(*mut #arg_1_ffi_type),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
+                                quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
+                                quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
-                    },
+                    }
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                FFIObjectPresentation::Map { target_type: quote!(#path), ffi_type: ffi_name.to_token_stream(), key, value, from, to, drop_presentation: DropInterfacePresentation::Full(ffi_name.to_token_stream(), quote!(#(#drop_code)*)) }
+               FFIObjectPresentation::Map {
+                    target_type: quote!(#path),
+                    ffi_type: ffi_name.to_token_stream(),
+                    key_presentation: arg_0_presentation,
+                    value_presentation: arg_1_presentation,
+                }
             },
             GenericPathConversion::Vec(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
-                let (target_arg_type, ffi_arg_type, decode, encode, drop_code) = match &path_arguments_to_path_conversions(arguments)[..] {
-                    [PathConversion::Primitive(t)] => {
-                        (
-                            quote!(#t),
-                            quote!(#t),
-                            quote!(ferment_interfaces::from_simple_vec(self.values as *const Self::Value, self.count)),
-                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::boxed_vec(obj) })),
-                            vec![PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.values))]
-                        )
-                    },
-                    [PathConversion::Complex(t)] => {
-                        let value_path = Scope::ffi_type_converted_or_same(&parse_quote!(#t));
-                        (
-                            quote!(#t),
-                            quote!(*mut #value_path),
-                            quote!({ let count = self.count; let values = self.values; (0..count).map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i))).collect() }),
-                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
-                        )
-                    },
-                    [PathConversion::Generic(t_conversion)] => {
-                        let t = t_conversion.as_path();
-                        let value_path = PathConversion::from(t).as_ffi_path();
-                        (
-                            quote!(#t),
-                            quote!(*mut #value_path),
-                            quote!({ let count = self.count; let values = self.values; (0..count).map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i))).collect() }),
-                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::complex_vec_iterator::<Self::Value, #value_path>(obj.into_iter()) })),
-                            vec![COMPLEX_VEC_DROP_PRESENTER(quote!(self.values))]
-                        )
-                    },
+                let arg_0_name = quote!(values);
+                let arg_0_presentation = match &path_arguments_to_path_conversions(arguments)[..] {
+                    [PathConversion::Primitive(arg_0_target_path)] => {
+                        GenericArgPresentation::new(
+                            parse_quote!(#arg_0_target_path),
+                            PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                            quote!(ferment_interfaces::from_primitive_vec(self.values, self.count)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::boxed_vec(obj) })))
+                    }
+                    [PathConversion::Complex(arg_0_target_path)] => {
+                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
+                        GenericArgPresentation::new(
+                            parse_quote!(*mut #arg_0_ffi_type),
+                            COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                            quote!(ferment_interfaces::from_complex_vec(self.values, self.count)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
+                    }
+                    [PathConversion::Generic(arg_0_generic_path_conversion)] => {
+                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
+                        GenericArgPresentation::new(
+                            parse_quote!(*mut #arg_0_ffi_type),
+                            COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
+                            quote!(ferment_interfaces::from_complex_vec(self.values, self.count)),
+                            package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
+                    }
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
                 FFIObjectPresentation::Vec {
-                    target_arg_type,
-                    ffi_type: quote!(#ffi_name),
-                    ffi_arg_type,
-                    decode,
-                    encode,
-                    drop_presentation: DropInterfacePresentation::Full(ffi_name.to_token_stream(), quote!(#(#drop_code)*)),
+                    target_type: quote!(#path),
+                    ffi_type: ffi_name.to_token_stream(),
+                    value_presentation: arg_0_presentation,
                 }
             }
         }.to_token_stream()

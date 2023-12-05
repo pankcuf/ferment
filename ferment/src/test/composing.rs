@@ -259,7 +259,7 @@ fn import_based_expansion() -> TokenStream2 {
                             let vec = &*ffi_ref.0;
                             {
                                 let vec = vec;
-                                ferment_interfaces::from_simple_vec(vec.values, vec.count)
+                                ferment_interfaces::from_primitive_vec(vec.values, vec.count)
                             }
                         }
                     }
@@ -374,7 +374,7 @@ fn import_based_expansion() -> TokenStream2 {
                     {
                         ferment_interfaces::boxed(Self {
                             count: obj.len(),
-                            values: ferment_interfaces::complex_vec_iterator::<Self::Value, HashID_FFI>(
+                            values: ferment_interfaces::to_complex_vec(
                                 obj.into_iter(),
                             ),
                         })
@@ -408,11 +408,11 @@ fn import_based_expansion() -> TokenStream2 {
                 }
             }
             impl ferment_interfaces::FFIVecConversion for Vec_bool_FFI {
-                type Value = bool;
-                unsafe fn decode(&self) -> Vec<Self::Value> {
-                    ferment_interfaces::from_simple_vec(self.values as *const Self::Value, self.count)
+                type Value = Vec<bool>;
+                unsafe fn decode(&self) -> Self::Value {
+                    ferment_interfaces::from_primitive_vec(self.values as *const _, self.count)
                 }
-                unsafe fn encode(obj: Vec<Self::Value>) -> *mut Self {
+                unsafe fn encode(obj: Self::Value) -> *mut Self {
                     ferment_interfaces::boxed(Self {
                         count: obj.len(),
                         values: ferment_interfaces::boxed_vec(obj),
@@ -460,7 +460,7 @@ fn import_based_expansion() -> TokenStream2 {
                     {
                         ferment_interfaces::boxed(Self {
                             count: obj.len(),
-                            values: ferment_interfaces::complex_vec_iterator::<Self::Value, Vec_HashID_FFI>(
+                            values: ferment_interfaces::to_complex_vec(
                                 obj.into_iter(),
                             ),
                         })
@@ -495,10 +495,10 @@ fn import_based_expansion() -> TokenStream2 {
                 ) -> *const Map_keys_HashID_values_HashID_FFI {
                     ferment_interfaces::boxed(Self {
                         count: obj.len(),
-                        keys: ferment_interfaces::complex_vec_iterator::<HashID, HashID_FFI>(
+                        keys: ferment_interfaces::to_complex_vec(
                             obj.keys().cloned(),
                         ),
-                        values: ferment_interfaces::complex_vec_iterator::<HashID, HashID_FFI>(
+                        values: ferment_interfaces::to_complex_vec(
                             obj.values().cloned(),
                         ),
                     })

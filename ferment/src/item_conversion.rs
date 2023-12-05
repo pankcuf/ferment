@@ -6,15 +6,16 @@ use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::generics::{add_generic_type, GenericConversion, TypePathComposition};
-use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_TYPE_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_PAIR_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
-use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_struct_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
+use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, EMPTY_DESTROY_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_ITERATOR_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_FIELD_TYPE_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_DICT_FIELD_TYPE_PRESENTER, NAMED_STRUCT_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PAIR_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER, UNNAMED_STRUCT_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
+use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::{ConversionsComposer, ItemComposer};
 use crate::context::Context;
 use crate::formatter::{format_types_dict, format_used_traits};
 use crate::visitor::Visitor;
 use crate::generic_path_conversion::GenericPathConversion;
+use crate::idents::ffi_external_type_converted;
 use crate::path_conversion::PathConversion;
-use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
+use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
 use crate::scope::{EMPTY, Scope};
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::type_conversion::TypeConversion;
@@ -55,15 +56,11 @@ impl ItemContext {
         Self { context, scope_types, traits_dictionary }
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
-        // TODO: should transform to ffi package path
         let tc = match ty {
             Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(elem),
             _ => TypeConversion::from(ty)
         };
-        let full_ty = self.scope_types.get(&tc).cloned().unwrap_or(ty.clone());
-        println!("full_type_for: {}: {}" , quote!(#tc), quote!(#full_ty));
-        println!(" ------------: {}" , format_types_dict(&self.scope_types));
-        full_ty
+        self.scope_types.get(&tc).cloned().unwrap_or(ty.clone())
     }
 
     pub fn ffi_full_type_for(&self, ty: &Type) -> Type {
@@ -71,11 +68,8 @@ impl ItemContext {
             Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(elem),
             _ => TypeConversion::from(ty)
         };
-        let full_ty = self.scope_types.get(&tc).cloned().unwrap_or(ty.clone());
-        // let ffi_full_ty = Scope::ffi_type_converted_or_same(&full_ty);
-        let ffi_full_ty = Scope::ffi_external_type_converted_or_same(&full_ty, &self.context);
-        println!("## ffi_full_type_for: {} ==> {}", quote!(#ty), quote!(#ffi_full_ty));
-        ffi_full_ty
+        ffi_external_type_converted(self.scope_types.get(&tc).unwrap_or(ty), &self.context)
+            .unwrap_or(ty.clone())
     }
 }
 
@@ -100,9 +94,9 @@ fn handle_fn_return_type(output: &ReturnType, context: &ItemContext) -> FnReturn
         ReturnType::Default => FnReturnTypeDecomposition { presentation: quote!(()), conversion: quote!(;) },
         ReturnType::Type(_, field_type) => {
             let full_ty = context.ffi_full_type_for(field_type);
-            let presentation = FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context);
+            let presentation = FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context);
             let conversion = match &**field_type {
-                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path, None, context),
+                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
             FnReturnTypeDecomposition { presentation, conversion }
@@ -114,7 +108,7 @@ fn handle_bare_fn_return_type(output: &ReturnType, context: &ItemContext) -> FnR
         ReturnType::Default => FnReturnTypeDecomposition { presentation: quote!(), conversion: quote!() },
         ReturnType::Type(token, field_type) => {
             let full_ty = context.ffi_full_type_for(field_type);
-            let pres = FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context);
+            let pres = FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context);
             let presentation = SIMPLE_PAIR_PRESENTER(quote!(#token), pres);
             FnReturnTypeDecomposition { presentation, conversion: quote!() }
         }
@@ -135,7 +129,7 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, context: &ItemContext) -> V
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 let full_ty = context.ffi_full_type_for(ty);
-                let pres = FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context);
+                let pres = FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context);
                 let name_type_original = NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), quote!(#pres));
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgDecomposition {
@@ -154,7 +148,7 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ItemCont
         .map(|BareFnArg { ty, name, .. }| {
             let name = name.clone().map(|(ident, _)| ident.to_token_stream());
             let full_ty = context.ffi_full_type_for(ty);
-            let pres = FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context);
+            let pres = FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context);
             FnArgDecomposition {
                 name: name.clone(),
                 name_type_original: NAMED_CONVERSION_PRESENTER(name.unwrap(), pres),
@@ -405,12 +399,9 @@ impl ItemConversion {
     }
 
     pub fn is_labeled_with_macro(&self, path: &Path) -> bool {
-
-        let result = path.segments
+        path.segments
             .iter()
-            .any(|segment| segment.ident == self.macro_ident());
-        //println!("is_labeled_with_macro: {} => {}", result, quote!(#path));
-        result
+            .any(|segment| segment.ident == self.macro_ident())
     }
 
     pub fn is_owner_labeled_with_trait_implementation(&self, path: &Path) -> bool {
@@ -729,7 +720,6 @@ impl ItemConversion {
             Self::Enum(item_enum, scope) => {
                 let ident = &item_enum.ident;
                 let itself = scope.joined(ident);
-                println!("add_full_qualified_conversion [Enum]: {}: [{}] -> {}", quote!(#ident), quote!(#scope), quote!(#itself));
                 Self::add_itself_conversion(visitor, &scope, ident, itself.to_type());
                 Self::add_full_qualified_trait_type_from_macro(visitor, &item_enum.attrs, &scope);
                 Self::add_full_qualified_type_from_enum(visitor, &item_enum, &scope);
@@ -789,7 +779,6 @@ impl ItemConversion {
                             Item::Enum(item_enum) => {
                                 let ident = &item_enum.ident;
                                 let itself = inner_scope.joined(ident);
-                                println!("add_full_qualified_conversion [Enum inner]: {}: [{}] -> {}", quote!(#ident), quote!(#inner_scope), quote!(#itself));
                                 Self::add_itself_conversion(visitor, &inner_scope, ident, itself.to_type());
                                 Self::add_full_qualified_trait_type_from_macro(visitor, &item_enum.attrs, &inner_scope);
                                 Self::add_full_qualified_type_from_enum(visitor, &item_enum, &inner_scope);
@@ -851,18 +840,18 @@ fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &Scope, context: ItemContext) -> Expansion {
     let ItemEnum { ident: target_name, variants, .. } = item_enum;
     let variants_count = variants.len();
-    let ffi_name = ffi_struct_name(target_name);
     let traits = item_traits_expansions((target_name, item_scope), &item_enum.attrs, &context);
     let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut variants_fields = Vec::<TokenStream2>::with_capacity(variants_count);
+    let mut variants_constructors = Vec::<BindingPresentation>::with_capacity(variants_count);
     let mut destroy_fields = Vec::<TokenStream2>::new();
     let mut drop_fields = Vec::<TokenStream2>::new();
     variants.iter().for_each(|Variant { ident: variant_name, fields, discriminant, .. }| {
         let full_ty = context.full_type_for(&parse_quote!(#target_name));
-        //println!("variant: {} -> {}", quote!(#variant_name), quote!(#full_ty));
         let target_variant_path = quote!(#full_ty::#variant_name);
-        let ffi_variant_path = quote!(#ffi_name::#variant_name);
+        let ffi_variant_path = quote!(#target_name::#variant_name);
+        let variant_mangled_path = format_ident!("{}_{}", target_name, variant_name);
         let (variant_presenter, fields_context) = match discriminant {
             Some((_, Expr::Lit(lit, ..))) => (ENUM_UNIT_FIELDS_PRESENTER, vec![quote!(#lit)]),
             None => match fields {
@@ -871,41 +860,71 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &Scope, context: ItemContext
                     ENUM_UNNAMED_VARIANT_PRESENTER,
                     unnamed
                         .iter()
-                        .map(|f| UNNAMED_VARIANT_FIELD_PRESENTER(f, &context))
+                        .map(|field| UNNAMED_VARIANT_FIELD_PRESENTER(field, &context))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
                     ENUM_NAMED_VARIANT_PRESENTER,
                     named
                         .iter()
-                        .map(|f| NAMED_VARIANT_FIELD_PRESENTER(f, &context))
+                        .map(|field| NAMED_VARIANT_FIELD_PRESENTER(field, &context))
                         .collect(),
                 ),
             },
             _ => panic!("Error variant discriminant"),
         };
         let composer = match fields {
-            Fields::Unit => ItemComposer::enum_unit_variant_composer(
-                parse_quote!(#ffi_variant_path),
-                parse_quote!(#target_variant_path),
-                context.clone()
-            ),
-            Fields::Unnamed(fields) => {
-                ItemComposer::enum_unnamed_variant_composer(
+            Fields::Unit =>
+                ItemComposer::enum_variant_default_composer(
                     parse_quote!(#ffi_variant_path),
                     parse_quote!(#target_variant_path),
                     context.clone(),
-                    ConversionsComposer::UnnamedEnumVariant(fields),
-                )
-            }
-            Fields::Named(fields) => {
-                ItemComposer::enum_named_variant_composer(
+                    NO_FIELDS_PRESENTER,
+                    NO_FIELDS_PRESENTER,
+                    SIMPLE_CONVERSION_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    EMPTY_DESTROY_PRESENTER,
+                    EMPTY_ITERATOR_PRESENTER,
+                    ConversionsComposer::Empty
+                ),
+            Fields::Unnamed(fields) =>
+                ItemComposer::enum_variant_default_composer(
                     parse_quote!(#ffi_variant_path),
                     parse_quote!(#target_variant_path),
                     context.clone(),
-                    ConversionsComposer::NamedStruct(fields),
+                    ROUND_BRACES_FIELDS_PRESENTER,
+                    ROUND_BRACES_FIELDS_PRESENTER,
+                    SIMPLE_CONVERSION_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    SIMPLE_TERMINATED_PRESENTER,
+                    |fields| {
+                        if fields.is_empty() {
+                            quote!()
+                        } else {
+                            ROUND_ITER_PRESENTER(fields)
+                        }
+                    },
+                    ConversionsComposer::UnnamedEnumVariant(fields)
+                ),
+            Fields::Named(fields) =>
+                ItemComposer::enum_variant_default_composer(
+                    parse_quote!(#ffi_variant_path),
+                    parse_quote!(#target_variant_path),
+                    context.clone(),
+                    CURLY_BRACES_FIELDS_PRESENTER,
+                    CURLY_BRACES_FIELDS_PRESENTER,
+                    NAMED_CONVERSION_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    SIMPLE_PRESENTER,
+                    |fields| {
+                        if fields.is_empty() {
+                            quote!()
+                        } else {
+                            CURLY_ITER_PRESENTER(fields)
+                        }
+                    },
+                    ConversionsComposer::NamedStruct(fields)
                 )
-            }
         };
         let composer_owned = composer.borrow();
         variants_fields.push(variant_presenter((quote!(#variant_name), fields_context)));
@@ -913,40 +932,43 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &Scope, context: ItemContext
         conversions_to_ffi.push(composer_owned.compose_to());
         destroy_fields.push(composer_owned.compose_destroy());
         drop_fields.push(composer_owned.compose_drop());
+        variants_constructors.push(BindingPresentation::EnumVariantConstructor {
+            ffi_ident: target_name.to_token_stream(),
+            ffi_variant_ident: variant_mangled_path,
+            ffi_variant_path: ffi_variant_path.to_token_stream(),
+            ctor_arguments: composer_owned.ffi_conversions_composer.bindings_composer.compose_arguments(&context),
+            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.compose_field_names(),
+        })
     });
     let comment = DocPresentation::Default(quote!(#target_name));
     let ffi_presentation =
-        FFIObjectPresentation::Full(ENUM_PRESENTER((quote!(#ffi_name), variants_fields)));
-    // let ffi_full_type = item_context.ffi_full_type_for(&parse_quote!(#ffi_name));
+        FFIObjectPresentation::Full(ENUM_PRESENTER((quote!(#target_name), variants_fields)));
     let target_full_type = context.full_type_for(&parse_quote!(#target_name));
-    // println!("enummm: {}: {}", quote!(#target_name), quote!(#target_full_type));
-    // println!("context: {:#?}", item_context);
-
     let conversion = ConversionInterfacePresentation::Interface {
-        ffi_type: parse_quote!(#ffi_name),
+        ffi_type: parse_quote!(#target_name),
         target_type: quote!(#target_full_type),
         from_presentation: FromConversionPresentation::Enum(conversions_from_ffi),
         to_presentation: ToConversionPresentation::Enum(conversions_to_ffi),
         destroy_presentation: package_unboxed_root(),
     };
     let drop = DropInterfacePresentation::Full(
-        quote!(#ffi_name),
+        quote!(#target_name),
         ENUM_DESTROY_PRESENTER(drop_fields),
     );
-    // let constructor = ConversionInterfacePresentation::Constructor {
-    //     ffi_ident: ffi_name.clone(),
-    //     ctor_arguments: vec![],
-    //     body_presentation: quote!()
-    //     // constructor_ident: ffi_constructor_name(&ffi_name).to_token_stream(),
-    //     // fields_presentation: quote!(),
-    //     // arguments_presentation: quote!(),
-    // };
-    let constructor = ConversionInterfacePresentation::Empty;
-    let destructor = ConversionInterfacePresentation::Destructor {
-        ffi_name: quote!(#ffi_name),
-        destructor_ident: ffi_destructor_name(&ffi_name).to_token_stream()
-    };
-    Expansion::Full { comment, ffi_presentation, conversion, drop, constructor, destructor, traits }
+
+    variants_constructors.push(BindingPresentation::Destructor {
+        ffi_name: quote!(#target_name),
+        destructor_ident: ffi_destructor_name(&target_name).to_token_stream()
+    });
+
+    Expansion::Full {
+        comment,
+        ffi_presentation,
+        conversion,
+        drop,
+        bindings: variants_constructors,
+        traits
+    }
 }
 
 fn implement_trait_for_item(item_trait: (&ItemTrait, &Scope), item: (&Ident, &Scope), context: &ItemContext) -> TraitVTablePresentation {
@@ -1038,8 +1060,6 @@ fn item_traits_expansions(item: (&Ident, &Scope), attrs: &[Attribute], context: 
 }
 
 fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: ItemContext) -> Expansion {
-    // println!("expansion (struct): in: {scope} => {}", quote!(#item_struct));
-    // println!("struct_expansion: [{}]: {}", scope.to_token_stream(), item_struct.ident.to_token_stream());
     let ItemStruct { fields: ref f, ident: target_name, .. } = item_struct;
     let traits = item_traits_expansions((target_name, _scope), &item_struct.attrs, &item_context);
     let composer = match f {
@@ -1061,14 +1081,12 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                 ) = match fields.unnamed.first().unwrap().ty.clone() {
                     // VarInt
                     Type::Path(TypePath { path, .. }) => {
-
-                        let ffi_name = ffi_struct_name(target_name);
                         (
-                            quote!(#ffi_name),
+                            quote!(#target_name),
                             CURLY_BRACES_FIELDS_PRESENTER,
-                            vec![from_path(quote!(ffi_ref.0), &path, None, &item_context)],
+                            vec![from_path(quote!(ffi_ref.0), &path)],
                             CURLY_BRACES_FIELDS_PRESENTER,
-                            quote!(#ffi_name),
+                            quote!(#target_name),
                             ROOT_DESTROY_CONTEXT_PRESENTER,
                         )
                     }
@@ -1083,11 +1101,9 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                     ),
                     _ => unimplemented!("from_unnamed_struct: not supported {:?}", quote!(#fields)),
                 };
-                println!("primitive_composer: {} --> {}", quote!(#target_name), quote!(#ffi_name));
-                let ffi_name = ffi_struct_name(target_name).to_token_stream();
                 ItemComposer::primitive_composer(
-                    parse_quote!(#ffi_name),
                     parse_quote!(#target_name),
+                    parse_quote!(#ffi_name),
                     item_context,
                     EMPTY_FIELDS_PRESENTER,
                     ffi_from_presenter,
@@ -1098,50 +1114,47 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                     parse_quote!(#ffi_to_presentation_context),
                 )
             }
-            _ => ItemComposer::unnamed_struct_composer(
-                {
-                    // let full_ty = item_context.ffi_full_type_for(&parse_quote!(#target_name));
-                    let ffi_name = ffi_struct_name(target_name).to_token_stream();
-                    println!("unnamed_struct_composer.2: {} --> {}", quote!(#target_name), quote!(#ffi_name));
-                    parse_quote!(#ffi_name)
-                },
-                {
-                    println!("unnamed_struct_composer.3: {}", quote!(#target_name));
-                    let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
-                    parse_quote!(#full_ty)
-                },
-                item_context,
-                ConversionsComposer::UnnamedStruct(fields)
-            ),
-        },
-        Fields::Named(ref fields) => ItemComposer::named_struct_composer(
-            {
-                // let full_ty = item_context.ffi_full_type_for(&parse_quote!(#target_name));
-                let ffi_name = ffi_struct_name(target_name).to_token_stream();
-                println!("named_struct_composer: {} --> {}", quote!(#target_name), quote!(#ffi_name));
-                parse_quote!(#ffi_name)
-            },
-            {
+            _ => {
                 let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
-                parse_quote!(#full_ty)
+                ItemComposer::struct_composer(
+                    parse_quote!(#target_name),
+                    parse_quote!(#full_ty),
+                    item_context,
+                    UNNAMED_STRUCT_PRESENTER,
+                    DEFAULT_DICT_FIELD_TYPE_PRESENTER,
+                    ROUND_BRACES_FIELDS_PRESENTER,
+                    SIMPLE_CONVERSION_PRESENTER,
+                    ROUND_ITER_PRESENTER,
+                    ConversionsComposer::UnnamedStruct(fields)
+                )
             },
-            item_context,
-            ConversionsComposer::NamedStruct(fields)
-        ),
+        },
+        Fields::Named(ref fields) => {
+            let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
+            ItemComposer::struct_composer(
+                parse_quote!(#target_name),
+                parse_quote!(#full_ty),
+                item_context,
+                NAMED_STRUCT_PRESENTER,
+                NAMED_DICT_FIELD_TYPE_PRESENTER,
+                CURLY_BRACES_FIELDS_PRESENTER,
+                NAMED_CONVERSION_PRESENTER,
+                CURLY_ITER_PRESENTER,
+                ConversionsComposer::NamedStruct(fields)
+            )
+        },
         Fields::Unit => panic!("Fields::Unit is not supported yet"),
     };
     let composer_owned = composer.borrow();
-
-    composer_owned.make_expansion(/*ffi_destructor_name(&ffi_struct_name(target_name)).to_token_stream(), */traits)
+    composer_owned.make_expansion(traits)
 }
 
 fn handle_arg_type(ty: &Type, pat: &Pat, context: &ItemContext) -> TokenStream2 {
     match (ty, pat) {
         (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
-            from_path(quote!(#ident), path, None, context),
+            from_path(quote!(#ident), path),
         (Type::Reference(type_reference), pat) => {
             let arg_type = handle_arg_type(&type_reference.elem, pat, context);
-            // arg_type
             if let Some(_mutable) = type_reference.mutability {
                 quote!(&mut #arg_type)
             } else {
@@ -1191,47 +1204,25 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &Scope, context: ItemContext) 
 }
 
 fn type_expansion(item_type: &ItemType, scope: &Scope, context: ItemContext) -> Expansion {
-    // println!("type_expansion: [{}]: {}", scope.to_token_stream(), item_type.ident.to_token_stream());
-    // println!("expansion (type): in: {scope} => {}", quote!(#item_type));
     let ItemType { ident, ty, .. } = item_type;
-    let ffi_name = ffi_struct_name(ident);
     match &**ty {
-        // Type::Tuple()
         Type::BareFn(bare_fn) => {
-            let decomposition = FnSignatureDecomposition::from_bare_fn(bare_fn, &ffi_name, scope.clone(), &context);
+            let decomposition = FnSignatureDecomposition::from_bare_fn(bare_fn, ident, scope.clone(), &context);
             Expansion::Callback {
-                comment: DocPresentation::Default(quote!(#ffi_name)),
+                comment: DocPresentation::Default(quote!(#ident)),
                 ffi_presentation: decomposition.present_callback(),
             }
         },
         _ => {
             let traits = item_traits_expansions((ident, scope), &item_type.attrs, &context);
+            let full_ty = context.full_type_for(&parse_quote!(#ident));
             ItemComposer::type_alias_composer(
-                // {
-                //     let full_ty = item_context.ffi_full_type_for(&parse_quote!(#target_name));
-                //     // let ffi_name = ffi_struct_name(target_name).to_token_stream();
-                //     parse_quote!(#full_ty)
-                // },
-                // {
-                //     let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
-                //     parse_quote!(#full_ty)
-                // },
-
-                {
-                    let ffi_name = ffi_struct_name(ident).to_token_stream();
-                    // println!("type_alias_composer: {} --> {}", quote!(#ident), quote!(#ffi_name));
-                    parse_quote!(#ffi_name)
-                },
-                {
-                    let full_ty = context.full_type_for(&parse_quote!(#ident));
-                    // println!("typealias: {}: {}", quote!(#ident), quote!(#full_ty));
-                    // println!("context: {:?}", context);
-                    parse_quote!(#full_ty)
-                },
+                parse_quote!(#ident),
+                parse_quote!(#full_ty),
                 context,
                 ConversionsComposer::TypeAlias(ty))
                 .borrow()
-                .make_expansion(/*&ffi_destructor_name(&ffi_name).to_token_stream(), */traits)
+                .make_expansion(traits)
         }
     }
 }

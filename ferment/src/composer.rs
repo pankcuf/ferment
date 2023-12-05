@@ -4,10 +4,10 @@ use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Field, FieldsNamed, FieldsUnnamed, Path, Type, TypePath};
-use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFAULT_DESTROY_FIELDS_PRESENTER, DEFAULT_DICT_FIELD_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, EMPTY_DESTROY_PRESENTER, EMPTY_DICT_FIELD_TYPED_PRESENTER, EMPTY_ITERATOR_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, NAMED_CONVERSION_PRESENTER, NAMED_DICT_FIELD_TYPE_PRESENTER, NAMED_STRUCT_PRESENTER, NO_FIELDS_PRESENTER, OBJ_FIELD_NAME, OwnerIteratorPresenter, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER, STRUCT_DESTROY_PRESENTER, TYPE_ALIAS_CONVERSION_FROM_PRESENTER, TYPE_ALIAS_CONVERSION_TO_PRESENTER, TYPE_ALIAS_PRESENTER, UNNAMED_STRUCT_PRESENTER};
+use crate::interface::{DEFAULT_DESTROY_FIELDS_PRESENTER, DEFAULT_DICT_FIELD_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, EMPTY_DICT_FIELD_TYPED_PRESENTER, EMPTY_ITERATOR_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_ITER_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, STRUCT_DESTROY_PRESENTER, TYPE_ALIAS_CONVERSION_FROM_PRESENTER, TYPE_ALIAS_CONVERSION_TO_PRESENTER, TYPE_ALIAS_PRESENTER};
 use crate::interface::{obj};
-use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
-use crate::helper::{destroy_array, destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_unnamed_arg_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
+use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
+use crate::helper::{destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_unnamed_arg_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
 use crate::item_conversion::{ItemContext, usize_to_tokenstream};
 use crate::path_conversion::PathConversion;
 
@@ -193,7 +193,7 @@ impl ItemComposer {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn struct_composer(
+    pub fn struct_composer(
         ffi_name: Path,
         target_name: Path,
         context: ItemContext,
@@ -239,43 +239,8 @@ impl ItemComposer {
         )
     }
 
-    pub(crate) fn unnamed_struct_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
-        Self::struct_composer(
-            ffi_name,
-            target_name,
-            context,
-            UNNAMED_STRUCT_PRESENTER,
-            DEFAULT_DICT_FIELD_TYPE_PRESENTER,
-            ROUND_BRACES_FIELDS_PRESENTER,
-            SIMPLE_CONVERSION_PRESENTER,
-            ROUND_ITER_PRESENTER,
-            conversions_composer
-        )
-    }
-
-    pub(crate) fn named_struct_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
-        Self::struct_composer(
-            ffi_name,
-            target_name,
-            context,
-            NAMED_STRUCT_PRESENTER,
-            NAMED_DICT_FIELD_TYPE_PRESENTER,
-            CURLY_BRACES_FIELDS_PRESENTER,
-            NAMED_CONVERSION_PRESENTER,
-            CURLY_ITER_PRESENTER,
-            conversions_composer)
-    }
-
     #[allow(clippy::too_many_arguments)]
-    fn enum_variant_default_composer(
+    pub fn enum_variant_default_composer(
         ffi_name: Path,
         target_name: Path,
         context: ItemContext,
@@ -284,6 +249,7 @@ impl ItemComposer {
         conversion_presenter: MapPairPresenter,
         destroy_code_context_presenter: MapPresenter,
         destroy_presenter: MapPresenter,
+        bindings_iterator_presenter: IteratorPresenter,
         conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
         Self::new(
             ffi_name.clone(),
@@ -321,82 +287,10 @@ impl ItemComposer {
                     vec![]),
                 DEREF_FIELD_PATH,
                 SIMPLE_PRESENTER,
-                FFIBindingsComposer::new(
-                    ROUND_ITER_PRESENTER,
-                ),
+                FFIBindingsComposer::new(bindings_iterator_presenter),
                 |f| quote!(#f.to_owned())),
             conversions_composer)
     }
-
-    fn enum_variant_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        root_presenter: OwnerIteratorPresenter,
-        conversion_presenter: MapPairPresenter,
-        destroy_presenter: MapPresenter,
-        conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
-        Self::enum_variant_default_composer(
-            ffi_name,
-            target_name,
-            context,
-            root_presenter,
-            root_presenter,
-            conversion_presenter,
-            ROOT_DESTROY_CONTEXT_PRESENTER,
-            destroy_presenter,
-            conversions_composer)
-    }
-
-    pub(crate) fn enum_unit_variant_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext) -> Rc<RefCell<Self>> {
-        Self::enum_variant_default_composer(
-            ffi_name,
-            target_name,
-            context,
-            NO_FIELDS_PRESENTER,
-            NO_FIELDS_PRESENTER,
-            SIMPLE_CONVERSION_PRESENTER,
-            ROOT_DESTROY_CONTEXT_PRESENTER,
-            EMPTY_DESTROY_PRESENTER,
-            ConversionsComposer::Empty
-        )
-    }
-
-    pub(crate) fn enum_unnamed_variant_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
-        Self::enum_variant_composer(
-            ffi_name,
-            target_name,
-            context,
-            ROUND_BRACES_FIELDS_PRESENTER,
-            SIMPLE_CONVERSION_PRESENTER,
-            SIMPLE_TERMINATED_PRESENTER,
-            conversions_composer
-        )
-    }
-
-    pub(crate) fn enum_named_variant_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
-        Self::enum_variant_composer(
-            ffi_name,
-            target_name,
-            context,
-            CURLY_BRACES_FIELDS_PRESENTER,
-            NAMED_CONVERSION_PRESENTER,
-            SIMPLE_PRESENTER,
-            conversions_composer
-        )
-    }
-
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn primitive_composer(
@@ -527,7 +421,7 @@ impl ItemComposer {
     }
 
     fn add_conversion(&mut self, field_type: FieldType) {
-        self.ffi_conversions_composer.add_conversion(&field_type, &self.context);
+        self.ffi_conversions_composer.add_conversion(&field_type);
         self.fields_from_composer.add_conversion(&field_type, &self.context);
         self.fields_to_composer.add_conversion(&field_type, &self.context);
     }
@@ -555,7 +449,7 @@ impl ItemComposer {
     pub(crate) fn compose_drop(&self) -> TokenStream2 {
         self.ffi_conversions_composer.drop_composer.compose()
     }
-    pub(crate) fn make_expansion(&self, /*destructor_ident: TokenStream2,*/ traits: Vec<TraitVTablePresentation>) -> Expansion {
+    pub(crate) fn make_expansion(&self, traits: Vec<TraitVTablePresentation>) -> Expansion {
         let ffi_name = self.ffi_name_composer.compose();
         // TODO: avoid this
         let ffi_ident = format_ident!("{}", ffi_name.to_string());
@@ -570,22 +464,17 @@ impl ItemComposer {
                 to_presentation: ToConversionPresentation::Struct(self.compose_to()),
                 destroy_presentation: self.compose_destroy()
             },
-            constructor: ConversionInterfacePresentation::Constructor {
-                ffi_ident: ffi_ident.clone(),
-                ctor_arguments: self.ffi_conversions_composer.bindings_composer.compose_arguments(&self.context)/*{
-                    let ctor_name = ffi_constructor_name(&ffi_ident).to_token_stream();
-                    let name_and_arguments = (self.fields_from_composer.root_presenter)((ctor_name, self.ffi_conversions_composer.bindings_composer.fields.clone()));
-                    quote!(#name_and_arguments -> *mut #ffi_name)
-                }*/,
-                body_presentation: self.ffi_conversions_composer.bindings_composer.compose_field_names()
-                // constructor_ident: ffi_constructor_name(&ffi_ident).to_token_stream(),
-                // fields_presentation: (self.fields_from_composer.root_presenter)((quote!(), vec![])),
-                // arguments_presentation: (self.fields_from_composer.root_presenter)((quote!(), vec![])),
-            },
-            destructor: ConversionInterfacePresentation::Destructor {
-                ffi_name: ffi_name.clone(),
-                destructor_ident: ffi_destructor_name(&ffi_ident).to_token_stream()
-            },
+            bindings: vec![
+                BindingPresentation::Constructor {
+                    ffi_ident: ffi_ident.clone(),
+                    ctor_arguments: self.ffi_conversions_composer.bindings_composer.compose_arguments(&self.context),
+                    body_presentation: self.ffi_conversions_composer.bindings_composer.compose_field_names()
+                },
+                BindingPresentation::Destructor {
+                    ffi_name: ffi_name.clone(),
+                    destructor_ident: ffi_destructor_name(&ffi_ident).to_token_stream()
+                }
+            ],
             drop: if self.need_drop_presentation {
                 DropInterfacePresentation::Full(self.ffi_name_composer.compose(), self.compose_drop())
             } else {
@@ -630,35 +519,34 @@ impl FFIConversionComposer {
         self.drop_composer.set_parent(root);
         self.parent = Some(Rc::clone(root));
     }
-    pub fn add_conversion(&mut self, field_type: &FieldType, context: &ItemContext) {
+    pub fn add_conversion(&mut self, field_type: &FieldType) {
         let field_path_to = (self.to_presenter)(field_type.name());
         let field_path_from = (self.from_presenter)(field_type.name());
         let field_path_destroy = (self.destructor_presenter)(field_type.name());
 
         let (converted_field_to, converted_field_from, destructor) = match field_type.ty() {
             Type::Ptr(type_ptr) => (
-                to_ptr(field_path_to, type_ptr, context),
-                from_ptr(field_path_from, type_ptr, context),
-                destroy_ptr(field_path_destroy, type_ptr, context)
+                to_ptr(field_path_to, type_ptr),
+                from_ptr(field_path_from, type_ptr),
+                destroy_ptr(field_path_destroy, type_ptr)
             ),
             Type::Path(TypePath { path, .. }) => (
-                to_path(field_path_to, path, None, context),
-                from_path(field_path_from, path, None, context),
-                destroy_path(field_path_destroy, path, None, context),
+                to_path(field_path_to, path),
+                from_path(field_path_from, path),
+                destroy_path(field_path_destroy, path),
             ),
             Type::Reference(type_reference) => (
-                to_reference(field_path_to, type_reference, context),
-                from_reference(field_path_from, type_reference, context),
-                destroy_reference(field_path_destroy, type_reference, context)
+                to_reference(field_path_to, type_reference),
+                from_reference(field_path_from, type_reference),
+                destroy_reference(field_path_destroy, type_reference)
             ),
             Type::Array(type_array) => (
-                to_array(field_path_to, type_array, context),
-                from_array(field_path_from, type_array, context),
-                destroy_array(field_path_destroy, type_array, context)
+                to_array(field_path_to, type_array),
+                from_array(field_path_from, type_array),
+                package_unbox_any_expression(field_path_destroy),
             ),
             _ => panic!("add_conversion: Unknown field {}", quote!(#field_type)),
         };
-        //println!("root add_conversion: {} --> {} --> {} --> {}", quote!(#field_type), converted_field_to, converted_field_from, destructor);
         self.to_conversion_composer.add_conversion(field_type.name(), converted_field_to);
         self.from_conversion_composer.add_conversion(field_type.name(), converted_field_from);
         self.bindings_composer.add_conversion(field_type);

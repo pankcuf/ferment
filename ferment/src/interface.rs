@@ -1,13 +1,10 @@
-use syn::{Field, parse_quote, Path, PathArguments, Type, TypeArray, TypePath, TypePtr, TypeReference};
+use syn::{Field, parse_quote, Path, Type, TypeArray, TypePath, TypePtr, TypeReference};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::composer::FieldType;
 
-use crate::generic_path_conversion::GenericPathConversion;
-use crate::path_conversion::PathConversion;
-use crate::helper::{ffi_mangled_ident, path_arguments_to_types};
+use crate::idents::ffi_dictionary_field_type;
 use crate::item_conversion::ItemContext;
-use crate::type_conversion::TypeConversion;
 
 /// token -> token
 pub type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
@@ -26,38 +23,27 @@ pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, context: &ItemContex
 /// token + [token] -> token
 pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
 
-pub type ScopeTreePathPresenter = fn(path: &Path, context: &ItemContext) -> TokenStream2;
-pub type ScopeTreePathArgumentsPresenter = fn(arguments: &PathArguments, context: &ItemContext) -> TokenStream2;
-
-pub type GenericPathPresenter = fn(path: &Path, arguments_presenter: ScopeTreePathArgumentsPresenter, context: &ItemContext) -> TokenStream2;
-
 
 /// Field Presenters
 pub const UNNAMED_VARIANT_FIELD_PRESENTER: ScopeTreeFieldPresenter = |Field { ty, .. }, context| {
     let full_ty = context.ffi_full_type_for(ty);
-    FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context)
+    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context)
 };
 pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { ident, ty: field_type, .. }, context| {
     let full_ty = context.ffi_full_type_for(field_type);
-    NAMED_CONVERSION_PRESENTER(ident.clone().unwrap().to_token_stream(), FFI_DICTIONARY_TYPE_PRESENTER(&full_ty, context))
+    NAMED_CONVERSION_PRESENTER(ident.clone().unwrap().to_token_stream(), FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context))
 };
 
 
 /// Type Presenters
-pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context| {
+pub const FFI_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context| {
     match field_type {
         Type::Path(TypePath { path, .. }) =>
-            (match path.segments.last().unwrap().ident.to_string().as_str() {
-                "Vec" | "BTreeMap" | "HashMap" | "Result" => FFI_GENERIC_TYPE_PRESENTER,
-                "Option" => OPTION_PATH_PRESENTER,
-                "OpaqueContext" => OPAQUE_CONTEXT_PATH_PRESENTER,
-                "OpaqueContextMut" => OPAQUE_CONTEXT_MUT_PATH_PRESENTER,
-                _ => DEFAULT_DICT_PATH_PRESENTER,
-            })(path, context),
+            ffi_dictionary_field_type(path, context),
         Type::Array(TypeArray { elem, len, .. }) =>
             quote!(*mut [#elem; #len]),
         Type::Reference(TypeReference { elem, .. }) =>
-            FFI_DICTIONARY_TYPE_PRESENTER(elem, context),
+            FFI_DICTIONARY_FIELD_TYPE_PRESENTER(elem, context),
         Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
             match &**elem {
                 Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -69,7 +55,7 @@ pub const FFI_DICTIONARY_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_typ
                     _ => quote!(*mut #path)
                 },
                 Type::Ptr(type_ptr) => quote!(*mut #type_ptr),
-                _ => panic!("extract_struct_field: {} not supported", quote!(#elem))
+                _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
             }
         _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", quote!(#field_type))
     }
@@ -118,11 +104,11 @@ pub const EMPTY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |_, _
 pub const DEFAULT_DICT_FIELD_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, _|
     field_type.name();
 pub const DEFAULT_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    FFI_DICTIONARY_TYPE_PRESENTER(&context.ffi_full_type_for(field_type.ty()), context)
+    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&context.ffi_full_type_for(field_type.ty()), context)
 };
 pub const NAMED_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
     let ffi_type = context.ffi_full_type_for(field_type.ty());
-    PUB_NAMED_CONVERSION_PRESENTER(field_type.name(), FFI_DICTIONARY_TYPE_PRESENTER(&ffi_type, context))
+    PUB_NAMED_CONVERSION_PRESENTER(field_type.name(), FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&ffi_type, context))
 };
 
 
@@ -186,63 +172,8 @@ pub const ENUM_PRESENTER: OwnerIteratorPresenter = |(name, fields)| {
 };
 
 /// PathArguments Presenters
-pub const OPAQUE_CONTEXT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |_, _|
-    quote!(ferment_interfaces::OpaqueContext_FFI);
-pub const OPAQUE_CONTEXT_MUT_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |_, _|
-    quote!(ferment_interfaces::OpaqueContextMut_FFI);
 
-pub const OPTION_ARGUMENTS_PRESENTER: ScopeTreePathArgumentsPresenter = |arguments, tree|
-    match path_arguments_to_types(arguments)[..] {
-        [field_type] => FFI_DICTIONARY_TYPE_PRESENTER(field_type, tree),
-        _ => panic!("OPTION_ARGUMENTS_PRESENTER: arguments: {} not supported", quote!(#arguments))
-};
-
-pub const GENERIC_PATH_PRESENTER: GenericPathPresenter = |path, arguments_presenter, dictionary|
-    arguments_presenter(&path.segments.last().unwrap().arguments, dictionary);
-
-
-
-/// Path Presenters
-pub const DEFAULT_DICT_PATH_PRESENTER: ScopeTreePathPresenter = |path, _context| {
-    PathConversion::from(path)
-        .as_ffi_type()
-        .to_token_stream()
-};
-
-
-pub const FFI_GENERIC_TYPE_PRESENTER: ScopeTreePathPresenter = |path, tree| {
-    match PathConversion::from(path) {
-        PathConversion::Primitive(path) |
-        PathConversion::Complex(path) =>
-            path.to_token_stream(),
-        PathConversion::Generic(GenericPathConversion::Result(path)) |
-        PathConversion::Generic(GenericPathConversion::Map(path)) |
-        PathConversion::Generic(GenericPathConversion::Vec(path)) => {
-            let short_ty: Type = parse_quote!(#path);
-            tree.scope_types.iter()
-                .find_map(|(TypeConversion{ 0: other}, full_type)|
-                    short_ty.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str())
-                        .then_some(full_type))
-                .map_or(quote!(*mut #short_ty), |full_type| {
-                    let full_ty = ffi_mangled_ident(full_type);
-                    quote!(*mut #full_ty)
-                })
-        }
-    }
-};
-
-
-pub const OPTION_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, OPTION_ARGUMENTS_PRESENTER, dictionary);
-
-pub const OPAQUE_CONTEXT_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, OPAQUE_CONTEXT_ARGUMENTS_PRESENTER, dictionary);
-pub const OPAQUE_CONTEXT_MUT_PATH_PRESENTER: ScopeTreePathPresenter = |path, dictionary|
-    GENERIC_PATH_PRESENTER(path, OPAQUE_CONTEXT_MUT_ARGUMENTS_PRESENTER, dictionary);
-
-
-
-fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {
+pub fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {
     let path: Path = parse_quote!(#name);
     let ident = &path.segments.last().unwrap().ident;
     quote! {
@@ -348,11 +279,9 @@ pub fn ffi_to_opt_conversion(field_value: TokenStream2) -> TokenStream2 {
     quote!(#package::#interface::#ffi_to_opt(#field_value))
 }
 
-// TODO: provide full type or make an import
 pub fn destroy_conversion(field_value: TokenStream2, ffi_type: Type, field_type: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
     let destroy = destroy();
-    // quote!(#package::#interface::#destroy(#field_value))
     quote!(<#ffi_type as #package::#interface<#field_type>>::#destroy(#field_value))
 }

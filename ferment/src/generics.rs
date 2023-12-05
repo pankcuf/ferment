@@ -84,6 +84,8 @@ impl ToTokens for GenericConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { full_type } = self;
         let path: Path = parse_quote!(#full_type);
+        // PathConversion::from(path)
+        //     .into_mangled_generic_ident();
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
                 generic_conversion.expand(ffi_mangled_ident(full_type)),

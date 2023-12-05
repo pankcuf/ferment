@@ -114,7 +114,6 @@ impl Hash for ImportConversion {
 
 impl ImportConversion {
     pub fn present(&self, import_type: &ImportType) -> Scope {
-        // println!("ImportConversion::present: {}: {}", self.scope, import_type.as_path().to_token_stream());
         match import_type {
             ImportType::External | ImportType::Original | ImportType::FfiType | ImportType::FfiExternal =>
                 self.scope.clone(),

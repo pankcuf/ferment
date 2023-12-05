@@ -3,9 +3,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, P
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
-use crate::item_conversion::ItemContext;
-use crate::generic_path_conversion::GenericPathConversion;
+use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
 use crate::path_conversion::PathConversion;
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
@@ -36,72 +34,7 @@ pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<Path
         .collect()
 }
 
-pub fn destroy_result(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    let arguments = &path.segments.last().unwrap().arguments;
-    match path_arguments_to_paths(arguments)[..] {
-        [_path_ok, _path_error] => match PathConversion::from(path) {
-            PathConversion::Primitive(..) |
-            PathConversion::Complex(..) |
-            PathConversion::Generic(GenericPathConversion::Map(..)) =>
-                package_unbox_any_expression_terminated(field_path),
-            PathConversion::Generic(GenericPathConversion::Vec(..)) =>
-                destroy_vec(path, quote!(#field_path)),
-            PathConversion::Generic(GenericPathConversion::Result(..)) =>
-                destroy_result(path, quote!(#field_path)),
-        },
-        _ => panic!("destroy_result: Bad arguments {}", quote!(#field_path: #path)),
-    }
-}
-
-pub fn destroy_vec(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
-        [PathConversion::Primitive(..) | PathConversion::Complex(..)] =>
-            package_unbox_any_expression_terminated(field_path),
-        [PathConversion::Generic(generic_path_conversion)] =>
-            generic_path_conversion.destroy_field(field_path),
-        _ => panic!("destroy_vec: Bad arguments {}", quote!(#field_path: #path))
-    }
-}
-
-pub fn destroy_map(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    let arguments = &path.segments.last().unwrap().arguments;
-    match path_arguments_to_paths(arguments)[..] {
-        [_path_keys, _path_values] => match PathConversion::from(path) {
-            PathConversion::Primitive(..) |
-            PathConversion::Complex(..) |
-            PathConversion::Generic(GenericPathConversion::Map(..)) =>
-                package_unbox_any_expression_terminated(field_path),
-            PathConversion::Generic(GenericPathConversion::Vec(..)) =>
-                destroy_vec(path, quote!(#field_path)),
-            PathConversion::Generic(GenericPathConversion::Result(..)) =>
-                destroy_result(path, quote!(#field_path)),
-        },
-        _ => panic!("destroy_map: Bad arguments {}", quote!(#field_path: #path)),
-    }
-}
-
-// TODO: Option<Map>
-pub fn from_option(path: &Path, field_path: TokenStream2) -> TokenStream2 {
-    let last_segment = path.segments.last().unwrap();
-    let arguments = &last_segment.arguments;
-    match path_arguments_to_paths(arguments)[..] {
-        [path] => match path.segments.last() {
-            Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
-                // std convertible
-                // TODO: what to use? 0 or ::MAX
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-                | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
-                // TODO: mmm shit that's incorrect
-                "bool" => quote!((#field_path).then_some(#field_path)),
-                _ => ffi_from_opt_conversion(field_path),
-            },
-            _ => panic!("from_option: Bad arguments {} {}", field_path, quote!(#arguments)),
-        },
-        _ => panic!("from_option: Bad arguments {} {}", field_path, quote!(#arguments)),
-    }
-}
-
-pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray, _context: &ItemContext) -> TokenStream2 {
+pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
     match &*type_array.elem {
         Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
             match segments.last().unwrap().ident.to_string().as_str() {
@@ -112,79 +45,59 @@ pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray, _cont
     }
 }
 
-pub(crate) fn destroy_array(field_path: TokenStream2, type_array: &TypeArray, _context: &ItemContext) -> TokenStream2 {
-    match &*type_array.elem {
-        Type::Path(_type_path) => package_unbox_any_expression(quote!(#field_path)),
-        _ => panic!("from_array: unsupported {} {}", field_path, quote!(#type_array)),
-    }
-}
-
-pub(crate) fn destroy_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn destroy_path(field_path: TokenStream2, path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
-        | "usize" | "bool" => quote!({}),
-        "VarInt" => quote!({}),
-        "Option" => match path_arguments_to_paths(&path.segments.last().unwrap().arguments)[..] {
-            [path] => match path.segments.last() {
-                Some(inner_segment) => match inner_segment.ident.to_string().as_str() {
-                    // std convertible
-                    // TODO: what to use? 0 or ::MAX
-                    "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-                    | "isize" | "usize" => quote!({}),
-                    // TODO: mmm shit that's incorrect (bool = None shouldn't mean bool = false)
-                    "bool" => quote!({}),
-                    "Vec" => {
-                        let conversion = destroy_vec(path, field_path.clone());
-                        quote!(if !#field_path.is_null() { #conversion; })
-                    }
-                    _ => {
-                        let conversion = package_unbox_any_expression_terminated(field_path.clone());
-                        quote!(if !#field_path.is_null() { #conversion })
-                    }
-                },
-                _ => panic!("from_option: Unknown field {} {}", field_path, quote!(#path)),
-            },
-            _ => panic!("from_option: Bad arguments {} {}", field_path, quote!(#path)),
+        | "usize" | "bool" => quote!(),
+        "VarInt" => quote!(),
+        "Option" => match path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => quote!(),
+            _ => {
+                let conversion = package_unbox_any_expression_terminated(field_path.clone());
+                quote!(if !#field_path.is_null() { #conversion })
+            }
         },
-        "Vec" => destroy_vec(path, field_path),
-        "BTreeMap" | "HashMap" => destroy_map(path, field_path),
-        "Result" => destroy_result(path, field_path),
         "String" =>
             destroy_conversion(field_path, parse_quote!(std::os::raw::c_char), quote!(#path)),
         "str" =>
             destroy_conversion(field_path, parse_quote!(std::os::raw::c_char), quote!(&#path)),
-        _ => {
-            let ffi_type = context.ffi_full_type_for(&parse_quote!(#path));
-            destroy_conversion(field_path, ffi_type, quote!(#path))
-        },
+        _ =>
+            package_unbox_any_expression_terminated(field_path),
     }
 }
 
-pub(crate) fn from_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>, _context: &ItemContext) -> TokenStream2 {
+pub(crate) fn from_path(field_path: TokenStream2, path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
-        | "usize" | "bool" => field_path,
+        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => field_path,
         "VarInt" => quote!(#path(#field_path)),
-        "Option" => from_option(path, field_path),
-        "Vec" | "BTreeMap" | "HashMap" | "Result" => quote!(ferment_interfaces::FFIConversion::ffi_from(#field_path)),
+        "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
+            // std convertible
+            // TODO: what to use? 0 or ::MAX
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+            | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
+            // TODO: mmm shit that's incorrect
+            "bool" =>
+                quote!((#field_path).then_some(#field_path)),
+            _ =>
+                ffi_from_opt_conversion(field_path),
+        },
         _ => ffi_from_conversion(field_path),
     }
 }
 
-pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
     match &*type_ptr.elem {
-        Type::Ptr(type_ptr) => destroy_ptr(field_path, type_ptr, context),
-        Type::Path(type_path) => destroy_path(field_path, &type_path.path, Some(type_ptr), context),
+        Type::Ptr(type_ptr) => destroy_ptr(field_path, type_ptr),
+        Type::Path(type_path) => destroy_path(field_path, &type_path.path),
         // _ => destroy_conversion(field_path)
         _ => panic!("Can't destroy_ptr: of type: {}", quote!(#type_ptr)),
     }
 }
 
-pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr, _context: &ItemContext) -> TokenStream2 {
+pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
     match &*type_ptr.elem {
-        // Type::Ptr(type_ptr) => from_ptr(quote!(*#field_path.add(i)), type_ptr),
         Type::Ptr(type_ptr) => match &*type_ptr.elem {
             Type::Path(_type_path) => {
                 let ffi_from_conversion =
@@ -207,16 +120,16 @@ pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr, _context: &
     }
 }
 
-pub(crate) fn destroy_reference(field_path: TokenStream2, type_reference: &TypeReference, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn destroy_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
     match &*type_reference.elem {
-        Type::Path(type_path) => destroy_path(field_path, &type_path.path, None, context),
+        Type::Path(type_path) => destroy_path(field_path, &type_path.path),
         _ => panic!("from_reference: unsupported type: {} {}", field_path, quote!(#type_reference)),
     }
 }
 
-pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeReference, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
     match &*type_reference.elem {
-        Type::Path(type_path) => from_path(field_path, &type_path.path, None, context),
+        Type::Path(type_path) => from_path(field_path, &type_path.path),
         _ => panic!("from_reference: unsupported type: {} {}", field_path, quote!(#type_reference)),
     }
 }
@@ -225,77 +138,65 @@ pub fn map_args(args: &Punctuated<GenericArgument, Comma>) -> Vec<&GenericArgume
     args.iter().collect::<Vec<_>>()
 }
 
-fn to_option_conversion(field_path: TokenStream2, arguments: &PathArguments) -> TokenStream2 {
-    match path_arguments_to_paths(arguments)[..] {
-        [inner_path] => {
-            let last_segment = inner_path.segments.last().unwrap();
-            match last_segment.ident.to_string().as_str() {
-                // TODO: MAX/MIN? use optional primitive?
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-                | "isize" | "usize" => quote!(#field_path.unwrap_or(0)),
-                "bool" => quote!(#field_path.unwrap_or(false)),
-                "Vec" => MATCH_FIELDS_PRESENTER((
-                    field_path,
-                    vec![
-                        LAMBDA_CONVERSION_PRESENTER(quote!(Some(vec)), quote!(ferment_interfaces::FFIConversion::ffi_to(vec))),
-                        LAMBDA_CONVERSION_PRESENTER(quote!(None), quote!(std::ptr::null_mut())),
-                    ],
-                )),
-                _ => ffi_to_opt_conversion(field_path),
-            }
-        }
-        _ => panic!("to_option_conversion: Bad arguments {}", quote!(#arguments)),
-    }
-}
-
-pub(crate) fn to_path(field_path: TokenStream2, path: &Path, _type_ptr: Option<&TypePtr>, _context: &ItemContext) -> TokenStream2 {
+pub(crate) fn to_path(field_path: TokenStream2, path: &Path) -> TokenStream2 {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
         | "usize" | "bool" => field_path,
         "VarInt" => quote!(#field_path.0),
-        "Option" => to_option_conversion(field_path, &last_segment.arguments),
+        "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
+            // TODO: MAX/MIN? use optional primitive?
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" =>
+                quote!(#field_path.unwrap_or(0)),
+            "bool" =>
+                quote!(#field_path.unwrap_or(false)),
+            "Vec" =>
+                MATCH_FIELDS_PRESENTER((
+                field_path,
+                vec![
+                    LAMBDA_CONVERSION_PRESENTER(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
+                    LAMBDA_CONVERSION_PRESENTER(quote!(None), quote!(std::ptr::null_mut())),
+                ],
+            )),
+            _ => ffi_to_opt_conversion(field_path),
+        },
         _ => ffi_to_conversion(field_path),
     }
 }
 
-fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray, _context: &ItemContext) -> TokenStream2 {
+fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray) -> TokenStream2 {
     let expr = package_boxed_expression(quote!(o));
     package_boxed_vec_expression(iter_map_collect(OBJ_FIELD_NAME(ident), quote!(|o| #expr)))
 }
 
-pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
     match &*type_ptr.elem {
         Type::Array(TypeArray { elem, .. }) => match &**elem {
-            Type::Path(type_path) => to_path(field_path, &type_path.path, Some(type_ptr), context),
+            Type::Path(type_path) => to_path(field_path, &type_path.path),
             _ => panic!("to_pointer: Unknown type inside Type::Array {}", quote!(#type_ptr)),
         },
         Type::Ptr(TypePtr { elem, .. }) => match &**elem {
-            Type::Path(type_path) => to_path(quote!(*#field_path.add(i)), &type_path.path, Some(type_ptr), context),
-            Type::Array(type_arr) => to_vec_ptr(field_path, type_ptr, type_arr, context),
+            Type::Path(type_path) => to_path(quote!(*#field_path.add(i)), &type_path.path),
+            Type::Array(type_arr) => to_vec_ptr(field_path, type_ptr, type_arr),
             _ => panic!("to_pointer: Unknown type inside Type::Ptr {}", quote!(#type_ptr)),
         },
-        Type::Path(type_path) => to_path(field_path, &type_path.path, Some(type_ptr), context),
+        Type::Path(type_path) => to_path(field_path, &type_path.path),
         _ => panic!("to_pointer: Unknown type {}", quote!(#type_ptr)),
     }
 }
 
-pub(crate) fn to_reference(field_path: TokenStream2, type_reference: &TypeReference, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
     match &*type_reference.elem {
-        Type::Path(type_path) => to_path(field_path, &type_path.path, None, context),
+        Type::Path(type_path) => to_path(field_path, &type_path.path),
         _ => panic!("to_reference: Unknown type {}", quote!(#type_reference)),
     }
 }
 
-pub(crate) fn to_array(field_path: TokenStream2, type_array: &TypeArray, context: &ItemContext) -> TokenStream2 {
+pub(crate) fn to_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
     match &*type_array.elem {
-        Type::Path(type_path) => to_path(package_boxed_expression(field_path), &type_path.path, None, context),
+        Type::Path(type_path) => to_path(package_boxed_expression(field_path), &type_path.path),
         _ => panic!("to_array: Unknown type {}", quote!(#type_array)),
     }
-}
-
-pub fn ffi_struct_name(field_type: &Ident) -> Ident {
-    format_ident!("{}", field_type)
 }
 
 pub fn ffi_vtable_name(trait_name: &Ident) -> Ident {
@@ -322,7 +223,7 @@ pub fn ffi_destructor_name(item_name: &Ident) -> Ident {
 }
 
 pub fn ffi_mangled_ident(ty: &Type) -> Ident {
-    let ident = match ty {
+    match ty {
         // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
         Type::Path(TypePath { path, .. }) =>
             PathConversion::from(path)
@@ -331,6 +232,5 @@ pub fn ffi_mangled_ident(ty: &Type) -> Ident {
             let p: Path = parse_quote!(#ty);
             p.get_ident().unwrap().clone()
         }
-    };
-    ffi_struct_name(&ident)
+    }
 }
