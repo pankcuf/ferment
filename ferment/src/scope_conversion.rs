@@ -307,61 +307,13 @@ impl ToTokens for ScopeTree {
 impl From<ScopeTreeCompact> for ScopeTree {
     fn from(value: ScopeTreeCompact) -> Self {
         let ScopeTreeCompact { scope, generics, imported, exported, item_context } = value;
-        //println!("ScopeTreeCompact:::: [{}]: {:#?}", quote!(#scope), item_context);
         let new_imported = imported.clone();
-        // // TODO: add types in implemented traits
-        // let generics = HashSet::from_iter(generics);
-        // if let Some(used_originals) = imported.get(&ImportType::Original) {
-        //     new_imported.entry(ImportType::FfiType)
-        //         .or_insert_with(HashSet::new)
-        //         .extend(used_originals.iter().filter_map(|ImportConversion { ident, scope}| {
-        //             match ident.to_string().as_str() {
-        //                 "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
-        //                 _ => {
-        //                     let ty = Scope::ffi_type_converted_or_same(&parse_quote!(#scope));
-        //                     Some(ImportConversion {
-        //                         ident: ffi_struct_name(ident),
-        //                         scope: parse_quote!(#ty)
-        //                     })
-        //                 }
-        //             }
-        //         }));
-        // }
-        // // external fermented crates
-        // if let Some(used_external_fermented) = imported.get(&ImportType::External) {
-        //     new_imported.entry(ImportType::FfiExternal)
-        //         .or_insert_with(HashSet::new)
-        //         .extend(used_external_fermented.iter().filter_map(|ImportConversion { ident, scope}| match ident.to_string().as_str() {
-        //             "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
-        //             _ if context.contains_fermented_crate(&scope.root_ident()) => {
-        //                 let ty = Scope::ffi_external_type_converted_or_same(&parse_quote!(#scope), &context);
-        //                 Some(ImportConversion {
-        //                     ident: ffi_struct_name(ident),
-        //                     scope: parse_quote!(#ty)
-        //                 })
-        //             },
-        //             _ => None
-        //         }
-        //         ));
-        // }
-        // new_imported.entry(ImportType::Original)
-        //     .or_insert_with(HashSet::new)
-        //     .extend(exported.iter().filter_map(|(ident, tree_item_raw)| match tree_item_raw {
-        //         ScopeTreeExportItem::Item(..) => Some(ImportConversion { ident: ident.clone(), scope: scope.joined(ident) }),
-        //         _ => None
-        //     }));
-        // new_imported.entry(ImportType::FfiGeneric)
-        //     .or_insert_with(HashSet::new)
-        //     .extend(generics.iter()
-        //         .map(ImportConversion::from));
-
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
             let scope = scope.joined(&ident);
             (ident, match tree_item_raw {
                 ScopeTreeExportItem::Item(_, item) =>
                     ScopeTreeItem::Item { item, scope, item_context: item_context.clone()  },
                 ScopeTreeExportItem::Tree(generics, imported, exported, item_context) => ScopeTreeCompact {
-                    // context,
                     scope,
                     generics,
                     imported,

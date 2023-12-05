@@ -4,7 +4,7 @@ use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Field, FieldsNamed, FieldsUnnamed, Path, Type, TypePath};
-use crate::interface::{DEFAULT_DESTROY_FIELDS_PRESENTER, DEFAULT_DICT_FIELD_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, EMPTY_DICT_FIELD_TYPED_PRESENTER, EMPTY_ITERATOR_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_ITER_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, STRUCT_DESTROY_PRESENTER, TYPE_ALIAS_CONVERSION_FROM_PRESENTER, TYPE_ALIAS_CONVERSION_TO_PRESENTER, TYPE_ALIAS_PRESENTER};
+use crate::interface::{DEFAULT_DESTROY_FIELDS_PRESENTER, DEFAULT_DICT_FIELD_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_ITER_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, STRUCT_DESTROY_PRESENTER, TYPE_ALIAS_CONVERSION_FROM_PRESENTER, TYPE_ALIAS_CONVERSION_TO_PRESENTER, TYPE_ALIAS_PRESENTER};
 use crate::interface::{obj};
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
 use crate::helper::{destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_unnamed_arg_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
@@ -120,7 +120,7 @@ pub const DEFAULT_DOC_COMPOSER: FFIContextComposer = FFIContextComposer::new(
     |composer| composer.target_name_composer.compose());
 
 pub const FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER: ComposerPresenter<ItemComposer> = |_| quote!(&*ffi);
-pub const FROM_DEREF_FFI_CONTEXT_PRESENTER: ComposerPresenter<ItemComposer> = |_| quote!(*ffi);
+// pub const FROM_DEREF_FFI_CONTEXT_PRESENTER: ComposerPresenter<ItemComposer> = |_| quote!(*ffi);
 pub const TO_OBJ_CONTEXT_PRESENTER: ComposerPresenter<ItemComposer> = |_| quote!(obj);
 pub const EMPTY_CONTEXT_PRESENTER: ComposerPresenter<ItemComposer> = |_| quote!();
 pub const CONVERSION_FIELDS_FROM_CONTEXT_PRESENTER: ComposerPresenter<ItemComposer> = |composer| composer.fields_from();
@@ -171,14 +171,14 @@ impl ItemComposer {
                     FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
                     TYPE_ALIAS_CONVERSION_FROM_PRESENTER,
                     SIMPLE_CONVERSION_PRESENTER,
-                    target_name.clone(),
+                    target_name.to_token_stream(),
                     vec![]),
                 ConversionComposer::new(
                     FFI_TO_ROOT_PRESENTER,
                     TO_OBJ_CONTEXT_PRESENTER,
                     TYPE_ALIAS_CONVERSION_TO_PRESENTER,
                     SIMPLE_CONVERSION_PRESENTER,
-                    ffi_name.clone(),
+                    ffi_name.to_token_stream(),
                     vec![]),
                 DESTROY_STRUCT_COMPOSER,
                 DROP_STRUCT_COMPOSER,
@@ -217,14 +217,14 @@ impl ItemComposer {
                     FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
                     root_conversion_presenter,
                     conversion_presenter,
-                    target_name.clone(),
+                    target_name.to_token_stream(),
                     vec![]),
                 ConversionComposer::new(
                     FFI_TO_ROOT_PRESENTER,
                     EMPTY_CONTEXT_PRESENTER,
                     root_conversion_presenter,
                     conversion_presenter,
-                    ffi_name.clone(),
+                    ffi_name.to_token_stream(),
                     vec![]),
                 DESTROY_STRUCT_COMPOSER,
                 DROP_STRUCT_COMPOSER,
@@ -267,14 +267,14 @@ impl ItemComposer {
                     CONVERSION_FIELDS_FROM_CONTEXT_PRESENTER,
                     root_conversion_presenter,
                     conversion_presenter,
-                    target_name.clone(),
+                    target_name.to_token_stream(),
                     vec![]),
                 ConversionComposer::new(
                     LAMBDA_CONVERSION_PRESENTER,
                     CONVERSION_FIELDS_TO_CONTEXT_PRESENTER,
                     root_conversion_presenter,
                     conversion_presenter,
-                    ffi_name.clone(),
+                    ffi_name.to_token_stream(),
                     vec![]),
                 FFIContextComposer::new(
                     destroy_code_context_presenter,
@@ -292,75 +292,75 @@ impl ItemComposer {
             conversions_composer)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn primitive_composer(
-        ffi_name: Path,
-        target_name: Path,
-        context: ItemContext,
-        root_presenter: OwnerIteratorPresenter,
-        root_conversion_from_presenter: OwnerIteratorPresenter,
-        root_conversion_to_presenter: OwnerIteratorPresenter,
-        destroy_code_context_presenter: MapPresenter,
-        drop_presenter: MapPairPresenter,
-        conversions_from: Vec<TokenStream2>,
-        conversion_to_path: Path) -> Rc<RefCell<Self>> {
-        let root = Rc::new(RefCell::new(Self {
-            need_drop_presentation: false,
-            context,
-            ffi_name_composer: NameComposer::new(ffi_name.clone()),
-            target_name_composer: NameComposer::new(target_name.clone()),
-            ffi_object_composer: FFIContextComposer::new(
-                SIMPLE_PRESENTER,
-                EMPTY_CONTEXT_PRESENTER),
-            ffi_conversions_composer: FFIConversionComposer::new(
-                ConversionComposer::new(
-                    FFI_FROM_ROOT_PRESENTER,
-                    FROM_DEREF_FFI_CONTEXT_PRESENTER,
-                    root_conversion_from_presenter,
-                    EMPTY_PAIR_PRESENTER,
-                    target_name.clone(),
-                    conversions_from),
-                ConversionComposer::new(
-                    FFI_TO_ROOT_PRESENTER,
-                    EMPTY_CONTEXT_PRESENTER,
-                    root_conversion_to_presenter,
-                    EMPTY_PAIR_PRESENTER,
-                    conversion_to_path,
-                    vec![]),
-                FFIContextComposer::new(
-                    destroy_code_context_presenter,
-                    EMPTY_CONTEXT_PRESENTER),
-                DropComposer::new(
-                    drop_presenter,
-                    EMPTY_CONTEXT_PRESENTER,
-                    EMPTY_ITERATOR_PRESENTER,
-                    EMPTY_MAP_PRESENTER,
-                    vec![]),
-                EMPTY_MAP_PRESENTER,
-                EMPTY_MAP_PRESENTER,
-                FFIBindingsComposer::new(
-                    EMPTY_ITERATOR_PRESENTER,
-                ),
-                EMPTY_MAP_PRESENTER
-            ),
-            doc_composer: DEFAULT_DOC_COMPOSER,
-            fields_from_composer: FieldsComposer::new(
-                root_presenter,
-                FFI_NAME_CONTEXT_PRESENTER,
-                EMPTY_DICT_FIELD_TYPED_PRESENTER,
-                vec![]),
-            fields_to_composer: FieldsComposer::new(
-                root_presenter,
-                TARGET_NAME_CONTEXT_PRESENTER,
-                EMPTY_DICT_FIELD_TYPED_PRESENTER,
-                vec![])
-        }));
-        {
-            let mut root_borrowed = root.borrow_mut();
-            root_borrowed.setup_composers(&root);
-        }
-        root
-    }
+    // #[allow(clippy::too_many_arguments)]
+    // pub(crate) fn primitive_composer(
+    //     ffi_name: Path,
+    //     target_name: Path,
+    //     context: ItemContext,
+    //     root_presenter: OwnerIteratorPresenter,
+    //     root_conversion_from_presenter: OwnerIteratorPresenter,
+    //     root_conversion_to_presenter: OwnerIteratorPresenter,
+    //     destroy_code_context_presenter: MapPresenter,
+    //     drop_presenter: MapPairPresenter,
+    //     conversions_from: Vec<TokenStream2>,
+    //     conversion_to_path: TokenStream2) -> Rc<RefCell<Self>> {
+    //     let root = Rc::new(RefCell::new(Self {
+    //         need_drop_presentation: false,
+    //         context,
+    //         ffi_name_composer: NameComposer::new(ffi_name.clone()),
+    //         target_name_composer: NameComposer::new(target_name.clone()),
+    //         ffi_object_composer: FFIContextComposer::new(
+    //             SIMPLE_PRESENTER,
+    //             EMPTY_CONTEXT_PRESENTER),
+    //         ffi_conversions_composer: FFIConversionComposer::new(
+    //             ConversionComposer::new(
+    //                 FFI_FROM_ROOT_PRESENTER,
+    //                 FROM_DEREF_FFI_CONTEXT_PRESENTER,
+    //                 root_conversion_from_presenter,
+    //                 EMPTY_PAIR_PRESENTER,
+    //                 target_name.to_token_stream(),
+    //                 conversions_from),
+    //             ConversionComposer::new(
+    //                 FFI_TO_ROOT_PRESENTER,
+    //                 EMPTY_CONTEXT_PRESENTER,
+    //                 root_conversion_to_presenter,
+    //                 EMPTY_PAIR_PRESENTER,
+    //                 conversion_to_path,
+    //                 vec![]),
+    //             FFIContextComposer::new(
+    //                 destroy_code_context_presenter,
+    //                 EMPTY_CONTEXT_PRESENTER),
+    //             DropComposer::new(
+    //                 drop_presenter,
+    //                 EMPTY_CONTEXT_PRESENTER,
+    //                 EMPTY_ITERATOR_PRESENTER,
+    //                 EMPTY_MAP_PRESENTER,
+    //                 vec![]),
+    //             EMPTY_MAP_PRESENTER,
+    //             EMPTY_MAP_PRESENTER,
+    //             FFIBindingsComposer::new(
+    //                 EMPTY_ITERATOR_PRESENTER,
+    //             ),
+    //             EMPTY_MAP_PRESENTER
+    //         ),
+    //         doc_composer: DEFAULT_DOC_COMPOSER,
+    //         fields_from_composer: FieldsComposer::new(
+    //             root_presenter,
+    //             FFI_NAME_CONTEXT_PRESENTER,
+    //             EMPTY_DICT_FIELD_TYPED_PRESENTER,
+    //             vec![]),
+    //         fields_to_composer: FieldsComposer::new(
+    //             root_presenter,
+    //             TARGET_NAME_CONTEXT_PRESENTER,
+    //             EMPTY_DICT_FIELD_TYPED_PRESENTER,
+    //             vec![])
+    //     }));
+    //     {
+    //         let mut root_borrowed = root.borrow_mut();
+    //         root_borrowed.setup_composers(&root);
+    //     }
+    //     root
+    // }
 
 
     #[allow(clippy::too_many_arguments)]
@@ -630,11 +630,11 @@ pub struct ConversionComposer {
     context_presenter: ComposerPresenter<ItemComposer>,
     conversions_presenter: OwnerIteratorPresenter,
     conversion_presenter: MapPairPresenter,
-    path: Path,
+    path: TokenStream2,
     conversions: Vec<TokenStream2>,
 }
 impl ConversionComposer {
-    pub fn new(composer: MapPairPresenter, context_presenter: ComposerPresenter<ItemComposer>, conversions_presenter: OwnerIteratorPresenter, conversion_presenter: MapPairPresenter, path: Path, conversions: Vec<TokenStream2>) -> Self {
+    pub fn new(composer: MapPairPresenter, context_presenter: ComposerPresenter<ItemComposer>, conversions_presenter: OwnerIteratorPresenter, conversion_presenter: MapPairPresenter, path: TokenStream2, conversions: Vec<TokenStream2>) -> Self {
         Self { parent: None, composer, context_presenter, conversions_presenter, conversion_presenter, path, conversions }
     }
     pub fn add_conversion(&mut self, name: TokenStream2, conversion: TokenStream2) {

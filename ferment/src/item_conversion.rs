@@ -6,7 +6,7 @@ use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::generics::{add_generic_type, GenericConversion, TypePathComposition};
-use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, EMPTY_DESTROY_PRESENTER, EMPTY_FIELDS_PRESENTER, EMPTY_ITERATOR_PRESENTER, EMPTY_MAP_PRESENTER, EMPTY_PAIR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_FIELD_TYPE_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_DICT_FIELD_TYPE_PRESENTER, NAMED_STRUCT_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PAIR_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER, UNNAMED_STRUCT_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
+use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, EMPTY_DESTROY_PRESENTER, EMPTY_ITERATOR_PRESENTER, ENUM_DESTROY_PRESENTER, ENUM_NAMED_VARIANT_PRESENTER, ENUM_PRESENTER, ENUM_UNIT_FIELDS_PRESENTER, ENUM_UNNAMED_VARIANT_PRESENTER, FFI_DICTIONARY_FIELD_TYPE_PRESENTER, NAMED_CONVERSION_PRESENTER, NAMED_DICT_FIELD_TYPE_PRESENTER, NAMED_STRUCT_PRESENTER, NAMED_VARIANT_FIELD_PRESENTER, NO_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ROUND_ITER_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PAIR_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER, UNNAMED_STRUCT_PRESENTER, UNNAMED_VARIANT_FIELD_PRESENTER};
 use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::{ConversionsComposer, ItemComposer};
 use crate::context::Context;
@@ -520,7 +520,6 @@ impl ItemConversion {
                 "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
                 | "usize" | "bool" | "str" | "String" | "Vec" | "Option" =>
                     (ImportType::None, Scope::new(parse_quote!(#ident))),
-                // "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" => (ImportType::Original, Scope::new()),
                 // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)
                 _ =>
                     imports.get(ident)
@@ -958,7 +957,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &Scope, context: ItemContext
 
     variants_constructors.push(BindingPresentation::Destructor {
         ffi_name: quote!(#target_name),
-        destructor_ident: ffi_destructor_name(&target_name).to_token_stream()
+        destructor_ident: ffi_destructor_name(target_name).to_token_stream()
     });
 
     Expansion::Full {
@@ -1062,75 +1061,21 @@ fn item_traits_expansions(item: (&Ident, &Scope), attrs: &[Attribute], context: 
 fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: ItemContext) -> Expansion {
     let ItemStruct { fields: ref f, ident: target_name, .. } = item_struct;
     let traits = item_traits_expansions((target_name, _scope), &item_struct.attrs, &item_context);
+    let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
     let composer = match f {
-        Fields::Unnamed(ref fields) => match target_name.clone().to_string().as_str() {
-            // Hack used to simplify some structures
-            // Main problem here that without special dictionary of predefined non-std structures
-            // we unable to filter out structures and provide them conversions when they are used as field types inside parent structures
-            // Solution would be to write build script to preprocess and collect dictionary before macro expansion
-            // in order to match struct field types with this predefined dictionary
-            "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768"
-            | "VarInt" => {
-                let (
-                    ffi_name,
-                    ffi_from_presenter,
-                    ffi_from_presentation_context,
-                    ffi_to_presenter,
-                    ffi_to_presentation_context,
-                    destroy_code_context_presenter,
-                ) = match fields.unnamed.first().unwrap().ty.clone() {
-                    // VarInt
-                    Type::Path(TypePath { path, .. }) => {
-                        (
-                            quote!(#target_name),
-                            CURLY_BRACES_FIELDS_PRESENTER,
-                            vec![from_path(quote!(ffi_ref.0), &path)],
-                            CURLY_BRACES_FIELDS_PRESENTER,
-                            quote!(#target_name),
-                            ROOT_DESTROY_CONTEXT_PRESENTER,
-                        )
-                    }
-                    // UInt256 etc
-                    Type::Array(type_array) => (
-                        quote!(#type_array),
-                        ROUND_BRACES_FIELDS_PRESENTER,
-                        vec![quote!(ffi_ref)],
-                        NO_FIELDS_PRESENTER,
-                        quote!(obj.0),
-                        EMPTY_MAP_PRESENTER,
-                    ),
-                    _ => unimplemented!("from_unnamed_struct: not supported {:?}", quote!(#fields)),
-                };
-                ItemComposer::primitive_composer(
-                    parse_quote!(#target_name),
-                    parse_quote!(#ffi_name),
-                    item_context,
-                    EMPTY_FIELDS_PRESENTER,
-                    ffi_from_presenter,
-                    ffi_to_presenter,
-                    destroy_code_context_presenter,
-                    EMPTY_PAIR_PRESENTER,
-                    ffi_from_presentation_context,
-                    parse_quote!(#ffi_to_presentation_context),
-                )
-            }
-            _ => {
-                let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
-                ItemComposer::struct_composer(
-                    parse_quote!(#target_name),
-                    parse_quote!(#full_ty),
-                    item_context,
-                    UNNAMED_STRUCT_PRESENTER,
-                    DEFAULT_DICT_FIELD_TYPE_PRESENTER,
-                    ROUND_BRACES_FIELDS_PRESENTER,
-                    SIMPLE_CONVERSION_PRESENTER,
-                    ROUND_ITER_PRESENTER,
-                    ConversionsComposer::UnnamedStruct(fields)
-                )
-            },
-        },
-        Fields::Named(ref fields) => {
-            let full_ty = item_context.full_type_for(&parse_quote!(#target_name));
+        Fields::Unnamed(ref fields) =>
+            ItemComposer::struct_composer(
+                parse_quote!(#target_name),
+                parse_quote!(#full_ty),
+                item_context,
+                UNNAMED_STRUCT_PRESENTER,
+                DEFAULT_DICT_FIELD_TYPE_PRESENTER,
+                ROUND_BRACES_FIELDS_PRESENTER,
+                SIMPLE_CONVERSION_PRESENTER,
+                ROUND_ITER_PRESENTER,
+                ConversionsComposer::UnnamedStruct(fields)
+            ),
+        Fields::Named(ref fields) =>
             ItemComposer::struct_composer(
                 parse_quote!(#target_name),
                 parse_quote!(#full_ty),
@@ -1141,20 +1086,19 @@ fn struct_expansion(item_struct: &ItemStruct, _scope: &Scope, item_context: Item
                 NAMED_CONVERSION_PRESENTER,
                 CURLY_ITER_PRESENTER,
                 ConversionsComposer::NamedStruct(fields)
-            )
-        },
+            ),
         Fields::Unit => panic!("Fields::Unit is not supported yet"),
     };
     let composer_owned = composer.borrow();
     composer_owned.make_expansion(traits)
 }
 
-fn handle_arg_type(ty: &Type, pat: &Pat, context: &ItemContext) -> TokenStream2 {
+fn handle_arg_type(ty: &Type, pat: &Pat, _context: &ItemContext) -> TokenStream2 {
     match (ty, pat) {
         (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
             from_path(quote!(#ident), path),
         (Type::Reference(type_reference), pat) => {
-            let arg_type = handle_arg_type(&type_reference.elem, pat, context);
+            let arg_type = handle_arg_type(&type_reference.elem, pat, _context);
             if let Some(_mutable) = type_reference.mutability {
                 quote!(&mut #arg_type)
             } else {

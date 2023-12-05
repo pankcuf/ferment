@@ -16,13 +16,6 @@ pub fn ffi_path_converted(path: &Path) -> Option<Type> {
     match last_ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
         | "isize" | "usize" | "bool" => None,
-        "UInt128" => Some(parse_quote!([u8; 16])),
-        "UInt160" => Some(parse_quote!([u8; 20])),
-        "UInt256" => Some(parse_quote!([u8; 32])),
-        "UInt384" => Some(parse_quote!([u8; 48])),
-        "UInt512" => Some(parse_quote!([u8; 64])),
-        "UInt768" => Some(parse_quote!([u8; 96])),
-        "VarInt" => None,
         "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
         "Vec" | "BTreeMap" | "HashMap" | "Result" => {
             let ffi_name = PathConversion::from(path).into_mangled_generic_ident();
@@ -60,13 +53,6 @@ pub fn ffi_external_path_converted(path: &Path, context: &Context) -> Option<Typ
     match last_ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
         "isize" | "usize" | "bool" => None,
-        "UInt128" => Some(parse_quote!([u8; 16])),
-        "UInt160" => Some(parse_quote!([u8; 20])),
-        "UInt256" => Some(parse_quote!([u8; 32])),
-        "UInt384" => Some(parse_quote!([u8; 48])),
-        "UInt512" => Some(parse_quote!([u8; 64])),
-        "UInt768" => Some(parse_quote!([u8; 96])),
-        "VarInt" => None,
         "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
         "Vec" | "BTreeMap" | "HashMap" | "Result" => {
             let ffi_name = PathConversion::from(path)
@@ -141,13 +127,6 @@ pub fn convert_to_ffi_path(path: &Path) -> Type {
         "isize" | "usize" | "bool" => parse_quote!(#last_ident),
         // complex special type
         "str" | "String" => parse_quote!(std::os::raw::c_char),
-        "UInt128" => parse_quote!([u8; 16]),
-        "UInt160" => parse_quote!([u8; 20]),
-        "UInt256" => parse_quote!([u8; 32]),
-        "UInt384" => parse_quote!([u8; 48]),
-        "UInt512" => parse_quote!([u8; 64]),
-        "UInt768" => parse_quote!([u8; 96]),
-        "VarInt" => parse_quote!(u64),
         "Vec" | "BTreeMap" | "HashMap" | "Result" => {
             let ffi_name = format_ident!("{}", PathConversion::mangled_inner_generic_ident_string(path));
             parse_quote!(crate::fermented::generics::#ffi_name)

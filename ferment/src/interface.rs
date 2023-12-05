@@ -62,7 +62,7 @@ pub const FFI_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |fie
 };
 
 /// Map Presenters
-pub const EMPTY_MAP_PRESENTER: MapPresenter = |_| quote!();
+// pub const EMPTY_MAP_PRESENTER: MapPresenter = |_| quote!();
 pub const FFI_DEREF_FIELD_NAME: MapPresenter = |field_name| quote!(ffi_ref.#field_name);
 pub const DEREF_FIELD_PATH: MapPresenter = |field_path| quote!(*#field_path);
 
@@ -80,8 +80,8 @@ pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
 
 
 /// Map Pair Presenters
-pub const EMPTY_PAIR_PRESENTER: MapPairPresenter = |_, _|
-    quote!();
+// pub const EMPTY_PAIR_PRESENTER: MapPairPresenter = |_, _|
+//     quote!();
 pub const SIMPLE_PAIR_PRESENTER: MapPairPresenter = |name, presentation|
     quote!(#name #presentation);
 pub const SIMPLE_CONVERSION_PRESENTER: MapPairPresenter = |_, conversion|
@@ -99,8 +99,8 @@ pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream
 
 /// Field Type Presenters
 
-pub const EMPTY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |_, _|
-    quote!();
+// pub const EMPTY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |_, _|
+//     quote!();
 pub const DEFAULT_DICT_FIELD_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, _|
     field_type.name();
 pub const DEFAULT_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
@@ -133,8 +133,8 @@ pub const ENUM_DESTROY_PRESENTER: IteratorPresenter = |fields| match fields.len(
 };
 
 /// Owner Iterator Presenters
-pub const EMPTY_FIELDS_PRESENTER: OwnerIteratorPresenter = |_|
-    quote!();
+// pub const EMPTY_FIELDS_PRESENTER: OwnerIteratorPresenter = |_|
+//     quote!();
 pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
     SIMPLE_PAIR_PRESENTER(name, CURLY_ITER_PRESENTER(fields));
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
