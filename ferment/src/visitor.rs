@@ -8,7 +8,8 @@ use crate::Config;
 use crate::context::Context;
 use crate::formatter::{format_types_dict_full, format_used_traits};
 use crate::item_conversion::{ItemContext, ItemConversion};
-use crate::path_conversion::{GenericPathConversion, PathConversion};
+use crate::generic_path_conversion::GenericPathConversion;
+use crate::path_conversion::PathConversion;
 use crate::scope_conversion::ScopeTreeExportItem;
 use crate::scope::Scope;
 use crate::type_conversion::TypeConversion;
@@ -119,7 +120,7 @@ impl Visitor {
 
     pub(crate) fn add_full_qualified_trait_match(&mut self, scope: Scope, item_trait: &ItemTrait) {
         self.usage_info.used_traits_at_scopes.entry(scope.clone())
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(item_trait.ident.clone(), item_trait.clone());
     }
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: Scope, ty: &Type) {
@@ -135,7 +136,7 @@ impl Visitor {
         // println!(" ------------: {}" , format_types_dict(&all_involved_full_types));
 
         self.usage_info.used_types_at_scopes.entry(scope)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .extend(all_involved_full_types);
     }
 
@@ -152,7 +153,7 @@ impl Visitor {
                 current_path.push(ident.clone());
                 self.usage_info.used_imports_at_scopes
                     .entry(scope.clone())
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .insert(ident.clone(), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
             },
             UseTree::Group(UseGroup { items, .. }) =>

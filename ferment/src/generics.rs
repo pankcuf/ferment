@@ -1,12 +1,11 @@
 use std::collections::HashSet;
 use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::__private::TokenStream2;
 use crate::path_conversion::PathConversion;
-use crate::helper::{ffi_mangled_ident, mangle_type};
-use crate::presentation::DropInterfacePresentation;
+use crate::helper::ffi_mangled_ident;
 use crate::scope::Scope;
 
 #[derive(Clone)]
@@ -40,61 +39,6 @@ pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypePathCompos
     }
 }
 
-pub fn vec_ffi_exp(name: TokenStream2, t: TokenStream2, mangled_t: TokenStream2, decode: TokenStream2, encode: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
-    quote! {
-        #[repr(C)]
-        #[derive(Clone)]
-        #[allow(non_camel_case_types)]
-        pub struct #name {
-            pub count: usize,
-            pub values: *mut #mangled_t,
-        }
-        impl ferment_interfaces::FFIConversion<Vec<#t>> for #name {
-            unsafe fn ffi_from_const(ffi: *const #name) -> Vec<#t> {
-                let ffi_ref = &*ffi;
-                ferment_interfaces::FFIVecConversion::decode(ffi_ref)
-            }
-            unsafe fn ffi_to_const(obj: Vec<#t>) -> *const #name {
-                ferment_interfaces::FFIVecConversion::encode(obj)
-            }
-            unsafe fn destroy(ffi: *mut #name) {
-                ferment_interfaces::unbox_any(ffi);
-            }
-        }
-        impl ferment_interfaces::FFIVecConversion for #name {
-            type Value = #t;
-            unsafe fn decode(&self) -> Vec<Self::Value> { #decode }
-            unsafe fn encode(obj: Vec<Self::Value>) -> *mut Self { #encode }
-        }
-        #drop_presentation
-    }
-}
-
-pub fn map_ffi_expansion(name: TokenStream2, map: TokenStream2, k: TokenStream2, v: TokenStream2, from: TokenStream2, to: TokenStream2, drop_presentation: DropInterfacePresentation) -> TokenStream2 {
-    quote! {
-        #[repr(C)]
-        #[derive(Clone)]
-        #[allow(non_camel_case_types)]
-        pub struct #name {
-            pub count: usize,
-            pub keys: *mut #k,
-            pub values: *mut #v,
-        }
-        impl ferment_interfaces::FFIConversion<#map> for #name {
-            unsafe fn ffi_from_const(ffi: *const #name) -> #map {
-                #from
-            }
-            unsafe fn ffi_to_const(obj: #map) -> *const #name {
-                #to
-            }
-            unsafe fn destroy(ffi: *mut #name) {
-                ferment_interfaces::unbox_any(ffi);
-            }
-        }
-        #drop_presentation
-    }
-}
-
 #[derive(Clone)]
 pub struct GenericConversion {
     pub full_type: Type,
@@ -107,8 +51,6 @@ impl<'a> From<&'a Type> for GenericConversion {
 }
 impl std::fmt::Debug for GenericConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(mangle_type(&self.full_type).to_string().as_str())?;
-        f.write_str(" => ")?;
         f.write_str(self.full_type.to_token_stream().to_string().as_str())
     }
 }
@@ -142,9 +84,11 @@ impl ToTokens for GenericConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { full_type } = self;
         let path: Path = parse_quote!(#full_type);
+        // PathConversion::from(path)
+        //     .into_mangled_generic_ident();
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
-                generic_conversion.expand(ffi_mangled_ident(&full_type)),
+                generic_conversion.expand(ffi_mangled_ident(full_type)),
             conversion =>
                 unimplemented!("non-generic PathConversion: {}", conversion.as_path().to_token_stream())
         }.to_tokens(tokens)

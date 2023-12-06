@@ -37,7 +37,6 @@ impl Config {
 }
 
 impl Builder {
-
     pub fn new() -> Builder {
         Builder { config: Config::default() }
     }
@@ -104,13 +103,8 @@ impl Builder {
                 let root_scope = Scope::new(parse_quote!(crate));
                 let mut root_visitor = process_recursive(file_path, root_scope, &self.config);
                 merge_visitor_trees(&mut root_visitor);
-                ScopeTreeCompact::init_with(
-                    root_visitor.tree,
-                    Scope::crate_root(),
-                    // Context::new(self.config.crate_names)
-                    )
-                    .map_or(
-                        Err(error::Error::ExpansionError("Can't expand root tree")),
+                ScopeTreeCompact::init_with(root_visitor.tree, Scope::crate_root())
+                    .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree|
                             output.write_all(
                                 Expansion::from(tree)

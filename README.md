@@ -282,8 +282,8 @@ for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID 
         -> *const std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
         ferment_interfaces::boxed(Self {
             count: obj.len(),
-            keys: ferment_interfaces::complex_vec_iterator::<crate::nested::HashID, crate::fermented::types::nested::HashID>(obj.keys().cloned()),
-            values: ferment_interfaces::complex_vec_iterator::<Vec<crate::nested::HashID>, crate::fermented::generics::Vec_crate_nested_HashID>(obj.values().cloned()),
+            keys: ferment_interfaces::to_complex_vec(obj.keys().cloned()),
+            values: ferment_interfaces::to_complex_vec(obj.values().cloned()),
         })
     }
     unsafe fn destroy(ffi: *mut std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID) {

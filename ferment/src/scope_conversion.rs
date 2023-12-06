@@ -264,7 +264,7 @@ impl ToTokens for ScopeTree {
         if self.scope.is_crate() {
             // For root tree only
             let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.iter().cloned());
-            let scope_conversions = self.exported.iter().map(|(_, tree_item)| {
+            let scope_conversions = self.exported.values().map(|tree_item| {
                 generics.extend(tree_item.generic_conversions());
                 tree_item.to_token_stream()
             }).collect::<Vec<_>>();
@@ -274,7 +274,7 @@ impl ToTokens for ScopeTree {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.to_token_stream());
             }
-            let directives = quote!(#[allow(clippy::let_and_return, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
             let types_expansion = Expansion::Mod {
                 directives: directives.clone(),
                 name: quote!(types),
@@ -298,7 +298,7 @@ impl ToTokens for ScopeTree {
                 directives: quote!(),
                 name: self.scope.head().to_token_stream(),
                 imports: scope_imports.collect(),
-                conversions: self.exported.iter().map(|(_, tree_item)| tree_item.to_token_stream()).collect()
+                conversions: self.exported.values().map(ScopeTreeItem::to_token_stream).collect()
             }.to_token_stream()
         }.to_tokens(tokens)
     }}
@@ -307,61 +307,13 @@ impl ToTokens for ScopeTree {
 impl From<ScopeTreeCompact> for ScopeTree {
     fn from(value: ScopeTreeCompact) -> Self {
         let ScopeTreeCompact { scope, generics, imported, exported, item_context } = value;
-        //println!("ScopeTreeCompact:::: [{}]: {:#?}", quote!(#scope), item_context);
         let new_imported = imported.clone();
-        // // TODO: add types in implemented traits
-        // let generics = HashSet::from_iter(generics);
-        // if let Some(used_originals) = imported.get(&ImportType::Original) {
-        //     new_imported.entry(ImportType::FfiType)
-        //         .or_insert_with(HashSet::new)
-        //         .extend(used_originals.iter().filter_map(|ImportConversion { ident, scope}| {
-        //             match ident.to_string().as_str() {
-        //                 "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
-        //                 _ => {
-        //                     let ty = Scope::ffi_type_converted_or_same(&parse_quote!(#scope));
-        //                     Some(ImportConversion {
-        //                         ident: ffi_struct_name(ident),
-        //                         scope: parse_quote!(#ty)
-        //                     })
-        //                 }
-        //             }
-        //         }));
-        // }
-        // // external fermented crates
-        // if let Some(used_external_fermented) = imported.get(&ImportType::External) {
-        //     new_imported.entry(ImportType::FfiExternal)
-        //         .or_insert_with(HashSet::new)
-        //         .extend(used_external_fermented.iter().filter_map(|ImportConversion { ident, scope}| match ident.to_string().as_str() {
-        //             "UInt128" | "UInt160" | "UInt256" | "UInt384" | "UInt512" | "UInt768" | "VarInt" => None,
-        //             _ if context.contains_fermented_crate(&scope.root_ident()) => {
-        //                 let ty = Scope::ffi_external_type_converted_or_same(&parse_quote!(#scope), &context);
-        //                 Some(ImportConversion {
-        //                     ident: ffi_struct_name(ident),
-        //                     scope: parse_quote!(#ty)
-        //                 })
-        //             },
-        //             _ => None
-        //         }
-        //         ));
-        // }
-        // new_imported.entry(ImportType::Original)
-        //     .or_insert_with(HashSet::new)
-        //     .extend(exported.iter().filter_map(|(ident, tree_item_raw)| match tree_item_raw {
-        //         ScopeTreeExportItem::Item(..) => Some(ImportConversion { ident: ident.clone(), scope: scope.joined(ident) }),
-        //         _ => None
-        //     }));
-        // new_imported.entry(ImportType::FfiGeneric)
-        //     .or_insert_with(HashSet::new)
-        //     .extend(generics.iter()
-        //         .map(ImportConversion::from));
-
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
             let scope = scope.joined(&ident);
             (ident, match tree_item_raw {
                 ScopeTreeExportItem::Item(_, item) =>
                     ScopeTreeItem::Item { item, scope, item_context: item_context.clone()  },
                 ScopeTreeExportItem::Tree(generics, imported, exported, item_context) => ScopeTreeCompact {
-                    // context,
                     scope,
                     generics,
                     imported,
@@ -370,16 +322,13 @@ impl From<ScopeTreeCompact> for ScopeTree {
                 }.into(),
             })
         }).collect();
-        let tree = ScopeTree {
+        ScopeTree {
             scope,
             imported: new_imported,
             exported,
             generics,
             item_context,
-        };
-        // println!("ScopeTree:::: {:?}", tree);
-
-        tree
+        }
     }
 }
 

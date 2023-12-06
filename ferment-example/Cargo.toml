@@ -1,12 +1,13 @@
 [package]
 name = "ferment-example"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
 build = "build.rs"
 
 [dependencies]
 ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
+tokio = { version = "1.34", features = ["full"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
