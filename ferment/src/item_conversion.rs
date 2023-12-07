@@ -10,7 +10,7 @@ use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFA
 use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::{ConversionsComposer, ItemComposer};
 use crate::context::Context;
-use crate::formatter::{format_custom_conversions, format_token_stream, format_types_dict, format_used_traits};
+use crate::formatter::{format_custom_conversions, format_types_dict, format_used_traits};
 use crate::visitor::Visitor;
 use crate::generic_path_conversion::GenericPathConversion;
 use crate::idents::ffi_external_path_converted;
@@ -48,14 +48,14 @@ pub struct ItemContext {
     pub context: Context,
     pub scope_types: HashMap<TypeConversion, Type>,
     pub traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>,
-    pub custom_conversions: HashMap<Scope, HashMap<Type, Type>>,
+    pub custom_conversions: HashMap<Scope, HashMap<TypeConversion, Type>>,
 }
 
 impl ItemContext {
     pub fn with_context(context: Context) -> Self {
         Self { context, ..Default::default() }
     }
-    pub fn new(context: Context, scope_types: HashMap<TypeConversion, Type>, traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>, custom_conversions: HashMap<Scope, HashMap<Type, Type>>) -> Self {
+    pub fn new(context: Context, scope_types: HashMap<TypeConversion, Type>, traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>, custom_conversions: HashMap<Scope, HashMap<TypeConversion, Type>>) -> Self {
         Self { context, scope_types, traits_dictionary, custom_conversions }
     }
     pub fn maybe_scope_type(&self, ty: &Type) -> Option<&Type> {
@@ -71,35 +71,14 @@ impl ItemContext {
     }
 
     pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
-        self.custom_conversions.iter()
-            .find_map(|(scope, dict)| dict.iter().find_map(|(regular_type, ffi_type)| {
-
-                let nested_ffi_type = self.replace_custom_conversion(scope, ty);
-                // if type contains type
-                // So we need to replace generics here with full types consider custom conversions
-                // println!("-------");
-                // println!("{}", format_types_dict(&self.scope_types));
-                // println!("-------");
-                // println!("{}", format_custom_conversions(&self.custom_conversions));
-                // println!("-------");
-                println!("check registration [{}] with [{}] <--> [{}] ---> [{}]",
-                         format_token_stream(quote!(#ty)),
-                         format_token_stream(quote!(#regular_type)),
-                         format_token_stream(quote!(#ffi_type)),
-                         format_token_stream(quote!(#nested_ffi_type)));
-                nested_ffi_type
-                // if ty.to_token_stream().to_string().eq(&regular_type.to_token_stream().to_string()) {
-                //     println!("HAS REGISTERED {}: {}", format_token_stream(quote!(#regular_type)), format_token_stream(quote!(#ffi_type)));
-                //     Some(nested_ffi_type)
-                // } else {
-                //     None
-                // }
-        }))
+        self.custom_conversions.keys()
+            .find_map(|scope| self.replace_custom_conversion(scope, ty))
     }
 
     fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a Scope) -> Option<&'a Type> {
+        let tc = TypeConversion::from(ty);
         self.custom_conversions.get(scope)
-            .and_then(|conversion_pairs| conversion_pairs.get(ty))
+            .and_then(|conversion_pairs| conversion_pairs.get(&tc))
     }
 
     fn replace_custom_conversion(&self, scope: &Scope, ty: &Type) -> Option<Type> {
@@ -141,7 +120,6 @@ impl ItemContext {
 
     pub fn ffi_full_type_for(&self, ty: &Type) -> Type {
         self.maybe_custom_conversion(ty)
-            // .map(|custom_conversion| replace_)
             .or(self.maybe_ffi_external_type_converted(self.just_scope_type(ty)))
             .unwrap_or(ty.clone())
     }

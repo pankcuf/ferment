@@ -47,12 +47,11 @@ pub fn format_tree_item_dict(dict: &HashMap<Ident, ScopeTreeItem>) -> String {
 }
 #[allow(unused)]
 pub fn format_types_dict(dict: &HashMap<TypeConversion, Type>) -> String {
-    let iter = dict.iter().map(|(tc, full_ty)| {
-        let tc_str = format_token_stream(tc.to_token_stream());
-        let full_ty_str = format_token_stream(full_ty.to_token_stream());
-        format!("  {}: {}", tc_str, full_ty_str)
-    });
-    iter.collect::<Vec<_>>().join(",\n")
+    dict.iter()
+        .map(|(ident, path )|
+            format!("  {}: {}", format_token_stream(quote!(#ident)), format_token_stream(quote!(#path))))
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 #[allow(unused)]
@@ -83,19 +82,11 @@ pub fn format_token_stream(token: TokenStream2) -> String {
         .to_string()
 }
 
-pub fn format_type_map(dict: &HashMap<Type, Type>) -> String {
-    dict.iter()
-        .map(|(ident, path )|
-            format!("  {}: {}", format_token_stream(quote!(#ident)), format_token_stream(quote!(#path))))
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
 #[allow(unused)]
-pub fn format_custom_conversions(dict: &HashMap<Scope, HashMap<Type, Type>>) -> String {
+pub fn format_custom_conversions(dict: &HashMap<Scope, HashMap<TypeConversion, Type>>) -> String {
     dict.iter()
         .map(|(scope, matches)|
-            format!("{}:\n{}", format_token_stream(quote!(#scope)), format_type_map(matches)))
+            format!("{}:\n{}", format_token_stream(quote!(#scope)), format_types_dict(matches)))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
