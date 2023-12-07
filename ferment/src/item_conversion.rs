@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use syn::{Attribute, BareFnArg, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, FnArg, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Pat, Path, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, TraitItem, TraitItemMethod, TraitItemType, Type, TypeBareFn, TypePath, TypeReference, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
+use syn::{Attribute, BareFnArg, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Pat, Path, PathArguments, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, TraitItem, TraitItemMethod, TraitItemType, Type, TypeBareFn, TypePath, TypeReference, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
@@ -10,15 +10,34 @@ use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, CURLY_ITER_PRESENTER, DEFA
 use crate::helper::{ffi_destructor_name, ffi_fn_name, ffi_trait_obj_name, ffi_vtable_name, from_path, path_arguments_to_types, to_path};
 use crate::composer::{ConversionsComposer, ItemComposer};
 use crate::context::Context;
-use crate::formatter::{format_types_dict, format_used_traits};
+use crate::formatter::{format_custom_conversions, format_token_stream, format_types_dict, format_used_traits};
 use crate::visitor::Visitor;
 use crate::generic_path_conversion::GenericPathConversion;
-use crate::idents::ffi_external_type_converted;
+use crate::idents::ffi_external_path_converted;
 use crate::path_conversion::PathConversion;
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
 use crate::scope::{EMPTY, Scope};
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::type_conversion::TypeConversion;
+
+#[derive(PartialEq)]
+pub enum MacroType {
+    Export,
+    Register(Type)
+}
+
+impl MacroType {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Export => "export",
+            Self::Register(..) => "register",
+        }
+    }
+
+    pub fn is(&self, str: &str) -> bool {
+        self.name() == str
+    }
+}
 
 pub struct MacroAttributes {
     pub path: Path,
@@ -30,14 +49,102 @@ pub struct ItemContext {
     pub context: Context,
     pub scope_types: HashMap<TypeConversion, Type>,
     pub traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>,
+    pub custom_conversions: HashMap<Scope, HashMap<Type, Type>>,
 }
 
 impl ItemContext {
-    pub(crate) fn with_context(context: Context) -> Self {
-        Self {
-            context,
-            ..Default::default()
+    pub fn with_context(context: Context) -> Self {
+        Self { context, ..Default::default() }
+    }
+    pub fn new(context: Context, scope_types: HashMap<TypeConversion, Type>, traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>, custom_conversions: HashMap<Scope, HashMap<Type, Type>>) -> Self {
+        Self { context, scope_types, traits_dictionary, custom_conversions }
+    }
+    pub fn maybe_scope_type(&self, ty: &Type) -> Option<&Type> {
+        let tc = match ty {
+            Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(elem),
+            _ => TypeConversion::from(ty)
+        };
+        self.scope_types.get(&tc)
+    }
+
+    pub fn just_scope_type<'a>(&'a self, ty: &'a Type) -> &'a Type {
+        self.maybe_scope_type(ty).unwrap_or(ty)
+    }
+
+    pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
+        self.custom_conversions.iter()
+            .find_map(|(scope, dict)| dict.iter().find_map(|(regular_type, ffi_type)| {
+
+                let nested_ffi_type = self.replace_custom_conversion(scope, ty);
+                // if type contains type
+                // So we need to replace generics here with full types consider custom conversions
+                // println!("-------");
+                // println!("{}", format_types_dict(&self.scope_types));
+                // println!("-------");
+                // println!("{}", format_custom_conversions(&self.custom_conversions));
+                // println!("-------");
+                println!("check registration [{}] with [{}] <--> [{}] ---> [{}]",
+                         format_token_stream(quote!(#ty)),
+                         format_token_stream(quote!(#regular_type)),
+                         format_token_stream(quote!(#ffi_type)),
+                         format_token_stream(quote!(#nested_ffi_type)));
+                nested_ffi_type
+                // if ty.to_token_stream().to_string().eq(&regular_type.to_token_stream().to_string()) {
+                //     println!("HAS REGISTERED {}: {}", format_token_stream(quote!(#regular_type)), format_token_stream(quote!(#ffi_type)));
+                //     Some(nested_ffi_type)
+                // } else {
+                //     None
+                // }
+        }))
+    }
+
+    fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a Scope) -> Option<&'a Type> {
+        self.custom_conversions.get(scope)
+            .and_then(|conversion_pairs| conversion_pairs.get(ty))
+    }
+
+    fn replace_custom_conversion(&self, scope: &Scope, ty: &Type) -> Option<Type> {
+        let mut custom_type = ty.clone();
+        let mut replaced = false;
+        if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = &mut custom_type {
+            for segment in &mut *segments {
+                if let PathArguments::AngleBracketed(angle_bracketed_generic_arguments) = &mut segment.arguments {
+                    for arg in &mut angle_bracketed_generic_arguments.args {
+                        if let GenericArgument::Type(inner_type) = arg {
+                            if let Some(replaced_type) = self.replace_custom_conversion(scope, inner_type) {
+                                *arg = GenericArgument::Type(replaced_type);
+                                replaced = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(Type::Path(TypePath { path: Path { segments: new_segments, .. }, .. })) = self.replacement_for(ty, scope) {
+                *segments = new_segments.clone();
+                replaced = true;
+            }
         }
+        replaced.then_some(custom_type)
+    }
+
+    pub fn full_type_for(&self, ty: &Type) -> Type {
+        self.just_scope_type(ty)
+            .clone()
+    }
+
+    pub fn maybe_ffi_external_type_converted(&self, ty: &Type) -> Option<Type> {
+        match ty {
+            Type::Path(TypePath { path, .. }) =>
+                ffi_external_path_converted(path, &self.context),
+            _ => None
+        }
+    }
+
+    pub fn ffi_full_type_for(&self, ty: &Type) -> Type {
+        self.maybe_custom_conversion(ty)
+            // .map(|custom_conversion| replace_)
+            .or(self.maybe_ffi_external_type_converted(self.just_scope_type(ty)))
+            .unwrap_or(ty.clone())
     }
 }
 
@@ -46,30 +153,8 @@ impl std::fmt::Debug for ItemContext {
         f.debug_struct("ItemContext")
             .field("scope_types", &format_types_dict(&self.scope_types))
             .field("traits_dictionary", &format_used_traits(&self.traits_dictionary))
+            .field("custom_conversions", &format_custom_conversions(&self.custom_conversions))
             .finish()
-    }
-}
-
-
-impl ItemContext {
-    pub fn new(context: Context, scope_types: HashMap<TypeConversion, Type>, traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>) -> Self {
-        Self { context, scope_types, traits_dictionary }
-    }
-    pub fn full_type_for(&self, ty: &Type) -> Type {
-        let tc = match ty {
-            Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(elem),
-            _ => TypeConversion::from(ty)
-        };
-        self.scope_types.get(&tc).cloned().unwrap_or(ty.clone())
-    }
-
-    pub fn ffi_full_type_for(&self, ty: &Type) -> Type {
-        let tc = match ty {
-            Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(elem),
-            _ => TypeConversion::from(ty)
-        };
-        ffi_external_type_converted(self.scope_types.get(&tc).unwrap_or(ty), &self.context)
-            .unwrap_or(ty.clone())
     }
 }
 
@@ -341,17 +426,17 @@ impl ItemConversion {
             Self::Trait(..) => "trait",
         }
     }
-    pub const fn r#type(&self) -> &str {
-        match self {
-            Self::Mod(..) |
-            Self::Struct(..) |
-            Self::Enum(..) |
-            Self::Type(..) |
-            Self::Fn(..) |
-            Self::Trait(..) => "export",
-            Self::Use(..) => "",
-        }
-    }
+    // pub const fn r#type(&self) -> &str {
+    //     match self {
+    //         Self::Mod(..) |
+    //         Self::Struct(..) |
+    //         Self::Enum(..) |
+    //         Self::Type(..) |
+    //         Self::Fn(..) |
+    //         Self::Trait(..) => "export",
+    //         Self::Use(..) => "",
+    //     }
+    // }
 
     pub fn scope(&self) -> &Scope {
         match self {
@@ -399,30 +484,62 @@ impl ItemConversion {
         }
     }
 
-    fn macro_ident(&self) -> Ident {
-        format_ident!("{}", self.r#type())
-    }
-
-    pub fn is_labeled_with_macro(&self, path: &Path) -> bool {
+    pub fn is_labeled_with_macro_type(path: &Path, macro_type: &str) -> bool {
         path.segments
             .iter()
-            .any(|segment| segment.ident == self.macro_ident())
+            .any(|segment| macro_type == segment.ident.to_string().as_str())
     }
 
-    pub fn is_owner_labeled_with_trait_implementation(&self, path: &Path) -> bool {
-        path.segments
+    pub fn is_labeled_for_export(path: &Path) -> bool {
+        Self::is_labeled_with_macro_type(path, "export")
+    }
+
+    pub fn is_labeled_for_register(path: &Path) -> bool {
+        Self::is_labeled_with_macro_type(path, "register")
+    }
+
+    pub fn is_owner_labeled_with_trait_implementation(path: &Path) -> bool {
+        Self::is_labeled_with_macro_type(path, "export")
+    }
+
+    pub fn has_export_macro_attribute(&self) -> bool {
+        self.attrs().iter().filter(|Attribute { path, .. }| Self::is_labeled_for_export(path)).count() > 0
+    }
+
+    pub fn macro_type(&self) -> Option<MacroType> {
+        self.attrs()
             .iter()
-            .any(|segment| segment.ident == self.macro_ident())
+            .find_map(|attr| {
+                let path = &attr.path;
+                let mut arguments = Vec::<Path>::new();
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    meta_list.nested.iter().for_each(|meta| {
+                        if let NestedMeta::Meta(Meta::Path(path)) = meta {
+                            arguments.push(path.clone());
+                        }
+                    });
+                }
+                match path.segments.last().unwrap().ident.to_string().as_str() {
+                    "export" =>
+                        Some(MacroType::Export),
+                    "register" => {
+                        let first_path = arguments.first().unwrap();
+                        Some(MacroType::Register(parse_quote!(#first_path)))
+                    },
+                    _ =>
+                        None
+                }
+            })
     }
 
-    pub fn has_macro_attribute(&self) -> bool {
-        self.attrs().iter().filter(|Attribute { path, .. }| self.is_labeled_with_macro(path)).count() > 0
+    pub fn has_register_macro_attribute(&self) -> bool {
+        self.attrs().iter().filter(|Attribute { path, .. }| Self::is_labeled_for_register(path)).count() > 0
     }
 
     pub fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(&self, attrs: &[Attribute], mut handler: F) {
         attrs.iter()
             .for_each(|attr|
-                if self.is_labeled_with_macro(&attr.path) || self.is_owner_labeled_with_trait_implementation(&attr.path) {
+                if Self::is_labeled_for_export(&attr.path) || Self::is_owner_labeled_with_trait_implementation(&attr.path) {
                     let mut arguments = Vec::<Path>::new();
                     if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                         meta_list.nested.iter().for_each(|meta| {

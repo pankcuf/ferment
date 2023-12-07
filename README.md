@@ -10,9 +10,10 @@ The project is a rust-workspace consisting several crates:
 4. `ferment-example-nested`: provides example with dependent fermented crate.
 5. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
 
-A procedural macro consists of 1 macros:
+A procedural macro consists of 2 macros:
 
 1. `export` - for structures / enums / functions / types
+2. `register` - for custom-defined conversions
 
 **Usage**
 
@@ -54,6 +55,7 @@ fn main() {
 ```
 
 **Examples**
+
 For traits marked for export like this:
 ```rust
 #[ferment_macro::export]
@@ -247,16 +249,16 @@ Current limitations:
 - We should mark all structures that involved into export with the macro definition
 - There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyID_FFI(u32)` There will be a support at some point.
 
-Generic mangling rules
+**Generic mangling rules**
 
 Conversion follows some mangling rules and gives the name for ffi structure. 
 Examples for translated names:
-- `Vec<u8>` -> `Vec_u8_FFI`
-- `Vec<u32>` -> `Vec_u32_FFI`
-- `Vec<Vec<u32>>` -> `Vec_Vec_u32_FFI`
-- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
-- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_u32_values_Vec_u32_FFI`
-- `BTreeMap<HashID, BTreeMap<HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32_FFI`
+- `Vec<u8>` -> `Vec_u8`
+- `Vec<u32>` -> `Vec_u32`
+- `Vec<Vec<u32>>` -> `Vec_Vec_u32`
+- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_crate_HashID_values_Vec_u32`
+- `BTreeMap<HashID, Vec<u32>>` -> `std_collections_Map_keys_u32_values_Vec_u32`
+- `BTreeMap<HashID, BTreeMap<HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32`
 - etc
 
 Then macro implements the necessary conversions for these structures. Example for `BTreeMap<HashID, Vec<HashID>>`:
@@ -313,11 +315,18 @@ pub mod types {
 }
 pub mod generics {
     // We expand generic types separately here to avoid duplication
+    #[allow(non_camel_case_types)]
     pub struct std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
         // ..
     }
 }
 ```
+
+**Manual conversion support** 
+- We can use `[ferment_macro::register(SomeFFIIncompatibleStructOrWhatever)]`
+- It allows us to manually create custom conversions for types.
+- It's especially important for non-fermentable code like types from rust std lib or from any other 3-rd party-crates.
+- [Example](https://github.com/pankcuf/ferment/blob/ff10bec42c55935a3d2b5c457d50e6b5352b418c/ferment-example/src/asyn/query.rs#L1C1-L26C3)
 
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
 

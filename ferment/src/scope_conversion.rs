@@ -4,7 +4,7 @@ use quote::{quote, ToTokens};
 use syn::{Ident, Item, ItemMod, parse_quote};
 use syn::__private::TokenStream2;
 use crate::context::Context;
-use crate::formatter::{format_tree_exported_dict, format_imported_dict, format_types_dict, format_used_traits, format_tree_item_dict};
+use crate::formatter::{format_tree_exported_dict, format_imported_dict, format_types_dict, format_used_traits, format_tree_item_dict, format_custom_conversions};
 use crate::generics::GenericConversion;
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::item_conversion::{ItemContext, ItemConversion, trait_items_from_attributes};
@@ -23,14 +23,15 @@ impl std::fmt::Debug for ScopeTreeExportItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ScopeTreeExportItem::Item(..) => f.write_str("ScopeTreeExportItem::Item"),
-            ScopeTreeExportItem::Tree(generics, imported, exported, ItemContext { context ,scope_types, traits_dictionary: used_traits } ) =>
+            ScopeTreeExportItem::Tree(generics, imported, exported, ItemContext { context , scope_types, traits_dictionary, custom_conversions} ) =>
                 f.debug_struct("ScopeTreeExportItem::Tree")
                     .field("context", context)
                     .field("generics", generics)
                     .field("imported", &format_imported_dict(imported))
                     .field("exported", &format_tree_exported_dict(exported))
                     .field("scope_types", &format_types_dict(scope_types))
-                    .field("used_traits", &format_used_traits(used_traits))
+                    .field("used_traits", &format_used_traits(traits_dictionary))
+                    .field("used_traits", &format_custom_conversions(custom_conversions))
                     .finish()
         }
     }
@@ -44,6 +45,9 @@ impl std::fmt::Display for ScopeTreeExportItem {
 impl ScopeTreeExportItem {
     pub fn single_export(ident: Ident, item: ScopeTreeExportItem) -> ScopeTreeExportItem {
         Self::Tree(HashSet::new(), HashMap::from([]), HashMap::from([(ident, item)]), ItemContext::default())
+    }
+    pub fn with_context(context: Context) -> ScopeTreeExportItem {
+        Self::Tree(HashSet::new(), HashMap::from([]), HashMap::from([]), ItemContext::with_context(context))
     }
 
     pub fn just_export_with_context(export: HashMap<Ident, ScopeTreeExportItem>, context: Context) -> ScopeTreeExportItem {
@@ -142,14 +146,11 @@ impl ScopeTreeExportItem {
 
 
 pub struct ScopeTreeCompact {
-    // pub(crate) context: Context,
-    pub(crate) scope: Scope,
-    pub(crate) generics: HashSet<GenericConversion>,
-    pub(crate) imported: HashMap<ImportType, HashSet<ImportConversion>>,
-    pub(crate) exported: HashMap<Ident, ScopeTreeExportItem>,
+    pub scope: Scope,
+    pub generics: HashSet<GenericConversion>,
+    pub imported: HashMap<ImportType, HashSet<ImportConversion>>,
+    pub exported: HashMap<Ident, ScopeTreeExportItem>,
     pub item_context: ItemContext,
-    // pub(crate) scope_types: HashMap<TypeConversion, Type>,
-    // pub(crate) used_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>
 }
 impl std::fmt::Debug for ScopeTreeCompact {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -180,7 +181,6 @@ impl ScopeTreeCompact {
             ScopeTreeExportItem::Item(_, _) => None,
             ScopeTreeExportItem::Tree(generics, imported, exported, item_context) => {
                 Some(ScopeTreeCompact {
-                    // context,
                     scope,
                     generics,
                     imported,
@@ -198,8 +198,6 @@ pub enum ScopeTreeItem {
         item: Item,
         scope: Scope,
         item_context: ItemContext,
-        // scope_types: HashMap<TypeConversion, Type>,
-        // traits_dictionary: HashMap<Scope, HashMap<Ident, ItemTrait>>
     },
     Tree {
         item: Item,
@@ -237,8 +235,6 @@ pub struct ScopeTree {
     pub imported: HashMap<ImportType, HashSet<ImportConversion>>,
     pub exported: HashMap<Ident, ScopeTreeItem>,
     pub item_context: ItemContext,
-    // pub scope_types: HashMap<TypeConversion, Type>,
-    // pub used_traits: HashMap<Scope, HashMap<Ident, ItemTrait>>,
 }
 
 impl std::fmt::Debug for ScopeTree {

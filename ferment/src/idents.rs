@@ -1,5 +1,5 @@
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::{__private::TokenStream2, parse_quote, Path, spanned::Spanned, Type, TypePath};
+use syn::{__private::TokenStream2, parse_quote, Path, spanned::Spanned, Type};
 use crate::context::Context;
 use crate::generic_path_conversion::GenericPathConversion;
 use crate::helper::{ffi_mangled_ident, path_arguments_to_paths};
@@ -155,13 +155,6 @@ pub fn path_conversion_from_path(path: &Path) -> PathConversion {
 
 }
 
-pub fn ffi_external_type_converted(ty: &Type, context: &Context) -> Option<Type> {
-    match ty {
-        Type::Path(TypePath { path, .. }) =>
-            ffi_external_path_converted(path, context),
-        _ => None
-    }
-}
 
 pub fn ffi_path_converted_or_same(path: &Path) -> Type {
     ffi_path_converted(path)

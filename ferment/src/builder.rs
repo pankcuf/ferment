@@ -22,17 +22,24 @@ impl Default for Builder {
 pub struct Config {
     pub mod_name: String,
     pub crate_names: Vec<String>,
+    pub languages: Vec<Language>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Language {
+    ObjC,
+    Java
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { mod_name: String::from("fermented"), crate_names: vec![] }
+        Self { mod_name: String::from("fermented"), crate_names: vec![], languages: vec![] }
     }
 }
 
 impl Config {
     pub fn new(mod_name: &'static str) -> Self {
-        Self { mod_name: String::from(mod_name), crate_names: vec![] }
+        Self { mod_name: String::from(mod_name), crate_names: vec![], languages: vec![] }
     }
 }
 
@@ -53,6 +60,11 @@ impl Builder {
         self
     }
 
+    #[allow(unused)]
+    pub fn with_languages(mut self, languages: Vec<Language>) -> Builder {
+        self.config.languages = languages;
+        self
+    }
 
     /// Reads rust file and its nested dependencies
     /// Creates syntax tree which we'll use later

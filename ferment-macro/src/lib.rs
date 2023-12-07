@@ -65,3 +65,9 @@ use proc_macro::TokenStream;
 pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
     input
 }
+
+
+#[proc_macro_attribute]
+pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    input
+}
