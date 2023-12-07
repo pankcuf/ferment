@@ -61,3 +61,5 @@
 - Fix: custom fermented module names (currently no matter what you specified in config – it always expanding in crate::fermented scope)
 - Fix: optional primitives (Now Option<bool> expanding to false when bool is really false, or when Option is None, same thing for Option<u32> becomes 0 if None)
 - Handle mut vs const in methods arguments
+- feat: tokio runtime bindings
+- feat: think about using opaque pointers for JNI and setters/getters 
