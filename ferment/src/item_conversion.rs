@@ -20,7 +20,6 @@ use crate::scope::{EMPTY, Scope};
 use crate::import_conversion::{ImportConversion, ImportType};
 use crate::type_conversion::TypeConversion;
 
-#[derive(PartialEq)]
 pub enum MacroType {
     Export,
     Register(Type)
