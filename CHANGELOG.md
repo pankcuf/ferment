@@ -1,8 +1,16 @@
+**v0.1.4:**
+- [Custom conversion support](https://github.com/pankcuf/ferment/blob/main/ferment-example/src/asyn/query.rs#L1-L26)
+
+**v0.1.3:**
+- Support async fn (tokio::runtime)
+- Expose Enum Variant constructors
+- Refactoring
+
 **v0.1.1:**
 
-fix: merge imports (when multiple items in one mod)
-feat: multiple crates support
-example: nested fermented crates expansion
+- fix: merge imports (when multiple items in one mod)
+- feat: multiple crates support
+- example: nested fermented crates expansion
 ```rust
 extern crate cbindgen;
 extern crate ferment;

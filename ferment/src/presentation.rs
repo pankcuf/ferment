@@ -288,10 +288,7 @@ impl ToTokens for FFIObjectPresentation {
                     #macros
                     pub unsafe extern "C" fn #name(runtime: *mut std::os::raw::c_void, #(#arguments,)*) -> #output_expression {
                         let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
-                        let obj = rt.block_on(async {
-                            let obj = #input_conversions .await;
-                            obj
-                        });
+                        let obj = rt.block_on(async { #input_conversions .await });
                         #output_conversions
                     }
                 }

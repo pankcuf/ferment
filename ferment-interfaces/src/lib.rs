@@ -234,3 +234,28 @@ pub unsafe fn fold_to_result<T, E, T2, E2>(
         Err(value_converter(error))
     }
 }
+
+
+#[macro_export]
+macro_rules! impl_custom_conversion {
+    ($RustType:ty, $FFIType:ty, $from:expr, $to:expr) => {
+        impl From<&$FFIType> for $RustType {
+            fn from(value: &$FFIType) -> Self {
+                $from(value)
+            }
+        }
+        impl From<&$RustType> for $FFIType {
+            fn from(value: &$RustType) -> Self {
+                $to(value)
+            }
+        }
+        impl ferment_interfaces::FFIConversion<$RustType> for $FFIType {
+            unsafe fn ffi_from_const(ffi: *const Self) -> $RustType {
+                <$RustType>::from(&*ffi)
+            }
+            unsafe fn ffi_to_const(obj: $RustType) -> *const Self {
+                ferment_interfaces::boxed(<$FFIType>::from(&obj))
+            }
+        }
+    };
+}
