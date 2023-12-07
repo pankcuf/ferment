@@ -276,7 +276,7 @@ impl Visitor {
                         let ffi_type = parse_quote!(#scope::#ident);
                         item_context.custom_conversions.entry(scope)
                             .or_default()
-                            .insert(regular_type, ffi_type);
+                            .insert(TypeConversion(regular_type), ffi_type);
                     }
                 },
                 _ => {}
