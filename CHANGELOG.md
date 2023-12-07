@@ -1,5 +1,5 @@
 **v0.1.4:**
-- [Custom conversion support](https://github.com/pankcuf/ferment/blob/main/ferment-example/src/asyn/query.rs#L1-L26)
+- [Custom conversion support](https://github.com/pankcuf/ferment/blob/ff10bec42c55935a3d2b5c457d50e6b5352b418c/ferment-example/src/asyn/query.rs#L1C1-L26C3)
 
 **v0.1.3:**
 - Support async fn (tokio::runtime)

@@ -326,7 +326,7 @@ pub mod generics {
 - We can use `[ferment_macro::register(SomeFFIIncompatibleStructOrWhatever)]`
 - It allows us to manually create custom conversions for types.
 - It's especially important for non-fermentable code like types from rust std lib or from any other 3-rd party-crates.
-- [Example](https://github.com/pankcuf/ferment/blob/main/ferment-example/src/asyn/query.rs#L1-L26)
+- [Example](https://github.com/pankcuf/ferment/blob/ff10bec42c55935a3d2b5c457d50e6b5352b418c/ferment-example/src/asyn/query.rs#L1C1-L26C3)
 
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
 
