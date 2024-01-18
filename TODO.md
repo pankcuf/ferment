@@ -61,3 +61,8 @@
 - Fix: custom fermented module names (currently no matter what you specified in config – it always expanding in crate::fermented scope)
 - Fix: optional primitives (Now Option<bool> expanding to false when bool is really false, or when Option is None, same thing for Option<u32> becomes 0 if None)
 - Handle mut vs const in methods arguments
+- Expose tokio runtime constructor/destructor
+- Improve `Self::` processing
+- Somewhat happens while reexporting fermented types while using nested crates: it goes with dash_spv_masternode_processor::some_type::SomeStruct insted of dash_spv_masternode_processor::fermented::types::some_type::SomeStruct 
+- Custom structures named Result, Vec, HashMap, BTreeMap may not work properly. Need to add some logic to distinguish between std and custom types here
+- Need support for paths containing super or super::super etc

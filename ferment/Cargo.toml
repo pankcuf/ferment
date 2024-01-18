@@ -6,8 +6,9 @@ license = "MIT"
 description = "Syntax tree morphing of FFI-compatible stuff"
 
 [dependencies]
-syn = { version = "1.0.109", features = ["full", "visit"] }
+syn = { version = "1.0.109", features = ["full", "visit", "parsing", "proc-macro"] }
 quote = "1.0.28"
+proc-macro2 = "1.0.70"
 
 [lib]
 name = "ferment"

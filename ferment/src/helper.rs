@@ -1,29 +1,43 @@
 use quote::{format_ident, quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, Type, TypeArray, TypePath, TypePtr, TypeReference};
-use syn::__private::TokenStream2;
+use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
+use crate::conversion::PathConversion;
 use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, LAMBDA_CONVERSION_PRESENTER, MATCH_FIELDS_PRESENTER, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
-use crate::path_conversion::PathConversion;
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-            [GenericArgument::Type(value_type)] => vec![value_type],
-            [GenericArgument::Type(key_type), GenericArgument::Type(value_type, ..)] => vec![key_type, value_type],
+            [GenericArgument::Type(value_type)] =>
+                vec![value_type],
+            [GenericArgument::Type(key_type), GenericArgument::Type(value_type, ..)] =>
+                vec![key_type, value_type],
             _ => unimplemented!("path_arguments_to_types: unexpected args: {}", quote!(#args)),
         },
         _ => unimplemented!("path_arguments_to_types: arguments: {} not supported", quote!(#arguments)),
     }
 }
 
+fn from_type_trait_object(obj: &TypeTraitObject) -> Vec<&Path> {
+    obj.bounds.iter().filter_map(|f| match f {
+        TypeParamBound::Trait(TraitBound { path, .. }) =>
+            Some(path),
+        TypeParamBound::Lifetime(_lifetime) =>
+            None
+    }).collect()
+}
+
 pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
     match path_arguments_to_types(arguments)[..] {
+        [Type::TraitObject(obj)] =>
+            from_type_trait_object(obj),
         [Type::Path(TypePath { path, .. })] =>
             vec![path],
         [Type::Path(TypePath { path: path_keys, .. }), Type::Path(TypePath { path: path_values, .. })] =>
             vec![path_keys, path_values],
-        _ => unimplemented!("map_types: unexpected args: {}", quote!(#arguments)),
+        _ =>
+            unimplemented!("path_arguments_to_paths: unexpected args: {}", quote!(#arguments)),
     }
 }
 
@@ -204,7 +218,8 @@ pub fn ffi_vtable_name(trait_name: &Ident) -> Ident {
 }
 
 pub fn ffi_trait_obj_name(trait_name: &Ident) -> Ident {
-    format_ident!("{}_TraitObject", trait_name)
+    // format_ident!("{}_TraitObject", trait_name)
+    format_ident!("{}", trait_name)
 }
 
 pub fn ffi_fn_name(fn_name: &Ident) -> Ident {
@@ -233,4 +248,8 @@ pub fn ffi_mangled_ident(ty: &Type) -> Ident {
             p.get_ident().unwrap().clone()
         }
     }
+}
+pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
+    let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
+    lit.to_token_stream()
 }

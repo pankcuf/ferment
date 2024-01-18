@@ -4,12 +4,13 @@ use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Field, FieldsNamed, FieldsUnnamed, Path, Type, TypePath};
+use crate::context::ScopeContext;
+use crate::conversion::{FieldTypeConversion, PathConversion};
+use crate::formatter::format_token_stream;
 use crate::interface::{DEFAULT_DESTROY_FIELDS_PRESENTER, DEFAULT_DICT_FIELD_PRESENTER, DEFAULT_DICT_FIELD_TYPE_PRESENTER, DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_ITER_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, STRUCT_DESTROY_PRESENTER, TYPE_ALIAS_CONVERSION_FROM_PRESENTER, TYPE_ALIAS_CONVERSION_TO_PRESENTER, TYPE_ALIAS_PRESENTER};
-use crate::interface::{obj};
+use crate::interface::obj;
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
-use crate::helper::{destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_unnamed_arg_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
-use crate::item_conversion::{ItemContext, usize_to_tokenstream};
-use crate::path_conversion::PathConversion;
+use crate::helper::{destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_unnamed_arg_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference, usize_to_tokenstream};
 
 /// Composer Context Presenters
 pub type ComposerPresenter<C> = fn(context: &C) -> TokenStream2;
@@ -34,42 +35,8 @@ fn unnamed_struct_fields_comp(ty: &Type, index: usize) -> TokenStream2 {
     }
 }
 
-#[derive(Clone)]
-pub enum FieldType {
-    Named(Type, TokenStream2),
-    Unnamed(Type, TokenStream2),
-    //Itself(Type, TokenStream2),
-}
-impl ToTokens for FieldType {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            FieldType::Named(ty, field_name) => quote!(#field_name: #ty),
-            FieldType::Unnamed(ty, index) => quote!(#index: #ty),
-            //FieldType::Itself(ty, field_name) => quote!(#field_name: #ty),
-        }.to_tokens(tokens)
-    }
-}
-
-impl FieldType {
-    pub fn ty(&self) -> &Type {
-        match self {
-            FieldType::Named(ty, _) => ty,
-            FieldType::Unnamed(ty, _) => ty,
-            //FieldType::Itself(ty, _) => ty
-        }
-    }
-    pub fn name(&self) -> TokenStream2 {
-        match self {
-            FieldType::Named(_, field_name) => field_name.clone(),
-            FieldType::Unnamed(_, field_name) => field_name.clone(),
-            //FieldType::Itself(_, field_name) => field_name.clone()
-        }
-
-    }
-}
-
 impl<'a> ConversionsComposer<'a> {
-    pub fn compose(&self, context: &ItemContext) -> Vec<FieldType> {
+    pub fn compose(&self, context: &ScopeContext) -> Vec<FieldTypeConversion> {
         match self {
             Self::Empty => vec![],
             Self::NamedStruct(fields) =>
@@ -77,7 +44,7 @@ impl<'a> ConversionsComposer<'a> {
                     .named
                     .iter()
                     .map(|Field { ident, ty, .. }|
-                        FieldType::Named(context.full_type_for(ty), quote!(#ident)))
+                        FieldTypeConversion::Named(context.full_type_for(ty), quote!(#ident)))
                     .collect(),
             Self::UnnamedEnumVariant(fields) =>
                 fields
@@ -85,7 +52,7 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldType::Unnamed(context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
+                        FieldTypeConversion::Unnamed(context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
                         // (context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
                     .collect(),
             Self::UnnamedStruct(fields) =>
@@ -94,11 +61,11 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldType::Unnamed(context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
+                        FieldTypeConversion::Unnamed(context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
                         // (context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
                     .collect(),
             Self::TypeAlias(ty) =>
-                vec![FieldType::Unnamed(context.full_type_for(ty), unnamed_struct_fields_comp(ty, 0))],
+                vec![FieldTypeConversion::Unnamed(context.full_type_for(ty), unnamed_struct_fields_comp(ty, 0))],
         }
     }
 }
@@ -135,8 +102,8 @@ pub trait Composer where Self: Sized {
 }
 
 pub struct ItemComposer {
-    pub context: ItemContext,
-    // pub tree: HashMap<TypeConversion, Type>,
+    pub context: ScopeContext,
+    // pub tree: HashMap<TypeHolder, Type>,
     pub need_drop_presentation: bool,
     pub ffi_name_composer: NameComposer,
     pub target_name_composer: NameComposer,
@@ -154,7 +121,7 @@ impl ItemComposer {
     pub(crate) fn type_alias_composer(
         ffi_name: Path,
         target_name: Path,
-        context: ItemContext,
+        context: ScopeContext,
         conversions_composer: ConversionsComposer
     ) -> Rc<RefCell<Self>> {
         Self::new(
@@ -196,7 +163,7 @@ impl ItemComposer {
     pub fn struct_composer(
         ffi_name: Path,
         target_name: Path,
-        context: ItemContext,
+        context: ScopeContext,
         root_presenter: OwnerIteratorPresenter,
         field_presenter: ScopeTreeFieldTypedPresenter,
         root_conversion_presenter: OwnerIteratorPresenter,
@@ -243,7 +210,7 @@ impl ItemComposer {
     pub fn enum_variant_default_composer(
         ffi_name: Path,
         target_name: Path,
-        context: ItemContext,
+        context: ScopeContext,
         root_presenter: OwnerIteratorPresenter,
         root_conversion_presenter: OwnerIteratorPresenter,
         conversion_presenter: MapPairPresenter,
@@ -288,7 +255,8 @@ impl ItemComposer {
                 DEREF_FIELD_PATH,
                 SIMPLE_PRESENTER,
                 FFIBindingsComposer::new(bindings_iterator_presenter),
-                |f| quote!(#f.to_owned())),
+                |f| quote!(*#f)),
+                // |f| quote!(#f.to_owned())),
             conversions_composer)
     }
 
@@ -367,7 +335,7 @@ impl ItemComposer {
     fn new(
         ffi_name: Path,
         target_name: Path,
-        context: ItemContext,
+        context: ScopeContext,
         root_presenter: OwnerIteratorPresenter,
         doc_composer: FFIContextComposer,
         field_presenter: ScopeTreeFieldTypedPresenter,
@@ -420,7 +388,7 @@ impl ItemComposer {
                 self.add_conversion(field_type));
     }
 
-    fn add_conversion(&mut self, field_type: FieldType) {
+    fn add_conversion(&mut self, field_type: FieldTypeConversion) {
         self.ffi_conversions_composer.add_conversion(&field_type);
         self.fields_from_composer.add_conversion(&field_type, &self.context);
         self.fields_to_composer.add_conversion(&field_type, &self.context);
@@ -451,6 +419,7 @@ impl ItemComposer {
     }
     pub(crate) fn make_expansion(&self, traits: Vec<TraitVTablePresentation>) -> Expansion {
         let ffi_name = self.ffi_name_composer.compose();
+        println!("make_expansion: {}: [{}]", format_token_stream(&ffi_name), quote!(#(#traits), *));
         // TODO: avoid this
         let ffi_ident = format_ident!("{}", ffi_name.to_string());
         let target_name = self.target_name_composer.compose();
@@ -462,7 +431,8 @@ impl ItemComposer {
                 target_type: target_name.clone(),
                 from_presentation: FromConversionPresentation::Struct(self.compose_from()),
                 to_presentation: ToConversionPresentation::Struct(self.compose_to()),
-                destroy_presentation: self.compose_destroy()
+                destroy_presentation: self.compose_destroy(),
+                generics: vec![]
             },
             bindings: vec![
                 BindingPresentation::Constructor {
@@ -519,7 +489,7 @@ impl FFIConversionComposer {
         self.drop_composer.set_parent(root);
         self.parent = Some(Rc::clone(root));
     }
-    pub fn add_conversion(&mut self, field_type: &FieldType) {
+    pub fn add_conversion(&mut self, field_type: &FieldTypeConversion) {
         let field_path_to = (self.to_presenter)(field_type.name());
         let field_path_from = (self.from_presenter)(field_type.name());
         let field_path_destroy = (self.destructor_presenter)(field_type.name());
@@ -558,39 +528,39 @@ impl FFIConversionComposer {
 pub struct FFIBindingsComposer {
     parent: Option<Rc<RefCell<ItemComposer>>>,
     root_presenter: IteratorPresenter,
-    field_types: Vec<FieldType>,
+    field_types: Vec<FieldTypeConversion>,
 }
 
 impl FFIBindingsComposer {
     pub const fn new(root_presenter: IteratorPresenter) -> Self {
         Self { parent: None, root_presenter, field_types: vec![] }
     }
-    pub(crate) fn add_conversion(&mut self, field_type: &FieldType) {
+    pub(crate) fn add_conversion(&mut self, field_type: &FieldTypeConversion) {
         self.field_types.push(field_type.clone());
     }
 
     pub fn compose_field_names(&self) -> TokenStream2 {
         let fields = self.field_types.iter().map(|field_type| match field_type {
-            FieldType::Named(_ty, name) => quote!(#name),
-            FieldType::Unnamed(_ty, name) => format_ident!("o_{}", name.to_string()).to_token_stream(),
-            //FieldType::Itself(_ty, name) => quote!(#name)
+            FieldTypeConversion::Named(_ty, name) => quote!(#name),
+            FieldTypeConversion::Unnamed(_ty, name) => format_ident!("o_{}", name.to_string()).to_token_stream(),
+            //FieldTypeConversion::Itself(_ty, name) => quote!(#name)
         }).collect::<Vec<_>>();
         (self.root_presenter)(fields.clone())
     }
 
-    pub fn compose_arguments(&self, context: &ItemContext) -> Vec<TokenStream2> {
+    pub fn compose_arguments(&self, context: &ScopeContext) -> Vec<TokenStream2> {
         self.field_types.iter()
             .map(|field_type| match field_type {
-                FieldType::Named(_ty, name) => {
+                FieldTypeConversion::Named(_ty, name) => {
                     let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
                     quote!(#name: #full_ty)
                 },
-                FieldType::Unnamed(_ty, name) => {
+                FieldTypeConversion::Unnamed(_ty, name) => {
                     let field_name = format_ident!("o_{}", name.to_string());
                     let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
                     quote!(#field_name: #full_ty)
                 },
-                // FieldType::Itself(_ty, name) => {
+                // FieldTypeConversion::Itself(_ty, name) => {
                 //     let full_ty = DEFAULT_DICT_FIELD_TYPE_PRESENTER(field_type, context);
                 //     quote!(#name: #full_ty)
                 // },
@@ -675,8 +645,7 @@ impl FieldsComposer {
         Self { parent: None, root_presenter, context_presenter, field_presenter, fields }
     }
 
-    pub fn add_conversion(&mut self, field_type: &FieldType, context: &ItemContext) {
-        // let ffi_type = self.context.ffi_full_type_for(&field_type.ty());
+    pub fn add_conversion(&mut self, field_type: &FieldTypeConversion, context: &ScopeContext) {
         let value = (self.field_presenter)(field_type, context);
         self.fields.push(value);
     }

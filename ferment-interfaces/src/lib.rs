@@ -1,7 +1,7 @@
 pub mod fermented;
 
 use std::collections::{BTreeMap, HashMap};
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::hash::Hash;
 use std::mem;
 use std::os::raw::c_char;
@@ -42,58 +42,6 @@ pub trait FFIConversion<T> {
             return;
         }
         unbox_any(ffi);
-    }
-}
-
-impl FFIConversion<String> for c_char {
-    unsafe fn ffi_from_const(ffi: *const Self) -> String {
-        CStr::from_ptr(ffi).to_str().unwrap().to_string()
-    }
-
-    unsafe fn ffi_to_const(obj: String) -> *const Self {
-        let s = CString::new(obj).unwrap();
-        s.as_ptr()
-    }
-
-    unsafe fn ffi_from(ffi: *mut Self) -> String {
-        Self::ffi_from_const(ffi as *const _)
-    }
-
-    unsafe fn ffi_to(obj: String) -> *mut Self {
-        CString::new(obj).unwrap().into_raw()
-    }
-
-    unsafe fn destroy(ffi: *mut Self) {
-        if ffi.is_null() {
-            return;
-        }
-        unbox_string(ffi);
-    }
-}
-
-impl FFIConversion<&str> for c_char {
-    unsafe fn ffi_from_const(ffi: *const Self) -> &'static str {
-        CStr::from_ptr(ffi).to_str().unwrap()
-    }
-
-    unsafe fn ffi_to_const(obj: &str) -> *const Self {
-        let s = CString::new(obj).unwrap();
-        s.as_ptr()
-    }
-
-    unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
-        Self::ffi_from_const(ffi)
-    }
-
-    unsafe fn ffi_to(obj: &str) -> *mut Self {
-        CString::new(obj).unwrap().into_raw()
-    }
-
-    unsafe fn destroy(ffi: *mut Self) {
-        if ffi.is_null() {
-            return;
-        }
-        unbox_string(ffi);
     }
 }
 
@@ -259,3 +207,60 @@ macro_rules! impl_custom_conversion {
         }
     };
 }
+
+// pub trait ResultFrom<T, E, TF, EF> {
+//     fn result_from<RT>(from: &RT) -> Result<T, E> where RT: ResultTo<T, E>;
+// }
+// pub trait ResultTo<T, E> {
+//     fn result_to(o: (T, E)) -> Self;
+//     fn ok(&self) -> *mut T;
+//     fn error(&self) -> *mut E;
+// }
+
+// impl<T, E, FFI> ResultTo<T, E> for FFI {
+//    fn result_to(o: (T, E)) -> Self {
+//        Self { ok: o.0, error: o.1 }
+//    }
+//
+//     fn ok(&self) -> *mut T {
+//         todo!()
+//     }
+//
+//     fn error(&self) -> *mut E {
+//         todo!()
+//     }
+// }
+
+// impl<T, E, FT, FE, FFI> ResultFrom<T, E, FT, FE> for FFI
+//    where
+//        FT: FFIConversion<T>,
+//        FE: FFIConversion<E> {
+//
+//    fn result_from<RT>(result: &RT) -> Result<T, E> where RT: ResultTo<T, E> {
+//        unsafe {
+//            if result.error().is_null() {
+//                Ok(<FT as FFIConversion<T>>::ffi_from(result.ok()))
+//            } else {
+//                Err(<FE as FFIConversion<E>>::ffi_from(result.error()))
+//            }
+//        }
+//    }
+// }
+//
+// impl<T, E, FT, FE, FFIResult> FFIConversion<Result<T, E>> for FFIResult
+//    where
+//        FT: FFIConversion<T>,
+//        FE: FFIConversion<E>,
+//        FFIResult: ResultFrom<T, E, FT, FE> + ResultTo<T, E> {
+//
+//    unsafe fn ffi_from_const(ffi: *const Self) -> Result<T, E> {
+//        FFIResult::result_from(&*ffi)
+//    }
+//
+//    unsafe fn ffi_to_const(obj: Result<T, E>) -> *const Self {
+//        boxed(FFIResult::result_to(match obj {
+//            Ok(o) => (FFIConversion::ffi_to(o), std::ptr::null_mut()),
+//            Err(o) => (std::ptr::null_mut(), FFIConversion::ffi_to(o)),
+//        }))
+//    }
+// }

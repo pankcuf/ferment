@@ -1,23 +1,23 @@
 mod composer;
 pub mod builder;
 mod error;
-mod generics;
 mod helper;
-pub mod import_conversion;
 mod interface;
-mod item_conversion;
-mod path_conversion;
 mod presentation;
-mod scope;
-mod scope_conversion;
-mod type_conversion;
 mod visitor;
 #[cfg(test)]
 mod test;
 mod context;
 mod formatter;
-mod generic_path_conversion;
 mod idents;
+mod chunk;
+mod holder;
+mod conversion;
+mod composition;
+mod tree;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;
+
+// It's organized as a sequential process of tree transformation
+// Files -> File Tree -> Scope Agnostic Tree -> Full Context Tree -> Expansion

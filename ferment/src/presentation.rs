@@ -1,11 +1,11 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Ident;
-use crate::generic_path_conversion::GenericArgPresentation;
-use crate::helper::ffi_constructor_name;
+use crate::conversion::GenericArgPresentation;
+use crate::helper::{ffi_constructor_name, ffi_destructor_name};
+use crate::holder::PathHolder;
 use crate::interface::{create_struct, DEFAULT_DOC_PRESENTER, ffi_from_const, ffi_to_const, interface, obj, package, package_boxed_expression};
-use crate::scope::Scope;
-use crate::scope_conversion::{ScopeTree, ScopeTreeCompact};
+use crate::tree::ScopeTree;
 
 /// Root-level composer chain
 pub enum Expansion {
@@ -32,8 +32,11 @@ pub enum Expansion {
     Mod {
         directives: TokenStream2,
         name: TokenStream2,
-        imports: Vec<Scope>,
+        imports: Vec<PathHolder>,
         conversions: Vec<TokenStream2>
+    },
+    Impl {
+        comment: DocPresentation,
     },
     Use {
         comment: DocPresentation,
@@ -50,12 +53,6 @@ pub enum DocPresentation {
     Empty,
     Default(TokenStream2),
     Safety(TokenStream2),
-}
-
-impl From<ScopeTreeCompact> for Expansion {
-    fn from(value: ScopeTreeCompact) -> Self {
-        Expansion::Root { tree: value.into() }
-    }
 }
 
 pub enum BindingPresentation {
@@ -75,6 +72,7 @@ pub enum BindingPresentation {
         ffi_name: TokenStream2,
         destructor_ident: TokenStream2
     },
+
 }
 
 pub enum FFIObjectPresentation {
@@ -109,21 +107,21 @@ pub enum FFIObjectPresentation {
     Full(TokenStream2),
     Result {
         target_type: TokenStream2,
-        ffi_type: TokenStream2,
+        ffi_type: Ident,
 
         ok_presentation: GenericArgPresentation,
         error_presentation: GenericArgPresentation,
     },
     Map {
         target_type: TokenStream2,
-        ffi_type: TokenStream2,
+        ffi_type: Ident,
 
         key_presentation: GenericArgPresentation,
         value_presentation: GenericArgPresentation,
     },
     Vec {
         target_type: TokenStream2,
-        ffi_type: TokenStream2,
+        ffi_type: Ident,
         value_presentation: GenericArgPresentation,
     },
     // Generic {
@@ -134,14 +132,23 @@ pub enum FFIObjectPresentation {
 }
 
 pub enum ConversionInterfacePresentation {
+    Empty,
     Interface {
         ffi_type: TokenStream2,
         target_type: TokenStream2,
         from_presentation: FromConversionPresentation,
         to_presentation: ToConversionPresentation,
-        destroy_presentation: TokenStream2
+        destroy_presentation: TokenStream2,
+        generics: Vec<TokenStream2>,
     },
-    Empty
+    // GenericInterface {
+    //     ffi_type: TokenStream2,
+    //     target_type: TokenStream2,
+    //     from_presentation: FromConversionPresentation,
+    //     to_presentation: ToConversionPresentation,
+    //     destroy_presentation: TokenStream2,
+    //     generics: Vec<TokenStream2>,
+    // }
 }
 
 pub enum TraitVTablePresentation {
@@ -176,7 +183,7 @@ pub enum ToConversionPresentation {
 impl ToTokens for Expansion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let presentations = match self {
-            Self::Empty | Self::Use { comment: _ } => vec![],
+            Self::Empty | Self::Use { comment: _ } | Self::Impl { comment: _ } => vec![],
             Self::Callback { comment, ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Function { comment, ffi_presentation } =>
@@ -317,12 +324,25 @@ impl ToTokens for FFIObjectPresentation {
                     from_presentation: FromConversionPresentation::Result(quote!(#from_ok_conversion), quote!(#from_error_conversion)),
                     to_presentation: ToConversionPresentation::Result(quote!(#to_ok_conversion), quote!(#to_error_conversion)),
                     destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
+                    generics: vec![]
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
+                let bindings = vec![
+                    BindingPresentation::Constructor {
+                        ffi_ident: ffi_type.clone(),
+                        ctor_arguments: vec![quote!(ok: *mut #ok_type), quote!(error: *mut #error_type)],
+                        body_presentation: quote!({ ok, error })
+                    },
+                    BindingPresentation::Destructor {
+                        ffi_name: quote!(#ffi_type),
+                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                    }
+                ];
                 quote! {
                     #object_presentation
                     #conversion_presentation
                     #drop_presentation
+                    #(#bindings)*
                 }
             },
             Self::Map { target_type, ffi_type, key_presentation, value_presentation} => {
@@ -341,15 +361,28 @@ impl ToTokens for FFIObjectPresentation {
                     from_presentation: FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
                     to_presentation: ToConversionPresentation::Map(quote!(#to_key_conversion), quote!(#to_value_conversion)),
                     destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
+                    generics: vec![]
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
+                let bindings = vec![
+                    BindingPresentation::Constructor {
+                        ffi_ident: ffi_type.clone(),
+                        ctor_arguments: vec![quote!(keys: *mut #key), quote!(values: *mut #value), quote!(count: usize)],
+                        body_presentation: quote!({ count, keys, values })
+                    },
+                    BindingPresentation::Destructor {
+                        ffi_name: quote!(#ffi_type),
+                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                    }
+                ];
                 quote! {
                     #object_presentation
                     #conversion_presentation
                     #drop_presentation
+                    #(#bindings)*
                 }
             },
-            FFIObjectPresentation::Vec { target_type, ffi_type, value_presentation } => {
+            Self::Vec { target_type, ffi_type, value_presentation } => {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = value_presentation;
                 let drop_code = [value_destructor];
 
@@ -359,12 +392,24 @@ impl ToTokens for FFIObjectPresentation {
                     from_presentation: FromConversionPresentation::Vec,
                     to_presentation: ToConversionPresentation::Vec,
                     destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
+                    generics: vec![]
                 };
                 let object_presentation = create_struct(quote!(#ffi_type), quote!({
                         pub count: usize,
                         pub values: *mut #value,
                     }));
                 let drop_presentation = DropInterfacePresentation::Full(ffi_type.to_token_stream(), quote!(#(#drop_code)*));
+                let bindings = vec![
+                    BindingPresentation::Constructor {
+                        ffi_ident: ffi_type.clone(),
+                        ctor_arguments: vec![quote!(values: *mut #value), quote!(count: usize)],
+                        body_presentation: quote!({ count, values })
+                    },
+                    BindingPresentation::Destructor {
+                        ffi_name: quote!(#ffi_type),
+                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                    }
+                ];
                 quote! {
                     #object_presentation
                     #conversion_presentation
@@ -374,6 +419,7 @@ impl ToTokens for FFIObjectPresentation {
                         unsafe fn encode(obj: Self::Value) -> *mut Self { #to_value_conversion }
                     }
                     #drop_presentation
+                    #(#bindings)*
                 }
             },
             // FFIObjectPresentation::Generic { .. } => {}
@@ -441,33 +487,71 @@ impl ToTokens for ConversionInterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Self::Empty => quote!(),
-            Self::Interface { ffi_type: ffi_name, target_type: target_name, from_presentation, to_presentation, destroy_presentation} => {
+            Self::Interface {
+                ffi_type,
+                target_type,
+                from_presentation,
+                to_presentation,
+                destroy_presentation,
+                generics} => {
+                let generic_bounds = (!generics.is_empty())
+                    .then_some(quote!(<#(#generics)*,>))
+                    .unwrap_or_default();
+
                 let package = package();
                 let interface = interface();
                 let obj = obj();
-                // let ffi_from = ffi_from();
                 let ffi_from_const = ffi_from_const();
-                // let ffi_to = ffi_to();
                 let ffi_to_const = ffi_to_const();
-                // let ffi_from_opt = ffi_from_opt();
-                // let ffi_to_opt = ffi_to_opt();
                 quote! {
-                    impl #package::#interface<#target_name> for #ffi_name {
-                        unsafe fn #ffi_from_const(ffi: *const #ffi_name) -> #target_name { #from_presentation }
-                        unsafe fn #ffi_to_const(#obj: #target_name) -> *const #ffi_name { #to_presentation }
-                        // unsafe fn #ffi_from(ffi: *mut #ffi_name) -> #target_name { #ffi_from_conversion }
-                        // unsafe fn #ffi_to(#obj: #target_name) -> *mut #ffi_name { #ffi_to_conversion }
-                        // unsafe fn #ffi_from_opt(ffi: *mut #ffi_name) -> Option<#target_name> {
-                        //     (!#ffi.is_null()).then_some(<Self as #package::#interface<#target_name>>::#ffi_from(ffi))
-                        // }
-                        // unsafe fn #ffi_to_opt(#obj: Option<#target_name>) -> *mut #ffi_name {
-                        //     #obj.map_or(std::ptr::null_mut(), |o| <Self as #package::#interface<#target_name>>::#ffi_to(o))
-                        // }
-                        unsafe fn destroy(ffi: *mut #ffi_name) { #destroy_presentation; }
+                    impl #generic_bounds #package::#interface<#target_type> for #ffi_type {
+                        unsafe fn #ffi_from_const(ffi: *const #ffi_type) -> #target_type {
+                            #from_presentation
+                        }
+                        unsafe fn #ffi_to_const(#obj: #target_type) -> *const #ffi_type {
+                            #to_presentation
+                        }
+                        unsafe fn destroy(ffi: *mut #ffi_type) {
+                            #destroy_presentation;
+                        }
                     }
 
                 }
             },
+            // Self::GenericInterface {
+            //     ffi_type,
+            //     target_type,
+            //     from_presentation,
+            //     to_presentation,
+            //     destroy_presentation,
+            //     generics } => {
+            //     let package = package();
+            //     let interface = interface();
+            //     let obj = obj();
+            //     let ffi_from_const = ffi_from_const();
+            //     let ffi_to_const = ffi_to_const();
+            //     //<T: crate::asyn::query::TransportRequest, E: std::error::Error>
+            //     //vec![T: crate::asyn::query::TransportRequest, E: std::error::Error]
+            //
+            //     let generic_bounds = (!generics.is_empty())
+            //         .then_some(quote!(<#(#generics)*,>))
+            //         .unwrap_or_default();
+            //
+            //     quote! {
+            //         impl #generic_bounds #package::#interface<#target_type> for #ffi_type {
+            //             unsafe fn #ffi_from_const(ffi: *const #ffi_type) -> #target_type {
+            //                 #from_presentation
+            //             }
+            //             unsafe fn #ffi_to_const(#obj: #target_type) -> *const #ffi_type {
+            //                 #to_presentation
+            //             }
+            //             unsafe fn destroy(ffi: *mut #ffi_type) {
+            //                 #destroy_presentation;
+            //             }
+            //         }
+            //
+            //     }
+            // }
         }.to_tokens(tokens)
     }
 }

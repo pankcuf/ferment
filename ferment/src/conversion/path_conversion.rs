@@ -2,11 +2,12 @@ use std::fmt;
 use std::fmt::Debug;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, Type, TypePath};
-use crate::generic_path_conversion::GenericPathConversion;
-use crate::idents::{convert_to_ffi_path, ffi_path_converted_or_same, path_conversion_from_path};
-use crate::item_conversion::ItemContext;
+use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
+use crate::context::ScopeContext;
+use crate::conversion::GenericPathConversion;
+use crate::formatter::format_token_stream;
 
+#[derive(Clone)]
 pub enum PathConversion {
     Primitive(Path),
     Complex(Path),
@@ -41,7 +42,17 @@ impl From<Path> for PathConversion {
 
 impl From<&Path> for PathConversion {
     fn from(path: &Path) -> Self {
-        path_conversion_from_path(path)
+        let last_segment = path.segments.last().unwrap();
+        println!("path_conversion_from_path: {}", format_token_stream(path));
+        match last_segment.ident.to_string().as_str() {
+            // std convertible
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+            | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
+            "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
+            "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
+            "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
+            _ => PathConversion::Complex(path.clone()),
+        }
     }
 }
 
@@ -49,22 +60,29 @@ impl From<&Path> for PathConversion {
 
 impl PathConversion {
 
-    pub fn as_generic_arg_type(&self) -> TokenStream2 {
+    #[cfg(test)]
+    pub fn as_generic_arg_type(&self, context: &ScopeContext) -> TokenStream2 {
         match self {
-            PathConversion::Primitive(path) => quote!(#path),
-            PathConversion::Complex(path) => ffi_path_converted_or_same(path).to_token_stream(),
-            PathConversion::Generic(conversion) => convert_to_ffi_path(conversion.as_path()).to_token_stream()
+            PathConversion::Primitive(path) =>
+                quote!(#path),
+            PathConversion::Complex(path) =>
+                context.ffi_path_converted_or_same(path)
+                    .to_token_stream(),
+            PathConversion::Generic(conversion) =>
+                context.convert_to_ffi_path(conversion)
+                    .to_token_stream()
         }
     }
 
 
-    pub fn as_ffi_type(&self) -> Type {
-        let path = self.as_path();
-        match self {
-            PathConversion::Primitive(..) => parse_quote!(#path),
-            _ => parse_quote!(*mut #path),
-        }
-    }
+    // #[cfg(test)]
+    // pub fn as_ffi_type(&self) -> Type {
+    //     let path = self.as_path();
+    //     match self {
+    //         PathConversion::Primitive(..) => parse_quote!(#path),
+    //         _ => parse_quote!(*mut #path),
+    //     }
+    // }
 
     pub fn as_path(&self) -> &Path {
         match self {
@@ -103,7 +121,15 @@ impl PathConversion {
                                             } else {
                                                 mangled
                                             }
-                                        }
+                                        },
+                                        GenericArgument::Type(Type::TraitObject(TypeTraitObject { dyn_token: _, bounds })) => {
+                                            // TODO: need mixins impl to process multiple bounds
+                                            bounds.iter().find_map(|b| match b {
+                                                TypeParamBound::Trait(TraitBound { paren_token: _, modifier: _, lifetimes: _, path }) =>
+                                                    Some(format!("dyn_trait_{}", path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"))),
+                                                TypeParamBound::Lifetime(_) => None,
+                                            }).unwrap_or(format!("chto_to_takoe"))
+                                        },
                                         _ => panic!("Unknown generic argument: {}", quote!(#gen_arg)),
                                     })
                                     .collect::<Vec<_>>()
@@ -121,7 +147,7 @@ impl PathConversion {
         format_ident!("{}", Self::mangled_inner_generic_ident_string(self.as_path()))
     }
 
-    pub fn mangled_map_ident(&self, context: &ItemContext) -> Ident {
+    pub fn mangled_map_ident(&self, context: &ScopeContext) -> Ident {
         format_ident!("{}", match self {
             PathConversion::Primitive(path) |
             PathConversion::Complex(path) =>
@@ -131,7 +157,7 @@ impl PathConversion {
         })
     }
 
-    pub fn mangled_vec_arguments(&self, context: &ItemContext) -> TokenStream2 {
+    pub fn mangled_vec_arguments(&self, context: &ScopeContext) -> TokenStream2 {
         match self {
             PathConversion::Primitive(path) |
             PathConversion::Complex(path) =>

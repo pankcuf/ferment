@@ -1,39 +1,27 @@
-use syn::{Field, parse_quote, Path, Type, TypeArray, TypePath, TypePtr, TypeReference};
-use quote::{quote, ToTokens};
+use syn::{parse_quote, Path, Type, TypeArray, TypePath, TypePtr, TypeReference};
+use quote::quote;
 use syn::__private::TokenStream2;
-use crate::composer::FieldType;
 
 use crate::idents::ffi_dictionary_field_type;
-use crate::item_conversion::ItemContext;
+use crate::context::ScopeContext;
+use crate::conversion::FieldTypeConversion;
 
 /// token -> token
 pub type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
 /// token + token -> token
 pub type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
 
-/// field + dictionary -> token
-pub type ScopeTreeFieldPresenter = fn(field: &Field, context: &ItemContext) -> TokenStream2;
+// /// field + dictionary -> token
+// pub type ScopeTreeFieldPresenter = fn(field: &Field, context: &ItemContext) -> TokenStream2;
 
 /// token + type + dictionary -> token
-pub type ScopeTreeFieldTypedPresenter = fn(field_type: &FieldType, context: &ItemContext) -> TokenStream2;
+pub type ScopeTreeFieldTypedPresenter = fn(field_type: &FieldTypeConversion, context: &ScopeContext) -> TokenStream2;
 /// [token] -> token
 pub type IteratorPresenter = fn(items: Vec<TokenStream2>) -> TokenStream2;
 
-pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, context: &ItemContext) -> TokenStream2;
+pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, context: &ScopeContext) -> TokenStream2;
 /// token + [token] -> token
 pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
-
-
-/// Field Presenters
-pub const UNNAMED_VARIANT_FIELD_PRESENTER: ScopeTreeFieldPresenter = |Field { ty, .. }, context| {
-    let full_ty = context.ffi_full_type_for(ty);
-    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context)
-};
-pub const NAMED_VARIANT_FIELD_PRESENTER :ScopeTreeFieldPresenter = |Field { ident, ty: field_type, .. }, context| {
-    let full_ty = context.ffi_full_type_for(field_type);
-    NAMED_CONVERSION_PRESENTER(ident.clone().unwrap().to_token_stream(), FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&full_ty, context))
-};
-
 
 /// Type Presenters
 pub const FFI_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context| {
@@ -60,9 +48,10 @@ pub const FFI_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |fie
         _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", quote!(#field_type))
     }
 };
+pub const FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context|
+    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&context.ffi_full_type_for(field_type), context);
 
 /// Map Presenters
-// pub const EMPTY_MAP_PRESENTER: MapPresenter = |_| quote!();
 pub const FFI_DEREF_FIELD_NAME: MapPresenter = |field_name| quote!(ffi_ref.#field_name);
 pub const DEREF_FIELD_PATH: MapPresenter = |field_path| quote!(*#field_path);
 
@@ -80,16 +69,12 @@ pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
 
 
 /// Map Pair Presenters
-// pub const EMPTY_PAIR_PRESENTER: MapPairPresenter = |_, _|
-//     quote!();
 pub const SIMPLE_PAIR_PRESENTER: MapPairPresenter = |name, presentation|
     quote!(#name #presentation);
 pub const SIMPLE_CONVERSION_PRESENTER: MapPairPresenter = |_, conversion|
     quote!(#conversion);
 pub const NAMED_CONVERSION_PRESENTER: MapPairPresenter = |l_value, r_value|
     quote!(#l_value: #r_value);
-pub const PUB_NAMED_CONVERSION_PRESENTER: MapPairPresenter = |l_value, r_value|
-    quote!(pub #l_value: #r_value);
 pub const LAMBDA_CONVERSION_PRESENTER: MapPairPresenter = |l_value, r_value|
     quote!(#l_value => #r_value);
 pub const FFI_FROM_ROOT_PRESENTER: MapPairPresenter = |field_path: TokenStream2, conversions: TokenStream2|
@@ -99,16 +84,15 @@ pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream
 
 /// Field Type Presenters
 
-// pub const EMPTY_DICT_FIELD_TYPED_PRESENTER: ScopeTreeFieldTypedPresenter = |_, _|
-//     quote!();
 pub const DEFAULT_DICT_FIELD_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, _|
     field_type.name();
 pub const DEFAULT_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&context.ffi_full_type_for(field_type.ty()), context)
+    FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type.ty(), context)
 };
 pub const NAMED_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    let ffi_type = context.ffi_full_type_for(field_type.ty());
-    PUB_NAMED_CONVERSION_PRESENTER(field_type.name(), FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&ffi_type, context))
+    let name = field_type.name();
+    let ty = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type.ty(), context);
+    quote!(pub #name: #ty)
 };
 
 

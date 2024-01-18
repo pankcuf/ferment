@@ -1,12 +1,15 @@
+use std::fmt::Formatter;
 use std::fs::File;
 use std::io::Write;
+use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{visit::Visit, ItemMod, parse_quote};
+use syn::{ItemMod, parse_quote, visit::Visit};
+use crate::context::GlobalContext;
 use crate::error;
+use crate::holder::PathHolder;
 use crate::presentation::Expansion;
+use crate::tree::{ScopeTree, ScopeTreeCompact};
 use crate::visitor::{merge_visitor_trees, Visitor};
-use crate::scope::Scope;
-use crate::scope_conversion::ScopeTreeCompact;
 
 #[derive(Debug, Clone)]
 pub struct Builder {
@@ -31,6 +34,13 @@ pub enum Language {
     Java
 }
 
+impl std::fmt::Display for Config {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+
 impl Default for Config {
     fn default() -> Self {
         Self { mod_name: String::from("fermented"), crate_names: vec![], languages: vec![] }
@@ -41,6 +51,10 @@ impl Config {
     pub fn new(mod_name: &'static str) -> Self {
         Self { mod_name: String::from(mod_name), crate_names: vec![], languages: vec![] }
     }
+    pub fn contains_fermented_crate(&self, ident: &String) -> bool {
+        self.crate_names.contains(ident)
+    }
+
 }
 
 impl Builder {
@@ -112,18 +126,32 @@ impl Builder {
                 let input_path = src.join("lib.rs");
                 let input = input_path.as_path();
                 let file_path = std::path::Path::new(input);
-                let root_scope = Scope::new(parse_quote!(crate));
-                let mut root_visitor = process_recursive(file_path, root_scope, &self.config);
+                let root_scope = PathHolder::new(parse_quote!(crate));
+                let global_context = GlobalContext::with_config(self.config.clone());
+                println!("•• TREE 1 MORPHING");
+                let context = Arc::new(RwLock::new(global_context));
+                let mut root_visitor = process_recursive(file_path, &root_scope, &context);
                 merge_visitor_trees(&mut root_visitor);
-                ScopeTreeCompact::init_with(root_visitor.tree, Scope::crate_root())
+                ScopeTreeCompact::init_with(root_visitor.tree, PathHolder::crate_root())
                     .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
-                        |tree|
+                        |tree| {
+                            let tree = ScopeTree::from(tree);
+                            {
+                                let mut lock = context.write().unwrap();
+                                lock.inject_types_from_traits_implementation();
+                            }
+
+                            println!();
+                            println!("•• TREE 2 MORPHING using ScopeContext:");
+                            println!();
+                            println!("{}", tree.scope_context);
                             output.write_all(
-                                Expansion::from(tree)
-                                    .to_token_stream()
-                                    .to_string()
-                                    .as_bytes())
-                                    .map_err(error::Error::from))
+                                Expansion::Root { tree }
+                                        .to_token_stream()
+                                        .to_string()
+                                        .as_bytes())
+                                .map_err(error::Error::from)
+                        })
             })
 
     }
@@ -139,16 +167,16 @@ fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
     }
 }
 
-fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config) -> Visitor {
+fn process_recursive(file_path: &std::path::Path, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
     let syntax_tree = read_syntax_tree(file_path);
-    let mut visitor = Visitor::new(scope.clone(), config);
+    let mut visitor = Visitor::new(file_scope, &context);
     visitor.visit_file(&syntax_tree);
     let items = syntax_tree.items;
     let mut visitors = vec![];
     for item in items {
         if let syn::Item::Mod(module) = item {
-            if module.ident != format_ident!("{}", config.mod_name) {
-                if let Some(visitor) = process_module(file_path, &module, scope.clone(), config) {
+            if module.ident != format_ident!("{}", context.read().unwrap().fermented_mod_name()) {
+                if let Some(visitor) = process_module(file_path, &module, file_scope, &context) {
                     visitors.push(visitor);
                 }
             }
@@ -158,21 +186,21 @@ fn process_recursive(file_path: &std::path::Path, scope: Scope, config: &Config)
     visitor
 }
 
-fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: Scope, config: &Config) -> Option<Visitor> {
+fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
         let file_path = base_path.parent().unwrap().join(mod_name.to_string());
         let scope = file_scope.joined(mod_name);
         if file_path.is_file() {
-            return Some(process_recursive(&file_path, scope, config));
+            return Some(process_recursive(&file_path, &scope, context));
         } else {
             let mod_dir_path = file_path.join("mod.rs");
             if mod_dir_path.is_file() {
-                return Some(process_recursive(&mod_dir_path, scope, config));
+                return Some(process_recursive(&mod_dir_path, &scope, context));
             } else {
                 let file_path = file_path.parent().unwrap().join(format!("{}.rs", quote!(#mod_name)));
                 if file_path.is_file() {
-                    return Some(process_recursive(&file_path, scope, config));
+                    return Some(process_recursive(&file_path, &scope, context));
                 }
             }
         }

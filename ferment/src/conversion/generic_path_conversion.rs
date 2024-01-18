@@ -1,11 +1,12 @@
 use quote::{quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
-use syn::{Ident, parse_quote, Path, PathSegment, Type};
-use crate::helper::path_arguments_to_path_conversions;
-use crate::idents::{convert_to_ffi_path, ffi_path_converted_or_same};
+use syn::{parse_quote, Path, PathSegment, Type};
+use crate::conversion::type_conversion::TypeConversion;
+use crate::context::ScopeContext;
+use crate::conversion::PathConversion;
+use crate::formatter::format_token_stream;
+use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions};
 use crate::interface::{ffi_to_conversion, MapPresenter, package_boxed_expression};
-use crate::item_conversion::ItemContext;
-use crate::path_conversion::PathConversion;
 use crate::presentation::FFIObjectPresentation;
 
 pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p|
@@ -15,10 +16,20 @@ pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p|
 pub const UNBOX_OPTION: MapPresenter = |p|
     quote!(if !#p.is_null() { ferment_interfaces::unbox_any(#p); });
 
+#[derive(Clone)]
 pub enum GenericPathConversion {
     Map(Path),
     Vec(Path),
     Result(Path)
+}
+impl ToTokens for GenericPathConversion {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            GenericPathConversion::Map(p) => p,
+            GenericPathConversion::Vec(p) => p,
+            GenericPathConversion::Result(p) => p,
+        }.to_tokens(tokens)
+    }
 }
 
 impl GenericPathConversion {
@@ -30,7 +41,7 @@ impl GenericPathConversion {
         }.to_string()
     }
 
-    pub fn arguments_presentation(&self, context: &ItemContext) -> TokenStream2 {
+    pub fn arguments_presentation(&self, context: &ScopeContext) -> TokenStream2 {
         match self {
             GenericPathConversion::Map(path) =>
                 match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
@@ -73,24 +84,6 @@ impl GenericPathConversion {
     }
 }
 
-
-impl<'a> From<&'a GenericPathConversion> for Type {
-    fn from(generic_path_conversion: &'a GenericPathConversion) -> Self {
-        convert_to_ffi_path(generic_path_conversion.as_path())
-    }
-}
-
-
-impl<'a> From<&'a PathConversion> for Type {
-    fn from(path_conversion: &'a PathConversion) -> Self {
-        match path_conversion {
-            PathConversion::Primitive(path) => parse_quote!(#path),
-            PathConversion::Complex(path) => ffi_path_converted_or_same(path),
-            PathConversion::Generic(generic_path_conversion) => Type::from(generic_path_conversion),
-        }
-    }
-}
-
 pub struct GenericArgPresentation {
     pub ty: Type,
     pub destructor: TokenStream2,
@@ -106,10 +99,10 @@ impl GenericArgPresentation {
 
 impl GenericPathConversion {
 
-    pub fn expand(&self, ffi_name: Ident) -> TokenStream2 {
+    pub fn expand(&self, full_type: &TypeConversion, context: &ScopeContext) -> TokenStream2 {
 
-
-
+        let ffi_name = ffi_mangled_ident(full_type.ty());
+        println!("GenericPathConversion::expand: {}: [{}]", format_token_stream(full_type), ffi_name);
         match self {
             GenericPathConversion::Result(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
@@ -140,7 +133,7 @@ impl GenericPathConversion {
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(error),
+                                context.ffi_path_converted_or_same(error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -154,7 +147,7 @@ impl GenericPathConversion {
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                             GenericArgPresentation::new(
-                                Type::from(generic_error),
+                                context.convert_to_ffi_path(generic_error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -163,7 +156,7 @@ impl GenericPathConversion {
                     [PathConversion::Complex(ok), PathConversion::Primitive(error)] => {
                         (
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(ok),
+                                context.ffi_path_converted_or_same(ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -175,28 +168,30 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Complex(error)] => {
+                        println!("Result Complex x Complex {} x {}", format_token_stream(ok), format_token_stream(error));
                         (
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(ok),
+                                context.ffi_path_converted_or_same(ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(error),
+                                context.ffi_path_converted_or_same(error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Generic(generic_error)] => {
+                        println!("Result Complex x Generic {} x {}", format_token_stream(ok), format_token_stream(generic_error));
                         (
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(ok),
+                                context.ffi_path_converted_or_same(ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
-                                Type::from(generic_error),
+                                context.convert_to_ffi_path(generic_error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -205,7 +200,7 @@ impl GenericPathConversion {
                     [PathConversion::Generic(generic_ok), PathConversion::Primitive(error)] => {
                         (
                             GenericArgPresentation::new(
-                                Type::from(generic_ok),
+                                context.convert_to_ffi_path(generic_ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -219,12 +214,12 @@ impl GenericPathConversion {
                     [PathConversion::Generic(generic_ok), PathConversion::Complex(error)] => {
                         (
                             GenericArgPresentation::new(
-                                Type::from(generic_ok),
+                                context.convert_to_ffi_path(generic_ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
-                                ffi_path_converted_or_same(error),
+                                context.ffi_path_converted_or_same(error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -233,12 +228,12 @@ impl GenericPathConversion {
                     [PathConversion::Generic(generic_ok), PathConversion::Generic(generic_error)] => {
                         (
                             GenericArgPresentation::new(
-                                Type::from(generic_ok),
+                                context.convert_to_ffi_path(generic_ok),
                                 UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
-                                Type::from(generic_error),
+                                context.convert_to_ffi_path(generic_error),
                                 UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
@@ -247,7 +242,12 @@ impl GenericPathConversion {
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
 
-                FFIObjectPresentation::Result { target_type: quote!(#path), ffi_type: quote!(#ffi_name), ok_presentation: arg_0_presentation, error_presentation: arg_1_presentation }
+                FFIObjectPresentation::Result {
+                    target_type: quote!(#path),
+                    ffi_type: ffi_name.clone(),
+                    ok_presentation: arg_0_presentation,
+                    error_presentation: arg_1_presentation
+                }
             },
             GenericPathConversion::Map(path) => {
                 let PathSegment { arguments, ..} = path.segments.last().unwrap();
@@ -270,7 +270,7 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Primitive(arg_0_target_path), PathConversion::Complex(arg_1_target_path)] => {
-                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
+                        let arg_1_ffi_type = context.ffi_path_converted_or_same(arg_1_target_path);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_0_target_path),
@@ -285,7 +285,7 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Primitive(arg_0_target_path), PathConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
+                        let arg_1_ffi_type = context.convert_to_ffi_path(arg_1_generic_path_conversion);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_0_target_path),
@@ -300,7 +300,7 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Complex(arg_0_target_path), PathConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_0_ffi_type = context.ffi_path_converted_or_same(arg_0_target_path);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -315,8 +315,8 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Complex(arg_0_target_path), PathConversion::Complex(arg_1_target_path)] => {
-                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
-                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
+                        let arg_0_ffi_type = context.ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_1_ffi_type = context.ffi_path_converted_or_same(arg_1_target_path);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -331,8 +331,8 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Complex(arg_0_target_path), PathConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
-                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
+                        let arg_0_ffi_type = context.ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_1_ffi_type = context.convert_to_ffi_path(arg_1_generic_path_conversion);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -347,7 +347,7 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
+                        let arg_0_ffi_type = context.convert_to_ffi_path(arg_0_generic_path_conversion);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -362,8 +362,8 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Complex(arg_1_target_path)] => {
-                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
-                        let arg_1_ffi_type = ffi_path_converted_or_same(arg_1_target_path);
+                        let arg_0_ffi_type = context.convert_to_ffi_path(arg_0_generic_path_conversion);
+                        let arg_1_ffi_type = context.ffi_path_converted_or_same(arg_1_target_path);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -378,8 +378,8 @@ impl GenericPathConversion {
                         )
                     }
                     [PathConversion::Generic(arg_0_generic_path_conversion), PathConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
-                        let arg_1_ffi_type = Type::from(arg_1_generic_path_conversion);
+                        let arg_0_ffi_type = context.convert_to_ffi_path(arg_0_generic_path_conversion);
+                        let arg_1_ffi_type = context.convert_to_ffi_path(arg_1_generic_path_conversion);
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
@@ -397,7 +397,7 @@ impl GenericPathConversion {
                 };
                FFIObjectPresentation::Map {
                     target_type: quote!(#path),
-                    ffi_type: ffi_name.to_token_stream(),
+                    ffi_type: ffi_name,
                     key_presentation: arg_0_presentation,
                     value_presentation: arg_1_presentation,
                 }
@@ -414,7 +414,7 @@ impl GenericPathConversion {
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::boxed_vec(obj) })))
                     }
                     [PathConversion::Complex(arg_0_target_path)] => {
-                        let arg_0_ffi_type = ffi_path_converted_or_same(arg_0_target_path);
+                        let arg_0_ffi_type = context.ffi_path_converted_or_same(arg_0_target_path);
                         GenericArgPresentation::new(
                             parse_quote!(*mut #arg_0_ffi_type),
                             COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
@@ -422,7 +422,7 @@ impl GenericPathConversion {
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
                     }
                     [PathConversion::Generic(arg_0_generic_path_conversion)] => {
-                        let arg_0_ffi_type = Type::from(arg_0_generic_path_conversion);
+                        let arg_0_ffi_type = context.convert_to_ffi_path(arg_0_generic_path_conversion);
                         GenericArgPresentation::new(
                             parse_quote!(*mut #arg_0_ffi_type),
                             COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
@@ -433,7 +433,7 @@ impl GenericPathConversion {
                 };
                 FFIObjectPresentation::Vec {
                     target_type: quote!(#path),
-                    ffi_type: ffi_name.to_token_stream(),
+                    ffi_type: ffi_name,
                     value_presentation: arg_0_presentation,
                 }
             }
