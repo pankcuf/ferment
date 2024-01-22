@@ -1,55 +1,22 @@
-use syn::{parse_quote, Path, Type, TypeArray, TypePath, TypePtr, TypeReference};
+use syn::{parse_quote, Path, Type};
 use quote::quote;
 use syn::__private::TokenStream2;
 
-use crate::idents::ffi_dictionary_field_type;
-use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
+use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
 
 /// token -> token
 pub type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
 /// token + token -> token
 pub type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
 
-// /// field + dictionary -> token
-// pub type ScopeTreeFieldPresenter = fn(field: &Field, context: &ItemContext) -> TokenStream2;
-
 /// token + type + dictionary -> token
-pub type ScopeTreeFieldTypedPresenter = fn(field_type: &FieldTypeConversion, context: &ScopeContext) -> TokenStream2;
+pub type ScopeTreeFieldTypedPresenter = fn(field_type: FieldTypeConversion) -> OwnedItemPresenterContext;
 /// [token] -> token
-pub type IteratorPresenter = fn(items: Vec<TokenStream2>) -> TokenStream2;
+pub type IteratorPresenter = fn(items: Vec<OwnedItemPresenterContext>) -> IteratorPresentationContext;
 
-pub type ScopeTreeItemTypePresenter = fn(field_type: &Type, context: &ScopeContext) -> TokenStream2;
 /// token + [token] -> token
-pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<TokenStream2>)) -> TokenStream2;
-
-/// Type Presenters
-pub const FFI_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context| {
-    match field_type {
-        Type::Path(TypePath { path, .. }) =>
-            ffi_dictionary_field_type(path, context),
-        Type::Array(TypeArray { elem, len, .. }) =>
-            quote!(*mut [#elem; #len]),
-        Type::Reference(TypeReference { elem, .. }) =>
-            FFI_DICTIONARY_FIELD_TYPE_PRESENTER(elem, context),
-        Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
-            match &**elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "c_void" => match (star_token, const_token, mutability) {
-                        (_, Some(_const_token), None) => quote!(OpaqueContext_FFI),
-                        (_, None, Some(_mut_token)) => quote!(OpaqueContextMut_FFI),
-                        _ => panic!("extract_struct_field: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
-                    },
-                    _ => quote!(*mut #path)
-                },
-                Type::Ptr(type_ptr) => quote!(*mut #type_ptr),
-                _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
-            }
-        _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", quote!(#field_type))
-    }
-};
-pub const FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER: ScopeTreeItemTypePresenter = |field_type, context|
-    FFI_DICTIONARY_FIELD_TYPE_PRESENTER(&context.ffi_full_type_for(field_type), context);
+pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<OwnedItemPresenterContext>)) -> OwnerIteratorPresentationContext;
 
 /// Map Presenters
 pub const FFI_DEREF_FIELD_NAME: MapPresenter = |field_name| quote!(ffi_ref.#field_name);
@@ -82,78 +49,14 @@ pub const FFI_FROM_ROOT_PRESENTER: MapPairPresenter = |field_path: TokenStream2,
 pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream2|
     package_boxed_expression(conversions);
 
-/// Field Type Presenters
 
-pub const DEFAULT_DICT_FIELD_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, _|
-    field_type.name();
-pub const DEFAULT_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type.ty(), context)
-};
-pub const NAMED_DICT_FIELD_TYPE_PRESENTER: ScopeTreeFieldTypedPresenter = |field_type, context| {
-    let name = field_type.name();
-    let ty = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type.ty(), context);
-    quote!(pub #name: #ty)
-};
-
-
-
-/// Iterator Presenters
-pub const EMPTY_ITERATOR_PRESENTER: IteratorPresenter = |_|
-    quote!();
-pub const DEFAULT_DESTROY_FIELDS_PRESENTER: IteratorPresenter = |destructors|
-    quote!({#(#destructors)*});
-pub const CURLY_ITER_PRESENTER: IteratorPresenter = |fields: Vec<TokenStream2>|
-    quote!({ #(#fields,)* });
-pub const ROUND_ITER_PRESENTER: IteratorPresenter = |fields: Vec<TokenStream2>|
-    quote!(( #(#fields,)* ));
-pub const STRUCT_DESTROY_PRESENTER: IteratorPresenter = |fields| match fields.len() {
-    0 => quote!(),
-    _ => quote!(let ffi_ref = self; #(#fields;)*)
-};
-
-pub const ENUM_DESTROY_PRESENTER: IteratorPresenter = |fields| match fields.len() {
-    0 => quote!(),
-    _ => MATCH_FIELDS_PRESENTER((quote!(self), fields))
-};
 
 /// Owner Iterator Presenters
-// pub const EMPTY_FIELDS_PRESENTER: OwnerIteratorPresenter = |_|
-//     quote!();
+///
 pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    SIMPLE_PAIR_PRESENTER(name, CURLY_ITER_PRESENTER(fields));
+    OwnerIteratorPresentationContext::CurlyBracesFields(name, fields);
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    SIMPLE_PAIR_PRESENTER(name, ROUND_ITER_PRESENTER(fields));
-pub const MATCH_FIELDS_PRESENTER: OwnerIteratorPresenter = |(field_path, fields)|
-    SIMPLE_PAIR_PRESENTER(quote!(match #field_path), CURLY_ITER_PRESENTER(fields));
-pub const NO_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, _)|
-    quote!(#name);
-pub const ENUM_UNIT_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    quote!(#name = #(#fields)*);
-
-pub const TYPE_ALIAS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    create_struct(name, SIMPLE_TERMINATED_PRESENTER(ROUND_ITER_PRESENTER(fields)));
-pub const TYPE_ALIAS_CONVERSION_FROM_PRESENTER: OwnerIteratorPresenter = |(_, fields)|
-    quote!(#(#fields)*);
-pub const TYPE_ALIAS_CONVERSION_TO_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    quote!(#name(#(#fields),*));
-
-pub const UNNAMED_STRUCT_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    create_struct(name, SIMPLE_TERMINATED_PRESENTER(ROUND_ITER_PRESENTER(fields)));
-pub const NAMED_STRUCT_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    create_struct(name, CURLY_ITER_PRESENTER(fields));
-pub const ENUM_NAMED_VARIANT_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    SIMPLE_PAIR_PRESENTER(name, CURLY_ITER_PRESENTER(fields));
-pub const ENUM_UNNAMED_VARIANT_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    SIMPLE_PAIR_PRESENTER(name, ROUND_ITER_PRESENTER(fields));
-pub const ENUM_PRESENTER: OwnerIteratorPresenter = |(name, fields)| {
-    let enum_presentation = CURLY_BRACES_FIELDS_PRESENTER((name, fields));
-    quote! {
-        #[repr(C)]
-        #[allow(non_camel_case_types)]
-        #[derive(Clone)]
-        pub enum #enum_presentation
-    }
-};
+    OwnerIteratorPresentationContext::RoundBracesFields(name, fields);
 
 /// PathArguments Presenters
 

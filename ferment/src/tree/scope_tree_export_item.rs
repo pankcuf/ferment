@@ -1,19 +1,21 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use proc_macro2::Ident;
 use std::sync::{Arc, RwLock};
 use syn::{Item, ItemMod};
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{GlobalContext, ScopeContext};
-use crate::conversion::{ImportConversion, ItemConversion, trait_items_from_attributes};
+use crate::conversion::{ImportConversion, ItemConversion};
 use crate::formatter::{format_imported_dict, format_tree_exported_dict};
 use crate::holder::PathHolder;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
-    Item(ScopeContext, Item),
-    Tree(ScopeContext, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<Ident, ScopeTreeExportItem>),
+    Item(Rc<RefCell<ScopeContext>>, Item),
+    Tree(Rc<RefCell<ScopeContext>>, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<Ident, ScopeTreeExportItem>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -38,14 +40,15 @@ impl std::fmt::Display for ScopeTreeExportItem {
 }
 
 impl ScopeTreeExportItem {
-    pub(crate) fn tree_with_context_and_export(context: ScopeContext, export: HashMap<Ident, ScopeTreeExportItem>) -> Self {
+    pub(crate) fn tree_with_context_and_export(context: Rc<RefCell<ScopeContext>>, export: HashMap<Ident, ScopeTreeExportItem>) -> Self {
         Self::Tree(context, HashSet::default(), HashMap::default(), export)
     }
-    pub fn with_scope_context(scope_context: ScopeContext) -> ScopeTreeExportItem {
+    pub fn with_scope_context(scope_context: Rc<RefCell<ScopeContext>>) -> ScopeTreeExportItem {
         Self::tree_with_context_and_export(scope_context, HashMap::default())
     }
     pub fn with_global_context(scope: &PathHolder, context: Arc<RwLock<GlobalContext>>) -> ScopeTreeExportItem {
-        Self::tree_with_context_and_export(ScopeContext::with(scope.clone(), context), HashMap::default())
+        let context = Rc::new(RefCell::new(ScopeContext::with(scope.clone(), context)));
+        Self::tree_with_context_and_export(context, HashMap::default())
     }
     // pub fn single_export(scope: Scope, ident: Ident, item: ScopeTreeExportItem) -> ScopeTreeExportItem {
     //     Self::tree_with_context_and_export(ScopeContext::with(scope, &mut GlobalContext::default()), HashMap::from([(ident, item)]))
@@ -67,17 +70,19 @@ impl ScopeTreeExportItem {
                 generics,
                 imported,
                 exported) => {
-                let mut self_scope_context = scope_context.clone();
+                let self_scope_context = scope_context.borrow_mut();
+                let mut self_scope_context = self_scope_context.clone();
+                // let mut self_scope_context = scope_context.clone();
                 let scope = item.scope();
                 self_scope_context.scope = scope.joined(&item.ident());
                 self_scope_context.populate_imports_and_generics(&self_scope_context.scope, item, imported, generics);
-                trait_items_from_attributes(item.attrs(), &mut self_scope_context)
+                self_scope_context.trait_items_from_attributes(item.attrs())
                     .into_iter()
                     .for_each(|(item_trait, trait_scope)| {
                         let trait_item = ItemConversion::Trait(item_trait.item, trait_scope);
                         self_scope_context.populate_imports_and_generics(trait_item.scope(), &trait_item, imported, generics);
                     });
-                exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(self_scope_context, item.into()));
+                exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(Rc::new(RefCell::new(self_scope_context)), item.into()));
             }
         }
     }
@@ -85,8 +90,8 @@ impl ScopeTreeExportItem {
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &PathHolder) {
         // println!("add TREE: [{}]: {}", scope.to_token_stream(), item_mod.to_token_stream());
         let context = match self {
-            ScopeTreeExportItem::Item(context, _) => context.context.clone(),
-            ScopeTreeExportItem::Tree(context, _, _, _) => context.context.clone()
+            ScopeTreeExportItem::Item(context, _) => context.borrow().context.clone(),
+            ScopeTreeExportItem::Tree(context, _, _, _) => context.borrow().context.clone()
         };
         match &item_mod.content {
             Some((_, items)) => {
@@ -124,4 +129,5 @@ impl ScopeTreeExportItem {
             };
         }
     }
+
 }

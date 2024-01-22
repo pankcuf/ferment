@@ -10,7 +10,7 @@ use crate::context::{GlobalContext, ScopeContext};
 use crate::conversion::ImportConversion;
 use crate::composition::generic_composition::GenericConversion;
 use crate::holder::TypeHolder;
-use crate::presentation::Expansion;
+use crate::presentation::expansion::Expansion;
 use crate::scope::Scope;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem};
 

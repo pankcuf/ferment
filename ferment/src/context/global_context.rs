@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use syn::{GenericArgument, Ident, ItemTrait, parse_quote, Path, PathArguments, Type, TypePath, TypeReference};
 use crate::Config;
-use crate::conversion::TypeConversion;
+use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::{PathHolder, TypeHolder};
 
@@ -28,12 +28,13 @@ impl TraitCompositionPart1 {
 #[derive(Clone, Default)]
 pub struct GlobalContext {
     pub config: Config,
-    pub scope_types: HashMap<PathHolder, HashMap<TypeHolder, TypeConversion>>,
+    // pub scope_types: HashMap<PathHolder, HashMap<TypeHolder, TypeConversion>>,
+    pub scope_types: HashMap<PathHolder, HashMap<TypeHolder, ObjectConversion>>,
     // crate::asyn::query::Query: [T: [TransportRequest]]
     pub used_generics_at_scopes: HashMap<PathHolder, HashMap<PathHolder, Vec<Path>>>,
     pub traits_dictionary: HashMap<PathHolder, HashMap<Ident, TraitCompositionPart1>>,
     pub used_traits_dictionary: HashMap<PathHolder, Vec<PathHolder>>,
-    pub custom_conversions: HashMap<PathHolder, HashMap<TypeHolder, TypeConversion>>,
+    pub custom_conversions: HashMap<PathHolder, HashMap<TypeHolder, ObjectConversion>>,
     pub used_imports_at_scopes: HashMap<PathHolder, HashMap<PathHolder, Path>>,
 }
 
@@ -62,12 +63,12 @@ impl GlobalContext {
             .entry(scope.clone())
             .or_default()
     }
-    pub fn scope_types_mut(&mut self, scope: &PathHolder) -> &mut HashMap<TypeHolder, TypeConversion> {
+    pub fn scope_types_mut(&mut self, scope: &PathHolder) -> &mut HashMap<TypeHolder, ObjectConversion> {
         self.scope_types
             .entry(scope.clone())
             .or_default()
     }
-    pub fn maybe_scope_type(&self, ty: &Type, scope: &PathHolder) -> Option<&TypeConversion> {
+    pub fn maybe_scope_type(&self, ty: &Type, scope: &PathHolder) -> Option<&ObjectConversion> {
         let tc = match ty {
             Type::Reference(TypeReference { elem, .. }) => TypeHolder::from(elem),
             _ => TypeHolder::from(ty)
@@ -78,7 +79,7 @@ impl GlobalContext {
             .and_then(|dict| dict.get(&tc))
     }
 
-    pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&TypeConversion> {
+    pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&ObjectConversion> {
         // RESOLVE PATHS
         // Self::asyn::query::TransportRequest::Client::Error
         // ? [Self::asyn::query::TransportRequest::Client::Error] Self
@@ -93,22 +94,26 @@ impl GlobalContext {
         // 4. a) [aa::bb::cc] Self::dd::ee, b) [aa::bb::cc] Self::dd
         let current_scope: PathHolder = parse_quote!(#from_type);
         let mut i = 0;
-        let mut maybe_trait: Option<&TypeConversion>  = None;
+        let mut maybe_trait: Option<&ObjectConversion>  = None;
         while i < current_scope.len() && maybe_trait.is_none() {
             let (root, head) = current_scope.split_and_join_self(i);
             let ty = parse_quote!(#head);
             maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
-                if let Some(TypeConversion::Trait(trait_ty, decomposition)) = maybe_trait {
-                    let ident = &head.0.segments.last().unwrap().ident;
-                    println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), format_token_stream(trait_ty));
-                    if let Some(trait_type) = decomposition.types.get(ident) {
-                        let tt = trait_type.trait_bounds.first().unwrap();
-                        println!("FFI (first bound) {}", format_token_stream(&tt.path));
-                        let tt_type = parse_quote!(#tt);
-                        maybe_trait = self.maybe_scope_type(&tt_type, &root);
-                        println!("FFI (first bound full) {:?}", maybe_trait);
-                    }
+                match maybe_trait {
+                    Some(ObjectConversion::Item(TypeConversion::Trait(trait_ty, decomposition), _)) |
+                    Some(ObjectConversion::Type(TypeConversion::Trait(trait_ty, decomposition))) => {
+                        let ident = &head.0.segments.last().unwrap().ident;
+                        println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
+                        if let Some(trait_type) = decomposition.types.get(ident) {
+                            let tt = trait_type.trait_bounds.first().unwrap();
+                            println!("FFI (first bound) {}", format_token_stream(&tt.path));
+                            let tt_type = parse_quote!(#tt);
+                            maybe_trait = self.maybe_scope_type(&tt_type, &root);
+                            println!("FFI (first bound full) {:?}", maybe_trait);
+                        }
+                    },
+                    _ => {}
                 }
             }
             println!("FFI (resolve....) for: {} in [{}] ===> {:?}", format_token_stream(&head), format_token_stream(&root), maybe_trait);
@@ -117,7 +122,7 @@ impl GlobalContext {
         maybe_trait
     }
 
-    pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &PathHolder) -> Option<TypeConversion> {
+    pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &PathHolder) -> Option<ObjectConversion> {
         self.maybe_scope_type(ty, scope)
             .map_or({
                         let scope = scope.popped();
@@ -175,7 +180,7 @@ impl GlobalContext {
             .cloned()
     }
 
-    fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a PathHolder) -> Option<&'a TypeConversion> {
+    fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a PathHolder) -> Option<&'a ObjectConversion> {
         let tc = TypeHolder::from(ty);
         self.custom_conversions
             .get(scope)
@@ -264,7 +269,7 @@ impl GlobalContext {
     //     });
     // }
     pub fn inject_types_from_traits_implementation(&mut self) {
-        let self_tc = TypeHolder::new(parse_quote!(Self));
+        let self_tc: TypeHolder = parse_quote!(Self);
 
         // Collect necessary data in a Vec to avoid borrowing `self` while iterating.
         let mut trait_data = Vec::new();

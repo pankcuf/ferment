@@ -10,6 +10,7 @@ use crate::nested::{Identifier, ProtocolError};
 
 
 #[async_trait]
+#[ferment_macro::export]
 pub trait Fetch
     where
         Self: Sized

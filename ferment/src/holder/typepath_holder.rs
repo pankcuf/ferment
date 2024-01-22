@@ -1,63 +1,13 @@
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 use quote::ToTokens;
-use syn::__private::TokenStream2;
-use syn::parse::ParseStream;
-use syn::parse_quote::ParseQuote;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, Type, TypeArray, TypeBareFn, TypePath, TypePtr, TypeReference, TypeTuple};
 use crate::conversion::Conversion;
 use crate::context::VisitorContext;
+use crate::holder::Holder;
+use crate::impl_holder;
 
-#[derive(Clone)]
-pub struct TypePathHolder(pub TypePath);
+impl_holder!(TypePathHolder, TypePath);
 
-impl PartialEq for TypePathHolder {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_token_stream().to_string().eq(&other.0.to_token_stream().to_string())
-    }
-}
-impl Eq for TypePathHolder {}
-
-impl Hash for TypePathHolder {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_token_stream().to_string().hash(state);
-    }
-}
-
-impl std::fmt::Debug for TypePathHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.to_token_stream().to_string().as_str())
-    }
-}
-
-impl std::fmt::Display for TypePathHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
-}
-impl ParseQuote for TypePathHolder {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        TypePath::parse(input)
-            .map(TypePathHolder::from)
-    }
-}
-impl ToTokens for TypePathHolder {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.0.to_tokens(tokens)
-    }
-}
-
-impl From<TypePath> for TypePathHolder {
-    fn from(value: TypePath) -> Self {
-        TypePathHolder(value)
-    }
-}
-
-impl<'a> From<&'a TypePath> for TypePathHolder {
-    fn from(value: &'a TypePath) -> Self {
-        TypePathHolder(value.clone())
-    }
-}
 
 // impl TypePathConversion {
 //     pub fn first_ident(&self) -> Option<&Ident> {

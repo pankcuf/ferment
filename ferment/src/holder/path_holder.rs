@@ -1,71 +1,19 @@
-use std::hash::{Hash, Hasher};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Ident, parse_quote, Path, PathSegment, Type, TypePath};
 use syn::__private::TokenStream2;
-use syn::parse::ParseStream;
-use syn::parse_quote::ParseQuote;
 use syn::punctuated::Punctuated;
-use crate::formatter::format_token_stream;
+use crate::holder::Holder;
+use crate::impl_holder;
 
 pub const EMPTY: PathHolder = PathHolder(Path { leading_colon: None, segments: Punctuated::new() });
 
 
-#[derive(Clone)]
-pub struct PathHolder(pub Path);
-
-
-impl<'a> From<&'a Path> for PathHolder {
-    fn from(value: &'a Path) -> Self {
-        Self::new(value.clone())
-    }
-}
-
-impl PartialEq for PathHolder {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_token_stream().to_string().eq(&other.0.to_token_stream().to_string())
-    }
-}
-
-impl Eq for PathHolder {}
-
-impl Hash for PathHolder {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_token_stream().to_string().hash(state);
-    }
-}
-
-
-impl std::fmt::Debug for PathHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
-        f.write_str(format_token_stream(&self.0).as_str())
-        // f.write_str(self.path.to_token_stream().to_string().split_whitespace().collect::<String>().as_str())
-    }
-}
-
-impl std::fmt::Display for PathHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
-}
-
-impl ParseQuote for PathHolder {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Path::parse(input)
-            .map(PathHolder::new)
-    }
-}
-
-impl ToTokens for PathHolder {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.0.to_tokens(tokens)
-    }
-}
+impl_holder!(PathHolder, Path);
 
 impl PathHolder {
 
     pub fn crate_root() -> Self {
-        Self::new(parse_quote!(crate))
+        parse_quote!(crate)
     }
     pub fn ffi_expansion_scope() -> Self {
         Self::crate_and(quote!(fermented))
@@ -84,9 +32,6 @@ impl PathHolder {
         Self::ffi_types_scope().joined_path(parse_quote!(#path))
     }
 
-    pub fn new(path: Path) -> Self {
-        PathHolder(path)
-    }
 
     pub fn len(&self) -> usize {
         self.0.segments.len()
@@ -102,8 +47,7 @@ impl PathHolder {
                 if new_segments.is_empty() {
                     EMPTY
                 } else {
-                    let scope_path = quote!(#(#new_segments)::*);
-                    PathHolder::new(parse_quote!(#scope_path))
+                    parse_quote!(#(#new_segments)::*)
                 }
             },
             _ => EMPTY
@@ -129,7 +73,13 @@ impl PathHolder {
     pub fn joined(&self, name: &Ident) -> PathHolder {
         let mut segments = self.0.segments.clone();
         segments.push(PathSegment::from(name.clone()));
-        PathHolder::new(Path { leading_colon: None, segments })
+        PathHolder::from(Path { leading_colon: None, segments })
+    }
+
+    pub fn joined_chunk(&self, chunk: &Vec<Ident>) -> PathHolder {
+        let mut segments = self.0.segments.clone();
+        chunk.iter().for_each(|name| segments.push(PathSegment::from(name.clone())));
+        PathHolder::from(Path { leading_colon: None, segments })
     }
 
     pub fn joined_path(&self, path: Path) -> PathHolder {
@@ -139,7 +89,7 @@ impl PathHolder {
     pub fn popped(&self) -> PathHolder {
         let segments = self.0.segments.clone();
         let n = segments.len() - 1;
-        PathHolder::new(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
+        PathHolder::from(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
     }
 
     pub fn to_type(&self) -> Type {
@@ -159,8 +109,8 @@ impl PathHolder {
                 used
             });
         (
-            PathHolder::new(Path { leading_colon: None, segments: Punctuated::from_iter(root) }),
-            PathHolder::new(Path { leading_colon: None, segments: Punctuated::from_iter(head) }),
+            PathHolder::from(Path { leading_colon: None, segments: Punctuated::from_iter(root) }),
+            PathHolder::from(Path { leading_colon: None, segments: Punctuated::from_iter(head) }),
         )
     }
     pub fn split_and_join_self(&self, head_size: usize) -> (PathHolder, PathHolder) {

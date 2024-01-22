@@ -2,10 +2,9 @@ use std::fmt;
 use std::fmt::Debug;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
 use crate::context::ScopeContext;
 use crate::conversion::GenericPathConversion;
-use crate::formatter::format_token_stream;
 
 #[derive(Clone)]
 pub enum PathConversion {
@@ -43,20 +42,23 @@ impl From<Path> for PathConversion {
 impl From<&Path> for PathConversion {
     fn from(path: &Path) -> Self {
         let last_segment = path.segments.last().unwrap();
-        println!("path_conversion_from_path: {}", format_token_stream(path));
+        // println!("path_conversion_from_path: {}", format_token_stream(path));
         match last_segment.ident.to_string().as_str() {
             // std convertible
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
             | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
+            "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
             "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
             "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
             "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
-            _ => PathConversion::Complex(path.clone()),
+            _ => path.segments.iter().find_map(|ff| match &ff.arguments {
+                PathArguments::AngleBracketed(args) =>
+                    Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
+                    _ => None
+            }).unwrap_or(PathConversion::Complex(path.clone())),
         }
     }
 }
-
-
 
 impl PathConversion {
 
@@ -90,7 +92,9 @@ impl PathConversion {
             PathConversion::Complex(path) |
             PathConversion::Generic(GenericPathConversion::Map(path)) |
             PathConversion::Generic(GenericPathConversion::Vec(path)) |
-            PathConversion::Generic(GenericPathConversion::Result(path)) => path,
+            PathConversion::Generic(GenericPathConversion::Result(path)) |
+            PathConversion::Generic(GenericPathConversion::Box(path)) |
+            PathConversion::Generic(GenericPathConversion::AnyOther(path)) => path
         }
     }
 
@@ -130,6 +134,21 @@ impl PathConversion {
                                                 TypeParamBound::Lifetime(_) => None,
                                             }).unwrap_or(format!("chto_to_takoe"))
                                         },
+                                        GenericArgument::Type(Type::Array(TypeArray { elem, len, .. })) => {
+                                            if let Type::Path(TypePath { path, .. }) = &**elem {
+                                                let mangled = Self::mangled_inner_generic_ident_string(path);
+                                                if is_map {
+                                                    format!("{}{}{}_{}", if i == 0 { "keys_" } else { "values_" }, "arr_", mangled, quote!(#len).to_string())
+                                                } else if is_result {
+                                                    format!("{}{}{}_{}", if i == 0 { "ok_" } else { "err_" }, "arr_", mangled, quote!(#len).to_string())
+                                                } else {
+                                                    mangled
+                                                }
+                                            } else {
+                                                panic!("Unknown generic argument: {}", quote!(#gen_arg));
+                                            }
+                                            // format!("arr_{}_count", Self::mangled_inner_generic_ident_string(elem))
+                                        },
                                         _ => panic!("Unknown generic argument: {}", quote!(#gen_arg)),
                                     })
                                     .collect::<Vec<_>>()
@@ -165,5 +184,15 @@ impl PathConversion {
             PathConversion::Generic(conversion) =>
                 conversion.arguments_presentation(context)
         }
+    }
+    pub fn mangled_box_arguments(&self, context: &ScopeContext) -> TokenStream2 {
+        match self {
+            PathConversion::Primitive(path) |
+            PathConversion::Complex(path) =>
+                quote!(#path),
+            PathConversion::Generic(conversion) =>
+                conversion.arguments_presentation(context)
+        }
+
     }
 }

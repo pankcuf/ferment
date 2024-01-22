@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use proc_macro2::Ident;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::ScopeContext;
@@ -13,7 +15,7 @@ pub struct ScopeTreeCompact {
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<Ident, ScopeTreeExportItem>,
-    pub scope_context: ScopeContext,
+    pub scope_context: Rc<RefCell<ScopeContext>>,
 }
 
 impl std::fmt::Debug for ScopeTreeCompact {

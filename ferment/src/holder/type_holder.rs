@@ -1,76 +1,24 @@
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 use quote::ToTokens;
-use syn::__private::TokenStream2;
-use syn::parse::ParseStream;
-use syn::parse_quote::ParseQuote;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, Type, TypeArray, TypeBareFn, TypePtr, TypeReference, TypeTuple};
 use crate::context::VisitorContext;
 use crate::conversion::{Conversion, TypeConversion};
+use crate::holder::Holder;
+use crate::impl_holder;
 
-#[derive(Clone)]
-pub struct TypeHolder(pub Type);
-
-impl PartialEq for TypeHolder {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_token_stream().to_string().eq(&other.0.to_token_stream().to_string())
-    }
-}
-
-impl Eq for TypeHolder {}
-
-impl Hash for TypeHolder {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_token_stream().to_string().hash(state);
-    }
-}
-
-
-impl std::fmt::Debug for TypeHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.to_token_stream().to_string().as_str())
-    }
-}
-
-impl std::fmt::Display for TypeHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
-    }
-}
-
-impl ParseQuote for TypeHolder {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Type::parse(input)
-            .map(TypeHolder::new)
-    }
-}
-
-impl ToTokens for TypeHolder {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.0.to_tokens(tokens)
-    }
-}
+impl_holder!(TypeHolder, Type);
 
 impl<'a> From<&'a TypeConversion> for TypeHolder {
     fn from(value: &'a TypeConversion) -> Self {
         TypeHolder(value.ty().clone())
     }
 }
-impl<'a> From<&'a Type> for TypeHolder {
-    fn from(value: &'a Type) -> Self {
-        TypeHolder(value.clone())
-    }
-}
-
 impl<'a> From<&'a Box<Type>> for TypeHolder {
     fn from(value: &'a Box<Type>) -> Self {
         TypeHolder(*value.clone())
     }
 }
 impl TypeHolder {
-    pub fn new(ty: Type) -> Self {
-        TypeHolder(ty)
-    }
 
     // pub fn get_all_type_paths_involved(&self) -> HashSet<TypePathConversion> {
     //     let mut involved = HashSet::from([TypePathConversion(parse_quote!(Self))]);

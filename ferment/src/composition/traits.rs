@@ -128,7 +128,7 @@ impl TraitDecompositionPart2 {
         TraitDecompositionPart2 { methods, types }
     }
 
-    pub fn present_trait_vtable_inner_functions(self) -> Vec<TokenStream2> {
-        self.methods.into_iter().map(FnSignatureDecomposition::present_trait_vtable_inner_fn).collect()
+    pub fn present_trait_vtable_inner_functions(self, context: &ScopeContext) -> Vec<TokenStream2> {
+        self.methods.into_iter().map(|m| FnSignatureDecomposition::present_trait_vtable_inner_fn(m, context)).collect()
     }
 }

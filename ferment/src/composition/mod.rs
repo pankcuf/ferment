@@ -4,12 +4,17 @@ mod import_composition;
 mod qself_composition;
 mod generic_composition;
 mod traits;
+mod item_composition;
+mod attrs_composition;
 
+pub use attrs_composition::AttrsComposition;
 pub use type_composition::TypeComposition;
 pub use function_composition::FnArgDecomposition;
 pub use function_composition::FnReturnTypeDecomposition;
 pub use function_composition::FnSignatureDecomposition;
 pub use generic_composition::GenericConversion;
+pub use generic_composition::collect_generic_types_in_path;
+pub use generic_composition::collect_generic_types_in_type;
 pub use import_composition::ImportComposition;
 pub use qself_composition::QSelfComposition;
 pub use traits::TraitDecompositionPart1;

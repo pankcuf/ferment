@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{GenericArgument, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, QSelf, Token, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, UseGroup, UseName, UsePath, UseRename, UseTree};
+use syn::{Attribute, Field, FnArg, GenericArgument, GenericParam, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, QSelf, ReturnType, Signature, Token, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, TypePath, TypeTraitObject, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use syn::punctuated::Punctuated;
+use syn::token::Colon2;
 use syn::visit::Visit;
-use crate::composition::{QSelfComposition, TypeComposition};
+use crate::composition::{QSelfComposition, TraitDecompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, TraitCompositionPart1, VisitorContext};
-use crate::conversion::{Conversion, MacroType, ItemConversion, TypeConversion};
+use crate::conversion::{Conversion, MacroType, ItemConversion, TypeConversion, type_ident, ObjectConversion};
 use crate::formatter::{Emoji, format_token_stream, format_trait_decomposition_part1, format_types_dict};
 use crate::holder::{PathHolder, TypeHolder, TypePathHolder};
-use crate::idents::is_primitive;
 use crate::nprint;
 use crate::tree::ScopeTreeExportItem;
 
@@ -118,8 +118,7 @@ impl Visitor {
         println!();
         nprint!(0, Emoji::Plus, "[{}] [{}] {}", scope, self_scope, format_token_stream(ty));
         let all_involved_full_types = <TypePathHolder as Conversion>::nested_items(ty, visitor_context);
-        // let conversion = TypeHolder::from(ty);
-        // let all_involved_full_types = conversion.get_all_type_paths_involved()
+
         let all_involved_full_types = all_involved_full_types
             .into_iter()
             .map(|ty| {
@@ -130,17 +129,17 @@ impl Visitor {
                 nprint!(counter,
                     Emoji::Question, "[{}] {}",
                     format_token_stream(&ty),
-                    format_token_stream(&type_composition));
+                    type_composition);
 
                 (TypeHolder::from(&ty), match tp.path.segments.first().unwrap().ident.to_string().as_str() {
                     "Self" => match visitor_context {
                         VisitorContext::Trait(decomposition) => {
-                            println!("===> add_full_qualified_type_match:: Trait {}:", format_token_stream(&type_composition));
+                            println!("===> add_full_qualified_type_match:: Trait {}:", type_composition);
                             println!("===>  {}", decomposition.as_ref().map_or(format!("None"), |f| format_trait_decomposition_part1(f)));
-                            TypeConversion::Trait(type_composition, decomposition.clone().unwrap())
+                            ObjectConversion::Type(TypeConversion::Trait(type_composition, decomposition.clone().unwrap()))
                         },
-                        VisitorContext::Object => TypeConversion::Object(type_composition),
-                        VisitorContext::Unknown => TypeConversion::Unknown(type_composition)
+                        VisitorContext::Object => ObjectConversion::Type(TypeConversion::Object(type_composition)),
+                        VisitorContext::Unknown => ObjectConversion::Type(TypeConversion::Unknown(type_composition))
                     },
                     id => {
                         let lock = self.context.read().unwrap();
@@ -148,10 +147,10 @@ impl Visitor {
                         println!("check: {}: {}", id, format_token_stream(&known));
                         if let Some(known) = known {
                             known.clone()
-                        } else if is_primitive(id) {
-                            TypeConversion::Primitive(type_composition)
+                        } else if matches!(id, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool") {
+                            ObjectConversion::Type(TypeConversion::Primitive(type_composition))
                         } else {
-                            TypeConversion::Unknown(type_composition)
+                            ObjectConversion::Type(TypeConversion::Unknown(type_composition))
                         }
                     }
                 })
@@ -190,8 +189,11 @@ impl Visitor {
     }
 
     fn handle_full_path(&self, scope: &PathHolder, self_scope: &PathHolder, path: &Path, qself: &Option<QSelfComposition>, counter: &mut usize, visitor_context: &VisitorContext) -> TypeComposition {
-        nprint!(*counter, Emoji::Branch, "handle_full_path: {} with qself: [{}] in [{}, {}]", format_token_stream(path), qself.as_ref().map_or(format!("None"), |q| format_token_stream(&q.qself.ty)), format_token_stream(self_scope), format_token_stream(scope));
-
+        nprint!(*counter, Emoji::Branch, "handle_full_path: {} with qself: [{}] in [{}, {}]",
+            format_token_stream(path),
+            qself.as_ref().map_or(format!("None"), |q| format_token_stream(&q.qself.ty)),
+            format_token_stream(self_scope),
+            format_token_stream(scope));
         let mut segments = path.segments.clone();
         for segment in &mut segments {
             //println!("argggg (segment): {}", segment.to_token_stream());
@@ -200,8 +202,7 @@ impl Visitor {
                     match arg {
                         GenericArgument::Type(inner_type) => {
                             let ty_composition = self.update_nested_generics(scope, self_scope, inner_type, counter, visitor_context);
-                            let ty = ty_composition.ty();
-                            *arg = GenericArgument::Type(ty.clone())
+                            *arg = GenericArgument::Type(ty_composition.ty)
                         },
                         _ => {}
                     }
@@ -265,7 +266,9 @@ impl Visitor {
                 "str" | "String" | "Option" | "Box" | "Vec" => {
                     // nprint!(*counter, Emoji::Nothing, "(Global Object) {}", format_token_stream(&path));
                 },
-                "Result" if segments.len() == 1 => {},
+                "Result" if segments.len() == 1 => {
+
+                },
                 _ if last_ident.to_string().as_str() == "BTreeMap" || last_ident.to_string().as_str() == "HashMap" => {
 
                 },
@@ -284,33 +287,41 @@ impl Visitor {
                             let tt = lock.maybe_scope_import_path_or_parent(self_scope, scope, &import_seg)
                                 .cloned()
                                 .unwrap_or(parse_quote!(#scope::#import_seg));
-                            // let last_segment = segments.pop().unwrap();
                             let tail_path = quote!(#(#tail)::*);
                             println!("{}: <{} as {}>::{}", tail.len(), format_token_stream(ty), format_token_stream(&tt), format_token_stream(&tail_path));
-                            return TypeComposition::Unknown(match len {
-                                0 => parse_quote!(<#ty as #tt>),
-                                _ => parse_quote!(<#ty as #tt>::#tail_path)
-                            });
+                            return TypeComposition {
+                                ty: match len {
+                                    0 => parse_quote!(<#ty as #tt>),
+                                    _ => parse_quote!(<#ty as #tt>::#tail_path)
+                                },
+                                generics: None,
+                            };
                         } else {
                             nprint!(*counter, Emoji::Local, "(Local join multi: {}) {} + {}", first_ident, format_token_stream(scope), format_token_stream(&path));
-                            let last_segment = segments.pop().unwrap();
-                            let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#(#tail)::*);
+                            let last_segment = segments.last().cloned().unwrap();
+                            let new_segments: Punctuated<PathSegment, Colon2> = parse_quote!(#scope::#path);
+                            segments.clear();
                             segments.extend(new_segments);
-                            segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                            segments.last_mut().unwrap().arguments = last_segment.arguments;
+
+                            // let last_segment = segments.pop().unwrap();
+                            // let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#(#tail)::*);
+                            // segments.extend(new_segments);
+                            // segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                         }
                     }
                 },
             }
         }
         *counter += 1;
-        TypeComposition::Unknown(Type::Path(TypePath { qself: qself.as_ref().map(|q| q.qself.clone()), path: Path { leading_colon: path.leading_colon, segments } }))
+        TypeComposition::new(Type::Path(TypePath { qself: qself.as_ref().map(|q| q.qself.clone()), path: Path { leading_colon: path.leading_colon, segments } }), None)
     }
 
     fn handle_qself(&self, scope: &PathHolder, self_scope: &PathHolder, qself: &Option<QSelf>, counter: &mut usize, visitor_context: &VisitorContext) -> Option<QSelfComposition> {
         qself.as_ref().map(|qself| {
             let mut new_qself = qself.clone();
             let qs = self.update_nested_generics(scope, self_scope, &qself.ty, counter, visitor_context);
-            new_qself.ty = Box::new(qs.ty().clone());
+            new_qself.ty = Box::new(qs.ty.clone());
             QSelfComposition { qs, qself: new_qself }
         })
     }
@@ -328,15 +339,15 @@ impl Visitor {
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
                 let full_path = self.handle_full_path(scope, self_scope, path, &None, counter, visitor_context);
-                let ty = full_path.ty();
+                let ty = full_path.ty;
                 *path = parse_quote!(#ty);
             },
             _ => {},
         });
-        TypeComposition::Unknown(Type::TraitObject(TypeTraitObject {
+        TypeComposition::new(Type::TraitObject(TypeTraitObject {
             dyn_token: dyn_token.clone(),
             bounds
-        }))
+        }), None)
     }
 
     /// Create a new Type with the updated base path and generic type parameters
@@ -352,19 +363,19 @@ impl Visitor {
             Type::TraitObject(type_trait_object) =>
                 self.update_type_trait_object(scope, self_scope, type_trait_object, counter, visitor_context),
             tttt =>
-                TypeComposition::Unknown(tttt.clone())
+                TypeComposition::new(tttt.clone(), None)
         }
     }
 
     fn current_scope_for(&self, item: &Item) -> PathHolder {
-        let is_mod = matches!(item, Item::Mod(..));
-        match self.current_scope_stack.first() {
-            Some(current_mod) if !is_mod => self.current_module_scope.joined(current_mod),
-            _ => self.current_module_scope.clone()
+        if self.current_scope_stack.is_empty() || matches!(item, &Item::Mod(..)) {
+            self.current_module_scope.clone()
+        } else {
+            self.current_module_scope.joined_chunk(&self.current_scope_stack)
         }
     }
 
-    fn find_scope_tree<'a>(&'a mut self, scope: &PathHolder) -> &'a mut ScopeTreeExportItem {
+    fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
         let path_to_traverse: Vec<Ident> = scope.0.segments.iter().skip(1).map(|segment| segment.ident.clone()).collect();
         for ident in &path_to_traverse {
@@ -381,34 +392,256 @@ impl Visitor {
         current_tree
     }
 
-    pub fn add_conversion(&mut self, item: Item) {
-        let scope = self.current_scope_for(&item);
-        if let Ok(conversion) = ItemConversion::try_from((item, &scope)) {
-            match conversion.macro_type() {
-                Some(MacroType::Export) => {
-                    let full_qualified = conversion.add_full_qualified_conversion(self);
-                    self.find_scope_tree(&scope).add_item(full_qualified)
-                },
-                Some(MacroType::Register(ty)) => {
-                    if let ScopeTreeExportItem::Tree(item_context, _, _, _) = self.find_scope_tree(&scope) {
-                        let ident = conversion.ident();
 
-                        let ffi_type = parse_quote!(#scope::#ident);
-                        item_context.add_custom_conversion(scope, ty, ffi_type);
-                    }
+    fn add_itself_conversion(&mut self, scope: &PathHolder, ident: &Ident, ty: ObjectConversion) {
+        let mut lock = self.context.write().unwrap();
+        lock.scope_types_mut(scope)
+            .insert(parse_quote!(#ident), ty);
+    }
+    fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &PathHolder, ident: &Ident) {
+        let trait_names = extract_trait_names(item_trait_attrs);
+        let self_scope = scope.joined(ident);
+        trait_names.iter().for_each(|trait_name|
+            self.add_full_qualified_type_match(&scope, &self_scope,&parse_quote!(#trait_name), &VisitorContext::Object));
+        let mut lock = self.context.write().unwrap();
+        lock.used_traits_dictionary
+            .entry(self_scope)
+            .or_default()
+            .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
+    }
+    #[allow(unused)]
+    fn add_full_qualified_impl(&mut self, item_impl: &ItemImpl, scope: &PathHolder, self_scope: &PathHolder) {
+        // let trait_path = item_impl.trait_.clone().map(|(_, path, _)| path);
+        // let visitor_context = trait_path.map_or(VisitorContext::Object, |_| VisitorContext::Trait(None));
+        // return;
+        let visitor_context = VisitorContext::Object;
+        item_impl.items.iter().for_each(|impl_item| {
+            match impl_item {
+                ImplItem::Const(ImplItemConst { ty, .. }) => {
+                    self.add_full_qualified_type_match(scope,  &self_scope, ty, &visitor_context);
                 },
-                _ if conversion.is_impl() && conversion.ident() != format_ident!("FFIConversion") => {
-                    // println!("IMPL :::: {}", format_token_stream(&conversion.ident()));
-                    conversion.add_full_qualified_conversion(self);
-                    // if let ScopeTreeExportItem::Item(item_context, _) = self.find_scope_tree(&scope) {
-                    //     let ident = conversion.ident();
-                    //     let ffi_type = parse_quote!(#scope::#ident);
-                    //     item_context.add_custom_conversion(scope, ty, ffi_type);
-                    //
-                    // }
+                ImplItem::Method(ImplItemMethod { sig, .. }) => {
+                    self.add_full_qualified_signature(sig, scope, self_scope, &visitor_context)
+                },
+                ImplItem::Type(ImplItemType { ty, .. }) => {
+                    self.add_full_qualified_type_match(scope,  &self_scope, ty, &visitor_context);
                 },
                 _ => {}
             }
+        });
+
+    }
+
+    fn add_full_qualified_trait(&mut self, item_trait: &ItemTrait, scope: &PathHolder) {
+        let ident = &item_trait.ident;
+        let self_scope = scope.joined(ident);
+        let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_trait.generics.clone()));
+        self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Trait(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items)), Item::Trait(item_trait.clone())));
+
+        // let ident = &item_trait.ident;
+        // let self_scope = scope.joined(ident);
+        self.add_full_qualified_trait_match(&self_scope, item_trait);
+        let de_trait = TraitDecompositionPart1::from_trait_items(ident, &item_trait.items);
+        let de_trait_context = VisitorContext::Trait(Some(de_trait.clone()));
+        let mut generics: HashMap<PathHolder, Vec<Path>> = HashMap::new();
+        item_trait.generics.params.iter().for_each(|generic_param| {
+            match generic_param {
+                GenericParam::Type(TypeParam { ident: generic_ident, bounds, .. }) => {
+                    let mut de_bounds: Vec<Path> =  vec![];
+                    bounds.iter().for_each(|bound| {
+                        match bound {
+                            TypeParamBound::Trait(TraitBound { path, .. }) => {
+                                let ty = parse_quote!(#path);
+                                println!("add_full_qualified_trait: (generic trait): {}: {}", format_token_stream(generic_ident), format_token_stream(&ty));
+                                de_bounds.push(path.clone());
+                                self.add_full_qualified_type_match(scope, &self_scope, &ty, &de_trait_context);
+
+                            },
+                            TypeParamBound::Lifetime(_lifetime) => {}
+                        }
+                    });
+                    generics.insert(parse_quote!(#generic_ident), de_bounds);
+                },
+                GenericParam::Lifetime(_lifetime) => {},
+                GenericParam::Const(const_param) => {
+                    self.add_full_qualified_type_match(scope, &self_scope, &const_param.ty, &de_trait_context);
+                },
+            }
+        });
+        self.add_full_qualified_generic_match(&self_scope, generics);
+
+        item_trait.items.iter().for_each(|trait_item|
+            match trait_item {
+                TraitItem::Method(TraitItemMethod { sig, .. }) => {
+                    self.add_full_qualified_signature(sig, scope, &self_scope, &de_trait_context)
+                },
+                TraitItem::Type(TraitItemType { ident: type_ident, bounds, ..}) => {
+                    let local_ty = parse_quote!(Self::#type_ident);
+                    self.add_full_qualified_type_match(scope, &self_scope, &local_ty, &de_trait_context);
+                    println!("add_full_qualified_trait (type): {}: {}", ident, type_ident);
+                    // TODO: whether we need to preserve scope or use separate scope + trait ident?
+                    // Especially when using Self::  It'll break some logics
+                    bounds.iter().for_each(|bound| match bound {
+                        TypeParamBound::Trait(TraitBound { path, ..}) => {
+                            let ty = parse_quote!(#path);
+                            self.add_full_qualified_type_match(scope, &self_scope, &ty, &de_trait_context);
+                        },
+                        _ => {},
+                    });
+                },
+                TraitItem::Const(TraitItemConst { ty, .. }) => {
+                    // TransportRequest::Client
+                    self.add_full_qualified_type_match(scope, &self_scope, ty, &de_trait_context);
+                },
+                _ => {}
+            });
+    }
+
+    fn add_full_qualified_signature(&mut self, sig: &Signature, scope: &PathHolder, self_scope: &PathHolder, visitor_context: &VisitorContext) {
+        if let ReturnType::Type(_arrow_token, ty) = &sig.output {
+            self.add_full_qualified_type_match(scope, self_scope, ty, visitor_context)
+        }
+        sig.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+            self.add_full_qualified_type_match(scope, self_scope, ty, visitor_context);
+        });
+    }
+
+    fn add_full_qualified_type_from_struct(&mut self, item_struct: &ItemStruct, scope: &PathHolder) {
+        let ident = &item_struct.ident;
+        let self_scope = scope.joined(ident);
+        item_struct.fields.iter().for_each(|Field { ty, .. }|
+            self.add_full_qualified_type_match(scope,  &self_scope, ty, &VisitorContext::Object));
+    }
+
+    fn add_full_qualified_type_from_enum(&mut self, item_enum: &ItemEnum, scope: &PathHolder) {
+        let ident = &item_enum.ident;
+        let self_scope = scope.joined(ident);
+        item_enum.variants.iter().for_each(|Variant { fields, .. }|
+            fields.iter().for_each(|Field { ty, .. }|
+                self.add_full_qualified_type_match(scope, &self_scope, ty, &VisitorContext::Object)));
+    }
+
+    fn add_full_qualified_struct(&mut self, item_struct: &ItemStruct, scope: &PathHolder) {
+        let ident = &item_struct.ident;
+        let self_scope = scope.joined(ident);
+        let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_struct.generics.clone()));
+        self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Object(type_compo), Item::Struct(item_struct.clone())));
+        self.add_full_qualified_trait_type_from_macro(&item_struct.attrs, &scope, ident);
+        self.add_full_qualified_type_from_struct(&item_struct, &scope);
+    }
+
+    fn add_full_qualified_enum(&mut self, item_enum: &ItemEnum, scope: &PathHolder) {
+        let ident = &item_enum.ident;
+        let self_scope = scope.joined(ident);
+        let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_enum.generics.clone()));
+        self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Object(type_compo), Item::Enum(item_enum.clone())));
+        self.add_full_qualified_trait_type_from_macro(&item_enum.attrs, &scope, ident);
+        self.add_full_qualified_type_from_enum(&item_enum, &scope);
+    }
+    fn add_full_qualified_fn(&mut self, item_fn: &ItemFn, scope: &PathHolder) {
+        let ident = &item_fn.sig.ident;
+        let self_scope = scope.joined(ident);
+        let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_fn.sig.generics.clone()));
+        self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Object(type_compo), Item::Fn(item_fn.clone())));
+        self.add_full_qualified_signature(&item_fn.sig, &scope, &self_scope, &VisitorContext::Object);
+    }
+    fn add_full_qualified_type(&mut self, item_type: &ItemType, scope: &PathHolder) {
+        let ident = &item_type.ident;
+        let self_scope = scope.joined(ident);
+        let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_type.generics.clone()));
+        self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Object(type_compo), Item::Type(item_type.clone())));
+        self.add_full_qualified_type_match(&scope, &self_scope, &item_type.ty, &VisitorContext::Object);
+    }
+    pub fn add_full_qualified_conversion(&mut self, item: Item, scope: PathHolder) -> Option<ItemConversion> {
+        match item {
+            Item::Struct(item_struct) => {
+                self.add_full_qualified_struct(&item_struct, &scope);
+                Some(ItemConversion::Struct(item_struct, scope))
+            },
+            Item::Enum(item_enum) => {
+                self.add_full_qualified_enum(&item_enum, &scope);
+                Some(ItemConversion::Enum(item_enum, scope))
+            },
+            Item::Fn(item_fn) => {
+                self.add_full_qualified_fn(&item_fn, &scope);
+                Some(ItemConversion::Fn(item_fn, scope))
+            },
+            Item::Trait(item_trait) => {
+                self.add_full_qualified_trait(&item_trait, &scope);
+                Some(ItemConversion::Trait(item_trait, scope))
+            },
+            Item::Type(item_type) => {
+                self.add_full_qualified_type(&item_type, &scope);
+                Some(ItemConversion::Type(item_type, scope))
+
+            },
+            Item::Impl(item_impl) => {
+                // let self_ty = &*item_impl.self_ty;
+                // let ident = type_ident(self_ty);
+                // let self_scope = scope.joined(&ident);
+                //Self::add_full_qualified_impl(visitor, &item_impl, &scope, &self_scope);
+                Some(ItemConversion::Impl(item_impl, scope))
+            },
+            Item::Use(item_use) => Some(ItemConversion::Use(item_use, scope)),
+            Item::Mod(item_mod) => {
+                let ident = item_mod.ident.clone();
+                let inner_scope = scope.joined(&ident);
+                match &item_mod.content {
+                    None => {},
+                    Some((_, items)) => {
+                        items.clone().into_iter().for_each(|item| match item {
+                            Item::Use(node) =>
+                                self.fold_import_tree(&inner_scope, &node.tree, vec![]),
+                            Item::Trait(item_trait) => {
+                                self.add_full_qualified_trait(&item_trait, &inner_scope)
+                            },
+                            Item::Fn(ref item_fn) => {
+                                self.add_full_qualified_fn(item_fn, &inner_scope);
+                            },
+                            Item::Struct(ref item_struct) => {
+                                self.add_full_qualified_struct(item_struct, &inner_scope);
+                            },
+                            Item::Enum(ref item_enum) => {
+                                self.add_full_qualified_enum(item_enum, &inner_scope);
+                            },
+                            Item::Type(ref item_type) => {
+                                self.add_full_qualified_type(item_type, &inner_scope);
+                            },
+                            // Item::Impl(item_impl) => {
+                            //     let self_ty = &item_impl.self_ty;
+                            //     let path = parse_quote!(#self_ty);
+                            //     let self_scope = scope.joined_path(path);
+                            //     Self::add_full_qualified_impl(visitor, &item_impl, &inner_scope, &self_scope);
+                            // },
+                            _ => {}
+                        })
+                    }
+                }
+                Some(ItemConversion::Mod(item_mod, scope))
+            },
+            _ => None
+        }
+    }
+
+    pub fn add_conversion(&mut self, item: Item) {
+        let scope = self.current_scope_for(&item);
+        let ident = ident_from_item(&item);
+
+        match MacroType::try_from(&item) {
+            Ok(MacroType::Export) => if let Some(conversion) = self.add_full_qualified_conversion(item, scope.clone()) {
+                self.find_scope_tree(&scope).add_item(conversion);
+            },
+            Ok(MacroType::Register(path)) => if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&scope) {
+                ident.map(|ident| {
+                    let ffi_type = parse_quote!(#scope::#ident);
+                    let ctx = scope_context.borrow();
+                    ctx.add_custom_conversion(scope, path, ffi_type);
+                });
+            },
+            _ if ident != Some(format_ident!("FFIConversion")) => if let Item::Impl(..) = item {
+                self.add_full_qualified_conversion(item, scope);
+            },
+            _ => {}
         }
     }
 }
@@ -439,5 +672,37 @@ fn merge_trees(destination: &mut ScopeTreeExportItem, source: &ScopeTreeExportIt
                 }
             }
         }
+    }
+}
+
+fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
+    let mut paths = Vec::<Path>::new();
+    attrs.iter().for_each(|attr| {
+        if attr.path.segments
+            .iter()
+            .any(|segment| segment.ident == format_ident!("export")) {
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                meta_list.nested.iter().for_each(|meta| {
+                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
+                        paths.push(path.clone());
+                    }
+                });
+            }
+        }
+    });
+    paths
+}
+
+fn ident_from_item(item: &Item) -> Option<Ident> {
+    match item {
+        Item::Mod(item_mod) => Some(item_mod.ident.clone()),
+        Item::Struct(item_struct) => Some(item_struct.ident.clone()),
+        Item::Enum(item_enum) => Some(item_enum.ident.clone()),
+        Item::Type(item_type) => Some(item_type.ident.clone()),
+        Item::Fn(item_fn) => Some(item_fn.sig.ident.clone()),
+        Item::Trait(item_trait) => Some(item_trait.ident.clone()),
+        Item::Impl(item_impl) => type_ident(&item_impl.self_ty),
+        Item::Use(item_use) => ItemConversion::fold_use(&item_use.tree).first().cloned().cloned(),
+        _ => None,
     }
 }

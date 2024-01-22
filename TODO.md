@@ -66,3 +66,4 @@
 - Somewhat happens while reexporting fermented types while using nested crates: it goes with dash_spv_masternode_processor::some_type::SomeStruct insted of dash_spv_masternode_processor::fermented::types::some_type::SomeStruct 
 - Custom structures named Result, Vec, HashMap, BTreeMap may not work properly. Need to add some logic to distinguish between std and custom types here
 - Need support for paths containing super or super::super etc
+- Minor issue with things like #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: identity :: identity_request :: GetIdentityRequest\"]"]

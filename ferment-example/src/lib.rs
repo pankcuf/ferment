@@ -58,14 +58,14 @@ impl ferment_interfaces::FFIConversion<std_error_Error_FFI> for dyn Error where 
 }
 
 
-// #[ferment_macro::export]
-// pub struct RootStruct {
-//     pub name: String,
-// }
+#[ferment_macro::export]
+pub struct RootStruct {
+    pub name: String,
+}
 
-// pub struct ExcludedStruct {
-//     pub name: String,
-// }
+pub struct ExcludedStruct {
+    pub name: String,
+}
 
 pub mod nested {
 //     use std::collections::BTreeMap;

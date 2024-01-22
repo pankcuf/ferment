@@ -16,7 +16,7 @@ extern crate cbindgen;
 extern crate ferment;
 
 use std::process::Command;
-/// Now we can use `with_crates` to pass names of crates that use `[ferment::export]`
+/// Now we can use `with_crates` to pass names of crates that use `[ferment_macro::export]`
 fn main() {
     match ferment::Builder::new()
         .with_crates(vec!["ferment_example".to_string()])

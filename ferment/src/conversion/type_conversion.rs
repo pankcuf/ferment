@@ -3,8 +3,7 @@ use std::hash::{Hash, Hasher};
 use syn::{parse_quote, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-use crate::composition::{TypeComposition, TraitDecompositionPart1};
-use crate::formatter::format_token_stream;
+pub use crate::composition::{TypeComposition, TraitDecompositionPart1};
 use crate::holder::PathHolder;
 
 #[derive(Clone)]
@@ -13,6 +12,14 @@ pub enum TypeConversion {
     Object(TypeComposition),
     Primitive(TypeComposition),
     Unknown(TypeComposition),
+    // Trait(TypeComposition, TraitDecompositionPart1),
+    // Object(TypeComposition),
+    // Primitive(TypeComposition),
+    // Unknown(TypeComposition),
+    // Trait(TypeComposition, TraitDecompositionPart1, Option<Generics>),
+    // Object(TypeComposition, Option<Generics>),
+    // Primitive(TypeComposition),
+    // Unknown(TypeComposition, Option<Generics>),
 }
 
 impl ToTokens for TypeConversion {
@@ -24,10 +31,10 @@ impl ToTokens for TypeConversion {
 impl TypeConversion {
     pub fn ty(&self) -> &Type {
         match self {
-            TypeConversion::Trait(ty, ..) => ty.ty(),
-            TypeConversion::Object(ty) => ty.ty(),
-            TypeConversion::Unknown(ty) => ty.ty(),
-            TypeConversion::Primitive(ty) => ty.ty()
+            TypeConversion::Trait(ty, ..) => &ty.ty,
+            TypeConversion::Object(ty, ..) => &ty.ty,
+            TypeConversion::Unknown(ty, ..) => &ty.ty,
+            TypeConversion::Primitive(ty) => &ty.ty
         }
     }
     pub fn as_scope(&self) -> PathHolder {
@@ -40,13 +47,13 @@ impl Debug for TypeConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TypeConversion::Trait(ty, _decomposition) =>
-                f.write_str(format!("Trait({})", format_token_stream(ty)).as_str()),
+                f.write_str(format!("Trait({})", ty).as_str()),
             TypeConversion::Object(ty) =>
-                f.write_str(format!("Object({})", format_token_stream(ty)).as_str()),
+                f.write_str(format!("Object({})", ty).as_str()),
             TypeConversion::Unknown(ty) =>
-                f.write_str(format!("Unknown({})", format_token_stream(ty)).as_str()),
+                f.write_str(format!("Unknown({})", ty).as_str()),
             TypeConversion::Primitive(ty) =>
-                f.write_str(format!("Primitive({})", format_token_stream(ty)).as_str()),
+                f.write_str(format!("Primitive({})", ty).as_str()),
         }
     }
 }

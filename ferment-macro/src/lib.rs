@@ -12,7 +12,7 @@ use proc_macro::TokenStream;
 /// The macro can be applied to any Rust function:
 ///
 /// ```ignore
-/// #[ferment::export]
+/// #[ferment_macro::export]
 /// pub fn my_function(arg1: MyType1, arg2: MyType2) -> MyReturnType {
 ///     // function implementation
 /// }
@@ -41,7 +41,7 @@ use proc_macro::TokenStream;
 /// # Example
 ///
 /// ```ignore
-/// #[ferment::export]
+/// #[ferment_macro::export]
 /// pub fn add(a: i32, b: i32) -> i32 {
 ///     a + b
 /// }

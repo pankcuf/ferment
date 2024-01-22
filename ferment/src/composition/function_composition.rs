@@ -4,10 +4,12 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::context::ScopeContext;
-use crate::helper::{ffi_fn_name, from_path, to_path};
+use crate::helper::{ffi_fn_name, from_array, from_path, to_path};
 use crate::holder::PathHolder;
-use crate::interface::{FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER, NAMED_CONVERSION_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
-use crate::presentation::FFIObjectPresentation;
+use crate::interface::{NAMED_CONVERSION_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
+use crate::presentation::context::OwnedItemPresenterContext;
+use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
+use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeDecomposition {
@@ -65,13 +67,13 @@ impl FnSignatureDecomposition {
         }
     }
 
-    pub fn present_fn(self) -> FFIObjectPresentation {
+    pub fn present_fn(self, context: &ScopeContext) -> FFIObjectPresentation {
         let arguments = self.arguments.iter().map(|arg| arg.name_type_original.clone()).collect();
         let fn_name = self.ident.unwrap();
         let full_fn_path = self.scope.joined(&fn_name);
-        let argument_conversions = self.arguments.iter().map(|arg| arg.name_type_conversion.clone()).collect();
+        let argument_conversions = self.arguments.iter().map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())).collect::<Vec<_>>();
         let name = ffi_fn_name(&fn_name).to_token_stream();
-        let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions));
+        let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions)).present(context);
         let output_expression = self.return_type.presentation;
         let output_conversions = self.return_type.conversion;
         if self.is_async {
@@ -81,11 +83,11 @@ impl FnSignatureDecomposition {
         }
     }
 
-    pub fn present_trait_vtable_inner_fn(self) -> TokenStream2 {
-        let arguments = self.arguments.iter().map(|arg| arg.name_type_original.clone()).collect::<Vec<_>>();
+    pub fn present_trait_vtable_inner_fn(self, context: &ScopeContext) -> TokenStream2 {
+        let arguments = self.arguments.iter().map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_original.clone())).collect::<Vec<_>>();
         // println!("present_trait_vtable_inner_fn: {}", quote!(#(#arguments),*));
         let fn_name = self.ident.unwrap();
-        let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments));
+        let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments)).present(context);
         let output_expression = self.return_type.presentation;
         quote!(pub #fn_name: #name_and_args -> #output_expression)
     }
@@ -95,26 +97,31 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
     match output {
         ReturnType::Default => FnReturnTypeDecomposition { presentation: quote!(()), conversion: quote!(;) },
         ReturnType::Type(_, field_type) => {
-            let presentation = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type, context);
+            let presentation = context.ffi_full_dictionary_field_type_presenter(field_type);
             let conversion = match &**field_type {
-                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path),
+                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path, context),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
             FnReturnTypeDecomposition { presentation, conversion }
         },
     }
 }
-fn handle_arg_type(ty: &Type, pat: &Pat, _context: &ScopeContext) -> TokenStream2 {
+fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2 {
     match (ty, pat) {
         (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
             from_path(quote!(#ident), path),
         (Type::Reference(type_reference), pat) => {
-            let arg_type = handle_arg_type(&type_reference.elem, pat, _context);
+            let arg_type = handle_arg_type(&type_reference.elem, pat, context);
             if let Some(_mutable) = type_reference.mutability {
                 quote!(&mut #arg_type)
             } else {
                 quote!(&#arg_type)
             }
+        },
+        (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) => {
+            // let arg_type = handle_arg_type(&type_array.elem, pat, context);
+            // let len = &type_array.len;
+            from_array(quote!(#ident), type_array)
         },
         // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
         _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
@@ -125,7 +132,7 @@ fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> Fn
     match output {
         ReturnType::Default => FnReturnTypeDecomposition { presentation: quote!(), conversion: quote!() },
         ReturnType::Type(token, field_type) => {
-            let pres = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(field_type, context);
+            let pres = context.ffi_full_dictionary_field_type_presenter(field_type);
             let presentation = SIMPLE_PAIR_PRESENTER(quote!(#token), pres);
             FnReturnTypeDecomposition { presentation, conversion: quote!() }
         }
@@ -146,7 +153,7 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, context: &ScopeContext) -> 
                 name_type_conversion: quote!()
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
-                let pres = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(ty, context);
+                let pres = context.ffi_full_dictionary_field_type_presenter(ty);
                 let name_type_original = NAMED_CONVERSION_PRESENTER(pat.to_token_stream(), quote!(#pres));
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgDecomposition {
@@ -164,7 +171,7 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
         .iter()
         .map(|BareFnArg { ty, name, .. }| {
             let name = name.clone().map(|(ident, _)| ident.to_token_stream());
-            let pres = FFI_FULL_DICTIONARY_FIELD_TYPE_PRESENTER(ty, context);
+            let pres = context.ffi_full_dictionary_field_type_presenter(ty);
             FnArgDecomposition {
                 name: name.clone(),
                 name_type_original: NAMED_CONVERSION_PRESENTER(name.unwrap(), pres),

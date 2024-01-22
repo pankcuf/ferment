@@ -6,6 +6,7 @@ use std::hash::Hash;
 use std::mem;
 use std::os::raw::c_char;
 use std::ptr::NonNull;
+use std::sync::{Arc, Mutex};
 
 /// We pass here main context of parent program
 
@@ -264,3 +265,37 @@ macro_rules! impl_custom_conversion {
 //        }))
 //    }
 // }
+
+
+impl<T> FFIConversion<Arc<T>> for T {
+    unsafe fn ffi_from_const(ffi: *const Self) -> Arc<T> {
+        Arc::from_raw(ffi)
+    }
+
+    unsafe fn ffi_to_const(obj: Arc<T>) -> *const Self {
+        Arc::into_raw(obj) as *mut T
+    }
+}
+
+// impl<T, U> FFIConversion<Mutex<U>> for T where T: Clone,  {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {
+//
+//         Mutex::new(T::ffi_from_const(ffi))
+//     }
+//
+//     unsafe fn ffi_to_const(obj: Mutex<T>) -> *const Self {
+//         boxed(obj.try_lock().unwrap().clone())
+//     }
+//
+//     // ... other methods ...
+// }
+impl<T, FFI> FFIConversion<Mutex<T>> for FFI where T: Clone, FFI: FFIConversion<T> {
+    unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {
+        Mutex::new(<Self as FFIConversion<T>>::ffi_from_const(ffi))
+    }
+
+    unsafe fn ffi_to_const(obj: Mutex<T>) -> *const Self {
+        let lock = obj.try_lock().unwrap();
+        FFIConversion::ffi_to_const(lock.clone())
+    }
+}

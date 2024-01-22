@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
+use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::Ident;
 use syn::__private::TokenStream2;
@@ -8,7 +10,7 @@ use crate::context::ScopeContext;
 use crate::conversion::ImportConversion;
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
 use crate::holder::PathHolder;
-use crate::presentation::Expansion;
+use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem, ScopeTreeItem};
 
 // impl From<ScopeTreeCompact> for ScopeTreeItem {
@@ -28,7 +30,7 @@ pub struct ScopeTree {
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<Ident, ScopeTreeItem>,
-    pub scope_context: ScopeContext,
+    pub scope_context: Rc<RefCell<ScopeContext>>,
 }
 
 impl std::fmt::Debug for ScopeTree {

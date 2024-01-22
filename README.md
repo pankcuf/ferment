@@ -74,7 +74,7 @@ pub enum ChainType {
 ```
 This will expose bindings for trait methods for particular types
 
-For the structure labeled with `ferment::export`
+For the structure labeled with `ferment_macro::export`
 
 ```rust
 #[derive(Clone)]
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn ffi_address_with_script_pubkey(script: *mut crate::ferm
 For type aliases labeled with `export`
 
 ```rust
-#[ferment::export]
+#[ferment_macro::export]
 pub type HashID = [u8; 32];
 ```
 the following code will be generated in `crate::fermented::types::*` with similar conversions and bindings:

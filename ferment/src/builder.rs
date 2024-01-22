@@ -7,7 +7,7 @@ use syn::{ItemMod, parse_quote, visit::Visit};
 use crate::context::GlobalContext;
 use crate::error;
 use crate::holder::PathHolder;
-use crate::presentation::Expansion;
+use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTree, ScopeTreeCompact};
 use crate::visitor::{merge_visitor_trees, Visitor};
 
@@ -126,7 +126,7 @@ impl Builder {
                 let input_path = src.join("lib.rs");
                 let input = input_path.as_path();
                 let file_path = std::path::Path::new(input);
-                let root_scope = PathHolder::new(parse_quote!(crate));
+                let root_scope = parse_quote!(crate);
                 let global_context = GlobalContext::with_config(self.config.clone());
                 println!("•• TREE 1 MORPHING");
                 let context = Arc::new(RwLock::new(global_context));
@@ -144,7 +144,7 @@ impl Builder {
                             println!();
                             println!("•• TREE 2 MORPHING using ScopeContext:");
                             println!();
-                            println!("{}", tree.scope_context);
+                            println!("{}", tree.scope_context.borrow());
                             output.write_all(
                                 Expansion::Root { tree }
                                         .to_token_stream()
@@ -167,7 +167,7 @@ fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
     }
 }
 
-fn process_recursive(file_path: &std::path::Path, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
+fn process_recursive<'a>(file_path: &std::path::Path, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
     let syntax_tree = read_syntax_tree(file_path);
     let mut visitor = Visitor::new(file_scope, &context);
     visitor.visit_file(&syntax_tree);
@@ -186,7 +186,7 @@ fn process_recursive(file_path: &std::path::Path, file_scope: &PathHolder, conte
     visitor
 }
 
-fn process_module(base_path: &std::path::Path, module: &ItemMod, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
+fn process_module<'a>(base_path: &std::path::Path, module: &ItemMod, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
         let file_path = base_path.parent().unwrap().join(mod_name.to_string());

@@ -73,14 +73,16 @@ pub mod get_identity_request {
 }
 pub mod get_identity_response {
     use crate::identity::identity_request::ResponseMetadata;
-    use crate::identity::identity_request::Proof;
 
     #[ferment_macro::export]
     pub struct GetIdentityResponseV0 {
         pub metadata: Option<ResponseMetadata>,
-        pub result: Option<Result>,
+        pub result: Option<get_identity_response_v0::Result>,
     }
-    // pub mod get_identity_response_v0 {
+
+
+    pub mod get_identity_response_v0 {
+        use crate::identity::identity_request::Proof;
 
         #[derive(Clone, PartialEq)]
         #[ferment_macro::export]
@@ -88,7 +90,7 @@ pub mod get_identity_response {
             Identity(Vec<u8>),
             Proof(Proof),
         }
-    // }
+    }
     #[derive(Clone, PartialEq)]
     #[ferment_macro::export]
     pub enum Version {
@@ -111,15 +113,15 @@ pub mod get_identity_by_public_key_hash_request {
 
 pub mod get_identity_by_public_key_hash_response {
     use crate::identity::identity_request::ResponseMetadata;
-    use crate::identity::identity_request::Proof;
 
     #[derive(Clone, PartialEq)]
     #[ferment_macro::export]
     pub struct GetIdentityByPublicKeyHashResponseV0 {
         pub metadata: Option<ResponseMetadata>,
-        pub result: Option<Result>,
+        pub result: Option<get_identity_by_public_key_hash_response_v0::Result>,
     }
-    // pub mod get_identity_by_public_key_hash_response_v0 {
+    pub mod get_identity_by_public_key_hash_response_v0 {
+        use crate::identity::identity_request::Proof;
 
         #[derive(Clone, PartialEq)]
         #[ferment_macro::export]
@@ -127,7 +129,7 @@ pub mod get_identity_by_public_key_hash_response {
             Identity(Vec<u8>),
             Proof(Proof),
         }
-    // }
+    }
     #[derive(Clone, PartialEq)]
     #[ferment_macro::export]
     pub enum Version {

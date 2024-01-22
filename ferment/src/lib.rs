@@ -9,7 +9,6 @@ mod visitor;
 mod test;
 mod context;
 mod formatter;
-mod idents;
 mod chunk;
 mod holder;
 mod conversion;

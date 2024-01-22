@@ -6,7 +6,7 @@ use syn::{Ident, Path, Signature, Type};
 use crate::chunk::InitialType;
 use crate::composition::{GenericConversion, ImportComposition, TraitDecompositionPart1, TraitTypeDecomposition};
 use crate::context::{GlobalContext, TraitCompositionPart1};
-use crate::conversion::{ImportConversion, TypeConversion};
+use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::holder::{PathHolder, TypeHolder};
 use crate::tree::{ScopeTreeExportItem, ScopeTreeItem};
 
@@ -19,6 +19,14 @@ pub fn format_imported_dict(dict: &HashMap<ImportConversion, HashSet<ImportCompo
     }).collect::<Vec<_>>();
     let all = quote!(#(#debug_imports,)*);
     all.to_string()
+}
+
+#[allow(unused)]
+pub fn format_type_holders(dict: &HashSet<TypeHolder>) -> String {
+    dict.iter()
+        .map(|item| format_token_stream(&item.0))
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 #[allow(unused)]
@@ -53,7 +61,7 @@ pub fn format_tree_item_dict(dict: &HashMap<Ident, ScopeTreeItem>) -> String {
 }
 
 #[allow(unused)]
-pub fn scope_type_conversion_pair(dict: (&TypeHolder, &TypeConversion)) -> String {
+pub fn scope_type_conversion_pair(dict: (&TypeHolder, &ObjectConversion)) -> String {
     format!("\t{}: {}", format_token_stream(dict.0), dict.1)
 }
 
@@ -101,7 +109,7 @@ pub fn format_chunks_dict(dict: &HashMap<InitialType, Type>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_types_dict(dict: &HashMap<TypeHolder, TypeConversion>) -> String {
+pub fn format_types_dict(dict: &HashMap<TypeHolder, ObjectConversion>) -> String {
     types_dict(dict)
         .join("\n")
 }
@@ -113,7 +121,7 @@ pub fn format_ident_types_dict(dict: &HashMap<Ident, Type>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_scope_types_dict(dict: &HashMap<PathHolder, HashMap<TypeHolder, TypeConversion>>) -> String {
+pub fn format_scope_types_dict(dict: &HashMap<PathHolder, HashMap<TypeHolder, ObjectConversion>>) -> String {
     scope_types_dict(dict)
         .join("\n\n")
 }
@@ -133,8 +141,11 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
     let mut formatted_string = String::new();
     let mut space_needed = false;
     let mut inside_angle_brackets = 0;
+    let mut inside_square_brackets = 0;
     let mut last_token_was_ampersand = false;
     let mut last_token_was_comma = false;
+    // let mut last_token_was_sq_bracket = false;
+    let mut last_token_was_round_bracket = false;
     for token in token_stream {
         if last_token_was_comma {
             formatted_string.push(' ');
@@ -170,6 +181,16 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                     '>' => {
                         inside_angle_brackets -= 1;
                         formatted_string.push('>');
+                        space_needed = true;
+                    }
+                    '[' => {
+                        inside_square_brackets += 1;
+                        formatted_string.push('[');
+                        space_needed = false;
+                    }
+                    ']' => {
+                        inside_square_brackets -= 1;
+                        formatted_string.push(']');
                         space_needed = true;
                     }
                     ',' => {
@@ -235,7 +256,7 @@ fn chunks_dict(dict: &HashMap<InitialType, Type>) -> Vec<String> {
         .collect()
 }
 
-fn types_dict(dict: &HashMap<TypeHolder, TypeConversion>) -> Vec<String> {
+fn types_dict(dict: &HashMap<TypeHolder, ObjectConversion>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(scope_type_conversion_pair)
         .collect::<Vec<String>>();
@@ -297,7 +318,7 @@ pub fn scope_generics_dict(dict: &HashMap<PathHolder, HashMap<PathHolder, Vec<Pa
     format_scope_dict(dict, generic_bounds_dict)
 }
 
-fn scope_types_dict(dict: &HashMap<PathHolder, HashMap<TypeHolder, TypeConversion>>) -> Vec<String> {
+fn scope_types_dict(dict: &HashMap<PathHolder, HashMap<TypeHolder, ObjectConversion>>) -> Vec<String> {
     format_scope_dict(dict, types_dict)
 }
 
@@ -346,6 +367,13 @@ pub fn format_trait_decomposition_part1(dict: &TraitDecompositionPart1) -> Strin
         vec!["-- types:".to_string()], ident_trait_type_decomposition_dict(&dict.types),
     ])
 }
+
+// #[allow(unused)]
+// pub fn format_type_composition(dict: &TypeComposition) -> String {
+//     format_complex_obj(vec![
+//         vec!["-- type:".to_string(), format_token_stream(&dict.ty), "-- generics:".to_string(), dict.generics.as_ref().map_or(format!("None"), |generics| format_token_stream(generics))],
+//     ])
+// }
 
 // #[allow(unused)]
 // pub fn format_trait_decomposition_part2(dict: &TraitDecompositionPart2) -> String {
