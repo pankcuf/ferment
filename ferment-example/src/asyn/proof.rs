@@ -2,6 +2,7 @@ use crate::asyn::platform_version::PlatformVersion;
 use crate::asyn::provider::ContextProvider;
 use crate::nested::ProtocolError;
 
+#[ferment_macro::export]
 pub trait FromProof<Req> {
     type Request;
     type Response;

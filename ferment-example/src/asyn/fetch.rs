@@ -44,3 +44,13 @@ pub trait Fetch
         Self::fetch(sdk, id).await
     }
 }
+
+// pub struct Fetch_VTable {
+//     pub fetch : unsafe extern "C" fn (
+//         sdk : * mut crate :: fermented :: types :: asyn :: sdk :: Sdk ,
+//         query : * mut crate :: fermented :: types :: asyn :: query:: TransportRequest ,)
+//         -> * mut crate :: fermented :: generics :: Result_ok_Option_crate_asyn_fetch_Fetch_err_crate_nested_ProtocolError ,
+//     pub fetch_by_identifier : unsafe extern "C" fn (
+//         sdk : * mut crate :: fermented :: types :: asyn :: sdk :: Sdk ,
+//         id : * mut crate :: fermented :: types :: nested :: Identifier ,)
+//         -> * mut crate :: fermented :: generics :: Result_ok_Option_crate_asyn_fetch_Fetch_err_crate_nested_ProtocolError , }

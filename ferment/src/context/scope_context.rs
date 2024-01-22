@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::{Attribute, Ident, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Attribute, Ident, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::__private::TokenStream2;
 use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
 use crate::context::{GlobalContext, TraitCompositionPart1};
@@ -49,7 +49,8 @@ impl ScopeContext {
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         lock.maybe_scope_type_or_parent_type(ty, &self.scope)
-            .map(|sty| sty.ty().clone()).unwrap_or(ty.clone())
+            .and_then(|sty| sty.ty().cloned())
+            .unwrap_or(ty.clone())
     }
 
     fn trait_ty(&self, ty: &Type) -> Option<ObjectConversion> {
@@ -77,16 +78,15 @@ impl ScopeContext {
     fn ffi_internal_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         let tyty = lock.maybe_scope_type(ty, &self.scope)
-            .map_or(TypeConversion::Unknown(TypeComposition::new(ty.clone(), None)), |external_type| {
+            .and_then(|external_type| {
                 match external_type.type_conversion() {
-                    TypeConversion::Trait(ty, _decomposition) =>
+                    Some(TypeConversion::Trait(ty, _decomposition)) =>
                         self.trait_ty(&ty.ty)
-                            .map(|oc| oc.type_conversion().clone())
-                            .unwrap_or(external_type.type_conversion().clone()),
-                            // .unwrap_or(external_type.type_conversion()).type_conversion(),
-                    _ => external_type.type_conversion().clone()
-                }.clone()
-            });
+                            .map(|oc| oc.type_conversion().cloned()),
+                    _ => None
+                }.unwrap_or(external_type.type_conversion().cloned())
+
+            }).unwrap_or(TypeConversion::Unknown(TypeComposition::new(ty.clone(), None)));
         let result = match tyty.ty() {
             Type::Path(TypePath { path, .. }) =>
                 self.ffi_external_path_converted(path),
@@ -94,7 +94,7 @@ impl ScopeContext {
         };
 
         let result = result.unwrap_or(ty.clone());
-        println!("FFI (ffi_internal_type_for) for: {} in [{}] = {}", format_token_stream(ty), self.scope, format_token_stream(&result));
+        println!("FFI (ffi_internal_type_for) for: {} in [{}] = {}", ty.to_token_stream(), self.scope, format_token_stream(&result));
         result
     }
 
@@ -120,8 +120,15 @@ impl ScopeContext {
             .get(&self.scope)
             .and_then(|scope_types|
                 scope_types.iter()
-                    .find_map(|(TypeHolder { 0: other}, full_type)| path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str())
-                        .then_some(full_type.ty())))
+                    .find_map(|(TypeHolder { 0: other}, full_type)| {
+                        if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
+                            full_type.ty()
+                        } else {
+                            None
+                        }
+                        // path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str())
+                        //     .then_some(full_type.ty())
+                    }))
             .cloned()
     }
 
@@ -375,8 +382,19 @@ impl ScopeContext {
                     },
                     Type::Ptr(type_ptr) => quote!(*mut #type_ptr),
                     _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
-                }
-            _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", quote!(#field_type))
+                },
+            Type::Slice(TypeSlice { elem, .. }) => self.ffi_dictionary_field_type_presenter(elem),
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+                let bound = bounds.iter().find_map(|bound| match bound {
+                    TypeParamBound::Trait(TraitBound { path, .. }) => {
+                        let p: Type = parse_quote!(#path);
+                        Some(p)
+                    }
+                    TypeParamBound::Lifetime(_) => None
+                }).unwrap();
+                self.ffi_dictionary_field_type_presenter(&bound)
+            },
+            _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", field_type.to_token_stream())
         }
     }
 

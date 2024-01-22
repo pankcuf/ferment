@@ -1,5 +1,5 @@
 use quote::{format_ident, quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::__private::{Span, TokenStream2};
 use crate::context::ScopeContext;
 use crate::conversion::PathConversion;
@@ -86,6 +86,16 @@ pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> To
                 _ => panic!("from_array: unsupported segments {} {}", field_path, quote!(#segments))
             },
         _ => panic!("from_array: unsupported {} {}", field_path, quote!(#type_array)),
+    }
+}
+pub(crate) fn from_slice(field_path: TokenStream2, type_slice: &TypeSlice) -> TokenStream2 {
+    match &*type_slice.elem {
+        Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
+            match segments.last().unwrap().ident.to_string().as_str() {
+                "u8" => DEREF_FIELD_PATH(field_path),
+                _ => panic!("from_slice: unsupported segments {} {}", field_path, quote!(#segments))
+            },
+        _ => panic!("from_slice: unsupported {} {}", field_path, quote!(#type_slice)),
     }
 }
 

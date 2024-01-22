@@ -13,16 +13,16 @@ use crate::helper::path_arguments_to_types;
 use crate::holder::{PathHolder, TypeHolder};
 
 #[derive(Clone)]
-pub struct GenericConversion(pub TypeConversion);
+pub struct GenericConversion(pub ObjectConversion);
 
-impl<'a> From<&'a TypeConversion> for GenericConversion {
-    fn from(value: &'a TypeConversion) -> Self {
-        GenericConversion::new(value.clone())
-    }
-}
+// impl<'a> From<&'a TypeConversion> for GenericConversion {
+//     fn from(value: &'a TypeConversion) -> Self {
+//         GenericConversion::new(value.clone())
+//     }
+// }
 impl<'a> From<&'a ObjectConversion> for GenericConversion {
     fn from(value: &'a ObjectConversion) -> Self {
-        GenericConversion::new(value.type_conversion().clone())
+        GenericConversion::new(value.clone())
     }
 }
 
@@ -58,7 +58,7 @@ impl Hash for GenericConversion {
 }
 
 impl GenericConversion {
-    pub fn new(full_type: TypeConversion) -> Self {
+    pub fn new(full_type: ObjectConversion) -> Self {
         Self(full_type)
     }
 
@@ -66,9 +66,7 @@ impl GenericConversion {
         generic_imports(self.0.ty())
     }
 
-    pub fn expand(&self, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
-        let Self { 0: full_type } = self;
-        println!("GenericConversion::expand: {}", full_type);
+    fn expand_(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
@@ -77,16 +75,39 @@ impl GenericConversion {
                 unimplemented!("non-generic PathConversion: {}", format_token_stream(conversion.as_path()))
         }
     }
+
+    pub fn expand(&self, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
+        let Self { 0: full_type } = self;
+        println!("GenericConversion::expand: {}", full_type);
+        match full_type {
+            ObjectConversion::Type(type_conversion) => {
+                self.expand_(type_conversion, context)
+            },
+            ObjectConversion::Item(type_conversion, _) => {
+                self.expand_(type_conversion, context)
+            },
+            ObjectConversion::Empty => {
+                unimplemented!("expand: ObjectConversion::Empty")
+            }
+        }
+        // let path: Path = parse_quote!(#full_type);
+        // match PathConversion::from(path) {
+        //     PathConversion::Generic(generic_conversion) =>
+        //         generic_conversion.expand(full_type, context),
+        //     conversion =>
+        //         unimplemented!("non-generic PathConversion: {}", format_token_stream(conversion.as_path()))
+        // }
+    }
 }
 
 
-fn generic_imports(ty: &Type) -> HashSet<PathHolder> {
+fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
     match ty {
-        Type::Path(TypePath { path: Path { segments, .. }, .. }) => segments.iter()
+        Some(Type::Path(TypePath { path: Path { segments, .. }, .. })) => segments.iter()
             .flat_map(|PathSegment { arguments, .. }| match arguments {
                 PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => args
                     .iter()
-                    .filter_map(|arg| match arg {
+                    .map(|arg| match arg {
                         GenericArgument::Type(ty) => Some(ty),
                         _ => None
                     })

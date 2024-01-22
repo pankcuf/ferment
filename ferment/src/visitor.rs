@@ -437,9 +437,6 @@ impl Visitor {
         let self_scope = scope.joined(ident);
         let type_compo = TypeComposition::new(self_scope.to_type(), Some(item_trait.generics.clone()));
         self.add_itself_conversion(&self_scope, ident, ObjectConversion::Item(TypeConversion::Trait(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items)), Item::Trait(item_trait.clone())));
-
-        // let ident = &item_trait.ident;
-        // let self_scope = scope.joined(ident);
         self.add_full_qualified_trait_match(&self_scope, item_trait);
         let de_trait = TraitDecompositionPart1::from_trait_items(ident, &item_trait.items);
         let de_trait_context = VisitorContext::Trait(Some(de_trait.clone()));
@@ -490,7 +487,6 @@ impl Visitor {
                     });
                 },
                 TraitItem::Const(TraitItemConst { ty, .. }) => {
-                    // TransportRequest::Client
                     self.add_full_qualified_type_match(scope, &self_scope, ty, &de_trait_context);
                 },
                 _ => {}

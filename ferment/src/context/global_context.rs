@@ -106,11 +106,13 @@ impl GlobalContext {
                         let ident = &head.0.segments.last().unwrap().ident;
                         println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = decomposition.types.get(ident) {
-                            let tt = trait_type.trait_bounds.first().unwrap();
-                            println!("FFI (first bound) {}", format_token_stream(&tt.path));
-                            let tt_type = parse_quote!(#tt);
-                            maybe_trait = self.maybe_scope_type(&tt_type, &root);
-                            println!("FFI (first bound full) {:?}", maybe_trait);
+                            println!("FFI (first bound) {:?}", trait_type);
+                            if let Some(first_bound) = trait_type.trait_bounds.first() {
+                                println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
+                                let tt_type = parse_quote!(#first_bound);
+                                maybe_trait = self.maybe_scope_type(&tt_type, &root);
+                                println!("FFI (first bound full) {:?}", maybe_trait);
+                            }
                         }
                     },
                     _ => {}
@@ -204,7 +206,7 @@ impl GlobalContext {
                 }
             }
             if let Some(type_type) = self.replacement_for(ty, scope) {
-                if let Type::Path(TypePath { path: Path { segments: new_segments, .. }, .. }) = type_type.ty() {
+                if let Some(Type::Path(TypePath { path: Path { segments: new_segments, .. }, .. })) = type_type.ty() {
                     *segments = new_segments.clone();
                     replaced = true;
                 }

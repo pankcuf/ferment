@@ -42,21 +42,57 @@ impl From<Path> for PathConversion {
 impl From<&Path> for PathConversion {
     fn from(path: &Path) -> Self {
         let last_segment = path.segments.last().unwrap();
-        // println!("path_conversion_from_path: {}", format_token_stream(path));
-        match last_segment.ident.to_string().as_str() {
-            // std convertible
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-            | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
-            "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
-            "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
-            "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
-            "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
-            _ => path.segments.iter().find_map(|ff| match &ff.arguments {
-                PathArguments::AngleBracketed(args) =>
-                    Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
+        println!("path_conversion_from_path: {}", path.to_token_stream());
+
+        match &last_segment.arguments {
+            PathArguments::AngleBracketed(args) => {
+                match last_segment.ident.to_string().as_str() {
+                    "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
+                    "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
+                    "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
+                    "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
+                    _ => path.segments.iter().find_map(|ff| match &ff.arguments {
+                        PathArguments::AngleBracketed(args) =>
+                            Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
+                        _ => None
+                    }).unwrap_or(PathConversion::Complex(path.clone()))
+                }
+
+            },
+            _ => match last_segment.ident.to_string().as_str() {
+                // std convertible
+                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+                | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
+                "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
+                "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
+                "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
+                "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
+                _ => path.segments.iter().find_map(|ff| match &ff.arguments {
+                    PathArguments::AngleBracketed(args) =>
+                        Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
                     _ => None
-            }).unwrap_or(PathConversion::Complex(path.clone())),
+                }).unwrap_or(PathConversion::Complex(path.clone())),
+            }
+
         }
+
+
+
+        // match last_segment.ident.to_string().as_str() {
+        //     // std convertible
+        //     "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+        //     | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
+        //     "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
+        //     "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
+        //     "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
+        //     "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
+        //     _ => path.segments.iter().find_map(|ff| match &ff.arguments {
+        //         PathArguments::AngleBracketed(args) =>
+        //             Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
+        //             _ => None
+        //     }).unwrap_or(PathConversion::Complex(path.clone())),
+        // }
+
     }
 }
 
@@ -115,16 +151,16 @@ impl PathConversion {
                                 segment_str,
                                 args.iter()
                                     .enumerate()
-                                    .map(|(i, gen_arg)| match gen_arg {
+                                    .filter_map(|(i, gen_arg)| match gen_arg {
                                         GenericArgument::Type(Type::Path(TypePath { path, .. })) => {
                                             let mangled = Self::mangled_inner_generic_ident_string(path);
-                                            if is_map {
+                                            Some(if is_map {
                                                 format!("{}{}", if i == 0 { "keys_" } else { "values_" }, mangled)
                                             } else if is_result {
                                                 format!("{}{}", if i == 0 { "ok_" } else { "err_" }, mangled)
                                             } else {
                                                 mangled
-                                            }
+                                            })
                                         },
                                         GenericArgument::Type(Type::TraitObject(TypeTraitObject { dyn_token: _, bounds })) => {
                                             // TODO: need mixins impl to process multiple bounds
@@ -132,24 +168,27 @@ impl PathConversion {
                                                 TypeParamBound::Trait(TraitBound { paren_token: _, modifier: _, lifetimes: _, path }) =>
                                                     Some(format!("dyn_trait_{}", path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"))),
                                                 TypeParamBound::Lifetime(_) => None,
-                                            }).unwrap_or(format!("chto_to_takoe"))
+                                            })
                                         },
                                         GenericArgument::Type(Type::Array(TypeArray { elem, len, .. })) => {
                                             if let Type::Path(TypePath { path, .. }) = &**elem {
                                                 let mangled = Self::mangled_inner_generic_ident_string(path);
-                                                if is_map {
+                                                Some(if is_map {
                                                     format!("{}{}{}_{}", if i == 0 { "keys_" } else { "values_" }, "arr_", mangled, quote!(#len).to_string())
                                                 } else if is_result {
                                                     format!("{}{}{}_{}", if i == 0 { "ok_" } else { "err_" }, "arr_", mangled, quote!(#len).to_string())
                                                 } else {
                                                     mangled
-                                                }
+                                                })
                                             } else {
-                                                panic!("Unknown generic argument: {}", quote!(#gen_arg));
+                                                None
                                             }
                                             // format!("arr_{}_count", Self::mangled_inner_generic_ident_string(elem))
                                         },
-                                        _ => panic!("Unknown generic argument: {}", quote!(#gen_arg)),
+                                        _ => {
+                                            None
+                                            // panic!("Unknown generic argument: {}", quote!(#gen_arg))
+                                        },
                                     })
                                     .collect::<Vec<_>>()
                                     .join("_")

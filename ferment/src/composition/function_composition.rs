@@ -4,7 +4,7 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::context::ScopeContext;
-use crate::helper::{ffi_fn_name, from_array, from_path, to_path};
+use crate::helper::{ffi_fn_name, from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
 use crate::interface::{NAMED_CONVERSION_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
 use crate::presentation::context::OwnedItemPresenterContext;
@@ -122,6 +122,13 @@ fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2
             // let arg_type = handle_arg_type(&type_array.elem, pat, context);
             // let len = &type_array.len;
             from_array(quote!(#ident), type_array)
+        },
+        (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) => {
+            from_slice(quote!(#ident), type_slice)
+        },
+        (Type::TraitObject(type_trait_object), Pat::Ident(PatIdent { ident, .. })) => {
+
+            quote!(&#type_trait_object)
         },
         // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
         _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
