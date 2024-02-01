@@ -4,14 +4,13 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use proc_macro2::Ident;
 use crate::composition::{GenericConversion, ImportComposition};
-use crate::context::ScopeContext;
+use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
 use crate::formatter::{format_imported_dict, format_tree_exported_dict};
-use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportItem;
 
 pub struct ScopeTreeCompact {
-    pub scope: PathHolder,
+    pub scope: ScopeChain,
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<Ident, ScopeTreeExportItem>,
@@ -30,7 +29,7 @@ impl std::fmt::Debug for ScopeTreeCompact {
 }
 
 impl ScopeTreeCompact {
-    pub fn init_with(item: ScopeTreeExportItem, scope: PathHolder) -> Option<Self> {
+    pub fn init_with(item: ScopeTreeExportItem, scope: ScopeChain) -> Option<Self> {
         match item {
             ScopeTreeExportItem::Item(..) =>
                 None,

@@ -1,7 +1,7 @@
 use quote::quote;
 use syn::__private::TokenStream2;
 use crate::context::ScopeContext;
-use crate::presentation::context::field_context::OwnedItemPresenterContext;
+use crate::presentation::context::owned_item_presenter_context::OwnedItemPresenterContext;
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 

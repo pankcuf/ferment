@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeParamBound, TypePath, TypeReference, TypeTraitObject, TypeTuple};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, PathConversion, TypeConversion};
 use crate::formatter::format_token_stream;
@@ -132,7 +132,7 @@ pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<T
         Type::Path(TypePath { path, .. }) => {
             collect_generic_types_in_path(path, generics);
             if path.segments.iter().any(|seg| !path_arguments_to_types(&seg.arguments).is_empty() && !matches!(seg.ident.to_string().as_str(), "Option")) {
-                println!("addd generic: {}", format_token_stream(field_type));
+                // println!("addd generic: {}", format_token_stream(field_type));
                 generics.insert(TypeHolder(field_type.clone()));
             }
         },
@@ -190,6 +190,7 @@ pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<T
 //     p
 // }
 //
+#[derive(Clone, Debug)]
 pub struct GenericsComposition {
     // pub qs: TypeComposition,
     pub generics: Generics,
@@ -197,6 +198,15 @@ pub struct GenericsComposition {
     // pub where_composition: WhereComposition,
     // pub
 }
+
+impl ToTokens for GenericsComposition {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let Self { generics, .. } = self;
+        quote!(#generics).to_tokens(tokens)
+    }
+}
+
+
 //
 // impl<'a> From<&'a Generics> for GenericComposition {
 //     fn from(value: &'a Generics) -> Self {

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, Type, TypeArray, TypeBareFn, TypePtr, TypeReference, TypeTuple};
-use crate::context::VisitorContext;
+use crate::context::ScopeChain;
 use crate::conversion::{Conversion, TypeConversion};
 use crate::holder::Holder;
 use crate::impl_holder;
@@ -80,29 +80,25 @@ impl TypeHolder {
 impl Conversion for TypeHolder {
     type Item = Type;
 
-    fn nested_items_into_container(ty: &Self::Item, visitor_context: &VisitorContext, container: &mut HashSet<Self::Item>) {
-        container.extend(Self::nested_items(ty, visitor_context));
-    }
-
-    fn nested_items(item: &Self::Item, visitor_context: &VisitorContext) -> HashSet<Self::Item> {
+    fn nested_items(item: &Self::Item, scope: &ScopeChain) -> HashSet<Self::Item> {
         let mut involved = HashSet::from([parse_quote!(Self)]);
         match item {
             Type::Array(TypeArray { elem: ty, .. }) =>
-                Self::nested_items_into_container(ty, visitor_context, &mut involved),
+                Self::nested_items_into_container(ty, scope, &mut involved),
             Type::Ptr(TypePtr { elem: ty, .. }) =>
-                Self::nested_items_into_container(ty, visitor_context, &mut involved),
+                Self::nested_items_into_container(ty, scope, &mut involved),
             Type::Reference(TypeReference { elem: ty, .. }) =>
-                Self::nested_items_into_container(ty, visitor_context, &mut involved),
+                Self::nested_items_into_container(ty, scope, &mut involved),
             Type::Tuple(TypeTuple { elems, .. }) =>
                 elems.iter().for_each(|ty|
-                    Self::nested_items_into_container(ty, visitor_context, &mut involved)),
+                    Self::nested_items_into_container(ty, scope, &mut involved)),
             Type::BareFn(TypeBareFn { inputs, output, .. }) => {
                 inputs
                     .iter()
                     .for_each(|BareFnArg { ty, .. }|
-                        Self::nested_items_into_container(ty, visitor_context, &mut involved));
+                        Self::nested_items_into_container(ty, scope, &mut involved));
                 if let ReturnType::Type(_, ty) = output {
-                    Self::nested_items_into_container(ty, visitor_context, &mut involved);
+                    Self::nested_items_into_container(ty, scope, &mut involved);
                 }
             }
             Type::Path(type_path) => {
@@ -112,18 +108,18 @@ impl Conversion for TypeHolder {
                         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
                             args.iter().for_each(|arg| match arg {
                                 GenericArgument::Type(ty) =>
-                                    Self::nested_items_into_container(ty, visitor_context, &mut involved),
+                                    Self::nested_items_into_container(ty, scope, &mut involved),
                                 GenericArgument::Binding(Binding { ty, .. }) =>
-                                    Self::nested_items_into_container(ty, visitor_context, &mut involved),
+                                    Self::nested_items_into_container(ty, scope, &mut involved),
                                 _ => {}
                             }),
                         PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
                             inputs
                                 .iter()
                                 .for_each(|ty|
-                                    Self::nested_items_into_container(ty, visitor_context, &mut involved));
+                                    Self::nested_items_into_container(ty, scope, &mut involved));
                             if let ReturnType::Type(_, ty) = output {
-                                Self::nested_items_into_container(ty, visitor_context, &mut involved);
+                                Self::nested_items_into_container(ty, scope, &mut involved);
                             }
                         },
                         PathArguments::None => {}

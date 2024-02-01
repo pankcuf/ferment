@@ -1,29 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use syn::{GenericArgument, Ident, ItemTrait, parse_quote, Path, PathArguments, Type, TypePath, TypeReference};
+use syn::{GenericArgument, Ident, parse_quote, Path, PathArguments, Type, TypePath, TypeReference};
 use crate::Config;
+use crate::context::ScopeChain;
+use crate::composition::TraitCompositionPart1;
 use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::{PathHolder, TypeHolder};
-
-#[derive(Clone)]
-pub struct TraitCompositionPart1 {
-    pub item: ItemTrait,
-    pub implementors: Vec<TypeConversion>,
-}
-
-impl std::fmt::Debug for TraitCompositionPart1 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = self.implementors.iter().map(|i| format_token_stream(i)).collect::<Vec<_>>().join("\n\n");
-        f.write_str(format!("{}:\n  {}", format_token_stream(&self.item.ident), s).as_str())
-    }
-}
-
-impl TraitCompositionPart1 {
-    pub fn new(item: ItemTrait) -> Self {
-        Self { item, implementors: vec![] }
-    }
-}
 
 #[derive(Clone, Default)]
 pub struct GlobalContext {
@@ -143,24 +126,152 @@ impl GlobalContext {
         x
     }
 
-    pub fn maybe_generic_bounds(&self, scope: &PathHolder, ident: &PathHolder) -> Option<&Vec<Path>> {
-        let x = self.used_generics_at_scopes.get(scope)
+    pub fn maybe_generic_bounds(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Vec<Path>> {
+        let x = self.used_generics_at_scopes.get(&scope.self_scope().self_scope)
             .and_then(|scope_generics| scope_generics.get(ident));
+        // println!("maybe_generic_bounds: {} in [{}]? --> {}", ident, scope, x.map_or(format!("None"), |v| format!("{:?}", format_path_vec(v))));
         x
     }
 
-    pub fn maybe_scope_generic_bounds_or_parent(&self, scope: &PathHolder, ident: &PathHolder) -> Option<&Path> {
+
+    pub fn maybe_scope_generic_bounds_or_parent(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        // println!("maybe_scope_generic_bounds_or_parent: {} in [{}]...", ident, scope);
         self.maybe_generic_bounds(scope, ident).and_then(|generic_bounds| {
             let first_bound = generic_bounds.first().unwrap();
             let first_bound_as_scope = PathHolder::from(first_bound);
-            self.maybe_scope_import_path(scope, &first_bound_as_scope)
-                .or(self.maybe_scope_import_path(&scope.popped(), &first_bound_as_scope))
+            self.maybe_import(scope, &first_bound_as_scope)
         })
     }
 
-    pub fn maybe_scope_import_path_or_parent(&self, scope: &PathHolder, parent_scope: &PathHolder, ident: &PathHolder) -> Option<&Path> {
+    pub fn maybe_scope_import_path_or_parent(&self, scope: &PathHolder, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
         self.maybe_scope_import_path(scope, ident)
-            .or(self.maybe_scope_import_path(parent_scope, ident))
+            .or(self.maybe_scope_import_path(&parent_scope.self_scope().self_scope, ident))
+    }
+
+    fn maybe_fn_import(&self, fn_scope: &PathHolder, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        println!("maybe_fn_import (fn level): {}", ident);
+        self.maybe_scope_import_path(fn_scope, ident)
+            .or({
+                println!("maybe_fn_import (parent level): {}", ident);
+                match parent_scope {
+                    ScopeChain::CrateRoot { self_scope } =>
+                        self.maybe_scope_import_path(&self_scope.self_scope, ident),
+                    ScopeChain::Mod { self_scope } =>
+                        self.maybe_scope_import_path(&self_scope.self_scope, ident),
+                    ScopeChain::Fn { self_scope, parent_scope_chain } =>
+                        self.maybe_fn_import(&self_scope.self_scope, parent_scope_chain, ident),
+                    ScopeChain::Trait { self_scope, parent_scope_chain } =>
+                        self.maybe_scope_import_path(&self_scope.self_scope, ident)
+                            .or({
+                                if let ScopeChain::Fn { self_scope: inner_fn_scope, parent_scope_chain: inner_fn_parent_scope_chain } = &**parent_scope_chain {
+                                    self.maybe_fn_import(&inner_fn_scope.self_scope, inner_fn_parent_scope_chain, ident)
+                                } else {
+                                    self.maybe_scope_import_path(&self_scope.self_scope, ident)
+                                }
+                            }),
+                    ScopeChain::Object { self_scope, parent_scope_chain } =>
+                        self.maybe_scope_import_path(&self_scope.self_scope, ident)
+                            .or(match &**parent_scope_chain {
+                                ScopeChain::Mod { self_scope } =>
+                                    self.maybe_scope_import_path(&self_scope.self_scope, ident),
+                                _ => None,
+                            }),
+                    ScopeChain::Impl { self_scope, parent_scope_chain, trait_scopes: _ } =>
+
+                        self.maybe_scope_import_path(&self_scope.self_scope, ident)
+                            .or(if let ScopeChain::Mod { self_scope: parent_mod_scope} = &**parent_scope_chain {
+                                self.maybe_scope_import_path(&parent_mod_scope.self_scope, ident)
+                            } else {
+                                None
+                            }),
+                }
+            })
+    }
+
+    fn maybe_obj_or_parent_scope_import(&self, self_scope: &PathHolder, parent_chain: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        self.maybe_scope_import_path(self_scope, ident)
+            .or(match parent_chain {
+            ScopeChain::Mod { self_scope } =>
+                self.maybe_scope_import_path(&self_scope.self_scope, ident),
+            _ => None,
+        })
+    }
+
+    pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
+        // so smth like can_have_more_than_one_grandfather,
+        println!("maybe_import: {} in {}", ident, scope);
+        match scope {
+            ScopeChain::Mod { self_scope } =>
+                self.maybe_scope_import_path(&self_scope.self_scope, ident),
+            ScopeChain::Fn { self_scope, parent_scope_chain } =>
+                self.maybe_fn_import(&self_scope.self_scope, parent_scope_chain, ident),
+            ScopeChain::Trait { self_scope, parent_scope_chain, .. } =>
+                self.maybe_obj_or_parent_scope_import(&self_scope.self_scope, parent_scope_chain, ident),
+            ScopeChain::Object { self_scope, parent_scope_chain } =>
+                self.maybe_obj_or_parent_scope_import(&self_scope.self_scope, parent_scope_chain, ident),
+            ScopeChain::Impl { self_scope, parent_scope_chain, trait_scopes: _ } =>
+                self.maybe_obj_or_parent_scope_import(&self_scope.self_scope, parent_scope_chain, ident),
+            ScopeChain::CrateRoot { self_scope } =>
+                self.maybe_scope_import_path(&self_scope.self_scope, ident),
+        }
+    }
+
+    fn maybe_obj_or_parent_scope_type(&self, self_scope: &PathHolder, parent_chain: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
+        self.maybe_scope_type(ty, self_scope)
+            .or(match parent_chain {
+                ScopeChain::Mod { self_scope: parent_scope } =>
+                    self.maybe_scope_type(ty, &parent_scope.self_scope),
+                _ => None,
+            })
+    }
+
+    pub fn maybe_fn_type(&self, fn_scope: &PathHolder, parent_scope: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
+        self.maybe_scope_type(ty, fn_scope).or(match parent_scope {
+            ScopeChain::CrateRoot { self_scope } =>
+                self.maybe_scope_type(ty, &self_scope.self_scope),
+            ScopeChain::Mod { self_scope: parent_scope } =>
+                self.maybe_scope_type(ty, &parent_scope.self_scope),
+            ScopeChain::Fn { self_scope: parent_scope, parent_scope_chain } =>
+                self.maybe_fn_type(&parent_scope.self_scope, parent_scope_chain, ty),
+            ScopeChain::Trait { self_scope, parent_scope_chain } =>
+                self.maybe_scope_type(ty, &parent_scope.self_scope().self_scope).or(match &**parent_scope_chain {
+                    ScopeChain::Mod { self_scope} =>
+                        self.maybe_scope_type(ty, &self_scope.self_scope),
+                    _ => None,
+                }),
+            ScopeChain::Object { self_scope, parent_scope_chain} =>
+                self.maybe_scope_type(ty, &self_scope.self_scope).or(match &**parent_scope_chain {
+                    ScopeChain::Mod { self_scope} =>
+                        self.maybe_scope_type(ty, &self_scope.self_scope),
+                    _ => None,
+                }),
+            ScopeChain::Impl { self_scope, parent_scope_chain, .. } =>
+                self.maybe_scope_type(ty, &self_scope.self_scope).or(match &**parent_scope_chain {
+                    ScopeChain::Mod { self_scope} =>
+                        self.maybe_scope_type(ty, &self_scope.self_scope),
+                    _ => None,
+                }),
+        })
+    }
+
+    pub fn maybe_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
+         match scope {
+             ScopeChain::Mod { self_scope } =>
+                 self.maybe_scope_type(ty, &self_scope.self_scope),
+             ScopeChain::Fn { self_scope, parent_scope_chain } =>
+                 self.maybe_fn_type(&self_scope.self_scope, parent_scope_chain, ty),
+             ScopeChain::Trait { self_scope, parent_scope_chain } =>
+                 self.maybe_obj_or_parent_scope_type(&self_scope.self_scope, parent_scope_chain, ty),
+             ScopeChain::Object { self_scope, parent_scope_chain } =>
+                 self.maybe_obj_or_parent_scope_type(&self_scope.self_scope, parent_scope_chain, ty),
+             ScopeChain::Impl { self_scope, parent_scope_chain, trait_scopes: _ } =>
+                 self.maybe_obj_or_parent_scope_type(&self_scope.self_scope, parent_scope_chain, ty),
+             ScopeChain::CrateRoot { self_scope } =>
+                 self.maybe_scope_type(ty, &self_scope.self_scope),
+         }
+
+
     }
 
     pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {

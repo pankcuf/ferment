@@ -1,6 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use quote::quote;
+use syn::{DeriveInput, parse_macro_input};
 
 
 /// The `export` procedural macro facilitates FFI (Foreign Function Interface) conversion
@@ -70,4 +72,15 @@ pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
     input
+}
+
+
+#[proc_macro_derive(CompositionContext)]
+pub fn composition_context_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = &input.ident;
+    let expanded = quote!(impl crate::composition::CompositionContext for #name {});
+
+    TokenStream::from(expanded)
 }

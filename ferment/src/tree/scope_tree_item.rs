@@ -5,16 +5,15 @@ use syn::Item;
 use std::collections::HashSet;
 use std::rc::Rc;
 use crate::composition::GenericConversion;
-use crate::context::ScopeContext;
+use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ItemConversion;
-use crate::holder::PathHolder;
 use crate::tree::ScopeTree;
 
 #[derive(Clone)]
 pub enum ScopeTreeItem {
     Item {
         item: Item,
-        scope: PathHolder,
+        scope: ScopeChain,
         scope_context: Rc<RefCell<ScopeContext>>,
     },
     Tree {

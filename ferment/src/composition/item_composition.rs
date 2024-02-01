@@ -1,4 +1,4 @@
-pub struct ItemComposition {
+// pub struct ItemComposition {
     // pub item: Item,
     // pub generics: GenericComposition,
     // pub imports: ImportComposition,
@@ -11,4 +11,4 @@ pub struct ItemComposition {
     // pub fn_args: Vec<FnArgDecomposition>,
     // pub fn_return_type: Option<FnReturnTypeDecomposition>,
     // pub type_composition: Option<TypeComposition>,
-}
+// }

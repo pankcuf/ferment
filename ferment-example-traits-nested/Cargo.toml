@@ -1,0 +1,18 @@
+[package]
+name = "ferment-example-traits-nested"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+ferment-example-traits = { path = "../ferment-example-traits" }
+
+[build-dependencies]
+cbindgen = "0.26.0"
+ferment = { path = "../ferment" }
+toml = "0.8.8"
+
+[lib]
+name = "ferment_example_traits_nested"

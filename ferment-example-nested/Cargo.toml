@@ -12,6 +12,7 @@ ferment-example = { path = "../ferment-example" }
 [build-dependencies]
 cbindgen = "0.26.0"
 ferment = { path = "../ferment" }
+toml = "0.8.8"
 
 [lib]
 name = "ferment_example_nested"

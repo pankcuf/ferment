@@ -7,6 +7,7 @@ mod path_conversion;
 mod type_conversion;
 mod macro_conversion;
 mod object_conversion;
+mod scope_item_conversion;
 
 pub use self::conversion::Conversion;
 pub use self::field_type_conversion::FieldTypeConversion;
@@ -22,4 +23,5 @@ pub use self::macro_conversion::MacroType;
 pub use self::item_conversion::type_ident;
 pub use self::object_conversion::ObjectConversion;
 pub use self::path_conversion::PathConversion;
+pub use self::scope_item_conversion::ScopeItemConversion;
 pub use self::type_conversion::TypeConversion;

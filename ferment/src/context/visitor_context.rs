@@ -6,4 +6,5 @@ pub enum VisitorContext {
     Trait(Option<TraitDecompositionPart1>),
     Object,
     Unknown,
+    TraitFn(Option<TraitDecompositionPart1>)
 }

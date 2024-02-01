@@ -4,8 +4,8 @@ use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Ident, Path, Signature, Type};
 use crate::chunk::InitialType;
-use crate::composition::{GenericConversion, ImportComposition, TraitDecompositionPart1, TraitTypeDecomposition};
-use crate::context::{GlobalContext, TraitCompositionPart1};
+use crate::composition::{GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
+use crate::context::GlobalContext;
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::holder::{PathHolder, TypeHolder};
 use crate::tree::{ScopeTreeExportItem, ScopeTreeItem};
@@ -78,8 +78,8 @@ pub fn ident_signature_conversion_pair(dict: (&Ident, &Signature)) -> String {
 #[allow(unused)]
 pub fn ident_trait_type_decomposition_conversion_pair(dict: (&Ident, &TraitTypeDecomposition)) -> String {
     format!("\t{}: {}", format_token_stream(dict.0), {
-        let TraitTypeDecomposition { ident, trait_bounds } = dict.1;
-        quote!(#ident: #(#trait_bounds)*)
+        let TraitTypeDecomposition { ident, trait_bounds, generics } = dict.1;
+        quote!(#ident: [bounds: #(#trait_bounds)*, generics: #generics])
     })
 }
 
@@ -91,10 +91,22 @@ fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
     format!("\t{}: {}", format_token_stream(pair.0), format_token_stream(pair.1))
 }
 
-fn format_generic_bounds_pair(pair: (&PathHolder, &Vec<Path>)) -> String {
+pub fn format_path_vec(vec: &Vec<Path>) -> String {
+    vec.iter().map(|p| format_token_stream(p)).collect::<Vec<_>>().join(",")
+}
 
-    let v: Vec<_> = pair.1.iter().map(|p| format_token_stream(p)).collect();
-    format!("\t{}: [{}]", format_token_stream(pair.0), v.join(","))
+pub fn type_vec_path_conversion_pair(pair: (&Type, &Vec<Path>)) -> String {
+    format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
+}
+pub fn format_predicates_dict(vec: &HashMap<Type, Vec<Path>>) -> String {
+    vec.iter()
+        .map(type_vec_path_conversion_pair)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn format_generic_bounds_pair(pair: (&PathHolder, &Vec<Path>)) -> String {
+    format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
 }
 
 fn format_ident_trait_pair(pair: (&Ident, &TraitCompositionPart1)) -> String {
@@ -141,11 +153,11 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
     let mut formatted_string = String::new();
     let mut space_needed = false;
     let mut inside_angle_brackets = 0;
-    let mut inside_square_brackets = 0;
+    // let mut inside_square_brackets = 0;
     let mut last_token_was_ampersand = false;
     let mut last_token_was_comma = false;
     // let mut last_token_was_sq_bracket = false;
-    let mut last_token_was_round_bracket = false;
+    // let mut last_token_was_round_bracket = false;
     for token in token_stream {
         if last_token_was_comma {
             formatted_string.push(' ');
@@ -183,16 +195,16 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                         formatted_string.push('>');
                         space_needed = true;
                     }
-                    '[' => {
-                        inside_square_brackets += 1;
-                        formatted_string.push('[');
-                        space_needed = false;
-                    }
-                    ']' => {
-                        inside_square_brackets -= 1;
-                        formatted_string.push(']');
-                        space_needed = true;
-                    }
+                    // '[' => {
+                    //     inside_square_brackets += 1;
+                    //     formatted_string.push('[');
+                    //     space_needed = false;
+                    // }
+                    // ']' => {
+                    //     inside_square_brackets -= 1;
+                    //     formatted_string.push(']');
+                    //     space_needed = false;
+                    // }
                     ',' => {
                         formatted_string.push(',');
                         last_token_was_comma = true;
@@ -244,7 +256,7 @@ fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
         .collect()
 }
 
-fn generic_bounds_dict(dict: &HashMap<PathHolder, Vec<Path>>) -> Vec<String> {
+pub fn generic_bounds_dict(dict: &HashMap<PathHolder, Vec<Path>>) -> Vec<String> {
     dict.iter()
         .map(format_generic_bounds_pair)
         .collect()
@@ -325,6 +337,8 @@ fn scope_types_dict(dict: &HashMap<PathHolder, HashMap<TypeHolder, ObjectConvers
 fn scope_traits_dict(dict: &HashMap<PathHolder, HashMap<Ident, TraitCompositionPart1>>) -> Vec<String> {
     format_scope_dict(dict, traits_dict)
 }
+
+
 
 fn traits_impl_dict(dict: &HashMap<PathHolder, Vec<PathHolder>>) -> Vec<String> {
     // nested_scope_dict(dict, |scope, sub_dict|

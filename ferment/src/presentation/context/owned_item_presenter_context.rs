@@ -1,5 +1,6 @@
+use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::presentation::ScopeContextPresentable;
@@ -15,6 +16,32 @@ pub enum OwnedItemPresenterContext {
     BindingArg(FieldTypeConversion),
 }
 
+impl Debug for OwnedItemPresenterContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OwnedItemPresenterContext::DefaultField(ty) =>
+                f.write_str(format!("DefaultField({})", ty).as_str()),
+            OwnedItemPresenterContext::DefaultFieldType(ty) =>
+                f.write_str(format!("DefaultFieldType({})", ty).as_str()),
+            OwnedItemPresenterContext::Named(ty, is_pub) =>
+                f.write_str(format!("Named({}, {})", ty, is_pub).as_str()),
+            OwnedItemPresenterContext::Lambda(lv, rv) =>
+                f.write_str(format!("Lambda({}, {})", lv, rv).as_str()),
+            OwnedItemPresenterContext::Conversion(conversion) =>
+                f.write_str(format!("Conversion({})", conversion).as_str()),
+            OwnedItemPresenterContext::BindingArg(ty) =>
+                f.write_str(format!("BindingArg({})", ty).as_str()),
+        }
+    }
+}
+
+impl Display for OwnedItemPresenterContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+
 impl ScopeContextPresentable for OwnedItemPresenterContext {
     type Presentation = TokenStream2;
 
@@ -23,7 +50,8 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             OwnedItemPresenterContext::DefaultField(field_type) =>
                 field_type.name(),
             OwnedItemPresenterContext::DefaultFieldType(field_type) =>
-                context.ffi_full_dictionary_field_type_presenter(field_type.ty()),
+                context.ffi_full_dictionary_field_type_presenter(field_type.ty())
+                    .to_token_stream(),
             OwnedItemPresenterContext::Named(field_type, is_public) => {
                 let name = field_type.name();
                 let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
@@ -35,8 +63,8 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             }
             OwnedItemPresenterContext::Lambda(name, value) =>
                 quote!(#name => #value),
-            // FieldTypedPresenterContext::DefaultType(ty) => ty,
-            OwnedItemPresenterContext::Conversion(conversion) => conversion.clone(),
+            OwnedItemPresenterContext::Conversion(conversion) =>
+                quote!(#conversion),
             OwnedItemPresenterContext::BindingArg(field_type) => {
                 let name = field_type.as_binding_arg_name();
                 let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());

@@ -6,10 +6,9 @@ use proc_macro2::Ident;
 use std::sync::{Arc, RwLock};
 use syn::{Item, ItemMod};
 use crate::composition::{GenericConversion, ImportComposition};
-use crate::context::{GlobalContext, ScopeContext};
-use crate::conversion::{ImportConversion, ItemConversion};
+use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext};
+use crate::conversion::{ImportConversion, ItemConversion, ObjectConversion};
 use crate::formatter::{format_imported_dict, format_tree_exported_dict};
-use crate::holder::PathHolder;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
@@ -46,8 +45,8 @@ impl ScopeTreeExportItem {
     pub fn with_scope_context(scope_context: Rc<RefCell<ScopeContext>>) -> ScopeTreeExportItem {
         Self::tree_with_context_and_export(scope_context, HashMap::default())
     }
-    pub fn with_global_context(scope: &PathHolder, context: Arc<RwLock<GlobalContext>>) -> ScopeTreeExportItem {
-        let context = Rc::new(RefCell::new(ScopeContext::with(scope.clone(), context)));
+    pub fn with_global_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> ScopeTreeExportItem {
+        let context = Rc::new(RefCell::new(ScopeContext::with(scope, context)));
         Self::tree_with_context_and_export(context, HashMap::default())
     }
     // pub fn single_export(scope: Scope, ident: Ident, item: ScopeTreeExportItem) -> ScopeTreeExportItem {
@@ -62,7 +61,7 @@ impl ScopeTreeExportItem {
     // }
 
     fn add_non_mod_item(&mut self, item: &ItemConversion) {
-        // println!("add_non_mod_item: {}", item.ident().to_token_stream());
+        println!("add_non_mod_item: {}", item.ident());
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(
@@ -73,21 +72,23 @@ impl ScopeTreeExportItem {
                 let self_scope_context = scope_context.borrow_mut();
                 let mut self_scope_context = self_scope_context.clone();
                 // let mut self_scope_context = scope_context.clone();
-                let scope = item.scope();
-                self_scope_context.scope = scope.joined(&item.ident());
+                let scope = item.scope_chain();
+                // self_scope_context.scope = scope.joined(&item.ident());
+                self_scope_context.scope = scope.clone();
                 self_scope_context.populate_imports_and_generics(&self_scope_context.scope, item, imported, generics);
-                self_scope_context.trait_items_from_attributes(item.attrs())
-                    .into_iter()
-                    .for_each(|(item_trait, trait_scope)| {
-                        let trait_item = ItemConversion::Trait(item_trait.item, trait_scope);
-                        self_scope_context.populate_imports_and_generics(trait_item.scope(), &trait_item, imported, generics);
-                    });
+                // TODO: We shouldn't do this at this step since we may have not yet parsed all the items
+                // self_scope_context.trait_items_from_attributes(item.attrs())
+                //     .into_iter()
+                //     .for_each(|(item_trait, trait_scope)| {
+                //         let trait_item = ItemConversion::Trait(item_trait.item, trait_scope);
+                //         self_scope_context.populate_imports_and_generics(trait_item.scope_chain(), &trait_item, imported, generics);
+                //     });
                 exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(Rc::new(RefCell::new(self_scope_context)), item.into()));
             }
         }
     }
 
-    fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &PathHolder) {
+    fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
         // println!("add TREE: [{}]: {}", scope.to_token_stream(), item_mod.to_token_stream());
         let context = match self {
             ScopeTreeExportItem::Item(context, _) => context.borrow().context.clone(),
@@ -96,8 +97,15 @@ impl ScopeTreeExportItem {
         match &item_mod.content {
             Some((_, items)) => {
                 let ident = item_mod.ident.clone();
-                let inner_scope = scope.joined(&ident);
-                let mut inner_tree = ScopeTreeExportItem::with_global_context(scope, context);
+                let self_scope = scope.self_scope();
+                let inner_scope = ScopeChain::Mod {
+                    self_scope: Scope::new(
+                        self_scope.self_scope.joined(&ident),
+                        ObjectConversion::Empty)
+                };
+                // scope.joined_mod(&ident);
+                // let inner_scope = scope.joined(&ident);
+                let mut inner_tree = ScopeTreeExportItem::with_global_context(scope.clone(), context);
                 items.iter().for_each(|item| {
                     match ItemConversion::try_from((item, &inner_scope)) {
                         Ok(ItemConversion::Mod(item_mod, scope)) =>

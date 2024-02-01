@@ -3,10 +3,10 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{ItemMod, parse_quote, visit::Visit};
-use crate::context::GlobalContext;
+use syn::{ItemMod, visit::Visit};
+use crate::context::{GlobalContext, Scope, ScopeChain};
+use crate::conversion::ObjectConversion;
 use crate::error;
-use crate::holder::PathHolder;
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTree, ScopeTreeCompact};
 use crate::visitor::{merge_visitor_trees, Visitor};
@@ -126,13 +126,13 @@ impl Builder {
                 let input_path = src.join("lib.rs");
                 let input = input_path.as_path();
                 let file_path = std::path::Path::new(input);
-                let root_scope = parse_quote!(crate);
+                let root_scope = ScopeChain::crate_root();
                 let global_context = GlobalContext::with_config(self.config.clone());
                 println!("•• TREE 1 MORPHING");
                 let context = Arc::new(RwLock::new(global_context));
                 let mut root_visitor = process_recursive(file_path, &root_scope, &context);
                 merge_visitor_trees(&mut root_visitor);
-                ScopeTreeCompact::init_with(root_visitor.tree, PathHolder::crate_root())
+                ScopeTreeCompact::init_with(root_visitor.tree, root_scope)
                     .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree| {
                             let tree = ScopeTree::from(tree);
@@ -167,9 +167,9 @@ fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
     }
 }
 
-fn process_recursive<'a>(file_path: &std::path::Path, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
+fn process_recursive<'a>(file_path: &std::path::Path, file_scope: &ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
     let syntax_tree = read_syntax_tree(file_path);
-    let mut visitor = Visitor::new(file_scope, &context);
+    let mut visitor = Visitor::new(file_scope.clone(), &context);
     visitor.visit_file(&syntax_tree);
     let items = syntax_tree.items;
     let mut visitors = vec![];
@@ -186,11 +186,15 @@ fn process_recursive<'a>(file_path: &std::path::Path, file_scope: &PathHolder, c
     visitor
 }
 
-fn process_module<'a>(base_path: &std::path::Path, module: &ItemMod, file_scope: &PathHolder, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
+fn process_module<'a>(base_path: &std::path::Path, module: &ItemMod, file_scope: &ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
     if module.content.is_none() {
         let mod_name = &module.ident;
         let file_path = base_path.parent().unwrap().join(mod_name.to_string());
-        let scope = file_scope.joined(mod_name);
+        let scope = ScopeChain::Mod {
+            self_scope: Scope::new(file_scope.self_scope().self_scope.joined(mod_name), ObjectConversion::Empty),
+        };
+
+        // let scope = file_scope.joined_mod(mod_name);
         if file_path.is_file() {
             return Some(process_recursive(&file_path, &scope, context));
         } else {

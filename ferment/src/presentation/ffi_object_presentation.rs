@@ -34,7 +34,12 @@ pub enum FFIObjectPresentation {
     },
     TraitVTable {
         name: TokenStream2,
-        fields: Vec<TokenStream2>
+        fields: Vec<FFIObjectPresentation>
+    },
+    TraitVTableInnerFn {
+        name: TokenStream2,
+        name_and_args: TokenStream2,
+        output_expression: TokenStream2,
     },
     TraitObject {
         name: TokenStream2,
@@ -103,6 +108,9 @@ impl ToTokens for FFIObjectPresentation {
                     }
                 }
             },
+            FFIObjectPresentation::TraitVTableInnerFn { name, name_and_args, output_expression } => {
+                quote!(pub #name: #name_and_args -> #output_expression)
+            }
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, fields } => {
                 create_struct(quote!(#name), quote!({ #(#fields,)* }))
@@ -130,8 +138,8 @@ impl ToTokens for FFIObjectPresentation {
                     generics: generics.clone()
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
-                let ok_conversion = FieldTypeConversion::Named(parse_quote!(*mut #ok_type), quote!(ok));
-                let error_conversion = FieldTypeConversion::Named(parse_quote!(*mut #error_type), quote!(error));
+                let ok_conversion = FieldTypeConversion::Named(quote!(ok), parse_quote!(*mut #ok_type));
+                let error_conversion = FieldTypeConversion::Named(quote!(error), parse_quote!(*mut #error_type));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),
@@ -173,9 +181,9 @@ impl ToTokens for FFIObjectPresentation {
                     generics: generics.clone()
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
-                let key_conversion = FieldTypeConversion::Named(parse_quote!(*mut #key), quote!(keys));
-                let value_conversion = FieldTypeConversion::Named(parse_quote!(*mut #value), quote!(values));
-                let count_conversion = FieldTypeConversion::Named(parse_quote!(usize), quote!(count));
+                let key_conversion = FieldTypeConversion::Named(quote!(keys), parse_quote!(*mut #key));
+                let value_conversion = FieldTypeConversion::Named(quote!(values), parse_quote!(*mut #value));
+                let count_conversion = FieldTypeConversion::Named(quote!(count), parse_quote!(usize));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),
@@ -216,8 +224,8 @@ impl ToTokens for FFIObjectPresentation {
                         pub values: *mut #value,
                     }));
                 let drop_presentation = DropInterfacePresentation::Full(ffi_type.to_token_stream(), quote!(#(#drop_code)*));
-                let value_conversion = FieldTypeConversion::Named(parse_quote!(*mut #value), quote!(values));
-                let count_conversion = FieldTypeConversion::Named(parse_quote!(usize), quote!(count));
+                let value_conversion = FieldTypeConversion::Named(quote!(values), parse_quote!(*mut #value));
+                let count_conversion = FieldTypeConversion::Named(quote!(count), parse_quote!(usize));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),

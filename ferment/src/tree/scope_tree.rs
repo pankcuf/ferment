@@ -6,10 +6,9 @@ use quote::{quote, ToTokens};
 use syn::Ident;
 use syn::__private::TokenStream2;
 use crate::composition::{GenericConversion, ImportComposition};
-use crate::context::ScopeContext;
-use crate::conversion::ImportConversion;
+use crate::context::{Scope, ScopeChain, ScopeContext};
+use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
-use crate::holder::PathHolder;
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem, ScopeTreeItem};
 
@@ -26,7 +25,7 @@ use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem, ScopeTreeItem};
 
 #[derive(Clone)]
 pub struct ScopeTree {
-    pub scope: PathHolder,
+    pub scope: ScopeChain,
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<Ident, ScopeTreeItem>,
@@ -50,8 +49,7 @@ impl ToTokens for ScopeTree {
             .flat_map(|(import_type, imports)|
                 imports.iter()
                     .map(move |import| import.present(import_type)));
-
-        if self.scope.is_crate() {
+        if self.scope.is_crate_root() {
             // For root tree only
             let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.generics.iter().cloned());
             let scope_conversions = self.exported.values().map(|tree_item| {
@@ -64,7 +62,7 @@ impl ToTokens for ScopeTree {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.expand(&self.scope_context));
             }
-            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
             let types_expansion = Expansion::Mod {
                 directives: directives.clone(),
                 name: quote!(types),
@@ -105,32 +103,39 @@ impl From<ScopeTreeCompact> for ScopeTree {
         } = value;
         let imported = imported.clone();
         let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
-            let scope = scope.joined(&ident);
-            (ident, match tree_item_raw {
-                ScopeTreeExportItem::Item(scope_context, item) =>
-                    ScopeTreeItem::Item {
-                        item,
-                        scope,
-                        scope_context
-                    },
+            // let scope = scope.joined(&ident);
+            let scope_tree_item = match tree_item_raw {
+                ScopeTreeExportItem::Item(scope_context, item) => {
+                    let scope = scope.joined(&item);
+                    ScopeTreeItem::Item { item, scope, scope_context }
+                },
                 ScopeTreeExportItem::Tree(
                     scope_context,
                     generics,
                     imported,
                     exported) =>
                     ScopeTreeItem::Tree {
-                        tree: Self::from(ScopeTreeCompact {
-                            scope,
-                            generics,
-                            imported,
-                            exported,
-                            scope_context
-                        })
+                        tree: {
+                            // let scope = scope.joined_mod(&ident);
+
+
+                            Self::from(ScopeTreeCompact {
+                                scope: ScopeChain::Mod {
+                                    self_scope: Scope::new( scope.self_scope().self_scope.joined(&ident), ObjectConversion::Empty),
+                                },
+                                generics,
+                                imported,
+                                exported,
+                                scope_context
+                            })
+                        }
                     }
-            })
+            };
+
+            (ident, scope_tree_item)
         }).collect();
         Self {
-            scope,
+            scope: scope.clone(),
             imported,
             exported,
             generics,

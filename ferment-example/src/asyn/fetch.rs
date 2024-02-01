@@ -54,3 +54,10 @@ pub trait Fetch
 //         sdk : * mut crate :: fermented :: types :: asyn :: sdk :: Sdk ,
 //         id : * mut crate :: fermented :: types :: nested :: Identifier ,)
 //         -> * mut crate :: fermented :: generics :: Result_ok_Option_crate_asyn_fetch_Fetch_err_crate_nested_ProtocolError , }
+
+
+// pub trait TransportClient: Send + Sized {
+//     type Error: CanRetry + Send;
+//     fn with_uri(uri: Uri) -> Self;
+// }
+

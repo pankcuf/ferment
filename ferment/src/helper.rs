@@ -1,24 +1,151 @@
 use quote::{format_ident, quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Ident, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, parse_quote, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, WherePredicate};
 use syn::__private::{Span, TokenStream2};
+use syn::punctuated::Punctuated;
+use syn::token::Add;
+use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::ScopeContext;
-use crate::conversion::PathConversion;
+use crate::conversion::{ItemConversion, PathConversion, type_ident};
+use crate::formatter::{format_path_vec, format_token_stream};
 use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
 use crate::presentation::context::{OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::presentation::ScopeContextPresentable;
 
-// pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
-//     match arguments {
-//         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match map_args(args)[..] {
-//             [GenericArgument::Type(value_type)] =>
-//                 vec![value_type],
-//             [GenericArgument::Type(key_type), GenericArgument::Type(value_type, ..)] =>
-//                 vec![key_type, value_type],
-//             _ => unimplemented!("path_arguments_to_types: unexpected args: {}", quote!(#args)),
-//         },
-//         _ => unimplemented!("path_arguments_to_types: arguments: {} not supported", quote!(#arguments)),
-//     }
-// }
+pub trait ItemExtension {
+    fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
+    fn maybe_ident(&self) -> Option<&Ident>;
+    fn maybe_generics(&self) -> Option<&Generics>;
+    fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
+        self.maybe_generics()
+            .and_then(|generics| maybe_generic_type_bound(path, generics))
+    }
+
+}
+
+impl ItemExtension for Item {
+    fn maybe_attrs(&self) -> Option<&Vec<Attribute>> {
+        match self {
+            Item::Const(item) => Some(&item.attrs),
+            Item::Enum(item) => Some(&item.attrs),
+            Item::ExternCrate(item) => Some(&item.attrs),
+            Item::Fn(item) => Some(&item.attrs),
+            Item::ForeignMod(item) => Some(&item.attrs),
+            Item::Impl(item) => Some(&item.attrs),
+            Item::Macro(item) => Some(&item.attrs),
+            Item::Macro2(item) => Some(&item.attrs),
+            Item::Mod(item) => Some(&item.attrs),
+            Item::Static(item) => Some(&item.attrs),
+            Item::Struct(item) => Some(&item.attrs),
+            Item::Trait(item) => Some(&item.attrs),
+            Item::TraitAlias(item) => Some(&item.attrs),
+            Item::Type(item) => Some(&item.attrs),
+            Item::Union(item) => Some(&item.attrs),
+            Item::Use(item) => Some(&item.attrs),
+            _ => None,
+        }
+    }
+
+    fn maybe_ident(&self) -> Option<&Ident> {
+        match self {
+            Item::Const(ItemConst { ident, .. }) |
+            Item::Enum(ItemEnum { ident, .. }) |
+            Item::ExternCrate(ItemExternCrate { ident, .. }) |
+            Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }) |
+            Item::Macro2(ItemMacro2 { ident, .. }) |
+            Item::Mod(ItemMod { ident, .. }) |
+            Item::Struct(ItemStruct { ident, ..  }) |
+            Item::Static(ItemStatic { ident, ..  }) |
+            Item::Trait(ItemTrait { ident, ..  }) |
+            Item::TraitAlias(ItemTraitAlias { ident, ..  }) |
+            Item::Type(ItemType { ident, .. }) |
+            Item::Union(ItemUnion { ident, .. }) => Some(ident),
+            Item::Macro(ItemMacro { ident, .. }) => ident.as_ref(),
+            _ => None
+        }
+    }
+    fn maybe_generics(&self) -> Option<&Generics> {
+        match self {
+            Item::Enum(ItemEnum { generics, .. }) |
+            Item::Fn(ItemFn { sig: Signature { generics, .. }, .. }) |
+            Item::Impl(ItemImpl { generics, .. }) |
+            Item::Struct(ItemStruct { generics, .. }) |
+            Item::Trait(ItemTrait { generics, .. }) |
+            Item::TraitAlias(ItemTraitAlias { generics, .. }) |
+            Item::Type(ItemType { generics, .. }) |
+            Item::Union(ItemUnion { generics, .. }) =>
+                Some(generics),
+            _ => None
+        }
+    }
+}
+
+
+fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
+    // println!("generic_trait_bounds.1: {} :: {} :: {}", format_token_stream(ty), format_token_stream(ident_path), format_token_stream(bounds));
+    let mut has_bound = false;
+    let involved = bounds.iter().filter_map(|b| {
+        // println!("generic_trait_bounds.2: {}", quote!(#b));
+        match b {
+            TypeParamBound::Trait(TraitBound { path, .. }) => {
+                //println!("generic_trait_bounds: [{}] {} == {} {}", ident_path.eq(ty), format_token_stream(ty), format_token_stream(path), format_token_stream(bounds));
+                let has = ident_path.eq(ty);
+                if !has_bound && has {
+                    has_bound = true;
+                }
+                has
+                    .then_some(path.clone())
+            },
+            TypeParamBound::Lifetime(_) => None
+        }
+    }).collect::<Vec<_>>();
+    // if !involved.is_empty() {
+        // println!("generic_trait_bounds.3: (result) {}", format_path_vec(&involved));
+    // }
+    involved
+}
+
+fn maybe_generic_type_bound<'a>(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
+    // println!("maybe_generic_type_bound.1: {} in [{} .... {}]", format_token_stream(path), format_token_stream(&generics.params), format_token_stream(&generics.where_clause));
+    let result = generics.params.iter().find_map(|param| if let GenericParam::Type(type_param) = param {
+        let ty: Type = parse_quote!(#path);
+        let ident = &type_param.ident;
+        let ident_path: Path = parse_quote!(#ident);
+        let has_bounds = ident_path.eq(path);
+        let bounds = generic_trait_bounds(path, &ident_path, &type_param.bounds);
+        // println!("maybe_generic_type_bound.2: [{}: {}] --> [{}]", has_bounds, quote!(#type_param), format_path_vec(&bounds));
+        // println!("maybe_generic_type_bound: (bounds) {} ", format_path_vec(&bounds));
+        has_bounds
+            .then_some(GenericBoundComposition {
+                bounds,
+                predicates: generics.where_clause
+                    .as_ref()
+                    .map(|where_clause|
+                        where_clause.predicates
+                            .iter()
+                            .filter_map(|predicate| match predicate {
+                                WherePredicate::Type(predicate_type) => {
+                                    // println!("maybe_generic_type_bound:::predicate: [{}] {} ::: {}", ty.eq(&predicate_type.bounded_ty), format_token_stream(predicate_type), format_token_stream(path));
+                                    let bounded_ty = &predicate_type.bounded_ty;
+                                    let ident_path: Path = parse_quote!(#bounded_ty);
+                                    ty.eq(&predicate_type.bounded_ty)
+                                        .then_some((
+                                            predicate_type.bounded_ty.clone(),
+                                            {
+                                                let bounds = generic_trait_bounds(&path, &ident_path, &predicate_type.bounds);
+                                                // println!("maybe_generic_type_bound.3.... {}: {}: [{}]", format_token_stream(&ident_path), format_token_stream(&predicate_type.bounded_ty), format_path_vec(&bounds));
+                                                bounds
+                                            }))
+                                },
+                                _ => None })
+                            .collect())
+                    .unwrap_or_default(),
+                type_composition: TypeComposition::new(ty, Some(generics.clone())),
+            })
+    } else { None });
+    // println!("maybe_generic_type_bound (result): {}", result.as_ref().map_or(format!("None"), |r| r.to_string()));
+    result
+}
+
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
@@ -32,7 +159,7 @@ pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
 
 fn path_from_type(ty: &Type) -> Option<&Path> {
     match ty {
-        Type::Array(TypeArray { elem, len, .. }) => path_from_type(elem),
+        Type::Array(TypeArray { elem, len: _, .. }) => path_from_type(elem),
         Type::Path(TypePath { path, .. }) => Some(path),
         _ => None,
     }
@@ -48,28 +175,7 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
             }).collect(),
         _ => Vec::new(),
     }
-
-    // match path_arguments_to_types(arguments)[..] {
-    //     [Type::TraitObject(obj)] =>
-    //         from_type_trait_object(obj),
-    //     [Type::Path(TypePath { path, .. })] =>
-    //         vec![path],
-    //     [Type::Path(TypePath { path: path_keys, .. }), Type::Path(TypePath { path: path_values, .. })] =>
-    //         vec![path_keys, path_values],
-    //     _ =>
-    //         unimplemented!("path_arguments_to_paths: unexpected args: {}", quote!(#arguments)),
-    // }
 }
-
-fn from_type_trait_object(obj: &TypeTraitObject) -> Vec<&Path> {
-    obj.bounds.iter().filter_map(|f| match f {
-        TypeParamBound::Trait(TraitBound { path, .. }) =>
-            Some(path),
-        TypeParamBound::Lifetime(_lifetime) =>
-            None
-    }).collect()
-}
-
 
 pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<PathConversion> {
     path_arguments_to_paths(arguments)
@@ -289,4 +395,18 @@ pub fn ffi_mangled_ident(ty: &Type) -> Ident {
 pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
     lit.to_token_stream()
+}
+
+pub fn ident_from_item(item: &Item) -> Option<Ident> {
+    match item {
+        Item::Mod(item_mod) => Some(item_mod.ident.clone()),
+        Item::Struct(item_struct) => Some(item_struct.ident.clone()),
+        Item::Enum(item_enum) => Some(item_enum.ident.clone()),
+        Item::Type(item_type) => Some(item_type.ident.clone()),
+        Item::Fn(item_fn) => Some(item_fn.sig.ident.clone()),
+        Item::Trait(item_trait) => Some(item_trait.ident.clone()),
+        Item::Impl(item_impl) => type_ident(&item_impl.self_ty),
+        Item::Use(item_use) => ItemConversion::fold_use(&item_use.tree).first().cloned().cloned(),
+        _ => None,
+    }
 }

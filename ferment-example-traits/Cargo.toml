@@ -1,0 +1,24 @@
+[package]
+name = "ferment-example-traits"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+authors.workspace = true
+description.workspace = true
+homepage.workspace = true
+license.workspace = true
+keywords.workspace = true
+
+[dependencies]
+async-trait = "0.1.74"
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+tokio = { version = "1.34", features = ["full"] }
+
+[build-dependencies]
+cbindgen = "0.26.0"
+ferment = { path = "../ferment" }
+
+
+[lib]
+name = "ferment_example_traits"

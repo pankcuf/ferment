@@ -36,17 +36,9 @@
     }
     ```
 - Need to fix "fermented::" hardcoded in type transposing although different name is specified in Config::with_mod_name()
-- Need to create 'register_type' to hold the dictionary with manual conversions (for std objects & 3rd party crates)
 - Async generic traits (decomposable) (epic)
 - Other Languages Support (objc/java) - (at least DashSync’s boilerplate generation) (epic)
 - Typealiases for paths (re-export types support)
-- Manual conversion support (Mechanism for registration of manually fermented objects)
-
-  This needed for:
-
-    - Conversion implementation for several objects from std (or any non-fermentable crates)
-    - For cases where special optimisation needed
-    - `#[ferment_macro::register(std::time::Duration)] pub struct Duration_FFI { secs: u64, nanos: u32,}`
 - Path chunks support (when objects contains paths like this:
 
     ```rust

@@ -6,12 +6,13 @@ use syn::{Attribute, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, FnArg, Ide
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::composer::{AttrsComposer, Composer, ConversionsComposer, ItemComposer};
-use crate::composition::{AttrsComposition, collect_generic_types_in_type, FnSignatureDecomposition, GenericConversion, ImportComposition, TraitDecompositionPart2};
-use crate::context::{ScopeContext, VisitorContext};
-use crate::conversion::{Conversion, ImportConversion, MacroAttributes, MacroType, ObjectConversion};
+use crate::composition::{AttrsComposition, collect_generic_types_in_type, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, GenericConversion, ImportComposition, TraitDecompositionPart2};
+use crate::composition::context::TraitDecompositionPart2Context;
+use crate::context::{Scope, ScopeChain, ScopeContext};
+use crate::conversion::{Conversion, FieldTypeConversion, ImportConversion, MacroAttributes, MacroType, ObjectConversion};
 use crate::formatter::{format_token_stream, format_type_holders};
 use crate::helper::{ffi_destructor_name, ffi_trait_obj_name, ffi_vtable_name};
-use crate::holder::{EMPTY, PathHolder, TypeHolder};
+use crate::holder::{PathHolder, TypeHolder};
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_DESTROY_PRESENTER, NAMED_CONVERSION_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
@@ -23,14 +24,14 @@ use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 
 #[derive(Clone)]
 pub enum ItemConversion {
-    Mod(ItemMod, PathHolder),
-    Struct(ItemStruct, PathHolder),
-    Enum(ItemEnum, PathHolder),
-    Type(ItemType, PathHolder),
-    Fn(ItemFn, PathHolder),
-    Use(ItemUse, PathHolder),
-    Trait(ItemTrait, PathHolder),
-    Impl(ItemImpl, PathHolder)
+    Mod(ItemMod, ScopeChain),
+    Struct(ItemStruct, ScopeChain),
+    Enum(ItemEnum, ScopeChain),
+    Type(ItemType, ScopeChain),
+    Fn(ItemFn, ScopeChain),
+    Use(ItemUse, ScopeChain),
+    Trait(ItemTrait, ScopeChain),
+    Impl(ItemImpl, ScopeChain)
 }
 
 impl std::fmt::Debug for ItemConversion {
@@ -60,25 +61,25 @@ impl ToTokens for ItemConversion {
     }
 }
 
-impl<'a> TryFrom<&'a Item> for ItemConversion {
-    type Error = String;
-    fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
-        match value {
-            Item::Mod(item) => Ok(Self::Mod(item.clone(), EMPTY)),
-            Item::Struct(item) => Ok(Self::Struct(item.clone(), EMPTY)),
-            Item::Enum(item) => Ok(Self::Enum(item.clone(), EMPTY)),
-            Item::Type(item) => Ok(Self::Type(item.clone(), EMPTY)),
-            Item::Fn(item) => Ok(Self::Fn(item.clone(), EMPTY)),
-            Item::Trait(item) => Ok(Self::Trait(item.clone(), EMPTY)),
-            Item::Impl(item) => Ok(Self::Impl(item.clone(), EMPTY)),
-            item => Err(format!("Error: {}", item.to_token_stream()))
-        }
-    }
-}
+// impl<'a> TryFrom<&'a Item> for ItemConversion {
+//     type Error = String;
+//     fn try_from(value: &'a Item) -> Result<Self, Self::Error> {
+//         match value {
+//             Item::Mod(item) => Ok(Self::Mod(item.clone(), EMPTY)),
+//             Item::Struct(item) => Ok(Self::Struct(item.clone(), EMPTY)),
+//             Item::Enum(item) => Ok(Self::Enum(item.clone(), EMPTY)),
+//             Item::Type(item) => Ok(Self::Type(item.clone(), EMPTY)),
+//             Item::Fn(item) => Ok(Self::Fn(item.clone(), EMPTY)),
+//             Item::Trait(item) => Ok(Self::Trait(item.clone(), EMPTY)),
+//             Item::Impl(item) => Ok(Self::Impl(item.clone(), EMPTY)),
+//             item => Err(format!("Error: {}", item.to_token_stream()))
+//         }
+//     }
+// }
 
-impl<'a> TryFrom<(&'a Item, &'a PathHolder)> for ItemConversion {
+impl<'a> TryFrom<(&'a Item, &'a ScopeChain)> for ItemConversion {
     type Error = String;
-    fn try_from(value: (&'a Item, &'a PathHolder)) -> Result<Self, Self::Error> {
+    fn try_from(value: (&'a Item, &'a ScopeChain)) -> Result<Self, Self::Error> {
         match value.0 {
             Item::Mod(item) => Ok(Self::Mod(item.clone(), value.1.clone())),
             Item::Struct(item) => Ok(Self::Struct(item.clone(), value.1.clone())),
@@ -108,9 +109,9 @@ impl<'a> TryFrom<(&'a Item, &'a PathHolder)> for ItemConversion {
 //     }
 // }
 
-impl<'a> TryFrom<(&'a Item, PathHolder)> for ItemConversion {
+impl<'a> TryFrom<(&'a Item, ScopeChain)> for ItemConversion {
     type Error = String;
-    fn try_from(value: (&'a Item, PathHolder)) -> Result<Self, Self::Error> {
+    fn try_from(value: (&'a Item, ScopeChain)) -> Result<Self, Self::Error> {
         match value.0 {
             Item::Mod(item) => Ok(Self::Mod(item.clone(), value.1)),
             Item::Struct(item) => Ok(Self::Struct(item.clone(), value.1)),
@@ -173,7 +174,7 @@ impl ItemConversion {
         }
     }
 
-    pub fn scope(&self) -> &PathHolder {
+    pub fn scope_chain(&self) -> &ScopeChain {
         match self {
             ItemConversion::Mod(_, scope) => scope,
             ItemConversion::Struct(_, scope) => scope,
@@ -183,6 +184,19 @@ impl ItemConversion {
             ItemConversion::Trait(_, scope) => scope,
             ItemConversion::Use(_, scope) => scope,
             ItemConversion::Impl(_, scope) => scope,
+        }
+    }
+
+    pub fn scope(&self) -> &Scope {
+        match self {
+            ItemConversion::Mod(_, scope) => scope.self_scope(),
+            ItemConversion::Struct(_, scope) => scope.self_scope(),
+            ItemConversion::Enum(_, scope) => scope.self_scope(),
+            ItemConversion::Type(_, scope) => scope.self_scope(),
+            ItemConversion::Fn(_, scope) => scope.self_scope(),
+            ItemConversion::Trait(_, scope) => scope.self_scope(),
+            ItemConversion::Use(_, scope) => scope.self_scope(),
+            ItemConversion::Impl(_, scope) => scope.self_scope(),
         }
     }
 
@@ -387,15 +401,14 @@ impl ItemConversion {
         }
     }
 
-    fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, ty: &Type, imports: &HashMap<PathHolder, Path>) {
+    fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, ty: &Type, scope: &ScopeChain, imports: &HashMap<PathHolder, Path>) {
         // Types which are used as a part of types (for generics and composite types)
         // let type_conversion = TypeHolder::from(ty);
         // let involved = <TypePathHolder as Conversion>::nested_items(ty, &VisitorContext::Unknown);
-        let involved = <TypeHolder as Conversion>::nested_items(ty, &VisitorContext::Unknown);
+        let involved = <TypeHolder as Conversion>::nested_items(ty, scope);
         involved.iter()
             .for_each(|ty| {
                 let path: Path = parse_quote!(#ty);
-                println!("cache_type_in: {}", format_token_stream(&path));
                 if let Some(PathSegment { ident, .. }) = path.segments.last() {
                     let (import_type, scope) = Self::import_pair(&path, imports);
                     container
@@ -406,12 +419,12 @@ impl ItemConversion {
             });
     }
 
-    fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, fields: &Fields, imports: &HashMap<PathHolder, Path>) {
+    fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, fields: &Fields, scope: &ScopeChain, imports: &HashMap<PathHolder, Path>) {
         match fields {
             Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
             Fields::Named(FieldsNamed { named: fields, .. }) =>
                 fields.iter()
-                    .for_each(|field| Self::cache_type_in(container, &field.ty, imports)),
+                    .for_each(|field| Self::cache_type_in(container, &field.ty, scope, imports)),
             Fields::Unit => {}
         }
     }
@@ -432,41 +445,41 @@ impl ItemConversion {
                     .flat_map(|item| Self::try_from((item, scope.clone())))
                     .for_each(|conversion|
                         container.extend(conversion.classify_imports(imports))),
-            ItemConversion::Struct(item_struct, ..) =>
+            ItemConversion::Struct(item_struct, scope) =>
                 self.handle_attributes_with_handler(&item_struct.attrs, |_path|
-                    Self::cache_fields_in(&mut container, &item_struct.fields, imports)),
-            ItemConversion::Enum(item_enum, ..) =>
+                    Self::cache_fields_in(&mut container, &item_struct.fields, scope, imports)),
+            ItemConversion::Enum(item_enum, scope) =>
                 self.handle_attributes_with_handler(&item_enum.attrs, |_path| item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                    Self::cache_fields_in(&mut container, fields, imports))),
-            ItemConversion::Type(ItemType { attrs, ty, .. }, ..) =>
+                    Self::cache_fields_in(&mut container, fields, scope, imports))),
+            ItemConversion::Type(ItemType { attrs, ty, .. }, scope) =>
                 self.handle_attributes_with_handler(attrs, |_path|
-                    Self::cache_type_in(&mut container, ty, imports)),
-            ItemConversion::Fn(item_fn, ..) =>
+                    Self::cache_type_in(&mut container, ty, scope, imports)),
+            ItemConversion::Fn(item_fn, scope) =>
                 self.handle_attributes_with_handler(&item_fn.attrs, |_path| {
                     item_fn.sig.inputs.iter().for_each(|arg| {
                         if let FnArg::Typed(PatType { ty, .. }) = arg {
-                            Self::cache_type_in(&mut container, ty, imports)
+                            Self::cache_type_in(&mut container, ty, scope, imports)
                         }
                     });
                     if let ReturnType::Type(_, ty) = &item_fn.sig.output {
-                        Self::cache_type_in(&mut container, ty, imports)
+                        Self::cache_type_in(&mut container, ty, scope, imports)
                     };
                 }),
-            ItemConversion::Trait(item_trait, ..) =>
+            ItemConversion::Trait(item_trait, scope) =>
                 self.handle_attributes_with_handler(&item_trait.attrs, |_path| {
                     item_trait.items.iter().for_each(|trait_item| match trait_item {
                         TraitItem::Method(TraitItemMethod { sig, .. }) => {
                             sig.inputs.iter().for_each(|arg| {
                                 if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                    Self::cache_type_in(&mut container, ty, imports)
+                                    Self::cache_type_in(&mut container, ty, scope, imports)
                                 }
                             });
                             if let ReturnType::Type(_, ty) = &sig.output {
-                                Self::cache_type_in(&mut container, ty, imports)
+                                Self::cache_type_in(&mut container, ty, scope, imports)
                             };
                         },
                         TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>
-                            Self::cache_type_in(&mut container, ty, imports),
+                            Self::cache_type_in(&mut container, ty, scope, imports),
                         _ => {}
                     });
                 }),
@@ -508,11 +521,11 @@ impl ItemConversion {
             ItemConversion::Type(item, scope) =>
                 type_expansion(item, scope, scope_context),
             ItemConversion::Fn(item, scope) => {
-                println!("make_expansion: method: {}", scope.popped());
-                let signature = FnSignatureDecomposition::from_signature(&item.sig, scope.popped(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(&item.sig, scope.self_scope().self_scope.popped(), &scope_context.borrow());
+                // let signature = FnSignatureComposition::from_signature(&item.sig, scope.popped(), &scope_context.borrow());
                 Expansion::Function {
                     comment: DocPresentation::Safety(signature.ident.to_token_stream()),
-                    ffi_presentation: signature.present_fn(&scope_context.borrow()),
+                    ffi_presentation: signature.present(FnSignatureCompositionContext::FFIObject, &scope_context.borrow()),
                 }
             },
             ItemConversion::Trait(item, scope) =>
@@ -527,15 +540,16 @@ impl ItemConversion {
 
 
 
-fn enum_expansion(item_enum: &ItemEnum, item_scope: &PathHolder, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+    // let /*item_scope*/ = item_scope.self_scope();
     let ItemEnum { ident: target_name, variants, generics, .. } = item_enum;
     let variants_count = variants.len();
     let ctx = context.borrow();
-    let attrs_composition = AttrsComposition {
-        attrs: item_enum.attrs.clone(),
-        ident: target_name.clone(),
-        scope: item_scope.clone(),
-    };
+    let attrs_composition = AttrsComposition::new(
+        item_enum.attrs.clone(),
+        target_name.clone(),
+        item_scope.clone(),
+    );
 
     let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
@@ -563,7 +577,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &PathHolder, context: &Rc<Re
                         OwnerIteratorPresentationContext::EnumUnamedVariant(name, fields),
                     unnamed
                         .iter()
-                        .map(|field| OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty)))
+                        .map(|field| OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
@@ -572,19 +586,22 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &PathHolder, context: &Rc<Re
                     named
                         .iter()
                         .map(|Field { ident, ty: field_type, .. }|
-                            OwnedItemPresenterContext::Conversion(NAMED_CONVERSION_PRESENTER(
-                                ident.clone().unwrap().to_token_stream(),
-                                ctx.ffi_full_dictionary_field_type_presenter(field_type))))
+                                 OwnedItemPresenterContext::Named(FieldTypeConversion::Named(quote!(#ident), ctx.ffi_full_dictionary_field_type_presenter(field_type)), false))
+
+
+                            // OwnedItemPresenterContext::Conversion(NAMED_CONVERSION_PRESENTER(
+                            //     ident.clone().unwrap().to_token_stream(),
+                            //     ctx.ffi_full_dictionary_field_type_presenter(field_type))))
                         .collect(),
                 ),
             },
             _ => panic!("Error variant discriminant"),
         };
-        let attrs_composition = AttrsComposition {
-            attrs: attrs.clone(),
-            ident: variant_name.clone(),
-            scope: item_scope.clone(),
-        };
+        let attrs_composition = AttrsComposition::new(
+            attrs.clone(),
+            variant_name.clone(),
+            item_scope.clone(),
+        );
         let composer = match fields {
             Fields::Unit =>
                 ItemComposer::enum_variant_default_composer(
@@ -694,11 +711,12 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &PathHolder, context: &Rc<Re
     }
 }
 
-fn struct_expansion(item_struct: &ItemStruct, scope: &PathHolder, scope_context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+    // let scope = scope.self_scope();
     // println!("struct_expansion: {}", item_struct.ident);
     let ItemStruct { attrs, fields: ref f, ident: target_name, .. } = item_struct;
     let ctx = scope_context.borrow();
-    let attrs_composition = AttrsComposition { attrs: attrs.clone(), ident: target_name.clone(), scope: scope.clone() };
+    let attrs_composition = AttrsComposition::new(attrs.clone(), target_name.clone(), scope.clone());
     // let traits = item_traits_expansions(&attrs_composition, &ctx);
     // let attrs_composer = AttrsComposer::new(attrs_composition);
     // let traits = attrs_composer.compose(&ctx);
@@ -744,35 +762,37 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &PathHolder, scope_context:
 }
 
 
-fn trait_expansion(item_trait: &ItemTrait, scope: &PathHolder, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
-    let ctx = context.borrow();
-    let trait_decomposition = TraitDecompositionPart2::from_trait_items(&item_trait.items, scope, &ctx);
-    let fields = trait_decomposition.present_trait_vtable_inner_functions(&ctx);
-
-    let trait_name = &item_trait.ident;
-    let vtable_name = ffi_vtable_name(trait_name).to_token_stream();
+fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+    let ItemTrait { ident, items, .. } = item_trait;
+    let context = context.borrow();
+    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, &scope.self_scope().self_scope, &context);
+    let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &context);
+    let trait_obj_name = ffi_trait_obj_name(ident);
+    let vtable_name = ffi_vtable_name(ident);
+    println!("trait_expansion: {}: {}", trait_obj_name, vtable_name);
     Expansion::Trait {
         comment: DocPresentation::Empty,
         vtable: FFIObjectPresentation::TraitVTable {
-            name: vtable_name.clone(),
+            name: vtable_name.to_token_stream(),
             fields
         },
         trait_object: FFIObjectPresentation::TraitObject {
-            name: ffi_trait_obj_name(trait_name).to_token_stream(),
-            vtable_name
+            name: trait_obj_name.to_token_stream(),
+            vtable_name: vtable_name.to_token_stream()
         }
     }
 }
 
-fn type_expansion(item_type: &ItemType, scope: &PathHolder, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
+    // let scope = scope.self_scope();
     let ItemType { ident, ty, attrs, .. } = item_type;
     let ctx = context.borrow();
     match &**ty {
         Type::BareFn(bare_fn) => {
-            let decomposition = FnSignatureDecomposition::from_bare_fn(bare_fn, ident, scope.clone(), &ctx);
+            let decomposition = FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_scope().self_scope.clone(), &ctx);
             Expansion::Callback {
                 comment: DocPresentation::Default(quote!(#ident)),
-                ffi_presentation: decomposition.present_callback(),
+                ffi_presentation: decomposition.present(FnSignatureCompositionContext::FFIObjectCallback, &ctx),
             }
         },
         _ => {
@@ -792,13 +812,3 @@ fn type_expansion(item_type: &ItemType, scope: &PathHolder, context: &Rc<RefCell
         }
     }
 }
-
-// pub fn add_generic_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
-//     if let Type::Path(TypePath { path, .. }) = field_type {
-//         if let PathConversion::Generic(generic_path_conversion) = PathConversion::from(path) {
-//             // generics.insert(TypeAndPathHolder(field_type.clone(), generic_path_conversion.path()));
-//             generics.insert(TypeHolder(field_type.clone()));
-//         }
-//     }
-// }
-

@@ -3,14 +3,18 @@ use std::hash::{Hash, Hasher};
 use syn::{parse_quote, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-pub use crate::composition::{TypeComposition, TraitDecompositionPart1};
+pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
 use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub enum TypeConversion {
     Trait(TypeComposition, TraitDecompositionPart1),
+    TraitType(TypeComposition),
+    TraitAssociatedType(TypeComposition),
     Object(TypeComposition),
     Primitive(TypeComposition),
+    Bounds(GenericBoundComposition),
+    SmartPointer(TypeComposition),
     Unknown(TypeComposition),
     // Trait(TypeComposition, TraitDecompositionPart1),
     // Object(TypeComposition),
@@ -29,13 +33,20 @@ impl ToTokens for TypeConversion {
 }
 
 impl TypeConversion {
-    pub fn ty(&self) -> &Type {
+    pub fn ty_composition(&self) -> &TypeComposition {
         match self {
-            TypeConversion::Trait(ty, ..) => &ty.ty,
-            TypeConversion::Object(ty, ..) => &ty.ty,
-            TypeConversion::Unknown(ty, ..) => &ty.ty,
-            TypeConversion::Primitive(ty) => &ty.ty
+            TypeConversion::Trait(ty, ..) => ty,
+            TypeConversion::TraitType(ty) => ty,
+            TypeConversion::TraitAssociatedType(ty) => ty,
+            TypeConversion::Object(ty, ..) => ty,
+            TypeConversion::Primitive(ty) => ty,
+            TypeConversion::Bounds(GenericBoundComposition { type_composition, .. }) => type_composition,
+            TypeConversion::SmartPointer(ty, ..) => ty,
+            TypeConversion::Unknown(ty, ..) => ty,
         }
+    }
+    pub fn ty(&self) -> &Type {
+        &self.ty_composition().ty
     }
     pub fn as_scope(&self) -> PathHolder {
         let ty = self.ty();
@@ -54,6 +65,15 @@ impl Debug for TypeConversion {
                 f.write_str(format!("Unknown({})", ty).as_str()),
             TypeConversion::Primitive(ty) =>
                 f.write_str(format!("Primitive({})", ty).as_str()),
+            TypeConversion::TraitType(ty) =>
+                f.write_str(format!("TraitType({})", ty).as_str()),
+            TypeConversion::Bounds(gbc) =>
+                f.write_str(format!("Bounds({})", gbc).as_str()),
+            TypeConversion::SmartPointer(ty) =>
+                f.write_str(format!("SmartPointer({})", ty).as_str()),
+            TypeConversion::TraitAssociatedType(ty) =>
+                f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
+
         }
     }
 }
@@ -82,3 +102,4 @@ impl Hash for TypeConversion {
         self.ty().to_token_stream().to_string().hash(state);
     }
 }
+

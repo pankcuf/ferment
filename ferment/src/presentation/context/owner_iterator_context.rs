@@ -5,6 +5,8 @@ use crate::interface::{create_struct, CURLY_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext};
 use crate::presentation::ScopeContextPresentable;
 
+
+#[derive(Debug)]
 pub enum OwnerIteratorPresentationContext {
     CurlyBracesFields(TokenStream2, Vec<OwnedItemPresenterContext>),
     RoundBracesFields(TokenStream2, Vec<OwnedItemPresenterContext>),

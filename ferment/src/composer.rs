@@ -4,7 +4,7 @@ use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Field, FieldsNamed, FieldsUnnamed, ItemTrait, parse_quote, Path, Type, TypePath};
-use crate::composition::{AttrsComposition, FnReturnTypeDecomposition, TraitDecompositionPart2, TypeComposition};
+use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, PathConversion, TypeConversion};
 use crate::interface::{DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER};
@@ -51,7 +51,7 @@ impl<'a> ConversionsComposer<'a> {
                     .named
                     .iter()
                     .map(|Field { ident, ty, .. }|
-                        FieldTypeConversion::Named(ctx.full_type_for(ty), quote!(#ident)))
+                        FieldTypeConversion::Named(quote!(#ident), ctx.full_type_for(ty)))
                     .collect(),
             Self::UnnamedEnumVariant(fields) =>
                 fields
@@ -59,7 +59,7 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldTypeConversion::Unnamed(ctx.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
+                        FieldTypeConversion::Unnamed(ffi_unnamed_arg_name(index).to_token_stream(), ctx.full_type_for(ty)))
                         // (context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
                     .collect(),
             Self::UnnamedStruct(fields) =>
@@ -68,11 +68,11 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldTypeConversion::Unnamed(ctx.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
+                        FieldTypeConversion::Unnamed(unnamed_struct_fields_comp(ty, index), ctx.full_type_for(ty)))
                         // (context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
                     .collect(),
             Self::TypeAlias(ty) =>
-                vec![FieldTypeConversion::Unnamed(ctx.full_type_for(ty), unnamed_struct_fields_comp(ty, 0))],
+                vec![FieldTypeConversion::Unnamed(unnamed_struct_fields_comp(ty, 0), ctx.full_type_for(ty))],
         }
     }
 }
@@ -677,7 +677,9 @@ composer_impl!(AttrsComposer, Vec<TraitVTablePresentation>, |itself: &AttrsCompo
     trait_types.iter_mut()
         .map(|(composition, trait_scope)| {
             // TODO: move to full
-            composition.implementors.push(TypeConversion::Object(TypeComposition::new(context.scope.to_type(), Some(composition.item.generics.clone()))));
+            let conversion = TypeConversion::Object(TypeComposition::new(context.scope.to_type(), Some(composition.item.generics.clone())));
+            println!("AttrsComposer: {} {} {}", composition.item.ident, trait_scope, conversion);
+            composition.implementors.push(conversion);
             implement_trait_for_item((&composition.item, trait_scope), &itself.attrs, context)
         })
         .collect()
@@ -693,10 +695,14 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &PathHolder), attrs_com
 
     let (vtable_methods_implentations, vtable_methods_declarations): (Vec<TokenStream2>, Vec<TokenStream2>) = trait_decomposition.methods.into_iter()
         .map(|signature_decomposition| {
-            let FnReturnTypeDecomposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
+            let FnReturnTypeComposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
             let fn_name = signature_decomposition.ident.unwrap();
             let ffi_method_ident = format_ident!("{}_{}", item_name, fn_name);
-            let arguments = signature_decomposition.arguments.iter().map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_original.clone())).collect::<Vec<_>>();
+            let arguments = signature_decomposition.arguments
+                .iter()
+                // .map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_original.clone()))
+                .map(|arg| arg.name_type_original.clone())
+                .collect::<Vec<_>>();
             let mut argument_conversions = vec![OwnedItemPresenterContext::Conversion(quote!(cast_obj))];
             argument_conversions.extend(signature_decomposition.arguments.iter().filter(|arg| arg.name.is_some()).map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())));
             let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_method_ident), arguments)).present(context);
@@ -710,8 +716,9 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &PathHolder), attrs_com
     let trait_vtable_ident = ffi_vtable_name(trait_ident);
     let trait_object_ident = ffi_trait_obj_name(trait_ident);
     let trait_implementor_vtable_ident = format_ident!("{}_{}", item_name, trait_vtable_ident);
-    let item_module = item_scope.popped();
-    let (fq_trait_vtable, fq_trait_object) = if item_module.eq(&trait_scope.popped()) {
+    // let item_module = item_scope.popped();
+    println!("implement_trait_for_item: {} {} {}", item_name, trait_ident, trait_scope);
+    let (fq_trait_vtable, fq_trait_object) = if item_scope.has_same_parent(&trait_scope) {
         (quote!(#trait_vtable_ident), quote!(#trait_object_ident))
     } else {
         (quote!(#trait_scope::#trait_vtable_ident), quote!(#trait_scope::#trait_object_ident))

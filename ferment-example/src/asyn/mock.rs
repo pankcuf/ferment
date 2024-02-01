@@ -19,10 +19,5 @@ impl<T> MockResponse for T {}
 
 #[ferment_macro::export]
 pub trait MockRequest {
-    /// Format the object as a key that will be used to match the request with the expectation.
-    ///
-    /// ## Panics
-    ///
-    /// Can panic on errors.
     fn mock_key(&self) -> HashID;
 }

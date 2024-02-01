@@ -3,17 +3,16 @@ use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{Attribute, Ident, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
-use syn::__private::TokenStream2;
-use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
-use crate::context::{GlobalContext, TraitCompositionPart1};
+use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
+use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{GenericPathConversion, ImportConversion, ItemConversion, ObjectConversion, PathConversion, TypeConversion};
-use crate::formatter::format_token_stream;
+use crate::formatter::{format_path_vec, format_token_stream};
 use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::{PathHolder, TypeHolder};
 
 #[derive(Clone)]
 pub struct ScopeContext {
-    pub scope: PathHolder,
+    pub scope: ScopeChain,
     pub context: Arc<RwLock<GlobalContext>>
 }
 
@@ -33,24 +32,27 @@ impl std::fmt::Display for ScopeContext {
 }
 
 impl ScopeContext {
-    pub fn with(scope: PathHolder, context: Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
     }
-    pub fn add_custom_conversion(&self, scope: PathHolder, path: PathHolder, ffi_type: Type) {
+    pub fn add_custom_conversion(&self, scope: ScopeChain, path: PathHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
         let mut lock = self.context.write().unwrap();
-        let regular_type = lock.maybe_scope_import_path(&scope, &path)
+        let regular_type = lock.maybe_import(&scope, &path)
             .unwrap_or(&path.0).clone();
         lock.custom_conversions
-            .entry(scope)
+            .entry(scope.self_scope().self_scope.clone())
             .or_default()
             .insert(parse_quote!(#regular_type), ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(ffi_type, None))));
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        lock.maybe_scope_type_or_parent_type(ty, &self.scope)
-            .and_then(|sty| sty.ty().cloned())
+        lock.maybe_type(ty, &self.scope)
+            .and_then(|full_type| full_type.ty().cloned())
             .unwrap_or(ty.clone())
+        // lock.maybe_scope_type_or_parent_type(ty, &self.scope)
+        //     .and_then(|sty| sty.ty().cloned())
+        //     .unwrap_or(ty.clone())
     }
 
     fn trait_ty(&self, ty: &Type) -> Option<ObjectConversion> {
@@ -77,7 +79,7 @@ impl ScopeContext {
 
     fn ffi_internal_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        let tyty = lock.maybe_scope_type(ty, &self.scope)
+        let tyty = lock.maybe_type(ty, &self.scope)
             .and_then(|external_type| {
                 match external_type.type_conversion() {
                     Some(TypeConversion::Trait(ty, _decomposition)) =>
@@ -87,6 +89,16 @@ impl ScopeContext {
                 }.unwrap_or(external_type.type_conversion().cloned())
 
             }).unwrap_or(TypeConversion::Unknown(TypeComposition::new(ty.clone(), None)));
+        // let tyty = lock.maybe_scope_type(ty, &self.scope)
+        //     .and_then(|external_type| {
+        //         match external_type.type_conversion() {
+        //             Some(TypeConversion::Trait(ty, _decomposition)) =>
+        //                 self.trait_ty(&ty.ty)
+        //                     .map(|oc| oc.type_conversion().cloned()),
+        //             _ => None
+        //         }.unwrap_or(external_type.type_conversion().cloned())
+        //
+        //     }).unwrap_or(TypeConversion::Unknown(TypeComposition::new(ty.clone(), None)));
         let result = match tyty.ty() {
             Type::Path(TypePath { path, .. }) =>
                 self.ffi_external_path_converted(path),
@@ -105,19 +117,25 @@ impl ScopeContext {
     }
 
     pub fn find_item_trait_scope_pair(&self, trait_name: &Path) -> (TraitCompositionPart1, PathHolder) {
+        println!("find_item_trait_scope_pair.1: {}", format_token_stream(trait_name));
         let trait_ty = parse_quote!(#trait_name);
         let lock = self.context.read().unwrap();
-        let full_trait_ty = lock.maybe_scope_type(&trait_ty, &self.scope).unwrap();
+        let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
         let trait_ident = parse_quote!(#trait_name);
         let trait_scope = full_trait_ty.as_scope();
+        println!("find_item_trait_scope_pair.2: {}: {}", format_token_stream(&trait_ident), trait_scope);
         let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
+        // let trait_scope_chain = ScopeChain::Trait {
+        //     self_scope: trait_scope,
+        //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
+        // };
         (item_trait, trait_scope)
     }
 
     pub fn scope_type_for_path(&self, path: &Path) -> Option<Type> {
         let lock = self.context.read().unwrap();
         lock.scope_types
-            .get(&self.scope)
+            .get(&self.scope.self_scope().self_scope)
             .and_then(|scope_types|
                 scope_types.iter()
                     .find_map(|(TypeHolder { 0: other}, full_type)| {
@@ -133,7 +151,7 @@ impl ScopeContext {
     }
 
     pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &PathHolder) -> Option<TraitCompositionPart1> {
-        // println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
+        println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
         let lock = self.context.read().unwrap();
         lock.traits_dictionary
             .get(scope)
@@ -142,7 +160,7 @@ impl ScopeContext {
     }
 
     pub fn find_generics_fq_in(&self, item: &ItemConversion, scope: &PathHolder) -> HashSet<GenericConversion> {
-        println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
+        // println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
         let lock = self.context.read().unwrap();
         lock.scope_types
             .get(scope)
@@ -152,11 +170,11 @@ impl ScopeContext {
 
     pub fn find_used_imports(&self, item: &ItemConversion) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
         let lock = self.context.read().unwrap();
-        lock.used_imports_at_scopes.get(&self.scope)
+        lock.used_imports_at_scopes.get(&self.scope.self_scope().self_scope)
             .map(|scope_imports| item.get_used_imports(scope_imports))
     }
 
-    pub fn populate_imports_and_generics(&self, scope: &PathHolder, item: &ItemConversion, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
+    pub fn populate_imports_and_generics(&self, scope: &ScopeChain, item: &ItemConversion, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
         if let Some(scope_imports) = self.find_used_imports(item) {
             scope_imports
                 .iter()
@@ -165,7 +183,7 @@ impl ScopeContext {
                         .or_insert_with(HashSet::new)
                         .extend(imports.clone()));
         }
-        generics.extend(self.find_generics_fq_in(item, scope));
+        generics.extend(self.find_generics_fq_in(item, &scope.self_scope().self_scope));
     }
 
     pub fn ffi_path_converted_or_same(&self, path: &Path) -> Type {
@@ -357,30 +375,30 @@ impl ScopeContext {
     }
 
 
-    pub fn ffi_full_dictionary_field_type_presenter(&self, field_type: &Type) -> TokenStream2 {
+    pub fn ffi_full_dictionary_field_type_presenter(&self, field_type: &Type) -> Type {
         let full_ty = self.ffi_custom_or_internal_type(field_type);
         self.ffi_dictionary_field_type_presenter(&full_ty)
     }
 
-    fn ffi_dictionary_field_type_presenter(&self, field_type: &Type) -> TokenStream2 {
+    fn ffi_dictionary_field_type_presenter(&self, field_type: &Type) -> Type {
         match field_type {
             Type::Path(TypePath { path, .. }) =>
                 self.ffi_dictionary_field_type(path),
             Type::Array(TypeArray { elem, len, .. }) =>
-                quote!(*mut [#elem; #len]),
+                parse_quote!(*mut [#elem; #len]),
             Type::Reference(TypeReference { elem, .. }) =>
                 self.ffi_dictionary_field_type_presenter(elem),
             Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
                 match &**elem {
                     Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
                         "c_void" => match (star_token, const_token, mutability) {
-                            (_, Some(_const_token), None) => quote!(OpaqueContext_FFI),
-                            (_, None, Some(_mut_token)) => quote!(OpaqueContextMut_FFI),
+                            (_, Some(_const_token), None) => parse_quote!(OpaqueContext_FFI),
+                            (_, None, Some(_mut_token)) => parse_quote!(OpaqueContextMut_FFI),
                             _ => panic!("extract_struct_field: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                         },
-                        _ => quote!(*mut #path)
+                        _ => parse_quote!(*mut #path)
                     },
-                    Type::Ptr(type_ptr) => quote!(*mut #type_ptr),
+                    Type::Ptr(type_ptr) => parse_quote!(*mut #type_ptr),
                     _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
                 },
             Type::Slice(TypeSlice { elem, .. }) => self.ffi_dictionary_field_type_presenter(elem),
@@ -398,36 +416,36 @@ impl ScopeContext {
         }
     }
 
-    pub fn ffi_dictionary_field_type(&self, path: &Path) -> TokenStream2 {
+    pub fn ffi_dictionary_field_type(&self, path: &Path) -> Type {
         println!("ffi_dictionary_field_type: {}", format_token_stream(path));
         match path.segments.last().unwrap().ident.to_string().as_str() {
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
             "isize" | "usize" | "bool" =>
-                quote!(#path),
+                parse_quote!(#path),
             "OpaqueContext" =>
-                quote!(ferment_interfaces::OpaqueContext_FFI),
+                parse_quote!(ferment_interfaces::OpaqueContext_FFI),
             "OpaqueContextMut" =>
-                quote!(ferment_interfaces::OpaqueContextMut_FFI),
+                parse_quote!(ferment_interfaces::OpaqueContextMut_FFI),
             "Option" =>
                 self.ffi_dictionary_field_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
             "Vec" | "BTreeMap" | "HashMap" => {
                 let path = self.scope_type_for_path(path)
                     .map_or(path.to_token_stream(), |full_type| ffi_mangled_ident(&full_type).to_token_stream());
-                quote!(*mut #path)
+                parse_quote!(*mut #path)
             },
             "Result" /*if path.segments.len() == 1*/ => {
                 let path = self.scope_type_for_path(path)
                     .map_or(path.to_token_stream(), |full_type| ffi_mangled_ident(&full_type).to_token_stream());
-                quote!(*mut #path)
+                parse_quote!(*mut #path)
             },
             _ =>
-                quote!(*mut #path),
+                parse_quote!(*mut #path),
         }
     }
 
     pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Vec<(TraitCompositionPart1, PathHolder)> {
-        // println!("trait_items_from_attributes: [{}]", context.scope);
         let attr_traits = extract_trait_names(attrs);
+        println!("trait_items_from_attributes: [{}]: [{}]", self.scope, format_path_vec(&attr_traits));
         attr_traits.iter()
             .map(|trait_name| self.find_item_trait_scope_pair(trait_name))
             .collect()
@@ -453,3 +471,9 @@ fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
     paths
 }
 
+impl ScopeContext {
+    pub fn present_composition_in_context<T>(&self, composition: T, context: T::Context) -> T::Presentation
+        where T: Composition {
+        composition.present(context, self)
+    }
+}
