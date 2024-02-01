@@ -14,6 +14,7 @@ pub enum OwnedItemPresenterContext {
     Lambda(TokenStream2, TokenStream2),
     Conversion(TokenStream2),
     BindingArg(FieldTypeConversion),
+    BindingField(FieldTypeConversion),
 }
 
 impl Debug for OwnedItemPresenterContext {
@@ -31,6 +32,8 @@ impl Debug for OwnedItemPresenterContext {
                 f.write_str(format!("Conversion({})", conversion).as_str()),
             OwnedItemPresenterContext::BindingArg(ty) =>
                 f.write_str(format!("BindingArg({})", ty).as_str()),
+            OwnedItemPresenterContext::BindingField(ty) =>
+                f.write_str(format!("BindingField({})", ty).as_str())
         }
     }
 }
@@ -75,6 +78,9 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
                 quote!(#name: #ty)
 
             },
+            OwnedItemPresenterContext::BindingField(field_type) => {
+                field_type.as_binding_arg_name().to_token_stream()
+            }
         }
     }
 }

@@ -16,57 +16,56 @@
 pub mod types {
     pub mod transport {
         pub mod transport_request {
-            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: CoreGrpcClient\"]"]
+            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: GetDocumentsResponse\"]"]
             #[repr(C)]
             #[derive(Clone)]
             #[allow(non_camel_case_types)]
-            pub struct CoreGrpcClient {
-                pub uri: *mut crate::fermented::types::transport::transport_request::Uri,
+            pub struct GetDocumentsResponse {
+                pub version: u32,
             }
             impl
                 ferment_interfaces::FFIConversion<
-                    crate::transport::transport_request::CoreGrpcClient,
-                > for CoreGrpcClient
+                    crate::transport::transport_request::GetDocumentsResponse,
+                > for GetDocumentsResponse
             {
                 unsafe fn ffi_from_const(
-                    ffi: *const CoreGrpcClient,
-                ) -> crate::transport::transport_request::CoreGrpcClient {
+                    ffi: *const GetDocumentsResponse,
+                ) -> crate::transport::transport_request::GetDocumentsResponse {
                     let ffi_ref = &*ffi;
-                    crate::transport::transport_request::CoreGrpcClient {
-                        uri: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.uri),
+                    crate::transport::transport_request::GetDocumentsResponse {
+                        version: ffi_ref.version,
                     }
                 }
                 unsafe fn ffi_to_const(
-                    obj: crate::transport::transport_request::CoreGrpcClient,
-                ) -> *const CoreGrpcClient {
-                    ferment_interfaces::boxed(CoreGrpcClient {
-                        uri: ferment_interfaces::FFIConversion::ffi_to(obj.uri),
+                    obj: crate::transport::transport_request::GetDocumentsResponse,
+                ) -> *const GetDocumentsResponse {
+                    ferment_interfaces::boxed(GetDocumentsResponse {
+                        version: obj.version,
                     })
                 }
-                unsafe fn destroy(ffi: *mut CoreGrpcClient) {
+                unsafe fn destroy(ffi: *mut GetDocumentsResponse) {
                     ferment_interfaces::unbox_any(ffi);
                 }
             }
-            impl Drop for CoreGrpcClient {
+            impl Drop for GetDocumentsResponse {
                 fn drop(&mut self) {
                     unsafe {
                         let ffi_ref = self;
-                        ferment_interfaces::unbox_any(ffi_ref.uri);
                     }
                 }
             }
             #[doc = r" # Safety"]
             #[allow(non_snake_case)]
             #[no_mangle]
-            pub unsafe extern "C" fn CoreGrpcClient_ctor(
-                uri: *mut crate::fermented::types::transport::transport_request::Uri,
-            ) -> *mut CoreGrpcClient {
-                ferment_interfaces::boxed(CoreGrpcClient { uri })
+            pub unsafe extern "C" fn GetDocumentsResponse_ctor(
+                version: u32,
+            ) -> *mut GetDocumentsResponse {
+                ferment_interfaces::boxed(GetDocumentsResponse { version })
             }
             #[doc = r" # Safety"]
             #[allow(non_snake_case)]
             #[no_mangle]
-            pub unsafe extern "C" fn CoreGrpcClient_destroy(ffi: *mut CoreGrpcClient) {
+            pub unsafe extern "C" fn GetDocumentsResponse_destroy(ffi: *mut GetDocumentsResponse) {
                 ferment_interfaces::unbox_any(ffi);
             }
             #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: Uri\"]"]
@@ -224,100 +223,6 @@ pub mod types {
             pub unsafe extern "C" fn DocumentQuery_destroy(ffi: *mut DocumentQuery) {
                 ferment_interfaces::unbox_any(ffi);
             }
-            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: Identifier\"]"]
-            #[repr(C)]
-            #[derive(Clone)]
-            #[allow(non_camel_case_types)]
-            pub struct Identifier(u32);
-            impl ferment_interfaces::FFIConversion<crate::transport::transport_request::Identifier>
-                for Identifier
-            {
-                unsafe fn ffi_from_const(
-                    ffi: *const Identifier,
-                ) -> crate::transport::transport_request::Identifier {
-                    let ffi_ref = &*ffi;
-                    crate::transport::transport_request::Identifier(ffi_ref.0)
-                }
-                unsafe fn ffi_to_const(
-                    obj: crate::transport::transport_request::Identifier,
-                ) -> *const Identifier {
-                    ferment_interfaces::boxed(Identifier(obj.0))
-                }
-                unsafe fn destroy(ffi: *mut Identifier) {
-                    ferment_interfaces::unbox_any(ffi);
-                }
-            }
-            impl Drop for Identifier {
-                fn drop(&mut self) {
-                    unsafe {
-                        let ffi_ref = self;
-                    }
-                }
-            }
-            #[doc = r" # Safety"]
-            #[allow(non_snake_case)]
-            #[no_mangle]
-            pub unsafe extern "C" fn Identifier_ctor(o_0: u32) -> *mut Identifier {
-                ferment_interfaces::boxed(Identifier(0))
-            }
-            #[doc = r" # Safety"]
-            #[allow(non_snake_case)]
-            #[no_mangle]
-            pub unsafe extern "C" fn Identifier_destroy(ffi: *mut Identifier) {
-                ferment_interfaces::unbox_any(ffi);
-            }
-            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: GetDocumentsResponse\"]"]
-            #[repr(C)]
-            #[derive(Clone)]
-            #[allow(non_camel_case_types)]
-            pub struct GetDocumentsResponse {
-                pub version: u32,
-            }
-            impl
-                ferment_interfaces::FFIConversion<
-                    crate::transport::transport_request::GetDocumentsResponse,
-                > for GetDocumentsResponse
-            {
-                unsafe fn ffi_from_const(
-                    ffi: *const GetDocumentsResponse,
-                ) -> crate::transport::transport_request::GetDocumentsResponse {
-                    let ffi_ref = &*ffi;
-                    crate::transport::transport_request::GetDocumentsResponse {
-                        version: ffi_ref.version,
-                    }
-                }
-                unsafe fn ffi_to_const(
-                    obj: crate::transport::transport_request::GetDocumentsResponse,
-                ) -> *const GetDocumentsResponse {
-                    ferment_interfaces::boxed(GetDocumentsResponse {
-                        version: obj.version,
-                    })
-                }
-                unsafe fn destroy(ffi: *mut GetDocumentsResponse) {
-                    ferment_interfaces::unbox_any(ffi);
-                }
-            }
-            impl Drop for GetDocumentsResponse {
-                fn drop(&mut self) {
-                    unsafe {
-                        let ffi_ref = self;
-                    }
-                }
-            }
-            #[doc = r" # Safety"]
-            #[allow(non_snake_case)]
-            #[no_mangle]
-            pub unsafe extern "C" fn GetDocumentsResponse_ctor(
-                version: u32,
-            ) -> *mut GetDocumentsResponse {
-                ferment_interfaces::boxed(GetDocumentsResponse { version })
-            }
-            #[doc = r" # Safety"]
-            #[allow(non_snake_case)]
-            #[no_mangle]
-            pub unsafe extern "C" fn GetDocumentsResponse_destroy(ffi: *mut GetDocumentsResponse) {
-                ferment_interfaces::unbox_any(ffi);
-            }
             #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: GetDocumentsRequest\"]"]
             #[repr(C)]
             #[derive(Clone)]
@@ -368,6 +273,101 @@ pub mod types {
             #[allow(non_snake_case)]
             #[no_mangle]
             pub unsafe extern "C" fn GetDocumentsRequest_destroy(ffi: *mut GetDocumentsRequest) {
+                ferment_interfaces::unbox_any(ffi);
+            }
+            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: CoreGrpcClient\"]"]
+            #[repr(C)]
+            #[derive(Clone)]
+            #[allow(non_camel_case_types)]
+            pub struct CoreGrpcClient {
+                pub uri: *mut crate::fermented::types::transport::transport_request::Uri,
+            }
+            impl
+                ferment_interfaces::FFIConversion<
+                    crate::transport::transport_request::CoreGrpcClient,
+                > for CoreGrpcClient
+            {
+                unsafe fn ffi_from_const(
+                    ffi: *const CoreGrpcClient,
+                ) -> crate::transport::transport_request::CoreGrpcClient {
+                    let ffi_ref = &*ffi;
+                    crate::transport::transport_request::CoreGrpcClient {
+                        uri: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.uri),
+                    }
+                }
+                unsafe fn ffi_to_const(
+                    obj: crate::transport::transport_request::CoreGrpcClient,
+                ) -> *const CoreGrpcClient {
+                    ferment_interfaces::boxed(CoreGrpcClient {
+                        uri: ferment_interfaces::FFIConversion::ffi_to(obj.uri),
+                    })
+                }
+                unsafe fn destroy(ffi: *mut CoreGrpcClient) {
+                    ferment_interfaces::unbox_any(ffi);
+                }
+            }
+            impl Drop for CoreGrpcClient {
+                fn drop(&mut self) {
+                    unsafe {
+                        let ffi_ref = self;
+                        ferment_interfaces::unbox_any(ffi_ref.uri);
+                    }
+                }
+            }
+            #[doc = r" # Safety"]
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            pub unsafe extern "C" fn CoreGrpcClient_ctor(
+                uri: *mut crate::fermented::types::transport::transport_request::Uri,
+            ) -> *mut CoreGrpcClient {
+                ferment_interfaces::boxed(CoreGrpcClient { uri })
+            }
+            #[doc = r" # Safety"]
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            pub unsafe extern "C" fn CoreGrpcClient_destroy(ffi: *mut CoreGrpcClient) {
+                ferment_interfaces::unbox_any(ffi);
+            }
+            #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: transport :: transport_request :: Identifier\"]"]
+            #[repr(C)]
+            #[derive(Clone)]
+            #[allow(non_camel_case_types)]
+            pub struct Identifier(u32);
+            impl ferment_interfaces::FFIConversion<crate::transport::transport_request::Identifier>
+                for Identifier
+            {
+                unsafe fn ffi_from_const(
+                    ffi: *const Identifier,
+                ) -> crate::transport::transport_request::Identifier {
+                    let ffi_ref = &*ffi;
+                    crate::transport::transport_request::Identifier(ffi_ref.0)
+                }
+                unsafe fn ffi_to_const(
+                    obj: crate::transport::transport_request::Identifier,
+                ) -> *const Identifier {
+                    ferment_interfaces::boxed(Identifier(obj.0))
+                }
+                unsafe fn destroy(ffi: *mut Identifier) {
+                    ferment_interfaces::unbox_any(ffi);
+                }
+            }
+            impl Drop for Identifier {
+                fn drop(&mut self) {
+                    unsafe {
+                        let ffi_ref = self;
+                    }
+                }
+            }
+            #[doc = r" # Safety"]
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            pub unsafe extern "C" fn Identifier_ctor(o_0: u32) -> *mut Identifier {
+                ferment_interfaces::boxed(Identifier(o_0))
+            }
+            #[doc = r" # Safety"]
+            #[allow(non_snake_case)]
+            #[no_mangle]
+            pub unsafe extern "C" fn Identifier_destroy(ffi: *mut Identifier) {
                 ferment_interfaces::unbox_any(ffi);
             }
         }

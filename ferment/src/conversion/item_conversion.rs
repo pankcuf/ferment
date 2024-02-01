@@ -750,7 +750,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 |field_type|
                     OwnedItemPresenterContext::BindingArg(field_type),
                 |field_type|
-                    OwnedItemPresenterContext::DefaultField(field_type),
+                    OwnedItemPresenterContext::BindingField(field_type),
                 ConversionsComposer::UnnamedStruct(fields)
             ),
         Fields::Named(ref fields) =>
