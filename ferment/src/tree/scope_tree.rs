@@ -62,7 +62,7 @@ impl ToTokens for ScopeTree {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.expand(&self.scope_context));
             }
-            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+            let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
             let types_expansion = Expansion::Mod {
                 directives: directives.clone(),
                 name: quote!(types),

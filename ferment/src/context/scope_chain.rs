@@ -5,7 +5,6 @@ use syn::__private::TokenStream2;
 use syn::{Item, parse_quote, Path, Type};
 use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeConversion};
-use crate::formatter::format_token_stream;
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 

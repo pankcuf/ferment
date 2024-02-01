@@ -173,8 +173,13 @@ impl ItemComposer {
                 DROP_STRUCT_COMPOSER,
                 |_| quote!(ffi_ref.0),
                 |_| obj(),
-                FFIBindingsComposer::new(|fields|
-                    IteratorPresentationContext::Round(fields)),
+                FFIBindingsComposer::new(
+                    |fields|
+                        IteratorPresentationContext::Round(fields),
+                    |field_type|
+                        OwnedItemPresenterContext::Named(field_type, false),
+                    |field_type|
+                        OwnedItemPresenterContext::DefaultField(field_type)),
                 FFI_DEREF_FIELD_NAME),
             conversions_composer
         )
@@ -191,7 +196,8 @@ impl ItemComposer {
         root_conversion_presenter: OwnerIteratorPresenter,
         conversion_presenter: MapPairPresenter,
         bindings_presenter: IteratorPresenter,
-        // bindings_arg_presenter: MapPresenter,
+        bindings_arg_presenter: ScopeTreeFieldTypedPresenter,
+        bindings_field_names_presenter: ScopeTreeFieldTypedPresenter,
         conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
         Self::new(
             ffi_name.clone(),
@@ -221,7 +227,10 @@ impl ItemComposer {
                 DROP_STRUCT_COMPOSER,
                 FFI_DEREF_FIELD_NAME,
                 OBJ_FIELD_NAME,
-                FFIBindingsComposer::new(bindings_presenter),
+                FFIBindingsComposer::new(
+                    bindings_presenter,
+                    bindings_arg_presenter,
+                    bindings_field_names_presenter),
                 FFI_DEREF_FIELD_NAME
             ),
             conversions_composer
@@ -240,6 +249,8 @@ impl ItemComposer {
         destroy_code_context_presenter: MapPresenter,
         destroy_presenter: MapPresenter,
         bindings_iterator_presenter: IteratorPresenter,
+        bindings_arg_presenter: ScopeTreeFieldTypedPresenter,
+        bindings_field_names_presenter: ScopeTreeFieldTypedPresenter,
         conversions_composer: ConversionsComposer) -> Rc<RefCell<Self>> {
         Self::new(
             ffi_name.clone(),
@@ -280,7 +291,10 @@ impl ItemComposer {
                     vec![]),
                 DEREF_FIELD_PATH,
                 SIMPLE_PRESENTER,
-                FFIBindingsComposer::new(bindings_iterator_presenter),
+                FFIBindingsComposer::new(
+                    bindings_iterator_presenter,
+                    bindings_arg_presenter,
+                    bindings_field_names_presenter),
                 |f| quote!(*#f)),
             conversions_composer)
     }
@@ -395,24 +409,23 @@ impl ItemComposer {
             destroy_presentation: self.compose_destroy(),
             generics: None
         };
+        let constructor_presentation = BindingPresentation::Constructor {
+            ffi_ident: ffi_ident.clone(),
+            ctor_arguments: self.ffi_conversions_composer.bindings_composer.compose_arguments(),
+            body_presentation: self.ffi_conversions_composer.bindings_composer.present_field_names(&ctx),
+            context: self.context.clone(),
+        };
+        let destructor_presentation = BindingPresentation::Destructor {
+            ffi_name: ffi_name.clone(),
+            destructor_ident: ffi_destructor_name(&ffi_ident).to_token_stream()
+        };
+        println!("make_expansion: constructor: {}", quote!(#constructor_presentation));
+        println!("make_expansion: destructor: {}", quote!(#destructor_presentation));
         Expansion::Full {
             comment: DocPresentation::Default(self.doc_composer.compose(&ctx)),
             ffi_presentation: FFIObjectPresentation::Full(self.ffi_object_composer.compose(&ctx)),
             conversion: conversion_presentation,
-            bindings: vec![
-                BindingPresentation::Constructor {
-                    ffi_ident: ffi_ident.clone(),
-                    ctor_arguments: self.ffi_conversions_composer.bindings_composer.compose_arguments(|field_type|
-                        OwnedItemPresenterContext::Named(field_type, false)),
-                    body_presentation: self.ffi_conversions_composer.bindings_composer.compose_field_names(&ctx, |field_type|
-                        OwnedItemPresenterContext::DefaultField(field_type)),
-                    context: self.context.clone(),
-                },
-                BindingPresentation::Destructor {
-                    ffi_name: ffi_name.clone(),
-                    destructor_ident: ffi_destructor_name(&ffi_ident).to_token_stream()
-                }
-            ],
+            bindings: vec![constructor_presentation, destructor_presentation],
             drop: if self.need_drop_presentation {
                 DropInterfacePresentation::Full(self.ffi_name_composer.compose(&ctx), self.compose_drop())
             } else {
@@ -497,24 +510,31 @@ pub struct FFIBindingsComposer {
     parent: Option<Rc<RefCell<ItemComposer>>>,
     root_presenter: IteratorPresenter,
     field_types: Vec<FieldTypeConversion>,
+    sig_argument_presenter: ScopeTreeFieldTypedPresenter,
+    field_names_presenter: ScopeTreeFieldTypedPresenter,
 }
 
 impl FFIBindingsComposer {
-    pub const fn new(root_presenter: IteratorPresenter) -> Self {
-        Self { parent: None, root_presenter, field_types: vec![] }
+    pub const fn new(root_presenter: IteratorPresenter, sig_argument_presenter: ScopeTreeFieldTypedPresenter, field_names_presenter: ScopeTreeFieldTypedPresenter) -> Self {
+        Self { parent: None, root_presenter, sig_argument_presenter, field_names_presenter, field_types: vec![] }
     }
     pub(crate) fn add_conversion(&mut self, field_type: FieldTypeConversion) {
         self.field_types.push(field_type);
     }
 
-    pub fn compose_field_names(&self, context: &ScopeContext, presenter: ScopeTreeFieldTypedPresenter) -> TokenStream2 {
-        (self.root_presenter)(self.compose_arguments(presenter)).present(context)
+    fn compose_with_item_presenter(&self, item_presenter: ScopeTreeFieldTypedPresenter) -> Vec<OwnedItemPresenterContext> {
+        self.field_types.iter()
+            .map(|field_type| (item_presenter)(field_type.clone()))
+            .collect()
     }
 
-    pub fn compose_arguments(&self, presenter: ScopeTreeFieldTypedPresenter) -> Vec<OwnedItemPresenterContext> {
-        self.field_types.iter()
-            .map(|field_type| presenter(field_type.clone()))
-            .collect()
+    pub fn present_field_names(&self, context: &ScopeContext) -> TokenStream2 {
+        (self.root_presenter)(self.compose_with_item_presenter(self.field_names_presenter))
+            .present(context)
+    }
+
+    pub fn compose_arguments(&self) -> Vec<OwnedItemPresenterContext> {
+        self.compose_with_item_presenter(self.sig_argument_presenter)
     }
 }
 
@@ -665,10 +685,12 @@ composer_impl!(DropComposer, TokenStream2, |itself: &DropComposer, context: &Sco
             .collect())
         .present(context)));
 composer_impl!(FieldsComposer, TokenStream2, |itself: &FieldsComposer, context: &ScopeContext|
-    (itself.root_presenter)(
+    {
+        println!("FieldsComposer::compose: {:?}", itself.fields);
+        (itself.root_presenter)(
         ((itself.context_presenter)(&itself.parent.as_ref().unwrap().borrow()),
             itself.fields.clone()))
-    .present(context));
+    .present(context)});
 composer_impl!(NameComposer, TokenStream2, |itself: &NameComposer, _context: &ScopeContext|
     itself.name.to_token_stream());
 

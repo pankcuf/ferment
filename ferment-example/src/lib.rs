@@ -68,7 +68,9 @@ pub struct ExcludedStruct {
 }
 
 pub mod nested {
-//     use std::collections::BTreeMap;
+    use crate::asyn::query::{AppliedRequestSettings, Query, RequestSettings, TransportClient, TransportRequest};
+
+    //     use std::collections::BTreeMap;
 //     use ferment_interfaces::OpaqueContext;
 //
 //     #[ferment_macro::export]
@@ -107,6 +109,7 @@ pub mod nested {
 //     #[ferment_macro::export]
 //     pub struct UnnamedPair(pub [u8; 32], pub u32);
 //
+    #[derive(Clone)]
     #[ferment_macro::export]
     pub struct Identifier(pub IdentifierBytes32);
 //
@@ -193,5 +196,28 @@ pub mod nested {
 //     }
 //
 //
+
+    #[derive(Clone)]
+    pub struct GetDocumentsRequest { pub version: u32 }
+    #[derive(Clone)]
+    pub struct DocumentQuery { pub version: u32 }
+
+    impl TransportRequest for DocumentQuery {
+        type Client = <GetDocumentsRequest as TransportRequest>::Client;
+        type Response = <GetDocumentsRequest as TransportRequest>::Response;
+        const SETTINGS_OVERRIDES: RequestSettings = RequestSettings { timeout: None, retries: None };
+
+        fn execute_transport(
+            self,
+            client: &mut Self::Client,
+            settings: &AppliedRequestSettings,
+        ) -> Result<Self::Response, <Self::Client as TransportClient>::Error> {}
+    }
+    impl Query<GetDocumentsRequest> for Identifier {
+        fn query(self, prove: bool) -> Result<GetDocumentsRequest, ProtocolError> {
+            Ok(GetDocumentsRequest { version: u32::from(prove) })
+        }
+    }
+
 }
 

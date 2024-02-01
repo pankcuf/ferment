@@ -51,20 +51,21 @@ impl FieldTypeConversion {
         }
     }
     pub fn name(&self) -> TokenStream2 {
-        match self {
+        let result = match self {
             FieldTypeConversion::Named(field_name, _) =>
                 field_name.clone(),
             FieldTypeConversion::Unnamed(field_name, _) => {
-                let field_name = format_ident!("o_{}", field_name.to_string());
-                field_name.to_token_stream()
+                field_name.clone()
+                // let field_name = format_ident!("o_{}", field_name.to_string());
+                // field_name.to_token_stream()
             },
             //FieldTypeConversion::Itself(_, field_name) => field_name.clone()
-        }
-
+        };
+        println!("name: {} ---> {}", self, result);
+        result
     }
     pub fn as_binding_arg_name(&self) -> TokenStream2 {
-
-        match self {
+        let result = match self {
             FieldTypeConversion::Named(field_name, _ty) => {
                 // let field_name = format_ident!("o_{}", field_name.to_string());
                 quote!(#field_name)
@@ -74,7 +75,9 @@ impl FieldTypeConversion {
                 quote!(#field_name)
             },
             //FieldTypeConversion::Itself(ty, field_name) => quote!(#field_name: #ty)
-        }
+        };
+        println!("as_binding_arg_name: {} ---> {}", self, result);
+        result
     }
 
 }

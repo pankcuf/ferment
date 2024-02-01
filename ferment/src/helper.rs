@@ -6,7 +6,6 @@ use syn::token::Add;
 use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::{ItemConversion, PathConversion, type_ident};
-use crate::formatter::{format_path_vec, format_token_stream};
 use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
 use crate::presentation::context::{OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::presentation::ScopeContextPresentable;

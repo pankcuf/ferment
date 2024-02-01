@@ -617,6 +617,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     ROOT_DESTROY_CONTEXT_PRESENTER,
                     EMPTY_DESTROY_PRESENTER,
                     |_| IteratorPresentationContext::Empty,
+                    |field_type|
+                        OwnedItemPresenterContext::Named(field_type, false),
+                    |field_type|
+                        OwnedItemPresenterContext::DefaultField(field_type),
                     ConversionsComposer::Empty
                 ),
             Fields::Unnamed(fields) =>
@@ -637,6 +641,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                             IteratorPresentationContext::Round(fields)
                         }
                     },
+                    |field_type|
+                        OwnedItemPresenterContext::Named(field_type, false),
+                    |field_type|
+                        OwnedItemPresenterContext::DefaultField(field_type),
                     ConversionsComposer::UnnamedEnumVariant(fields)
                 ),
             Fields::Named(fields) =>
@@ -657,6 +665,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                             IteratorPresentationContext::Curly(fields)
                         }
                     },
+                    |field_type|
+                        OwnedItemPresenterContext::Named(field_type, false),
+                    |field_type|
+                        OwnedItemPresenterContext::DefaultField(field_type),
                     ConversionsComposer::NamedStruct(fields)
                 )
         };
@@ -670,10 +682,8 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
             ffi_ident: target_name.to_token_stream(),
             ffi_variant_ident: variant_mangled_path,
             ffi_variant_path: ffi_variant_path.to_token_stream(),
-            ctor_arguments: composer_owned.ffi_conversions_composer.bindings_composer.compose_arguments(|field_type|
-                OwnedItemPresenterContext::Named(field_type, false)),
-            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.compose_field_names(&ctx, |field_type|
-                OwnedItemPresenterContext::DefaultField(field_type)),
+            ctor_arguments: composer_owned.ffi_conversions_composer.bindings_composer.compose_arguments(),
+            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.present_field_names(&ctx),
             context: Rc::clone(context)
         })
     });
@@ -737,6 +747,10 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 SIMPLE_CONVERSION_PRESENTER,
                 |fields|
                     IteratorPresentationContext::Round(fields),
+                |field_type|
+                    OwnedItemPresenterContext::BindingArg(field_type),
+                |field_type|
+                    OwnedItemPresenterContext::DefaultField(field_type),
                 ConversionsComposer::UnnamedStruct(fields)
             ),
         Fields::Named(ref fields) =>
@@ -753,6 +767,10 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 NAMED_CONVERSION_PRESENTER,
                 |fields|
                     IteratorPresentationContext::Curly(fields),
+                |field_type|
+                    OwnedItemPresenterContext::Named(field_type, false),
+                |field_type|
+                    OwnedItemPresenterContext::DefaultField(field_type),
                 ConversionsComposer::NamedStruct(fields)
             ),
         Fields::Unit => panic!("Fields::Unit is not supported yet"),
