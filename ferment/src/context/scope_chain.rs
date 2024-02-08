@@ -7,7 +7,6 @@ use syn::{Item, parse_quote, Path, Type};
 use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeConversion};
-use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 
 #[derive(Clone, Eq)]
