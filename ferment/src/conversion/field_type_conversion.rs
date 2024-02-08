@@ -2,6 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use syn::Type;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
+use crate::naming::Name;
 
 // pub enum FieldName {
 //
@@ -9,8 +10,10 @@ use quote::{format_ident, quote, ToTokens};
 
 #[derive(Clone)]
 pub enum FieldTypeConversion {
-    Named(TokenStream2, Type),
-    Unnamed(TokenStream2, Type),
+    Named(Name, Type),
+    Unnamed(Name, Type),
+    // Named(TokenStream2, Type),
+    // Unnamed(TokenStream2, Type),
     //Itself(Type, TokenStream2),
 }
 
@@ -61,8 +64,8 @@ impl FieldTypeConversion {
             },
             //FieldTypeConversion::Itself(_, field_name) => field_name.clone()
         };
-        println!("name: {} ---> {}", self, result);
-        result
+        // println!("name: {} ---> {}", self, result);
+        result.to_token_stream()
     }
     pub fn as_binding_arg_name(&self) -> TokenStream2 {
         let result = match self {
@@ -71,12 +74,12 @@ impl FieldTypeConversion {
                 quote!(#field_name)
             },
             FieldTypeConversion::Unnamed(field_name, _ty) => {
-                let field_name = format_ident!("o_{}", field_name.to_string());
+                let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
                 quote!(#field_name)
             },
             //FieldTypeConversion::Itself(ty, field_name) => quote!(#field_name: #ty)
         };
-        println!("as_binding_arg_name: {} ---> {}", self, result);
+        // println!("as_binding_arg_name: {} ---> {}", self, result);
         result
     }
 

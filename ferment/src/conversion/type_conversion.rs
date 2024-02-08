@@ -15,6 +15,7 @@ pub enum TypeConversion {
     Primitive(TypeComposition),
     Bounds(GenericBoundComposition),
     SmartPointer(TypeComposition),
+    FnPointer(TypeComposition),
     Unknown(TypeComposition),
     // Trait(TypeComposition, TraitDecompositionPart1),
     // Object(TypeComposition),
@@ -35,14 +36,15 @@ impl ToTokens for TypeConversion {
 impl TypeConversion {
     pub fn ty_composition(&self) -> &TypeComposition {
         match self {
-            TypeConversion::Trait(ty, ..) => ty,
-            TypeConversion::TraitType(ty) => ty,
-            TypeConversion::TraitAssociatedType(ty) => ty,
-            TypeConversion::Object(ty, ..) => ty,
-            TypeConversion::Primitive(ty) => ty,
-            TypeConversion::Bounds(GenericBoundComposition { type_composition, .. }) => type_composition,
-            TypeConversion::SmartPointer(ty, ..) => ty,
-            TypeConversion::Unknown(ty, ..) => ty,
+            TypeConversion::Trait(ty, ..) |
+            TypeConversion::TraitType(ty) |
+            TypeConversion::TraitAssociatedType(ty) |
+            TypeConversion::Object(ty, ..) |
+            TypeConversion::Primitive(ty) |
+            TypeConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
+            TypeConversion::SmartPointer(ty, ..) |
+            TypeConversion::Unknown(ty, ..) |
+            TypeConversion::FnPointer(ty, ..) => ty
         }
     }
     pub fn ty(&self) -> &Type {
@@ -73,7 +75,8 @@ impl Debug for TypeConversion {
                 f.write_str(format!("SmartPointer({})", ty).as_str()),
             TypeConversion::TraitAssociatedType(ty) =>
                 f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
-
+            TypeConversion::FnPointer(ty) =>
+                f.write_str(format!("FnPointer({})", ty).as_str()),
         }
     }
 }

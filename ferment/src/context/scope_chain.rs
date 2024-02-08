@@ -1,59 +1,17 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Item, parse_quote, Path, Type};
 use crate::composition::{GenericBoundComposition, TypeComposition};
+use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeConversion};
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 
-
-#[derive(Clone, PartialEq)]
-pub struct Scope {
-    pub self_scope: PathHolder,
-    pub object: ObjectConversion,
-}
-impl Debug for Scope {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("Scope({}, {})", self.self_scope, self.object).as_str())
-    }
-}
-impl Display for Scope {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Debug::fmt(self, f)
-    }
-}
-
-
-impl Scope {
-
-    pub fn new(self_scope: PathHolder, object: ObjectConversion) -> Self {
-        Scope {
-            self_scope,
-            object
-        }
-    }
-    // pub fn joined(&self, ident: &Ident) -> Self {
-    //     Scope::new(self.self_scope.joined(ident), self.object.clone())
-    // }
-    pub fn joined(&self, item: &Item) -> Self {
-        let child_self_scope = item.maybe_ident()
-            .map(|ident| self.self_scope.joined(ident))
-            .unwrap_or(self.self_scope.clone());
-        Scope::new(child_self_scope, self.object.clone())
-    }
-
-    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
-        // println!("Scope::maybe_generic_bound_for_path: {} in [{}]", format_token_stream(path), self);
-        match &self.object {
-            ObjectConversion::Item(_, item) => item.maybe_generic_bound_for_path(path),
-            _ => None
-        }
-    }
-}
-
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Eq)]
+#[repr(u8)]
 pub enum ScopeChain {
     CrateRoot {
         self_scope: Scope
@@ -80,22 +38,49 @@ pub enum ScopeChain {
     },
 }
 
+impl PartialEq<Self> for ScopeChain {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ScopeChain::Impl { self_scope, .. }, ScopeChain::Impl { self_scope: other_self_scope, .. }) |
+            (ScopeChain::CrateRoot { self_scope }, ScopeChain::CrateRoot { self_scope: other_self_scope }) |
+            (ScopeChain::Mod { self_scope, .. }, ScopeChain::Mod { self_scope: other_self_scope, .. }) |
+            (ScopeChain::Trait { self_scope, .. }, ScopeChain::Trait { self_scope: other_self_scope, .. }) |
+            (ScopeChain::Fn { self_scope, .. }, ScopeChain::Fn { self_scope: other_self_scope, .. }) |
+            (ScopeChain::Object { self_scope, .. }, ScopeChain::Object { self_scope: other_self_scope, .. }) =>
+                self_scope.eq(&other_self_scope),
+            _ => false
+        }
+    }
+}
+impl Hash for ScopeChain {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            ScopeChain::CrateRoot { .. } => 0,
+            ScopeChain::Mod { .. } => 1,
+            ScopeChain::Trait { .. } => 2,
+            ScopeChain::Fn { .. } => 3,
+            ScopeChain::Object { .. } => 4,
+            ScopeChain::Impl { .. } => 5
+        }.to_string().hash(state);
+        self.self_scope().self_scope.to_string().hash(state);
+    }
+}
 
 impl Debug for ScopeChain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             ScopeChain::CrateRoot { self_scope } =>
-                format!("CrateRoot({})", self_scope),
+                format!("{} (CrateRoot)", self_scope),
             ScopeChain::Mod { self_scope } =>
-                format!("Mod({})", self_scope),
+                format!("{} (Mod)", self_scope),
             ScopeChain::Trait { self_scope, parent_scope_chain } =>
-                format!("Trait({}, parent: {:?})", self_scope, parent_scope_chain),
+                format!("{} (Trait) (parent: {:?})", self_scope, parent_scope_chain),
             ScopeChain::Fn { self_scope, parent_scope_chain } =>
-                format!("Fn({}, parent: {:?})", self_scope, parent_scope_chain),
+                format!("{} (Fn) (parent: {:?})", self_scope, parent_scope_chain),
             ScopeChain::Object { self_scope, parent_scope_chain } =>
-                format!("Object({}, parent: {:?})", self_scope, parent_scope_chain),
+                format!("{} (Object) (parent: {:?})", self_scope, parent_scope_chain),
             ScopeChain::Impl { self_scope, trait_scopes, parent_scope_chain } =>
-                format!("Impl({}, traits: {:?}, parent: {:?})", self_scope, trait_scopes, parent_scope_chain),
+                format!("{} (Impl) (parent: {:?}, trauts: {:?})", self_scope, parent_scope_chain, trait_scopes),
         }.as_str())
     }
 }
@@ -132,12 +117,12 @@ impl ScopeChain {
 
     pub fn parent_scope(&self) -> Option<&Self> {
         match self {
+            ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
-            ScopeChain::Trait { parent_scope_chain, .. } => Some(parent_scope_chain),
-            ScopeChain::Fn { parent_scope_chain, .. } => Some(parent_scope_chain),
-            ScopeChain::Object { parent_scope_chain, .. } => Some(parent_scope_chain),
+            ScopeChain::Trait { parent_scope_chain, .. } |
+            ScopeChain::Fn { parent_scope_chain, .. } |
+            ScopeChain::Object { parent_scope_chain, .. } |
             ScopeChain::Impl { parent_scope_chain, .. } => Some(parent_scope_chain),
-            ScopeChain::CrateRoot { .. } => None,
         }
     }
 
@@ -184,7 +169,8 @@ impl ScopeChain {
     }
     pub fn is_mod_level(&self) -> bool {
         match self {
-            ScopeChain::Mod { .. } => true,
+            ScopeChain::Mod { .. } |
+            ScopeChain::CrateRoot { .. } => true,
             _ => false
         }
     }
@@ -204,34 +190,44 @@ impl ScopeChain {
     // }
 
     pub fn joined_obj(&self, item: &Item) -> ScopeChain {
-        ScopeChain::Object {
-            self_scope: self.self_scope().joined(item),
-            parent_scope_chain: Box::new(self.clone())
-        }
+        // println!(":::: joined_obj.1: {} in [{}] ", item.ident_string(), self);
+        let self_scope = self.self_scope().joined(item);
+        // println!(":::: joined_obj.2: [{}] --> [{}]", self.self_scope(), self_scope);
+        ScopeChain::Object { self_scope, parent_scope_chain: Box::new(self.clone()) }
     }
 
     pub fn joined_fn(&self, item: &Item) -> ScopeChain {
-        ScopeChain::Fn {
-            self_scope: self.self_scope().joined(item),
-            parent_scope_chain: Box::new(self.clone())
-        }
+        let self_scope = self.self_scope().joined(item);
+        // println!(":::: joined_fn: {} in [{}] --> [{}] ", item.maybe_ident().map_or(format!("None"),Ident::to_string), self.self_scope(), self_scope);
+        ScopeChain::Fn { self_scope, parent_scope_chain: Box::new(self.clone()) }
     }
 
     pub fn joined_trait(&self, item: &Item) -> ScopeChain {
-        ScopeChain::Trait {
-            self_scope: self.self_scope().joined(item),
-            parent_scope_chain: Box::new(self.clone())
-        }
+        let self_scope = self.self_scope().joined(item);
+        // println!(":::: joined_trait: {} in [{}] --> [{}] ", item.maybe_ident().map_or(format!("None"),Ident::to_string), self.self_scope(), self_scope);
+        ScopeChain::Trait { self_scope, parent_scope_chain: Box::new(self.clone()) }
     }
 
     pub fn joined_mod(&self, item: &Item) -> ScopeChain {
-        ScopeChain::Mod {
-            self_scope: self.self_scope().joined(item),
+        let self_scope = self.self_scope().joined(item);
+        // println!(":::: joined_mod: {} in [{}] --> [{}] ", item.maybe_ident().map_or(format!("None"),Ident::to_string), self.self_scope(), self_scope);
+        ScopeChain::Mod { self_scope }
+    }
+
+    pub fn joined_impl(&self, item: &Item) -> ScopeChain {
+        let self_scope = self.self_scope().joined(item);
+        // println!(":::: joined_impl: {} in [{}] --> [{}] ", item.maybe_ident().map_or(format!("None"),Ident::to_string), self.self_scope(), self_scope);
+        ScopeChain::Impl {
+            // self_scope: Scope::new(self_scope, ObjectConversion::Item(TypeConversion::Object(TypeComposition::new(*self_ty.clone(), Some(item.generics.clone()))), ScopeItemConversion::Item(Item::Impl(item_impl.clone())))),
+            self_scope,
+            trait_scopes: vec![],
+            parent_scope_chain: Box::new(self.clone()),
         }
     }
 
-    pub fn joined(&self, item: &Item) -> Self {
 
+    pub fn joined(&self, item: &Item) -> Self {
+        //println!("joubed: {} in [{}]", item.ident_string(), self);
         match item {
             Item::Const(..) =>
                 self.joined_obj(item),
@@ -264,17 +260,17 @@ impl ScopeChain {
         }
     }
 
-    pub fn has_same_parent(&self, other: &PathHolder) -> bool {
+    pub fn has_same_parent(&self, other: &ScopeChain) -> bool {
         // self.parent_scope()
         //     .map(|parent| parent.self_scope().self_scope.eq(other))
         //     .unwrap_or(false)
         match self {
             ScopeChain::CrateRoot { self_scope } |
-            ScopeChain::Mod { self_scope} => self_scope.self_scope.eq(other),
+            ScopeChain::Mod { self_scope} => self_scope.eq(other.self_scope()),
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Fn { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } => parent_scope_chain.self_scope().self_scope.eq(other),
+            ScopeChain::Impl { parent_scope_chain, .. } => other.eq(parent_scope_chain),
         }
         //
         // match self {
@@ -294,13 +290,13 @@ impl ScopeChain {
             let ident = ident.to_string();
             let ident = ident.as_str();
             if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool") {
-                println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
+                // println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
                 Some(TypeConversion::Primitive(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "String" | "str") {
-                println!("maybe_dictionary_type (found string):  {}", quote!(#path));
+                // println!("maybe_dictionary_type (found string):  {}", quote!(#path));
                 Some(TypeConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")  {
-                println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
+                // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
                 Some(TypeConversion::SmartPointer(TypeComposition::new(parse_quote!(#path), None)))
             } else {
                 None
@@ -320,10 +316,10 @@ impl ScopeChain {
             ScopeChain::Impl { self_scope, .. } =>
                 self_scope.maybe_generic_bound_for_path(path),
             ScopeChain::Fn { self_scope, parent_scope_chain, .. } => {
-                let maybe_genric_bound = self_scope.maybe_generic_bound_for_path(path);
-                if let Some(maybe_bound) = maybe_genric_bound.as_ref() {
+                let maybe_generic_bound = self_scope.maybe_generic_bound_for_path(path);
+                if maybe_generic_bound.is_some() {
                     // println!("Fn:::: {}", maybe_bound.to_string());
-                    maybe_genric_bound
+                    maybe_generic_bound
                 } else {
                     // println!("Fn (or parent?) [{}]", parent_scope_chain);
                     let maybe_parent_bound = parent_scope_chain.maybe_generic_bound_for_path(path);

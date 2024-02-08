@@ -3,14 +3,14 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::Ident;
 use syn::__private::TokenStream2;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
+use crate::helper::ItemExtension;
 use crate::presentation::expansion::Expansion;
-use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem, ScopeTreeItem};
+use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 // impl From<ScopeTreeCompact> for ScopeTreeItem {
 //     fn from(value: ScopeTreeCompact) -> Self {
@@ -28,7 +28,7 @@ pub struct ScopeTree {
     pub scope: ScopeChain,
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
-    pub exported: HashMap<Ident, ScopeTreeItem>,
+    pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
     pub scope_context: Rc<RefCell<ScopeContext>>,
 }
 
@@ -58,6 +58,8 @@ impl ToTokens for ScopeTree {
             }).collect::<Vec<_>>();
             let mut generic_imports = HashSet::new();
             let mut generic_conversions = vec![];
+            let vtable_improts = HashSet::new();
+            let vtable_conversions = vec![];
             for generic in &generics {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.expand(&self.scope_context));
@@ -68,19 +70,21 @@ impl ToTokens for ScopeTree {
                 name: quote!(types),
                 imports: scope_imports.collect(),
                 conversions: scope_conversions
-            }
-                .to_token_stream();
+            };
             let generics_expansion = Expansion::Mod {
-                directives,
+                directives: directives.clone(),
                 name: quote!(generics),
                 imports: generic_imports.into_iter().collect(),
                 conversions: generic_conversions
-            }
-                .to_token_stream();
-            quote! {
-                #types_expansion
-                #generics_expansion
-            }
+            };
+            let vtables_expansion = Expansion::Mod {
+                directives,
+                name: quote!(vtables),
+                imports: vtable_improts.into_iter().collect(),
+                conversions: vtable_conversions
+            };
+            let modules = [types_expansion, generics_expansion, vtables_expansion];
+            quote!(#(#modules)*)
         } else {
             Expansion::Mod {
                 directives: quote!(),
@@ -102,10 +106,11 @@ impl From<ScopeTreeCompact> for ScopeTree {
             scope_context
         } = value;
         let imported = imported.clone();
-        let exported = exported.into_iter().map(|(ident, tree_item_raw)| {
+        let exported = exported.into_iter().map(|(id, tree_item_raw)| {
             // let scope = scope.joined(&ident);
             let scope_tree_item = match tree_item_raw {
                 ScopeTreeExportItem::Item(scope_context, item) => {
+                    println!("ScopeTreeItem::Item: {} in [{}]", item.ident_string(), scope);
                     let scope = scope.joined(&item);
                     ScopeTreeItem::Item { item, scope, scope_context }
                 },
@@ -116,12 +121,18 @@ impl From<ScopeTreeCompact> for ScopeTree {
                     exported) =>
                     ScopeTreeItem::Tree {
                         tree: {
+                            println!("ScopeTreeItem::Tree: {} in [{}]", id, scope);
                             // let scope = scope.joined_mod(&ident);
-
+                            // let scope = scope.joined(&id.ident());
+                            let self_scope = match &id {
+                                ScopeTreeExportID::Ident(ident) => scope.self_scope().self_scope.joined(ident),
+                                ScopeTreeExportID::Impl(_, _) =>
+                                    panic!("impl not implemented")
+                            };
 
                             Self::from(ScopeTreeCompact {
                                 scope: ScopeChain::Mod {
-                                    self_scope: Scope::new( scope.self_scope().self_scope.joined(&ident), ObjectConversion::Empty),
+                                    self_scope: Scope::new(self_scope, ObjectConversion::Empty),
                                 },
                                 generics,
                                 imported,
@@ -132,7 +143,7 @@ impl From<ScopeTreeCompact> for ScopeTree {
                     }
             };
 
-            (ident, scope_tree_item)
+            (id, scope_tree_item)
         }).collect();
         Self {
             scope: scope.clone(),

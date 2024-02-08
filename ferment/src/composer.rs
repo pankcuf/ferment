@@ -4,14 +4,15 @@ use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Field, FieldsNamed, FieldsUnnamed, ItemTrait, parse_quote, Path, Type, TypePath};
-use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TypeComposition};
-use crate::context::ScopeContext;
-use crate::conversion::{FieldTypeConversion, PathConversion, TypeConversion};
+use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
+use crate::context::{ScopeChain, ScopeContext};
+use crate::conversion::{FieldTypeConversion, TypeConversion};
 use crate::interface::{DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER};
 use crate::interface::obj;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
-use crate::helper::{destroy_path, destroy_ptr, destroy_reference, ffi_destructor_name, ffi_trait_obj_name, ffi_unnamed_arg_name, ffi_vtable_name, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference, usize_to_tokenstream};
-use crate::holder::{EMPTY, PathHolder};
+use crate::helper::{destroy_path, destroy_ptr, destroy_reference, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
+use crate::holder::EMPTY;
+use crate::naming::Name;
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
 use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
 use crate::presentation::doc_presentation::DocPresentation;
@@ -29,17 +30,6 @@ pub enum ConversionsComposer<'a> {
     TypeAlias(&'a Type),
 }
 
-fn unnamed_struct_fields_comp(ty: &Type, index: usize) -> TokenStream2 {
-    match ty {
-        Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-            PathConversion::Primitive(..) => usize_to_tokenstream(index),
-            _ => usize_to_tokenstream(index),
-        },
-        Type::Array(_type_array) => usize_to_tokenstream(index),
-        Type::Ptr(_type_ptr) => obj(),
-        _ => unimplemented!("from_unnamed_struct: not supported {}", quote!(#ty))
-    }
-}
 
 impl<'a> ConversionsComposer<'a> {
     pub fn compose(&self, context: &Rc<RefCell<ScopeContext>>) -> Vec<FieldTypeConversion> {
@@ -51,7 +41,7 @@ impl<'a> ConversionsComposer<'a> {
                     .named
                     .iter()
                     .map(|Field { ident, ty, .. }|
-                        FieldTypeConversion::Named(quote!(#ident), ctx.full_type_for(ty)))
+                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.full_type_for(ty)))
                     .collect(),
             Self::UnnamedEnumVariant(fields) =>
                 fields
@@ -59,7 +49,7 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldTypeConversion::Unnamed(ffi_unnamed_arg_name(index).to_token_stream(), ctx.full_type_for(ty)))
+                        FieldTypeConversion::Unnamed(Name::UnamedArg(index), ctx.full_type_for(ty)))
                         // (context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
                     .collect(),
             Self::UnnamedStruct(fields) =>
@@ -68,11 +58,12 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldTypeConversion::Unnamed(unnamed_struct_fields_comp(ty, index), ctx.full_type_for(ty)))
+                        FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(ty.clone(), index), ctx.full_type_for(ty)))
                         // (context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
                     .collect(),
-            Self::TypeAlias(ty) =>
-                vec![FieldTypeConversion::Unnamed(unnamed_struct_fields_comp(ty, 0), ctx.full_type_for(ty))],
+            Self::TypeAlias(ty) => {
+                vec![FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(parse_quote!(#ty), 0), ctx.full_type_for(ty))]
+            }
         }
     }
 }
@@ -417,12 +408,12 @@ impl ItemComposer {
         };
         let destructor_presentation = BindingPresentation::Destructor {
             ffi_name: ffi_name.clone(),
-            destructor_ident: ffi_destructor_name(&ffi_ident).to_token_stream()
+            destructor_ident: Name::Destructor(ffi_ident)
         };
         println!("make_expansion: constructor: {}", quote!(#constructor_presentation));
         println!("make_expansion: destructor: {}", quote!(#destructor_presentation));
         Expansion::Full {
-            comment: DocPresentation::Default(self.doc_composer.compose(&ctx)),
+            comment: DocPresentation::Direct(self.doc_composer.compose(&ctx)),
             ffi_presentation: FFIObjectPresentation::Full(self.ffi_object_composer.compose(&ctx)),
             conversion: conversion_presentation,
             bindings: vec![constructor_presentation, destructor_presentation],
@@ -454,7 +445,7 @@ impl FFIConversionComposer {
     pub const fn new(
         from_conversion_composer: ConversionComposer,
         to_conversion_composer: ConversionComposer,
-        destroy_composer: FFIContextComposer,
+        destroy_composer: FFIContextComposer<TokenStream2>,
         drop_composer: DropComposer,
         from_presenter: MapPresenter,
         to_presenter: MapPresenter,
@@ -552,13 +543,13 @@ impl Composer for FFIBindingsComposer {
 
 
 
-pub struct FFIContextComposer {
+pub struct FFIContextComposer<T: ToTokens = TokenStream2> {
     parent: Option<Rc<RefCell<ItemComposer>>>,
     composer: MapPresenter,
-    context_presenter: ComposerPresenter<ItemComposer, TokenStream2>,
+    context_presenter: ComposerPresenter<ItemComposer, T>,
 }
-impl FFIContextComposer {
-    pub const fn new(composer: MapPresenter, context_presenter: ComposerPresenter<ItemComposer, TokenStream2>) -> Self {
+impl<T: ToTokens> FFIContextComposer<T> {
+    pub const fn new(composer: MapPresenter, context_presenter: ComposerPresenter<ItemComposer, T>) -> Self {
         Self { parent: None, composer, context_presenter }
     }
 }
@@ -685,12 +676,10 @@ composer_impl!(DropComposer, TokenStream2, |itself: &DropComposer, context: &Sco
             .collect())
         .present(context)));
 composer_impl!(FieldsComposer, TokenStream2, |itself: &FieldsComposer, context: &ScopeContext|
-    {
-        println!("FieldsComposer::compose: {:?}", itself.fields);
-        (itself.root_presenter)(
+    (itself.root_presenter)(
         ((itself.context_presenter)(&itself.parent.as_ref().unwrap().borrow()),
             itself.fields.clone()))
-    .present(context)});
+    .present(context));
 composer_impl!(NameComposer, TokenStream2, |itself: &NameComposer, _context: &ScopeContext|
     itself.name.to_token_stream());
 
@@ -707,73 +696,67 @@ composer_impl!(AttrsComposer, Vec<TraitVTablePresentation>, |itself: &AttrsCompo
         .collect()
 });
 
-pub fn implement_trait_for_item(item_trait: (&ItemTrait, &PathHolder), attrs_composition: &AttrsComposition, context: &ScopeContext) -> TraitVTablePresentation {
+pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsComposition, context: &ScopeContext) -> TraitVTablePresentation {
     let (item_trait, trait_scope) = item_trait;
     let AttrsComposition { ident: item_name, scope: item_scope, .. } = attrs_composition;
     let trait_decomposition = TraitDecompositionPart2::from_trait_items(&item_trait.items, &EMPTY, context);
     let trait_ident = &item_trait.ident;
     let item_full_ty = context.full_type_for(&parse_quote!(#item_name));
     let trait_full_ty = context.full_type_for(&parse_quote!(#trait_ident));
-
-    let (vtable_methods_implentations, vtable_methods_declarations): (Vec<TokenStream2>, Vec<TokenStream2>) = trait_decomposition.methods.into_iter()
+    let methods_compositions: Vec<TraitVTableMethodComposition> = trait_decomposition.methods.into_iter()
         .map(|signature_decomposition| {
             let FnReturnTypeComposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
             let fn_name = signature_decomposition.ident.unwrap();
-            let ffi_method_ident = format_ident!("{}_{}", item_name, fn_name);
+            let ffi_fn_name = format_ident!("{}_{}", item_name, fn_name);
             let arguments = signature_decomposition.arguments
                 .iter()
-                // .map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_original.clone()))
                 .map(|arg| arg.name_type_original.clone())
                 .collect::<Vec<_>>();
-            let mut argument_conversions = vec![OwnedItemPresenterContext::Conversion(quote!(cast_obj))];
-            argument_conversions.extend(signature_decomposition.arguments.iter().filter(|arg| arg.name.is_some()).map(|arg| OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())));
-            let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_method_ident), arguments)).present(context);
-            let argument_names = IteratorPresentationContext::Round(argument_conversions).present(context);
-            (quote!(#name_and_args -> #output_expression {
-                let cast_obj = &(*(obj as *const #item_full_ty));
-                let obj = <#item_full_ty as #trait_full_ty>::#fn_name #argument_names;
-                #output_conversions
-            }), quote!(#fn_name: #ffi_method_ident))
-        }).unzip();
-    let trait_vtable_ident = ffi_vtable_name(trait_ident);
-    let trait_object_ident = ffi_trait_obj_name(trait_ident);
-    let trait_implementor_vtable_ident = format_ident!("{}_{}", item_name, trait_vtable_ident);
-    // let item_module = item_scope.popped();
-    println!("implement_trait_for_item: {} {} {}", item_name, trait_ident, trait_scope);
-    let (fq_trait_vtable, fq_trait_object) = if item_scope.has_same_parent(&trait_scope) {
-        (quote!(#trait_vtable_ident), quote!(#trait_object_ident))
-    } else {
-        (quote!(#trait_scope::#trait_vtable_ident), quote!(#trait_scope::#trait_object_ident))
-    };
-    let vtable = quote! {
-        #[allow(non_snake_case, non_upper_case_globals)]
-        static #trait_implementor_vtable_ident: #fq_trait_vtable = {
-            #(#vtable_methods_implentations)*
-            #fq_trait_vtable {
-                #(#vtable_methods_declarations,)*
+
+            let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_fn_name), arguments)).present(context);
+            let argument_names = IteratorPresentationContext::Round(
+                signature_decomposition.arguments
+                    .iter()
+                    .map(|arg| if arg.name.is_some() {
+                        OwnedItemPresenterContext::Conversion(quote!(cast_obj))
+                    } else {
+                        OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())
+                    })
+                    .collect())
+                .present(context);
+
+
+            TraitVTableMethodComposition {
+                fn_name,
+                ffi_fn_name,
+                item_type: item_full_ty.clone(),
+                trait_type: trait_full_ty.clone(),
+                name_and_args,
+                output_expression,
+                output_conversions,
+                argument_names
             }
-        };
-    };
-    let binding_ident = format_ident!("{}_as_{}", item_name, trait_object_ident);
-    let destructor_binding_ident = ffi_destructor_name(&binding_ident);
-    let export = quote! {
-        /// # Safety
-        #[allow(non_snake_case)]
-        #[no_mangle]
-        pub extern "C" fn #binding_ident(obj: *const #item_full_ty) -> #fq_trait_object {
-            #fq_trait_object {
-                object: obj as *const (),
-                vtable: &#trait_implementor_vtable_ident,
-            }
+        }).collect();
+    let trait_vtable_ident = Name::Vtable(trait_ident.clone());
+    let trait_object_ident = Name::TraitObj(trait_ident.clone());
+    let is_defined_in_same_scope = item_scope.has_same_parent(&trait_scope);
+    let full_trait_type = if is_defined_in_same_scope { quote!(#trait_object_ident) } else { quote!(#trait_scope::#trait_object_ident) };
+    TraitVTablePresentation::Full {
+        vtable: FFIObjectPresentation::StaticVTable {
+            name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+            fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_scope::#trait_vtable_ident) },
+            methods_compositions,
+        },
+        export: BindingPresentation::ObjAsTrait {
+            name: Name::TraitFn(item_name.clone(), trait_ident.clone()),
+            item_type: item_full_ty.to_token_stream(),
+            trait_type: full_trait_type.to_token_stream(),
+            vtable_name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+        },
+        destructor: BindingPresentation::ObjAsTraitDestructor {
+            name: Name::TraitDestructor(item_name.clone(), trait_ident.clone()),
+            item_type: item_full_ty.to_token_stream(),
+            trait_type: full_trait_type.to_token_stream(),
         }
-    };
-    let destructor = quote! {
-        /// # Safety
-        #[allow(non_snake_case)]
-        #[no_mangle]
-        pub unsafe extern "C" fn #destructor_binding_ident(obj: #fq_trait_object) {
-            ferment_interfaces::unbox_any(obj.object as *mut #item_full_ty);
-        }
-    };
-    TraitVTablePresentation::Full { vtable, export, destructor }
+    }
 }

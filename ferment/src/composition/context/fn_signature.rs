@@ -3,4 +3,5 @@ pub enum FnSignatureCompositionContext {
     FFIObject,
     FFIObjectCallback,
     TraitVTableInner,
+    // StaticVTable(TraitDecompositionPart2)
 }

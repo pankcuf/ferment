@@ -7,9 +7,10 @@ use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::helper::{ffi_fn_name, from_array, from_path, from_slice, to_path};
+use crate::helper::{from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
 use crate::interface::{ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
+use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::OwnedItemPresenterContext;
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 use crate::presentation::ScopeContextPresentable;
@@ -47,7 +48,8 @@ impl Composition for FnSignatureComposition {
                 let arguments = self.arguments
                     .iter()
                     .map(|arg| arg.name_type_original.clone().present(context))
-                    .collect();
+                    .collect::<Vec<_>>();
+
                 let fn_name = self.ident.unwrap();
                 let full_fn_path = self.scope.joined(&fn_name);
                 let argument_conversions = self.arguments
@@ -55,10 +57,15 @@ impl Composition for FnSignatureComposition {
                     .map(|arg|
                         OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone()))
                     .collect::<Vec<_>>();
-                let name = ffi_fn_name(&fn_name).to_token_stream();
+                let name = Name::ModFn(fn_name);
                 let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions)).present(context);
                 let output_expression = self.return_type.presentation;
                 let output_conversions = self.return_type.conversion;
+                println!("present_ffi_object_fn.1: {}", name);
+                println!("present_ffi_object_fn.2: {}", quote!(#(#arguments),*));
+                // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
+                println!("present_ffi_object_fn.3: {}", quote!(#input_conversions));
+                println!("present_ffi_object_fn.4: {}", quote!(#output_conversions));
                 if self.is_async {
                     FFIObjectPresentation::AsyncFunction { name, arguments, input_conversions, output_expression, output_conversions }
                 } else {
@@ -88,11 +95,77 @@ impl Composition for FnSignatureComposition {
                 let output_expression = self.return_type.presentation;
 
                 FFIObjectPresentation::TraitVTableInnerFn {
-                    name: ffi_fn_name(&fn_name).to_token_stream(),
+                    name: Name::ModFn(fn_name),
                     name_and_args,
                     output_expression
                 }
             }
+            // FnSignatureCompositionContext::StaticVTable(trait_decomposition) => {
+            //     let item_full_ty = context.full_type_for(&parse_quote!(#item_name));
+            //     let trait_full_ty = context.full_type_for(&parse_quote!(#trait_ident));
+            //     // let (vtable_methods_implentations, vtable_methods_declarations): (Vec<TraitVTablePresentation>, Vec<TraitVTablePresentation>) = trait_decomposition.methods.into_iter()
+            //     // let (vtable_methods_implentations, method_names, method_signatures): (Vec<TraitVTablePresentation>, Vec<Ident>, Vec<Ident>) = trait_decomposition.methods.into_iter()
+            //     let methods_compositions: Vec<TraitVTableMethodComposition> = trait_decomposition.methods.into_iter()
+            //         .map(|signature_decomposition| {
+            //
+            //             let FnReturnTypeComposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
+            //             let fn_name = signature_decomposition.ident.unwrap();
+            //             let ffi_method_ident = format_ident!("{}_{}", item_name, fn_name);
+            //             // let arguments = signature_decomposition.arguments
+            //             //     .iter()
+            //             //     .map(|arg| arg.name_type_original.clone())
+            //             //     .collect::<Vec<_>>();
+            //             //
+            //             // let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_method_ident), arguments)).present(context);
+            //             // let argument_names = IteratorPresentationContext::Round(
+            //             //     signature_decomposition.arguments
+            //             //         .iter()
+            //             //         .map(|arg|
+            //             //             arg.name.map_or(
+            //             //                 OwnedItemPresenterContext::Conversion(quote!(cast_obj)),
+            //             //                 |_| OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())))
+            //             //         .collect())
+            //             //     .present(context);
+            //
+            //             TraitVTableMethodComposition {
+            //                 fn_name,
+            //                 ffi_fn_name: ffi_method_ident,
+            //                 signature_composition: signature_decomposition.clone()
+            //             }
+            //             // (TraitVTablePresentation::Method {
+            //             //     fn_name: fn_name.clone(),
+            //             //     sig_name: ffi_method_ident.clone(),
+            //             //     argument_names,
+            //             //     name_and_args,
+            //             //     output_expression,
+            //             //     item_type: item_full_ty.clone(),
+            //             //     trait_type: trait_full_ty.clone(),
+            //             //     output_conversions,
+            //             // }, fn_name, ffi_method_ident)
+            //         }).collect();
+            //
+            //     // FFIObjectPresentation::StaticVTable {
+            //     //     name: f,
+            //     //     methods_names: vec![],
+            //     //     methods_signatures: vec![],
+            //     //     fq_trait_vtable: Default::default(),
+            //     //     methods_implementations: vec![],
+            //     //     methods_declarations: vec![],
+            //     // }
+            //     // FFIObjectPresentation::StaticVTable {
+            //     //     name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+            //     //     fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_scope::#trait_vtable_ident) },
+            //     //     methods_implementations: vtable_methods_implentations,
+            //     //     methods_declarations: vtable_methods_declarations,
+            //     // }
+            //     FFIObjectPresentation::StaticVTable {
+            //         name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+            //         fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_scope::#trait_vtable_ident) },
+            //         // methods_implementations: vtable_methods_implentations,
+            //         // methods_declarations: vtable_methods_declarations,
+            //         methods_compositions,
+            //     }
+            // }
         }
     }
 }
@@ -106,6 +179,9 @@ impl FnSignatureComposition {
         let ident = Some(ident.clone());
         let arguments = handle_fn_args(inputs, context);
         let is_async = sig.asyncness.is_some();
+        println!("FnSignatureComposition::from_signature.1: {}", sig.to_token_stream());
+        println!("FnSignatureComposition::from_signature.2: {:?}", arguments);
+        println!("FnSignatureComposition::from_signature.3: {:?}", return_type);
         FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()) }
     }
 
@@ -184,15 +260,16 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, context: &ScopeContext) -> 
         .map(|arg| match arg {
             FnArg::Receiver(Receiver { mutability, .. }) => FnArgComposition {
                 name: None,
-                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(quote!(obj), match mutability {
+                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), match mutability {
                     Some(..) => parse_quote!(*mut ()),
                     _ => parse_quote!(*const ()),
                 }), false),
                 name_type_conversion: quote!()
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
+                // TODO: handle mut/const with pat
                 let full_type = context.ffi_full_dictionary_field_type_presenter(ty);
-                let name_type_original = OwnedItemPresenterContext::Named(FieldTypeConversion::Named(pat.to_token_stream(), full_type), false);
+                let name_type_original = OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgComposition {
                     name: Some(pat.to_token_stream()),
@@ -208,11 +285,11 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
     inputs
         .iter()
         .map(|BareFnArg { ty, name, .. }| {
-            let name = name.clone().map(|(ident, _)| ident.to_token_stream());
+            let name = name.clone().map(|(ident, _)| ident);
             let pres = context.ffi_full_dictionary_field_type_presenter(ty);
             FnArgComposition {
-                name: name.clone(),
-                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(name.unwrap(), pres), false),
+                name: name.clone().map(|g| g.to_token_stream()),
+                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Optional(name), pres), false),
                 name_type_conversion: quote!()
             }
         })

@@ -7,7 +7,7 @@ use crate::conversion::{ScopeItemConversion, TypeConversion};
 use crate::holder::PathHolder;
 
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
     Type(TypeConversion),
     Item(TypeConversion, ScopeItemConversion),
@@ -23,10 +23,10 @@ impl ToTokens for ObjectConversion {
 impl Debug for ObjectConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectConversion::Type(ty) =>
-                f.write_str(format!("Type({})", ty).as_str()),
-            ObjectConversion::Item(scope, item) =>
-                f.write_str(format!("Item({}, {})", scope, item).as_str()),
+            ObjectConversion::Type(tc) =>
+                f.write_str(format!("Type({})", tc).as_str()),
+            ObjectConversion::Item(tc, item) =>
+                f.write_str(format!("Item({}, {})", tc, item).as_str()),
             ObjectConversion::Empty =>
                 f.write_str("Empty"),
         }
@@ -104,8 +104,21 @@ impl TryFrom<&Item> for ObjectConversion {
                         TypeComposition::new(*ty.clone(), Some(item.generics.clone()))),
                     ScopeItemConversion::Item(value.clone())))
             },
-            // Item::Fn(item) => {}
-            // Item::Mod(_) => {}
+            Item::Fn(item) => {
+                let ident = &item.sig.ident;
+                Ok(ObjectConversion::Item(
+                    TypeConversion::Object(
+                        TypeComposition::new(parse_quote!(#ident), Some(item.sig.generics.clone()))),
+                    ScopeItemConversion::Item(value.clone())))
+            },
+            Item::Mod(item) => {
+                let ident = &item.ident;
+                Ok(ObjectConversion::Item(
+                    TypeConversion::Unknown(
+                        TypeComposition::new(parse_quote!(#ident), None)),
+                    ScopeItemConversion::Item(value.clone())))
+
+            }
             _ => Err(()),
         }
     }

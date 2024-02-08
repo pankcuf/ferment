@@ -3,15 +3,16 @@ use std::sync::{Arc, RwLock};
 use quote::quote;
 use syn::parse_quote;
 use syn::__private::TokenStream2;
-use crate::conversion::type_conversion::TypeConversion;
+// use crate::conversion::type_conversion::TypeConversion;
 use crate::Config;
-use crate::composition::ImportComposition;
-use crate::context::{GlobalContext, ScopeContext};
-use crate::conversion::ImportConversion;
-use crate::composition::generic_composition::GenericConversion;
+use crate::composition::{GenericConversion, ImportComposition};
+use crate::context::{GlobalContext, ScopeChain, ScopeContext};
+use crate::context::scope::Scope;
+use crate::conversion::{ImportConversion, TypeConversion};
+// use crate::composition::generic_composition::GenericConversion;
 use crate::holder::TypeHolder;
 use crate::presentation::expansion::Expansion;
-use crate::scope::Scope;
+// use crate::scope::Scope;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportItem};
 
 
@@ -22,8 +23,9 @@ fn decompose_module() {
 }
 fn root_scope_tree_item() -> ScopeTreeCompact {
     let mut global_context = GlobalContext::with_config(Config::default());
+    let root_scope = ScopeChain::crate_root();
     global_context
-        .scope_types_mut(&Scope::crate_root())
+        .scope_types_mut(&root_scope)
         .extend(HashMap::from([
             (TypeHolder(parse_quote!(bool)), TypeConversion::Primitive(parse_quote!(bool))),
             (TypeHolder(parse_quote!([u8; 20])), TypeConversion::Unknown(parse_quote!([u8; 20]))),

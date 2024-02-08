@@ -14,6 +14,7 @@ mod holder;
 mod conversion;
 mod composition;
 mod tree;
+mod naming;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

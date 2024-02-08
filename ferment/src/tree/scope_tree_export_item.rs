@@ -4,17 +4,44 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use proc_macro2::Ident;
 use std::sync::{Arc, RwLock};
-use syn::{Item, ItemMod};
+use quote::ToTokens;
+use syn::{Item, ItemMod, Path, Type};
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext};
-use crate::conversion::{ImportConversion, ItemConversion, ObjectConversion};
-use crate::formatter::{format_imported_dict, format_tree_exported_dict};
+use crate::conversion::{ImportConversion, ObjectConversion};
+use crate::formatter::{format_imported_dict, format_token_stream, format_tree_exported_dict};
+use crate::helper::ItemExtension;
+
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub enum ScopeTreeExportID {
+    Ident(Ident),
+    Impl(Type, Option<Path>)
+}
+
+impl std::fmt::Debug for ScopeTreeExportID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScopeTreeExportID::Ident(ident) =>
+                f.write_str(format!("Ident({})", ident.to_token_stream()).as_str()),
+            ScopeTreeExportID::Impl(ty, path) =>
+                f.write_str(format!("Impl({}, {})", ty.to_token_stream(), format_token_stream(path)).as_str())
+        }
+    }
+}
+
+impl std::fmt::Display for ScopeTreeExportID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
     Item(Rc<RefCell<ScopeContext>>, Item),
-    Tree(Rc<RefCell<ScopeContext>>, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<Ident, ScopeTreeExportItem>),
+    Tree(Rc<RefCell<ScopeContext>>, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -39,7 +66,7 @@ impl std::fmt::Display for ScopeTreeExportItem {
 }
 
 impl ScopeTreeExportItem {
-    pub(crate) fn tree_with_context_and_export(context: Rc<RefCell<ScopeContext>>, export: HashMap<Ident, ScopeTreeExportItem>) -> Self {
+    pub(crate) fn tree_with_context_and_export(context: Rc<RefCell<ScopeContext>>, export: HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> Self {
         Self::Tree(context, HashSet::default(), HashMap::default(), export)
     }
     pub fn with_scope_context(scope_context: Rc<RefCell<ScopeContext>>) -> ScopeTreeExportItem {
@@ -60,8 +87,8 @@ impl ScopeTreeExportItem {
     //     Self::tree_with_context_and_export(GlobalContext::with_context(context), export)
     // }
 
-    fn add_non_mod_item(&mut self, item: &ItemConversion) {
-        println!("add_non_mod_item: {}", item.ident());
+    fn add_non_mod_item(&mut self, item: &Item, scope: &ScopeChain) {
+        // println!("add_non_mod_item: {} in [{}]", item.maybe_ident().map_or(format!("None"), Ident::to_string), scope);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(
@@ -71,11 +98,10 @@ impl ScopeTreeExportItem {
                 exported) => {
                 let self_scope_context = scope_context.borrow_mut();
                 let mut self_scope_context = self_scope_context.clone();
-                // let mut self_scope_context = scope_context.clone();
-                let scope = item.scope_chain();
+                // let scope = item.scope_chain();
                 // self_scope_context.scope = scope.joined(&item.ident());
                 self_scope_context.scope = scope.clone();
-                self_scope_context.populate_imports_and_generics(&self_scope_context.scope, item, imported, generics);
+                self_scope_context.populate_imports_and_generics(scope, item, imported, generics);
                 // TODO: We shouldn't do this at this step since we may have not yet parsed all the items
                 // self_scope_context.trait_items_from_attributes(item.attrs())
                 //     .into_iter()
@@ -83,7 +109,7 @@ impl ScopeTreeExportItem {
                 //         let trait_item = ItemConversion::Trait(item_trait.item, trait_scope);
                 //         self_scope_context.populate_imports_and_generics(trait_item.scope_chain(), &trait_item, imported, generics);
                 //     });
-                exported.insert(item.ident().clone(), ScopeTreeExportItem::Item(Rc::new(RefCell::new(self_scope_context)), item.into()));
+                exported.insert(item.scope_tree_export_id(), ScopeTreeExportItem::Item(Rc::new(RefCell::new(self_scope_context)), item.clone()));
             }
         }
     }
@@ -103,22 +129,18 @@ impl ScopeTreeExportItem {
                         self_scope.self_scope.joined(&ident),
                         ObjectConversion::Empty)
                 };
-                // scope.joined_mod(&ident);
-                // let inner_scope = scope.joined(&ident);
                 let mut inner_tree = ScopeTreeExportItem::with_global_context(scope.clone(), context);
                 items.iter().for_each(|item| {
-                    match ItemConversion::try_from((item, &inner_scope)) {
-                        Ok(ItemConversion::Mod(item_mod, scope)) =>
-                            inner_tree.add_mod_item(&item_mod, &scope),
-                        Ok(inner_item) =>
-                            inner_tree.add_non_mod_item(&inner_item),
-                        _ => {}
-                    };
+                    if let Item::Mod(item_mod) = item {
+                        inner_tree.add_mod_item(&item_mod, &inner_scope)
+                    } else {
+                        inner_tree.add_non_mod_item(item, &inner_scope)
+                    }
                 });
                 match self {
                     ScopeTreeExportItem::Item(_, _) => {},
                     ScopeTreeExportItem::Tree(_, _, _, exported) => {
-                        exported.insert(ident.clone(), inner_tree);
+                        exported.insert(ScopeTreeExportID::Ident(ident.clone()), inner_tree);
                     }
                 };
             },
@@ -126,14 +148,12 @@ impl ScopeTreeExportItem {
         }
     }
 
-    pub fn add_item(&mut self, item: ItemConversion) {
+    pub fn add_item(&mut self, item: Item, scope: ScopeChain) {
         if let ScopeTreeExportItem::Tree(..) = self {
             match &item {
-                ItemConversion::Use(..) => {},
-                ItemConversion::Mod(item_mod, scope) =>
-                    self.add_mod_item(item_mod, scope),
-                _ =>
-                    self.add_non_mod_item(&item)
+                Item::Use(..) => {},
+                Item::Mod(item_mod) => self.add_mod_item(item_mod, &scope),
+                _ => self.add_non_mod_item(&item, &scope)
             };
         }
     }

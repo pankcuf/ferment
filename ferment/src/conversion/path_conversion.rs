@@ -42,12 +42,13 @@ impl From<Path> for PathConversion {
 impl From<&Path> for PathConversion {
     fn from(path: &Path) -> Self {
         let last_segment = path.segments.last().unwrap();
-        println!("path_conversion_from_path: {}", path.to_token_stream());
+        // println!("path_conversion_from_path: {}", path.to_token_stream());
 
         match &last_segment.arguments {
             PathArguments::AngleBracketed(_) => {
                 match last_segment.ident.to_string().as_str() {
                     "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
+                    "Arc" => PathConversion::Generic(GenericPathConversion::AnyOther(path.clone())),
                     "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
                     "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
                     "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),

@@ -3,6 +3,7 @@ use quote::quote;
 use syn::__private::TokenStream2;
 
 use crate::conversion::FieldTypeConversion;
+use crate::formatter::format_token_stream;
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
 
 /// token -> token
@@ -30,7 +31,8 @@ pub const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
 pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
 pub const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
 pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
-    let comment = format!("FFI-representation of the {}", target_name);
+    let comment = format!("FFI-representation of the [`{}`]", format_token_stream(&target_name));
+    // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)
     parse_quote! { #[doc = #comment] }
 };
 
@@ -66,7 +68,6 @@ pub fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenS
     quote! {
         #[repr(C)]
         #[derive(Clone)]
-        #[allow(non_camel_case_types)]
         pub struct #ident #implementation
     }
 }

@@ -2,18 +2,17 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use proc_macro2::Ident;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
 use crate::formatter::{format_imported_dict, format_tree_exported_dict};
-use crate::tree::ScopeTreeExportItem;
+use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
 
 pub struct ScopeTreeCompact {
     pub scope: ScopeChain,
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
-    pub exported: HashMap<Ident, ScopeTreeExportItem>,
+    pub exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     pub scope_context: Rc<RefCell<ScopeContext>>,
 }
 

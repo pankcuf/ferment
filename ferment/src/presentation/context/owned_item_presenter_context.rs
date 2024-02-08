@@ -51,7 +51,6 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
     fn present(&self, context: &ScopeContext) -> TokenStream2 {
         match self {
             OwnedItemPresenterContext::DefaultField(field_type) => {
-                println!("ScopeContextPresentable::present:::DefaultField {}", field_type.name());
                 field_type.name()
             },
             OwnedItemPresenterContext::DefaultFieldType(field_type) =>
@@ -60,7 +59,6 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             OwnedItemPresenterContext::Named(field_type, is_public) => {
                 let name = field_type.name();
                 let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
-                println!("ScopeContextPresentable::present:::Named {}", field_type.name());
                 if *is_public {
                     quote!(pub #name: #ty)
                 } else {
@@ -72,7 +70,6 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             OwnedItemPresenterContext::Conversion(conversion) =>
                 quote!(#conversion),
             OwnedItemPresenterContext::BindingArg(field_type) => {
-                println!("ScopeContextPresentable::present:::BindingArg {}", field_type.as_binding_arg_name());
                 let name = field_type.as_binding_arg_name();
                 let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
                 quote!(#name: #ty)

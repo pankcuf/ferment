@@ -20,7 +20,7 @@ pub use self::import_conversion::ImportConversion;
 pub use self::item_conversion::ItemConversion;
 pub use self::macro_conversion::MacroAttributes;
 pub use self::macro_conversion::MacroType;
-pub use self::item_conversion::type_ident;
+pub use self::item_conversion::{type_ident, type_ident_ref};
 pub use self::object_conversion::ObjectConversion;
 pub use self::path_conversion::PathConversion;
 pub use self::scope_item_conversion::ScopeItemConversion;

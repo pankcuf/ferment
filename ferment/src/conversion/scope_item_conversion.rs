@@ -1,12 +1,17 @@
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, Signature};
+use syn::{Attribute, Generics, Item, Path, Signature};
 use syn::__private::TokenStream2;
+use crate::composition::{GenericConversion, ImportComposition};
+use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::formatter::format_token_stream;
 use crate::helper::ItemExtension;
+use crate::holder::{PathHolder, TypeHolder};
+use crate::tree::ScopeTreeExportID;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ScopeItemConversion {
     Item(Item),
     Fn(Signature),
@@ -38,24 +43,59 @@ impl Display for ScopeItemConversion {
 }
 
 impl ItemExtension for ScopeItemConversion {
+    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
+        match self {
+            ScopeItemConversion::Item(item) => item.scope_tree_export_id(),
+            ScopeItemConversion::Fn(sig) => sig.scope_tree_export_id()
+        }
+    }
+
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>> {
         match self {
             ScopeItemConversion::Item(item) => item.maybe_attrs(),
-            ScopeItemConversion::Fn(..) => None
+            ScopeItemConversion::Fn(sig) => sig.maybe_attrs()
         }
     }
 
     fn maybe_ident(&self) -> Option<&Ident> {
         match self {
             ScopeItemConversion::Item(item) => item.maybe_ident(),
-            ScopeItemConversion::Fn(sig) => Some(&sig.ident)
+            ScopeItemConversion::Fn(sig) => sig.maybe_ident()
         }
     }
 
     fn maybe_generics(&self) -> Option<&Generics> {
         match self {
             ScopeItemConversion::Item(item) => item.maybe_generics(),
-            ScopeItemConversion::Fn(sig) => Some(&sig.generics)
+            ScopeItemConversion::Fn(sig) => sig.maybe_generics()
+        }
+    }
+
+    fn collect_compositions(&self) -> Vec<TypeHolder> {
+        match self {
+            ScopeItemConversion::Item(item) => item.collect_compositions(),
+            ScopeItemConversion::Fn(sig) => sig.collect_compositions(),
+        }
+    }
+
+    fn classify_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>> {
+        match self {
+            ScopeItemConversion::Item(item) => item.classify_imports(imports),
+            ScopeItemConversion::Fn(sig) => sig.classify_imports(imports)
+        }
+    }
+
+    fn find_generics(&self) -> HashSet<TypeHolder> {
+        match self {
+            ScopeItemConversion::Item(item) => item.find_generics(),
+            ScopeItemConversion::Fn(sig) => sig.find_generics(),
+        }
+    }
+
+    fn find_generics_fq(&self, scope_types: &HashMap<TypeHolder, ObjectConversion>) -> HashSet<GenericConversion> {
+        match self {
+            ScopeItemConversion::Item(item) => item.find_generics_fq(scope_types),
+            ScopeItemConversion::Fn(sig) => sig.find_generics_fq(scope_types),
         }
     }
 }

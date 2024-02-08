@@ -136,10 +136,10 @@ impl Builder {
                     .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree| {
                             let tree = ScopeTree::from(tree);
-                            {
-                                let mut lock = context.write().unwrap();
-                                lock.inject_types_from_traits_implementation();
-                            }
+                            // {
+                            //     let mut lock = context.write().unwrap();
+                            //     lock.inject_types_from_traits_implementation();
+                            // }
 
                             println!();
                             println!("•• TREE 2 MORPHING using ScopeContext:");

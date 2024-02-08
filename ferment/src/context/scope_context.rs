@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::{Attribute, Ident, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{Attribute, Ident, Item, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{GenericPathConversion, ImportConversion, ItemConversion, ObjectConversion, PathConversion, TypeConversion};
-use crate::formatter::{format_path_vec, format_token_stream};
-use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
+use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, PathConversion, TypeConversion};
+use crate::formatter::format_token_stream;
+use crate::helper::{ffi_mangled_ident, ItemExtension, path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::{PathHolder, TypeHolder};
 
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl ScopeContext {
         let regular_type = lock.maybe_import(&scope, &path)
             .unwrap_or(&path.0).clone();
         lock.custom_conversions
-            .entry(scope.self_scope().self_scope.clone())
+            .entry(scope.clone())
             .or_default()
             .insert(parse_quote!(#regular_type), ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(ffi_type, None))));
     }
@@ -62,10 +62,15 @@ impl ScopeContext {
         println!("FFI (trait) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
         match maybe_trait {
             Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, _)) => {
+                // loc
                 // check maybe it's really known
-                if let Some(tt) = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty)) {
-                    maybe_trait = Some(tt);
+                let trait_scope = lock.actual_scope_for_type(ty.ty(), &self.scope);
+                if let Some(obj) = lock.maybe_scope_type(&parse_quote!(Self), &trait_scope) {
+                    maybe_trait = Some(obj);
                 }
+                // if let Some(tt) = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty)) {
+                //     maybe_trait = Some(tt);
+                // }
                 // maybe_trait = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty));
                 // println!("FFI (trait unknown but maybe known) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
                 // if let Some(ty) = maybe_trait {
@@ -116,26 +121,46 @@ impl ScopeContext {
             .unwrap_or(self.ffi_internal_type_for(ty))
     }
 
-    pub fn find_item_trait_scope_pair(&self, trait_name: &Path) -> (TraitCompositionPart1, PathHolder) {
-        println!("find_item_trait_scope_pair.1: {}", format_token_stream(trait_name));
-        let trait_ty = parse_quote!(#trait_name);
-        let lock = self.context.read().unwrap();
-        let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
-        let trait_ident = parse_quote!(#trait_name);
-        let trait_scope = full_trait_ty.as_scope();
-        println!("find_item_trait_scope_pair.2: {}: {}", format_token_stream(&trait_ident), trait_scope);
-        let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
-        // let trait_scope_chain = ScopeChain::Trait {
-        //     self_scope: trait_scope,
-        //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
-        // };
-        (item_trait, trait_scope)
-    }
+    // pub fn find_item_trait_in_scope(&self, trait_name: &Path, scope: &ScopeChain) -> (TraitCompositionPart1, ScopeChain) {
+    //     let trait_ty = parse_quote!(#trait_name);
+    //     let lock = self.context.read().unwrap();
+    //     let full_trait_ty = lock.maybe_type(&trait_ty, scope).unwrap();
+    //     let trait_ident = parse_quote!(#trait_name);
+    //     let trait_scope = full_trait_ty.as_scope();
+    //
+    //     let trait_scope = lock.actual_scope_for_path(full_trait_ty);
+    //
+    //     //let trait_scope = ScopeChain::Trait { self_scope: trait_scope, parent_scope_chain: Box::new(scope.clone()) };
+    //     println!("find_item_trait_in_scope.2: {}: {}", format_token_stream(&trait_ident), &trait_scope);
+    //     let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
+    //     // let trait_scope_chain = ScopeChain::Trait {
+    //     //     self_scope: trait_scope,
+    //     //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
+    //     // };
+    //     (item_trait, trait_scope)
+    // }
+    // pub fn find_item_trait_scope_pair(&self, trait_name: &Path) -> (TraitCompositionPart1, ScopeChain) {
+    //     println!("find_item_trait_scope_pair.1: {}", format_token_stream(trait_name));
+    //     let trait_ty = parse_quote!(#trait_name);
+    //     let lock = self.context.read().unwrap();
+    //     // let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
+    //     let trait_scope = lock.actual_scope_for_type(&trait_ty, &self.scope);
+    //     // trait_scope.se
+    //     // let trait_ident = parse_quote!(#trait_name);
+    //     // let trait_scope = full_trait_ty.as_scope();
+    //     println!("find_item_trait_scope_pair.2: {}", trait_scope);
+    //     let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
+    //     // let trait_scope_chain = ScopeChain::Trait {
+    //     //     self_scope: trait_scope,
+    //     //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
+    //     // };
+    //     (item_trait, trait_scope)
+    // }
 
     pub fn scope_type_for_path(&self, path: &Path) -> Option<Type> {
         let lock = self.context.read().unwrap();
         lock.scope_types
-            .get(&self.scope.self_scope().self_scope)
+            .get(&self.scope)
             .and_then(|scope_types|
                 scope_types.iter()
                     .find_map(|(TypeHolder { 0: other}, full_type)| {
@@ -150,7 +175,7 @@ impl ScopeContext {
             .cloned()
     }
 
-    pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &PathHolder) -> Option<TraitCompositionPart1> {
+    pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<TraitCompositionPart1> {
         println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
         let lock = self.context.read().unwrap();
         lock.traits_dictionary
@@ -159,7 +184,7 @@ impl ScopeContext {
             .cloned()
     }
 
-    pub fn find_generics_fq_in(&self, item: &ItemConversion, scope: &PathHolder) -> HashSet<GenericConversion> {
+    pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
         // println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
         let lock = self.context.read().unwrap();
         lock.scope_types
@@ -168,13 +193,13 @@ impl ScopeContext {
             .unwrap_or_default()
     }
 
-    pub fn find_used_imports(&self, item: &ItemConversion) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
+    pub fn find_used_imports(&self, item: &Item) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
         let lock = self.context.read().unwrap();
-        lock.used_imports_at_scopes.get(&self.scope.self_scope().self_scope)
+        lock.used_imports_at_scopes.get(&self.scope)
             .map(|scope_imports| item.get_used_imports(scope_imports))
     }
 
-    pub fn populate_imports_and_generics(&self, scope: &ScopeChain, item: &ItemConversion, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
+    pub fn populate_imports_and_generics(&self, scope: &ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
         if let Some(scope_imports) = self.find_used_imports(item) {
             scope_imports
                 .iter()
@@ -183,7 +208,7 @@ impl ScopeContext {
                         .or_insert_with(HashSet::new)
                         .extend(imports.clone()));
         }
-        generics.extend(self.find_generics_fq_in(item, &scope.self_scope().self_scope));
+        generics.extend(self.find_generics_fq_in(item, &scope));
     }
 
     pub fn ffi_path_converted_or_same(&self, path: &Path) -> Type {
@@ -307,14 +332,14 @@ impl ScopeContext {
                 }
             }
         };
-        if let Some(result) = result.as_ref() {
-            println!("•• [FFI] ffi_path_converted: {}: {}", format_token_stream(path), format_token_stream(result));
-        }
+        // if let Some(result) = result.as_ref() {
+            // println!("•• [FFI] ffi_path_converted: {}: {}", format_token_stream(path), format_token_stream(result));
+        // }
         result
     }
 
     fn ffi_external_path_converted(&self, path: &Path) -> Option<Type> {
-        println!("ffi_external_path_converted: {}", format_token_stream(path));
+        // println!("ffi_external_path_converted: {}", format_token_stream(path));
         let lock = self.context.read().unwrap();
         let segments = &path.segments;
         let first_segment = segments.first().unwrap();
@@ -381,6 +406,7 @@ impl ScopeContext {
     }
 
     fn ffi_dictionary_field_type_presenter(&self, field_type: &Type) -> Type {
+        // println!("ffi_dictionary_field_type_presenter: {}", format_token_stream(field_type));
         match field_type {
             Type::Path(TypePath { path, .. }) =>
                 self.ffi_dictionary_field_type(path),
@@ -399,7 +425,8 @@ impl ScopeContext {
                         _ => parse_quote!(*mut #path)
                     },
                     Type::Ptr(type_ptr) => parse_quote!(*mut #type_ptr),
-                    _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
+                    // _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
+                    _ => parse_quote!(#field_type)
                 },
             Type::Slice(TypeSlice { elem, .. }) => self.ffi_dictionary_field_type_presenter(elem),
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
@@ -443,11 +470,39 @@ impl ScopeContext {
         }
     }
 
-    pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Vec<(TraitCompositionPart1, PathHolder)> {
+    pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Vec<(TraitCompositionPart1, ScopeChain)> {
         let attr_traits = extract_trait_names(attrs);
-        println!("trait_items_from_attributes: [{}]: [{}]", self.scope, format_path_vec(&attr_traits));
+        // println!("trait_items_from_attributes: [{}]: [{}]", self.scope, format_path_vec(&attr_traits));
         attr_traits.iter()
-            .map(|trait_name| self.find_item_trait_scope_pair(trait_name))
+            .map(|trait_name| {
+
+                // self.find_item_trait_scope_pair(trait_name)
+
+                let trait_ty = parse_quote!(#trait_name);
+                let lock = self.context.read().unwrap();
+                // let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
+                let parent_scope = self.scope.parent_scope().unwrap();
+                let trait_scope = lock.actual_scope_for_type(&trait_ty, parent_scope);
+                // let trait_scope = lock.actual_scope_for_type(&trait_ty, &self.scope);
+                // trait_scope
+                // trait_scope.se
+                // let trait_ident = parse_quote!(#trait_name);
+                // let trait_scope = full_trait_ty.as_scope();
+                println!("find_item_trait_scope_pair: {} ::: {}", trait_name.to_token_stream(), trait_scope);
+                // let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
+                // let trait_scope_chain = ScopeChain::Trait {
+                //     self_scope: trait_scope,
+                //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
+                // };
+                let ident = trait_name.get_ident().unwrap();
+                let tr = lock.traits_dictionary.get(&trait_scope)
+                    .and_then(|dict| dict.get(ident))
+                    .cloned()
+                    .unwrap();
+
+                (tr, trait_scope)
+
+            })
             .collect()
     }
 

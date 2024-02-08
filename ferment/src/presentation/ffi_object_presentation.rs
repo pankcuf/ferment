@@ -3,10 +3,11 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{Generics, parse_quote};
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::composition::TraitVTableMethodComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, GenericArgPresentation};
-use crate::helper::ffi_destructor_name;
 use crate::interface::create_struct;
+use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::context::OwnedItemPresenterContext;
 use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
@@ -19,30 +20,39 @@ pub enum FFIObjectPresentation {
         output_expression: TokenStream2,
     },
     Function {
-        name: TokenStream2,
+        name: Name,
         arguments: Vec<TokenStream2>,
         input_conversions: TokenStream2,
         output_expression: TokenStream2,
         output_conversions: TokenStream2,
     },
     AsyncFunction {
-        name: TokenStream2,
+        name: Name,
         arguments: Vec<TokenStream2>,
         input_conversions: TokenStream2,
         output_expression: TokenStream2,
         output_conversions: TokenStream2,
+    },
+    StaticVTable {
+        name: Name,
+        methods_compositions: Vec<TraitVTableMethodComposition>,
+        // methods_names: Vec<Ident>,
+        // methods_signatures: Vec<TokenStream2>,
+        fq_trait_vtable: TokenStream2,
+        // methods_implementations: Vec<TraitVTablePresentation>,
+        // methods_declarations: Vec<TraitVTablePresentation>,
     },
     TraitVTable {
         name: TokenStream2,
         fields: Vec<FFIObjectPresentation>
     },
     TraitVTableInnerFn {
-        name: TokenStream2,
+        name: Name,
         name_and_args: TokenStream2,
         output_expression: TokenStream2,
     },
     TraitObject {
-        name: TokenStream2,
+        name: Name,
         vtable_name: TokenStream2,
     },
     Full(TokenStream2),
@@ -84,7 +94,6 @@ impl ToTokens for FFIObjectPresentation {
         match self {
             Self::Callback { name, arguments, output_expression} =>
                 quote! {
-                    #[allow(non_camel_case_types)]
                     pub type #name = unsafe extern "C" fn(#(#arguments),*) #output_expression;
                 },
             Self::Function { name, arguments, input_conversions, output_expression, output_conversions } => {
@@ -138,8 +147,8 @@ impl ToTokens for FFIObjectPresentation {
                     generics: generics.clone()
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
-                let ok_conversion = FieldTypeConversion::Named(quote!(ok), parse_quote!(*mut #ok_type));
-                let error_conversion = FieldTypeConversion::Named(quote!(error), parse_quote!(*mut #error_type));
+                let ok_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Ok), parse_quote!(*mut #ok_type));
+                let error_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Error), parse_quote!(*mut #error_type));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),
@@ -152,7 +161,7 @@ impl ToTokens for FFIObjectPresentation {
                     },
                     BindingPresentation::Destructor {
                         ffi_name: quote!(#ffi_type),
-                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                        destructor_ident: Name::Destructor(ffi_type.clone())
                     }
                 ];
                 quote! {
@@ -181,9 +190,9 @@ impl ToTokens for FFIObjectPresentation {
                     generics: generics.clone()
                 };
                 let drop_presentation = DropInterfacePresentation::Full(quote!(#ffi_type), quote!(#(#drop_code)*));
-                let key_conversion = FieldTypeConversion::Named(quote!(keys), parse_quote!(*mut #key));
-                let value_conversion = FieldTypeConversion::Named(quote!(values), parse_quote!(*mut #value));
-                let count_conversion = FieldTypeConversion::Named(quote!(count), parse_quote!(usize));
+                let key_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Keys), parse_quote!(*mut #key));
+                let value_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Values), parse_quote!(*mut #value));
+                let count_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Count), parse_quote!(usize));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),
@@ -197,7 +206,7 @@ impl ToTokens for FFIObjectPresentation {
                     },
                     BindingPresentation::Destructor {
                         ffi_name: quote!(#ffi_type),
-                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                        destructor_ident: Name::Destructor(ffi_type.clone())
                     }
                 ];
                 quote! {
@@ -224,8 +233,8 @@ impl ToTokens for FFIObjectPresentation {
                         pub values: *mut #value,
                     }));
                 let drop_presentation = DropInterfacePresentation::Full(ffi_type.to_token_stream(), quote!(#(#drop_code)*));
-                let value_conversion = FieldTypeConversion::Named(quote!(values), parse_quote!(*mut #value));
-                let count_conversion = FieldTypeConversion::Named(quote!(count), parse_quote!(usize));
+                let value_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Values), parse_quote!(*mut #value));
+                let count_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Count), parse_quote!(usize));
                 let bindings = vec![
                     BindingPresentation::Constructor {
                         ffi_ident: ffi_type.clone(),
@@ -238,7 +247,7 @@ impl ToTokens for FFIObjectPresentation {
                     },
                     BindingPresentation::Destructor {
                         ffi_name: quote!(#ffi_type),
-                        destructor_ident: ffi_destructor_name(ffi_type).to_token_stream()
+                        destructor_ident: Name::Destructor(ffi_type.clone())
                     }
                 ];
                 quote! {
@@ -256,7 +265,37 @@ impl ToTokens for FFIObjectPresentation {
             // FFIObjectPresentation::Generic { .. } => {}
             FFIObjectPresentation::Empty => { /* Box<T> */
                 quote!()
+            },
+            FFIObjectPresentation::StaticVTable { name, fq_trait_vtable, methods_compositions } => {
+                let (methods_implementations, methods_declarations): (Vec<TokenStream2>, Vec<TokenStream2>) = methods_compositions
+                    .iter()
+                    .map(|TraitVTableMethodComposition { fn_name, ffi_fn_name, item_type, trait_type, argument_names, name_and_args, output_expression, output_conversions }| {
+                        (quote!(#fn_name: #ffi_fn_name), {
+                            let input_conversions = quote! {
+                                let cast_obj = &(*(obj as *const #item_type));
+                                let obj = <#item_type as #trait_type>::#fn_name #argument_names;
+                            };
+                            quote!(#name_and_args -> #output_expression { #input_conversions #output_conversions})
+                        })
+                    })
+                    .unzip();
+                println!("FFIObjectPresentation::StaticVTable::present: {}: {}", quote!(#name), quote!(#fq_trait_vtable));
+                quote! {
+                    static #name: #fq_trait_vtable = {
+                        #(#methods_implementations)*
+                        #fq_trait_vtable {
+                            #(#methods_declarations,)*
+                        }
+                    };
+                }
             }
         }.to_tokens(tokens)
     }
 }
+// # [doc = r" # Safety"]
+// # [no_mangle]
+// pub unsafe extern "C" fn Status_as_CanRetry_can_retry (obj: * const Status) -> bool {
+//     let obj = ferment_interfaces::FFIConversion::ffi_from_const(obj);
+//     let result = <crate::transport::transport_request::Status as crate::transport::transport_request::CanRetry>::can_retry(&obj);
+//     result
+// }

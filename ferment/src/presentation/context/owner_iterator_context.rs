@@ -73,7 +73,6 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                     .present(context);
                 quote! {
                     #[repr(C)]
-                    #[allow(non_camel_case_types)]
                     #[derive(Clone)]
                     pub enum #enum_presentation
                 }

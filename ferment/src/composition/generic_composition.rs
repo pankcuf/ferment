@@ -4,13 +4,12 @@ use std::hash::{Hash, Hasher};
 use std::collections::HashSet;
 use std::rc::Rc;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeParamBound, TypePath, TypeReference, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, PathConversion, TypeConversion};
 use crate::formatter::format_token_stream;
-use crate::helper::path_arguments_to_types;
-use crate::holder::{PathHolder, TypeHolder};
+use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub struct GenericConversion(pub ObjectConversion);
@@ -67,6 +66,7 @@ impl GenericConversion {
     }
 
     fn expand_(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
+        println!("GenericConversion::expand_: {}", full_type.to_token_stream());
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
@@ -120,39 +120,33 @@ fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
     }
 }
 
-pub fn collect_generic_types_in_path(path: &Path, generics: &mut HashSet<TypeHolder>) {
-    path.segments
-        .iter()
-        .flat_map(|seg| path_arguments_to_types(&seg.arguments))
-        .for_each(|t| collect_generic_types_in_type(&t, generics));
-}
 
-pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
-    match field_type {
-        Type::Path(TypePath { path, .. }) => {
-            collect_generic_types_in_path(path, generics);
-            if path.segments.iter().any(|seg| !path_arguments_to_types(&seg.arguments).is_empty() && !matches!(seg.ident.to_string().as_str(), "Option")) {
-                // println!("addd generic: {}", format_token_stream(field_type));
-                generics.insert(TypeHolder(field_type.clone()));
-            }
-        },
-        Type::Reference(TypeReference { elem, .. }) => {
-            collect_generic_types_in_type(elem, generics);
-        },
-        Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-            bounds.iter().for_each(|bound| match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => collect_generic_types_in_path(path, generics),
-                _ => {}
-            })
-        },
-        Type::Tuple(TypeTuple { elems, .. }) => {
-            elems.iter()
-                .for_each(|t| collect_generic_types_in_type(t, generics));
-        },
-        // Type::Array ??
-        _ => {}
-    }
-}
+// pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
+//     match field_type {
+//         Type::Path(TypePath { path, .. }) => {
+//             collect_generic_types_in_path(path, generics);
+//             if path.segments.iter().any(|seg| !path_arguments_to_types(&seg.arguments).is_empty() && !matches!(seg.ident.to_string().as_str(), "Option")) {
+//                 // println!("addd generic: {}", format_token_stream(field_type));
+//                 generics.insert(TypeHolder(field_type.clone()));
+//             }
+//         },
+//         Type::Reference(TypeReference { elem, .. }) => {
+//             collect_generic_types_in_type(elem, generics);
+//         },
+//         Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+//             bounds.iter().for_each(|bound| match bound {
+//                 TypeParamBound::Trait(TraitBound { path, .. }) => collect_generic_types_in_path(path, generics),
+//                 _ => {}
+//             })
+//         },
+//         Type::Tuple(TypeTuple { elems, .. }) => {
+//             elems.iter()
+//                 .for_each(|t| collect_generic_types_in_type(t, generics));
+//         },
+//         // Type::Array ??
+//         _ => {}
+//     }
+// }
 // fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeAndPathHolder>) {
 //     println!("collect_generic_types_in_type: {}", format_token_stream(field_type));
 //     match field_type {

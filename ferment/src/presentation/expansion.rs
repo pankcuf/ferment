@@ -37,6 +37,7 @@ pub enum Expansion {
     },
     Impl {
         comment: DocPresentation,
+        items: Vec<FFIObjectPresentation>,
     },
     Use {
         comment: DocPresentation,
@@ -51,7 +52,12 @@ pub enum Expansion {
 impl ToTokens for Expansion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let presentations = match self {
-            Self::Empty | Self::Use { comment: _ } | Self::Impl { comment: _ } => vec![],
+            Self::Empty | Self::Use { comment: _ } => vec![],
+            Self::Impl { comment, items } => {
+                let mut full = vec![comment.to_token_stream()];
+                full.extend(items.iter().map(FFIObjectPresentation::to_token_stream));
+                full
+            },
             Self::Callback { comment, ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Function { comment, ffi_presentation } =>
