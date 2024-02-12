@@ -1,0 +1,101 @@
+ScopeContext { scope: Scope(crate, Empty) (CrateRoot), context: RwLock { data: -- types:
+		Scope(crate::nested, Item(Unknown(TypeComposition(nested)), Item(nested))) (Mod):
+			Option<String>: Type(Object(TypeComposition(Option<String>)))
+			String: Type(Object(TypeComposition(String)))
+			Vec<u8>: Type(Object(TypeComposition(Vec<u8>)))
+			u8: Type(Primitive(TypeComposition(u8)))
+		Scope(crate::nested::address_with_script_pubkey, Item(Object(TypeComposition(address_with_script_pubkey)), Item(address_with_script_pubkey))) (Fn) (parent: Scope(crate::nested, Item(Unknown(TypeComposition(nested)), Item(nested))) (Mod)):
+			Option<String>: Type(Object(TypeComposition(Option<String>)))
+			String: Type(Object(TypeComposition(String)))
+			Vec<u8>: Type(Object(TypeComposition(Vec<u8>)))
+			address_with_script_pubkey: Item(Object(TypeComposition(crate::nested::address_with_script_pubkey)), Fn(address_with_script_pubkey))
+			u8: Type(Primitive(TypeComposition(u8)))
+		Scope(crate::nested::ProtocolError, Item(Object(TypeComposition(ProtocolError)), Item(ProtocolError))) (Object) (parent: Scope(crate::nested, Item(Unknown(TypeComposition(nested)), Item(nested))) (Mod)):
+			ProtocolError: Item(Object(TypeComposition(crate::nested::ProtocolError)), Item(ProtocolError))
+			Self: Item(Object(TypeComposition(ProtocolError)), Item(ProtocolError))
+			String: Type(Object(TypeComposition(String)))
+			Vec<u8>: Type(Object(TypeComposition(Vec<u8>)))
+			u8: Type(Primitive(TypeComposition(u8)))
+		Scope(crate::transport::transport_request, Empty) (Mod):
+			CanRetry: Type(Unknown(TypeComposition(crate::transport::transport_request::CanRetry)))
+			Clone: Type(TraitType(TypeComposition(Clone)))
+			Send: Type(TraitType(TypeComposition(Send)))
+			Sized: Type(TraitType(TypeComposition(Sized)))
+			SomeOtherTrait: Type(Unknown(TypeComposition(crate::transport::transport_request::SomeOtherTrait)))
+			String: Type(Object(TypeComposition(String)))
+			Sync: Type(TraitType(TypeComposition(Sync)))
+			TransportClient: Type(Unknown(TypeComposition(crate::transport::transport_request::TransportClient)))
+			TransportResponse: Type(Unknown(TypeComposition(crate::transport::transport_request::TransportResponse)))
+			Uri: Type(Unknown(TypeComposition(crate::transport::transport_request::Uri)))
+			u32: Type(Primitive(TypeComposition(u32)))
+		Scope(crate::transport::transport_request::CanRetry, Item(Trait(TypeComposition(CanRetry)), Item(CanRetry))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			CanRetry: Item(Trait(TypeComposition(crate::transport::transport_request::CanRetry)), Item(CanRetry))
+			Self: Item(Trait(TypeComposition(CanRetry)), Item(CanRetry))
+			bool: Type(Primitive(TypeComposition(bool)))
+		Scope(crate::transport::transport_request::CanRetry::can_retry, Item(Unknown(TypeComposition(can_retry)), Fn(can_retry))) (Fn) (parent: Scope(crate::transport::transport_request::CanRetry, Item(Trait(TypeComposition(CanRetry)), Item(CanRetry))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod))):
+			Self: Item(Trait(TypeComposition(CanRetry)), Item(CanRetry))
+			bool: Type(Primitive(TypeComposition(bool)))
+		Scope(crate::transport::transport_request::CoreGrpcClient, Item(Object(TypeComposition(CoreGrpcClient)), Item(CoreGrpcClient))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			CoreGrpcClient: Item(Object(TypeComposition(crate::transport::transport_request::CoreGrpcClient)), Item(CoreGrpcClient))
+			Self: Item(Object(TypeComposition(CoreGrpcClient)), Item(CoreGrpcClient))
+			Uri: Type(Unknown(TypeComposition(crate::transport::transport_request::Uri)))
+		Scope(crate::transport::transport_request::DocumentQuery, Item(Object(TypeComposition(DocumentQuery)), Item(DocumentQuery))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			DocumentQuery: Item(Object(TypeComposition(crate::transport::transport_request::DocumentQuery)), Item(DocumentQuery))
+			Self: Item(Object(TypeComposition(DocumentQuery)), Item(DocumentQuery))
+			u32: Type(Primitive(TypeComposition(u32)))
+		Scope(crate::transport::transport_request::GetDocumentsRequest, Item(Object(TypeComposition(GetDocumentsRequest)), Item(GetDocumentsRequest))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			GetDocumentsRequest: Item(Object(TypeComposition(crate::transport::transport_request::GetDocumentsRequest)), Item(GetDocumentsRequest))
+			Self: Item(Object(TypeComposition(GetDocumentsRequest)), Item(GetDocumentsRequest))
+			u32: Type(Primitive(TypeComposition(u32)))
+		Scope(crate::transport::transport_request::GetDocumentsResponse, Item(Object(TypeComposition(GetDocumentsResponse)), Item(GetDocumentsResponse))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			GetDocumentsResponse: Item(Object(TypeComposition(crate::transport::transport_request::GetDocumentsResponse)), Item(GetDocumentsResponse))
+			Self: Item(Object(TypeComposition(GetDocumentsResponse)), Item(GetDocumentsResponse))
+			u32: Type(Primitive(TypeComposition(u32)))
+		Scope(crate::transport::transport_request::Identifier, Item(Object(TypeComposition(Identifier)), Item(Identifier))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			Identifier: Item(Object(TypeComposition(crate::transport::transport_request::Identifier)), Item(Identifier))
+			Self: Item(Object(TypeComposition(Identifier)), Item(Identifier))
+			u32: Type(Primitive(TypeComposition(u32)))
+		Scope(crate::transport::transport_request::SomeOtherTrait, Item(Trait(TypeComposition(SomeOtherTrait)), Item(SomeOtherTrait))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			SomeOtherTrait: Item(Trait(TypeComposition(crate::transport::transport_request::SomeOtherTrait)), Item(SomeOtherTrait))
+		Scope(crate::transport::transport_request::Status, Item(Object(TypeComposition(Status)), Item(Status))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			Status: Item(Object(TypeComposition(crate::transport::transport_request::Status)), Item(Status))
+		Scope(crate::transport::transport_request::TransportClient, Item(Trait(TypeComposition(TransportClient)), Item(TransportClient))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			CanRetry: Type(Unknown(TypeComposition(crate::transport::transport_request::CanRetry)))
+			Self: Item(Trait(TypeComposition(TransportClient)), Item(TransportClient))
+			Self::Error: Type(TraitType(TypeComposition(crate::transport::transport_request::TransportClient::Error)))
+			Send: Type(TraitType(TypeComposition(Send)))
+			Sized: Type(TraitType(TypeComposition(Sized)))
+			SomeOtherTrait: Type(Unknown(TypeComposition(crate::transport::transport_request::SomeOtherTrait)))
+			TransportClient: Item(Trait(TypeComposition(crate::transport::transport_request::TransportClient)), Item(TransportClient))
+			Uri: Type(Unknown(TypeComposition(crate::transport::transport_request::Uri)))
+		Scope(crate::transport::transport_request::TransportClient::with_uri, Item(Unknown(TypeComposition(with_uri)), Fn(with_uri))) (Fn) (parent: Scope(crate::transport::transport_request::TransportClient, Item(Trait(TypeComposition(TransportClient)), Item(TransportClient))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod))):
+			Self: Item(Trait(TypeComposition(TransportClient)), Item(TransportClient))
+			Uri: Type(Unknown(TypeComposition(crate::transport::transport_request::Uri)))
+		Scope(crate::transport::transport_request::TransportRequest, Item(Trait(TypeComposition(TransportRequest)), Item(TransportRequest))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			<Self::Client as TransportClient>::Error: Type(TraitType(TypeComposition(<crate::transport::transport_request::TransportRequest::Client as crate::transport::transport_request::TransportClient>::Error)))
+			Clone: Type(TraitType(TypeComposition(Clone)))
+			Result<Self::Response, <Self::Client as TransportClient>::Error>: Type(Object(TypeComposition(Result<crate::transport::transport_request::TransportRequest::Response, <crate::transport::transport_request::TransportRequest::Client as crate::transport::transport_request::TransportClient>::Error>)))
+			Self: Item(Trait(TypeComposition(TransportRequest)), Item(TransportRequest))
+			Self::Client: Type(TraitType(TypeComposition(crate::transport::transport_request::TransportRequest::Client)))
+			Self::Response: Type(TraitType(TypeComposition(crate::transport::transport_request::TransportRequest::Response)))
+			Send: Type(TraitType(TypeComposition(Send)))
+			Sync: Type(TraitType(TypeComposition(Sync)))
+			TransportClient: Type(Unknown(TypeComposition(crate::transport::transport_request::TransportClient)))
+			TransportRequest: Item(Trait(TypeComposition(crate::transport::transport_request::TransportRequest)), Item(TransportRequest))
+			TransportResponse: Type(Unknown(TypeComposition(crate::transport::transport_request::TransportResponse)))
+		Scope(crate::transport::transport_request::TransportRequest::execute_transport, Item(Unknown(TypeComposition(execute_transport)), Fn(execute_transport))) (Fn) (parent: Scope(crate::transport::transport_request::TransportRequest, Item(Trait(TypeComposition(TransportRequest)), Item(TransportRequest))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod))):
+			<Self::Client as TransportClient>::Error: Type(TraitType(TypeComposition(<crate::transport::transport_request::TransportRequest::Client as crate::transport::transport_request::TransportClient>::Error)))
+			Result<Self::Response, <Self::Client as TransportClient>::Error>: Type(Object(TypeComposition(Result<crate::transport::transport_request::TransportRequest::Response, <crate::transport::transport_request::TransportRequest::Client as crate::transport::transport_request::TransportClient>::Error>)))
+			Self: Item(Trait(TypeComposition(TransportRequest)), Item(TransportRequest))
+			Self::Client: Type(TraitType(TypeComposition(crate::transport::transport_request::TransportRequest::Client)))
+			Self::Response: Type(TraitType(TypeComposition(crate::transport::transport_request::TransportRequest::Response)))
+		Scope(crate::transport::transport_request::TransportResponse, Item(Trait(TypeComposition(TransportResponse)), Item(TransportResponse))) (Trait) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			Clone: Type(TraitType(TypeComposition(Clone)))
+			Self: Item(Trait(TypeComposition(TransportResponse)), Item(TransportResponse))
+			Send: Type(TraitType(TypeComposition(Send)))
+			Sync: Type(TraitType(TypeComposition(Sync)))
+			TransportResponse: Item(Trait(TypeComposition(crate::transport::transport_request::TransportResponse)), Item(TransportResponse))
+		Scope(crate::transport::transport_request::Uri, Item(Object(TypeComposition(Uri)), Item(Uri))) (Object) (parent: Scope(crate::transport::transport_request, Empty) (Mod)):
+			Self: Item(Object(TypeComposition(Uri)), Item(Uri))
+			String: Type(Object(TypeComposition(String)))
+			Uri: Item(Object(TypeComposition(crate::transport::transport_request::Uri)), Item(Uri))

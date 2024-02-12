@@ -3,14 +3,14 @@ use std::clone::Clone;
 use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Field, FieldsNamed, FieldsUnnamed, ItemTrait, parse_quote, Path, Type, TypePath};
+use syn::{Field, FieldsNamed, FieldsUnnamed, ItemTrait, parse_quote, Path, Type};
 use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{FieldTypeConversion, TypeConversion};
-use crate::interface::{DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, package_unbox_any_expression, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER};
+use crate::ext::Conversion;
+use crate::interface::{DEFAULT_DOC_PRESENTER, DEREF_FIELD_PATH, FFI_DEREF_FIELD_NAME, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, IteratorPresenter, LAMBDA_CONVERSION_PRESENTER, MapPairPresenter, MapPresenter, OBJ_FIELD_NAME, OwnerIteratorPresenter, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, ScopeTreeFieldTypedPresenter, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER};
 use crate::interface::obj;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
-use crate::helper::{destroy_path, destroy_ptr, destroy_reference, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
 use crate::holder::EMPTY;
 use crate::naming::Name;
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
@@ -466,33 +466,10 @@ impl FFIConversionComposer {
         let field_path_from = (self.from_presenter)(field_type.name());
         let field_path_destroy = (self.destructor_presenter)(field_type.name());
         let context = context.borrow();
-        let (converted_field_to, converted_field_from, destructor) = match field_type.ty() {
-            Type::Ptr(type_ptr) => (
-                to_ptr(field_path_to, type_ptr, &context),
-                from_ptr(field_path_from, type_ptr),
-                destroy_ptr(field_path_destroy, type_ptr)
-            ),
-            Type::Path(TypePath { path, .. }) => (
-                to_path(field_path_to, path, &context),
-                from_path(field_path_from, path),
-                destroy_path(field_path_destroy, path),
-            ),
-            Type::Reference(type_reference) => (
-                to_reference(field_path_to, type_reference, &context),
-                from_reference(field_path_from, type_reference),
-                destroy_reference(field_path_destroy, type_reference)
-            ),
-            Type::Array(type_array) => (
-                to_array(field_path_to, type_array, &context),
-                from_array(field_path_from, type_array),
-                package_unbox_any_expression(field_path_destroy),
-            ),
-            _ => panic!("add_conversion: Unknown field {}", quote!(#field_type)),
-        };
-        self.to_conversion_composer.add_conversion(field_type.name(), converted_field_to);
-        self.from_conversion_composer.add_conversion(field_type.name(), converted_field_from);
+        self.to_conversion_composer.add_conversion(field_type.name(), field_type.to(field_path_to, &context));
+        self.from_conversion_composer.add_conversion(field_type.name(), field_type.from(field_path_from, &context));
+        self.drop_composer.add_conversion(field_type.destroy(field_path_destroy, &context));
         self.bindings_composer.add_conversion(field_type);
-        self.drop_composer.add_conversion(destructor);
     }
 
 }

@@ -17,14 +17,6 @@ pub enum TypeConversion {
     SmartPointer(TypeComposition),
     FnPointer(TypeComposition),
     Unknown(TypeComposition),
-    // Trait(TypeComposition, TraitDecompositionPart1),
-    // Object(TypeComposition),
-    // Primitive(TypeComposition),
-    // Unknown(TypeComposition),
-    // Trait(TypeComposition, TraitDecompositionPart1, Option<Generics>),
-    // Object(TypeComposition, Option<Generics>),
-    // Primitive(TypeComposition),
-    // Unknown(TypeComposition, Option<Generics>),
 }
 
 impl ToTokens for TypeConversion {

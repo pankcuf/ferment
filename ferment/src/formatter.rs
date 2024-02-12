@@ -375,12 +375,12 @@ fn format_complex_obj(vec: Vec<Vec<String>>) -> String {
 
 pub fn format_global_context(context: &GlobalContext) -> String {
     format_complex_obj(vec![
-        vec!["-- types:".to_string()], scope_types_dict(&context.scope_types),
-        vec!["-- traits:".to_string()], scope_traits_dict(&context.traits_dictionary),
-        vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.used_traits_dictionary),
-        vec!["-- custom:".to_string()], scope_types_dict(&context.custom_conversions),
-        vec!["-- imports:".to_string()], scope_imports_dict(&context.used_imports_at_scopes),
-        vec!["-- generics:".to_string()], scope_generics_dict(&context.used_generics_at_scopes),
+        vec!["-- types:".to_string()], scope_types_dict(&context.scope_register.inner),
+        vec!["-- traits:".to_string()], scope_traits_dict(&context.traits.inner),
+        vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.traits.used_traits_dictionary),
+        vec!["-- custom:".to_string()], scope_types_dict(&context.custom.inner),
+        vec!["-- imports:".to_string()], scope_imports_dict(&context.imports.inner),
+        vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
     ])
 }
 

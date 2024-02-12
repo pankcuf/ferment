@@ -43,21 +43,21 @@ pub trait TransportClient: Send + Sized {
     type Error: CanRetry + Send + SomeOtherTrait;
     fn with_uri(uri: Uri) -> Self;
 }
-// #[ferment_macro::export]
-// pub trait TransportResponse: Clone + Send + Sync {}
-//
-// #[ferment_macro::export]
-// pub trait TransportRequest: Clone + Send + Sync {
-//     type Client: TransportClient;
-//     type Response: TransportResponse;
-//     fn execute_transport(
-//         self,
-//         client: &mut Self::Client,
-//     ) -> Result<Self::Response, <Self::Client as TransportClient>::Error>;
-// }
-// pub trait Query<T: TransportRequest>: Send + Clone {
-//     fn query(self, prove: bool) -> Result<T, Status>;
-// }
+#[ferment_macro::export]
+pub trait TransportResponse: Clone + Send + Sync {}
+
+#[ferment_macro::export]
+pub trait TransportRequest: Clone + Send + Sync {
+    type Client: TransportClient;
+    type Response: TransportResponse;
+    fn execute_transport(self, client: &mut Self::Client) -> Result<Self::Response, <Self::Client as TransportClient>::Error>;
+}
+
+
+#[ferment_macro::export]
+pub trait Query<T: TransportRequest>: Send + Clone {
+    fn query(self, prove: bool) -> Result<T, Status>;
+}
 //
 //
 // #[ferment_macro::export]

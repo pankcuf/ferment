@@ -8,20 +8,8 @@ use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
-use crate::helper::ItemExtension;
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
-
-// impl From<ScopeTreeCompact> for ScopeTreeItem {
-//     fn from(value: ScopeTreeCompact) -> Self {
-//         let name = value.scope.head();
-//         ScopeTreeItem::Tree {
-//             item: parse_quote!(pub mod #name;),
-//             tree: value.into()
-//         }
-//     }
-// }
-
 
 #[derive(Clone)]
 pub struct ScopeTree {
@@ -107,10 +95,8 @@ impl From<ScopeTreeCompact> for ScopeTree {
         } = value;
         let imported = imported.clone();
         let exported = exported.into_iter().map(|(id, tree_item_raw)| {
-            // let scope = scope.joined(&ident);
             let scope_tree_item = match tree_item_raw {
                 ScopeTreeExportItem::Item(scope_context, item) => {
-                    println!("ScopeTreeItem::Item: {} in [{}]", item.ident_string(), scope);
                     let scope = scope.joined(&item);
                     ScopeTreeItem::Item { item, scope, scope_context }
                 },
@@ -120,29 +106,21 @@ impl From<ScopeTreeCompact> for ScopeTree {
                     imported,
                     exported) =>
                     ScopeTreeItem::Tree {
-                        tree: {
-                            println!("ScopeTreeItem::Tree: {} in [{}]", id, scope);
-                            // let scope = scope.joined_mod(&ident);
-                            // let scope = scope.joined(&id.ident());
-                            let self_scope = match &id {
-                                ScopeTreeExportID::Ident(ident) => scope.self_scope().self_scope.joined(ident),
+                        tree: Self::from(ScopeTreeCompact {
+                            scope: match &id {
+                                ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
+                                    self_scope: Scope::new(scope.self_path_holder().joined(ident), ObjectConversion::Empty),
+                                },
                                 ScopeTreeExportID::Impl(_, _) =>
                                     panic!("impl not implemented")
-                            };
-
-                            Self::from(ScopeTreeCompact {
-                                scope: ScopeChain::Mod {
-                                    self_scope: Scope::new(self_scope, ObjectConversion::Empty),
-                                },
-                                generics,
-                                imported,
-                                exported,
-                                scope_context
-                            })
-                        }
+                            },
+                            generics,
+                            imported,
+                            exported,
+                            scope_context
+                        })
                     }
             };
-
             (id, scope_tree_item)
         }).collect();
         Self {

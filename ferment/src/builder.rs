@@ -7,9 +7,10 @@ use syn::{ItemMod, visit::Visit};
 use crate::context::{GlobalContext, Scope, ScopeChain};
 use crate::conversion::ObjectConversion;
 use crate::error;
+use crate::ext::merge_visitor_trees;
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTree, ScopeTreeCompact};
-use crate::visitor::{merge_visitor_trees, Visitor};
+use crate::visitor::Visitor;
 
 #[derive(Debug, Clone)]
 pub struct Builder {
@@ -191,10 +192,8 @@ fn process_module<'a>(base_path: &std::path::Path, module: &ItemMod, file_scope:
         let mod_name = &module.ident;
         let file_path = base_path.parent().unwrap().join(mod_name.to_string());
         let scope = ScopeChain::Mod {
-            self_scope: Scope::new(file_scope.self_scope().self_scope.joined(mod_name), ObjectConversion::Empty),
+            self_scope: Scope::new(file_scope.self_path_holder().joined(mod_name), ObjectConversion::Empty),
         };
-
-        // let scope = file_scope.joined_mod(mod_name);
         if file_path.is_file() {
             return Some(process_recursive(&file_path, &scope, context));
         } else {

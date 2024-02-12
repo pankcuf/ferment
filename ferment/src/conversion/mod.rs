@@ -1,4 +1,3 @@
-mod conversion;
 mod field_type_conversion;
 mod generic_path_conversion;
 mod import_conversion;
@@ -9,7 +8,6 @@ mod macro_conversion;
 mod object_conversion;
 mod scope_item_conversion;
 
-pub use self::conversion::Conversion;
 pub use self::field_type_conversion::FieldTypeConversion;
 pub use self::generic_path_conversion::COMPLEX_VEC_DROP_PRESENTER;
 pub use self::generic_path_conversion::PRIMITIVE_VEC_DROP_PRESENTER;

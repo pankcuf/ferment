@@ -78,7 +78,6 @@ impl TraitDecompositionPart1 {
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Method(TraitItemMethod { sig, .. } ) => {
-
                     methods.insert(sig.ident.clone(), sig.clone());
                 },
                 TraitItem::Type(trait_item_type) => {

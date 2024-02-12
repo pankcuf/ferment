@@ -285,7 +285,7 @@ impl ItemConversion {
                 type_expansion(item, scope, scope_context),
             ItemConversion::Fn(item, scope) => {
                 println!("make_expansion: fn: {}", item.sig.ident.to_token_stream());
-                let signature = FnSignatureComposition::from_signature(&item.sig, scope.self_scope().self_scope.popped(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(&item.sig, scope.self_path_holder().popped(), &scope_context.borrow());
                 // let signature = FnSignatureComposition::from_signature(&item.sig, scope.popped(), &scope_context.borrow());
                 Expansion::Function {
                     comment: DocPresentation::Safety(signature.ident.to_token_stream()),
@@ -547,7 +547,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
     let ItemTrait { ident, items, .. } = item_trait;
     let context = context.borrow();
-    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, &scope.self_scope().self_scope, &context);
+    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, scope.self_path_holder(), &context);
     let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &context);
     let vtable_name = Name::Vtable(ident.clone());
     // println!("trait_expansion: {}: {}", trait_obj_name, vtable_name);
@@ -572,7 +572,7 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &Rc<RefCell
         Type::BareFn(bare_fn) =>
             Expansion::Callback {
                 comment: DocPresentation::Default(quote!(#ident)),
-                ffi_presentation: FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_scope().self_scope.clone(), &ctx)
+                ffi_presentation: FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_path_holder().clone(), &ctx)
                     .present(FnSignatureCompositionContext::FFIObjectCallback, &ctx),
             },
         _ => {
@@ -601,7 +601,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
         match impl_item {
             ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                let signature = FnSignatureComposition::from_signature(sig, scope.self_scope().self_scope.popped(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(sig, scope.self_path_holder().popped(), &scope_context.borrow());
                 Some(signature.present(FnSignatureCompositionContext::FFIObject, &scope_context.borrow()))
             },
             ImplItem::Type(ImplItemType { .. }) => None,

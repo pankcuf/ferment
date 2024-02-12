@@ -59,3 +59,5 @@
 - Custom structures named Result, Vec, HashMap, BTreeMap may not work properly. Need to add some logic to distinguish between std and custom types here
 - Need support for paths containing super or super::super etc
 - Minor issue with things like #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: identity :: identity_request :: GetIdentityRequest\"]"]
+- TypeGroup support
+- Algo for determine if type is simple enough to add it to the dictionary of registered types and use orginal one across the FFI

@@ -15,6 +15,7 @@ mod conversion;
 mod composition;
 mod tree;
 mod naming;
+mod ext;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

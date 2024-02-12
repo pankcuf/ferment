@@ -4,13 +4,12 @@ use syn::__private::TokenStream2;
 use syn::{Item, parse_quote, Type};
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeConversion};
-use crate::holder::PathHolder;
-
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
     Type(TypeConversion),
     Item(TypeConversion, ScopeItemConversion),
+    // Constraint(TypeConversion, ScopeItemConstra),
     Empty
 }
 
@@ -40,6 +39,15 @@ impl Display for ObjectConversion {
 }
 
 impl ObjectConversion {
+    pub fn new_item(ty: TypeConversion, item: ScopeItemConversion) -> ObjectConversion {
+        ObjectConversion::Item(ty, item)
+    }
+    pub fn new_obj_item(ty: TypeComposition, item: ScopeItemConversion) -> ObjectConversion {
+        ObjectConversion::Item(TypeConversion::Object(ty), item)
+    }
+    pub fn new_type(ty: TypeConversion) -> ObjectConversion {
+        ObjectConversion::Type(ty)
+    }
     pub fn type_conversion(&self) -> Option<&TypeConversion> {
         match self {
             ObjectConversion::Type(type_conversion) => Some(type_conversion),
@@ -54,11 +62,6 @@ impl ObjectConversion {
             ObjectConversion::Empty => None
         }
     }
-    pub fn as_scope(&self) -> PathHolder {
-        let ty = self.ty();
-        parse_quote!(#ty)
-    }
-
 }
 
 impl TryFrom<&Item> for ObjectConversion {
@@ -68,7 +71,7 @@ impl TryFrom<&Item> for ObjectConversion {
         match value {
             Item::Trait(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::Item(
+                Ok(ObjectConversion::new_item(
                     TypeConversion::Trait(
                         TypeComposition::new(
                             parse_quote!(#ident),
@@ -78,42 +81,37 @@ impl TryFrom<&Item> for ObjectConversion {
             },
             Item::Struct(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::Item(
-                    TypeConversion::Object(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()))),
+                Ok(ObjectConversion::new_obj_item(
+                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone())),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Enum(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::Item(
-                    TypeConversion::Object(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()))),
+                Ok(ObjectConversion::new_obj_item(
+                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone())),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Type(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::Item(
-                    TypeConversion::Object(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()))),
+                Ok(ObjectConversion::new_obj_item(
+                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone())),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Impl(item) => {
-                let ty = &item.self_ty;
-                Ok(ObjectConversion::Item(
-                    TypeConversion::Object(
-                        TypeComposition::new(*ty.clone(), Some(item.generics.clone()))),
+                Ok(ObjectConversion::new_obj_item(
+                        TypeComposition::new(*(&item.self_ty).clone(), Some(item.generics.clone())),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Fn(item) => {
                 let ident = &item.sig.ident;
-                Ok(ObjectConversion::Item(
-                    TypeConversion::Object(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.sig.generics.clone()))),
+                Ok(ObjectConversion::new_obj_item(
+                        TypeComposition::new(parse_quote!(#ident), Some(item.sig.generics.clone())),
                     ScopeItemConversion::Item(value.clone())))
+                    // ScopeItemConversion::Fn(value.clone())))
             },
             Item::Mod(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::Item(
+                Ok(ObjectConversion::new_item(
                     TypeConversion::Unknown(
                         TypeComposition::new(parse_quote!(#ident), None)),
                     ScopeItemConversion::Item(value.clone())))

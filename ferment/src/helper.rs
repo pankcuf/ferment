@@ -6,7 +6,8 @@ use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
-use crate::conversion::{Conversion, ImportConversion, ItemConversion, MacroAttributes, ObjectConversion, PathConversion, type_ident, type_ident_ref};
+use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, ObjectConversion, PathConversion, type_ident, type_ident_ref};
+use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
@@ -559,7 +560,8 @@ fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposi
     // Types which are used as a part of types (for generics and composite types)
     // let type_conversion = TypeHolder::from(ty);
     // let involved = <TypePathHolder as Conversion>::nested_items(ty, &VisitorContext::Unknown);
-    let involved = <TypeHolder as Conversion>::nested_items(ty);
+    // let involved = <TypeHolder as Conversion>::nested_items(ty);
+    let involved = ty.nested_items();
     involved.iter()
         .for_each(|ty| {
             let path: Path = parse_quote!(#ty);
@@ -708,3 +710,4 @@ impl ItemExtension for Signature {
         container
     }
 }
+

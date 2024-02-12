@@ -7,8 +7,8 @@ use crate::composition::{Composition, GenericConversion, ImportComposition, Trai
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, PathConversion, TypeConversion};
 use crate::formatter::format_token_stream;
-use crate::helper::{ffi_mangled_ident, ItemExtension, path_arguments_to_paths, path_arguments_to_types};
-use crate::holder::{PathHolder, TypeHolder};
+use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
+use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub struct ScopeContext {
@@ -40,10 +40,7 @@ impl ScopeContext {
         let mut lock = self.context.write().unwrap();
         let regular_type = lock.maybe_import(&scope, &path)
             .unwrap_or(&path.0).clone();
-        lock.custom_conversions
-            .entry(scope.clone())
-            .or_default()
-            .insert(parse_quote!(#regular_type), ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(ffi_type, None))));
+        lock.custom.add_conversion(regular_type, ffi_type, scope);
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
@@ -117,7 +114,7 @@ impl ScopeContext {
 
     pub fn ffi_custom_or_internal_type(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        lock.maybe_custom_conversion(ty)
+        lock.custom.maybe_conversion(ty)
             .unwrap_or(self.ffi_internal_type_for(ty))
     }
 
@@ -159,44 +156,24 @@ impl ScopeContext {
 
     pub fn scope_type_for_path(&self, path: &Path) -> Option<Type> {
         let lock = self.context.read().unwrap();
-        lock.scope_types
-            .get(&self.scope)
-            .and_then(|scope_types|
-                scope_types.iter()
-                    .find_map(|(TypeHolder { 0: other}, full_type)| {
-                        if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
-                            full_type.ty()
-                        } else {
-                            None
-                        }
-                        // path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str())
-                        //     .then_some(full_type.ty())
-                    }))
-            .cloned()
+        lock.scope_register.scope_type_for_path(path, &self.scope)
     }
 
     pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<TraitCompositionPart1> {
         println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
         let lock = self.context.read().unwrap();
-        lock.traits_dictionary
-            .get(scope)
-            .and_then(|dict| dict.get(ident))
-            .cloned()
+        lock.traits.item_trait_with_ident_for(ident, scope).cloned()
     }
 
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
         // println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
         let lock = self.context.read().unwrap();
-        lock.scope_types
-            .get(scope)
-            .map(|scope_types| item.find_generics_fq(scope_types))
-            .unwrap_or_default()
+        lock.scope_register.find_generics_fq_in(item, scope)
     }
 
     pub fn find_used_imports(&self, item: &Item) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
         let lock = self.context.read().unwrap();
-        lock.used_imports_at_scopes.get(&self.scope)
-            .map(|scope_imports| item.get_used_imports(scope_imports))
+        lock.imports.find_used_imports(item, &self.scope)
     }
 
     pub fn populate_imports_and_generics(&self, scope: &ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
@@ -479,6 +456,7 @@ impl ScopeContext {
                 // self.find_item_trait_scope_pair(trait_name)
 
                 let trait_ty = parse_quote!(#trait_name);
+                // let oc = ObjectConversion::Type(TypeConversion::TraitType(TypeComposition::new(trait_ty, None)));
                 let lock = self.context.read().unwrap();
                 // let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
                 let parent_scope = self.scope.parent_scope().unwrap();
@@ -495,12 +473,10 @@ impl ScopeContext {
                 //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
                 // };
                 let ident = trait_name.get_ident().unwrap();
-                let tr = lock.traits_dictionary.get(&trait_scope)
-                    .and_then(|dict| dict.get(ident))
-                    .cloned()
-                    .unwrap();
-
-                (tr, trait_scope)
+                (lock.traits
+                     .item_trait_with_ident_for(ident, &trait_scope)
+                     .cloned()
+                     .unwrap(), trait_scope)
 
             })
             .collect()

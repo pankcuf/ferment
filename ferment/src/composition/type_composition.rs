@@ -16,7 +16,11 @@ impl TypeComposition {
 
 impl Debug for TypeComposition {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("TypeComposition({}, [{}])", format_token_stream(&self.ty), self.generics.as_ref().map_or(format!("None"), |generics| format_token_stream(generics))).as_str())
+        f.write_str(
+            format!("TypeComposition({})",
+                    format_token_stream(&self.ty),
+                    // self.generics.as_ref().map_or(format!("None"), format_token_stream)
+                ).as_str())
     }
 }
 
