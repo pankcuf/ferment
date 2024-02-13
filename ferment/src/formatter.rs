@@ -139,12 +139,12 @@ pub fn format_ident_types_dict(dict: &HashMap<Ident, Type>) -> String {
         .join("\n")
 }
 
-#[allow(unused)]
-pub fn format_scope_types_dict(dict: &HashMap<ScopeChain, HashMap<TypeHolder, ObjectConversion>>) -> String {
-    scope_types_dict(dict)
-        .join("\n\n")
-}
-
+// #[allow(unused)]
+// pub fn format_scope_types_dict(dict: &HashMap<ScopeChain, TypeChain>) -> String {
+//     scope_types_dict(dict)
+//         .join("\n\n")
+// }
+//
 #[allow(unused)]
 pub fn format_used_traits(dict: &HashMap<ScopeChain, HashMap<Ident, TraitCompositionPart1>>) -> String {
     scope_traits_dict(dict).join("\n")
@@ -275,7 +275,7 @@ fn chunks_dict(dict: &HashMap<InitialType, Type>) -> Vec<String> {
         .collect()
 }
 
-fn types_dict(dict: &HashMap<TypeHolder, ObjectConversion>) -> Vec<String> {
+pub fn types_dict(dict: &HashMap<TypeHolder, ObjectConversion>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(scope_type_conversion_pair)
         .collect::<Vec<String>>();
@@ -325,13 +325,8 @@ fn nested_scope_dict<K, K2, V2, F: Fn(&K, &HashMap<K2, V2>) -> String>(dict: &Ha
 }
 
 fn format_scope_dict<K2, V2, F: Fn(&HashMap<K2, V2>) -> Vec<String>>(dict: &HashMap<ScopeChain, HashMap<K2, V2>>, mapper: F) -> Vec<String>  {
-    nested_scope_dict(dict, |scope, sub_dict| {
-        // if scope.is_mod_level() {
-            format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t"))
-        // } else {
-        //     format!("(Skipped)")
-        // }
-    })
+    nested_scope_dict(dict, |scope, sub_dict|
+        format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t")))
 }
 
 pub fn scope_imports_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> Vec<String> {
@@ -342,9 +337,6 @@ pub fn scope_generics_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Vec<Pa
     format_scope_dict(dict, generic_bounds_dict)
 }
 
-fn scope_types_dict(dict: &HashMap<ScopeChain, HashMap<TypeHolder, ObjectConversion>>) -> Vec<String> {
-    format_scope_dict(dict, types_dict)
-}
 
 fn scope_traits_dict(dict: &HashMap<ScopeChain, HashMap<Ident, TraitCompositionPart1>>) -> Vec<String> {
     format_scope_dict(dict, traits_dict)
@@ -375,10 +367,10 @@ fn format_complex_obj(vec: Vec<Vec<String>>) -> String {
 
 pub fn format_global_context(context: &GlobalContext) -> String {
     format_complex_obj(vec![
-        vec!["-- types:".to_string()], scope_types_dict(&context.scope_register.inner),
+        vec!["-- types:".to_string(), context.scope_register.to_string()],
         vec!["-- traits:".to_string()], scope_traits_dict(&context.traits.inner),
         vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.traits.used_traits_dictionary),
-        vec!["-- custom:".to_string()], scope_types_dict(&context.custom.inner),
+        vec!["-- custom:".to_string(), context.custom.to_string()],
         vec!["-- imports:".to_string()], scope_imports_dict(&context.imports.inner),
         vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
     ])

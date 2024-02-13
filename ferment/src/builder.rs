@@ -7,7 +7,6 @@ use syn::{ItemMod, visit::Visit};
 use crate::context::{GlobalContext, Scope, ScopeChain};
 use crate::conversion::ObjectConversion;
 use crate::error;
-use crate::ext::merge_visitor_trees;
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTree, ScopeTreeCompact};
 use crate::visitor::Visitor;
@@ -132,7 +131,7 @@ impl Builder {
                 println!("•• TREE 1 MORPHING");
                 let context = Arc::new(RwLock::new(global_context));
                 let mut root_visitor = process_recursive(file_path, &root_scope, &context);
-                merge_visitor_trees(&mut root_visitor);
+                root_visitor.merge_visitor_trees();
                 ScopeTreeCompact::init_with(root_visitor.tree, root_scope)
                     .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
                         |tree| {

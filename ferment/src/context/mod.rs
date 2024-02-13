@@ -10,6 +10,7 @@ mod import_resolver;
 mod custom_resolver;
 mod generic_resolver;
 mod scope_propagation;
+mod type_chain;
 
 pub use self::crate_type::Crate;
 pub use self::context::Context;
@@ -21,3 +22,7 @@ pub use self::scope_context::ScopeContext;
 pub use self::scope_chain::ScopeChain;
 pub use self::scope_propagation::ScopePropagation;
 pub use self::scope_resolver::ScopeResolver;
+pub use self::traits_resolver::TraitsResolver;
+pub use self::type_chain::DefaultScopePolicy;
+pub use self::type_chain::EnrichScopePolicy;
+pub use self::type_chain::TypeChain;

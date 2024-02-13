@@ -5,8 +5,8 @@ use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TypeComposition};
-use crate::context::ScopeContext;
-use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, ObjectConversion, PathConversion, type_ident, type_ident_ref};
+use crate::context::{ScopeContext, TypeChain};
+use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, PathConversion, type_ident, type_ident_ref};
 use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
@@ -53,10 +53,10 @@ pub trait ItemExtension {
                 collect_generic_types_in_type(field_type, &mut generics));
         generics
     }
-    fn find_generics_fq(&self, scope_types: &HashMap<TypeHolder, ObjectConversion>) -> HashSet<GenericConversion> {
+    fn find_generics_fq(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
         self.find_generics()
             .iter()
-            .filter_map(|holder| scope_types.get(holder))
+            .filter_map(|ty| chain.get(ty))
             .map(GenericConversion::from)
             .collect()
     }
@@ -561,7 +561,7 @@ fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposi
     // let type_conversion = TypeHolder::from(ty);
     // let involved = <TypePathHolder as Conversion>::nested_items(ty, &VisitorContext::Unknown);
     // let involved = <TypeHolder as Conversion>::nested_items(ty);
-    let involved = ty.nested_items();
+    let involved: HashSet<Type> = ty.nested_items();
     involved.iter()
         .for_each(|ty| {
             let path: Path = parse_quote!(#ty);

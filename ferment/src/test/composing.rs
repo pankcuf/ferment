@@ -25,8 +25,8 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
     let mut global_context = GlobalContext::with_config(Config::default());
     let root_scope = ScopeChain::crate_root();
     global_context
-        .scope_register_mut(&root_scope)
-        .extend(HashMap::from([
+        .scope_mut(&root_scope)
+        .extend_with_default_policy(HashMap::from([
             (TypeHolder(parse_quote!(bool)), TypeConversion::Primitive(parse_quote!(bool))),
             (TypeHolder(parse_quote!([u8; 20])), TypeConversion::Unknown(parse_quote!([u8; 20]))),
             (TypeHolder(parse_quote!([u8; 32])), TypeConversion::Unknown(parse_quote!([u8; 32]))),
@@ -40,8 +40,8 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
             (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), TypeConversion::Unknown(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>))),
         ]));
     global_context
-        .scope_register_mut(&parse_quote!(crate::example::address))
-        .extend(HashMap::from([
+        .scope_mut(&parse_quote!(crate::example::address))
+        .extend_with_default_policy(HashMap::from([
             (TypeHolder(parse_quote!(u8)), TypeConversion::Primitive(parse_quote!(u8))),
             (TypeHolder(parse_quote!(String)), TypeConversion::Unknown(parse_quote!(String))),
             (TypeHolder(parse_quote!(Option)), TypeConversion::Unknown(parse_quote!(Option))),

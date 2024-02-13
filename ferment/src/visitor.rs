@@ -2,14 +2,14 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, ConstParam, Field, FnArg, GenericArgument, GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, PredicateType, QSelf, ReturnType, Signature, Token, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, TypePath, TypeTraitObject, UseTree, Variant, WhereClause, WherePredicate};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericArgument, GenericParam, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, PredicateType, QSelf, ReturnType, Signature, Token, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, TypePath, TypeTraitObject, UseTree, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use syn::token::{Add, Colon2};
 use syn::visit::Visit;
 use crate::composition::{QSelfComposition, TraitDecompositionPart1, TypeComposition};
-use crate::context::{GlobalContext, Scope, ScopeChain};
+use crate::context::{GlobalContext, Scope, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeConversion};
-use crate::ext::{Constraints, merge_scope_type, MergeInto, NestingExtension};
+use crate::ext::{MergeInto, NestingExtension};
 use crate::formatter::{Emoji, format_token_stream};
 use crate::helper::ident_from_item;
 use crate::holder::{PathHolder, TypeHolder};
@@ -101,6 +101,17 @@ impl Visitor {
             tree: ScopeTreeExportItem::with_global_context(scope, context.clone())
         }
     }
+
+    pub fn merge_visitor_trees(&mut self) {
+        // Merge the trees of the inner visitors first.
+        for inner_visitor in &mut self.inner_visitors {
+            inner_visitor.merge_visitor_trees();
+        }
+        // Now merge the trees of the inner visitors into the current visitor's tree.
+        for Visitor { tree, .. } in &self.inner_visitors {
+            tree.merge_into(&mut self.tree);
+        }
+    }
 }
 
 /// Global Context Facade
@@ -122,20 +133,21 @@ impl Visitor {
         lock.generics.extend_in_scope(scope, generics)
     }
 
-    fn add_types_used_in_scope(&self, types: HashMap<TypeHolder, ObjectConversion>, scope: &ScopeChain) {
+    fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
-        types.merge_into(lock.scope_register_mut(scope))
+        lock.scope_mut(scope)
+            .add_many(types);
     }
-    fn add_type_used_in_scope(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
+    fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
-        merge_scope_type(lock.scope_register_mut(scope), ty, object);
+        lock.scope_mut(scope)
+            .add_one(ty, object);
     }
     fn add_itself_conversion(&mut self, scope: &ScopeChain, ident: &Ident, object: ObjectConversion) {
-        self.add_type_used_in_scope(parse_quote!(#ident), object, scope);
+        self.scope_add_one(parse_quote!(#ident), object, scope);
     }
     fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        // let self_scope = scope.joined(ident);
         trait_names.iter().for_each(|trait_name|
             self.add_full_qualified_type_match(scope, &parse_quote!(#trait_name)));
         let mut lock = self.context.write().unwrap();
@@ -152,10 +164,10 @@ impl Visitor {
         //     .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
     }
 
-    fn involved_types_in_scope(&self, involved_types: HashSet<Type>, scope: &ScopeChain) -> HashMap<TypeHolder, ObjectConversion> {
-        let mut destination = HashMap::<TypeHolder, ObjectConversion>::new();
+    fn involved_types_in_scope(&self, involved_types: HashSet<Type>, scope: &ScopeChain) -> TypeChain {
+        let mut destination = TypeChain::default();
         for ty  in &involved_types {
-            merge_scope_type(&mut destination, TypeHolder::from(ty), self.update_nested_generics(scope, ty));
+            destination.add_one(TypeHolder::from(ty), self.update_nested_generics(scope, ty));
         }
         destination
     }
@@ -167,44 +179,44 @@ impl Visitor {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => {
                 let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                let filtered = all_involved_full_types.into_iter().filter(|(th, _oc)| th.0.has_no_self()).collect();
-                self.add_types_used_in_scope(filtered, scope);
+                let filtered = all_involved_full_types.selfless();
+                self.scope_add_many(filtered, scope);
             },
             ScopeChain::Impl { parent_scope_chain, .. } => {
                 let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                self.add_types_used_in_scope(all_involved_full_types.clone(), scope);
-                let filtered = all_involved_full_types.into_iter().filter(|(th, _oc)| th.0.has_no_self()).collect();
-                self.add_types_used_in_scope(filtered, parent_scope_chain);
+                self.scope_add_many(all_involved_full_types.clone(), scope);
+                let filtered = all_involved_full_types.selfless();
+                self.scope_add_many(filtered, parent_scope_chain);
             },
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } => {
                 // involved_types.insert(parse_quote!(Self));
                 let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
                 let self_types =  self.involved_types_in_scope(HashSet::from([parse_quote!(Self)]), scope);
-                self.add_types_used_in_scope(all_involved_full_types.clone(), scope);
-                self.add_types_used_in_scope(self_types, scope);
-                let filtered = all_involved_full_types.into_iter().filter(|(th, _oc)| th.0.has_no_self()).collect();
-                self.add_types_used_in_scope(filtered, parent_scope_chain);
+                self.scope_add_many(all_involved_full_types.clone(), scope);
+                self.scope_add_many(self_types, scope);
+                let filtered = all_involved_full_types.selfless();
+                self.scope_add_many(filtered, parent_scope_chain);
             },
             ScopeChain::Fn { parent_scope_chain, .. } => {
                 match &**parent_scope_chain {
                     ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
                         let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                        self.add_types_used_in_scope(all_involved_full_types.clone(), scope);
-                        self.add_types_used_in_scope(all_involved_full_types, parent_scope_chain);
+                        self.scope_add_many(all_involved_full_types.clone(), scope);
+                        self.scope_add_many(all_involved_full_types, parent_scope_chain);
                     },
                     ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
                         let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
                         let self_types =  self.involved_types_in_scope(HashSet::from([parse_quote!(Self)]), scope);
-                        self.add_types_used_in_scope(all_involved_full_types.clone(), scope);
-                        self.add_types_used_in_scope(self_types.clone(), scope);
-                        self.add_types_used_in_scope(self_types, parent_scope_chain);
-                        self.add_types_used_in_scope(all_involved_full_types.clone(), parent_scope_chain);
+                        self.scope_add_many(all_involved_full_types.clone(), scope);
+                        self.scope_add_many(self_types.clone(), scope);
+                        self.scope_add_many(self_types, parent_scope_chain);
+                        self.scope_add_many(all_involved_full_types.clone(), parent_scope_chain);
 
-                        let filtered = all_involved_full_types.into_iter().filter(|(th, _oc)| th.0.has_no_self()).collect();
-                        self.add_types_used_in_scope(filtered, parent_parent_scope_chain);
+                        let filtered = all_involved_full_types.selfless();
+                        self.scope_add_many(filtered, parent_parent_scope_chain);
                     },
                     ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
                         // TODO: actually there are may be anything wrapped into anything like trait inside a function...
@@ -247,14 +259,12 @@ impl Visitor {
         let obj_scope = scope.obj_root_chain().unwrap_or(scope);
         let object_self_scope = obj_scope.self_scope();
 
-        // let obj_conversion = if let Some(bounds_composition) = scope.maybe_generic_bound_for_path(&import_seg.0) {
-        let obj_conversion = if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0) {
+        if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0) {
             ObjectConversion::Type(dict_type_composition)
         } else if let Some(bounds_composition) = scope.maybe_generic_bound_for_path(&import_seg.0) {
             nprint!(1, Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
             ObjectConversion::Type(TypeConversion::Bounds(bounds_composition))
         } else if let Some(replacement_path) = lock.maybe_import(scope, &import_seg).cloned() {
-        // let obj_conversion = if let Some(replacement_path) = lock.maybe_import(scope, &import_seg).cloned() {
             nprint!(1, Emoji::Local, "(ScopeImport) {}", format_token_stream(&replacement_path));
             let last_segment = segments.pop().unwrap();
             segments.extend(replacement_path.segments.clone());
@@ -300,21 +310,6 @@ impl Visitor {
                     segments.extend(new_segments);
                     segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                     object_self_scope.object.clone()
-                    // match scope.obj_root_chain() {
-                    //     Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                    //         ObjectConversion::Type(
-                    //             TypeConversion::Object(
-                    //                 TypeComposition::new(
-                    //                     Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: path.leading_colon, segments } }),
-                    //                     None))),
-                    //     Some(ScopeChain::Trait { .. }) =>
-                    //         ObjectConversion::Type(
-                    //             TypeConversion::TraitType(
-                    //                 TypeComposition::new(
-                    //                     Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: path.leading_colon, segments } }),
-                    //                     None))),
-                    //     _ => panic!("Unexpected scope obj root chain")
-                    // }
                 },
                 "Self" => {
                     let tail = segments.iter().skip(1).cloned().collect::<Vec<_>>();
@@ -368,13 +363,9 @@ impl Visitor {
                         None)))
                 },
                 _ => {
-
                     let obj_parent_scope = obj_scope.parent_scope();
-
                     let len = segments.len();
                     if len == 1 {
-
-                        //ScopeChain::Object (self: crate::model::snapshot::LLMQSnapshot, parent: ScopeChain::Mod (self: crate::model::snapshot))
                         match obj_parent_scope {
                             None => {
                                 // Global
@@ -472,9 +463,7 @@ impl Visitor {
                     }
                 },
             }
-        };
-        obj_conversion
-        // TypeComposition::new(Type::Path(TypePath { qself: qself.as_ref().map(|q| q.qself.clone()), path: Path { leading_colon: path.leading_colon, segments } }), None)
+        }
     }
 
     fn handle_qself(&self, scope: &ScopeChain, qself: &Option<QSelf>) -> Option<QSelfComposition> {
@@ -649,8 +638,6 @@ impl Visitor {
         item_trait.items.iter().for_each(|trait_item|
             match trait_item {
                 TraitItem::Method(TraitItemMethod { sig, .. }) => {
-                    // FnSignatureComposition::from_signature(sig), ::new(sig.clone(), &scope, &generics)
-                    // let fn_scope = scope.joined_fn(&sig.ident);
                     let sig_ident = &sig.ident;
                     let self_scope = scope.self_scope();
                     let fn_scope = ScopeChain::Fn {
@@ -661,13 +648,15 @@ impl Visitor {
                     };
 
                     self.add_full_qualified_signature(sig, &fn_scope);
-                    // let mut de_bounds: Vec<Path> =  vec![];
-                    // let scope = &self_scope;
-                    // let self_scope = scope.joined(&sig.ident);
                     let mut item_local_generics: HashMap<PathHolder, Vec<Path>> = HashMap::new();
                     let _ = &sig.generics.params.iter().for_each(|generic_param| {
                         match generic_param {
-                            GenericParam::Type(TypeParam { ident: generic_ident, bounds, .. }) => {
+                            GenericParam::Type(TypeParam { ident: generic_ident, bounds, default, .. }) => {
+                                match default {
+                                    Some(default_ty) => self.add_full_qualified_type_match(&fn_scope, default_ty),
+                                    None => {}
+                                };
+
                                 let mut de_bounds: Vec<Path> =  vec![];
                                 // println!("add_full_qualified_trait: (generic in fn signature): {}", quote!(#generic_param));
                                 bounds.iter().for_each(|bound| {
@@ -743,7 +732,7 @@ impl Visitor {
                 },
                 _ => {}
             });
-        self.add_type_used_in_scope(parse_quote!(#ident), itself, scope.parent_scope().unwrap());
+        self.scope_add_one(parse_quote!(#ident), itself, scope.parent_scope().unwrap());
         self.add_full_qualified_generic_match(&scope, generics);
     }
 

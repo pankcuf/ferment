@@ -62,7 +62,7 @@ impl ScopeContext {
                 // loc
                 // check maybe it's really known
                 let trait_scope = lock.actual_scope_for_type(ty.ty(), &self.scope);
-                if let Some(obj) = lock.maybe_scope_type(&parse_quote!(Self), &trait_scope) {
+                if let Some(obj) = lock.maybe_scope_object(&parse_quote!(Self), &trait_scope) {
                     maybe_trait = Some(obj);
                 }
                 // if let Some(tt) = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty)) {

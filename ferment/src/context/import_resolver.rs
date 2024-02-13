@@ -51,6 +51,23 @@ impl ImportResolver {
             .get(scope)
             .and_then(|imports| imports.get(ident))
     }
+    pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
+        // so smth like can_have_more_than_one_grandfather,
+        // println!("maybe_import: {} in {}", ident, scope);
+        match scope {
+            ScopeChain::CrateRoot { .. } =>
+                self.maybe_path(&scope, ident),
+            ScopeChain::Mod { .. } =>
+                self.maybe_path(&scope, ident),
+            ScopeChain::Fn { parent_scope_chain, .. } =>
+                self.maybe_fn_import(scope, parent_scope_chain, ident),
+            ScopeChain::Trait { parent_scope_chain, .. } |
+            ScopeChain::Object { parent_scope_chain, .. } |
+            ScopeChain::Impl { parent_scope_chain, .. } =>
+                self.maybe_obj_or_parent(scope, parent_scope_chain, ident),
+        }
+    }
 
 
     fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
@@ -100,22 +117,5 @@ impl ImportResolver {
             })
     }
 
-    pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
-        // so smth like can_have_more_than_one_grandfather,
-        // println!("maybe_import: {} in {}", ident, scope);
-        match scope {
-            ScopeChain::CrateRoot { .. } =>
-                self.maybe_path(&scope, ident),
-            ScopeChain::Mod { .. } =>
-                self.maybe_path(&scope, ident),
-            ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_import(scope, parent_scope_chain, ident),
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_obj_or_parent(scope, parent_scope_chain, ident),
-        }
-    }
 
 }

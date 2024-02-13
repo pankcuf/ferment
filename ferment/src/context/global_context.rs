@@ -1,17 +1,15 @@
-use std::collections::HashMap;
 use std::fmt::Formatter;
 use syn::{parse_quote, Path, Type};
 use crate::Config;
-use crate::context::ScopeChain;
+use crate::context::{ScopeChain, TypeChain};
 use crate::composition::TraitCompositionPart1;
 use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
 use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::{format_global_context, format_token_stream};
-use crate::holder::{PathHolder, TypeHolder};
-use crate::context::ScopeResolver;
-use crate::context::traits_resolver::TraitsResolver;
+use crate::holder::PathHolder;
+use crate::context::{ScopeResolver, TraitsResolver};
 
 #[derive(Clone, Default)]
 pub struct GlobalContext {
@@ -64,9 +62,9 @@ impl GlobalContext {
         while i < current_scope.len() && maybe_trait.is_none() {
             let (root, head) = current_scope.split_and_join_self(i);
             let ty = parse_quote!(#head);
-            let root_scope = self.resolve_scope(&root.0);
+            let root_scope = self.maybe_scope(&root.0);
             if let Some(scope) = root_scope {
-                maybe_trait = self.maybe_scope_type(&ty, scope);
+                maybe_trait = self.maybe_scope_object(&ty, scope);
             }
             //maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
@@ -81,7 +79,7 @@ impl GlobalContext {
                                 println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
                                 let tt_type = parse_quote!(#first_bound);
                                 if let Some(scope) = root_scope {
-                                    maybe_trait = self.maybe_scope_type(&tt_type, scope);
+                                    maybe_trait = self.maybe_scope_object(&tt_type, scope);
                                 }
                                 println!("FFI (first bound full) {:?}", maybe_trait);
                             }
@@ -110,27 +108,27 @@ impl GlobalContext {
 
 
     fn maybe_obj_or_parent_scope_type(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
-        self.maybe_scope_type(ty, self_scope)
+        self.maybe_scope_object(ty, self_scope)
             .or(match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
-                    self.maybe_scope_type(ty, parent_chain),
+                    self.maybe_scope_object(ty, parent_chain),
                 _ => None,
             })
     }
 
     pub fn maybe_fn_type(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
-        self.maybe_scope_type(ty, fn_scope).or(match parent_scope {
+        self.maybe_scope_object(ty, fn_scope).or(match parent_scope {
             ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
-                self.maybe_scope_type(ty, parent_scope),
+                self.maybe_scope_object(ty, parent_scope),
             ScopeChain::Fn { parent_scope_chain, .. } =>
                 self.maybe_fn_type(parent_scope, parent_scope_chain, ty),
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } |
             ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_scope_type(ty, parent_scope).or(match &**parent_scope_chain {
+                self.maybe_scope_object(ty, parent_scope).or(match &**parent_scope_chain {
                     ScopeChain::CrateRoot { .. } |
                     ScopeChain::Mod { ..} =>
-                        self.maybe_scope_type(ty, &parent_scope_chain),
+                        self.maybe_scope_object(ty, &parent_scope_chain),
                     _ => None,
                 }),
         })
@@ -139,7 +137,7 @@ impl GlobalContext {
     pub fn maybe_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
          match scope {
              ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
-                 self.maybe_scope_type(ty, &scope),
+                 self.maybe_scope_object(ty, &scope),
              ScopeChain::Fn { parent_scope_chain, .. } =>
                  self.maybe_fn_type(scope, parent_scope_chain, ty),
              ScopeChain::Trait { parent_scope_chain, .. } |
@@ -153,7 +151,7 @@ impl GlobalContext {
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> ScopeChain {
         println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
         let p = parse_quote!(#ty);
-        let scope = if let Some(st) = self.maybe_scope_type(ty, current_scope) {
+        let scope = if let Some(st) = self.maybe_scope_object(ty, current_scope) {
             // match st {
             //     ObjectConversion::Type(_) => {}
             //     ObjectConversion::Item(_, _) => {}
@@ -161,9 +159,9 @@ impl GlobalContext {
             // }
             let self_ty = st.ty().unwrap();
             let self_path: Path = parse_quote!(#self_ty);
-            self.resolve_scope(&self_path).cloned()
+            self.maybe_scope(&self_path).cloned()
         } else if let Some(import_path) = self.maybe_scope_import_path(current_scope, &p) {
-            self.resolve_scope(import_path).cloned()
+            self.maybe_scope(import_path).cloned()
         } else {
             None
         };
@@ -172,7 +170,7 @@ impl GlobalContext {
     }
     pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {
         let full_scope: PathHolder = parse_quote!(#full_ty);
-        self.resolve_scope(&full_scope.0)
+        self.maybe_scope(&full_scope.0)
             .and_then(|scope| self.traits.maybe_trait(scope).cloned())
     }
 
@@ -277,13 +275,13 @@ impl GlobalContext {
 
 /// Scope
 impl GlobalContext {
-    pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut HashMap<TypeHolder, ObjectConversion> {
+    pub fn scope_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.scope_register.scope_register_mut(scope)
     }
-    pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
+    pub fn maybe_scope_object(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
         self.scope_register.maybe_scope_type(ty, scope)
     }
-    fn resolve_scope(&self, path: &Path) -> Option<&ScopeChain> {
+    fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         self.scope_register.resolve(path)
     }
 

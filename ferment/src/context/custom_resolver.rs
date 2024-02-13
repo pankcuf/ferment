@@ -1,13 +1,30 @@
 use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, parse_quote, Path, PathArguments, Type, TypePath};
 use crate::composition::TypeComposition;
-use crate::context::ScopeChain;
+use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::formatter::types_dict;
 use crate::holder::TypeHolder;
 
 #[derive(Clone, Default)]
 pub struct CustomResolver {
-    pub inner: HashMap<ScopeChain, HashMap<TypeHolder, ObjectConversion>>,
+    pub inner: HashMap<ScopeChain, TypeChain>,
+}
+impl Debug for CustomResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.inner.iter()
+            .map(|(key, value)| format!("\t{}:\n\t\t{}", key, types_dict(&value.inner).join("\n\t\t")))
+            .collect::<Vec<String>>();
+        iter.sort();
+        f.write_str( iter.join("\n\n").as_str())
+    }
+}
+
+impl Display for CustomResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
 }
 
 impl CustomResolver {

@@ -1,15 +1,33 @@
 use std::collections::{HashMap, HashSet};
-use quote::ToTokens;
+use std::fmt::{Debug, Display, Formatter};
 use syn::{Item, Path, Type, TypeReference};
 use crate::composition::GenericConversion;
 use crate::context::ScopeChain;
+use crate::context::type_chain::TypeChain;
 use crate::conversion::ObjectConversion;
+use crate::formatter::types_dict;
 use crate::helper::ItemExtension;
 use crate::holder::TypeHolder;
 
 #[derive(Clone, Default)]
 pub struct ScopeResolver {
-    pub inner: HashMap<ScopeChain, HashMap<TypeHolder, ObjectConversion>>,
+    pub inner: HashMap<ScopeChain, TypeChain>,
+}
+
+impl Debug for ScopeResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.inner.iter()
+            .map(|(key, value)| format!("\t{}:\n\t\t{}", key, types_dict(&value.inner).join("\n\t\t")))
+            .collect::<Vec<String>>();
+        iter.sort();
+        f.write_str( iter.join("\n\n").as_str())
+    }
+}
+
+impl Display for ScopeResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
 }
 
 impl ScopeResolver {
@@ -20,7 +38,7 @@ impl ScopeResolver {
                 path.eq(scope_chain.self_path())
                     .then_some(scope_chain))
     }
-    pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut HashMap<TypeHolder, ObjectConversion> {
+    pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.inner
             .entry(scope.clone())
             .or_default()
@@ -33,7 +51,7 @@ impl ScopeResolver {
         };
         self.inner
             .get(scope)
-            .and_then(|dict| dict.get(&tc))
+            .and_then(|chain| chain.get(&tc))
     }
 
     pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &ScopeChain) -> Option<ObjectConversion> {
@@ -46,22 +64,14 @@ impl ScopeResolver {
     pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
         self.inner
             .get(scope)
-            .and_then(|scope_types|
-                scope_types.iter()
-                    .find_map(|(TypeHolder { 0: other}, full_type)| {
-                        if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
-                            full_type.ty()
-                        } else {
-                            None
-                        }
-                    }))
+            .and_then(|chain| chain.get_by_path(path))
             .cloned()
     }
 
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
         self.inner
             .get(scope)
-            .map(|scope_types| item.find_generics_fq(scope_types))
+            .map(|chain| item.find_generics_fq(chain))
             .unwrap_or_default()
     }
 }

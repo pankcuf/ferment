@@ -4,6 +4,7 @@ use syn::__private::TokenStream2;
 use syn::{Item, parse_quote, Type};
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeConversion};
+use crate::ext::ValueReplaceScenario;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
@@ -13,6 +14,14 @@ pub enum ObjectConversion {
     Empty
 }
 
+impl ValueReplaceScenario for ObjectConversion {
+    fn should_replace_with(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
+            _ => false
+        }
+    }
+}
 
 impl ToTokens for ObjectConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {

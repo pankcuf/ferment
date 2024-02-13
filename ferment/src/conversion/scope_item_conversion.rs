@@ -5,7 +5,8 @@ use quote::ToTokens;
 use syn::{Attribute, Generics, Item, Path, Signature};
 use syn::__private::TokenStream2;
 use crate::composition::{GenericConversion, ImportComposition};
-use crate::conversion::{ImportConversion, ObjectConversion};
+use crate::context::TypeChain;
+use crate::conversion::ImportConversion;
 use crate::formatter::format_token_stream;
 use crate::helper::ItemExtension;
 use crate::holder::{PathHolder, TypeHolder};
@@ -92,7 +93,7 @@ impl ItemExtension for ScopeItemConversion {
         }
     }
 
-    fn find_generics_fq(&self, scope_types: &HashMap<TypeHolder, ObjectConversion>) -> HashSet<GenericConversion> {
+    fn find_generics_fq(&self, scope_types: &TypeChain) -> HashSet<GenericConversion> {
         match self {
             ScopeItemConversion::Item(item) => item.find_generics_fq(scope_types),
             ScopeItemConversion::Fn(sig) => sig.find_generics_fq(scope_types),

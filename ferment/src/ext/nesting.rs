@@ -9,8 +9,10 @@ pub trait NestingExtension {
     fn nested_items(&self) -> HashSet<Self::Item>;
 }
 
-impl<T, P> NestingExtension for Punctuated<T, P> where T: NestingExtension<Item = Type> {
-    type Item = Type;
+impl<A, T, P> NestingExtension for Punctuated<T, P>
+    where A: ToTokens + Eq + Hash,
+          T: NestingExtension<Item = A> {
+    type Item = A;
 
     fn nested_items(&self) -> HashSet<Self::Item> {
         HashSet::from_iter(self.iter().flat_map(|ff| ff.nested_items()))
@@ -25,16 +27,6 @@ impl NestingExtension for AngleBracketedGenericArguments {
         self.args.nested_items()
     }
 }
-impl NestingExtension for ParenthesizedGenericArguments {
-    type Item = Type;
-
-    fn nested_items(&self) -> HashSet<Self::Item> {
-        let mut involved = self.inputs.nested_items();
-        involved.extend(self.output.nested_items());
-        involved
-    }
-}
-
 impl NestingExtension for BareFnArg {
     type Item = Type;
 
@@ -79,6 +71,16 @@ impl NestingExtension for GenericArgument {
             GenericArgument::Const(expr) => expr.nested_items(),
             GenericArgument::Lifetime(_) => HashSet::new(),
         }
+    }
+}
+
+impl NestingExtension for ParenthesizedGenericArguments {
+    type Item = Type;
+
+    fn nested_items(&self) -> HashSet<Self::Item> {
+        let mut involved = self.inputs.nested_items();
+        involved.extend(self.output.nested_items());
+        involved
     }
 }
 
