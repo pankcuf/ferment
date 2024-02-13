@@ -164,59 +164,50 @@ impl Visitor {
         //     .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
     }
 
-    fn involved_types_in_scope(&self, involved_types: HashSet<Type>, scope: &ScopeChain) -> TypeChain {
+    fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
+        let involved_types = ty.nested_items();
         let mut destination = TypeChain::default();
         for ty  in &involved_types {
             destination.add_one(TypeHolder::from(ty), self.update_nested_generics(scope, ty));
         }
         destination
     }
+
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
         // println!("::::: add_full_qualified: {} in [{}] root: {:?}", ty.to_token_stream(), scope.self_scope(),  scope.obj_root_chain());
         nprint!(0, Emoji::Plus, "{} in [{}]", format_token_stream(ty), scope);
-        let involved_types = ty.nested_items();
+        let self_obj = &scope.self_scope().object;
+        let type_chain = self.create_type_chain(ty, scope);
         match scope {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => {
-                let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                let filtered = all_involved_full_types.selfless();
-                self.scope_add_many(filtered, scope);
+                self.scope_add_many(type_chain.selfless(), scope);
             },
             ScopeChain::Impl { parent_scope_chain, .. } => {
-                let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                self.scope_add_many(all_involved_full_types.clone(), scope);
-                let filtered = all_involved_full_types.selfless();
-                self.scope_add_many(filtered, parent_scope_chain);
+                self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                self.scope_add_many(type_chain, scope);
             },
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } => {
-                // involved_types.insert(parse_quote!(Self));
-                let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                let self_types =  self.involved_types_in_scope(HashSet::from([parse_quote!(Self)]), scope);
-                self.scope_add_many(all_involved_full_types.clone(), scope);
-                self.scope_add_many(self_types, scope);
-                let filtered = all_involved_full_types.selfless();
-                self.scope_add_many(filtered, parent_scope_chain);
+                self.scope_add_many(type_chain.clone(), scope);
+                self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                self.scope_add_many(type_chain.selfless(), parent_scope_chain);
             },
             ScopeChain::Fn { parent_scope_chain, .. } => {
                 match &**parent_scope_chain {
                     ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
-                        let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                        self.scope_add_many(all_involved_full_types.clone(), scope);
-                        self.scope_add_many(all_involved_full_types, parent_scope_chain);
+                        self.scope_add_many(type_chain.clone(), scope);
+                        self.scope_add_many(type_chain, parent_scope_chain);
                     },
                     ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
-                        let all_involved_full_types = self.involved_types_in_scope(involved_types, scope);
-                        let self_types =  self.involved_types_in_scope(HashSet::from([parse_quote!(Self)]), scope);
-                        self.scope_add_many(all_involved_full_types.clone(), scope);
-                        self.scope_add_many(self_types.clone(), scope);
-                        self.scope_add_many(self_types, parent_scope_chain);
-                        self.scope_add_many(all_involved_full_types.clone(), parent_scope_chain);
+                        self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
+                        self.scope_add_many(type_chain.clone(), scope);
+                        self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                        self.scope_add_one(parse_quote!(Self), self_obj.clone(), parent_scope_chain);
+                        self.scope_add_many(type_chain, parent_scope_chain);
 
-                        let filtered = all_involved_full_types.selfless();
-                        self.scope_add_many(filtered, parent_parent_scope_chain);
                     },
                     ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
                         // TODO: actually there are may be anything wrapped into anything like trait inside a function...
@@ -524,9 +515,16 @@ impl Visitor {
         // let visitor_context = trait_path.map_or(VisitorContext::Object, |_| VisitorContext::Trait(None));
         // return;
         // println!("add_full_qualified_impl: {} in [{}]", quote!(#item_impl), scope);
+        match &item_impl.trait_ {
+            Some((_, path, _)) => {
+                let ty = parse_quote!(#path);
+                self.add_full_qualified_type_match(scope, &ty);
+            },
+            None => {}
+        }
         item_impl.items.iter().for_each(|impl_item| {
             match impl_item {
-                ImplItem::Const(ImplItemConst { ty, .. }) => {
+                ImplItem::Const(ImplItemConst { ident, ty, expr: _, .. }) => {
                     self.add_full_qualified_type_match(scope, ty);
                 },
                 ImplItem::Method(ImplItemMethod { sig, .. }) => {
@@ -538,13 +536,6 @@ impl Visitor {
                 _ => {}
             }
         });
-        match &item_impl.trait_ {
-            Some((_, path, _)) => {
-                let ty = parse_quote!(#path);
-                self.add_full_qualified_type_match(scope, &ty);
-            },
-            None => {}
-        }
     }
 
     fn add_full_qualified_type_param_bounds(&mut self, bounds: Punctuated<TypeParamBound, Add>, scope: &ScopeChain) {

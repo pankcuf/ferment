@@ -26,3 +26,4 @@ pub use self::traits_resolver::TraitsResolver;
 pub use self::type_chain::DefaultScopePolicy;
 pub use self::type_chain::EnrichScopePolicy;
 pub use self::type_chain::TypeChain;
+pub use self::type_chain::TypeChainKey;

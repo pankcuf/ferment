@@ -1,9 +1,9 @@
 use std::collections::hash_map::OccupiedEntry;
 use std::collections::HashMap;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use crate::context::TypeChain;
 use crate::conversion::ObjectConversion;
-use crate::holder::TypeHolder;
 use crate::tree::ScopeTreeExportItem;
 
 pub trait MergePolicy<K, V>: Clone + Copy + Sized {
@@ -17,15 +17,8 @@ impl<K, V> MergePolicy<K, V> for DefaultMergePolicy {
         o.insert(object);
     }
 }
-// impl<K, V> MergePolicy<K, V> where V: ValueReplaceScenario, Self: Sized {
-//     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-//         if o.get().should_replace_with(&object) {
-//             o.insert(object);
-//         }
-//     }
-// }
 
-pub trait ValueReplaceScenario {
+pub trait ValueReplaceScenario: Debug + Display {
     fn should_replace_with(&self, other: &Self) -> bool;
 }
 
@@ -78,7 +71,7 @@ impl MergeInto for ScopeTreeExportItem {
         }
     }
 }
-impl MergeInto for HashMap<TypeHolder, ObjectConversion> {
+impl<T> MergeInto for HashMap<T, ObjectConversion> where T: Hash + Eq + Clone {
     fn merge_into(&self, destination: &mut Self) {
         for (holder, object) in self {
             match destination.entry(holder.clone()) {

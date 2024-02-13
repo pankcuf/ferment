@@ -6,7 +6,7 @@ use syn::{Path, Type};
 use crate::conversion::ObjectConversion;
 use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
-use crate::holder::TypeHolder;
+use crate::holder::{Holder, TypeHolder};
 
 #[derive(Copy, Clone)]
 pub struct DefaultScopePolicy;
@@ -18,8 +18,9 @@ impl<K, V> MergePolicy<K, V> for DefaultScopePolicy {
     }
 }
 
-impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario {
+impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario + Debug + Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
+        // println!("EnrichScopePolicy::apply: {} --> {}", o.get(), object);
         if o.get().should_replace_with(&object) {
             o.insert(object);
         }
@@ -42,6 +43,29 @@ impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario
 //     }
 // }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum TypeChainKey {
+    Object(TypeHolder),
+    Constrant(TypeHolder)
+}
+
+impl TypeChainKey {
+    pub fn ty(&self) -> &Type {
+        match self {
+            TypeChainKey::Object(ty) => ty.inner(),
+            TypeChainKey::Constrant(ty) => ty.inner()
+        }
+    }
+}
+
+// impl Constraints for TypeChainKey {
+//     fn has_self(&self) -> bool {
+//         match self {
+//             TypeChainKey::Object(holder) => holder.has_self(),
+//             TypeChainKey::Constrant(holder) => holder.has_self()
+//         }
+//     }
+// }
 
 #[derive(Clone, Default)]
 pub struct TypeChain {
