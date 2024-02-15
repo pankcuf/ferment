@@ -1,4 +1,6 @@
 use std::fmt::Formatter;
+use proc_macro2::Ident;
+use quote::format_ident;
 use syn::{parse_quote, Path, Type};
 use crate::Config;
 use crate::context::{ScopeChain, TypeChain};
@@ -34,12 +36,20 @@ impl std::fmt::Display for GlobalContext {
     }
 }
 
+impl From<&Config> for GlobalContext {
+    fn from(config: &Config) -> Self {
+        GlobalContext::with_config(config.clone())
+    }
+}
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
         Self { config, ..Default::default() }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
+    }
+    pub fn is_fermented_mod(&self, ident: &Ident) -> bool {
+        format_ident!("{}", self.fermented_mod_name()).eq(ident)
     }
 
 

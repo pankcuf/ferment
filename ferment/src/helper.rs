@@ -457,6 +457,7 @@ pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeRefe
 // }
 
 pub(crate) fn to_path(field_path: TokenStream2, path: &Path, context: &ScopeContext) -> TokenStream2 {
+    println!("to_path: {}: {}: {:?}", field_path, quote!(#path), path.segments.last());
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"

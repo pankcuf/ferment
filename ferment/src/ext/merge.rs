@@ -30,19 +30,26 @@ pub trait HashMapMergePolicy<K, V>
     fn extend_with_policy<M, P>(&mut self, other: M, policy: P) where M: IntoIterator<Item = (K, V)>, P: MergePolicy<K, V>;
 }
 
-impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V> where K: Eq + Hash {
-    fn insert_with_policy<P>(&mut self, key: K, value: V, policy: P) where P: MergePolicy<K, V> + Clone {
+impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V> where K: Eq + Hash + Display, V: Display {
+    fn insert_with_policy<P>(&mut self, key: K, value: V, policy: P)
+        where P: MergePolicy<K, V> + Clone {
+        // println!("insert_with_policy: holder: {}: {}", key, value);
         match self.entry(key) {
-            std::collections::hash_map::Entry::Occupied(o) => policy.apply(o, value),
+            std::collections::hash_map::Entry::Occupied(o) => {
+                policy.apply(o, value)
+            },
             std::collections::hash_map::Entry::Vacant(v) => {
                 v.insert(value);
             },
         }
     }
 
-    fn extend_with_policy<M, P>(&mut self, other: M, policy: P) where M: IntoIterator<Item = (K, V)>, P: MergePolicy<K, V> {
-        for (holder, object) in other {
-            self.insert_with_policy(holder, object, policy);
+    fn extend_with_policy<M, P>(&mut self, other: M, policy: P)
+        where M: IntoIterator<Item = (K, V)>,
+              P: MergePolicy<K, V> {
+        for (key, value) in other {
+            // println!("extend_with_policy: holder: {}: {}", key, value);
+            self.insert_with_policy(key, value, policy);
         }
 
     }
@@ -53,13 +60,29 @@ pub trait MergeInto {
     // fn merge_into_with_policy<K, V>(&self, destination: &mut Self, policy: &impl MergePolicy<K, V>);
 }
 
+impl ValueReplaceScenario for ScopeTreeExportItem {
+    fn should_replace_with(&self, other: &Self) -> bool {
+        println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
+        match (self, other) {
+            // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
+            (ScopeTreeExportItem::Tree(..), ScopeTreeExportItem::Tree(..)) => true,
+            _ => false
+        }
+    }
+}
+
+
 impl MergeInto for ScopeTreeExportItem {
     fn merge_into(&self, destination: &mut Self) {
-        if let (ScopeTreeExportItem::Tree(_dest_context, _, _, ref mut dest_exports),
-            ScopeTreeExportItem::Tree(_source_context, _, _, source_exports), ) = (destination, &self) {
+        if let (ScopeTreeExportItem::Tree(_, _, _, ref mut dest_exports),
+            ScopeTreeExportItem::Tree(_, _, _, source_exports), ) = (destination, &self) {
             // println!("merge_trees: source: {}", source_context);
             // println!("merge_trees: destination: {}", dest_context);
+            // dest_exports.extend_with_policy(source_exports, DefaultScopePolicy);
+
             for (name, source_tree) in source_exports {
+                //DefaultScopePolicy::apply();
+                //destination.insert_with_policy(name.clone(), source_tree.clone(), DefaultScopePolicy);
                 match dest_exports.entry(name.clone()) {
                     std::collections::hash_map::Entry::Occupied(mut o) =>
                         source_tree.merge_into(o.get_mut()),
@@ -71,6 +94,9 @@ impl MergeInto for ScopeTreeExportItem {
         }
     }
 }
+
+
+
 impl<T> MergeInto for HashMap<T, ObjectConversion> where T: Hash + Eq + Clone {
     fn merge_into(&self, destination: &mut Self) {
         for (holder, object) in self {

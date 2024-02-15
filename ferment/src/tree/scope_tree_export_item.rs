@@ -11,6 +11,8 @@ use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::formatter::{format_imported_dict, format_token_stream, format_tree_exported_dict};
 use crate::helper::ItemExtension;
+use crate::presentation::Expansion;
+use crate::tree::{ScopeTree, ScopeTreeCompact};
 
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -82,16 +84,6 @@ impl ScopeTreeExportItem {
         let context = Rc::new(RefCell::new(ScopeContext::with(scope, context)));
         Self::tree_with_context_and_export(context, HashMap::default())
     }
-    // pub fn single_export(scope: Scope, ident: Ident, item: ScopeTreeExportItem) -> ScopeTreeExportItem {
-    //     Self::tree_with_context_and_export(ScopeContext::with(scope, &mut GlobalContext::default()), HashMap::from([(ident, item)]))
-    // }
-    // pub fn with_context(scope: &Scope, context: Context) -> ScopeTreeExportItem {
-    //     Self::tree_with_context_and_export(ScopeContext::with(scope.clone(), GlobalContext::with_context(context)), HashMap::default())
-    // }
-
-    // pub fn just_export_with_context(export: HashMap<Ident, ScopeTreeExportItem>, context: Context) -> ScopeTreeExportItem {
-    //     Self::tree_with_context_and_export(GlobalContext::with_context(context), export)
-    // }
 
     fn add_non_mod_item(&mut self, item: &Item, scope: &ScopeChain) {
         // println!("add_non_mod_item: {} in [{}]", item.maybe_ident().map_or(format!("None"), Ident::to_string), scope);
@@ -164,4 +156,27 @@ impl ScopeTreeExportItem {
         }
     }
 
+    pub fn into_expansion(self) -> Expansion {
+        match self {
+            ScopeTreeExportItem::Item(..) => Expansion::Empty,
+            ScopeTreeExportItem::Tree(
+                scope_context,
+                generics,
+                imported,
+                exported) => {
+                // {
+                //     let mut lock = context.write().unwrap();
+                //     lock.inject_types_from_traits_implementation();
+                // }
+                let compact_tree = ScopeTreeCompact { scope: ScopeChain::crate_root(), scope_context, generics, imported, exported };
+                let tree = ScopeTree::from(compact_tree);
+                println!();
+                println!("•• TREE 2 MORPHING using ScopeContext:");
+                println!();
+                println!("{}", tree.scope_context.borrow());
+                Expansion::Root { tree }
+            }
+        }
+
+    }
 }

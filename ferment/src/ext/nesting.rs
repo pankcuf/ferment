@@ -141,7 +141,7 @@ impl NestingExtension for Type {
             Type::Array(TypeArray { elem, .. }) |
             Type::Ptr(TypePtr { elem, .. }) |
             Type::Reference(TypeReference { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. })=>
+            Type::Slice(TypeSlice { elem, .. }) =>
                 involved.extend(elem.nested_items()),
             Type::BareFn(TypeBareFn { inputs, output, .. }) => {
                 involved.extend(inputs.nested_items());

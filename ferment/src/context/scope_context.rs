@@ -44,6 +44,7 @@ impl ScopeContext {
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
+        println!("full_type_for: {}: {:?}", quote!(#ty), lock.maybe_type(ty, &self.scope));
         lock.maybe_type(ty, &self.scope)
             .and_then(|full_type| full_type.ty().cloned())
             .unwrap_or(ty.clone())

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
@@ -11,27 +12,31 @@ pub trait ScopeCollection<K, V> where K: Eq + Hash, V: ValueReplaceScenario {
 
 impl<K, V, T, S> ScopeCollection<K, V> for Punctuated<T, S>
     where T: ScopeCollection<K, V>,
-          K: Eq + Hash, V: ValueReplaceScenario {
+          K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
-        self.iter().flat_map(|ff| ff.scope_items()).collect()
+        // let mut involved = HashMap::default();
+        // for (k, v)  in self {
+        //     involved
+        // }
+        self.iter().flat_map(T::scope_items).collect()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for AngleBracketedGenericArguments
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.args.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for BareFnArg
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
 }
 impl<K, V> ScopeCollection<K, V> for Binding
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
 
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
@@ -39,14 +44,14 @@ impl<K, V> ScopeCollection<K, V> for Binding
 }
 
 impl<K, V> ScopeCollection<K, V> for Constraint
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.bounds.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for Expr
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
 
     fn scope_items(&self) -> HashMap<K, V> {
         // TODO: Implement this if need
@@ -55,7 +60,7 @@ impl<K, V> ScopeCollection<K, V> for Expr
 }
 
 impl<K, V> ScopeCollection<K, V> for GenericArgument
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             GenericArgument::Type(ty) => ty.scope_items(),
@@ -68,7 +73,7 @@ impl<K, V> ScopeCollection<K, V> for GenericArgument
 }
 
 impl<K, V> ScopeCollection<K, V> for ParenthesizedGenericArguments
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         let mut involved = HashMap::default();
         involved.extend_with_policy(self.inputs.scope_items(), EnrichScopePolicy);
@@ -78,14 +83,14 @@ impl<K, V> ScopeCollection<K, V> for ParenthesizedGenericArguments
 }
 
 impl<K, V> ScopeCollection<K, V> for Path
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.segments.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for PathArguments
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             PathArguments::AngleBracketed(args) => args.scope_items(),
@@ -96,21 +101,21 @@ impl<K, V> ScopeCollection<K, V> for PathArguments
 }
 
 impl<K, V> ScopeCollection<K, V> for PathSegment
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.arguments.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for QSelf
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display , V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for ReturnType
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             ReturnType::Type(_, ty) => ty.scope_items(),
@@ -119,9 +124,10 @@ impl<K, V> ScopeCollection<K, V> for ReturnType
     }
 }
 impl<K, V> ScopeCollection<K, V> for Type
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         // let mut involved = HashSet::from([parse_quote!(Self)]);
+        println!("Type::scope_items: {:?}", self);
         let mut involved = HashMap::default();
         match self {
             Type::Array(TypeArray { elem, .. }) |
@@ -139,13 +145,16 @@ impl<K, V> ScopeCollection<K, V> for Type
             },
             Type::Path(TypePath { qself, path }) => {
                 // involved.insert(self.clone());
-                involved.extend(path.scope_items());
+                // let self_self = self.clone();
+                // let sss =
+                // involved.insert_with_policy(self.clone(), EnrichScopePolicy);
+                involved.extend_with_policy(path.scope_items(), EnrichScopePolicy);
                 if let Some(qself) = qself {
-                    involved.extend(qself.scope_items());
+                    involved.extend_with_policy(qself.scope_items(), EnrichScopePolicy);
                 }
             },
             Type::Tuple(TypeTuple { elems, .. }) =>
-                involved.extend(elems.scope_items()),
+                involved.extend_with_policy(elems.scope_items(), EnrichScopePolicy),
             _ => {}
         }
         involved
@@ -153,7 +162,7 @@ impl<K, V> ScopeCollection<K, V> for Type
 }
 
 impl<K, V> ScopeCollection<K, V> for TypeParamBound
-    where K: Eq + Hash, V: ValueReplaceScenario {
+    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             TypeParamBound::Trait(TraitBound { path, .. }) => path.scope_items(),

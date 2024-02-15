@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
@@ -112,6 +112,10 @@ impl Visitor {
             tree.merge_into(&mut self.tree);
         }
     }
+    pub fn into_code_tree(mut self) -> ScopeTreeExportItem {
+        self.merge_visitor_trees();
+        self.tree
+    }
 }
 
 /// Global Context Facade
@@ -168,14 +172,17 @@ impl Visitor {
         let involved_types = ty.nested_items();
         let mut destination = TypeChain::default();
         for ty  in &involved_types {
-            destination.add_one(TypeHolder::from(ty), self.update_nested_generics(scope, ty));
+            let object = self.update_nested_generics(scope, ty);
+            println!("create_type_chain: add_one: {}: {}", ty.to_token_stream(), object);
+            destination.add_one(TypeHolder::from(ty), object);
         }
         destination
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
-        // println!("::::: add_full_qualified: {} in [{}] root: {:?}", ty.to_token_stream(), scope.self_scope(),  scope.obj_root_chain());
         nprint!(0, Emoji::Plus, "{} in [{}]", format_token_stream(ty), scope);
+        // let ff: HashMap<TypeHolder, ObjectConversion> = ty.scope_items();
+        // println!("::: scope_items: {}: {}", ty.to_token_stream(), format_types_dict(&ff));
         let self_obj = &scope.self_scope().object;
         let type_chain = self.create_type_chain(ty, scope);
         match scope {
@@ -189,6 +196,7 @@ impl Visitor {
             },
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } => {
+                println!("add_full_qualified_type_match: Obj or Trait: {} in {}", self_obj, scope);
                 self.scope_add_many(type_chain.clone(), scope);
                 self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
                 self.scope_add_many(type_chain.selfless(), parent_scope_chain);
@@ -205,7 +213,7 @@ impl Visitor {
                         self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
                         self.scope_add_many(type_chain.clone(), scope);
                         self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
-                        self.scope_add_one(parse_quote!(Self), self_obj.clone(), parent_scope_chain);
+                        // self.scope_add_one(parse_quote!(Self), self_obj.clone(), parent_scope_chain);
                         self.scope_add_many(type_chain, parent_scope_chain);
 
                     },
@@ -300,6 +308,7 @@ impl Visitor {
                     let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#self_scope_path);
                     segments.extend(new_segments);
                     segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                    println!("::: add_obj_self: {} scope: [{}]", object_self_scope, scope);
                     object_self_scope.object.clone()
                 },
                 "Self" => {
@@ -336,6 +345,14 @@ impl Visitor {
                                 path: Path { leading_colon: path.leading_colon, segments } }),
                         None)))
                     // nprint!(*counter, Emoji::Nothing, "(Global Object) {}", format_token_stream(&path));
+                },
+                "Option" => {
+                    ObjectConversion::Type(TypeConversion::Object(TypeComposition::new(
+                        Type::Path(
+                            TypePath {
+                                qself: new_qself,
+                                path: Path { leading_colon: path.leading_colon, segments } }),
+                        None)))
                 },
                 "Result" if segments.len() == 1 => {
                     ObjectConversion::Type(TypeConversion::Object(TypeComposition::new(
@@ -522,15 +539,20 @@ impl Visitor {
             },
             None => {}
         }
+
         item_impl.items.iter().for_each(|impl_item| {
             match impl_item {
                 ImplItem::Const(ImplItemConst { ident, ty, expr: _, .. }) => {
                     self.add_full_qualified_type_match(scope, ty);
+
                 },
                 ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                    self.add_full_qualified_signature(sig, scope)
+                    self.add_full_qualified_signature(sig, scope);
+                    // let ty: Type = parse_quote!(#ident);
+                    // self.add_full_qualified_type_match(scope, &ty);
+
                 },
-                ImplItem::Type(ImplItemType { ty, .. }) => {
+                ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
                     self.add_full_qualified_type_match(scope, ty);
                 },
                 _ => {}
@@ -552,7 +574,7 @@ impl Visitor {
 
     fn add_full_qualified_trait(&mut self, item_trait: &ItemTrait, scope: &ScopeChain) {
 
-        println!("add_full_qualified_trait: {}: {}", item_trait.ident, scope);
+        // println!("add_full_qualified_trait: {}: {}", item_trait.ident, scope);
         let ident = &item_trait.ident;
         let type_compo = TypeComposition::new(scope.to_type(), Some(item_trait.generics.clone()));
         let itself = ObjectConversion::new_item(
@@ -723,17 +745,31 @@ impl Visitor {
                 },
                 _ => {}
             });
-        self.scope_add_one(parse_quote!(#ident), itself, scope.parent_scope().unwrap());
+        self.scope_add_one(parse_quote!(#ident), itself.clone(), scope.parent_scope().unwrap());
+        self.scope_add_one(parse_quote!(Self), itself, scope);
         self.add_full_qualified_generic_match(&scope, generics);
     }
 
     fn add_full_qualified_signature(&mut self, sig: &Signature, scope: &ScopeChain) {
-        if let ReturnType::Type(_arrow_token, ty) = &sig.output {
+        let Signature { ident, output, inputs, .. } = sig;
+        if let ReturnType::Type(_arrow_token, ty) = output {
             self.add_full_qualified_type_match(scope, ty)
         }
-        sig.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+        inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
             self.add_full_qualified_type_match(scope, ty);
         });
+        // let ty: Type = parse_quote!(#ident);
+        // self.add_full_qualified_type_match(scope, &ty);
+        // match scope.obj_root_chain() {
+        //     Some(parent) => {
+        //         let ty: TypeHolder = parse_quote!(#ident);
+        //         // TODO: wrong here can be non-determined context
+        //         let object = self.update_nested_generics(parent, &ty.0);
+        //         self.scope_add_one(ty, object, parent);
+        //
+        //     },
+        //     _ => {}
+        // }
     }
 
     fn add_full_qualified_struct(&mut self, item_struct: &ItemStruct, scope: &ScopeChain) {
@@ -753,7 +789,7 @@ impl Visitor {
 
     }
     fn add_full_qualified_fn(&mut self, item_fn: &ItemFn, scope: &ScopeChain) {
-        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_fn.sig.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_fn.sig.generics.clone()))), ScopeItemConversion::Fn(item_fn.sig.clone())));
+        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_fn.sig.ident, ObjectConversion::new_item(TypeConversion::Fn(TypeComposition::new(scope.to_type(), Some(item_fn.sig.generics.clone()))), ScopeItemConversion::Fn(item_fn.sig.clone())));
         self.add_full_qualified_signature(&item_fn.sig, scope);
     }
     fn add_full_qualified_type(&mut self, item_type: &ItemType, scope: &ScopeChain) {

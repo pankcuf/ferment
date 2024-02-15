@@ -45,6 +45,7 @@ impl Conversion for Type {
     }
 
     fn to(&self, field_path: TokenStream2, context: &ScopeContext) -> Self::Item {
+        println!("to: {}: {}", quote!(#field_path), self.to_token_stream());
         match self {
             Type::Array(type_array) =>
                 to_array(field_path, type_array, &context),
@@ -70,6 +71,7 @@ impl Conversion for FieldTypeConversion {
         self.ty().from(field_path, context)
     }
     fn to(&self, field_path: TokenStream2, context: &ScopeContext) -> Self::Item {
+        println!("FieldTypeConversion:to: {}", quote!(#field_path));
         self.ty().to(field_path, context)
     }
 }

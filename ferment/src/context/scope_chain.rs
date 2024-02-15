@@ -105,6 +105,9 @@ impl ScopeChain {
     pub fn new_mod(self_scope: Scope) -> Self {
         ScopeChain::Mod { self_scope }
     }
+    pub fn child_mod(name: &Ident, scope: &ScopeChain) -> Self {
+        ScopeChain::Mod { self_scope: Scope::new(scope.self_path_holder().joined(name), ObjectConversion::Empty) }
+    }
     pub fn self_scope(&self) -> &Scope {
         match self {
             ScopeChain::Mod { self_scope } => self_scope,
@@ -253,8 +256,8 @@ impl ScopeChain {
             if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool") {
                 // println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
                 Some(TypeConversion::Primitive(TypeComposition::new(parse_quote!(#path), None)))
-            } else if matches!(ident, "String" | "str" | "Option") {
-                // println!("maybe_dictionary_type (found string):  {}", quote!(#path));
+            } else if matches!(ident, "String" | "str" ) {
+                println!("maybe_dictionary_type (found {}):  {}", ident, path.to_token_stream());
                 Some(TypeConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")  {
                 // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));

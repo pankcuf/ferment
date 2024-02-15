@@ -16,12 +16,16 @@ pub enum ObjectConversion {
 
 impl ValueReplaceScenario for ObjectConversion {
     fn should_replace_with(&self, other: &Self) -> bool {
+        println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
-            (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
+            // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
+            (_, ObjectConversion::Item(..)) => true,
             _ => false
         }
     }
 }
+
+
 
 impl ToTokens for ObjectConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {

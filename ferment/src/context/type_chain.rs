@@ -12,15 +12,30 @@ use crate::holder::{Holder, TypeHolder};
 pub struct DefaultScopePolicy;
 #[derive(Copy, Clone)]
 pub struct EnrichScopePolicy;
-impl<K, V> MergePolicy<K, V> for DefaultScopePolicy {
+#[derive(Copy, Clone)]
+pub struct ExternalModulePolicy;
+
+impl<K, V> MergePolicy<K, V> for DefaultScopePolicy where K: Display, V: Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
+        println!("DefaultScopePolicy::apply: {} --> {}", o.get(), object);
         o.insert(object);
     }
 }
 
 impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario + Debug + Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        // println!("EnrichScopePolicy::apply: {} --> {}", o.get(), object);
+        let should_upgrade = o.get().should_replace_with(&object);
+        // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
+        if o.get().should_replace_with(&object) {
+            o.insert(object);
+        }
+    }
+
+}
+impl<K, V> MergePolicy<K, V> for ExternalModulePolicy where V: ValueReplaceScenario + Debug + Display {
+    fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
+        let should_upgrade = o.get().should_replace_with(&object);
+        // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
         if o.get().should_replace_with(&object) {
             o.insert(object);
         }

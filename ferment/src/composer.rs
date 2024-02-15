@@ -40,8 +40,10 @@ impl<'a> ConversionsComposer<'a> {
                 fields
                     .named
                     .iter()
-                    .map(|Field { ident, ty, .. }|
-                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.full_type_for(ty)))
+                    .map(|Field { ident, ty, .. }| {
+                        println!("conversions_composer:NamedStruct {}: {}: ({})", quote!(#ident), quote!(#ty), ctx.full_type_for(ty).to_token_stream());
+                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.full_type_for(ty))
+                    })
                     .collect(),
             Self::UnnamedEnumVariant(fields) =>
                 fields
@@ -466,6 +468,7 @@ impl FFIConversionComposer {
         let field_path_from = (self.from_presenter)(field_type.name());
         let field_path_destroy = (self.destructor_presenter)(field_type.name());
         let context = context.borrow();
+        println!("add_conversion: {}: {}", quote!(#field_path_to), field_type);
         self.to_conversion_composer.add_conversion(field_type.name(), field_type.to(field_path_to, &context));
         self.from_conversion_composer.add_conversion(field_type.name(), field_type.from(field_path_from, &context));
         self.drop_composer.add_conversion(field_type.destroy(field_path_destroy, &context));

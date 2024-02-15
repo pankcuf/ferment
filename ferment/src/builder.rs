@@ -1,14 +1,14 @@
 use std::fmt::Formatter;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use quote::{format_ident, quote, ToTokens};
-use syn::{ItemMod, visit::Visit};
-use crate::context::{GlobalContext, Scope, ScopeChain};
-use crate::conversion::ObjectConversion;
+use proc_macro2::Ident;
+use quote::ToTokens;
+use syn::visit::Visit;
+use crate::context::{GlobalContext, ScopeChain};
 use crate::error;
-use crate::presentation::expansion::Expansion;
-use crate::tree::{ScopeTree, ScopeTreeCompact};
+use crate::presentation::Expansion;
 use crate::visitor::Visitor;
 
 #[derive(Debug, Clone)]
@@ -55,6 +55,74 @@ impl Config {
         self.crate_names.contains(ident)
     }
 
+    pub fn mod_file_name(&self) -> String {
+        format!("{}.rs", self.mod_name)
+    }
+}
+
+pub struct FileTreeProcessor {
+    pub path: PathBuf,
+    pub scope: ScopeChain,
+    pub context: Arc<RwLock<GlobalContext>>,
+}
+
+impl FileTreeProcessor {
+    pub fn new(path: PathBuf, scope: ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Self {
+        FileTreeProcessor { path, scope, context: context.clone() }
+    }
+    pub fn process(self) -> Result<Visitor, error::Error> {
+        self.read_syntax_tree()
+            .map(|syntax_tree| self.setup_visitor(syntax_tree))
+    }
+
+    fn read_syntax_tree(&self) -> Result<syn::File, error::Error> {
+        std::fs::read_to_string(&self.path)
+            .map_err(error::Error::from)
+            .and_then(|content| syn::parse_file(&content)
+                .map_err(error::Error::from))
+    }
+
+    fn setup_visitor(&self, syntax_tree: syn::File) -> Visitor {
+        let mut visitor = Visitor::new(self.scope.clone(), &self.context);
+        visitor.visit_file(&syntax_tree);
+        let mut visitors = vec![];
+        for item in syntax_tree.items {
+            if let syn::Item::Mod(module) = item {
+                if !self.is_fermented_mod(&module.ident) && module.content.is_none() {
+                    if let Ok(visitor) = self.process_module(&module.ident) {
+                        visitors.push(visitor);
+                    }
+                }
+            }
+        }
+        visitor.inner_visitors = visitors;
+        visitor
+    }
+
+    fn process_module(&self, mod_name: &Ident) -> Result<Visitor, error::Error> {
+        let scope = ScopeChain::child_mod(mod_name, &self.scope);
+        let file_path = self.path.parent().unwrap().join(mod_name.to_string());
+        if file_path.is_file() {
+            return FileTreeProcessor::new(file_path, scope, &self.context).process();
+        } else {
+            let path = file_path.join("mod.rs");
+            if path.is_file() {
+                return FileTreeProcessor::new(path, scope, &self.context).process()
+            } else {
+                let path = file_path.parent().unwrap().join(format!("{mod_name}.rs"));
+                if path.is_file() {
+                    return FileTreeProcessor::new(path, scope, &self.context).process()
+                }
+            }
+        }
+        Err(error::Error::ExpansionError("Can't locate module file"))
+    }
+
+    fn is_fermented_mod(&self, ident: &Ident) -> bool {
+        self.context.read()
+            .unwrap()
+            .is_fermented_mod(ident)
+    }
 }
 
 impl Builder {
@@ -119,93 +187,19 @@ impl Builder {
     ///
     pub fn generate(self) -> Result<(), error::Error> {
         let src = std::path::Path::new("src");
-        let output_path = src.join(format!("{}.rs", self.config.mod_name));
-        File::create(output_path.as_path())
-            .map_err(error::Error::from)
-            .and_then(|mut output| {
-                let input_path = src.join("lib.rs");
-                let input = input_path.as_path();
-                let file_path = std::path::Path::new(input);
-                let root_scope = ScopeChain::crate_root();
-                let global_context = GlobalContext::with_config(self.config.clone());
-                println!("•• TREE 1 MORPHING");
-                let context = Arc::new(RwLock::new(global_context));
-                let mut root_visitor = process_recursive(file_path, &root_scope, &context);
-                root_visitor.merge_visitor_trees();
-                ScopeTreeCompact::init_with(root_visitor.tree, root_scope)
-                    .map_or(Err(error::Error::ExpansionError("Can't expand root tree")),
-                        |tree| {
-                            let tree = ScopeTree::from(tree);
-                            // {
-                            //     let mut lock = context.write().unwrap();
-                            //     lock.inject_types_from_traits_implementation();
-                            // }
-
-                            println!();
-                            println!("•• TREE 2 MORPHING using ScopeContext:");
-                            println!();
-                            println!("{}", tree.scope_context.borrow());
-                            output.write_all(
-                                Expansion::Root { tree }
-                                        .to_token_stream()
-                                        .to_string()
-                                        .as_bytes())
-                                .map_err(error::Error::from)
-                        })
-            })
-
+        let scope = ScopeChain::crate_root();
+        let context = Arc::new(RwLock::new(GlobalContext::from(&self.config)));
+        FileTreeProcessor::new(src.join("lib.rs"), scope, &context)
+            .process()
+            .map(|root| root.into_code_tree().into_expansion())
+            .and_then(|expansion| write_expansion(src.join(self.config.mod_file_name()), expansion))
     }
 }
 
-fn read_syntax_tree(file_path: &std::path::Path) -> syn::File {
-    match std::fs::read_to_string(file_path) {
-        Ok(content) => match syn::parse_file(&content) {
-            Ok(file) => file,
-            Err(err) => panic!("Failed to parse file: {:?}: {}", file_path, err)
-        },
-        Err(err) => panic!("Failed to read file: {:?}: {}", file_path, err)
-    }
+fn write_expansion(path: PathBuf, expansion: Expansion) -> Result<(), error::Error> {
+    File::create(path)
+        .map_err(error::Error::from)
+        .and_then(|mut output| output.write_all(expansion.to_token_stream().to_string().as_bytes())
+            .map_err(error::Error::from))
 }
 
-fn process_recursive<'a>(file_path: &std::path::Path, file_scope: &ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Visitor {
-    let syntax_tree = read_syntax_tree(file_path);
-    let mut visitor = Visitor::new(file_scope.clone(), &context);
-    visitor.visit_file(&syntax_tree);
-    let items = syntax_tree.items;
-    let mut visitors = vec![];
-    for item in items {
-        if let syn::Item::Mod(module) = item {
-            if module.ident != format_ident!("{}", context.read().unwrap().fermented_mod_name()) {
-                if let Some(visitor) = process_module(file_path, &module, file_scope, &context) {
-                    visitors.push(visitor);
-                }
-            }
-        }
-    }
-    visitor.inner_visitors = visitors;
-    visitor
-}
-
-fn process_module<'a>(base_path: &std::path::Path, module: &ItemMod, file_scope: &ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Option<Visitor> {
-    if module.content.is_none() {
-        let mod_name = &module.ident;
-        let file_path = base_path.parent().unwrap().join(mod_name.to_string());
-        let scope = ScopeChain::Mod {
-            self_scope: Scope::new(file_scope.self_path_holder().joined(mod_name), ObjectConversion::Empty),
-        };
-        if file_path.is_file() {
-            return Some(process_recursive(&file_path, &scope, context));
-        } else {
-            let mod_dir_path = file_path.join("mod.rs");
-            if mod_dir_path.is_file() {
-                return Some(process_recursive(&mod_dir_path, &scope, context));
-            } else {
-                let file_path = file_path.parent().unwrap().join(format!("{}.rs", quote!(#mod_name)));
-                if file_path.is_file() {
-                    return Some(process_recursive(&file_path, &scope, context));
-                }
-            }
-        }
-    }
-    None
-}
