@@ -601,7 +601,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
         match impl_item {
             ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                let signature = FnSignatureComposition::from_signature(sig, scope.self_path_holder().popped(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(sig, scope.self_path_holder().clone(), &scope_context.borrow());
                 Some(signature.present(FnSignatureCompositionContext::FFIObject, &scope_context.borrow()))
             },
             ImplItem::Type(ImplItemType { .. }) => None,

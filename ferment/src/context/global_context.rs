@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::format_ident;
+use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Path, Type};
 use crate::Config;
 use crate::context::{ScopeChain, TypeChain};
@@ -54,6 +54,7 @@ impl GlobalContext {
 
 
     pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&ObjectConversion> {
+        println!("resolve_trait_type: {}", from_type.to_token_stream());
         // RESOLVE PATHS
         // Self::asyn::query::TransportRequest::Client::Error
         // ? [Self::asyn::query::TransportRequest::Client::Error] Self

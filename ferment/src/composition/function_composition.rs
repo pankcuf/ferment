@@ -51,6 +51,7 @@ impl Composition for FnSignatureComposition {
                     .collect::<Vec<_>>();
 
                 let fn_name = self.ident.unwrap();
+                println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
                 let full_fn_path = self.scope.joined(&fn_name);
                 let argument_conversions = self.arguments
                     .iter()

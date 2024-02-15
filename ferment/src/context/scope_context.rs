@@ -2,10 +2,11 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, quote_spanned, ToTokens};
-use syn::{Attribute, Ident, Item, Meta, NestedMeta, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{Attribute, Ident, Item, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, PathConversion, TypeConversion};
+use crate::ext::extract_trait_names;
 use crate::formatter::format_token_stream;
 use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::PathHolder;
@@ -44,7 +45,7 @@ impl ScopeContext {
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        println!("full_type_for: {}: {:?}", quote!(#ty), lock.maybe_type(ty, &self.scope));
+        // println!("full_type_for: {}: {:?}", quote!(#ty), lock.maybe_type(ty, &self.scope));
         lock.maybe_type(ty, &self.scope)
             .and_then(|full_type| full_type.ty().cloned())
             .unwrap_or(ty.clone())
@@ -276,8 +277,10 @@ impl ScopeContext {
             _ => {
                 let ty = parse_quote!(#path);
                 println!("ffi_path_converted (resolve.1): {}", format_token_stream(&ty));
-                if let Some(trait_tyty) = self.trait_ty(&ty) {
-                    let trait_ty = trait_tyty.ty();
+                // if let Some(trait_tyty) = self.trait_ty(&ty) {
+                if let Some(ObjectConversion::Type(TypeConversion::Trait(tc, ..)) |
+                            ObjectConversion::Type(TypeConversion::TraitType(tc))) = self.trait_ty(&ty) {
+                    let trait_ty = &tc.ty;
                     println!("ffi_path_converted (resolve.trait): {}", format_token_stream(trait_ty));
                     let trait_path: Path = parse_quote!(#trait_ty);
                     let trait_segments = &trait_path.segments;
@@ -301,6 +304,7 @@ impl ScopeContext {
                         "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
                         _ => segments.iter().take(segments.len() - 1).collect()
                     };
+                    println!("ffi_path_converted (resolve.2): {}", format_token_stream(&ty));
                     let ffi_name = if segments.is_empty() {
                         quote!(#last_ident)
                     } else {
@@ -317,7 +321,7 @@ impl ScopeContext {
     }
 
     fn ffi_external_path_converted(&self, path: &Path) -> Option<Type> {
-        // println!("ffi_external_path_converted: {}", format_token_stream(path));
+        println!("ffi_external_path_converted: {}", format_token_stream(path));
         let lock = self.context.read().unwrap();
         let segments = &path.segments;
         let first_segment = segments.first().unwrap();
@@ -483,24 +487,6 @@ impl ScopeContext {
             .collect()
     }
 
-}
-
-fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
-    let mut paths = Vec::<Path>::new();
-    attrs.iter().for_each(|attr| {
-        if attr.path.segments
-            .iter()
-            .any(|segment| segment.ident == format_ident!("export")) {
-            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                meta_list.nested.iter().for_each(|meta| {
-                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                        paths.push(path.clone());
-                    }
-                });
-            }
-        }
-    });
-    paths
 }
 
 impl ScopeContext {

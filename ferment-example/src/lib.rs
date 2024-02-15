@@ -1,16 +1,14 @@
-mod chain;
+// mod chain;
 // mod example;
 pub mod fermented;
 // mod traits;
-mod asyn;
+// mod asyn;
 mod identity;
 
 extern crate ferment_macro;
 extern crate tokio;
 
 use std::time::Duration;
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(Duration)]
@@ -23,39 +21,39 @@ ferment_interfaces::impl_custom_conversion!(Duration, Duration_FFI,
     |value: &Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
 );
 
-#[allow(non_camel_case_types)]
-#[ferment_macro::register(Error)]
-#[derive(Debug)]
-pub struct std_error_Error_FFI {
+// #[allow(non_camel_case_types)]
+// #[ferment_macro::register(Error)]
+// #[derive(Debug)]
+// pub struct std_error_Error_FFI {
+//
+// }
+//
+// impl Display for std_error_Error_FFI {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         todo!()
+//     }
+// }
+//
+// impl Error for std_error_Error_FFI {}
 
-}
-
-impl Display for std_error_Error_FFI {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl Error for std_error_Error_FFI {}
-
-impl From<&std_error_Error_FFI> for dyn Error where Self: Sized {
-    fn from(value: &std_error_Error_FFI) -> Self {
-        value
-    }
-}
-impl From<dyn Error> for std_error_Error_FFI {
-    fn from(value: &dyn Error) -> Self {
-        value.into()
-    }
-}
-impl ferment_interfaces::FFIConversion<std_error_Error_FFI> for dyn Error where Self: Sized {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std_error_Error_FFI {
-        Error::from(&*ffi)
-    }
-    unsafe fn ffi_to_const(obj: dyn Error) -> *const Self {
-        ferment_interfaces::boxed(<std_error_Error_FFI>::from(&obj))
-    }
-}
+// impl From<&std_error_Error_FFI> for dyn Error where Self: Sized {
+//     fn from(value: &std_error_Error_FFI) -> Self {
+//         value
+//     }
+// }
+// impl From<dyn Error> for std_error_Error_FFI {
+//     fn from(value: &dyn Error) -> Self {
+//         value.into()
+//     }
+// }
+// impl ferment_interfaces::FFIConversion<std_error_Error_FFI> for dyn Error where Self: Sized {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std_error_Error_FFI {
+//         Error::from(&*ffi)
+//     }
+//     unsafe fn ffi_to_const(obj: dyn Error) -> *const Self {
+//         ferment_interfaces::boxed(<std_error_Error_FFI>::from(&obj))
+//     }
+// }
 
 
 #[ferment_macro::export]
@@ -68,7 +66,7 @@ pub struct ExcludedStruct {
 }
 
 pub mod nested {
-    use crate::asyn::query::{AppliedRequestSettings, Query, RequestSettings, TransportClient, TransportRequest};
+    // use crate::asyn::query::{AppliedRequestSettings, Query, RequestSettings, TransportClient, TransportRequest};
 
     //     use std::collections::BTreeMap;
 //     use ferment_interfaces::OpaqueContext;
@@ -98,11 +96,13 @@ pub mod nested {
 //     pub type MapOfVecHashes = BTreeMap<HashID, Vec<HashID>>;
 //
     #[ferment_macro::export]
+    #[derive(Clone)]
     pub struct BinaryData(pub Vec<u8>);
 //
 //     #[ferment_macro::export]
 //     pub struct SimpleData(pub Vec<u32>);
 //
+    #[derive(Clone)]
     #[ferment_macro::export]
     pub struct IdentifierBytes32(pub [u8; 32]);
 //
@@ -126,6 +126,26 @@ pub mod nested {
     pub struct DataContractNotPresentError {
         pub data_contract_id: Identifier,
     }
+    #[ferment_macro::export]
+    pub type FeatureVersion = u16;
+    #[ferment_macro::export]
+    pub type OptionalFeatureVersion = Option<u16>; //This is a feature that didn't always exist
+
+    #[derive(Clone, Debug, Default)]
+    #[ferment_macro::export]
+    pub struct FeatureVersionBounds {
+        pub min_version: FeatureVersion,
+        pub max_version: FeatureVersion,
+        pub default_current_version: FeatureVersion,
+    }
+
+    #[derive(Clone, Debug)]
+    #[ferment_macro::export]
+    pub struct PlatformVersion {
+        pub protocol_version: u32,
+        pub identity: FeatureVersionBounds,
+        pub proofs: FeatureVersionBounds,
+    }
 
     #[ferment_macro::export]
     pub enum ProtocolError {
@@ -140,6 +160,11 @@ pub mod nested {
         EncodingError(String),
         EncodingError2(&'static str),
         DataContractNotPresentError(DataContractNotPresentError),
+        UnknownVersionMismatch {
+            method: String,
+            known_versions: Vec<FeatureVersion>,
+            received: FeatureVersion,
+        },
     }
 //
 //     #[ferment_macro::export]
@@ -197,27 +222,27 @@ pub mod nested {
 //
 //
 
-    #[derive(Clone)]
-    pub struct GetDocumentsRequest { pub version: u32 }
-    #[derive(Clone)]
-    pub struct DocumentQuery { pub version: u32 }
-
-    impl TransportRequest for DocumentQuery {
-        type Client = <GetDocumentsRequest as TransportRequest>::Client;
-        type Response = <GetDocumentsRequest as TransportRequest>::Response;
-        const SETTINGS_OVERRIDES: RequestSettings = RequestSettings { timeout: None, retries: None };
-
-        fn execute_transport(
-            self,
-            client: &mut Self::Client,
-            settings: &AppliedRequestSettings,
-        ) -> Result<Self::Response, <Self::Client as TransportClient>::Error> {}
-    }
-    impl Query<GetDocumentsRequest> for Identifier {
-        fn query(self, prove: bool) -> Result<GetDocumentsRequest, ProtocolError> {
-            Ok(GetDocumentsRequest { version: u32::from(prove) })
-        }
-    }
+    // #[derive(Clone)]
+    // pub struct GetDocumentsRequest { pub version: u32 }
+    // #[derive(Clone)]
+    // pub struct DocumentQuery { pub version: u32 }
+    //
+    // impl TransportRequest for DocumentQuery {
+    //     type Client = <GetDocumentsRequest as TransportRequest>::Client;
+    //     type Response = <GetDocumentsRequest as TransportRequest>::Response;
+    //     const SETTINGS_OVERRIDES: RequestSettings = RequestSettings { timeout: None, retries: None };
+    //
+    //     fn execute_transport(
+    //         self,
+    //         client: &mut Self::Client,
+    //         settings: &AppliedRequestSettings,
+    //     ) -> Result<Self::Response, <Self::Client as TransportClient>::Error> {}
+    // }
+    // impl Query<GetDocumentsRequest> for Identifier {
+    //     fn query(self, prove: bool) -> Result<GetDocumentsRequest, ProtocolError> {
+    //         Ok(GetDocumentsRequest { version: u32::from(prove) })
+    //     }
+    // }
 
 }
 

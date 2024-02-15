@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use quote::{quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, Variant, WherePredicate};
+use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, Variant, WherePredicate};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Add;
@@ -149,6 +149,8 @@ impl ItemExtension for Item {
                 fields.iter().for_each(|field| cache_type(&field.ty)),
             Fields::Unit => {}
         };
+        // let mut cache_sig = |ref sig: &Signature| {
+        // };
         match self {
             Item::Mod(ItemMod { content: Some((_, items)), .. }) =>
                 items.iter()
@@ -169,6 +171,24 @@ impl ItemExtension for Item {
                 handle_attributes_with_handler(&item_fn.attrs, |_attrs| {
                     type_and_paths.extend(item_fn.sig.collect_compositions());
                 }),
+            Item::Impl(item_impl) => handle_attributes_with_handler(&item_impl.attrs, |_attrs| {
+                item_impl.items.iter().for_each(|impl_item| match impl_item {
+                    ImplItem::Const(ImplItemConst { ty, .. }) =>
+                        cache_type(ty),
+                    ImplItem::Method(ImplItemMethod { sig, .. }) => {
+                        sig.inputs.iter().for_each(|arg|
+                            if let FnArg::Typed(PatType { ty, .. }) = arg {
+                                cache_type(ty);
+                            });
+                        if let ReturnType::Type(_, ty) = &sig.output {
+                            cache_type(ty);
+                        }
+                    },
+                    ImplItem::Type(ImplItemType { ty, .. }) =>
+                        cache_type(ty),
+                    _ => {}
+                });
+            }),
             Item::Trait(item_trait, ..) => handle_attributes_with_handler(&item_trait.attrs, |_attrs| {
                 item_trait.items.iter().for_each(|trait_item| match trait_item {
                     TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>

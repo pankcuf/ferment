@@ -170,9 +170,11 @@ impl ItemComposer {
                     |fields|
                         IteratorPresentationContext::Round(fields),
                     |field_type|
-                        OwnedItemPresenterContext::Named(field_type, false),
+                        // OwnedItemPresenterContext::Named(field_type, false),
+                        OwnedItemPresenterContext::BindingArg(field_type),
                     |field_type|
-                        OwnedItemPresenterContext::DefaultField(field_type)),
+                        // OwnedItemPresenterContext::DefaultField(field_type)),
+                        OwnedItemPresenterContext::BindingField(field_type)),
                 FFI_DEREF_FIELD_NAME),
             conversions_composer
         )

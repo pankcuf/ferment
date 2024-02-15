@@ -168,6 +168,7 @@ impl ScopeTreeExportItem {
                 //     let mut lock = context.write().unwrap();
                 //     lock.inject_types_from_traits_implementation();
                 // }
+                println!("•• TREE 1 MORPHING generics: {:#?}", generics);
                 let compact_tree = ScopeTreeCompact { scope: ScopeChain::crate_root(), scope_context, generics, imported, exported };
                 let tree = ScopeTree::from(compact_tree);
                 println!();

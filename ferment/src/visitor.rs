@@ -1,14 +1,14 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, GenericArgument, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, QSelf, Token, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, UseTree};
+use syn::{Attribute, GenericArgument, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Path, PathArguments, PathSegment, QSelf, Token, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, UseTree};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use syn::visit::Visit;
 use crate::composition::{QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion, TypeConversion};
-use crate::ext::{create_generics_chain, Join, MergeInto, NestingExtension, Visiting};
+use crate::ext::{add_trait_names, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, Visiting};
 use crate::formatter::{Emoji, format_token_stream};
 use crate::helper::ident_from_item;
 use crate::holder::{PathHolder, TypeHolder};
@@ -149,8 +149,7 @@ impl Visitor {
     }
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        trait_names.iter().for_each(|trait_name|
-            self.add_full_qualified_type_match(scope, &parse_quote!(#trait_name)));
+        add_trait_names(self, scope, &trait_names);
         let mut lock = self.context.write().unwrap();
         lock.traits
             .add_used_traits(scope, trait_names)
@@ -170,7 +169,6 @@ impl Visitor {
         let mut destination = TypeChain::default();
         for ty  in &involved_types {
             let object = self.update_nested_generics(scope, ty);
-            // println!("create_type_chain: add_one: {}: {}", ty.to_token_stream(), object);
             destination.add_one(TypeHolder::from(ty), object);
         }
         destination
@@ -303,10 +301,19 @@ impl Visitor {
                     nprint!(1, Emoji::Local, "(Self) {}", format_token_stream(first_ident));
                     let last_segment = segments.pop().unwrap();
                     let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#self_scope_path);
+                    println!("::: new_segments: {} ", new_segments.to_token_stream());
                     segments.extend(new_segments);
                     segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                     println!("::: add_obj_self: {} scope: [{}]", object_self_scope, scope);
-                    object_self_scope.object.clone()
+                    // object_self_scope.object.clone()
+
+                    ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(
+                        Type::Path(
+                            TypePath {
+                                qself: new_qself,
+                                path: Path { leading_colon: path.leading_colon, segments } }),
+                        None)))
+
                 },
                 "Self" => {
                     let tail = segments.iter().skip(1).cloned().collect::<Vec<_>>();
@@ -551,22 +558,4 @@ impl Visitor {
     }
 }
 
-
-fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
-    let mut paths = Vec::<Path>::new();
-    attrs.iter().for_each(|attr| {
-        if attr.path.segments
-            .iter()
-            .any(|segment| segment.ident == format_ident!("export")) {
-            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                meta_list.nested.iter().for_each(|meta| {
-                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                        paths.push(path.clone());
-                    }
-                });
-            }
-        }
-    });
-    paths
-}
 

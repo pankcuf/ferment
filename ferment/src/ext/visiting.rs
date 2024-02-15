@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use syn::{ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
+use quote::format_ident;
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
@@ -245,4 +246,28 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
 
 fn add_itself_conversion(visitor: &mut Visitor, scope: &ScopeChain, ident: &Ident, object: ObjectConversion) {
     visitor.scope_add_one(parse_quote!(#ident), object, scope);
+}
+
+pub fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
+    let mut paths = Vec::<Path>::new();
+    attrs.iter().for_each(|attr| {
+        if attr.path.segments
+            .iter()
+            .any(|segment| segment.ident == format_ident!("export")) {
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                meta_list.nested.iter().for_each(|meta| {
+                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
+                        paths.push(path.clone());
+                    }
+                });
+            }
+        }
+    });
+    paths
+}
+
+pub fn add_trait_names(visitor: &mut Visitor, scope: &ScopeChain, item_trait_paths: &Vec<Path>) {
+    item_trait_paths.iter().for_each(|trait_name|
+        visitor.add_full_qualified_type_match(scope, &parse_quote!(#trait_name)));
+
 }

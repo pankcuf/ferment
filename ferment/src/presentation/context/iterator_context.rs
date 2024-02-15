@@ -22,7 +22,7 @@ impl ScopeContextPresentable for IteratorPresentationContext {
             IteratorPresentationContext::Empty => quote!(),
             IteratorPresentationContext::DefaultDestroyFields(items) => {
                 let items = items.iter().map(|f| f.present(context));
-                quote!({ #(#items)* })
+                quote!({ #(#items;)* })
             },
             IteratorPresentationContext::Curly(items) => {
                 let items = items.iter().map(|f| f.present(context));

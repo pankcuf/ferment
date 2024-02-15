@@ -20,5 +20,7 @@ pub use self::merge::HashMapMergePolicy;
 pub use self::merge::MergeInto;
 pub use self::merge::MergePolicy;
 pub use self::merge::ValueReplaceScenario;
+pub use self::visiting::add_trait_names;
 pub use self::visiting::create_generics_chain;
+pub use self::visiting::extract_trait_names;
 pub use self::visiting::Visiting;

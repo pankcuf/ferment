@@ -61,3 +61,12 @@
 - Minor issue with things like #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: identity :: identity_request :: GetIdentityRequest\"]"]
 - TypeGroup support
 - Algo for determine if type is simple enough to add it to the dictionary of registered types and use orginal one across the FFI
+- Such enum has wrong fermentation: 
+  ```rust
+  #[repr(u8)]
+  #[ferment_macro::export]
+  pub enum ContractBounds {
+    SingleContract { id: Identifier } = 0,
+    SingleContractDocumentType { id: Identifier, document_type_name: String } = 1,
+  }
+  ```
