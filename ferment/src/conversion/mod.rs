@@ -7,6 +7,7 @@ mod type_conversion;
 mod macro_conversion;
 mod object_conversion;
 mod scope_item_conversion;
+mod local_type_conversion;
 
 pub use self::field_type_conversion::FieldTypeConversion;
 pub use self::generic_path_conversion::COMPLEX_VEC_DROP_PRESENTER;
@@ -23,3 +24,4 @@ pub use self::object_conversion::ObjectConversion;
 pub use self::path_conversion::PathConversion;
 pub use self::scope_item_conversion::ScopeItemConversion;
 pub use self::type_conversion::TypeConversion;
+pub use self::local_type_conversion::LocalTypeConversion;

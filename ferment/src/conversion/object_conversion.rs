@@ -5,6 +5,7 @@ use syn::{Item, parse_quote, Type};
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeConversion};
 use crate::ext::ValueReplaceScenario;
+use crate::helper::collect_bounds;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
@@ -16,7 +17,7 @@ pub enum ObjectConversion {
 
 impl ValueReplaceScenario for ObjectConversion {
     fn should_replace_with(&self, other: &Self) -> bool {
-        println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
+        // println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
             (_, ObjectConversion::Item(..)) => true,
@@ -89,7 +90,7 @@ impl TryFrom<&Item> for ObjectConversion {
                         TypeComposition::new(
                             parse_quote!(#ident),
                             Some(item.generics.clone())),
-                        TraitDecompositionPart1::from_trait_items(ident, &item.items)),
+                        TraitDecompositionPart1::from_trait_items(ident, &item.items), collect_bounds(&item.supertraits)),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Struct(item) => {

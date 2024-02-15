@@ -1,15 +1,14 @@
-use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, ConstParam, Field, FnArg, GenericArgument, GenericParam, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, PredicateType, QSelf, ReturnType, Signature, Token, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, TypePath, TypeTraitObject, UseTree, Variant, WhereClause, WherePredicate};
+use syn::{Attribute, GenericArgument, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, QSelf, Token, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, UseTree};
 use syn::punctuated::Punctuated;
-use syn::token::{Add, Colon2};
+use syn::token::Colon2;
 use syn::visit::Visit;
-use crate::composition::{QSelfComposition, TraitDecompositionPart1, TypeComposition};
-use crate::context::{GlobalContext, Scope, ScopeChain, TypeChain};
-use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeConversion};
-use crate::ext::{MergeInto, NestingExtension};
+use crate::composition::{QSelfComposition, TypeComposition};
+use crate::context::{GlobalContext, ScopeChain, TypeChain};
+use crate::conversion::{MacroType, ObjectConversion, TypeConversion};
+use crate::ext::{create_generics_chain, Join, MergeInto, NestingExtension, Visiting};
 use crate::formatter::{Emoji, format_token_stream};
 use crate::helper::ident_from_item;
 use crate::holder::{PathHolder, TypeHolder};
@@ -61,7 +60,7 @@ impl<'ast> Visit<'ast> for Visitor {
         }
         let item = Item::Mod(node.clone());
         let module = self.current_module_scope.clone();
-        self.current_module_scope = self.current_module_scope.joined_mod(&item);
+        self.current_module_scope = self.current_module_scope.joined(&item);
         self.add_conversion(Item::Mod(node.clone()));
         if let Some(ref content) = node.content {
             for item in &content.1 {
@@ -132,7 +131,8 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits.add_trait(scope, item_trait, itself);
     }
-    pub(crate) fn add_full_qualified_generic_match(&mut self, scope: &ScopeChain, generics: HashMap<PathHolder, Vec<Path>>) {
+    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics) {
+        let generics = create_generics_chain(self, generics, scope);
         let mut lock = self.context.write().unwrap();
         lock.generics.extend_in_scope(scope, generics)
     }
@@ -142,15 +142,12 @@ impl Visitor {
         lock.scope_mut(scope)
             .add_many(types);
     }
-    fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
+    pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
     }
-    fn add_itself_conversion(&mut self, scope: &ScopeChain, ident: &Ident, object: ObjectConversion) {
-        self.scope_add_one(parse_quote!(#ident), object, scope);
-    }
-    fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
+    pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
         trait_names.iter().for_each(|trait_name|
             self.add_full_qualified_type_match(scope, &parse_quote!(#trait_name)));
@@ -173,7 +170,7 @@ impl Visitor {
         let mut destination = TypeChain::default();
         for ty  in &involved_types {
             let object = self.update_nested_generics(scope, ty);
-            println!("create_type_chain: add_one: {}: {}", ty.to_token_stream(), object);
+            // println!("create_type_chain: add_one: {}: {}", ty.to_token_stream(), object);
             destination.add_one(TypeHolder::from(ty), object);
         }
         destination
@@ -525,364 +522,13 @@ impl Visitor {
         current_tree
     }
 
-
-
-    fn add_full_qualified_impl(&mut self, item_impl: &ItemImpl, scope: &ScopeChain) {
-        // let trait_path = item_impl.trait_.clone().map(|(_, path, _)| path);
-        // let visitor_context = trait_path.map_or(VisitorContext::Object, |_| VisitorContext::Trait(None));
-        // return;
-        // println!("add_full_qualified_impl: {} in [{}]", quote!(#item_impl), scope);
-        match &item_impl.trait_ {
-            Some((_, path, _)) => {
-                let ty = parse_quote!(#path);
-                self.add_full_qualified_type_match(scope, &ty);
-            },
-            None => {}
-        }
-
-        item_impl.items.iter().for_each(|impl_item| {
-            match impl_item {
-                ImplItem::Const(ImplItemConst { ident, ty, expr: _, .. }) => {
-                    self.add_full_qualified_type_match(scope, ty);
-
-                },
-                ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                    self.add_full_qualified_signature(sig, scope);
-                    // let ty: Type = parse_quote!(#ident);
-                    // self.add_full_qualified_type_match(scope, &ty);
-
-                },
-                ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
-                    self.add_full_qualified_type_match(scope, ty);
-                },
-                _ => {}
-            }
-        });
-    }
-
-    fn add_full_qualified_type_param_bounds(&mut self, bounds: Punctuated<TypeParamBound, Add>, scope: &ScopeChain) {
-        bounds.iter().for_each(|bound| {
-            match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => {
-                    let ty = parse_quote!(#path);
-                    self.add_full_qualified_type_match(scope, &ty);
-                },
-                TypeParamBound::Lifetime(_lifetime) => {}
-            }
-        });
-    }
-
-    fn add_full_qualified_trait(&mut self, item_trait: &ItemTrait, scope: &ScopeChain) {
-
-        // println!("add_full_qualified_trait: {}: {}", item_trait.ident, scope);
-        let ident = &item_trait.ident;
-        let type_compo = TypeComposition::new(scope.to_type(), Some(item_trait.generics.clone()));
-        let itself = ObjectConversion::new_item(
-            TypeConversion::Trait(
-                type_compo,
-                TraitDecompositionPart1::from_trait_items(ident, &item_trait.items)),
-            ScopeItemConversion::Item(Item::Trait(item_trait.clone())));
-
-        // 1. Add itself to the scope as <Self, Item(Trait(..))>
-        // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
-        println!("::: 1. ADD Self (local scope): <{}, {}> in [{}]", quote!(Self), itself, scope);
-        println!("::: 2. ADD Self: (parent scope) <{}, {}> in [{}]", quote!(#ident), itself, scope.parent_scope().unwrap());
-        self.add_full_qualified_trait_match(&scope, item_trait, &itself);
-        let mut generics: HashMap<PathHolder, Vec<Path>> = HashMap::new();
-        item_trait.generics.params.iter().for_each(|generic_param| {
-            // println!("add_full_qualified_trait: generic: {}", quote!(#generic_param));
-            match generic_param {
-                GenericParam::Type(TypeParam { ident: generic_ident, bounds, .. }) => {
-                    let mut de_bounds: Vec<Path> =  vec![];
-                    bounds.iter().for_each(|bound| {
-                        match bound {
-                            TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                let ty = parse_quote!(#path);
-                                println!("add_full_qualified_trait: (generic trait): {}: {}", format_token_stream(generic_ident), format_token_stream(&ty));
-                                de_bounds.push(path.clone());
-                                self.add_full_qualified_type_match(scope, &ty);
-                            },
-                            TypeParamBound::Lifetime(_lifetime) => {}
-                        }
-                    });
-                    generics.insert(parse_quote!(#generic_ident), de_bounds);
-                },
-                GenericParam::Lifetime(_lifetime) => {},
-                GenericParam::Const(ConstParam { ty, .. }) => {
-                    self.add_full_qualified_type_match(scope, ty);
-                },
-            }
-        });
-        match &item_trait.generics.where_clause {
-            Some(WhereClause { predicates, .. }) => {
-                predicates.iter().for_each(|predicate| match predicate {
-                    WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
-                        let mut de_bounds: Vec<Path> =  vec![];
-                        bounds.iter().for_each(|bound| {
-                            match bound {
-                                TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                    let ty = parse_quote!(#path);
-                                    de_bounds.push(path.clone());
-                                    self.add_full_qualified_type_match(scope, &ty);
-                                },
-                                TypeParamBound::Lifetime(_lifetime) => {}
-                            }
-                        });
-                        // generics.insert(parse_quote!(#generic_ident), de_bounds);
-                        self.add_full_qualified_type_match(scope, bounded_ty);
-                    },
-                    WherePredicate::Lifetime(_) => {}
-                    WherePredicate::Eq(_) => {}
-                })
-            },
-            None => {}
-        }
-        item_trait.supertraits.iter().for_each(|bound| {
-            match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => {
-                    let ty = parse_quote!(#path);
-                    // println!("add_full_qualified_trait: (super trait): {}", format_token_stream(&ty));
-                    self.add_full_qualified_type_match(scope, &ty);
-                },
-                TypeParamBound::Lifetime(_lifetime) => {}
-            }
-        });
-
-        item_trait.items.iter().for_each(|trait_item|
-            match trait_item {
-                TraitItem::Method(TraitItemMethod { sig, .. }) => {
-                    let sig_ident = &sig.ident;
-                    let self_scope = scope.self_scope();
-                    let fn_scope = ScopeChain::Fn {
-                        self_scope: Scope::new(
-                            self_scope.self_scope.joined(sig_ident),
-                            ObjectConversion::new_item(TypeConversion::Unknown(TypeComposition::new(parse_quote!(#sig_ident), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone()))),
-                        parent_scope_chain: Box::new(scope.clone())
-                    };
-
-                    self.add_full_qualified_signature(sig, &fn_scope);
-                    let mut item_local_generics: HashMap<PathHolder, Vec<Path>> = HashMap::new();
-                    let _ = &sig.generics.params.iter().for_each(|generic_param| {
-                        match generic_param {
-                            GenericParam::Type(TypeParam { ident: generic_ident, bounds, default, .. }) => {
-                                match default {
-                                    Some(default_ty) => self.add_full_qualified_type_match(&fn_scope, default_ty),
-                                    None => {}
-                                };
-
-                                let mut de_bounds: Vec<Path> =  vec![];
-                                // println!("add_full_qualified_trait: (generic in fn signature): {}", quote!(#generic_param));
-                                bounds.iter().for_each(|bound| {
-                                    match bound {
-                                        TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                            let ty = parse_quote!(#path);
-                                            de_bounds.push(path.clone());
-                                            self.add_full_qualified_type_match(&fn_scope, &ty);
-
-                                        },
-                                        TypeParamBound::Lifetime(_lifetime) => {}
-                                    }
-                                });
-                                item_local_generics.insert(parse_quote!(#generic_ident), de_bounds);
-                            },
-                            GenericParam::Lifetime(_lifetime) => {},
-                            GenericParam::Const(ConstParam { ty, .. }) => {
-                                self.add_full_qualified_type_match(&fn_scope, ty);
-                            },
-                        }
-                    });
-
-                    match &sig.generics.where_clause {
-                        Some(WhereClause { predicates, .. }) => {
-                            predicates.iter().for_each(|predicate| match predicate {
-                                WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
-                                    let mut de_bounds: Vec<Path> =  vec![];
-                                    bounds.iter().for_each(|bound| {
-                                        match bound {
-                                            TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                                let ty = parse_quote!(#path);
-                                                de_bounds.push(path.clone());
-                                                // println!("add_full_qualified_trait: (bound in fn where): {}", quote!(#ty));
-                                                // let scope = &self_scope;
-                                                // let self_scope = scope.joined(&sig.ident);
-                                                self.add_full_qualified_type_match(&fn_scope, &ty);
-                                            },
-                                            TypeParamBound::Lifetime(_lifetime) => {}
-                                        }
-                                    });
-                                    // generics.insert(parse_quote!(#generic_ident), de_bounds);
-                                    self.add_full_qualified_type_match(&fn_scope, bounded_ty);
-                                },
-                                WherePredicate::Lifetime(_) => {}
-                                WherePredicate::Eq(_) => {}
-                            })
-                        },
-                        None => {}
-                    }
-
-                    // self.add_full_qualified_generic_match(&self_scope.joined(&sig.ident), item_local_generics);
-                    self.add_full_qualified_generic_match(&fn_scope, item_local_generics);
-
-                    // generics.insert(parse_quote!(#generic_ident), de_bounds);
-                    // sig.generics.sig.generics.sig.generics.
-                },
-                TraitItem::Type(TraitItemType { ident: type_ident, bounds, ..}) => {
-                    let local_ty = parse_quote!(Self::#type_ident);
-                    self.add_full_qualified_type_match(scope, &local_ty);
-                    // println!("add_full_qualified_trait (type): {}: {}", ident, type_ident);
-                    // TODO: whether we need to preserve scope or use separate scope + trait ident?
-                    // Especially when using Self::  It'll break some logics
-                    bounds.iter().for_each(|bound| match bound {
-                        TypeParamBound::Trait(TraitBound { path, ..}) => {
-                            let ty = parse_quote!(#path);
-                            self.add_full_qualified_type_match(scope, &ty);
-                        },
-                        _ => {},
-                    });
-                },
-                TraitItem::Const(TraitItemConst { ty, .. }) => {
-                    self.add_full_qualified_type_match(scope, ty);
-                },
-                _ => {}
-            });
-        self.scope_add_one(parse_quote!(#ident), itself.clone(), scope.parent_scope().unwrap());
-        self.scope_add_one(parse_quote!(Self), itself, scope);
-        self.add_full_qualified_generic_match(&scope, generics);
-    }
-
-    fn add_full_qualified_signature(&mut self, sig: &Signature, scope: &ScopeChain) {
-        let Signature { ident, output, inputs, .. } = sig;
-        if let ReturnType::Type(_arrow_token, ty) = output {
-            self.add_full_qualified_type_match(scope, ty)
-        }
-        inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-            self.add_full_qualified_type_match(scope, ty);
-        });
-        // let ty: Type = parse_quote!(#ident);
-        // self.add_full_qualified_type_match(scope, &ty);
-        // match scope.obj_root_chain() {
-        //     Some(parent) => {
-        //         let ty: TypeHolder = parse_quote!(#ident);
-        //         // TODO: wrong here can be non-determined context
-        //         let object = self.update_nested_generics(parent, &ty.0);
-        //         self.scope_add_one(ty, object, parent);
-        //
-        //     },
-        //     _ => {}
-        // }
-    }
-
-    fn add_full_qualified_struct(&mut self, item_struct: &ItemStruct, scope: &ScopeChain) {
-        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_struct.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()))), ScopeItemConversion::Item(Item::Struct(item_struct.clone()))));
-        self.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
-        item_struct.fields.iter().for_each(|Field { ty, .. }|
-            self.add_full_qualified_type_match(scope, ty));
-
-    }
-
-    fn add_full_qualified_enum(&mut self, item_enum: &ItemEnum, scope: &ScopeChain) {
-        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_enum.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()))), ScopeItemConversion::Item(Item::Enum(item_enum.clone()))));
-        self.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
-        item_enum.variants.iter().for_each(|Variant { fields, .. }|
-            fields.iter().for_each(|Field { ty, .. }|
-                self.add_full_qualified_type_match(scope, ty)));
-
-    }
-    fn add_full_qualified_fn(&mut self, item_fn: &ItemFn, scope: &ScopeChain) {
-        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_fn.sig.ident, ObjectConversion::new_item(TypeConversion::Fn(TypeComposition::new(scope.to_type(), Some(item_fn.sig.generics.clone()))), ScopeItemConversion::Fn(item_fn.sig.clone())));
-        self.add_full_qualified_signature(&item_fn.sig, scope);
-    }
-    fn add_full_qualified_type(&mut self, item_type: &ItemType, scope: &ScopeChain) {
-        self.add_itself_conversion(scope.parent_scope().unwrap(), &item_type.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemConversion::Item(Item::Type(item_type.clone()))));
-        self.add_full_qualified_type_match(scope, &item_type.ty);
-    }
-
-    fn add_inner_module_conversion(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
-        println!("add_inner_module_conversion: {} in [{}]", item_mod.ident, scope);
-        match &item_mod.content {
-            None => {},
-            Some((_, items)) => {
-                items.into_iter().for_each(|item| match item {
-                    Item::Use(node) =>
-                        self.fold_import_tree(scope, &node.tree, vec![]),
-                    Item::Trait(ref item_trait) =>
-                        self.add_full_qualified_trait(&item_trait, &scope.joined_trait(item)),
-                    Item::Fn(ref item_fn) =>
-                        self.add_full_qualified_fn(item_fn, &scope.joined_fn(item)),
-                    Item::Struct(ref item_struct) =>
-                        self.add_full_qualified_struct(item_struct, &scope.joined_obj(item)),
-                    Item::Enum(ref item_enum) =>
-                        self.add_full_qualified_enum(item_enum, &scope.joined_obj(item)),
-                    Item::Type(ref item_type) =>
-                        self.add_full_qualified_type(item_type, &scope.joined_obj(item)),
-                    Item::Impl(item_impl) =>
-                        self.add_full_qualified_impl(item_impl, &scope.joined_impl(item)),
-                    Item::Mod(item_mod) =>
-                        self.add_inner_module_conversion(item_mod, &scope.joined_mod(item)),
-                    _ => {}
-                })
-            }
-        }
-    }
-
-    pub fn add_full_qualified_conversion(&mut self, item: &Item, scope: ScopeChain) -> Option<ScopeChain> {
-        // println!("add_full_qualified_conversion: {} in [{}]", item.ident_string(), scope);
-        match item {
-            Item::Struct(ref item_struct) => {
-                let scope = scope.joined_obj(item);
-                self.add_full_qualified_struct(item_struct, &scope);
-                Some(scope)
-            },
-            Item::Enum(ref item_enum) => {
-                let scope = scope.joined_obj(item);
-                self.add_full_qualified_enum(item_enum, &scope);
-                Some(scope)
-            },
-            Item::Fn(ref item_fn) => {
-                let scope = scope.joined_fn(item);
-                self.add_full_qualified_fn(item_fn, &scope);
-                Some(scope)
-            },
-            Item::Trait(ref item_trait) => {
-                let scope = scope.joined_trait(item);
-                self.add_full_qualified_trait(item_trait, &scope);
-                Some(scope)
-            },
-            Item::Type(ref item_type) => {
-                let scope = scope.joined_obj(item);
-                self.add_full_qualified_type(item_type, &scope);
-                Some(scope)
-
-            },
-            Item::Impl(ref item_impl) => {
-                let scope = scope.joined_impl(item);
-                self.add_full_qualified_impl(item_impl, &scope);
-                Some(scope)
-            },
-            Item::Mod(ref item_mod) => {
-                let is_fermented_mod = {
-                    let ctx = self.context.read().unwrap();
-                    item_mod.ident.to_string().eq(&ctx.config.mod_name)
-                };
-                if scope.is_crate_root() && is_fermented_mod {
-                    None
-                } else {
-                    let scope = scope.joined(item);
-                    self.add_inner_module_conversion(item_mod, &scope);
-                    Some(scope)
-                }
-            },
-            _ => None
-        }
-    }
-
     pub fn add_conversion(&mut self, item: Item) {
         let ident = ident_from_item(&item);
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectConversion::try_from(&item)) {
             (Ok(MacroType::Export), Ok(_object)) => {
-                if let Some(scope) = self.add_full_qualified_conversion(&item, current_scope) {
+                if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);
                 }
@@ -897,7 +543,7 @@ impl Visitor {
                 }
             },
             (_, Ok(_object)) if ident != Some(format_ident!("FFIConversion")) => if let Item::Impl(..) = item {
-                if let Some(_scope) = self.add_full_qualified_conversion(&item, current_scope) {
+                if let Some(_scope) = item.join_scope(&current_scope, self) {
                 }
             },
             _ => {}

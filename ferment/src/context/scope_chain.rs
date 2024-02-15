@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Item, parse_quote, Path, Type};
+use syn::{parse_quote, Path, Type};
 use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, TypeConversion};
@@ -191,52 +191,24 @@ impl ScopeChain {
         self.self_path_holder().head()
     }
 
-    pub fn joined_obj(&self, item: &Item) -> ScopeChain {
-        let self_scope = self.self_scope().joined(item);
-        ScopeChain::Object { self_scope, parent_scope_chain: Box::new(self.clone()) }
-    }
-
-    pub fn joined_fn(&self, item: &Item) -> ScopeChain {
-        let self_scope = self.self_scope().joined(item);
-        ScopeChain::Fn { self_scope, parent_scope_chain: Box::new(self.clone()) }
-    }
-
-    pub fn joined_trait(&self, item: &Item) -> ScopeChain {
-        let self_scope = self.self_scope().joined(item);
-        ScopeChain::Trait { self_scope, parent_scope_chain: Box::new(self.clone()) }
-    }
-
-    pub fn joined_mod(&self, item: &Item) -> ScopeChain {
-        let self_scope = self.self_scope().joined(item);
-        ScopeChain::Mod { self_scope }
-    }
-
-    pub fn joined_impl(&self, item: &Item) -> ScopeChain {
-        let self_scope = self.self_scope().joined(item);
-        ScopeChain::Impl {
-            self_scope,
-            trait_scopes: vec![],
-            parent_scope_chain: Box::new(self.clone()),
-        }
-    }
-
-    pub fn joined(&self, item: &Item) -> Self {
-        match item {
-            Item::Const(..) |
-            Item::Type(..) |
-            Item::Enum(..) |
-            Item::Struct(..) |
-            Item::Trait(..) =>
-                self.joined_obj(item),
-            Item::Fn(..) =>
-                self.joined_fn(item),
-            Item::Impl(..) =>
-                self.joined_impl(item),
-            Item::Mod(..) =>
-                self.joined_mod(item),
-            _ => self.clone()
-        }
-    }
+    // pub fn joined(&self, item: &Item) -> Self {
+    //     match item {
+    //         Item::Const(..) |
+    //         Item::Type(..) |
+    //         Item::Enum(..) |
+    //         Item::Struct(..) =>
+    //             self.joined_obj(item),
+    //         Item::Trait(..) =>
+    //             self.joined_trait(item),
+    //         Item::Fn(..) =>
+    //             self.joined_fn(item),
+    //         Item::Impl(..) =>
+    //             self.joined_impl(item),
+    //         Item::Mod(..) =>
+    //             self.joined_mod(item),
+    //         _ => self.clone()
+    //     }
+    // }
 
     pub fn has_same_parent(&self, other: &ScopeChain) -> bool {
         match self {

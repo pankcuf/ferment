@@ -7,6 +7,7 @@ use syn::__private::TokenStream2;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
+use crate::ext::Join;
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};

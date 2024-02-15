@@ -79,8 +79,8 @@ impl GlobalContext {
             //maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
                 match maybe_trait {
-                    Some(ObjectConversion::Item(TypeConversion::Trait(trait_ty, decomposition), _)) |
-                    Some(ObjectConversion::Type(TypeConversion::Trait(trait_ty, decomposition))) => {
+                    Some(ObjectConversion::Item(TypeConversion::Trait(trait_ty, decomposition, _super_bounds), _)) |
+                    Some(ObjectConversion::Type(TypeConversion::Trait(trait_ty, decomposition, _super_bounds))) => {
                         let ident = &head.0.segments.last().unwrap().ident;
                         println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = decomposition.types.get(ident) {

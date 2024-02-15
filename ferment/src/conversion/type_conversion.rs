@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use syn::{parse_quote, Type};
+use syn::{parse_quote, Path, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
@@ -8,7 +8,7 @@ use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub enum TypeConversion {
-    Trait(TypeComposition, TraitDecompositionPart1),
+    Trait(TypeComposition, TraitDecompositionPart1, Vec<Path>),
     TraitType(TypeComposition),
     TraitAssociatedType(TypeComposition),
     Object(TypeComposition),
@@ -51,7 +51,7 @@ impl TypeConversion {
 impl Debug for TypeConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TypeConversion::Trait(ty, _decomposition) =>
+            TypeConversion::Trait(ty, _decomposition, _super_bounds) =>
                 f.write_str(format!("Trait({})", ty).as_str()),
             TypeConversion::Object(ty) =>
                 f.write_str(format!("Object({})", ty).as_str()),

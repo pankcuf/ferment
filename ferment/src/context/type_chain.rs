@@ -26,7 +26,7 @@ impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
         let should_upgrade = o.get().should_replace_with(&object);
         // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
-        if o.get().should_replace_with(&object) {
+        if should_upgrade {
             o.insert(object);
         }
     }
@@ -36,7 +36,7 @@ impl<K, V> MergePolicy<K, V> for ExternalModulePolicy where V: ValueReplaceScena
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
         let should_upgrade = o.get().should_replace_with(&object);
         // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
-        if o.get().should_replace_with(&object) {
+        if should_upgrade {
             o.insert(object);
         }
     }
@@ -59,11 +59,13 @@ impl<K, V> MergePolicy<K, V> for ExternalModulePolicy where V: ValueReplaceScena
 // }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
+#[allow(unused)]
 pub enum TypeChainKey {
     Object(TypeHolder),
     Constrant(TypeHolder)
 }
 
+#[allow(unused)]
 impl TypeChainKey {
     pub fn ty(&self) -> &Type {
         match self {

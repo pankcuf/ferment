@@ -3,6 +3,7 @@ use quote::quote;
 use crate::holder::PathHolder;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[allow(unused)]
 pub enum Crate {
     Current,
     External(PathHolder)

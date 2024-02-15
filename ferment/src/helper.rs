@@ -642,6 +642,15 @@ pub fn collect_generic_types_in_path(path: &Path, generics: &mut HashSet<TypeHol
         .for_each(|t| collect_generic_types_in_type(&t, generics));
 }
 
+pub fn collect_bounds(bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
+    bounds.iter().filter_map(|bound| match bound {
+        TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
+        TypeParamBound::Lifetime(_lifetime) => None
+    }).collect()
+}
+
+
+
 pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
     match field_type {
         Type::Path(TypePath { path, .. }) => {

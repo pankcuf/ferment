@@ -85,7 +85,7 @@ impl ScopeContext {
         let tyty = lock.maybe_type(ty, &self.scope)
             .and_then(|external_type| {
                 match external_type.type_conversion() {
-                    Some(TypeConversion::Trait(ty, _decomposition)) =>
+                    Some(TypeConversion::Trait(ty, _decomposition, _super_bounds)) =>
                         self.trait_ty(&ty.ty)
                             .map(|oc| oc.type_conversion().cloned()),
                     _ => None
