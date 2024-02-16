@@ -1,4 +1,4 @@
-# ferment
+**# ferment
 Syntax-tree morphing tool for FFI (work in progress)
 
 Allows to generate an FFI-compliant equivalent for rust types (structures, enums, types, functions).
@@ -331,3 +331,123 @@ pub mod generics {
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
 
 **[CHANGELOG](https://github.com/pankcuf/ferment/blob/master/CHANGELOG.md)**
+
+**Memory Cleanup Responsibility**
+Assuming we have the following structures and method:
+```rust
+#[ferment_macro::export]
+pub struct InnerStruct {
+    pub i1: u64,
+    pub i2: u64,
+}
+#[ferment_macro::export]
+pub struct OuterStruct {
+    pub o1: InnerStruct,
+    pub o2: InnerStruct,
+}
+#[ferment_macro::export]
+pub fn create_outer(o1: InnerStruct, o2: InnerStruct) -> OuterStruct {
+    OuterStruct {
+        o1,
+        o2,
+    }
+}
+```
+Ferment will produce the following FFI-compatible code:
+```rust
+#[doc = "FFI-representation of the [`crate::OuterStruct`]"]
+#[repr(C)]
+#[derive(Clone)]
+pub struct OuterStruct {
+    pub o1: *mut crate::fermented::types::InnerStruct,
+    pub o2: *mut crate::fermented::types::InnerStruct,
+}
+impl ferment_interfaces::FFIConversion<crate::OuterStruct> for OuterStruct {
+    unsafe fn ffi_from_const(ffi: *const OuterStruct) -> crate::OuterStruct {
+        let ffi_ref = &*ffi;
+        crate::OuterStruct {
+            o1: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.o1),
+            o2: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.o2),
+        }
+    }
+    unsafe fn ffi_to_const(obj: crate::OuterStruct) -> *const OuterStruct {
+        ferment_interfaces::boxed(OuterStruct {
+            o1: ferment_interfaces::FFIConversion::ffi_to(obj.o1),
+            o2: ferment_interfaces::FFIConversion::ffi_to(obj.o2),
+        })
+    }
+    unsafe fn destroy(ffi: *mut OuterStruct) {
+        ferment_interfaces::unbox_any(ffi);
+    }
+}
+impl Drop for OuterStruct {
+    fn drop(&mut self) {
+        unsafe {
+            let ffi_ref = self;
+            ferment_interfaces::unbox_any(ffi_ref.o1);
+            ferment_interfaces::unbox_any(ffi_ref.o2);
+        }
+    }
+}
+#[doc = r" # Safety"]
+#[no_mangle]
+#[inline(never)]
+pub unsafe extern "C" fn OuterStruct_ctor(
+    o1: *mut crate::fermented::types::InnerStruct,
+    o2: *mut crate::fermented::types::InnerStruct,
+) -> *mut OuterStruct {
+    ferment_interfaces::boxed(OuterStruct { o1, o2 })
+}
+#[doc = r" # Safety"]
+#[no_mangle]
+pub unsafe extern "C" fn OuterStruct_destroy(ffi: *mut OuterStruct) {
+    ferment_interfaces::unbox_any(ffi);
+}
+
+#[doc = "FFI-representation of the [`create_outer`]"]
+#[doc = r" # Safety"]
+#[no_mangle]
+pub unsafe extern "C" fn create_outer(
+    o1: *mut crate::fermented::types::InnerStruct,
+    o2: *mut crate::fermented::types::InnerStruct,
+) -> *mut crate::fermented::types::OuterStruct {
+    let obj = crate::create_outer(
+        ferment_interfaces::FFIConversion::ffi_from(o1),
+        ferment_interfaces::FFIConversion::ffi_from(o2),
+    );
+    ferment_interfaces::FFIConversion::ffi_to(obj)
+}
+```
+This will produce C-bindings like this:
+```c
+struct OuterStruct *OuterStruct_ctor(struct InnerStruct *o1, struct InnerStruct *o2);
+void OuterStruct_destroy(struct OuterStruct *ffi);
+struct InnerStruct *InnerStruct_ctor(uint64_t i1, uint64_t i2);
+void InnerStruct_destroy(struct InnerStruct *ffi);
+struct OuterStruct *create_outer(struct InnerStruct *o1, struct InnerStruct *o2);
+```
+So here we have 2 different approaches, in `OuterStruct_ctor` and in `create_outer`. Although, from C perspective they look similar. This makes the difference in memory management. 
+
+1. In the ctor approach, cloning does not occur. Instead, ownership of the pointers is transferred to the rust. We create a structure without conversions, and the ownership of pointers is transferred to the fields of the structure. And after that these pointers cannot be used in C. Accordingly, Rust is responsible for cleaning the transferred pointers. 
+    ```
+    struct InnerStruct* is1 = InnerStruct_ctor(1, 2);
+    struct InnerStruct* is2 = InnerStruct_ctor(3, 4);
+    struct OuterStruct* os1 = OuterStruct_ctor(is1, is2);
+    // At this point, `is1` and `is2` should not be used or freed in C.
+    OuterStruct_destroy(os1); // Rust frees `os1` and its `InnerStruct` instances.
+    ```
+
+
+2. Cloning occurs in the regular function approach. In this case, it will be accordingly that C will be responsible for clearing these pointers. Back in the days That, of course, from the point of view of efficiency, it would be better to always give pointer's ownership to the rust. But to do this, you will have to write code in rust only in an FFI-compatible style (which is ridiculous), or modify the tool to the state where not only FFI-compatible methods and structures are fermented, but also the code itself inside them.
+    ```
+    struct InnerStruct* is3 = InnerStruct_ctor(5, 6);
+    struct InnerStruct* is4 = InnerStruct_ctor(7, 8);
+    struct OuterStruct* os2 = create_outer(is3, is4);
+    // `is3` and `is4` are cloned by Rust, so C still owns `is3` and `is4` and must free them.
+    InnerStruct_destroy(is3); // C frees `is3`.
+    InnerStruct_destroy(is4); // C frees `is4`.
+    OuterStruct_destroy(os2); // Rust kills `os2` and its cloned `InnerStruct` instances.
+    ```
+
+
+
