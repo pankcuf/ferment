@@ -437,8 +437,7 @@ So here we have 2 different approaches, in `OuterStruct_ctor` and in `create_out
     OuterStruct_destroy(os1); // Rust frees `os1` and its `InnerStruct` instances.
     ```
 
-
-2. Cloning occurs in the regular function approach. In this case, it will be accordingly that C will be responsible for clearing these pointers. Back in the days That, of course, from the point of view of efficiency, it would be better to always give pointer's ownership to the rust. But to do this, you will have to write code in rust only in an FFI-compatible style (which is ridiculous), or modify the tool to the state where not only FFI-compatible methods and structures are fermented, but also the code itself inside them.
+2. Cloning occurs in the regular function approach. In this case, it will be accordingly that C will be responsible for clearing these pointers.
     ```
     struct InnerStruct* is3 = InnerStruct_ctor(5, 6);
     struct InnerStruct* is4 = InnerStruct_ctor(7, 8);
@@ -449,5 +448,6 @@ So here we have 2 different approaches, in `OuterStruct_ctor` and in `create_out
     OuterStruct_destroy(os2); // Rust kills `os2` and its cloned `InnerStruct` instances.
     ```
 
+Back in the days decisions were made from the point of view of efficiency, it would be better to always give pointer's ownership to the rust. But to do this, you will have to write code in rust only in an FFI-compatible style (which is ridiculous), or modify the `ferment` to the state where not only FFI-compatible methods/structures are fermented, but also the code itself inside them.
 
 
