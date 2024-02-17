@@ -9,6 +9,8 @@ extern crate ferment_macro;
 extern crate tokio;
 
 use std::time::Duration;
+use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(Duration)]
@@ -21,20 +23,20 @@ ferment_interfaces::impl_custom_conversion!(Duration, Duration_FFI,
     |value: &Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
 );
 
-// #[allow(non_camel_case_types)]
-// #[ferment_macro::register(Error)]
-// #[derive(Debug)]
-// pub struct std_error_Error_FFI {
-//
-// }
-//
-// impl Display for std_error_Error_FFI {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         todo!()
-//     }
-// }
-//
-// impl Error for std_error_Error_FFI {}
+#[allow(non_camel_case_types)]
+#[ferment_macro::register(Error)]
+#[derive(Debug)]
+pub struct std_error_Error_FFI {
+
+}
+
+impl Display for std_error_Error_FFI {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl Error for std_error_Error_FFI {}
 
 // impl From<&std_error_Error_FFI> for dyn Error where Self: Sized {
 //     fn from(value: &std_error_Error_FFI) -> Self {

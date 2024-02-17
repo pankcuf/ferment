@@ -1,13 +1,14 @@
 use syn::{parse_quote, Path, Type};
 use quote::quote;
 use syn::__private::TokenStream2;
+use crate::composer::ComposerPresenter;
 
 use crate::conversion::FieldTypeConversion;
 use crate::formatter::format_token_stream;
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
 
 /// token -> token
-pub type MapPresenter = fn(field_name: TokenStream2) -> TokenStream2;
+pub type MapPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
 /// token + token -> token
 pub type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
 
@@ -27,10 +28,13 @@ pub const FROM_OFFSET_MAP_PRESENTER: MapPresenter = |field_path| quote!(#field_p
 
 pub const OBJ_FIELD_NAME: MapPresenter = |field_name| quote!(obj.#field_name);
 pub const SIMPLE_PRESENTER: MapPresenter = |name| quote!(#name);
+pub const SIMPLE_COMPOSER: ComposerPresenter<TokenStream2, TokenStream2> = |name| quote!(#name);
 pub const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
-pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
+// pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
+pub const ROOT_DESTROY_CONTEXT_COMPOSER: ComposerPresenter<TokenStream2, TokenStream2> = |_| package_unboxed_root();
+
 pub const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
-pub const DEFAULT_DOC_PRESENTER: MapPresenter = |target_name: TokenStream2| {
+pub const DEFAULT_DOC_PRESENTER: ComposerPresenter<TokenStream2, TokenStream2> = |target_name| {
     let comment = format!("FFI-representation of the [`{}`]", format_token_stream(&target_name));
     // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)
     parse_quote! { #[doc = #comment] }
@@ -84,32 +88,14 @@ pub fn obj() -> TokenStream2 {
     quote!(obj)
 }
 
-pub fn destroy() -> TokenStream2 {
-    quote!(destroy)
-}
-
-pub fn ffi_from() -> TokenStream2 {
-    quote!(ffi_from)
-}
-
 pub fn ffi_from_const() -> TokenStream2 {
     quote!(ffi_from_const)
 }
 
-pub fn ffi_from_opt() -> TokenStream2 {
-    quote!(ffi_from_opt)
-}
-
-pub fn ffi_to() -> TokenStream2 {
-    quote!(ffi_to)
-}
 pub fn ffi_to_const() -> TokenStream2 {
     quote!(ffi_to_const)
 }
 
-pub fn ffi_to_opt() -> TokenStream2 {
-    quote!(ffi_to_opt)
-}
 
 pub fn package_unbox_any_expression(expr: TokenStream2) -> TokenStream2 {
     let package = package();
@@ -142,34 +128,29 @@ pub fn iter_map_collect(iter: TokenStream2, mapper: TokenStream2) -> TokenStream
 pub fn ffi_from_conversion(field_value: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
-    let ffi_from = ffi_from();
-    quote!(#package::#interface::#ffi_from(#field_value))
+    quote!(#package::#interface::ffi_from(#field_value))
 }
 
 pub fn ffi_to_conversion(field_path: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
-    let ffi_to = ffi_to();
-    quote!(#package::#interface::#ffi_to(#field_path))
+    quote!(#package::#interface::ffi_to(#field_path))
 }
 
 pub fn ffi_from_opt_conversion(field_value: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
-    let ffi_from_opt = ffi_from_opt();
-    quote!(#package::#interface::#ffi_from_opt(#field_value))
+    quote!(#package::#interface::ffi_from_opt(#field_value))
 }
 
 pub fn ffi_to_opt_conversion(field_value: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
-    let ffi_to_opt = ffi_to_opt();
-    quote!(#package::#interface::#ffi_to_opt(#field_value))
+    quote!(#package::#interface::ffi_to_opt(#field_value))
 }
 
 pub fn destroy_conversion(field_value: TokenStream2, ffi_type: Type, field_type: TokenStream2) -> TokenStream2 {
     let package = package();
     let interface = interface();
-    let destroy = destroy();
-    quote!(<#ffi_type as #package::#interface<#field_type>>::#destroy(#field_value))
+    quote!(<#ffi_type as #package::#interface<#field_type>>::destroy(#field_value))
 }

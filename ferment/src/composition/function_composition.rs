@@ -36,6 +36,7 @@ pub struct FnSignatureComposition {
     pub return_type: FnReturnTypeComposition,
     pub arguments: Vec<FnArgComposition>,
     pub generics: Option<Generics>,
+    pub self_ty: Option<Type>,
 }
 
 impl Composition for FnSignatureComposition {
@@ -173,17 +174,17 @@ impl Composition for FnSignatureComposition {
 
 
 impl FnSignatureComposition {
-    pub fn from_signature(sig: &Signature, scope: PathHolder, context: &ScopeContext) -> Self {
+    pub fn from_signature(sig: &Signature, self_ty: Option<Type>, scope: PathHolder, context: &ScopeContext) -> Self {
         let Signature { output, ident, inputs, generics, .. } = sig;
         // TODO: make a path
         let return_type = handle_fn_return_type(output, context);
         let ident = Some(ident.clone());
-        let arguments = handle_fn_args(inputs, context);
+        let arguments = handle_fn_args(inputs, &self_ty, context);
         let is_async = sig.asyncness.is_some();
         println!("FnSignatureComposition::from_signature.1: {}", sig.to_token_stream());
         println!("FnSignatureComposition::from_signature.2: {:?}", arguments);
         println!("FnSignatureComposition::from_signature.3: {:?}", return_type);
-        FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()) }
+        FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()), self_ty }
     }
 
     pub fn from_bare_fn(bare_fn: &TypeBareFn, ident: &Ident, scope: PathHolder, context: &ScopeContext) -> Self {
@@ -196,6 +197,7 @@ impl FnSignatureComposition {
             scope,
             arguments,
             return_type,
+            self_ty: None,
             generics: None
         }
     }
@@ -254,18 +256,31 @@ fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> Fn
     }
 }
 
-fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, context: &ScopeContext) -> Vec<FnArgComposition> {
+fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, context: &ScopeContext) -> Vec<FnArgComposition> {
     // TODO: replace Fn arguments with crate::fermented::generics::#ident or #import
+
+
+
     inputs
         .iter()
         .map(|arg| match arg {
-            FnArg::Receiver(Receiver { mutability, .. }) => FnArgComposition {
-                name: None,
-                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), match mutability {
-                    Some(..) => parse_quote!(*mut ()),
-                    _ => parse_quote!(*const ()),
-                }), false),
-                name_type_conversion: quote!()
+            FnArg::Receiver(Receiver { mutability, reference, .. }) => {
+                let reference = match reference {
+                    Some((_, _lifetime)) => quote!(&),
+                    None => quote!()
+                };
+
+                let (ffi_type, name_type_conversion) = match (mutability, self_ty) {
+                    (Some(..), Some(ty)) => (parse_quote!(*mut #ty), quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
+                    (None, Some(ty)) => (parse_quote!(*const #ty), quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
+                    (Some(..), None) => (parse_quote!(*mut ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
+                    (None, None) => (parse_quote!(*const ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
+                };
+                FnArgComposition {
+                    name: None,
+                    name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false),
+                    name_type_conversion
+                }
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat

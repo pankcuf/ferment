@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use std::rc::Rc;
 use std::cell::RefCell;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::naming::Name;
 use crate::presentation::context::OwnedItemPresenterContext;
@@ -25,6 +25,16 @@ pub enum BindingPresentation {
     Destructor {
         ffi_name: TokenStream2,
         destructor_ident: Name
+    },
+    Getter {
+        field_name: TokenStream2,
+        obj_type: TokenStream2,
+        field_type: TokenStream2
+    },
+    Setter {
+        field_name: TokenStream2,
+        obj_type: TokenStream2,
+        field_type: TokenStream2
     },
     ObjAsTrait {
         name: Name,
@@ -50,6 +60,7 @@ impl ToTokens for BindingPresentation {
                 quote! {
                     /// # Safety
                     #[no_mangle]
+                    #[inline(never)]
                     pub unsafe extern "C" fn #ffi_name(#(#ctor_args),*) -> *mut #ffi_ident {
                         ferment_interfaces::boxed(#ffi_ident #body_presentation)
                     }
@@ -90,7 +101,32 @@ impl ToTokens for BindingPresentation {
                 pub unsafe extern "C" fn #name(obj: #trait_type) {
                     ferment_interfaces::unbox_any(obj.object as *mut #item_type);
                 }
-            }
+            },
+            BindingPresentation::Getter { field_name, obj_type, field_type } => {
+                let getter_name = format_ident!("{}_get_{}", obj_type.to_string(), field_name.to_string());
+                // simple: (*obj).#field_name
+                // complex: ferment_interfaces::FFIConversion::ffi_to((*obj).#field_name)
+                quote! {
+                    /// # Safety
+                    #[no_mangle]
+                    pub unsafe extern "C" fn #getter_name(obj: *const #obj_type) -> #field_type {
+                        (*obj).#field_name
+                    }
+                }
+            },
+            BindingPresentation::Setter { field_name, obj_type, field_type } => {
+                let setter_name = format_ident!("{}_set_{}", obj_type.to_string(), field_name.to_string());
+                // simple: (*obj).#field_name
+                // complex: ferment_interfaces::FFIConversion::ffi_to((*obj).#field_name)
+                quote! {
+                    /// # Safety
+                    #[no_mangle]
+                    pub unsafe extern "C" fn #setter_name(obj: *mut #obj_type, value: #field_type) {
+                        (*obj).#field_name = value;
+                    }
+                }
+            },
+
         }.to_tokens(tokens)
      }
 }

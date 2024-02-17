@@ -4,12 +4,12 @@ use std::rc::Rc;
 use syn::{Attribute, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, Signature, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::{AttrsComposer, Composer, ConversionsComposer, ItemComposer};
+use crate::composer::{AttrsComposer, Composer, ComposerAspect, ConversionsComposer, ItemComposer};
 use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, TraitDecompositionPart2};
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{FieldTypeConversion, MacroType};
-use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_DESTROY_PRESENTER, NAMED_CONVERSION_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_PRESENTER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
+use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_DESTROY_PRESENTER, NAMED_CONVERSION_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_COMPOSER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
@@ -285,7 +285,7 @@ impl ItemConversion {
                 type_expansion(item, scope, scope_context),
             ItemConversion::Fn(item, scope) => {
                 println!("make_expansion: fn: {}", item.sig.ident.to_token_stream());
-                let signature = FnSignatureComposition::from_signature(&item.sig, scope.self_path_holder().popped(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(&item.sig, None, scope.self_path_holder().popped(), &scope_context.borrow());
                 // let signature = FnSignatureComposition::from_signature(&item.sig, scope.popped(), &scope_context.borrow());
                 Expansion::Function {
                     comment: DocPresentation::Safety(signature.ident.to_token_stream()),
@@ -378,7 +378,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     |(name, _)|
                         OwnerIteratorPresentationContext::NoFields(name),
                     SIMPLE_CONVERSION_PRESENTER,
-                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_COMPOSER,
                     EMPTY_DESTROY_PRESENTER,
                     |_| IteratorPresentationContext::Empty,
                     |field_type|
@@ -396,7 +396,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     ROUND_BRACES_FIELDS_PRESENTER,
                     ROUND_BRACES_FIELDS_PRESENTER,
                     SIMPLE_CONVERSION_PRESENTER,
-                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_COMPOSER,
                     SIMPLE_TERMINATED_PRESENTER,
                     |fields| {
                         if fields.is_empty() {
@@ -420,7 +420,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     CURLY_BRACES_FIELDS_PRESENTER,
                     CURLY_BRACES_FIELDS_PRESENTER,
                     NAMED_CONVERSION_PRESENTER,
-                    ROOT_DESTROY_CONTEXT_PRESENTER,
+                    ROOT_DESTROY_CONTEXT_COMPOSER,
                     SIMPLE_PRESENTER,
                     |fields| {
                         if fields.is_empty() {
@@ -438,10 +438,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         };
         let composer_owned = composer.borrow();
         variants_fields.push(OwnedItemPresenterContext::Conversion(variant_presenter((quote!(#variant_name), fields_context)).present(&ctx)));
-        conversions_from_ffi.push(composer_owned.compose_from());
-        conversions_to_ffi.push(composer_owned.compose_to());
-        destroy_fields.push(composer_owned.compose_destroy());
-        drop_fields.push(OwnedItemPresenterContext::Conversion(composer_owned.compose_drop()));
+        conversions_from_ffi.push(composer_owned.compose_aspect(ComposerAspect::From));
+        conversions_to_ffi.push(composer_owned.compose_aspect(ComposerAspect::To));
+        destroy_fields.push(composer_owned.compose_aspect(ComposerAspect::Destroy));
+        drop_fields.push(OwnedItemPresenterContext::Conversion(composer_owned.compose_aspect(ComposerAspect::Drop)));
         variants_constructors.push(BindingPresentation::EnumVariantConstructor {
             ffi_ident: target_name.to_token_stream(),
             ffi_variant_ident: variant_mangled_path,
@@ -547,7 +547,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
     let ItemTrait { ident, items, .. } = item_trait;
     let context = context.borrow();
-    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, scope.self_path_holder(), &context);
+    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, Some(parse_quote!(#ident)), scope.self_path_holder(), &context);
     let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &context);
     let vtable_name = Name::Vtable(ident.clone());
     // println!("trait_expansion: {}: {}", trait_obj_name, vtable_name);
@@ -594,14 +594,11 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &Rc<RefCell
 }
 
 fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<RefCell<ScopeContext>>) -> Expansion {
-    // let cast_obj = &(*(obj as *const crate::transport::transport_request::Status));
-    // let obj = <crate::transport::transport_request::Status as crate::transport::transport_request::SomeOtherTrait>::some_other_method(cast_obj);
-    // obj
     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
         match impl_item {
             ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                let signature = FnSignatureComposition::from_signature(sig, scope.self_path_holder().clone(), &scope_context.borrow());
+                let signature = FnSignatureComposition::from_signature(sig, Some(*self_ty.clone()), scope.self_path_holder().clone(), &scope_context.borrow());
                 Some(signature.present(FnSignatureCompositionContext::FFIObject, &scope_context.borrow()))
             },
             ImplItem::Type(ImplItemType { .. }) => None,
@@ -615,6 +612,24 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
 
             println!("impl_expansion.1: self_ty: {}", self_ty.to_token_stream());
             println!("impl_expansion.1: items: {}", quote!(#(#items)*));
+
+            // NEED:
+            // pub unsafe extern "C" fn get_balance(obj: *const ()) -> u64 {
+            //     let obj = crate::identity::identity::Identity::get_balance(
+            //         ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _),
+            //     );
+            //     obj
+            // }
+
+            // CURRENT:
+            // #[no_mangle]
+            // pub unsafe extern "C" fn get_balance(obj: *const Identity) -> u64 {
+            //     let obj = crate::identity::identity::Identity::get_balance(
+            //         &ferment_interfaces::FFIConversion::ffi_from_const(obj),
+            //     );
+            //     obj
+            // }
+
         },
         Some((_, path, _)) => {
             let trait_type = parse_quote!(#path);
@@ -642,3 +657,32 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
     }
     Expansion::Impl { comment: DocPresentation::Empty, items: impl_item_compositions }
 }
+// V1:
+// let cast_obj = &(*(obj as *const crate::transport::transport_request::Status));
+// let obj = <crate::transport::transport_request::Status as crate::transport::transport_request::SomeOtherTrait>::some_other_method(cast_obj);
+// obj
+
+// V2:
+// impl Identity {
+//     pub unsafe fn create_basic_identity(
+//         id: *mut [u8; 32],
+//         _platform_version: *const crate::fermented::types::nested::PlatformVersion)
+//         -> *mut crate::fermented::generics::Result_ok_crate_identity_identity_Identity_err_crate_nested_ProtocolError {
+//         let result = crate::identity::identity::Identity::create_basic_identity(
+//             *id,
+//             &ferment_interfaces::FFIConversion::ffi_from_const(_platform_version)
+//         );
+//         ferment_interfaces::FFIConversion::ffi_to(result)
+//     }
+//     pub unsafe fn create_basic_identity_v0(id: *mut [u8; 32]) -> *mut Self {
+//         let result = crate::identity::identity::Identity::create_basic_identity_v0(*id);
+//         ferment_interfaces::FFIConversion::ffi_to(result)
+//     }
+//
+//     pub unsafe fn get_balance(&self) -> u64 {
+//         let cast_obj = ferment_interfaces::FFIConversion::ffi_from_const(self);
+//         let result = crate::identity::identity::Identity::get_balance(&ferment_interfaces::FFIConversion::ffi_from_const(&cast_obj));
+//         result
+//     }
+//
+// }

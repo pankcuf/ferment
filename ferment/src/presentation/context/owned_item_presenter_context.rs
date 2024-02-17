@@ -15,6 +15,8 @@ pub enum OwnedItemPresenterContext {
     Conversion(TokenStream2),
     BindingArg(FieldTypeConversion),
     BindingField(FieldTypeConversion),
+    BindingGetter(FieldTypeConversion),
+    BindingSetter(FieldTypeConversion),
 }
 
 impl Debug for OwnedItemPresenterContext {
@@ -33,7 +35,11 @@ impl Debug for OwnedItemPresenterContext {
             OwnedItemPresenterContext::BindingArg(ty) =>
                 f.write_str(format!("BindingArg({})", ty).as_str()),
             OwnedItemPresenterContext::BindingField(ty) =>
-                f.write_str(format!("BindingField({})", ty).as_str())
+                f.write_str(format!("BindingField({})", ty).as_str()),
+            OwnedItemPresenterContext::BindingGetter(ty) =>
+                f.write_str(format!("BindingGetter({})", ty).as_str()),
+            OwnedItemPresenterContext::BindingSetter(ty) =>
+                f.write_str(format!("BindingSetter({})", ty).as_str())
         }
     }
 }
@@ -77,6 +83,13 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             },
             OwnedItemPresenterContext::BindingField(field_type) => {
                 field_type.as_binding_arg_name().to_token_stream()
+            }
+            OwnedItemPresenterContext::BindingGetter(field_type) => {
+                field_type.name()
+            }
+            OwnedItemPresenterContext::BindingSetter(field_type) => {
+                let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
+                ty.to_token_stream()
             }
         }
     }

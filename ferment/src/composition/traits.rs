@@ -100,14 +100,14 @@ pub struct TraitDecompositionPart2 {
 }
 
 impl TraitDecompositionPart2 {
-    pub fn from_trait_items(items: &[TraitItem], scope: &PathHolder, context: &ScopeContext) -> Self {
+    pub fn from_trait_items(items: &[TraitItem], self_ty: Option<Type>, scope: &PathHolder, context: &ScopeContext) -> Self {
         let mut methods = vec![];
         let mut types = HashMap::new();
         items
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Method(TraitItemMethod { sig, .. } ) => {
-                    methods.push(FnSignatureComposition::from_signature(sig, scope.clone(), context));
+                    methods.push(FnSignatureComposition::from_signature(sig, self_ty.clone(), scope.clone(), context));
                 },
                 TraitItem::Type(trait_item_type) => {
                     types.insert(trait_item_type.ident.clone(), TraitTypeDecomposition::from_item_type(trait_item_type));

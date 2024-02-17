@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use crate::nested::{BinaryData, Identifier, IdentifierBytes32, PlatformVersion, ProtocolError};
+use crate::nested::{BinaryData, FeatureVersionBounds, Identifier, IdentifierBytes32, PlatformVersion, ProtocolError};
 
 #[ferment_macro::export]
 pub type KeyID = u32;
@@ -106,4 +106,18 @@ impl Identity {
         })
     }
 
+    pub fn get_balance(&self) -> u64 {
+        match self {
+            Identity::V0(v0) => v0.balance,
+        }
+    }
+}
+
+#[ferment_macro::export]
+pub fn create_platform_v0(identity: FeatureVersionBounds, proofs: FeatureVersionBounds) -> PlatformVersion {
+    PlatformVersion {
+        protocol_version: 0,
+        identity,
+        proofs,
+    }
 }

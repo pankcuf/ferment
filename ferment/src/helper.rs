@@ -366,7 +366,7 @@ pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> To
     match &*type_array.elem {
         Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
             match segments.last().unwrap().ident.to_string().as_str() {
-                "u8" => DEREF_FIELD_PATH(field_path),
+                "u8" => DEREF_FIELD_PATH(&field_path),
                 _ => panic!("from_array: unsupported segments {} {}", field_path, quote!(#segments))
             },
         _ => panic!("from_array: unsupported {} {}", field_path, quote!(#type_array)),
@@ -376,7 +376,7 @@ pub(crate) fn from_slice(field_path: TokenStream2, type_slice: &TypeSlice) -> To
     match &*type_slice.elem {
         Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
             match segments.last().unwrap().ident.to_string().as_str() {
-                "u8" => DEREF_FIELD_PATH(field_path),
+                "u8" => DEREF_FIELD_PATH(&field_path),
                 _ => panic!("from_slice: unsupported segments {} {}", field_path, quote!(#segments))
             },
         _ => panic!("from_slice: unsupported {} {}", field_path, quote!(#type_slice)),
@@ -439,7 +439,7 @@ pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStr
         Type::Ptr(type_ptr) => match &*type_ptr.elem {
             Type::Path(_type_path) => {
                 let ffi_from_conversion =
-                    ffi_from_conversion(FROM_OFFSET_MAP_PRESENTER(quote!(*values)));
+                    ffi_from_conversion(FROM_OFFSET_MAP_PRESENTER(&quote!(*values)));
                 quote!((0..count).map(|i| #ffi_from_conversion).collect())
             }
             _ => ffi_from_conversion(field_path),
@@ -502,7 +502,7 @@ pub(crate) fn to_path(field_path: TokenStream2, path: &Path, context: &ScopeCont
 
 fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray) -> TokenStream2 {
     let expr = package_boxed_expression(quote!(o));
-    package_boxed_vec_expression(iter_map_collect(OBJ_FIELD_NAME(ident), quote!(|o| #expr)))
+    package_boxed_vec_expression(iter_map_collect(OBJ_FIELD_NAME(&ident), quote!(|o| #expr)))
 }
 
 pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr, context: &ScopeContext) -> TokenStream2 {
