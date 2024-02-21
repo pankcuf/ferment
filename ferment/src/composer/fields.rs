@@ -1,39 +1,52 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 use syn::__private::TokenStream2;
-use crate::composer::ComposerPresenter;
-use crate::composer::item::ItemComposer;
-use crate::composer_impl;
+use ferment_macro::Parent;
+use crate::composer::{ComposerPresenter, Composer, SharedComposer, OwnedFieldTypeComposer, OwnerIteratorLocalContext, LocalConversionContext, FieldTypesContext};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::interface::{OwnerIteratorPresenter, ScopeTreeFieldTypedPresenter};
-use crate::presentation::{context::OwnedItemPresenterContext, presentable::ScopeContextPresentable};
+use crate::presentation::presentable::ScopeContextPresentable;
+use crate::presentation::context::OwnerIteratorPresentationContext;
+use crate::shared::SharedAccess;
 
-pub struct FieldsComposer {
-    parent: Option<Rc<RefCell<ItemComposer>>>,
-    context_presenter: ComposerPresenter<ItemComposer, TokenStream2>,
-    pub root_presenter: OwnerIteratorPresenter,
-    pub field_presenter: ScopeTreeFieldTypedPresenter,
+pub const LOCAL_CONTEXT_PRESENTER: ComposerPresenter<(OwnedFieldTypeComposer, LocalConversionContext), OwnerIteratorLocalContext> =
+    |(field_presenter, (context, fields))| {
+        (context, fields.iter().map(|field_type| (field_presenter)(field_type.clone())).collect())
+    };
 
-    pub fields: Vec<OwnedItemPresenterContext>,
+#[derive(Parent)]
+pub struct FieldsComposer<Parent: SharedAccess> {
+    parent: Option<Parent>,
+    root_composer: ComposerPresenter<OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+    context_composer: SharedComposer<Parent, TokenStream2>,
+
+    pub field_presenter: OwnedFieldTypeComposer,
+    pub fields: FieldTypesContext,
 }
 
-impl FieldsComposer {
-    pub const fn new(root_presenter: OwnerIteratorPresenter, context_presenter: ComposerPresenter<ItemComposer, TokenStream2>, field_presenter: ScopeTreeFieldTypedPresenter, fields: Vec<OwnedItemPresenterContext>) -> Self {
-        Self { parent: None, root_presenter, context_presenter, field_presenter, fields }
+
+impl<Parent: SharedAccess> FieldsComposer<Parent> {
+    pub const fn new(
+        root_composer: ComposerPresenter<OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+        context_composer: SharedComposer<Parent, TokenStream2>,
+        field_presenter: OwnedFieldTypeComposer
+    ) -> Self {
+        Self { parent: None, root_composer, context_composer, field_presenter, fields: vec![] }
     }
 
     pub fn add_conversion(&mut self, field_type: FieldTypeConversion) {
-        let value = (self.field_presenter)(field_type);
-        self.fields.push(value);
+        self.fields.push(field_type);
     }
 }
 
-composer_impl!(FieldsComposer, TokenStream2, |itself: &FieldsComposer, context: &ScopeContext|
-    (itself.root_presenter)((
-        (itself.context_presenter)(
-            &itself.parent.as_ref().unwrap().borrow()
-        ),
-        itself.fields.clone()
-    ))
-    .present(context));
+impl<Parent: SharedAccess> Composer<Parent> for FieldsComposer<Parent> {
+    type Item = TokenStream2;
+    type Source = ScopeContext;
+
+    fn compose(&self, source: &Self::Source) -> Self::Item {
+        let parent = self.parent.as_ref().unwrap();
+        let context = parent.access(self.context_composer);
+        let local_context = LOCAL_CONTEXT_PRESENTER((self.field_presenter, (context, self.fields.clone())));
+        let presentable = (self.root_composer)(local_context);
+        let result = presentable.present(source);
+        result
+    }
+}

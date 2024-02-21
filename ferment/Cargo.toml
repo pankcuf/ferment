@@ -6,7 +6,7 @@ license = "MIT"
 description = "Syntax tree morphing of FFI-compatible stuff"
 
 [dependencies]
-syn = { version = "1.0.109", features = ["full", "visit", "parsing", "proc-macro"] }
+syn = { version = "1.0.109", features = ["default", "full", "visit", "extra-traits"] }
 quote = "1.0.28"
 proc-macro2 = "1.0.70"
 ferment-macro = { path = "../ferment-macro" }

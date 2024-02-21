@@ -16,6 +16,7 @@ mod composition;
 mod tree;
 mod naming;
 mod ext;
+mod shared;
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

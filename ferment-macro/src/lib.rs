@@ -84,3 +84,19 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[proc_macro_derive(Parent)]
+pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let name = &input.ident;
+    let expanded = quote! {
+        impl<Parent: crate::shared::SharedAccess> crate::shared::HasParent<Parent> for #name<Parent>  {
+            fn set_parent(&mut self, parent: &Parent) {
+                self.parent = Some(parent.clone_container());
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}

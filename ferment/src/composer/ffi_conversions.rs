@@ -1,13 +1,11 @@
-use std::rc::Rc;
-use std::cell::RefCell;
-use quote::quote;
 use syn::__private::TokenStream2;
-use crate::composer::{Composer, ConversionComposer, DropComposer, FFIBindingsComposer, FFIContextComposer, ItemComposer};
+use crate::composer::{Composer, ConversionComposer, FFIBindingsComposer, FieldTypesContext, HasParent, LocalConversionContext, OwnerIteratorLocalContext, SimpleContextComposer};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::Conversion;
-use crate::interface::MapPresenter;
+use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
+use crate::shared::SharedAccess;
 
+#[allow(dead_code)]
 pub enum ComposerAspect {
     From,
     To,
@@ -15,50 +13,38 @@ pub enum ComposerAspect {
     Drop,
     Bindings,
 }
-pub struct FFIConversionComposer {
-    pub parent: Option<Rc<RefCell<ItemComposer>>>,
-    pub from_conversion_composer: ConversionComposer,
-    pub to_conversion_composer: ConversionComposer,
-    pub destroy_composer: FFIContextComposer,
-    pub drop_composer: DropComposer,
-    pub bindings_composer: FFIBindingsComposer,
-
-    from_presenter: MapPresenter,
-    to_presenter: MapPresenter,
-    destructor_presenter: MapPresenter,
+pub struct FFIConversionComposer<Parent: SharedAccess> {
+    pub parent: Option<Parent>,
+    pub from_conversion_composer: ConversionComposer<Parent, LocalConversionContext, (TokenStream2, TokenStream2), OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+    pub to_conversion_composer: ConversionComposer<Parent, LocalConversionContext, (TokenStream2, TokenStream2), OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+    pub destroy_composer: SimpleContextComposer<Parent>,
+    pub drop_composer: ConversionComposer<Parent, FieldTypesContext, TokenStream2, Vec<OwnedItemPresenterContext>, IteratorPresentationContext>,
+    pub bindings_composer: FFIBindingsComposer<Parent>,
 }
 
-impl FFIConversionComposer {
+impl<Parent: SharedAccess> HasParent<Parent> for FFIConversionComposer<Parent> {
+    fn set_parent(&mut self, parent: &Parent) {
+        self.bindings_composer.set_parent(parent);
+        self.from_conversion_composer.set_parent(parent);
+        self.to_conversion_composer.set_parent(parent);
+        self.destroy_composer.set_parent(parent);
+        self.drop_composer.set_parent(parent);
+        self.parent = Some(parent.clone_container());
+    }
+}
+
+impl<Parent: SharedAccess> FFIConversionComposer<Parent> {
     #[allow(clippy::too_many_arguments)]
     pub const fn new(
-        from_conversion_composer: ConversionComposer,
-        to_conversion_composer: ConversionComposer,
-        destroy_composer: FFIContextComposer<TokenStream2>,
-        drop_composer: DropComposer,
-        from_presenter: MapPresenter,
-        to_presenter: MapPresenter,
-        bindings_composer: FFIBindingsComposer,
-        destructor_presenter: MapPresenter) -> Self {
-        Self { from_conversion_composer, to_conversion_composer, destroy_composer, drop_composer, from_presenter, to_presenter, bindings_composer, destructor_presenter, parent: None }
+        from_conversion_composer: ConversionComposer<Parent, LocalConversionContext, (TokenStream2, TokenStream2), OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+        to_conversion_composer: ConversionComposer<Parent, LocalConversionContext, (TokenStream2, TokenStream2), OwnerIteratorLocalContext, OwnerIteratorPresentationContext>,
+        destroy_composer: SimpleContextComposer<Parent>,
+        drop_composer: ConversionComposer<Parent, FieldTypesContext, TokenStream2, Vec<OwnedItemPresenterContext>, IteratorPresentationContext>,
+        bindings_composer: FFIBindingsComposer<Parent>) -> Self {
+        Self { from_conversion_composer, to_conversion_composer, destroy_composer, drop_composer, bindings_composer, parent: None }
     }
-    pub(crate) fn set_parent(&mut self, root: &Rc<RefCell<ItemComposer>>) {
-        self.bindings_composer.set_parent(root);
-        self.from_conversion_composer.set_parent(root);
-        self.to_conversion_composer.set_parent(root);
-        self.destroy_composer.set_parent(root);
-        self.drop_composer.set_parent(root);
-        self.parent = Some(Rc::clone(root));
-    }
-    pub fn add_conversion(&mut self, field_type: FieldTypeConversion, context: &Rc<RefCell<ScopeContext>>) {
-        let field_path_to = (self.to_presenter)(&field_type.name());
-        let field_path_from = (self.from_presenter)(&field_type.name());
-        let field_path_destroy = (self.destructor_presenter)(&field_type.name());
-        let context = context.borrow();
-        println!("add_conversion: {}: {}", quote!(#field_path_to), field_type);
-        self.to_conversion_composer.add_conversion(field_type.name(), field_type.to(field_path_to, &context));
-        self.from_conversion_composer.add_conversion(field_type.name(), field_type.from(field_path_from, &context));
-        self.drop_composer.add_conversion(&field_type.destroy(field_path_destroy, &context));
-        self.bindings_composer.add_conversion(field_type);
+    pub fn add_conversion(&mut self, field_type: FieldTypeConversion) {
+        self.bindings_composer.add_conversion(field_type.clone());
     }
 
     pub fn compose_aspect(&self, aspect: ComposerAspect, context: &ScopeContext) -> TokenStream2 {

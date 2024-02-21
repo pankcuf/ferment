@@ -1,22 +1,28 @@
 use quote::ToTokens;
-use std::rc::Rc;
-use std::cell::RefCell;
 use syn::Path;
 use syn::__private::TokenStream2;
-use crate::composer::ItemComposer;
+use ferment_macro::Parent;
+use crate::composer::Composer;
 use crate::context::ScopeContext;
-use crate::composer_impl;
+use crate::shared::SharedAccess;
 
-pub struct NameComposer {
-    pub parent: Option<Rc<RefCell<ItemComposer>>>,
+#[derive(Parent)]
+pub struct NameComposer<Parent: SharedAccess> {
+    pub parent: Option<Parent>,
     pub name: Path,
 }
 
-impl NameComposer {
+impl<Parent: SharedAccess> NameComposer<Parent> {
     pub const fn new(name: Path) -> Self {
         Self { parent: None, name }
     }
 }
-composer_impl!(NameComposer, TokenStream2, |itself: &NameComposer, _context: &ScopeContext|
-    itself.name.to_token_stream());
 
+impl<Parent: SharedAccess> Composer<Parent> for NameComposer<Parent> {
+    type Item = TokenStream2;
+    type Source = ScopeContext;
+
+    fn compose(&self, _source: &Self::Source) -> Self::Item {
+        self.name.to_token_stream()
+    }
+}

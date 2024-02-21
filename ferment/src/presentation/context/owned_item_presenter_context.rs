@@ -3,6 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
+use crate::presentation::field_type_presentation::FieldTypePresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
 
@@ -17,6 +18,8 @@ pub enum OwnedItemPresenterContext {
     BindingField(FieldTypeConversion),
     BindingGetter(FieldTypeConversion),
     BindingSetter(FieldTypeConversion),
+    FieldType(FieldTypePresentationContext),
+
 }
 
 impl Debug for OwnedItemPresenterContext {
@@ -39,7 +42,9 @@ impl Debug for OwnedItemPresenterContext {
             OwnedItemPresenterContext::BindingGetter(ty) =>
                 f.write_str(format!("BindingGetter({})", ty).as_str()),
             OwnedItemPresenterContext::BindingSetter(ty) =>
-                f.write_str(format!("BindingSetter({})", ty).as_str())
+                f.write_str(format!("BindingSetter({})", ty).as_str()),
+            OwnedItemPresenterContext::FieldType(ctx) =>
+                f.write_str(format!("FieldType({:?})", ctx).as_str()),
         }
     }
 }
@@ -90,6 +95,9 @@ impl ScopeContextPresentable for OwnedItemPresenterContext {
             OwnedItemPresenterContext::BindingSetter(field_type) => {
                 let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
                 ty.to_token_stream()
+            }
+            OwnedItemPresenterContext::FieldType(field_type_context) => {
+                field_type_context.present(context)
             }
         }
     }

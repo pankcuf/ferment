@@ -1,40 +1,17 @@
 use syn::{parse_quote, Path, Type};
 use quote::quote;
 use syn::__private::TokenStream2;
-use crate::composer::ComposerPresenter;
+use crate::composer::{OwnerIteratorConversionComposer, SimplePairConversionComposer, SimpleComposerPresenter};
 
-use crate::conversion::FieldTypeConversion;
 use crate::formatter::format_token_stream;
-use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::OwnerIteratorPresentationContext;
 
-/// token -> token
-pub type MapPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
-/// token + token -> token
-pub type MapPairPresenter = fn(field_name: TokenStream2, conversion: TokenStream2) -> TokenStream2;
-
-/// token + type + dictionary -> token
-pub type ScopeTreeFieldTypedPresenter = fn(field_type: FieldTypeConversion) -> OwnedItemPresenterContext;
-/// [token] -> token
-pub type IteratorPresenter = fn(items: Vec<OwnedItemPresenterContext>) -> IteratorPresentationContext;
-
-/// token + [token] -> token
-pub type OwnerIteratorPresenter = fn((TokenStream2, Vec<OwnedItemPresenterContext>)) -> OwnerIteratorPresentationContext;
-
-/// Map Presenters
-pub const FFI_DEREF_FIELD_NAME: MapPresenter = |field_name| quote!(ffi_ref.#field_name);
-pub const DEREF_FIELD_PATH: MapPresenter = |field_path| quote!(*#field_path);
-
-pub const FROM_OFFSET_MAP_PRESENTER: MapPresenter = |field_path| quote!(#field_path.add(i));
-
-pub const OBJ_FIELD_NAME: MapPresenter = |field_name| quote!(obj.#field_name);
-pub const SIMPLE_PRESENTER: MapPresenter = |name| quote!(#name);
-pub const SIMPLE_COMPOSER: ComposerPresenter<TokenStream2, TokenStream2> = |name| quote!(#name);
-pub const SIMPLE_TERMINATED_PRESENTER: MapPresenter = |name| quote!(#name;);
-// pub const ROOT_DESTROY_CONTEXT_PRESENTER: MapPresenter = |_| package_unboxed_root();
-pub const ROOT_DESTROY_CONTEXT_COMPOSER: ComposerPresenter<TokenStream2, TokenStream2> = |_| package_unboxed_root();
-
-pub const EMPTY_DESTROY_PRESENTER: MapPresenter = |_| quote!({});
-pub const DEFAULT_DOC_PRESENTER: ComposerPresenter<TokenStream2, TokenStream2> = |target_name| {
+pub const EMPTY_PRESENTER: SimpleComposerPresenter = |_| quote!();
+pub const SIMPLE_PRESENTER: SimpleComposerPresenter = |name| quote!(#name);
+pub const SIMPLE_TERMINATED_PRESENTER: SimpleComposerPresenter = |name| quote!(#name;);
+pub const ROOT_DESTROY_CONTEXT_COMPOSER: SimpleComposerPresenter = |_| package_unboxed_root();
+pub const EMPTY_DESTROY_PRESENTER: SimpleComposerPresenter = |_| quote!({});
+pub const DEFAULT_DOC_PRESENTER: SimpleComposerPresenter = |target_name| {
     let comment = format!("FFI-representation of the [`{}`]", format_token_stream(&target_name));
     // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)
     parse_quote! { #[doc = #comment] }
@@ -42,27 +19,29 @@ pub const DEFAULT_DOC_PRESENTER: ComposerPresenter<TokenStream2, TokenStream2> =
 
 
 /// Map Pair Presenters
-pub const SIMPLE_PAIR_PRESENTER: MapPairPresenter = |name, presentation|
+pub const SIMPLE_PAIR_PRESENTER: SimplePairConversionComposer = |(name, presentation)|
     quote!(#name #presentation);
-pub const SIMPLE_CONVERSION_PRESENTER: MapPairPresenter = |_, conversion|
+pub const SIMPLE_CONVERSION_PRESENTER: SimplePairConversionComposer = |(_, conversion)|
     quote!(#conversion);
-pub const NAMED_CONVERSION_PRESENTER: MapPairPresenter = |l_value, r_value|
+// pub const SIMPLE_CONVERSION_PRESENTER2: SimplePairConversionComposer2 = |(_, conversion)|
+//     conversion;
+pub const NAMED_CONVERSION_PRESENTER: SimplePairConversionComposer = |(l_value, r_value)|
     quote!(#l_value: #r_value);
-pub const LAMBDA_CONVERSION_PRESENTER: MapPairPresenter = |l_value, r_value|
+pub const LAMBDA_CONVERSION_PRESENTER: SimplePairConversionComposer = |(l_value, r_value)|
     quote!(#l_value => #r_value);
-pub const FFI_FROM_ROOT_PRESENTER: MapPairPresenter = |field_path: TokenStream2, conversions: TokenStream2|
+pub const FFI_FROM_ROOT_PRESENTER: SimplePairConversionComposer = |(field_path, conversions)|
     quote!(let ffi_ref = #field_path; #conversions);
-pub const FFI_TO_ROOT_PRESENTER: MapPairPresenter = |_, conversions: TokenStream2|
+pub const FFI_TO_ROOT_PRESENTER: SimplePairConversionComposer = |(_, conversions)|
     package_boxed_expression(conversions);
 
 
 
 /// Owner Iterator Presenters
 ///
-pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    OwnerIteratorPresentationContext::CurlyBracesFields(name, fields);
-pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorPresenter = |(name, fields)|
-    OwnerIteratorPresentationContext::RoundBracesFields(name, fields);
+pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
+    OwnerIteratorPresentationContext::CurlyBracesFields(local_context);
+pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
+    OwnerIteratorPresentationContext::RoundBracesFields(local_context);
 
 /// PathArguments Presenters
 

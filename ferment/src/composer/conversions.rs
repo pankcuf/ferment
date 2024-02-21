@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use quote::{quote, ToTokens};
 use syn::{Field, FieldsNamed, FieldsUnnamed, parse_quote, Type};
+use crate::composer::FieldTypesContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::naming::Name;
@@ -16,8 +17,8 @@ pub enum ConversionsComposer<'a> {
 
 
 impl<'a> ConversionsComposer<'a> {
-    pub fn compose(&self, context: &Rc<RefCell<ScopeContext>>) -> Vec<FieldTypeConversion> {
-        let ctx = context.borrow();
+    pub fn compose(&self, source: &Rc<RefCell<ScopeContext>>) -> FieldTypesContext {
+        let ctx = source.borrow();
         match self {
             Self::Empty => vec![],
             Self::NamedStruct(fields) =>

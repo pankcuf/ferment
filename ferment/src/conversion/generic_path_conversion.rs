@@ -4,19 +4,20 @@ use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::__private::{Span, TokenStream2};
 use syn::{parse_quote, Path, PathSegment, Type};
+use crate::composer::SimpleComposerPresenter;
 use crate::conversion::type_conversion::TypeConversion;
 use crate::context::ScopeContext;
 use crate::conversion::PathConversion;
 use crate::formatter::format_token_stream;
 use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions};
-use crate::interface::{ffi_to_conversion, MapPresenter, package_boxed_expression};
+use crate::interface::{ffi_to_conversion, package_boxed_expression};
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 
-pub const PRIMITIVE_VEC_DROP_PRESENTER: MapPresenter = |p|
+pub const PRIMITIVE_VEC_DROP_PRESENTER: SimpleComposerPresenter = |p|
     quote!(ferment_interfaces::unbox_vec_ptr(#p, self.count););
-pub const COMPLEX_VEC_DROP_PRESENTER: MapPresenter = |p|
+pub const COMPLEX_VEC_DROP_PRESENTER: SimpleComposerPresenter = |p|
     quote!(ferment_interfaces::unbox_any_vec_ptr(#p, self.count););
-pub const UNBOX_OPTION: MapPresenter = |p|
+pub const UNBOX_OPTION: SimpleComposerPresenter = |p|
     quote!(if !#p.is_null() { ferment_interfaces::unbox_any(#p); });
 
 #[derive(Clone)]
@@ -147,12 +148,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                             GenericArgPresentation::new(
                                 parse_quote!(#error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                         )
@@ -162,12 +163,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -177,12 +178,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -192,12 +193,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 parse_quote!(#error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                         )
@@ -207,12 +208,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -222,12 +223,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -237,12 +238,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 parse_quote!(#error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| *o),
                                 quote!(o as *mut _)),
                         )
@@ -252,12 +253,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -267,12 +268,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
-                                UNBOX_OPTION(&quote!(self.#arg_0_name)),
+                                UNBOX_OPTION(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_error),
-                                UNBOX_OPTION(&quote!(self.#arg_1_name)),
+                                UNBOX_OPTION(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 ffi_to_conversion(quote!(o))),
                         )
@@ -299,12 +300,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_0_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_1_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
@@ -314,12 +315,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_0_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned())))
                         )
@@ -329,12 +330,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_0_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
@@ -344,12 +345,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_1_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
@@ -360,12 +361,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
@@ -376,12 +377,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
@@ -391,12 +392,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(#arg_1_target_path),
-                                PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| o),
                                 quote!(ferment_interfaces::to_primitive_vec(obj.values().cloned()))),
                         )
@@ -407,12 +408,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
@@ -423,12 +424,12 @@ impl GenericPathConversion {
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_0_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.keys().cloned()))),
                             GenericArgPresentation::new(
                                 parse_quote!(*mut #arg_1_ffi_type),
-                                COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_1_name)),
+                                COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_1_name)),
                                 quote!(|o| ferment_interfaces::FFIConversion::ffi_from(o)),
                                 quote!(ferment_interfaces::to_complex_vec(obj.values().cloned()))),
                         )
@@ -451,7 +452,7 @@ impl GenericPathConversion {
                     [PathConversion::Primitive(arg_0_target_path)] => {
                         GenericArgPresentation::new(
                             parse_quote!(#arg_0_target_path),
-                            PRIMITIVE_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                            PRIMITIVE_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                             quote!(ferment_interfaces::from_primitive_vec(self.values, self.count)),
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::boxed_vec(obj) })))
                     }
@@ -459,7 +460,7 @@ impl GenericPathConversion {
                         let arg_0_ffi_type = borrowed_context.ffi_path_converted_or_same(arg_0_target_path);
                         GenericArgPresentation::new(
                             parse_quote!(*mut #arg_0_ffi_type),
-                            COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                            COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                             quote!(ferment_interfaces::from_complex_vec(self.values, self.count)),
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
                     }
@@ -467,7 +468,7 @@ impl GenericPathConversion {
                         let arg_0_ffi_type = borrowed_context.convert_to_ffi_path(arg_0_generic_path_conversion);
                         GenericArgPresentation::new(
                             parse_quote!(*mut #arg_0_ffi_type),
-                            COMPLEX_VEC_DROP_PRESENTER(&quote!(self.#arg_0_name)),
+                            COMPLEX_VEC_DROP_PRESENTER(quote!(self.#arg_0_name)),
                             quote!(ferment_interfaces::from_complex_vec(self.values, self.count)),
                             package_boxed_expression(quote!(Self { count: obj.len(), values: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
                     }

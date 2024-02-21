@@ -4,7 +4,7 @@ use std::rc::Rc;
 use syn::{Attribute, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, Signature, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::{AttrsComposer, Composer, ComposerAspect, ConversionsComposer, ItemComposer};
+use crate::composer::{AttrsComposer, Composer, ComposerAspect, ConversionsComposer, ItemComposer, ItemParentComposer, OwnerIteratorLocalContext};
 use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, TraitDecompositionPart2};
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{Scope, ScopeChain, ScopeContext};
@@ -326,10 +326,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         let target_variant_path = quote!(#full_ty::#variant_name);
         let ffi_variant_path = quote!(#target_name::#variant_name);
         let variant_mangled_path = format_ident!("{}_{}", target_name, variant_name);
-        let (variant_presenter, fields_context): (fn((TokenStream2, Vec<OwnedItemPresenterContext>)) -> OwnerIteratorPresentationContext, Vec<OwnedItemPresenterContext>) = match discriminant {
+        let (variant_presenter, fields_context): (fn(OwnerIteratorLocalContext) -> OwnerIteratorPresentationContext, Vec<OwnedItemPresenterContext>) = match discriminant {
             Some((_, Expr::Lit(lit, ..))) => (
-                |(name, fields): (TokenStream2, Vec<OwnedItemPresenterContext>)|
-                    OwnerIteratorPresentationContext::EnumUnitFields(name, fields),
+                |local_context: OwnerIteratorLocalContext|
+                    OwnerIteratorPresentationContext::EnumUnitFields(local_context),
                 vec![OwnedItemPresenterContext::Conversion(quote!(#lit))]),
             None => match fields {
                 Fields::Unit => (
@@ -337,16 +337,16 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                         OwnerIteratorPresentationContext::NoFields(name),
                     vec![]),
                 Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => (
-                    |(name, fields)|
-                        OwnerIteratorPresentationContext::EnumUnamedVariant(name, fields),
+                    |local_context|
+                        OwnerIteratorPresentationContext::EnumUnamedVariant(local_context),
                     unnamed
                         .iter()
                         .map(|field| OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
-                    |(name, fields)|
-                        OwnerIteratorPresentationContext::EnumNamedVariant(name, fields),
+                    |local_context|
+                        OwnerIteratorPresentationContext::EnumNamedVariant(local_context),
                     named
                         .iter()
                         .map(|Field { ident, ty: field_type, .. }|
@@ -453,7 +453,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
     });
     let comment = DocPresentation::Default(quote!(#target_name));
     let ffi_presentation =
-        FFIObjectPresentation::Full(OwnerIteratorPresentationContext::Enum(quote!(#target_name), variants_fields).present(&ctx));
+        FFIObjectPresentation::Full(OwnerIteratorPresentationContext::Enum((quote!(#target_name), variants_fields)).present(&ctx));
     let ctx = context.borrow();
     let target_full_type = ctx.full_type_for(&parse_quote!(#target_name));
     let conversion_presentation = ConversionInterfacePresentation::Interface {
@@ -474,7 +474,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         destructor_ident: Name::Destructor(target_name.clone())
     });
 
-    let attrs_composer = AttrsComposer::new(attrs_composition);
+    let attrs_composer = AttrsComposer::<ItemParentComposer>::new(attrs_composition);
     Expansion::Full {
         comment,
         ffi_presentation,
@@ -503,8 +503,8 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 parse_quote!(#full_ty),
                 attrs_composition,
                 scope_context,
-                |(name, fields)|
-                    OwnerIteratorPresentationContext::UnnamedStruct(name, fields),
+                |local_context|
+                    OwnerIteratorPresentationContext::UnnamedStruct(local_context),
                 |field_type|
                     OwnedItemPresenterContext::DefaultFieldType(field_type),
                 ROUND_BRACES_FIELDS_PRESENTER,
@@ -523,8 +523,8 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 parse_quote!(#full_ty),
                 attrs_composition,
                 scope_context,
-                |(name, fields)|
-                    OwnerIteratorPresentationContext::NamedStruct(name, fields),
+                |local_context|
+                    OwnerIteratorPresentationContext::NamedStruct(local_context),
                 |field_type|
                     OwnedItemPresenterContext::Named(field_type, true),
                 CURLY_BRACES_FIELDS_PRESENTER,

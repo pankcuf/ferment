@@ -44,7 +44,7 @@ impl ScopeContextPresentable for IteratorPresentationContext {
             IteratorPresentationContext::EnumDestroy(items) => {
                 match items.len() {
                     0 => quote!(),
-                    _ => OwnerIteratorPresentationContext::MatchFields(quote!(self), items.clone())
+                    _ => OwnerIteratorPresentationContext::MatchFields((quote!(self), items.clone()))
                         .present(context)
                 }
             }

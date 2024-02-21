@@ -1,41 +1,43 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 use syn::__private::TokenStream2;
-use crate::composer::{Composer, ItemComposer};
+use ferment_macro::Parent;
+use crate::composer::{Composer, FieldTypesContext, IteratorConversionComposer, OwnedFieldTypeComposer};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::interface::{IteratorPresenter, ScopeTreeFieldTypedPresenter};
 use crate::presentation::context::OwnedItemPresenterContext;
 use crate::presentation::ScopeContextPresentable;
+use crate::shared::SharedAccess;
 
-pub struct FFIBindingsComposer {
-    parent: Option<Rc<RefCell<ItemComposer>>>,
-    root_presenter: IteratorPresenter,
-    field_types: Vec<FieldTypeConversion>,
-    sig_argument_presenter: ScopeTreeFieldTypedPresenter,
-    field_names_presenter: ScopeTreeFieldTypedPresenter,
+#[derive(Parent)]
+pub struct FFIBindingsComposer<Parent: SharedAccess> {
+    parent: Option<Parent>,
+    root_presenter: IteratorConversionComposer,
+    field_types: FieldTypesContext,
+    sig_argument_presenter: OwnedFieldTypeComposer,
+    field_names_presenter: OwnedFieldTypeComposer,
 }
-impl Composer for FFIBindingsComposer {
+
+impl<Parent: SharedAccess> Composer<Parent> for FFIBindingsComposer<Parent> {
     type Item = TokenStream2;
+    type Source = ScopeContext;
 
-    fn set_parent(&mut self, root: &Rc<RefCell<ItemComposer>>) {
-        self.parent = Some(Rc::clone(root));
-    }
-
-    fn compose(&self, context: &ScopeContext) -> Self::Item {
-        (self.root_presenter)(self.field_types.iter().map(|ff| OwnedItemPresenterContext::DefaultField(ff.clone())).collect::<Vec<_>>()).present(context)
+    fn compose(&self, source: &Self::Source) -> Self::Item {
+        (self.root_presenter)(self.field_types.iter().map(|ff| OwnedItemPresenterContext::DefaultField(ff.clone())).collect::<Vec<_>>()).present(source)
     }
 }
 
-impl FFIBindingsComposer {
-    pub const fn new(root_presenter: IteratorPresenter, sig_argument_presenter: ScopeTreeFieldTypedPresenter, field_names_presenter: ScopeTreeFieldTypedPresenter) -> Self {
+impl<Parent: SharedAccess> FFIBindingsComposer<Parent> {
+    pub const fn new(
+        root_presenter: IteratorConversionComposer,
+        sig_argument_presenter: OwnedFieldTypeComposer,
+        field_names_presenter: OwnedFieldTypeComposer
+    ) -> Self {
         Self { parent: None, root_presenter, sig_argument_presenter, field_names_presenter, field_types: vec![] }
     }
     pub(crate) fn add_conversion(&mut self, field_type: FieldTypeConversion) {
         self.field_types.push(field_type);
     }
 
-    fn compose_with_item_presenter(&self, item_presenter: ScopeTreeFieldTypedPresenter) -> Vec<OwnedItemPresenterContext> {
+    fn compose_with_item_presenter(&self, item_presenter: OwnedFieldTypeComposer) -> Vec<OwnedItemPresenterContext> {
         self.field_types.iter()
             .map(|field_type| (item_presenter)(field_type.clone()))
             .collect()

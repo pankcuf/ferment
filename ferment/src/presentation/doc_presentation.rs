@@ -14,9 +14,9 @@ impl ToTokens for DocPresentation {
         match self {
             Self::Empty => quote!(),
             Self::Direct(target_name) => quote!(#target_name),
-            Self::Default(target_name) => DEFAULT_DOC_PRESENTER(&quote!(#target_name)),
+            Self::Default(target_name) => DEFAULT_DOC_PRESENTER(quote!(#target_name)),
             Self::Safety(target_name) => {
-                let doc = DEFAULT_DOC_PRESENTER(&quote!(#target_name));
+                let doc = DEFAULT_DOC_PRESENTER(quote!(#target_name));
                 quote! {
                     #doc
                     /// # Safety

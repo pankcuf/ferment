@@ -1,9 +1,7 @@
-use std::rc::Rc;
-use std::cell::RefCell;
 use quote::{format_ident, quote, ToTokens};
 use syn::{ItemTrait, parse_quote};
-use crate::composer::item::ItemComposer;
-use crate::composer_impl;
+use ferment_macro::Parent;
+use crate::composer::Composer;
 use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
 use crate::conversion::TypeConversion;
 use crate::context::{ScopeChain, ScopeContext};
@@ -12,30 +10,38 @@ use crate::interface::ROUND_BRACES_FIELDS_PRESENTER;
 use crate::naming::Name;
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext};
 use crate::presentation::{BindingPresentation, FFIObjectPresentation, ScopeContextPresentable, TraitVTablePresentation};
+use crate::shared::SharedAccess;
 
-pub struct AttrsComposer {
-    pub parent: Option<Rc<RefCell<ItemComposer>>>,
+#[derive(Parent)]
+pub struct AttrsComposer<Parent: SharedAccess> {
+    pub parent: Option<Parent>,
     pub attrs: AttrsComposition
 }
 
-impl AttrsComposer {
+impl<Parent: SharedAccess> AttrsComposer<Parent> {
     pub const fn new(attrs: AttrsComposition) -> Self {
         Self { parent: None, attrs }
     }
 }
 
-composer_impl!(AttrsComposer, Vec<TraitVTablePresentation>, |itself: &AttrsComposer, context: &ScopeContext| {
-    let mut trait_types = context.trait_items_from_attributes(&itself.attrs.attrs);
-    trait_types.iter_mut()
-        .map(|(composition, trait_scope)| {
-            // TODO: move to full
-            let conversion = TypeConversion::Object(TypeComposition::new(context.scope.to_type(), Some(composition.item.generics.clone())));
-            println!("AttrsComposer: {} {} {}", composition.item.ident, trait_scope, conversion);
-            composition.implementors.push(conversion);
-            implement_trait_for_item((&composition.item, trait_scope), &itself.attrs, context)
-        })
-        .collect()
-});
+impl<Parent: SharedAccess> Composer<Parent> for AttrsComposer<Parent> {
+    type Item = Vec<TraitVTablePresentation>;
+    type Source = ScopeContext;
+
+    fn compose(&self, source: &Self::Source) -> Self::Item {
+        let attrs_composition = &self.attrs;
+        let mut trait_types = source.trait_items_from_attributes(&attrs_composition.attrs);
+        trait_types.iter_mut()
+            .map(|(composition, trait_scope)| {
+                // TODO: move to full
+                let conversion = TypeConversion::Object(TypeComposition::new(source.scope.to_type(), Some(composition.item.generics.clone())));
+                println!("AttrsComposer: {} {} {}", composition.item.ident, trait_scope, conversion);
+                composition.implementors.push(conversion);
+                implement_trait_for_item((&composition.item, trait_scope), attrs_composition, source)
+            })
+            .collect()
+    }
+}
 
 pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsComposition, context: &ScopeContext) -> TraitVTablePresentation {
     let (item_trait, trait_scope) = item_trait;
@@ -74,7 +80,7 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
                 trait_type: trait_full_ty.clone(),
                 name_and_args,
                 output_expression,
-                output_conversions,
+                output_conversions: output_conversions.present(context),
                 argument_names
             }
         }).collect();

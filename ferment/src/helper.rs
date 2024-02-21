@@ -5,14 +5,14 @@ use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TypeComposition};
-use crate::context::{ScopeContext, TypeChain};
+use crate::context::TypeChain;
 use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, PathConversion, type_ident, type_ident_ref};
 use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
-use crate::interface::{DEREF_FIELD_PATH, destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, FROM_OFFSET_MAP_PRESENTER, iter_map_collect, OBJ_FIELD_NAME, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression_terminated};
+use crate::interface::{ffi_to_conversion, package_boxed_expression};
 use crate::presentation::context::{OwnedItemPresenterContext, OwnerIteratorPresentationContext};
-use crate::presentation::ScopeContextPresentable;
+use crate::presentation::field_type_presentation::FieldTypePresentationContext;
 use crate::tree::ScopeTreeExportID;
 
 pub trait ItemExtension {
@@ -362,70 +362,62 @@ pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<Path
         .collect()
 }
 
-pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> TokenStream2 {
+pub(crate) fn from_array(field_path: TokenStream2, type_array: &TypeArray) -> FieldTypePresentationContext {
     match &*type_array.elem {
         Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
             match segments.last().unwrap().ident.to_string().as_str() {
-                "u8" => DEREF_FIELD_PATH(&field_path),
+                "u8" => FieldTypePresentationContext::FromArray(field_path),
                 _ => panic!("from_array: unsupported segments {} {}", field_path, quote!(#segments))
             },
         _ => panic!("from_array: unsupported {} {}", field_path, quote!(#type_array)),
     }
 }
-pub(crate) fn from_slice(field_path: TokenStream2, type_slice: &TypeSlice) -> TokenStream2 {
+pub(crate) fn from_slice(field_path: TokenStream2, type_slice: &TypeSlice) -> FieldTypePresentationContext {
     match &*type_slice.elem {
         Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
             match segments.last().unwrap().ident.to_string().as_str() {
-                "u8" => DEREF_FIELD_PATH(&field_path),
+                "u8" => FieldTypePresentationContext::FromArray(field_path),
                 _ => panic!("from_slice: unsupported segments {} {}", field_path, quote!(#segments))
             },
         _ => panic!("from_slice: unsupported {} {}", field_path, quote!(#type_slice)),
     }
 }
 
-pub(crate) fn destroy_path(field_path: TokenStream2, path: &Path) -> TokenStream2 {
+pub(crate) fn destroy_path(field_path: TokenStream2, path: &Path) -> FieldTypePresentationContext {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
-        | "usize" | "bool" => quote!(),
-        "VarInt" => quote!(),
+        | "usize" | "bool" => FieldTypePresentationContext::Empty,
         "Option" => match path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => quote!(),
-            _ => {
-                let conversion = package_unbox_any_expression_terminated(field_path.clone());
-                quote!(if !#field_path.is_null() { #conversion })
-            }
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" =>
+                FieldTypePresentationContext::Empty,
+            _ =>
+                FieldTypePresentationContext::IsNull(field_path)
         },
-        "String" =>
-            destroy_conversion(field_path, parse_quote!(std::os::raw::c_char), quote!(#path)),
-        "str" =>
-            destroy_conversion(field_path, parse_quote!(std::os::raw::c_char), quote!(&#path)),
-        _ =>
-            package_unbox_any_expression_terminated(field_path),
+        "String" => FieldTypePresentationContext::DestroyConversion(field_path, quote!(#path)),
+        "str" => FieldTypePresentationContext::DestroyConversion(field_path, quote!(&#path)),
+        _ => FieldTypePresentationContext::UnboxAnyTerminated(field_path),
     }
 }
 
-pub(crate) fn from_path(field_path: TokenStream2, path: &Path) -> TokenStream2 {
+pub(crate) fn from_path(field_path: TokenStream2, path: &Path) -> FieldTypePresentationContext {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => field_path,
-        "VarInt" => quote!(#path(#field_path)),
+        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => FieldTypePresentationContext::Simple(field_path),
         "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
             // std convertible
             // TODO: what to use? 0 or ::MAX
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-            | "isize" | "usize" => quote!((#field_path > 0).then_some(#field_path)),
+            | "isize" | "usize" => FieldTypePresentationContext::IfThenSome(field_path, quote!(> 0)),
             // TODO: mmm shit that's incorrect
-            "bool" =>
-                quote!((#field_path).then_some(#field_path)),
-            _ =>
-                ffi_from_opt_conversion(field_path),
+            "bool" => FieldTypePresentationContext::IfThenSome(field_path, quote!()),
+            _ => FieldTypePresentationContext::FromOpt(field_path),
         },
-        _ => ffi_from_conversion(field_path),
+        _ => FieldTypePresentationContext::From(field_path),
     }
 }
 
-pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
+pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> FieldTypePresentationContext {
     match &*type_ptr.elem {
         Type::Ptr(type_ptr) => destroy_ptr(field_path, type_ptr),
         Type::Path(type_path) => destroy_path(field_path, &type_path.path),
@@ -434,15 +426,11 @@ pub(crate) fn destroy_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> Token
     }
 }
 
-pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStream2 {
+pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> FieldTypePresentationContext {
     match &*type_ptr.elem {
         Type::Ptr(type_ptr) => match &*type_ptr.elem {
-            Type::Path(_type_path) => {
-                let ffi_from_conversion =
-                    ffi_from_conversion(FROM_OFFSET_MAP_PRESENTER(&quote!(*values)));
-                quote!((0..count).map(|i| #ffi_from_conversion).collect())
-            }
-            _ => ffi_from_conversion(field_path),
+            Type::Path(_type_path) => FieldTypePresentationContext::FromOffsetMap,
+            _ => FieldTypePresentationContext::From(field_path),
         },
         Type::Path(type_path) => {
             let field_type = type_path
@@ -452,20 +440,20 @@ pub(crate) fn from_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> TokenStr
                 .unwrap()
                 .ident
                 .to_token_stream();
-            quote!(std::slice::from_raw_parts(values as *const #field_type, count).to_vec())
+            FieldTypePresentationContext::FromRawParts(field_type)
         }
-        _ => ffi_from_conversion(field_path),
+        _ => FieldTypePresentationContext::From(field_path),
     }
 }
 
-pub(crate) fn destroy_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
+pub(crate) fn destroy_reference(field_path: TokenStream2, type_reference: &TypeReference) -> FieldTypePresentationContext {
     match &*type_reference.elem {
         Type::Path(type_path) => destroy_path(field_path, &type_path.path),
         _ => panic!("from_reference: unsupported type: {} {}", field_path, quote!(#type_reference)),
     }
 }
 
-pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeReference) -> TokenStream2 {
+pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeReference) -> FieldTypePresentationContext {
     match &*type_reference.elem {
         Type::Path(type_path) => from_path(field_path, &type_path.path),
         _ => panic!("from_reference: unsupported type: {} {}", field_path, quote!(#type_reference)),
@@ -476,61 +464,57 @@ pub(crate) fn from_reference(field_path: TokenStream2, type_reference: &TypeRefe
 //     args.iter().collect::<Vec<_>>()
 // }
 
-pub(crate) fn to_path(field_path: TokenStream2, path: &Path, context: &ScopeContext) -> TokenStream2 {
-    println!("to_path: {}: {}: {:?}", field_path, quote!(#path), path.segments.last());
+pub(crate) fn to_path(field_path: TokenStream2, path: &Path) -> FieldTypePresentationContext {
+    // println!("to_path: {}: {}: {:?}", field_path, quote!(#path), path.segments.last());
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
-        | "usize" | "bool" => field_path,
-        "VarInt" => quote!(#field_path.0),
+        | "usize" | "bool" => FieldTypePresentationContext::Simple(field_path),
         "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
             // TODO: MAX/MIN? use optional primitive?
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" =>
-                quote!(#field_path.unwrap_or(0)),
+                FieldTypePresentationContext::UnwrapOr(field_path, quote!(0)),
             "bool" =>
-                quote!(#field_path.unwrap_or(false)),
+                FieldTypePresentationContext::UnwrapOr(field_path, quote!(false)),
             "Vec" =>
-                OwnerIteratorPresentationContext::MatchFields(field_path, vec![
-                    OwnedItemPresenterContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
-                    OwnedItemPresenterContext::Lambda(quote!(None), quote!(std::ptr::null_mut())),
-                ]).present(context),
-            _ => ffi_to_opt_conversion(field_path),
+                FieldTypePresentationContext::ToVec(
+                    OwnerIteratorPresentationContext::MatchFields((field_path, vec![
+                        OwnedItemPresenterContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
+                        OwnedItemPresenterContext::Lambda(quote!(None), quote!(std::ptr::null_mut()))
+                    ]))),
+            _ => FieldTypePresentationContext::ToOpt(field_path),
         },
-        _ => ffi_to_conversion(field_path),
+        _ => FieldTypePresentationContext::To(field_path),
     }
 }
 
-fn to_vec_ptr(ident: TokenStream2, _type_ptr: &TypePtr, _type_arr: &TypeArray) -> TokenStream2 {
-    let expr = package_boxed_expression(quote!(o));
-    package_boxed_vec_expression(iter_map_collect(OBJ_FIELD_NAME(&ident), quote!(|o| #expr)))
-}
-
-pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr, context: &ScopeContext) -> TokenStream2 {
+pub(crate) fn to_ptr(field_path: TokenStream2, type_ptr: &TypePtr) -> FieldTypePresentationContext {
     match &*type_ptr.elem {
         Type::Array(TypeArray { elem, .. }) => match &**elem {
-            Type::Path(type_path) => to_path(field_path, &type_path.path, context),
+            Type::Path(type_path) => to_path(field_path, &type_path.path),
             _ => panic!("to_pointer: Unknown type inside Type::Array {}", quote!(#type_ptr)),
         },
         Type::Ptr(TypePtr { elem, .. }) => match &**elem {
-            Type::Path(type_path) => to_path(quote!(*#field_path.add(i)), &type_path.path, context),
-            Type::Array(type_arr) => to_vec_ptr(field_path, type_ptr, type_arr),
+            Type::Path(type_path) => to_path(quote!(*#field_path.add(i)), &type_path.path),
+            Type::Array(_type_arr) => FieldTypePresentationContext::ToVecPtr,
             _ => panic!("to_pointer: Unknown type inside Type::Ptr {}", quote!(#type_ptr)),
         },
-        Type::Path(type_path) => to_path(field_path, &type_path.path, context),
+        Type::Path(type_path) => to_path(field_path, &type_path.path),
         _ => panic!("to_pointer: Unknown type {}", quote!(#type_ptr)),
     }
 }
 
-pub(crate) fn to_reference(field_path: TokenStream2, type_reference: &TypeReference, context: &ScopeContext) -> TokenStream2 {
+pub(crate) fn to_reference(field_path: TokenStream2, type_reference: &TypeReference) -> FieldTypePresentationContext {
     match &*type_reference.elem {
-        Type::Path(type_path) => to_path(field_path, &type_path.path, context),
+        Type::Path(type_path) => to_path(field_path, &type_path.path),
         _ => panic!("to_reference: Unknown type {}", quote!(#type_reference)),
     }
 }
 
-pub(crate) fn to_array(field_path: TokenStream2, type_array: &TypeArray, context: &ScopeContext) -> TokenStream2 {
+pub(crate) fn to_array(field_path: TokenStream2, type_array: &TypeArray) -> FieldTypePresentationContext {
     match &*type_array.elem {
-        Type::Path(type_path) => to_path(package_boxed_expression(field_path), &type_path.path, context),
+        Type::Path(type_path) =>
+            to_path(package_boxed_expression(field_path), &type_path.path),
         _ => panic!("to_array: Unknown type {}", quote!(#type_array)),
     }
 }
