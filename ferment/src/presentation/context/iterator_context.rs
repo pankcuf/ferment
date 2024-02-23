@@ -7,11 +7,13 @@ use crate::presentation::ScopeContextPresentable;
 
 pub enum IteratorPresentationContext {
     Empty,
+    Simple(TokenStream2),
     DefaultDestroyFields(Vec<OwnedItemPresenterContext>),
     Curly(Vec<OwnedItemPresenterContext>),
     Round(Vec<OwnedItemPresenterContext>),
-    StructDestroy(Vec<OwnedItemPresenterContext>),
-    EnumDestroy(Vec<OwnedItemPresenterContext>),
+    StructDropBody(Vec<OwnedItemPresenterContext>),
+    EnumDropBody(Vec<OwnedItemPresenterContext>),
+    Lambda(TokenStream2, Box<IteratorPresentationContext>),
 }
 
 impl ScopeContextPresentable for IteratorPresentationContext {
@@ -32,7 +34,7 @@ impl ScopeContextPresentable for IteratorPresentationContext {
                 let items = items.iter().map(|f| f.present(context));
                 quote!(( #(#items,)* ))
             },
-            IteratorPresentationContext::StructDestroy(items) => {
+            IteratorPresentationContext::StructDropBody(items) => {
                 match items.len() {
                     0 => quote!(),
                     _ => {
@@ -41,13 +43,21 @@ impl ScopeContextPresentable for IteratorPresentationContext {
                     }
                 }
             },
-            IteratorPresentationContext::EnumDestroy(items) => {
+            IteratorPresentationContext::EnumDropBody(items) => {
                 match items.len() {
                     0 => quote!(),
                     _ => OwnerIteratorPresentationContext::MatchFields((quote!(self), items.clone()))
                         .present(context)
                 }
             }
+            IteratorPresentationContext::Simple(conversion) => {
+                quote!(#conversion)
+            }
+            IteratorPresentationContext::Lambda(l_value, r_value) => {
+                let r_value = r_value.present(context);
+                quote!(#l_value => #r_value)
+            }
+
         }
     }
 }

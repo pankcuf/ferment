@@ -1,8 +1,7 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::parse_quote;
 use crate::context::ScopeContext;
-use crate::interface::{destroy_conversion, ffi_from_conversion, ffi_from_opt_conversion, ffi_to_conversion, ffi_to_opt_conversion, iter_map_collect, package_boxed_expression, package_boxed_vec_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
+use crate::interface::{ffi_from_conversion, ffi_to_conversion, interface, package, package_boxed_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
@@ -30,6 +29,9 @@ pub enum FieldTypePresentationContext {
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
     IfThenSome(TokenStream2, TokenStream2),
+    Named((TokenStream2, Box<FieldTypePresentationContext>)),
+    Scope,
+    Terminated(Box<FieldTypePresentationContext>),
 }
 
 impl ScopeContextPresentable for FieldTypePresentationContext {
@@ -47,11 +49,15 @@ impl ScopeContextPresentable for FieldTypePresentationContext {
             FieldTypePresentationContext::ToVec(presentation_context) => {
                 presentation_context.present(context)
             }
-            FieldTypePresentationContext::ToOpt(field_path) =>
-                ffi_to_opt_conversion(field_path.to_token_stream()),
+            FieldTypePresentationContext::ToOpt(field_path) => {
+                let package = package();
+                let interface = interface();
+                quote!(#package::#interface::ffi_to_opt(#field_path))
+            },
             FieldTypePresentationContext::ToVecPtr => {
                 let expr = package_boxed_expression(quote!(o));
-                package_boxed_vec_expression(iter_map_collect(quote!(obj), quote!(|o| #expr)))
+                let package = package();
+                quote!(#package::boxed_vec(obj.map(|o| #expr).collect()))
             }
             FieldTypePresentationContext::LineTermination => quote!(;),
             FieldTypePresentationContext::Empty => quote!(),
@@ -64,7 +70,9 @@ impl ScopeContextPresentable for FieldTypePresentationContext {
                 quote!(if !#field_path.is_null() { #conversion })
             }
             FieldTypePresentationContext::DestroyConversion(field_path, path) => {
-                destroy_conversion(field_path.to_token_stream(), parse_quote!(std::os::raw::c_char), quote!(#path))
+                let package = package();
+                let interface = interface();
+                quote!(<std::os::raw::c_char as #package::#interface<#path>>::destroy(#field_path))
             },
 
             FieldTypePresentationContext::FromRawParts(field_type) => {
@@ -74,7 +82,9 @@ impl ScopeContextPresentable for FieldTypePresentationContext {
                 ffi_from_conversion(field_path.to_token_stream())
             },
             FieldTypePresentationContext::FromOpt(field_path) => {
-                ffi_from_opt_conversion(field_path.to_token_stream())
+                let package = package();
+                let interface = interface();
+                quote!(#package::#interface::ffi_from_opt(#field_path))
             },
             FieldTypePresentationContext::FromOffsetMap => {
                 let ffi_from_conversion =
@@ -86,13 +96,24 @@ impl ScopeContextPresentable for FieldTypePresentationContext {
             },
             FieldTypePresentationContext::AsRef(field_path) => {
                 quote!(&#field_path)
-            }
+            },
             FieldTypePresentationContext::AsMutRef(field_path) => {
                 quote!(&mut #field_path)
-            }
+            },
             FieldTypePresentationContext::IfThenSome(field_path, condition) => {
                 // quote!((#field_path > 0).then_some(#field_path))
                 quote!((#field_path #condition).then_some(#field_path))
+            }
+            FieldTypePresentationContext::Named((l_value, r_value)) => {
+                let ty = r_value.present(context);
+                quote!(#l_value: #ty)
+            }
+            FieldTypePresentationContext::Scope => {
+                quote!({})
+            }
+            FieldTypePresentationContext::Terminated(presentation_context) => {
+                let ty = presentation_context.present(context);
+                quote!(#ty;)
             }
         }
     }

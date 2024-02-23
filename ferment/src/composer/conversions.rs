@@ -1,6 +1,5 @@
 use std::rc::Rc;
 use std::cell::RefCell;
-use quote::{quote, ToTokens};
 use syn::{Field, FieldsNamed, FieldsUnnamed, parse_quote, Type};
 use crate::composer::FieldTypesContext;
 use crate::context::ScopeContext;
@@ -26,7 +25,6 @@ impl<'a> ConversionsComposer<'a> {
                     .named
                     .iter()
                     .map(|Field { ident, ty, .. }| {
-                        println!("conversions_composer:NamedStruct {}: {}: ({})", quote!(#ident), quote!(#ty), ctx.full_type_for(ty).to_token_stream());
                         FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.full_type_for(ty))
                     })
                     .collect(),
@@ -37,7 +35,6 @@ impl<'a> ConversionsComposer<'a> {
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
                         FieldTypeConversion::Unnamed(Name::UnamedArg(index), ctx.full_type_for(ty)))
-                        // (context.full_type_for(ty), ffi_unnamed_arg_name(index).to_token_stream()))
                     .collect(),
             Self::UnnamedStruct(fields) =>
                 fields
@@ -46,7 +43,6 @@ impl<'a> ConversionsComposer<'a> {
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
                         FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(ty.clone(), index), ctx.full_type_for(ty)))
-                        // (context.full_type_for(ty), unnamed_struct_fields_comp(ty, index)))
                     .collect(),
             Self::TypeAlias(ty) => {
                 vec![FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(parse_quote!(#ty), 0), ctx.full_type_for(ty))]

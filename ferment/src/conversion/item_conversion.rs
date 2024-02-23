@@ -4,19 +4,15 @@ use std::rc::Rc;
 use syn::{Attribute, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, Signature, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::{AttrsComposer, Composer, ComposerAspect, ConversionsComposer, ItemComposer, ItemParentComposer, OwnerIteratorLocalContext};
+use crate::composer::{AttrsComposer, Composer, FFIConversionAspect, ConversionsComposer, ItemComposer, ItemParentComposer, OwnerIteratorLocalContext};
 use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, TraitDecompositionPart2};
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{FieldTypeConversion, MacroType};
-use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, EMPTY_DESTROY_PRESENTER, NAMED_CONVERSION_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_COMPOSER, ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
+use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_COMPOSER, ROUND_BRACES_FIELDS_PRESENTER};
 use crate::naming::Name;
-use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
-use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
-use crate::presentation::doc_presentation::DocPresentation;
-use crate::presentation::expansion::Expansion;
-use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
+use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
+use crate::presentation::context::{FieldTypePresentationContext, IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::tree::ScopeTreeExportID;
 
 
@@ -341,7 +337,8 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                         OwnerIteratorPresentationContext::EnumUnamedVariant(local_context),
                     unnamed
                         .iter()
-                        .map(|field| OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
+                        .map(|field|
+                            OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
@@ -351,11 +348,6 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                         .iter()
                         .map(|Field { ident, ty: field_type, .. }|
                                  OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.ffi_full_dictionary_field_type_presenter(field_type)), false))
-
-
-                            // OwnedItemPresenterContext::Conversion(NAMED_CONVERSION_PRESENTER(
-                            //     ident.clone().unwrap().to_token_stream(),
-                            //     ctx.ffi_full_dictionary_field_type_presenter(field_type))))
                         .collect(),
                 ),
             },
@@ -377,9 +369,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                         OwnerIteratorPresentationContext::NoFields(name),
                     |(name, _)|
                         OwnerIteratorPresentationContext::NoFields(name),
-                    SIMPLE_CONVERSION_PRESENTER,
+                    |(_, context)| context.clone(),
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    EMPTY_DESTROY_PRESENTER,
+                    |_| FieldTypePresentationContext::Scope,
                     |_| IteratorPresentationContext::Empty,
                     |field_type|
                         OwnedItemPresenterContext::Named(field_type, false),
@@ -395,9 +387,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     context,
                     ROUND_BRACES_FIELDS_PRESENTER,
                     ROUND_BRACES_FIELDS_PRESENTER,
-                    SIMPLE_CONVERSION_PRESENTER,
+                    |(_, context)| context.clone(),
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    SIMPLE_TERMINATED_PRESENTER,
+                    |(_, context)| FieldTypePresentationContext::Terminated(Box::new(context.clone())),
                     |fields| {
                         if fields.is_empty() {
                             IteratorPresentationContext::Empty
@@ -419,9 +411,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     context,
                     CURLY_BRACES_FIELDS_PRESENTER,
                     CURLY_BRACES_FIELDS_PRESENTER,
-                    NAMED_CONVERSION_PRESENTER,
+                    |(l_value, r_value)| FieldTypePresentationContext::Named((l_value.clone(), Box::new(r_value.clone()))),
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    SIMPLE_PRESENTER,
+                    |(_, context)| context.clone(),
                     |fields| {
                         if fields.is_empty() {
                             IteratorPresentationContext::Empty
@@ -438,16 +430,16 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         };
         let composer_owned = composer.borrow();
         variants_fields.push(OwnedItemPresenterContext::Conversion(variant_presenter((quote!(#variant_name), fields_context)).present(&ctx)));
-        conversions_from_ffi.push(composer_owned.compose_aspect(ComposerAspect::From));
-        conversions_to_ffi.push(composer_owned.compose_aspect(ComposerAspect::To));
-        destroy_fields.push(composer_owned.compose_aspect(ComposerAspect::Destroy));
-        drop_fields.push(OwnedItemPresenterContext::Conversion(composer_owned.compose_aspect(ComposerAspect::Drop)));
+        conversions_from_ffi.push(composer_owned.compose_aspect(FFIConversionAspect::From));
+        conversions_to_ffi.push(composer_owned.compose_aspect(FFIConversionAspect::To));
+        destroy_fields.push(composer_owned.compose_aspect(FFIConversionAspect::Destroy));
+        drop_fields.push(OwnedItemPresenterContext::Conversion(composer_owned.compose_aspect(FFIConversionAspect::Drop)));
         variants_constructors.push(BindingPresentation::EnumVariantConstructor {
             ffi_ident: target_name.to_token_stream(),
             ffi_variant_ident: variant_mangled_path,
             ffi_variant_path: ffi_variant_path.to_token_stream(),
             ctor_arguments: composer_owned.ffi_conversions_composer.bindings_composer.compose_arguments(),
-            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.present_field_names(&ctx),
+            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.compose_field_names(),
             context: Rc::clone(context)
         })
     });
@@ -466,7 +458,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
     };
     let drop = DropInterfacePresentation::Full(
         quote!(#target_name),
-        IteratorPresentationContext::EnumDestroy(drop_fields).present(&ctx),
+        IteratorPresentationContext::EnumDropBody(drop_fields).present(&ctx),
     );
 
     variants_constructors.push(BindingPresentation::Destructor {
@@ -508,7 +500,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 |field_type|
                     OwnedItemPresenterContext::DefaultFieldType(field_type),
                 ROUND_BRACES_FIELDS_PRESENTER,
-                SIMPLE_CONVERSION_PRESENTER,
+                |(_, context)| context.clone(),
                 |fields|
                     IteratorPresentationContext::Round(fields),
                 |field_type|
@@ -528,7 +520,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 |field_type|
                     OwnedItemPresenterContext::Named(field_type, true),
                 CURLY_BRACES_FIELDS_PRESENTER,
-                NAMED_CONVERSION_PRESENTER,
+                |(l_value, r_value)| FieldTypePresentationContext::Named((l_value.clone(), Box::new(r_value.clone()))),
                 |fields|
                     IteratorPresentationContext::Curly(fields),
                 |field_type|

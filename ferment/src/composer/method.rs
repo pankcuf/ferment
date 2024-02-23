@@ -1,33 +1,28 @@
 use quote::ToTokens;
-use syn::__private::TokenStream2;
 use ferment_macro::Parent;
-use crate::composer::{Composer, SharedComposer, BindingComposer, FieldTypesContext};
+use crate::composer::{Composer, SharedComposer, BindingComposer, LocalConversionContext};
 use crate::context::ScopeContext;
-use crate::conversion::FieldTypeConversion;
 use crate::presentation::BindingPresentation;
 use crate::shared::SharedAccess;
 
 #[derive(Parent)]
 pub struct MethodComposer<Parent: SharedAccess> {
     parent: Option<Parent>,
-    context_presenter: SharedComposer<Parent, TokenStream2>,
-    pub binding_presenter: BindingComposer,
-    pub fields: FieldTypesContext,
+    // root_composer: ComposerPresenter<LocalConversionContext, Vec<BindingPresentation>>,
+    context_composer: SharedComposer<Parent, LocalConversionContext>,
+    binding_presenter: BindingComposer,
 }
 impl<Parent: SharedAccess> MethodComposer<Parent> {
     pub const fn new(
+        // root_composer: ComposerPresenter<LocalConversionContext, Vec<BindingPresentation>>,
         binding_presenter: BindingComposer,
-        context_presenter: SharedComposer<Parent, TokenStream2>) -> Self {
+        context_composer: SharedComposer<Parent, LocalConversionContext>) -> Self {
         Self {
             parent: None,
+            // root_composer,
             binding_presenter,
-            context_presenter,
-            fields: vec![],
+            context_composer,
         }
-    }
-
-    pub fn add_conversion(&mut self, field_type: FieldTypeConversion) {
-        self.fields.push(field_type);
     }
 }
 
@@ -37,10 +32,11 @@ impl<Parent: SharedAccess> Composer<Parent> for MethodComposer<Parent> {
 
     fn compose(&self, source: &Self::Source) -> Self::Item {
         let parent = self.parent.as_ref().unwrap();
-        let context = parent.access(self.context_presenter);
-
-        let result = self.fields.iter()
-            .map(|field_type| (self.binding_presenter)((context.clone(), field_type.name(), source.ffi_full_dictionary_field_type_presenter(field_type.ty()).to_token_stream())))
+        // let (context, fields) = parent.access(self.context_composer);
+        let context = parent.access(self.context_composer);
+        // (self.root_composer)(context)
+        let result = context.1.iter()
+            .map(|field_type| (self.binding_presenter)((context.0.clone(), field_type.name(), source.ffi_full_dictionary_field_type_presenter(field_type.ty()).to_token_stream())))
             .collect();
 
         result

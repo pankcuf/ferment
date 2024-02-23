@@ -3,7 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::presentation::field_type_presentation::FieldTypePresentationContext;
+use crate::presentation::context::FieldTypePresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
 

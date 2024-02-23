@@ -11,8 +11,7 @@ use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::interface::{ffi_to_conversion, package_boxed_expression};
-use crate::presentation::context::{OwnedItemPresenterContext, OwnerIteratorPresentationContext};
-use crate::presentation::field_type_presentation::FieldTypePresentationContext;
+use crate::presentation::context::{FieldTypePresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::tree::ScopeTreeExportID;
 
 pub trait ItemExtension {

@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
-use crate::interface::{ffi_from_const, ffi_to_const, interface, obj, package};
+use crate::interface::{interface, obj, package};
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 
 pub enum ConversionInterfacePresentation {
@@ -56,14 +56,12 @@ impl ToTokens for ConversionInterfacePresentation {
                 let package = package();
                 let interface = interface();
                 let obj = obj();
-                let ffi_from_const = ffi_from_const();
-                let ffi_to_const = ffi_to_const();
                 quote! {
                     impl #generic_bounds #package::#interface<#target_type> for #ffi_type #where_clause {
-                        unsafe fn #ffi_from_const(ffi: *const #ffi_type) -> #target_type {
+                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type {
                             #from_presentation
                         }
-                        unsafe fn #ffi_to_const(#obj: #target_type) -> *const #ffi_type {
+                        unsafe fn ffi_to_const(#obj: #target_type) -> *const #ffi_type {
                             #to_presentation
                         }
                         unsafe fn destroy(ffi: *mut #ffi_type) {

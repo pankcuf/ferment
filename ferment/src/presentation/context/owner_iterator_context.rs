@@ -2,7 +2,7 @@ use quote::quote;
 use syn::__private::TokenStream2;
 use crate::composer::OwnerIteratorLocalContext;
 use crate::context::ScopeContext;
-use crate::interface::{create_struct, CURLY_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
+use crate::interface::{create_struct, CURLY_BRACES_FIELDS_PRESENTER, package_boxed_expression, SIMPLE_PAIR_PRESENTER, SIMPLE_TERMINATED_PRESENTER};
 use crate::presentation::context::{OwnedItemPresenterContext, IteratorPresentationContext};
 use crate::presentation::ScopeContextPresentable;
 
@@ -22,6 +22,9 @@ pub enum OwnerIteratorPresentationContext {
     EnumNamedVariant(OwnerIteratorLocalContext),
     EnumUnamedVariant(OwnerIteratorLocalContext),
     Enum(OwnerIteratorLocalContext),
+    FromRoot(TokenStream2, Box<OwnerIteratorPresentationContext>),
+    Boxed(Box<OwnerIteratorPresentationContext>),
+    Lambda(TokenStream2, Box<OwnerIteratorPresentationContext>)
 }
 
 impl ScopeContextPresentable for OwnerIteratorPresentationContext {
@@ -89,6 +92,18 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let items = fields.iter().map(|item| item.present(context));
                 quote!(#name = #(#items)*)
             },
+            OwnerIteratorPresentationContext::FromRoot(field_path, conversions) => {
+                let conversions = conversions.present(context);
+                quote!(let ffi_ref = #field_path; #conversions)
+            }
+            OwnerIteratorPresentationContext::Boxed(conversions) => {
+                package_boxed_expression(conversions.present(context))
+            }
+            OwnerIteratorPresentationContext::Lambda(l_value, r_value) => {
+                let r_value = r_value.present(context);
+                quote!(#l_value => #r_value)
+
+            }
         }
     }
 }

@@ -1,26 +1,26 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
+use std::iter::Iterator;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Path;
-use crate::composer::{AttrsComposer, BindingComposer, Composer, ComposerAspect, ContextComposer, ConversionComposer, ConversionsComposer, FFIBindingsComposer, FFIConversionComposer, FieldsComposer, FieldTypeComposer, FieldTypesContext, HasParent, ItemComposerFieldTypesContextPresenter, ItemComposerLocalConversionContextPresenter, ItemComposerTokenStreamPresenter, ItemParentComposer, IteratorConversionComposer, MethodComposer, NameComposer, OwnedComposer, OwnedFieldTypeComposer, OwnerIteratorConversionComposer, SimplePairConversionComposer, SimpleComposerPresenter, SimpleItemParentContextComposer};
+use crate::composer::{AttrsComposer, BindingComposer, Composer, FFIConversionAspect, ContextComposer, ConversionsComposer, FFIBindingsComposer, FFIConversionComposer, FieldsComposer, FieldTypeComposer, FieldTypesContext, HasParent, ItemComposerFieldTypesContextPresenter, ItemComposerLocalConversionContextPresenter, ItemComposerTokenStreamPresenter, ItemParentComposer, IteratorConversionComposer, MethodComposer, NameComposer, OwnedFieldTypeComposer, OwnerIteratorConversionComposer, SimpleComposerPresenter, SimpleItemParentContextComposer, ComposerPresenterByRef, ConversionComposer, LocalConversionContext, FieldTypePresentationContextPassRef};
 use crate::composition::AttrsComposition;
 use crate::context::ScopeContext;
-use crate::conversion::FieldTypeConversion;
 use crate::ext::Conversion;
-use crate::interface::{DEFAULT_DOC_PRESENTER, EMPTY_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, LAMBDA_CONVERSION_PRESENTER, obj, ROOT_DESTROY_CONTEXT_COMPOSER, SIMPLE_CONVERSION_PRESENTER, SIMPLE_PRESENTER};
+use crate::interface::{DEFAULT_DOC_PRESENTER, EMPTY_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, LAMBDA_CONVERSION_PRESENTER2, LAMBDA_CONVERSION_PRESENTER3, obj, ROOT_DESTROY_CONTEXT_COMPOSER, SIMPLE_PRESENTER};
 use crate::naming::Name;
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{FieldTypePresentationContext, IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation};
 
 pub const EMPTY_CONTEXT_COMPOSER: SimpleItemParentContextComposer = ContextComposer::new(
     EMPTY_PRESENTER,
     EMPTY_CONTEXT_PRESENTER);
 
-pub const STRUCT_DESTROY_CONVERSIONS_COMPOSER: IteratorConversionComposer =
+pub const STRUCT_DROP_CONVERSIONS_COMPOSER: IteratorConversionComposer =
     |fields|
-        IteratorPresentationContext::StructDestroy(fields.clone());
+        IteratorPresentationContext::StructDropBody(fields.clone());
 pub const TYPE_ALIAS_FROM_CONVERSIONS_COMPOSER: OwnerIteratorConversionComposer =
     |(_, fields)|
         OwnerIteratorPresentationContext::TypeAliasFromConversion(fields);
@@ -40,15 +40,6 @@ pub const DESTROY_STRUCT_COMPOSER: SimpleItemParentContextComposer = ContextComp
 pub const DEFAULT_DOC_COMPOSER: SimpleItemParentContextComposer = ContextComposer::new(
     DEFAULT_DOC_PRESENTER,
     TARGET_NAME_PRESENTER);
-
-pub const DROP_STRUCT_COMPOSER: ConversionComposer<ItemParentComposer, FieldTypesContext, TokenStream2, Vec<OwnedItemPresenterContext>, IteratorPresentationContext> = ConversionComposer::new(
-    SIMPLE_CONVERSION_PRESENTER,
-    EMPTY_CONTEXT_PRESENTER,
-    OwnedComposer::new(
-        STRUCT_DESTROY_CONVERSIONS_COMPOSER,
-        FIELD_TYPES_COMPOSER,
-        SIMPLE_PRESENTER,
-        STRUCT_FIELD_TYPE_DESTROY_PRESENTER));
 
 pub const FIELDS_FROM_PRESENTER: ItemComposerTokenStreamPresenter =
     |composer| composer.fields_from_composer.compose(&composer.context.borrow());
@@ -150,9 +141,9 @@ pub const FFI_NAME_LOCAL_CONVERSION_COMPOSER: ItemComposerLocalConversionContext
 pub const FIELD_TYPES_COMPOSER: ItemComposerFieldTypesContextPresenter =
     |composer| composer.field_types.clone();
 
+
 pub struct ItemComposer {
     pub context: Rc<RefCell<ScopeContext>>,
-    pub need_drop_presentation: bool,
     pub ffi_name_composer: NameComposer<ItemParentComposer>,
     pub target_name_composer: NameComposer<ItemParentComposer>,
     pub attrs_composer: AttrsComposer<ItemParentComposer>,
@@ -166,7 +157,177 @@ pub struct ItemComposer {
 
     pub field_types: FieldTypesContext,
 }
+const fn type_alias_composer_from()
+    -> StructConversionComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        FFI_FROM_ROOT_PRESENTER,
+        FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
+        TYPE_ALIAS_FROM_CONVERSIONS_COMPOSER,
+        TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
+        |(_, conversion)| conversion.clone(),
+        |(context, presenter)|
+            (context.0, context.1.iter()
+                .map(|field_type| {
+                    let conversion_context = (field_type.name(), FIELD_PATH_FROM_PRESENTER(field_type));
+                    OwnedItemPresenterContext::FieldType(presenter(&conversion_context))
+                })
+                .collect())
+    )
+}
+const fn type_alias_composer_to() -> StructConversionComposer<ItemParentComposer>  {
+    ConversionComposer::new(
+        FFI_TO_ROOT_PRESENTER,
+        TO_OBJ_CONTEXT_PRESENTER,
+        TYPE_ALIAS_TO_CONVERSIONS_COMPOSER,
+        FFI_NAME_LOCAL_CONVERSION_COMPOSER,
+        |(_, conversion)| conversion.clone(),
+        |(context, presenter)|
+            (context.0, context.1.iter().map(|field_type| {
+                let conversion_context = (quote!(), TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER(field_type));
+                let conversion = presenter(&conversion_context);
+                OwnedItemPresenterContext::FieldType(conversion)
+            }).collect()))
+}
+const fn type_alias_composer_drop() -> StructDropComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        |(_, conversion)| conversion,
+        EMPTY_CONTEXT_PRESENTER,
+        STRUCT_DROP_CONVERSIONS_COMPOSER,
+        FIELD_TYPES_COMPOSER,
+        |(_, conversion)| conversion.clone(),
+        |(context, presenter)|
+            context.iter()
+                .map(|field_type| {
+                    let conversion_context = (quote!(), STRUCT_FIELD_TYPE_DESTROY_PRESENTER(field_type));
+                    let conversion = presenter(&conversion_context);
+                    OwnedItemPresenterContext::FieldType(conversion)
+                })
+                .collect())
+}
+pub type StructConversionComposer<Parent> = ConversionComposer<
+    Parent,
+    LocalConversionContext,
+    (TokenStream2, FieldTypePresentationContext),
+    FieldTypePresentationContext,
+    (TokenStream2, Vec<OwnedItemPresenterContext>),
+    OwnerIteratorPresentationContext,
+    TokenStream2,
+    OwnerIteratorPresentationContext>;
+pub type StructDropComposer<Parent> = ConversionComposer<
+    Parent,
+    FieldTypesContext,
+    (TokenStream2, FieldTypePresentationContext),
+    FieldTypePresentationContext,
+    Vec<OwnedItemPresenterContext>,
+    IteratorPresentationContext,
+    TokenStream2,
+    IteratorPresentationContext>;
 
+const fn struct_composer_from(
+    root_conversion_presenter: OwnerIteratorConversionComposer,
+    conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>
+) -> StructConversionComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        FFI_FROM_ROOT_PRESENTER,
+        FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
+        root_conversion_presenter,
+        TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
+        conversion_presenter,
+        |(context, presenter)|
+            (context.0, context.1.iter().map(|field_type| {
+                let conversion_context = (field_type.name(), FIELD_PATH_FROM_PRESENTER(field_type));
+                let conversion = presenter(&conversion_context);
+                OwnedItemPresenterContext::FieldType(conversion)
+            }).collect()))
+}
+
+const fn struct_composer_to(
+    root_conversion_presenter: OwnerIteratorConversionComposer,
+    conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>
+) -> StructConversionComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        FFI_TO_ROOT_PRESENTER,
+        EMPTY_CONTEXT_PRESENTER,
+        root_conversion_presenter,
+        FFI_NAME_LOCAL_CONVERSION_COMPOSER,
+        conversion_presenter,
+        |(context, presenter)|
+            (context.0, context.1.iter().map(|field_type| {
+                let conversion_context = (field_type.name(), STRUCT_FIELD_TYPE_TO_PRESENTER(field_type));
+                let conversion = presenter(&conversion_context);
+                OwnedItemPresenterContext::FieldType(conversion)
+            }).collect()))
+}
+const fn struct_composer_drop() -> StructDropComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        |(_, conversion)| conversion,
+        EMPTY_CONTEXT_PRESENTER,
+        STRUCT_DROP_CONVERSIONS_COMPOSER,
+        FIELD_TYPES_COMPOSER,
+        |(_, conversion)| conversion.clone(),
+        |(context, presenter)|
+            context.iter()
+                .map(|field_type| {
+                    let conversion_context = (quote!(), STRUCT_FIELD_TYPE_DESTROY_PRESENTER(field_type));
+                    let conversion = presenter(&conversion_context);
+                    OwnedItemPresenterContext::FieldType(conversion)
+                })
+                .collect())
+}
+const fn enum_variant_composer_from(
+    root_conversion_presenter: OwnerIteratorConversionComposer,
+    conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>
+) -> StructConversionComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        |(l_value, r_value)|
+            OwnerIteratorPresentationContext::Lambda(l_value.clone(), Box::new(r_value)),
+        FIELDS_FROM_PRESENTER,
+        root_conversion_presenter,
+        TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
+        conversion_presenter,
+        |(context, presenter)|
+            (context.0, context.1.iter().map(|field_type| {
+                let conversion_context = (field_type.name(), DEREF_FIELD_PATH_FROM_PRESENTER(field_type));
+                let conversion = presenter(&conversion_context);
+                OwnedItemPresenterContext::FieldType(conversion)
+            }).collect()))
+}
+
+const fn enum_variant_composer_to(
+    root_conversion_presenter: OwnerIteratorConversionComposer,
+    conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>
+) -> StructConversionComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        LAMBDA_CONVERSION_PRESENTER2,
+        FIELDS_TO_PRESENTER,
+        root_conversion_presenter,
+        FFI_NAME_LOCAL_CONVERSION_COMPOSER,
+        conversion_presenter,
+        |(context, presenter)|
+            (context.0, context.1.iter().map(|field_type| {
+                let conversion_context = (field_type.name(), ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER(field_type));
+                let conversion = presenter(&conversion_context);
+                OwnedItemPresenterContext::FieldType(conversion)
+            }).collect()))
+}
+const fn enum_variant_composer_drop(
+    conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>,
+) -> StructDropComposer<ItemParentComposer> {
+    ConversionComposer::new(
+        LAMBDA_CONVERSION_PRESENTER3,
+        FIELDS_FROM_PRESENTER,
+        ENUM_VARIANT_DROP_CONVERSIONS_PRESENTER,
+        FIELD_TYPES_COMPOSER,
+        conversion_presenter,
+        |(context, presenter)|
+            context.iter()
+                .map(|field_type| {
+                    let conversion_context = ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER(field_type);
+                    let conversion = presenter(&(field_type.name(), conversion_context));
+                    OwnedItemPresenterContext::FieldType(conversion)
+                })
+                .collect())
+}
 
 impl ItemComposer {
 
@@ -187,18 +348,13 @@ impl ItemComposer {
             TYPE_ALIAS_FIELD_PRESENTER,
             FFI_STRUCT_COMPOSER,
             FFIConversionComposer::new(
-                ConversionComposer::new(
-                    FFI_FROM_ROOT_PRESENTER,
-                    FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
-                    OwnedComposer::new(TYPE_ALIAS_FROM_CONVERSIONS_COMPOSER, TARGET_NAME_LOCAL_CONVERSION_COMPOSER, SIMPLE_CONVERSION_PRESENTER, FIELD_PATH_FROM_PRESENTER)),
-                ConversionComposer::new(
-                    FFI_TO_ROOT_PRESENTER,
-                    TO_OBJ_CONTEXT_PRESENTER,
-                    OwnedComposer::new(TYPE_ALIAS_TO_CONVERSIONS_COMPOSER, FFI_NAME_LOCAL_CONVERSION_COMPOSER, SIMPLE_CONVERSION_PRESENTER, TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER)),
+                type_alias_composer_from(),
+                type_alias_composer_to(),
                 DESTROY_STRUCT_COMPOSER,
-                DROP_STRUCT_COMPOSER,
+                type_alias_composer_drop(),
                 FFIBindingsComposer::new(
                     TYPE_ALIAS_BINDING_ROOT_PRESENTER,
+                    FIELD_TYPES_COMPOSER,
                     TYPE_ALIAS_BINDING_ARG_PRESENTER,
                     TYPE_ALIAS_BINDING_FIELD_PRESENTER),
                 ),
@@ -215,7 +371,7 @@ impl ItemComposer {
         root_presenter: OwnerIteratorConversionComposer,
         field_presenter: OwnedFieldTypeComposer,
         root_conversion_presenter: OwnerIteratorConversionComposer,
-        conversion_presenter: SimplePairConversionComposer,
+        conversion_presenter: FieldTypePresentationContextPassRef,
         bindings_presenter: IteratorConversionComposer,
         bindings_arg_presenter: OwnedFieldTypeComposer,
         bindings_field_names_presenter: OwnedFieldTypeComposer,
@@ -230,26 +386,13 @@ impl ItemComposer {
             field_presenter,
             FFI_STRUCT_COMPOSER,
             FFIConversionComposer::new(
-                ConversionComposer::new(
-                    FFI_FROM_ROOT_PRESENTER,
-                    FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER,
-                    OwnedComposer::new(
-                        root_conversion_presenter,
-                        TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
-                        conversion_presenter,
-                        FIELD_PATH_FROM_PRESENTER)),
-                ConversionComposer::new(
-                    FFI_TO_ROOT_PRESENTER,
-                    EMPTY_CONTEXT_PRESENTER,
-                    OwnedComposer::new(
-                        root_conversion_presenter,
-                        FFI_NAME_LOCAL_CONVERSION_COMPOSER,
-                        conversion_presenter,
-                        STRUCT_FIELD_TYPE_TO_PRESENTER)),
+                struct_composer_from(root_conversion_presenter, conversion_presenter),
+                struct_composer_to(root_conversion_presenter, conversion_presenter),
                 DESTROY_STRUCT_COMPOSER,
-                DROP_STRUCT_COMPOSER,
+                struct_composer_drop(),
                 FFIBindingsComposer::new(
                     bindings_presenter,
+                    FIELD_TYPES_COMPOSER,
                     bindings_arg_presenter,
                     bindings_field_names_presenter),
             ),
@@ -265,9 +408,9 @@ impl ItemComposer {
         context: &Rc<RefCell<ScopeContext>>,
         root_presenter: OwnerIteratorConversionComposer,
         root_conversion_presenter: OwnerIteratorConversionComposer,
-        conversion_presenter: SimplePairConversionComposer,
+        conversion_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>,
         destroy_code_context_presenter: SimpleComposerPresenter,
-        destroy_presenter: SimpleComposerPresenter,
+        destroy_presenter: ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>,
         bindings_iterator_presenter: IteratorConversionComposer,
         bindings_arg_presenter: OwnedFieldTypeComposer,
         bindings_field_names_presenter: OwnedFieldTypeComposer,
@@ -282,37 +425,19 @@ impl ItemComposer {
             ENUM_VARIANT_FIELD_PRESENTER,
             EMPTY_CONTEXT_COMPOSER,
             FFIConversionComposer::new(
-                ConversionComposer::new(
-                    LAMBDA_CONVERSION_PRESENTER,
-                    FIELDS_FROM_PRESENTER,
-                    OwnedComposer::new(
-                        root_conversion_presenter,
-                        TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
-                        conversion_presenter,
-                        DEREF_FIELD_PATH_FROM_PRESENTER)),
-                ConversionComposer::new(
-                    LAMBDA_CONVERSION_PRESENTER,
-                    FIELDS_TO_PRESENTER,
-                    OwnedComposer::new(
-                        root_conversion_presenter,
-                        FFI_NAME_LOCAL_CONVERSION_COMPOSER,
-                        conversion_presenter,
-                        ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER)),
-                ContextComposer::new(
-                    destroy_code_context_presenter,
-                    FIELDS_FROM_PRESENTER),
-                ConversionComposer::new(
-                    LAMBDA_CONVERSION_PRESENTER,
-                    FIELDS_FROM_PRESENTER,
-                    OwnedComposer::new(ENUM_VARIANT_DROP_CONVERSIONS_PRESENTER, FIELD_TYPES_COMPOSER, destroy_presenter, ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER)),
+                enum_variant_composer_from(root_conversion_presenter, conversion_presenter),
+                enum_variant_composer_to(root_conversion_presenter, conversion_presenter),
+                ContextComposer::new(destroy_code_context_presenter, FIELDS_FROM_PRESENTER),
+                enum_variant_composer_drop(destroy_presenter),
                 FFIBindingsComposer::new(
                     bindings_iterator_presenter,
+                    FIELD_TYPES_COMPOSER,
                     bindings_arg_presenter,
                     bindings_field_names_presenter)),
             conversions_composer)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, non_camel_case_types)]
     fn new(
         ffi_name: Path,
         target_name: Path,
@@ -323,28 +448,28 @@ impl ItemComposer {
         field_presenter: OwnedFieldTypeComposer,
         ffi_object_composer: SimpleItemParentContextComposer,
         ffi_conversions_composer: FFIConversionComposer<ItemParentComposer>,
-        conversions_composer: ConversionsComposer) -> ItemParentComposer where Self: Sized {
+        conversions_composer: ConversionsComposer) -> ItemParentComposer
+        where Self: Sized {
 
         let root = Rc::new(RefCell::new(Self {
-            need_drop_presentation: true,
             context: Rc::clone(context),
             attrs_composer: AttrsComposer::new(attrs),
             ffi_name_composer: NameComposer::new(ffi_name),
             target_name_composer: NameComposer::new(target_name),
             fields_from_composer: FieldsComposer::new(
                 root_presenter,
-                FFI_NAME_CONTEXT_PRESENTER,
+                FFI_NAME_LOCAL_CONVERSION_COMPOSER,
                 field_presenter),
             fields_to_composer: FieldsComposer::new(
                 root_presenter,
-                TARGET_NAME_PRESENTER,
+                TARGET_NAME_LOCAL_CONVERSION_COMPOSER,
                 field_presenter),
             fields_get_composer: MethodComposer::new(
                 BINDING_GETTER_COMPOSER,
-                FFI_NAME_CONTEXT_PRESENTER),
+                FFI_NAME_LOCAL_CONVERSION_COMPOSER),
             fields_set_composer: MethodComposer::new(
                 BINDING_SETTER_COMPOSER,
-                FFI_NAME_CONTEXT_PRESENTER),
+                FFI_NAME_LOCAL_CONVERSION_COMPOSER),
             ffi_conversions_composer,
             ffi_object_composer,
             doc_composer,
@@ -356,9 +481,7 @@ impl ItemComposer {
             conversions_composer
                 .compose(&root_borrowed.context)
                 .into_iter()
-                .for_each(|field_type|
-                    root_borrowed.add_conversion(field_type));
-
+                .for_each(|field_type| root_borrowed.field_types.push(field_type));
         }
         root
     }
@@ -376,20 +499,12 @@ impl ItemComposer {
         self.doc_composer.set_parent(root);
     }
 
-    fn add_conversion(&mut self, field_type: FieldTypeConversion) {
-        self.field_types.push(field_type.clone());
-        self.ffi_conversions_composer.add_conversion(field_type.clone());
-        self.fields_from_composer.add_conversion(field_type.clone());
-        self.fields_to_composer.add_conversion(field_type.clone());
-        self.fields_get_composer.add_conversion(field_type.clone());
-        self.fields_set_composer.add_conversion(field_type);
-    }
 
     // pub(crate) fn compose_attrs(&self) -> TokenStream2 {
     //     self.attrs_composer.compose(&self.context.borrow())
     // }
 
-    pub(crate) fn compose_aspect(&self, aspect: ComposerAspect) -> TokenStream2 {
+    pub(crate) fn compose_aspect(&self, aspect: FFIConversionAspect) -> TokenStream2 {
         self.ffi_conversions_composer.compose_aspect(aspect, &self.context.borrow())
     }
     pub(crate) fn make_expansion(&self) -> Expansion {
@@ -399,18 +514,19 @@ impl ItemComposer {
         // TODO: avoid this
         let ffi_ident = format_ident!("{}", ffi_name.to_string());
         let target_name = self.target_name_composer.compose(&ctx);
-        let conversion_presentation = ConversionInterfacePresentation::Interface {
+        let ffi_presentation = FFIObjectPresentation::Full(self.ffi_object_composer.compose(&ctx));
+        let conversion = ConversionInterfacePresentation::Interface {
             ffi_type: ffi_name.clone(),
             target_type: target_name.clone(),
-            from_presentation: FromConversionPresentation::Struct(self.compose_aspect(ComposerAspect::From)),
-            to_presentation: ToConversionPresentation::Struct(self.compose_aspect(ComposerAspect::To)),
-            destroy_presentation: self.compose_aspect(ComposerAspect::Destroy),
+            from_presentation: FromConversionPresentation::Struct(self.compose_aspect(FFIConversionAspect::From)),
+            to_presentation: ToConversionPresentation::Struct(self.compose_aspect(FFIConversionAspect::To)),
+            destroy_presentation: self.compose_aspect(FFIConversionAspect::Destroy),
             generics: None
         };
         let constructor_presentation = BindingPresentation::Constructor {
             ffi_ident: ffi_ident.clone(),
             ctor_arguments: self.ffi_conversions_composer.bindings_composer.compose_arguments(),
-            body_presentation: self.ffi_conversions_composer.bindings_composer.present_field_names(&ctx),
+            body_presentation: self.ffi_conversions_composer.bindings_composer.compose_field_names(),
             context: self.context.clone(),
         };
         let destructor_presentation = BindingPresentation::Destructor {
@@ -419,19 +535,19 @@ impl ItemComposer {
         };
 
         let mut bindings = vec![constructor_presentation, destructor_presentation];
-        bindings.extend(self.fields_get_composer.compose(&self.context.borrow()));
-        bindings.extend(self.fields_set_composer.compose(&self.context.borrow()));
+        bindings.extend(self.fields_get_composer.compose(&ctx));
+        bindings.extend(self.fields_set_composer.compose(&ctx));
+        let traits = self.attrs_composer.compose(&ctx);
+        let comment = DocPresentation::Direct(self.doc_composer.compose(&ctx));
+        let drop = DropInterfacePresentation::Full(self.ffi_name_composer.compose(&ctx), self.compose_aspect(FFIConversionAspect::Drop));
         Expansion::Full {
-            comment: DocPresentation::Direct(self.doc_composer.compose(&ctx)),
-            ffi_presentation: FFIObjectPresentation::Full(self.ffi_object_composer.compose(&ctx)),
-            conversion: conversion_presentation,
+            comment,
+            ffi_presentation,
+            conversion,
             bindings,
-            drop: if self.need_drop_presentation {
-                DropInterfacePresentation::Full(self.ffi_name_composer.compose(&ctx), self.compose_aspect(ComposerAspect::Drop))
-            } else {
-                DropInterfacePresentation::Empty
-            },
-            traits: self.attrs_composer.compose(&ctx)
+            drop,
+            traits
         }
     }
 }
+

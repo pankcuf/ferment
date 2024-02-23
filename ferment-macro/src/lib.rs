@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{DeriveInput, Generics, parse_macro_input, parse_quote};
 
 
 /// The `export` procedural macro facilitates FFI (Foreign Function Interface) conversion
@@ -85,18 +85,47 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+// #[proc_macro_derive(Parent)]
+// pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
+//     let input = parse_macro_input!(input as DeriveInput);
+//
+//     let name = &input.ident;
+//     let expanded = quote! {
+//         impl<Parent: crate::shared::SharedAccess> crate::shared::HasParent<Parent> for #name<Parent>  {
+//             fn set_parent(&mut self, parent: &Parent) {
+//                 self.parent = Some(parent.clone_container());
+//             }
+//         }
+//     };
+//
+//     TokenStream::from(expanded)
+// }
+
+fn add_trait_bounds(mut generics: Generics) -> Generics {
+    for param in &mut generics.params {
+        if let syn::GenericParam::Type(type_param) = param {
+            type_param.bounds.push(parse_quote!(crate::shared::SharedAccess));
+        }
+    }
+
+    generics
+}
+
 #[proc_macro_derive(Parent)]
 pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let name = &input.ident;
+    let name = input.ident;
+    let generics = add_trait_bounds(input.generics);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     let expanded = quote! {
-        impl<Parent: crate::shared::SharedAccess> crate::shared::HasParent<Parent> for #name<Parent>  {
+        impl #impl_generics crate::shared::HasParent<Parent> for #name #ty_generics #where_clause {
             fn set_parent(&mut self, parent: &Parent) {
                 self.parent = Some(parent.clone_container());
             }
         }
     };
-
+    println!("composer_parent_derive:: {}", quote!(#expanded));
     TokenStream::from(expanded)
 }

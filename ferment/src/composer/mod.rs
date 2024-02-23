@@ -15,13 +15,13 @@ use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::presentation::field_type_presentation::FieldTypePresentationContext;
+use crate::presentation::context::FieldTypePresentationContext;
 use crate::shared::{HasParent, SharedAccess};
 pub use self::attrs::{AttrsComposer, implement_trait_for_item};
 pub use self::conversion::ConversionComposer;
 pub use self::conversions::ConversionsComposer;
 pub use self::ffi_bindings::FFIBindingsComposer;
-pub use self::ffi_conversions::ComposerAspect;
+pub use self::ffi_conversions::FFIConversionAspect;
 pub use self::ffi_conversions::FFIConversionComposer;
 pub use self::fields::FieldsComposer;
 pub use self::item::ItemComposer;
@@ -64,31 +64,13 @@ pub type OwnerIteratorLocalContext = (TokenStream2, Vec<OwnedItemPresenterContex
 pub type FieldTypesContext = Vec<FieldTypeConversion>;
 pub type LocalConversionContext = (TokenStream2, FieldTypesContext);
 
+pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>;
+
 pub trait Composer<Parent> where Self: Sized + HasParent<Parent> {
     type Item;
     type Source;
     fn compose(&self, source: &Self::Source) -> Self::Item;
 }
-
-
-// #[macro_export]
-// macro_rules! composer_impl {
-//     ($name:ident, $output:ty, $composition:expr) => {
-//         impl<P, S> crate::composer::Composer<P, S> for $name where Self: Sized, P: Parent {
-//             type Item = $output;
-//             // type Parent = ParentComposer<ItemComposer>;
-//             type Source = S;
-//
-//             fn set_parent(&mut self, root: &P) {
-//                 self.parent = Some(root.to_inner());
-//             }
-//             #[allow(clippy::redundant_closure_call)]
-//             fn compose(&self, source: &Self::Source) -> Self::Item {
-//                 $composition(self, source)
-//             }
-//         }
-//     }
-// }
 
 pub struct ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
     parent: Option<Parent>,
@@ -145,3 +127,11 @@ impl<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result
     }
 }
 
+// pub trait ComposerAspect {
+//     type Context;
+//     type Presentation;
+//     fn compose_with_composer<Parent, C>(&self, composer: &C, context: &Self::Context) -> Self::Presentation
+//         where Parent: SharedAccess, C: Composer<Parent> {
+//         composer.compose(context)
+//     }
+// }

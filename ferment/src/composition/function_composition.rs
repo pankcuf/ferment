@@ -11,9 +11,8 @@ use crate::helper::{from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
 use crate::interface::{ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
 use crate::naming::{DictionaryFieldName, Name};
-use crate::presentation::context::OwnedItemPresenterContext;
-use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
-use crate::presentation::field_type_presentation::FieldTypePresentationContext;
+use crate::presentation::context::{FieldTypePresentationContext, OwnedItemPresenterContext};
+use crate::presentation::FFIObjectPresentation;
 use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]

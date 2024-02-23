@@ -3,7 +3,7 @@ use syn::__private::TokenStream2;
 use syn::{Type, TypePath};
 use crate::conversion::FieldTypeConversion;
 use crate::helper::{destroy_path, destroy_ptr, destroy_reference, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
-use crate::presentation::field_type_presentation::FieldTypePresentationContext;
+use crate::presentation::context::FieldTypePresentationContext;
 
 pub trait Conversion {
     type Item;

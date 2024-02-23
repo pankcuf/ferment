@@ -4,14 +4,14 @@ use std::cell::RefCell;
 use quote::{format_ident, quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::naming::Name;
-use crate::presentation::context::OwnedItemPresenterContext;
+use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext};
 use crate::presentation::ScopeContextPresentable;
 
 pub enum BindingPresentation {
     Constructor {
         ffi_ident: Ident,
         ctor_arguments: Vec<OwnedItemPresenterContext>,
-        body_presentation: TokenStream2,
+        body_presentation: IteratorPresentationContext,
         context: Rc<RefCell<ScopeContext>>
     },
     EnumVariantConstructor {
@@ -19,7 +19,7 @@ pub enum BindingPresentation {
         ffi_variant_ident: Ident,
         ffi_variant_path: TokenStream2,
         ctor_arguments: Vec<OwnedItemPresenterContext>,
-        body_presentation: TokenStream2,
+        body_presentation: IteratorPresentationContext,
         context: Rc<RefCell<ScopeContext>>
     },
     Destructor {
@@ -57,12 +57,13 @@ impl ToTokens for BindingPresentation {
                 let context = context.borrow();
                 let ctor_args = ctor_arguments.iter().map(|arg| arg.present(&context));
                 let ffi_name = Name::Costructor(ffi_ident.clone());
+                let body = body_presentation.present(&context);
                 quote! {
                     /// # Safety
                     #[no_mangle]
                     #[inline(never)]
                     pub unsafe extern "C" fn #ffi_name(#(#ctor_args),*) -> *mut #ffi_ident {
-                        ferment_interfaces::boxed(#ffi_ident #body_presentation)
+                        ferment_interfaces::boxed(#ffi_ident #body)
                     }
                 }
             },
@@ -70,11 +71,12 @@ impl ToTokens for BindingPresentation {
                 let context = context.borrow();
                 let ctor_args = ctor_arguments.iter().map(|arg| arg.present(&context));
                 let ffi_name = Name::Costructor(ffi_variant_ident.clone());
+                let body = body_presentation.present(&context);
                 quote! {
                     /// # Safety
                     #[no_mangle]
                     pub unsafe extern "C" fn #ffi_name(#(#ctor_args),*) -> *mut #ffi_ident {
-                        ferment_interfaces::boxed(#ffi_variant_path #body_presentation)
+                        ferment_interfaces::boxed(#ffi_variant_path #body)
                     }
                 }
             },
