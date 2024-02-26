@@ -1,64 +1,29 @@
+use std::convert::Into;
 use syn::{parse_quote, Path};
 use quote::quote;
 use syn::__private::TokenStream2;
 use crate::composer::{OwnerIteratorConversionComposer, SimplePairConversionComposer, SimpleComposerPresenter, ComposerPresenter};
 
 use crate::formatter::format_token_stream;
-use crate::presentation::context::{IteratorPresentationContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::OwnerIteratorPresentationContext;
 
-pub const EMPTY_PRESENTER: SimpleComposerPresenter = |_| quote!();
-pub const SIMPLE_PRESENTER: SimpleComposerPresenter = |name| quote!(#name);
-pub const SIMPLE_TERMINATED_PRESENTER: SimpleComposerPresenter = |name| quote!(#name;);
-pub const ROOT_DESTROY_CONTEXT_COMPOSER: SimpleComposerPresenter = |_| package_unboxed_root();
+pub const ROOT_DESTROY_CONTEXT_COMPOSER: ComposerPresenter<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext> =
+    |_| OwnerIteratorPresentationContext::UnboxedRoot;
 pub const DEFAULT_DOC_PRESENTER: SimpleComposerPresenter = |target_name| {
     let comment = format!("FFI-representation of the [`{}`]", format_token_stream(&target_name));
     // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)
     parse_quote! { #[doc = #comment] }
 };
-
-
-/// Map Pair Presenters
 pub const SIMPLE_PAIR_PRESENTER: SimplePairConversionComposer = |(name, presentation)|
     quote!(#name #presentation);
-// pub const SIMPLE_CONVERSION_PRESENTER: SimplePairConversionComposer = |(_, conversion)|
-//     quote!(#conversion);
-//
-// pub const SIMPLE_CONVERSION_PRESENTER2: ComposerPresenter<(TokenStream2, IteratorPresentationContext), TokenStream2> = |(_, conversion)|
-//     conversion;
-// pub const SIMPLE_CONVERSION_PRESENTER3: ComposerPresenter<(TokenStream2, FieldTypePresentationContext), TokenStream2> = |(_, conversion)|
-//     conversion;
-
-// pub const NAMED_CONVERSION_PRESENTER: SimplePairConversionComposer = |(l_value, r_value)|
-//     quote!(#l_value: #r_value);
-// pub const NAMED_CONVERSION_PRESENTER_PASS: FieldTypePresentationContextPass = |(l_value, r_value)|
-//     FieldTypePresentationContext::Named((l_value, Box::new(r_value)));
-// pub const LAMBDA_CONVERSION_PRESENTER: SimplePairConversionComposer = |(l_value, r_value)|
-//     quote!(#l_value => #r_value);
-pub const LAMBDA_CONVERSION_PRESENTER2: ComposerPresenter<(TokenStream2, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(l_value, r_value)|
-    OwnerIteratorPresentationContext::Lambda(l_value, Box::new(r_value));
-pub const LAMBDA_CONVERSION_PRESENTER3: ComposerPresenter<(TokenStream2, IteratorPresentationContext), IteratorPresentationContext> = |(l_value, r_value)|
-    IteratorPresentationContext::Lambda(l_value, Box::new(r_value));
-// pub const FFI_FROM_ROOT_PRESENTER: SimplePairConversionComposer = |(field_path, conversions)|
-//     quote!(let ffi_ref = #field_path; #conversions);
-pub const FFI_FROM_ROOT_PRESENTER: ComposerPresenter<(TokenStream2, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(field_path, conversions)|
-    OwnerIteratorPresentationContext::FromRoot(field_path, Box::new(conversions));
-
-// pub const FFI_TO_ROOT_PRESENTER: SimplePairConversionComposer = |(_, conversions)|
-//     package_boxed_expression(conversions);
-
-pub const FFI_TO_ROOT_PRESENTER: ComposerPresenter<(TokenStream2, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(_, conversions)|
-    OwnerIteratorPresentationContext::Boxed(Box::new(conversions));
-
-
-
-/// Owner Iterator Presenters
-///
+pub const FFI_FROM_ROOT_PRESENTER: ComposerPresenter<(OwnerIteratorPresentationContext, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(field_path, conversions)|
+    OwnerIteratorPresentationContext::FromRoot(field_path.into(), conversions.into());
+pub const FFI_TO_ROOT_PRESENTER: ComposerPresenter<(OwnerIteratorPresentationContext, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(_, conversions)|
+    OwnerIteratorPresentationContext::Boxed(conversions.into());
 pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
     OwnerIteratorPresentationContext::CurlyBracesFields(local_context);
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
     OwnerIteratorPresentationContext::RoundBracesFields(local_context);
-
-/// PathArguments Presenters
 
 pub fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {
     let path: Path = parse_quote!(#name);

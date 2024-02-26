@@ -126,6 +126,5 @@ pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
             }
         }
     };
-    println!("composer_parent_derive:: {}", quote!(#expanded));
     TokenStream::from(expanded)
 }

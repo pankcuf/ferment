@@ -11,20 +11,20 @@ use crate::helper::{from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
 use crate::interface::{ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
 use crate::naming::{DictionaryFieldName, Name};
-use crate::presentation::context::{FieldTypePresentationContext, OwnedItemPresenterContext};
+use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
 use crate::presentation::FFIObjectPresentation;
 use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposition {
     pub presentation: TokenStream2,
-    pub conversion: FieldTypePresentationContext,
+    pub conversion: FieldTypePresentableContext,
 }
 
 #[derive(Clone, Debug)]
 pub struct FnArgComposition {
     pub name: Option<TokenStream2>,
-    pub name_type_original: OwnedItemPresenterContext,
+    pub name_type_original: OwnedItemPresentableContext,
     pub name_type_conversion: TokenStream2,
 }
 
@@ -57,7 +57,7 @@ impl Composition for FnSignatureComposition {
                 let argument_conversions = self.arguments
                     .iter()
                     .map(|arg|
-                        OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone()))
+                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
                     .collect::<Vec<_>>();
                 let name = Name::ModFn(fn_name);
                 let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions)).present(context);
@@ -205,11 +205,11 @@ impl FnSignatureComposition {
 
 fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     match output {
-        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(()), conversion: FieldTypePresentationContext::LineTermination },
+        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(()), conversion: FieldTypePresentableContext::LineTermination },
         ReturnType::Type(_, field_type) => {
             let presentation = context.ffi_full_dictionary_field_type_presenter(field_type).to_token_stream();
             let conversion = match &**field_type {
-                Type::Path(TypePath { path, .. }) => to_path(quote!(obj), path),
+                Type::Path(TypePath { path, .. }) => to_path(FieldTypePresentableContext::Obj, path),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
             FnReturnTypeComposition { presentation, conversion }
@@ -219,25 +219,25 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
 fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2 {
     match (ty, pat) {
         (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
-            from_path(quote!(#ident), path).present(context),
+            from_path(FieldTypePresentableContext::Simple(quote!(#ident)), path).present(context),
         (Type::Reference(type_reference), pat) => {
             let arg_type = handle_arg_type(&type_reference.elem, pat, context);
             if let Some(_mutable) = type_reference.mutability {
-                FieldTypePresentationContext::AsMutRef(arg_type)
+                FieldTypePresentableContext::AsMutRef(arg_type)
             } else {
-                FieldTypePresentationContext::AsRef(arg_type)
+                FieldTypePresentableContext::AsRef(arg_type)
             }.present(context)
         },
         (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) => {
             // let arg_type = handle_arg_type(&type_array.elem, pat, context);
             // let len = &type_array.len;
-            from_array(parse_quote!(#ident), type_array).present(context)
+            from_array(FieldTypePresentableContext::Simple(quote!(#ident)), type_array).present(context)
         },
         (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) => {
-            from_slice(quote!(#ident), type_slice).present(context)
+            from_slice(FieldTypePresentableContext::Simple(quote!(#ident)), type_slice).present(context)
         },
         (Type::TraitObject(type_trait_object), Pat::Ident(PatIdent { ident: _, .. })) => {
-            FieldTypePresentationContext::AsRef(type_trait_object.to_token_stream()).present(context)
+            FieldTypePresentableContext::AsRef(type_trait_object.to_token_stream()).present(context)
         },
         // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
         _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
@@ -246,11 +246,11 @@ fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2
 
 fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     match output {
-        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(), conversion: FieldTypePresentationContext::Empty },
+        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(), conversion: FieldTypePresentableContext::Empty },
         ReturnType::Type(token, field_type) => {
             let pres = context.ffi_full_dictionary_field_type_presenter(field_type);
             let presentation = SIMPLE_PAIR_PRESENTER((quote!(#token), pres.to_token_stream()));
-            FnReturnTypeComposition { presentation, conversion: FieldTypePresentationContext::Empty }
+            FnReturnTypeComposition { presentation, conversion: FieldTypePresentableContext::Empty }
         }
     }
 }
@@ -277,14 +277,14 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
                 };
                 FnArgComposition {
                     name: None,
-                    name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false),
+                    name_type_original: OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false),
                     name_type_conversion
                 }
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat
                 let full_type = context.ffi_full_dictionary_field_type_presenter(ty);
-                let name_type_original = OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
+                let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgComposition {
                     name: Some(pat.to_token_stream()),
@@ -304,7 +304,7 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
             let pres = context.ffi_full_dictionary_field_type_presenter(ty);
             FnArgComposition {
                 name: name.clone().map(|g| g.to_token_stream()),
-                name_type_original: OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Optional(name), pres), false),
+                name_type_original: OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Optional(name), pres), false),
                 name_type_conversion: quote!()
             }
         })

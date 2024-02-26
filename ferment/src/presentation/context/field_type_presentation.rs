@@ -1,119 +1,167 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::context::ScopeContext;
-use crate::interface::{ffi_from_conversion, ffi_to_conversion, interface, package, package_boxed_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
+use crate::conversion::FieldTypeConversion;
+use crate::interface::{ffi_from_conversion, ffi_to_conversion, interface, obj, package, package_boxed_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
-pub enum FieldTypePresentationContext {
+pub enum FieldTypePresentableContext {
     Empty,
     Simple(TokenStream2),
-    To(TokenStream2),
-    ToOpt(TokenStream2),
-    UnwrapOr(TokenStream2, TokenStream2),
+    Add(Box<FieldTypePresentableContext>, TokenStream2),
+    To(Box<FieldTypePresentableContext>),
+    ToOpt(Box<FieldTypePresentableContext>),
+    UnwrapOr(Box<FieldTypePresentableContext>, TokenStream2),
     ToVec(OwnerIteratorPresentationContext),
     ToVecPtr,
-    // Empty,
-    // Callback {}
+    Obj,
+    ObjFieldName(TokenStream2),
+    FieldTypeConversionName(FieldTypeConversion),
     LineTermination,
-    UnboxAny(TokenStream2),
-    UnboxAnyTerminated(TokenStream2),
-    IsNull(TokenStream2),
-    DestroyConversion(TokenStream2, TokenStream2),
+    Boxed(Box<FieldTypePresentableContext>),
+    UnboxAny(Box<FieldTypePresentableContext>),
+    UnboxAnyTerminated(Box<FieldTypePresentableContext>),
+    IsNull(Box<FieldTypePresentableContext>),
+    DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
     FromRawParts(TokenStream2),
-    From(TokenStream2),
+    From(Box<FieldTypePresentableContext>),
     FromOffsetMap,
-    FromOpt(TokenStream2),
-    FromArray(TokenStream2),
+    FromOpt(Box<FieldTypePresentableContext>),
+    // FromArray(TokenStream2),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
-    IfThenSome(TokenStream2, TokenStream2),
-    Named((TokenStream2, Box<FieldTypePresentationContext>)),
+    IfThenSome(Box<FieldTypePresentableContext>, TokenStream2),
+    Named((TokenStream2, Box<FieldTypePresentableContext>)),
     Scope,
-    Terminated(Box<FieldTypePresentationContext>),
+    // Terminated(Box<FieldTypePresentableContext>),
+    Deref(TokenStream2),
+    DerefContext(Box<FieldTypePresentableContext>),
+    FfiRefWithFieldName(Box<FieldTypePresentableContext>),
+    Match(Box<FieldTypePresentableContext>),
 }
 
-impl ScopeContextPresentable for FieldTypePresentationContext {
+impl ScopeContextPresentable for FieldTypePresentableContext {
     type Presentation = TokenStream2;
 
-    fn present(&self, context: &ScopeContext) -> TokenStream2 {
+    fn present(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
-            FieldTypePresentationContext::Simple(field_path) =>
+            FieldTypePresentableContext::Simple(field_path) =>
                 field_path.to_token_stream(),
-            FieldTypePresentationContext::To(field_path) =>
-                ffi_to_conversion(field_path.to_token_stream()),
-            FieldTypePresentationContext::UnwrapOr(field_path, default) => {
+            FieldTypePresentableContext::To(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                ffi_to_conversion(field_path)
+            },
+            FieldTypePresentableContext::Add(presentation_context, index) => {
+                let field_path = presentation_context.present(source);
+                quote!(#field_path.add(#index))
+            },
+            FieldTypePresentableContext::UnwrapOr(presentation_context, default) => {
+                let field_path = presentation_context.present(source);
                 quote!(#field_path.unwrap_or(#default))
             },
-            FieldTypePresentationContext::ToVec(presentation_context) => {
-                presentation_context.present(context)
+            FieldTypePresentableContext::ToVec(presentation_context) => {
+                presentation_context.present(source)
             }
-            FieldTypePresentationContext::ToOpt(field_path) => {
+            FieldTypePresentableContext::ToOpt(presentation_context) => {
                 let package = package();
                 let interface = interface();
+                let field_path = presentation_context.present(source);
                 quote!(#package::#interface::ffi_to_opt(#field_path))
             },
-            FieldTypePresentationContext::ToVecPtr => {
+            FieldTypePresentableContext::ToVecPtr => {
                 let expr = package_boxed_expression(quote!(o));
                 let package = package();
                 quote!(#package::boxed_vec(obj.map(|o| #expr).collect()))
+            },
+            FieldTypePresentableContext::LineTermination => quote!(;),
+            FieldTypePresentableContext::Empty => quote!(),
+            FieldTypePresentableContext::Boxed(presentation_context) => {
+                package_boxed_expression(presentation_context.present(source))
+            },
+            FieldTypePresentableContext::UnboxAny(presentation_context) => {
+                package_unbox_any_expression(presentation_context.present(source))
             }
-            FieldTypePresentationContext::LineTermination => quote!(;),
-            FieldTypePresentationContext::Empty => quote!(),
-            FieldTypePresentationContext::UnboxAny(field_path) =>
-                package_unbox_any_expression(field_path.to_token_stream()),
-            FieldTypePresentationContext::UnboxAnyTerminated(field_path) =>
-                package_unbox_any_expression_terminated(field_path.to_token_stream()),
-            FieldTypePresentationContext::IsNull(field_path) => {
+            FieldTypePresentableContext::UnboxAnyTerminated(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                package_unbox_any_expression_terminated(field_path)
+            },
+            FieldTypePresentableContext::IsNull(presentation_context) => {
+                let field_path = presentation_context.present(source);
                 let conversion = package_unbox_any_expression_terminated(field_path.clone());
                 quote!(if !#field_path.is_null() { #conversion })
-            }
-            FieldTypePresentationContext::DestroyConversion(field_path, path) => {
+            },
+            FieldTypePresentableContext::DestroyConversion(presentation_context, path) => {
                 let package = package();
                 let interface = interface();
+                let field_path = presentation_context.present(source);
                 quote!(<std::os::raw::c_char as #package::#interface<#path>>::destroy(#field_path))
             },
 
-            FieldTypePresentationContext::FromRawParts(field_type) => {
+            FieldTypePresentableContext::FromRawParts(field_type) => {
                 quote!(std::slice::from_raw_parts(values as *const #field_type, count).to_vec())
             },
-            FieldTypePresentationContext::From(field_path) => {
-                ffi_from_conversion(field_path.to_token_stream())
+            FieldTypePresentableContext::From(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                ffi_from_conversion(field_path)
             },
-            FieldTypePresentationContext::FromOpt(field_path) => {
+            FieldTypePresentableContext::FromOpt(presentation_context) => {
                 let package = package();
                 let interface = interface();
+                let field_path = presentation_context.present(source);
                 quote!(#package::#interface::ffi_from_opt(#field_path))
             },
-            FieldTypePresentationContext::FromOffsetMap => {
+            FieldTypePresentableContext::FromOffsetMap => {
                 let ffi_from_conversion =
                     ffi_from_conversion(quote!(*values.add(i)));
                 quote!((0..count).map(|i| #ffi_from_conversion).collect())
             },
-            FieldTypePresentationContext::FromArray(field_path) => {
-                quote!(*#field_path)
-            },
-            FieldTypePresentationContext::AsRef(field_path) => {
+            // FieldTypePresentableContext::FromArray(field_path) => {
+            //     quote!(*#field_path)
+            // },
+            FieldTypePresentableContext::AsRef(field_path) => {
                 quote!(&#field_path)
             },
-            FieldTypePresentationContext::AsMutRef(field_path) => {
+            FieldTypePresentableContext::AsMutRef(field_path) => {
                 quote!(&mut #field_path)
             },
-            FieldTypePresentationContext::IfThenSome(field_path, condition) => {
+            FieldTypePresentableContext::IfThenSome(presentation_context, condition) => {
                 // quote!((#field_path > 0).then_some(#field_path))
-                quote!((#field_path #condition).then_some(#field_path))
+                let field_path = presentation_context.present(source);
+                quote!((#field_path #condition).then(|| #field_path))
             }
-            FieldTypePresentationContext::Named((l_value, r_value)) => {
-                let ty = r_value.present(context);
+            FieldTypePresentableContext::Named((l_value, presentation_context)) => {
+                let ty = presentation_context.present(source);
                 quote!(#l_value: #ty)
             }
-            FieldTypePresentationContext::Scope => {
+            FieldTypePresentableContext::Scope => {
                 quote!({})
             }
-            FieldTypePresentationContext::Terminated(presentation_context) => {
-                let ty = presentation_context.present(context);
-                quote!(#ty;)
+            // FieldTypePresentableContext::Terminated(presentation_context) => {
+            //     let ty = presentation_context.present(source);
+            //     quote!(#ty;)
+            // }
+            FieldTypePresentableContext::FfiRefWithFieldName(presentation_context) => {
+                let field_name = presentation_context.present(source);
+                quote!(ffi_ref.#field_name)
+            }
+            FieldTypePresentableContext::Deref(field_name) => {
+                quote!(*#field_name)
+            }
+            FieldTypePresentableContext::DerefContext(presentation_context) => {
+                FieldTypePresentableContext::Deref(presentation_context.present(source)).present(source)
+            }
+            FieldTypePresentableContext::Obj => obj(),
+            FieldTypePresentableContext::ObjFieldName(field_name) => {
+                quote!(obj.#field_name)
+            }
+            FieldTypePresentableContext::FieldTypeConversionName(field_type) => {
+                field_type.name()
+            }
+            FieldTypePresentableContext::Match(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                quote!(match #field_path)
             }
         }
     }

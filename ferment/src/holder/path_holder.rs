@@ -92,11 +92,8 @@ impl PathHolder {
         parse_quote!(#self::#path)
     }
 
-    pub fn popped(&self) -> PathHolder {
-        let segments = self.0.segments.clone();
-        let n = segments.len() - 1;
-        PathHolder::from(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
-    }
+    // pub fn popped(&self) -> PathHolder {
+    // }
 
     pub fn to_type(&self) -> Type {
         parse_quote!(#self)

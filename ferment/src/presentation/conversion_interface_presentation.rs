@@ -46,7 +46,7 @@ impl ToTokens for ConversionInterfacePresentation {
                             None => quote!()
                         };
                         let generic_bounds = (gens.len() > 0)
-                            .then_some(quote!(<#(#gens)*,>))
+                            .then(|| quote!(<#(#gens)*,>))
                             .unwrap_or_default();
                         (generic_bounds, where_clause)
                     },

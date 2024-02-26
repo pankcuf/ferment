@@ -3,7 +3,6 @@ use syn::Path;
 use syn::__private::TokenStream2;
 use ferment_macro::Parent;
 use crate::composer::Composer;
-use crate::context::ScopeContext;
 use crate::shared::SharedAccess;
 
 #[derive(Parent)]
@@ -19,10 +18,10 @@ impl<Parent: SharedAccess> NameComposer<Parent> {
 }
 
 impl<Parent: SharedAccess> Composer<Parent> for NameComposer<Parent> {
-    type Item = TokenStream2;
-    type Source = ScopeContext;
+    type Source = ();
+    type Result = TokenStream2;
 
-    fn compose(&self, _source: &Self::Source) -> Self::Item {
+    fn compose(&self, _source: &Self::Source) -> Self::Result {
         self.name.to_token_stream()
     }
 }

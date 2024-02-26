@@ -36,7 +36,7 @@ impl ScopeResolver {
             .keys()
             .find_map(|scope_chain|
                 path.eq(scope_chain.self_path())
-                    .then_some(scope_chain))
+                    .then(|| scope_chain))
     }
     pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.inner

@@ -1,33 +1,51 @@
 mod attrs;
 mod conversion;
 mod conversions;
-mod ffi_bindings;
 mod ffi_conversions;
-mod fields;
 mod item;
 mod method;
 mod name;
 mod owned;
 
 use std::rc::Rc;
+use proc_macro2::Ident;
 use syn::__private::TokenStream2;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::presentation::context::FieldTypePresentationContext;
+use crate::presentation::context::binding::BindingPresentableContext;
+use crate::presentation::context::FieldTypePresentableContext;
 use crate::shared::{HasParent, SharedAccess};
 pub use self::attrs::{AttrsComposer, implement_trait_for_item};
 pub use self::conversion::ConversionComposer;
 pub use self::conversions::ConversionsComposer;
-pub use self::ffi_bindings::FFIBindingsComposer;
-pub use self::ffi_conversions::FFIConversionAspect;
-pub use self::ffi_conversions::FFIConversionComposer;
-pub use self::fields::FieldsComposer;
-pub use self::item::ItemComposer;
+pub use self::ffi_conversions::FFIAspect;
+pub use self::ffi_conversions::FFIComposer;
+pub use self::item::{ItemComposer, BYPASS_FIELD_CONTEXT, FIELD_TYPES_COMPOSER, composer_ctor, enum_variant_composer_ctor_unnamed, enum_variant_composer_ctor_named, enum_variant_composer_ctor_unit, struct_composer_ctor_named, struct_composer_ctor_unnamed};
 pub use self::method::MethodComposer;
 pub use self::name::NameComposer;
 pub use self::owned::OwnedComposer;
+
+#[derive(Clone, Debug)]
+pub enum ConstructorPresentableContext {
+    EnumVariant(TokenStream2, Ident, TokenStream2),
+    Default(Ident)
+}
+// impl ScopeContextPresentable for ConstructorPresentableContext {
+//     type Presentation = (Name, Box<Type>, TokenStream2);
+//
+//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
+//         match self {
+//             ConstructorPresentableContext::EnumVariant(ffi_ident, ffi_variant_ident, ffi_variant_path) => {
+//                 (Name::Constructor(ffi_variant_ident.clone()), parse_quote!(*mut #ffi_ident), ffi_variant_path.to_token_stream())
+//             }
+//             ConstructorPresentableContext::Default(ffi_ident) => {
+//                 (Name::Constructor(ffi_ident.clone()), parse_quote!(*mut #ffi_ident), ffi_ident.to_token_stream())
+//             }
+//         }
+//     }
+// }
 
 /// Composer Context Presenters
 #[allow(unused)]
@@ -38,38 +56,110 @@ pub type ComposerPresenterByRef<Context, Presentation> = fn(context: &Context) -
 pub type SharedComposer<Parent, Context> = ComposerPresenterByRef<<Parent as SharedAccess>::ImmutableAccess, Context>;
 #[allow(unused)]
 pub type SharedComposerMut<Parent, Context> = ComposerPresenterByRef<<Parent as SharedAccess>::MutableAccess, Context>;
-
 pub type ParentComposer<T> = Rc<std::cell::RefCell<T>>;
 pub type ParentComposerRef<T> = std::cell::Ref<'static, T>;
 pub type ItemParentComposer = ParentComposer<ItemComposer>;
 pub type ItemParentComposerRef = ParentComposerRef<ItemComposer>;
 pub type ItemComposerPresenter<T> = ComposerPresenterByRef<ItemParentComposerRef, T>;
 pub type ItemComposerTokenStreamPresenter = ItemComposerPresenter<TokenStream2>;
-// pub type ItemComposerLocalContextPresenter = ItemComposerPresenter<OwnerIteratorLocalContext>;
 pub type ItemComposerLocalConversionContextPresenter = ItemComposerPresenter<LocalConversionContext>;
 pub type ItemComposerFieldTypesContextPresenter = ItemComposerPresenter<FieldTypesContext>;
+pub type ItemComposerBindingCtorContextPresenter = ItemComposerPresenter<BindingCtorContext>;
 
 pub type SimpleContextComposer<Parent> = ContextComposer<TokenStream2, TokenStream2, Parent>;
 pub type SimpleItemParentContextComposer = SimpleContextComposer<ItemParentComposer>;
 
 pub type SimpleComposerPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
 pub type SimplePairConversionComposer = ComposerPresenter<(TokenStream2, TokenStream2), TokenStream2>;
-pub type IteratorConversionComposer = ComposerPresenter<Vec<OwnedItemPresenterContext>, IteratorPresentationContext>;
+pub type IteratorConversionComposer = ComposerPresenter<Vec<OwnedItemPresentableContext>, IteratorPresentationContext>;
 pub type OwnerIteratorConversionComposer = ComposerPresenter<OwnerIteratorLocalContext, OwnerIteratorPresentationContext>;
-pub type OwnedFieldTypeComposer = ComposerPresenter<FieldTypeConversion, OwnedItemPresenterContext>;
-pub type BindingComposer = ComposerPresenter<(TokenStream2, TokenStream2, TokenStream2), BindingPresentation>;
-pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentationContext>;
+pub type OwnerIteratorPostProcessingComposer = ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, ItemParentComposer>;
 
-pub type OwnerIteratorLocalContext = (TokenStream2, Vec<OwnedItemPresenterContext>);
+// Bindings
+pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
+pub type BindingAccessorComposer = BindingComposer<BindingAccessorContext>;
+pub type BindingCtorComposer = BindingComposer<(ConstructorPresentableContext, CtorArgsAndBodyContext)>;
+// pub type BindingEnumVariantCtorComposer = BindingComposer<(ConstructorContext, CtorArgsAndBodyContext)>;
+pub type BindingDtorComposer = BindingComposer<DestructorContext>;
+
+
+pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentableContext>;
+pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;
+
+pub type OwnerIteratorLocalContext = (TokenStream2, Vec<OwnedItemPresentableContext>);
 pub type FieldTypesContext = Vec<FieldTypeConversion>;
 pub type LocalConversionContext = (TokenStream2, FieldTypesContext);
+pub type BindingAccessorContext = (TokenStream2, TokenStream2, TokenStream2);
+pub type BindingCtorContext = (ConstructorPresentableContext, FieldTypesContext);
+pub type CtorArgsAndBodyContext = (Vec<TokenStream2>, TokenStream2);
+pub type DestructorContext = (Ident, TokenStream2);
 
-pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<(TokenStream2, FieldTypePresentationContext), FieldTypePresentationContext>;
+pub type FieldTypeLocalContext = (TokenStream2, FieldTypePresentableContext);
+pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldTypePresentableContext>;
+
+pub type FFIConversionComposer<Parent> = ConversionComposer<
+    Parent,
+    LocalConversionContext,
+    FieldTypeLocalContext,
+    FieldTypePresentableContext,
+    (TokenStream2, Vec<OwnedItemPresentableContext>),
+    OwnerIteratorPresentationContext,
+    OwnerIteratorPresentationContext,
+    OwnerIteratorPresentationContext>;
+pub type DropConversionComposer<Parent> = ConversionComposer<
+    Parent,
+    FieldTypesContext,
+    FieldTypeLocalContext,
+    FieldTypePresentableContext,
+    Vec<OwnedItemPresentableContext>,
+    IteratorPresentationContext,
+    OwnerIteratorPresentationContext,
+    IteratorPresentationContext>;
+
+// pub type StructConstructorConversionComposer<Parent> = ConversionComposer<
+//     Parent,
+//     FieldTypesContext,
+//     FieldTypeConversion,
+//     OwnedItemPresentableContext,
+//     Vec<OwnedItemPresentableContext>,
+//     IteratorPresentationContext,
+//     OwnerIteratorPresentationContext,
+//     BindingPresentation>;
+//
+//
+pub type FieldsOwnedComposer<Parent> = OwnedComposer<
+    Parent,
+    LocalConversionContext,
+    FieldTypeConversion,
+    OwnedItemPresentableContext,
+    (TokenStream2, Vec<OwnedItemPresentableContext>),
+    OwnerIteratorPresentationContext
+>;
+pub type CtorOwnedComposer<Parent> = OwnedComposer<
+    Parent,
+    (ConstructorPresentableContext, FieldTypesContext), // FieldTypesContext,
+    FieldTypeConversion,
+    (OwnedItemPresentableContext, OwnedItemPresentableContext),
+    (ConstructorPresentableContext, Vec<(OwnedItemPresentableContext, OwnedItemPresentableContext)>),
+    BindingPresentableContext
+>;
+
+// pub type CtorOwnedComposer2<Parent, CtorContext> = OwnedComposer<
+//     Parent,
+//     (CtorContext, FieldTypesContext),
+//     FieldTypeConversion,
+//     (OwnedItemPresentableContext, OwnedItemPresentableContext),
+//     (CtorContext, Vec<(OwnedItemPresentableContext, OwnedItemPresentableContext)>),
+//     BindingPresentation
+// >;
+
+
+
 
 pub trait Composer<Parent> where Self: Sized + HasParent<Parent> {
-    type Item;
     type Source;
-    fn compose(&self, source: &Self::Source) -> Self::Item;
+    type Result;
+    fn compose(&self, source: &Self::Source) -> Self::Result;
 }
 
 pub struct ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
@@ -93,10 +183,10 @@ impl<Context, Result, Parent> HasParent<Parent> for ContextComposer<Context, Res
 }
 
 impl<Context, Result, Parent> Composer<Parent> for ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
-    type Item = Result;
-    type Source = ScopeContext;
+    type Source = ();
+    type Result = Result;
 
-    fn compose(&self, _source: &Self::Source) -> Self::Item {
+    fn compose(&self, _source: &Self::Source) -> Self::Result {
         let parent = self.parent.as_ref().unwrap();
         let context = parent.access(self.context_composer);
         (self.root_presenter)(context)
@@ -115,10 +205,10 @@ impl<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result
 }
 
 impl<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result>, Parent: SharedAccess> Composer<Parent> for PresentableContextComposer<Context, Result, Presentable, Parent> {
-    type Item = Result;
     type Source = ScopeContext;
+    type Result = Result;
 
-    fn compose(&self, source: &Self::Source) -> Self::Item {
+    fn compose(&self, source: &Self::Source) -> Self::Result {
         let parent = self.parent.as_ref().unwrap();
         let context = parent.access(self.context_composer);
         let presentable = (self.root_composer)(context);

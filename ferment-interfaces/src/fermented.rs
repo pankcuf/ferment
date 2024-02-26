@@ -16,7 +16,7 @@ pub trait FFIConversion2<'a, T> {
     }
     /// # Safety
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
-        (!ffi.is_null()).then_some(<Self as FFIConversion2<T>>::ffi_from(ffi))
+        (!ffi.is_null()).then(||<Self as FFIConversion2<T>>::ffi_from(ffi))
     }
     /// # Safety
     unsafe fn ffi_to_opt(obj: Option<&'a T>) -> *mut Self where Self: Sized {

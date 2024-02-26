@@ -50,8 +50,8 @@ impl ToTokens for DictionaryFieldName {
 
 #[derive(Clone)]
 pub enum Name {
-    UnamedArg(usize),
-    Costructor(Ident),
+    UnnamedArg(usize),
+    Constructor(Ident),
     Destructor(Ident),
     Dictionary(DictionaryFieldName),
     Optional(Option<Ident>),
@@ -63,13 +63,16 @@ pub enum Name {
     TraitDestructor(Ident, Ident),
     Vtable(Ident),
     ModFn(Ident),
+    Getter(Ident, Ident),
+    Setter(Ident, Ident),
+    Variant(Ident)
 }
 
 impl std::fmt::Debug for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Name::UnamedArg(index) => format!("Name::UnamedArg({})", index),
-            Name::Costructor(ident) => format!("Name::Costructor({})", ident),
+            Name::UnnamedArg(index) => format!("Name::UnnamedArg({})", index),
+            Name::Constructor(ident) => format!("Name::Constructor({})", ident),
             Name::Destructor(ident) => format!("Name::Destructor({})", ident),
             Name::Dictionary(dict_field_name) => format!("Name::Dictionary({})", dict_field_name),
             Name::Optional(ident) => format!("Name::Optional({:?})", ident),
@@ -81,6 +84,9 @@ impl std::fmt::Debug for Name {
             Name::Vtable(ident) => format!("Name::Vtable({})", ident),
             Name::ModFn(ident) => format!("Name::Fn({})", ident),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => format!("Name::TraitImplVtable({}, {})", item_name.to_token_stream(), trait_vtable_ident.to_token_stream()),
+            Name::Getter(obj_type, field_name) => format!("Name::Getter({}, {})", obj_type, field_name),
+            Name::Setter(obj_type, field_name) => format!("Name::Setter({}, {})", obj_type, field_name),
+            Name::Variant(variant) => format!("Name::Variant({})", variant),
         }.as_str())
     }
 }
@@ -95,8 +101,8 @@ impl std::fmt::Display for Name {
 impl ToTokens for Name {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Name::UnamedArg(index) => format_ident!("o_{}", index).to_token_stream(),
-            Name::Costructor(ident) => format_ident!("{}_ctor", ident).to_token_stream(),
+            Name::UnnamedArg(index) => format_ident!("o_{}", index).to_token_stream(),
+            Name::Constructor(ident) => format_ident!("{}_ctor", ident).to_token_stream(),
             Name::Destructor(ident) => format_ident!("{}_destroy", ident).to_token_stream(),
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream(),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_token_stream(),
@@ -118,6 +124,9 @@ impl ToTokens for Name {
             Name::TraitImplVtable(item_name, trait_vtable_ident) =>
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream(),
 
+            Name::Getter(obj_type, field_name) => format_ident!("{}_get_{}", obj_type.to_string(), field_name.to_string()).to_token_stream(),
+            Name::Setter(obj_type, field_name) => format_ident!("{}_set_{}", obj_type.to_string(), field_name.to_string()).to_token_stream(),
+            Name::Variant(variant) => quote!(#variant)
         }.to_tokens(tokens)
     }
 }

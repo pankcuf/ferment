@@ -34,7 +34,7 @@ impl<'a> ConversionsComposer<'a> {
                     .iter()
                     .enumerate()
                     .map(|(index, Field { ty, .. })|
-                        FieldTypeConversion::Unnamed(Name::UnamedArg(index), ctx.full_type_for(ty)))
+                        FieldTypeConversion::Unnamed(Name::UnnamedArg(index), ctx.full_type_for(ty)))
                     .collect(),
             Self::UnnamedStruct(fields) =>
                 fields

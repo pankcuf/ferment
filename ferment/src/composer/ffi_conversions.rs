@@ -1,42 +1,36 @@
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use crate::composer::{Composer, FFIBindingsComposer, HasParent, SimpleContextComposer};
-use crate::composer::item::{StructConversionComposer, StructDropComposer};
+use crate::composer::{Composer, ContextComposer, DropConversionComposer, FFIConversionComposer, HasParent};
 use crate::context::ScopeContext;
+use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
-pub enum FFIConversionAspect {
+pub enum FFIAspect {
     From,
     To,
     Destroy,
     Drop,
-    Bindings,
+    // Bindings,
 }
 
-// impl ComposerAspect for FFIConversionAspect {
+// impl ComposerAspect for FFIAspect {
 //     type Context = ScopeContext;
 //     type Presentation = TokenStream2;
 // }
-#[allow(non_camel_case_types)]
-pub struct FFIConversionComposer<Parent> where Parent: SharedAccess
-{
+pub struct FFIComposer<Parent> where Parent: SharedAccess {
     pub parent: Option<Parent>,
-    pub from_conversion_composer: StructConversionComposer<Parent>,
-    pub to_conversion_composer: StructConversionComposer<Parent>,
-    pub drop_composer: StructDropComposer<Parent>,
-
-
-    pub destroy_composer: SimpleContextComposer<Parent>,
-    pub bindings_composer: FFIBindingsComposer<Parent>,
+    pub from_conversion_composer: FFIConversionComposer<Parent>,
+    pub to_conversion_composer: FFIConversionComposer<Parent>,
+    pub drop_composer: DropConversionComposer<Parent>,
+    pub destroy_composer: ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, Parent>,
+    // pub bindings_composer: FFIBindingsComposer<Parent>,
 }
 
-#[allow(non_camel_case_types)]
-impl<Parent> HasParent<Parent>
-for FFIConversionComposer<Parent> where Parent: SharedAccess {
+impl<Parent> HasParent<Parent> for FFIComposer<Parent> where Parent: SharedAccess {
     fn set_parent(&mut self, parent: &Parent) {
-        self.bindings_composer.set_parent(parent);
+        // self.bindings_composer.set_parent(parent);
         self.from_conversion_composer.set_parent(parent);
         self.to_conversion_composer.set_parent(parent);
         self.destroy_composer.set_parent(parent);
@@ -45,25 +39,34 @@ for FFIConversionComposer<Parent> where Parent: SharedAccess {
     }
 }
 
-#[allow(non_camel_case_types)]
-impl<Parent> FFIConversionComposer<Parent> where Parent: SharedAccess {
-    #[allow(clippy::too_many_arguments)]
+impl<Parent> FFIComposer<Parent> where Parent: SharedAccess {
     pub const fn new(
-        from_conversion_composer: StructConversionComposer<Parent>,
-        to_conversion_composer: StructConversionComposer<Parent>,
-        destroy_composer: SimpleContextComposer<Parent>,
-        drop_composer: StructDropComposer<Parent>,
-        bindings_composer: FFIBindingsComposer<Parent>) -> Self {
-        Self { from_conversion_composer, to_conversion_composer, destroy_composer, drop_composer, bindings_composer, parent: None }
+        from_conversion_composer: FFIConversionComposer<Parent>,
+        to_conversion_composer: FFIConversionComposer<Parent>,
+        destroy_composer: ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, Parent>,
+        drop_composer: DropConversionComposer<Parent>,
+        // bindings_composer: FFIBindingsComposer<Parent>
+    ) -> Self {
+        Self { from_conversion_composer, to_conversion_composer, destroy_composer, drop_composer, parent: None }
     }
 
-    pub fn compose_aspect(&self, aspect: FFIConversionAspect, context: &ScopeContext) -> TokenStream2 {
+    pub fn compose_aspect(&self, aspect: FFIAspect, source: &ScopeContext) -> TokenStream2 {
         match aspect {
-            FFIConversionAspect::From => self.from_conversion_composer.compose(context).present(context).to_token_stream(),
-            FFIConversionAspect::To => self.to_conversion_composer.compose(context).present(context).to_token_stream(),
-            FFIConversionAspect::Destroy => self.destroy_composer.compose(context).present(context).to_token_stream(),
-            FFIConversionAspect::Drop => self.drop_composer.compose(context).present(context).to_token_stream(),
-            FFIConversionAspect::Bindings => self.bindings_composer.compose(context).present(context).to_token_stream(),
-        }
+            FFIAspect::From =>
+                self.from_conversion_composer.compose(&())
+                    .present(source),
+            FFIAspect::To =>
+                self.to_conversion_composer.compose(&())
+                    .present(source),
+            FFIAspect::Destroy =>
+                self.destroy_composer.compose(&())
+                    .present(source),
+            FFIAspect::Drop =>
+                self.drop_composer.compose(&())
+                    .present(source),
+            // FFIAspect::Bindings =>
+            //     self.bindings_composer.compose(&())
+            //         .present(source),
+        }.to_token_stream()
     }
 }

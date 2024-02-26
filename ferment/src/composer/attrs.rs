@@ -8,7 +8,7 @@ use crate::context::{ScopeChain, ScopeContext};
 use crate::holder::EMPTY;
 use crate::interface::ROUND_BRACES_FIELDS_PRESENTER;
 use crate::naming::Name;
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresenterContext};
+use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
 use crate::presentation::{BindingPresentation, FFIObjectPresentation, ScopeContextPresentable, TraitVTablePresentation};
 use crate::shared::SharedAccess;
 
@@ -25,10 +25,10 @@ impl<Parent: SharedAccess> AttrsComposer<Parent> {
 }
 
 impl<Parent: SharedAccess> Composer<Parent> for AttrsComposer<Parent> {
-    type Item = Vec<TraitVTablePresentation>;
     type Source = ScopeContext;
+    type Result = Vec<TraitVTablePresentation>;
 
-    fn compose(&self, source: &Self::Source) -> Self::Item {
+    fn compose(&self, source: &Self::Source) -> Self::Result {
         let attrs_composition = &self.attrs;
         let mut trait_types = source.trait_items_from_attributes(&attrs_composition.attrs);
         trait_types.iter_mut()
@@ -65,9 +65,9 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
                 signature_decomposition.arguments
                     .iter()
                     .map(|arg| if arg.name.is_some() {
-                        OwnedItemPresenterContext::Conversion(quote!(cast_obj))
+                        OwnedItemPresentableContext::Conversion(quote!(cast_obj))
                     } else {
-                        OwnedItemPresenterContext::Conversion(arg.name_type_conversion.clone())
+                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone())
                     })
                     .collect())
                 .present(context);

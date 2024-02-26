@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{Attribute, Ident, Item, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, PathConversion, TypeConversion};
-use crate::ext::extract_trait_names;
+use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, TypeConversion};
+use crate::ext::{extract_trait_names, Mangle};
 use crate::formatter::format_token_stream;
 use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::PathHolder;
@@ -208,11 +208,11 @@ impl ScopeContext {
             // complex special type
             "str" | "String" => parse_quote!(std::os::raw::c_char),
             "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = format_ident!("{}", PathConversion::mangled_inner_generic_ident_string(path));
+                let ffi_name = path.to_mangled_ident_default();
                 parse_quote!(crate::fermented::generics::#ffi_name)
             },
             "Result" if cloned_segments.len() == 1 => {
-                let ffi_name = format_ident!("{}", PathConversion::mangled_inner_generic_ident_string(path));
+                let ffi_name = path.to_mangled_ident_default();
                 parse_quote!(crate::fermented::generics::#ffi_name)
 
             },
@@ -240,13 +240,11 @@ impl ScopeContext {
             | "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = PathConversion::from(path)
-                    .into_mangled_generic_ident();
+                let ffi_name = path.to_mangled_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Result" if segments.len() == 1 => {
-                let ffi_name = PathConversion::from(path)
-                    .into_mangled_generic_ident();
+                let ffi_name = path.to_mangled_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Box" => path_arguments_to_types(&last_segment.arguments)
@@ -335,13 +333,11 @@ impl ScopeContext {
             "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = PathConversion::from(path)
-                    .into_mangled_generic_ident();
+                let ffi_name = path.to_mangled_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Result" if segments.len() == 1 => {
-                let ffi_name = PathConversion::from(path)
-                    .into_mangled_generic_ident();
+                let ffi_name = path.to_mangled_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Option" => path_arguments_to_paths(&last_segment.arguments)

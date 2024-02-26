@@ -3,7 +3,7 @@ mod crate_type;
 mod global_context;
 mod scope_chain;
 mod scope_context;
-mod scope;
+pub(crate) mod scope;
 mod traits_resolver;
 mod scope_resolver;
 mod import_resolver;

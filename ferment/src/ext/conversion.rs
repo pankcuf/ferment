@@ -1,24 +1,23 @@
 use quote::quote;
-use syn::__private::TokenStream2;
 use syn::{Type, TypePath};
 use crate::conversion::FieldTypeConversion;
 use crate::helper::{destroy_path, destroy_ptr, destroy_reference, from_array, from_path, from_ptr, from_reference, to_array, to_path, to_ptr, to_reference};
-use crate::presentation::context::FieldTypePresentationContext;
+use crate::presentation::context::FieldTypePresentableContext;
 
 pub trait Conversion {
     type Item;
-    fn destroy(&self, field_path: TokenStream2) -> Self::Item;
-    fn from(&self, field_path: TokenStream2) -> Self::Item;
-    fn to(&self, field_path: TokenStream2) -> Self::Item;
+    fn destroy(&self, field_path: FieldTypePresentableContext) -> Self::Item;
+    fn from(&self, field_path: FieldTypePresentableContext) -> Self::Item;
+    fn to(&self, field_path: FieldTypePresentableContext) -> Self::Item;
 }
 
 impl Conversion for Type {
-    type Item = FieldTypePresentationContext;
+    type Item = FieldTypePresentableContext;
 
-    fn destroy(&self, field_path: TokenStream2) -> Self::Item {
+    fn destroy(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         match self {
             Type::Array(..) =>
-                FieldTypePresentationContext::UnboxAny(field_path),
+                FieldTypePresentableContext::UnboxAny(field_path.into()),
             Type::Path(TypePath { path, .. }) =>
                 destroy_path(field_path, path),
             Type::Ptr(type_ptr) =>
@@ -29,7 +28,7 @@ impl Conversion for Type {
         }
     }
 
-    fn from(&self, field_path: TokenStream2) -> Self::Item {
+    fn from(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         match self {
             Type::Array(type_array) =>
                 from_array(field_path, type_array),
@@ -43,7 +42,7 @@ impl Conversion for Type {
         }
     }
 
-    fn to(&self, field_path: TokenStream2) -> Self::Item {
+    fn to(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         match self {
             Type::Array(type_array) =>
                 to_array(field_path, type_array),
@@ -59,16 +58,16 @@ impl Conversion for Type {
 }
 
 impl Conversion for FieldTypeConversion {
-    type Item = FieldTypePresentationContext;
+    type Item = FieldTypePresentableContext;
 
-    fn destroy(&self, field_path: TokenStream2) -> Self::Item {
+    fn destroy(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         self.ty().destroy(field_path)
     }
 
-    fn from(&self, field_path: TokenStream2) -> Self::Item {
+    fn from(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         self.ty().from(field_path)
     }
-    fn to(&self, field_path: TokenStream2) -> Self::Item {
+    fn to(&self, field_path: FieldTypePresentableContext) -> Self::Item {
         self.ty().to(field_path)
     }
 }

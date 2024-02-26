@@ -70,7 +70,7 @@ impl CustomResolver {
                 }
             }
         }
-        replaced.then_some(custom_type)
+        replaced.then(|| custom_type)
     }
 
 }

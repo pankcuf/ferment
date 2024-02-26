@@ -483,7 +483,7 @@ impl Visitor {
             let mut new_qself = qself.clone();
             let qs = self.update_nested_generics(scope, &qself.ty);
             let qs = qs.type_conversion().unwrap().ty_composition().clone();
-            new_qself.ty = Box::new(qs.ty.clone());
+            new_qself.ty = qs.ty.clone().into();
             QSelfComposition { qs, qself: new_qself }
         })
     }

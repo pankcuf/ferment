@@ -102,7 +102,14 @@ impl Display for TypeChain {
     }
 }
 
+impl From<HashMap<TypeHolder, ObjectConversion>> for TypeChain {
+    fn from(inner: HashMap<TypeHolder, ObjectConversion>) -> Self {
+        TypeChain { inner }
+    }
+}
+
 impl TypeChain {
+    // pub fn from
     pub fn insert(&mut self, ty: TypeHolder, obj: ObjectConversion) {
         self.inner.insert(ty, obj);
     }

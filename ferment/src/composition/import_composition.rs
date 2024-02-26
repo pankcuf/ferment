@@ -2,6 +2,7 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use crate::conversion::ImportConversion;
+use crate::ext::Pop;
 use crate::holder::PathHolder;
 
 #[derive(Clone)]

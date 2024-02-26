@@ -2,17 +2,19 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use syn::{Attribute, Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, Meta, NestedMeta, parse_quote, Path, Signature, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::{AttrsComposer, Composer, FFIConversionAspect, ConversionsComposer, ItemComposer, ItemParentComposer, OwnerIteratorLocalContext};
+use crate::composer::{AttrsComposer, Composer, FFIAspect, ConversionsComposer, ItemComposer, ItemParentComposer, OwnerIteratorLocalContext, BYPASS_FIELD_CONTEXT, ComposerPresenter, struct_composer_ctor_unnamed, struct_composer_ctor_named, enum_variant_composer_ctor_unit, enum_variant_composer_ctor_unnamed, enum_variant_composer_ctor_named};
 use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, TraitDecompositionPart2};
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{FieldTypeConversion, MacroType};
+use crate::ext::Pop;
 use crate::interface::{CURLY_BRACES_FIELDS_PRESENTER, package_unboxed_root, ROOT_DESTROY_CONTEXT_COMPOSER, ROUND_BRACES_FIELDS_PRESENTER};
 use crate::naming::Name;
-use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
-use crate::presentation::context::{FieldTypePresentationContext, IteratorPresentationContext, OwnedItemPresenterContext, OwnerIteratorPresentationContext};
+use crate::presentation::{ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
+use crate::presentation::context::{FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::binding::BindingPresentableContext;
 use crate::tree::ScopeTreeExportID;
 
 
@@ -301,10 +303,9 @@ impl ItemConversion {
 
 
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
-    // let /*item_scope*/ = item_scope.self_scope();
     let ItemEnum { ident: target_name, variants, generics, .. } = item_enum;
     let variants_count = variants.len();
-    let ctx = context.borrow();
+    let source = context.borrow();
     let attrs_composition = AttrsComposition::new(
         item_enum.attrs.clone(),
         target_name.clone(),
@@ -313,20 +314,19 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
 
     let mut conversions_to_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
     let mut conversions_from_ffi = Vec::<TokenStream2>::with_capacity(variants_count);
-    let mut variants_fields = Vec::<OwnedItemPresenterContext>::with_capacity(variants_count);
-    let mut variants_constructors = Vec::<BindingPresentation>::with_capacity(variants_count);
+    let mut variants_fields = Vec::<OwnedItemPresentableContext>::with_capacity(variants_count);
+    let mut variants_constructors = Vec::<BindingPresentableContext>::with_capacity(variants_count);
     let mut destroy_fields = Vec::<TokenStream2>::new();
-    let mut drop_fields = Vec::<OwnedItemPresenterContext>::new();
+    let mut drop_fields = Vec::<OwnedItemPresentableContext>::new();
+    let target_full_type = source.full_type_for(&parse_quote!(#target_name));
     variants.iter().for_each(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
-        let full_ty = ctx.full_type_for(&parse_quote!(#target_name));
-        let target_variant_path = quote!(#full_ty::#variant_name);
-        let ffi_variant_path = quote!(#target_name::#variant_name);
-        let variant_mangled_path = format_ident!("{}_{}", target_name, variant_name);
-        let (variant_presenter, fields_context): (fn(OwnerIteratorLocalContext) -> OwnerIteratorPresentationContext, Vec<OwnedItemPresenterContext>) = match discriminant {
+        // let target_variant_path = quote!(#target_full_type::#variant_name);
+        // let ffi_variant_path = quote!(#target_name::#variant_name);
+        let (variant_presenter, fields_context): (ComposerPresenter<OwnerIteratorLocalContext, OwnerIteratorPresentationContext>, Vec<OwnedItemPresentableContext>) = match discriminant {
             Some((_, Expr::Lit(lit, ..))) => (
                 |local_context: OwnerIteratorLocalContext|
                     OwnerIteratorPresentationContext::EnumUnitFields(local_context),
-                vec![OwnedItemPresenterContext::Conversion(quote!(#lit))]),
+                vec![OwnedItemPresentableContext::Conversion(quote!(#lit))]),
             None => match fields {
                 Fields::Unit => (
                     |(name, _)|
@@ -338,7 +338,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     unnamed
                         .iter()
                         .map(|field|
-                            OwnedItemPresenterContext::Conversion(ctx.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
+                            OwnedItemPresentableContext::Conversion(source.ffi_full_dictionary_field_type_presenter(&field.ty).to_token_stream()))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
@@ -347,7 +347,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
                     named
                         .iter()
                         .map(|Field { ident, ty: field_type, .. }|
-                                 OwnedItemPresenterContext::Named(FieldTypeConversion::Named(Name::Optional(ident.clone()), ctx.ffi_full_dictionary_field_type_presenter(field_type)), false))
+                                 OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Optional(ident.clone()), source.ffi_full_dictionary_field_type_presenter(field_type)), false))
                         .collect(),
                 ),
             },
@@ -358,96 +358,67 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
             variant_name.clone(),
             item_scope.clone(),
         );
+        // TODO: make ffi/target name composers presentable to receive different contexts
+        // let variant_mangled_path = format_ident!("{}_{}", target_name, variant_name);
         let composer = match fields {
             Fields::Unit =>
-                ItemComposer::enum_variant_default_composer(
-                    parse_quote!(#ffi_variant_path),
-                    parse_quote!(#target_variant_path),
+                ItemComposer::enum_variant_composer(
+                    parse_quote!(#target_name::#variant_name),
+                    parse_quote!(#target_full_type::#variant_name),
                     attrs_composition,
                     context,
                     |(name, _)|
                         OwnerIteratorPresentationContext::NoFields(name),
                     |(name, _)|
                         OwnerIteratorPresentationContext::NoFields(name),
-                    |(_, context)| context.clone(),
+                    BYPASS_FIELD_CONTEXT,
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    |_| FieldTypePresentationContext::Scope,
-                    |_| IteratorPresentationContext::Empty,
-                    |field_type|
-                        OwnedItemPresenterContext::Named(field_type, false),
-                    |field_type|
-                        OwnedItemPresenterContext::DefaultField(field_type),
+                    |_| FieldTypePresentableContext::Scope,
+                    enum_variant_composer_ctor_unit(),
                     ConversionsComposer::Empty
                 ),
             Fields::Unnamed(fields) =>
-                ItemComposer::enum_variant_default_composer(
-                    parse_quote!(#ffi_variant_path),
-                    parse_quote!(#target_variant_path),
+                ItemComposer::enum_variant_composer(
+                    parse_quote!(#target_name::#variant_name),
+                    parse_quote!(#target_full_type::#variant_name),
                     attrs_composition,
                     context,
                     ROUND_BRACES_FIELDS_PRESENTER,
                     ROUND_BRACES_FIELDS_PRESENTER,
-                    |(_, context)| context.clone(),
+                    BYPASS_FIELD_CONTEXT,
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    |(_, context)| FieldTypePresentationContext::Terminated(Box::new(context.clone())),
-                    |fields| {
-                        if fields.is_empty() {
-                            IteratorPresentationContext::Empty
-                        } else {
-                            IteratorPresentationContext::Round(fields)
-                        }
-                    },
-                    |field_type|
-                        OwnedItemPresenterContext::Named(field_type, false),
-                    |field_type|
-                        OwnedItemPresenterContext::DefaultField(field_type),
+                    BYPASS_FIELD_CONTEXT,
+                    enum_variant_composer_ctor_unnamed(),
                     ConversionsComposer::UnnamedEnumVariant(fields)
                 ),
             Fields::Named(fields) =>
-                ItemComposer::enum_variant_default_composer(
-                    parse_quote!(#ffi_variant_path),
-                    parse_quote!(#target_variant_path),
+                ItemComposer::enum_variant_composer(
+                    parse_quote!(#target_name::#variant_name),
+                    parse_quote!(#target_full_type::#variant_name),
                     attrs_composition,
                     context,
                     CURLY_BRACES_FIELDS_PRESENTER,
                     CURLY_BRACES_FIELDS_PRESENTER,
-                    |(l_value, r_value)| FieldTypePresentationContext::Named((l_value.clone(), Box::new(r_value.clone()))),
+                    |(field_path, field_context)|
+                        FieldTypePresentableContext::Named((field_path.clone(), Box::new(field_context.clone()))),
                     ROOT_DESTROY_CONTEXT_COMPOSER,
-                    |(_, context)| context.clone(),
-                    |fields| {
-                        if fields.is_empty() {
-                            IteratorPresentationContext::Empty
-                        } else {
-                            IteratorPresentationContext::Curly(fields)
-                        }
-                    },
-                    |field_type|
-                        OwnedItemPresenterContext::Named(field_type, false),
-                    |field_type|
-                        OwnedItemPresenterContext::DefaultField(field_type),
+                    BYPASS_FIELD_CONTEXT,
+                    enum_variant_composer_ctor_named(),
                     ConversionsComposer::NamedStruct(fields)
                 )
         };
         let composer_owned = composer.borrow();
-        variants_fields.push(OwnedItemPresenterContext::Conversion(variant_presenter((quote!(#variant_name), fields_context)).present(&ctx)));
-        conversions_from_ffi.push(composer_owned.compose_aspect(FFIConversionAspect::From));
-        conversions_to_ffi.push(composer_owned.compose_aspect(FFIConversionAspect::To));
-        destroy_fields.push(composer_owned.compose_aspect(FFIConversionAspect::Destroy));
-        drop_fields.push(OwnedItemPresenterContext::Conversion(composer_owned.compose_aspect(FFIConversionAspect::Drop)));
-        variants_constructors.push(BindingPresentation::EnumVariantConstructor {
-            ffi_ident: target_name.to_token_stream(),
-            ffi_variant_ident: variant_mangled_path,
-            ffi_variant_path: ffi_variant_path.to_token_stream(),
-            ctor_arguments: composer_owned.ffi_conversions_composer.bindings_composer.compose_arguments(),
-            body_presentation: composer_owned.ffi_conversions_composer.bindings_composer.compose_field_names(),
-            context: Rc::clone(context)
-        })
+        variants_fields.push(OwnedItemPresentableContext::Conversion(variant_presenter((quote!(#variant_name), fields_context)).present(&source)));
+        conversions_from_ffi.push(composer_owned.compose_aspect(FFIAspect::From));
+        conversions_to_ffi.push(composer_owned.compose_aspect(FFIAspect::To));
+        destroy_fields.push(composer_owned.compose_aspect(FFIAspect::Destroy));
+        drop_fields.push(OwnedItemPresentableContext::Conversion(composer_owned.compose_aspect(FFIAspect::Drop)));
+        variants_constructors.push(composer_owned.ctor_composer.compose(&()));
     });
     let comment = DocPresentation::Default(quote!(#target_name));
     let ffi_presentation =
-        FFIObjectPresentation::Full(OwnerIteratorPresentationContext::Enum((quote!(#target_name), variants_fields)).present(&ctx));
-    let ctx = context.borrow();
-    let target_full_type = ctx.full_type_for(&parse_quote!(#target_name));
+        FFIObjectPresentation::Full(OwnerIteratorPresentationContext::Enum((quote!(#target_name), variants_fields)).present(&source));
+
     let conversion_presentation = ConversionInterfacePresentation::Interface {
         ffi_type: parse_quote!(#target_name),
         target_type: quote!(#target_full_type),
@@ -456,15 +427,16 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         destroy_presentation: package_unboxed_root(),
         generics: Some(generics.clone()),
     };
-    let drop = DropInterfacePresentation::Full(
-        quote!(#target_name),
-        IteratorPresentationContext::EnumDropBody(drop_fields).present(&ctx),
-    );
+    let drop = DropInterfacePresentation::Full {
+        name: quote!(#target_name),
+        body: IteratorPresentationContext::EnumDropBody(drop_fields).present(&source),
+    };
 
-    variants_constructors.push(BindingPresentation::Destructor {
-        ffi_name: quote!(#target_name),
-        destructor_ident: Name::Destructor(target_name.clone())
-    });
+    // let destructor_presentation = composer.dtor_composer.compose(&source);
+
+
+
+    variants_constructors.push(BindingPresentableContext::Destructor(target_name.clone()));
 
     let attrs_composer = AttrsComposer::<ItemParentComposer>::new(attrs_composition);
     Expansion::Full {
@@ -472,8 +444,8 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Rc<Re
         ffi_presentation,
         conversion: conversion_presentation,
         drop,
-        bindings: variants_constructors,
-        traits: attrs_composer.compose(&ctx)
+        bindings: variants_constructors.iter().map(|ctor| ctor.present(&source)).collect(),
+        traits: attrs_composer.compose(&source)
     }
 }
 
@@ -481,12 +453,12 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
     // let scope = scope.self_scope();
     // println!("struct_expansion: {}", item_struct.ident);
     let ItemStruct { attrs, fields: ref f, ident: target_name, .. } = item_struct;
-    let ctx = scope_context.borrow();
+    let source = scope_context.borrow();
     let attrs_composition = AttrsComposition::new(attrs.clone(), target_name.clone(), scope.clone());
     // let traits = item_traits_expansions(&attrs_composition, &ctx);
     // let attrs_composer = AttrsComposer::new(attrs_composition);
     // let traits = attrs_composer.compose(&ctx);
-    let full_ty = ctx.full_type_for(&parse_quote!(#target_name));
+    let full_ty = source.full_type_for(&parse_quote!(#target_name));
 
     let composer = match f {
         Fields::Unnamed(ref fields) =>
@@ -498,15 +470,10 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 |local_context|
                     OwnerIteratorPresentationContext::UnnamedStruct(local_context),
                 |field_type|
-                    OwnedItemPresenterContext::DefaultFieldType(field_type),
+                    OwnedItemPresentableContext::DefaultFieldType(field_type.clone()),
                 ROUND_BRACES_FIELDS_PRESENTER,
-                |(_, context)| context.clone(),
-                |fields|
-                    IteratorPresentationContext::Round(fields),
-                |field_type|
-                    OwnedItemPresenterContext::BindingArg(field_type),
-                |field_type|
-                    OwnedItemPresenterContext::BindingField(field_type),
+                BYPASS_FIELD_CONTEXT,
+                struct_composer_ctor_unnamed(),
                 ConversionsComposer::UnnamedStruct(fields)
             ),
         Fields::Named(ref fields) =>
@@ -518,15 +485,11 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
                 |local_context|
                     OwnerIteratorPresentationContext::NamedStruct(local_context),
                 |field_type|
-                    OwnedItemPresenterContext::Named(field_type, true),
+                    OwnedItemPresentableContext::Named(field_type.clone(), true),
                 CURLY_BRACES_FIELDS_PRESENTER,
-                |(l_value, r_value)| FieldTypePresentationContext::Named((l_value.clone(), Box::new(r_value.clone()))),
-                |fields|
-                    IteratorPresentationContext::Curly(fields),
-                |field_type|
-                    OwnedItemPresenterContext::Named(field_type, false),
-                |field_type|
-                    OwnedItemPresenterContext::DefaultField(field_type),
+                |(field_path, field_context)|
+                    FieldTypePresentableContext::Named((field_path.clone(), Box::new(field_context.clone()))),
+                struct_composer_ctor_named(),
                 ConversionsComposer::NamedStruct(fields)
             ),
         Fields::Unit => panic!("Fields::Unit is not supported yet"),
@@ -538,9 +501,9 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
 
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
     let ItemTrait { ident, items, .. } = item_trait;
-    let context = context.borrow();
-    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, Some(parse_quote!(#ident)), scope.self_path_holder(), &context);
-    let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &context);
+    let source = context.borrow();
+    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, Some(parse_quote!(#ident)), scope.self_path_holder(), &source);
+    let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source);
     let vtable_name = Name::Vtable(ident.clone());
     // println!("trait_expansion: {}: {}", trait_obj_name, vtable_name);
     Expansion::Trait {
@@ -559,16 +522,16 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &Rc<RefC
 fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &Rc<RefCell<ScopeContext>>) -> Expansion {
     // let scope = scope.self_scope();
     let ItemType { ident, ty, attrs, .. } = item_type;
-    let ctx = context.borrow();
+    let source = context.borrow();
     match &**ty {
         Type::BareFn(bare_fn) =>
             Expansion::Callback {
                 comment: DocPresentation::Default(quote!(#ident)),
-                ffi_presentation: FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_path_holder().clone(), &ctx)
-                    .present(FnSignatureCompositionContext::FFIObjectCallback, &ctx),
+                ffi_presentation: FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_path_holder().clone(), &source)
+                    .present(FnSignatureCompositionContext::FFIObjectCallback, &source),
             },
         _ => {
-            let full_ty = ctx.full_type_for(&parse_quote!(#ident));
+            let full_ty = source.full_type_for(&parse_quote!(#ident));
             ItemComposer::type_alias_composer(
                 parse_quote!(#ident),
                 parse_quote!(#full_ty),
@@ -598,7 +561,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
             _ => None,
         }
     }).collect::<Vec<_>>();
-    let ctx = scope_context.borrow();
+    let source = scope_context.borrow();
     match trait_ {
         None => {
 
@@ -625,9 +588,9 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
         },
         Some((_, path, _)) => {
             let trait_type = parse_quote!(#path);
-            let trait_full_type = ctx.full_type_for(&trait_type);
+            let trait_full_type = source.full_type_for(&trait_type);
 
-            let gtx = ctx.context.read().unwrap();
+            let gtx = source.context.read().unwrap();
             let trait_scope = gtx.actual_scope_for_type(&trait_type, scope);
 
             println!("impl_expansion.2: trait_scope: {}", trait_scope.to_token_stream());
@@ -635,7 +598,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
             // let (trait_composition, trait_scope) = ctx.find_item_trait_in_scope(path);
 
             // ctx.item_trait_with_ident_for()
-            let item_full_type = ctx.full_type_for(self_ty);
+            let item_full_type = source.full_type_for(self_ty);
 
             // let trait_item = ctx.item_trait_with_ident_for()
 

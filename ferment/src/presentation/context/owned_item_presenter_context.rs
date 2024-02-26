@@ -3,101 +3,100 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::presentation::context::FieldTypePresentationContext;
+use crate::presentation::context::FieldTypePresentableContext;
 use crate::presentation::ScopeContextPresentable;
 
 
 #[derive(Clone)]
-pub enum OwnedItemPresenterContext {
+pub enum OwnedItemPresentableContext {
     DefaultField(FieldTypeConversion),
     DefaultFieldType(FieldTypeConversion),
     Named(FieldTypeConversion, /*is_public:*/ bool),
     Lambda(TokenStream2, TokenStream2),
     Conversion(TokenStream2),
     BindingArg(FieldTypeConversion),
-    BindingField(FieldTypeConversion),
-    BindingGetter(FieldTypeConversion),
-    BindingSetter(FieldTypeConversion),
-    FieldType(FieldTypePresentationContext),
+    BindingFieldName(FieldTypeConversion),
+    // BindingGetter(FieldTypeConversion),
+    // BindingSetter(FieldTypeConversion),
+    FieldType(FieldTypePresentableContext),
 
 }
 
-impl Debug for OwnedItemPresenterContext {
+impl Debug for OwnedItemPresentableContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            OwnedItemPresenterContext::DefaultField(ty) =>
+            OwnedItemPresentableContext::DefaultField(ty) =>
                 f.write_str(format!("DefaultField({})", ty).as_str()),
-            OwnedItemPresenterContext::DefaultFieldType(ty) =>
+            OwnedItemPresentableContext::DefaultFieldType(ty) =>
                 f.write_str(format!("DefaultFieldType({})", ty).as_str()),
-            OwnedItemPresenterContext::Named(ty, is_pub) =>
+            OwnedItemPresentableContext::Named(ty, is_pub) =>
                 f.write_str(format!("Named({}, {})", ty, is_pub).as_str()),
-            OwnedItemPresenterContext::Lambda(lv, rv) =>
+            OwnedItemPresentableContext::Lambda(lv, rv) =>
                 f.write_str(format!("Lambda({}, {})", lv, rv).as_str()),
-            OwnedItemPresenterContext::Conversion(conversion) =>
+            OwnedItemPresentableContext::Conversion(conversion) =>
                 f.write_str(format!("Conversion({})", conversion).as_str()),
-            OwnedItemPresenterContext::BindingArg(ty) =>
+            OwnedItemPresentableContext::BindingArg(ty) =>
                 f.write_str(format!("BindingArg({})", ty).as_str()),
-            OwnedItemPresenterContext::BindingField(ty) =>
+            OwnedItemPresentableContext::BindingFieldName(ty) =>
                 f.write_str(format!("BindingField({})", ty).as_str()),
-            OwnedItemPresenterContext::BindingGetter(ty) =>
-                f.write_str(format!("BindingGetter({})", ty).as_str()),
-            OwnedItemPresenterContext::BindingSetter(ty) =>
-                f.write_str(format!("BindingSetter({})", ty).as_str()),
-            OwnedItemPresenterContext::FieldType(ctx) =>
+            // OwnedItemPresentableContext::BindingGetter(ty) =>
+            //     f.write_str(format!("BindingGetter({})", ty).as_str()),
+            // OwnedItemPresentableContext::BindingSetter(ty) =>
+            //     f.write_str(format!("BindingSetter({})", ty).as_str()),
+            OwnedItemPresentableContext::FieldType(ctx) =>
                 f.write_str(format!("FieldType({:?})", ctx).as_str()),
         }
     }
 }
 
-impl Display for OwnedItemPresenterContext {
+impl Display for OwnedItemPresentableContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
 }
 
 
-impl ScopeContextPresentable for OwnedItemPresenterContext {
+impl ScopeContextPresentable for OwnedItemPresentableContext {
     type Presentation = TokenStream2;
 
-    fn present(&self, context: &ScopeContext) -> TokenStream2 {
+    fn present(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
-            OwnedItemPresenterContext::DefaultField(field_type) => {
+            OwnedItemPresentableContext::DefaultField(field_type) => {
                 field_type.name()
             },
-            OwnedItemPresenterContext::DefaultFieldType(field_type) =>
-                context.ffi_full_dictionary_field_type_presenter(field_type.ty())
+            OwnedItemPresentableContext::DefaultFieldType(field_type) =>
+                source.ffi_full_dictionary_field_type_presenter(field_type.ty())
                     .to_token_stream(),
-            OwnedItemPresenterContext::Named(field_type, is_public) => {
+            OwnedItemPresentableContext::Named(field_type, is_public) => {
                 let name = field_type.name();
-                let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
+                let ty = source.ffi_full_dictionary_field_type_presenter(field_type.ty());
                 if *is_public {
                     quote!(pub #name: #ty)
                 } else {
                     quote!(#name: #ty)
                 }
             }
-            OwnedItemPresenterContext::Lambda(name, value) =>
+            OwnedItemPresentableContext::Lambda(name, value) =>
                 quote!(#name => #value),
-            OwnedItemPresenterContext::Conversion(conversion) =>
+            OwnedItemPresentableContext::Conversion(conversion) =>
                 quote!(#conversion),
-            OwnedItemPresenterContext::BindingArg(field_type) => {
+            OwnedItemPresentableContext::BindingArg(field_type) => {
                 let name = field_type.as_binding_arg_name();
-                let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
+                let ty = source.ffi_full_dictionary_field_type_presenter(field_type.ty());
                 quote!(#name: #ty)
-
             },
-            OwnedItemPresenterContext::BindingField(field_type) => {
+            OwnedItemPresentableContext::BindingFieldName(field_type) => {
                 field_type.as_binding_arg_name().to_token_stream()
             }
-            OwnedItemPresenterContext::BindingGetter(field_type) => {
-                field_type.name()
-            }
-            OwnedItemPresenterContext::BindingSetter(field_type) => {
-                let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
-                ty.to_token_stream()
-            }
-            OwnedItemPresenterContext::FieldType(field_type_context) => {
-                field_type_context.present(context)
+            // OwnedItemPresentableContext::BindingGetter(field_type) => {
+            //     field_type.name()
+            // }
+            // OwnedItemPresentableContext::BindingSetter(field_type) => {
+            //     let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
+            //     ty.to_token_stream()
+            // }
+            OwnedItemPresentableContext::FieldType(field_type_context) => {
+                field_type_context.present(source)
             }
         }
     }
