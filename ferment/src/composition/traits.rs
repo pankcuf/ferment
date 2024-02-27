@@ -3,6 +3,8 @@ use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::composition::{Composition, FnSignatureComposition};
 use crate::composition::context::{FnSignatureCompositionContext, TraitDecompositionPart2Context};
@@ -10,7 +12,7 @@ use crate::composition::generic_composition::GenericsComposition;
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
 use crate::holder::PathHolder;
-use crate::presentation::FFIObjectPresentation;
+use crate::presentation::BindingPresentation;
 
 #[derive(Clone, Debug)]
 pub struct TraitBoundDecomposition {
@@ -124,7 +126,7 @@ impl TraitDecompositionPart2 {
 
 impl Composition for TraitDecompositionPart2 {
     type Context = TraitDecompositionPart2Context;
-    type Presentation = Vec<FFIObjectPresentation>;
+    type Presentation = Punctuated<BindingPresentation, Comma>;
 
     fn present(self, composition_context: Self::Context, context: &ScopeContext) -> Self::Presentation {
         match composition_context {

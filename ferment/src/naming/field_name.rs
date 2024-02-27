@@ -2,8 +2,9 @@ use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Pat, Type, TypePath};
+use syn::{Pat, Path, Type, TypePath};
 use crate::conversion::PathConversion;
+use crate::ext::Mangle;
 use crate::helper::usize_to_tokenstream;
 use crate::interface::obj;
 
@@ -63,8 +64,8 @@ pub enum Name {
     TraitDestructor(Ident, Ident),
     Vtable(Ident),
     ModFn(Ident),
-    Getter(Ident, Ident),
-    Setter(Ident, Ident),
+    Getter(Path, TokenStream2),
+    Setter(Path, TokenStream2),
     Variant(Ident)
 }
 
@@ -84,8 +85,8 @@ impl std::fmt::Debug for Name {
             Name::Vtable(ident) => format!("Name::Vtable({})", ident),
             Name::ModFn(ident) => format!("Name::Fn({})", ident),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => format!("Name::TraitImplVtable({}, {})", item_name.to_token_stream(), trait_vtable_ident.to_token_stream()),
-            Name::Getter(obj_type, field_name) => format!("Name::Getter({}, {})", obj_type, field_name),
-            Name::Setter(obj_type, field_name) => format!("Name::Setter({}, {})", obj_type, field_name),
+            Name::Getter(obj_type, field_name) => format!("Name::Getter({}, {})", quote!(#obj_type), field_name),
+            Name::Setter(obj_type, field_name) => format!("Name::Setter({}, {})", quote!(#obj_type), field_name),
             Name::Variant(variant) => format!("Name::Variant({})", variant),
         }.as_str())
     }
@@ -124,8 +125,8 @@ impl ToTokens for Name {
             Name::TraitImplVtable(item_name, trait_vtable_ident) =>
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream(),
 
-            Name::Getter(obj_type, field_name) => format_ident!("{}_get_{}", obj_type.to_string(), field_name.to_string()).to_token_stream(),
-            Name::Setter(obj_type, field_name) => format_ident!("{}_set_{}", obj_type.to_string(), field_name.to_string()).to_token_stream(),
+            Name::Getter(obj_type, field_name) => format_ident!("{}_get_{}", obj_type.to_mangled_ident_default().to_string(), field_name.to_string()).to_token_stream(),
+            Name::Setter(obj_type, field_name) => format_ident!("{}_set_{}", obj_type.to_mangled_ident_default().to_string(), field_name.to_string()).to_token_stream(),
             Name::Variant(variant) => quote!(#variant)
         }.to_tokens(tokens)
     }

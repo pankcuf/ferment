@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use syn::__private::TokenStream2;
-use syn::Type;
+use syn::{ReturnType, Type};
 use crate::context::ScopeChain;
 
 
@@ -43,6 +43,6 @@ pub struct TraitVTableMethodComposition {
     pub trait_type: Type,
     pub argument_names: TokenStream2,
     pub name_and_args: TokenStream2,
-    pub output_expression: TokenStream2,
+    pub output_expression: ReturnType,
     pub output_conversions: TokenStream2,
 }

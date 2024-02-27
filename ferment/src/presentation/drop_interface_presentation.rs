@@ -15,7 +15,7 @@ impl ToTokens for DropInterfacePresentation {
             Self::Empty =>
                 quote!(),
             Self::Full { name, body} =>
-                quote!(impl Drop for #name { fn drop(&mut self) { unsafe { #body } } })
+                quote!(impl Drop for #name { fn drop(&mut self) { unsafe { #body; } } })
         }.to_tokens(tokens)
     }
 }

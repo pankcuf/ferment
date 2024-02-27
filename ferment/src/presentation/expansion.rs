@@ -1,5 +1,8 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
+use syn::punctuated::Punctuated;
+use syn::token::Semi;
+use crate::composer::Depunctuated;
 use crate::holder::PathHolder;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, TraitVTablePresentation};
 use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
@@ -12,19 +15,19 @@ pub enum Expansion {
     Empty,
     Callback {
         comment: DocPresentation,
-        ffi_presentation: FFIObjectPresentation,
+        binding: BindingPresentation,
     },
     Function {
         comment: DocPresentation,
-        ffi_presentation: FFIObjectPresentation,
+        binding: BindingPresentation,
     },
     Full {
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
         conversion: ConversionInterfacePresentation,
         drop: DropInterfacePresentation,
-        bindings: Vec<BindingPresentation>,
-        traits: Vec<TraitVTablePresentation>,
+        bindings: Depunctuated<BindingPresentation>,
+        traits: Depunctuated<TraitVTablePresentation>,
     },
     Root {
         tree: ScopeTree,
@@ -32,12 +35,12 @@ pub enum Expansion {
     Mod {
         directives: TokenStream2,
         name: TokenStream2,
-        imports: Vec<PathHolder>,
-        conversions: Vec<TokenStream2>
+        imports: Punctuated<PathHolder, Semi>,
+        conversions: Depunctuated<TokenStream2>
     },
     Impl {
         comment: DocPresentation,
-        items: Vec<FFIObjectPresentation>,
+        items: Depunctuated<BindingPresentation>,
     },
     Use {
         comment: DocPresentation,
@@ -54,30 +57,17 @@ impl ToTokens for Expansion {
         let presentations = match self {
             Self::Empty | Self::Use { comment: _ } => vec![],
             Self::Impl { comment, items } => {
-                let mut full = vec![comment.to_token_stream()];
-                full.extend(items.iter().map(FFIObjectPresentation::to_token_stream));
-                full
+                vec![comment.to_token_stream(), items.to_token_stream()]
             },
-            Self::Callback { comment, ffi_presentation } =>
+            Self::Callback { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
-            Self::Function { comment, ffi_presentation } =>
+            Self::Function { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Full { comment, ffi_presentation, conversion, drop, bindings, traits } => {
-                let mut full = vec![comment.to_token_stream(), ffi_presentation.to_token_stream(), conversion.to_token_stream(), drop.to_token_stream()];
-                full.extend(bindings.iter().map(BindingPresentation::to_token_stream));
-                full.extend(traits.iter().map(TraitVTablePresentation::to_token_stream));
-                full
+                vec![comment.to_token_stream(), ffi_presentation.to_token_stream(), conversion.to_token_stream(), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()]
             },
             Self::Mod { directives, name, imports: _, conversions } =>
-                vec![
-                    quote! {
-                        #directives
-                        pub mod #name {
-                            //#(use #imports;)*
-                            #(#conversions)*
-                        }
-                    }
-                ],
+                vec![quote!(#directives pub mod #name { #conversions })],
             Self::Trait { comment, vtable, trait_object } =>
                 vec![comment.to_token_stream(), vtable.to_token_stream(), trait_object.to_token_stream()],
             Self::Root { tree } =>

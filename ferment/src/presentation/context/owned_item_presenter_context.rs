@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
+use syn::Type;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::presentation::context::FieldTypePresentableContext;
@@ -10,14 +11,12 @@ use crate::presentation::ScopeContextPresentable;
 #[derive(Clone)]
 pub enum OwnedItemPresentableContext {
     DefaultField(FieldTypeConversion),
-    DefaultFieldType(FieldTypeConversion),
+    DefaultFieldType(Type),
     Named(FieldTypeConversion, /*is_public:*/ bool),
     Lambda(TokenStream2, TokenStream2),
     Conversion(TokenStream2),
     BindingArg(FieldTypeConversion),
     BindingFieldName(FieldTypeConversion),
-    // BindingGetter(FieldTypeConversion),
-    // BindingSetter(FieldTypeConversion),
     FieldType(FieldTypePresentableContext),
 
 }
@@ -28,7 +27,7 @@ impl Debug for OwnedItemPresentableContext {
             OwnedItemPresentableContext::DefaultField(ty) =>
                 f.write_str(format!("DefaultField({})", ty).as_str()),
             OwnedItemPresentableContext::DefaultFieldType(ty) =>
-                f.write_str(format!("DefaultFieldType({})", ty).as_str()),
+                f.write_str(format!("DefaultFieldType({})", quote!(#ty)).as_str()),
             OwnedItemPresentableContext::Named(ty, is_pub) =>
                 f.write_str(format!("Named({}, {})", ty, is_pub).as_str()),
             OwnedItemPresentableContext::Lambda(lv, rv) =>
@@ -39,10 +38,6 @@ impl Debug for OwnedItemPresentableContext {
                 f.write_str(format!("BindingArg({})", ty).as_str()),
             OwnedItemPresentableContext::BindingFieldName(ty) =>
                 f.write_str(format!("BindingField({})", ty).as_str()),
-            // OwnedItemPresentableContext::BindingGetter(ty) =>
-            //     f.write_str(format!("BindingGetter({})", ty).as_str()),
-            // OwnedItemPresentableContext::BindingSetter(ty) =>
-            //     f.write_str(format!("BindingSetter({})", ty).as_str()),
             OwnedItemPresentableContext::FieldType(ctx) =>
                 f.write_str(format!("FieldType({:?})", ctx).as_str()),
         }
@@ -65,7 +60,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 field_type.name()
             },
             OwnedItemPresentableContext::DefaultFieldType(field_type) =>
-                source.ffi_full_dictionary_field_type_presenter(field_type.ty())
+                source.ffi_full_dictionary_field_type_presenter(field_type)
                     .to_token_stream(),
             OwnedItemPresentableContext::Named(field_type, is_public) => {
                 let name = field_type.name();
@@ -81,20 +76,29 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::Conversion(conversion) =>
                 quote!(#conversion),
             OwnedItemPresentableContext::BindingArg(field_type) => {
-                let name = field_type.as_binding_arg_name();
-                let ty = source.ffi_full_dictionary_field_type_presenter(field_type.ty());
-                quote!(#name: #ty)
+                match field_type {
+                    FieldTypeConversion::Named(field_name, field_type) => {
+                        let ty = source.ffi_full_dictionary_field_type_presenter(field_type);
+                        quote!(#field_name: #ty)
+                    },
+                    FieldTypeConversion::Unnamed(field_name, field_type) => {
+                        let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
+                        let ty = source.ffi_full_dictionary_field_type_presenter(field_type);
+                        quote!(#field_name: #ty)
+                    }
+                }
             },
             OwnedItemPresentableContext::BindingFieldName(field_type) => {
-                field_type.as_binding_arg_name().to_token_stream()
+                match field_type {
+                    FieldTypeConversion::Named(field_name, _ty) => {
+                        quote!(#field_name)
+                    },
+                    FieldTypeConversion::Unnamed(field_name, _ty) => {
+                        let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
+                        quote!(#field_name)
+                    },
+                }
             }
-            // OwnedItemPresentableContext::BindingGetter(field_type) => {
-            //     field_type.name()
-            // }
-            // OwnedItemPresentableContext::BindingSetter(field_type) => {
-            //     let ty = context.ffi_full_dictionary_field_type_presenter(field_type.ty());
-            //     ty.to_token_stream()
-            // }
             OwnedItemPresentableContext::FieldType(field_type_context) => {
                 field_type_context.present(source)
             }

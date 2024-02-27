@@ -2,22 +2,22 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use syn::token::{Comma, RArrow};
 use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::helper::{from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
-use crate::interface::{ROUND_BRACES_FIELDS_PRESENTER, SIMPLE_PAIR_PRESENTER};
+use crate::interface::ROUND_BRACES_FIELDS_PRESENTER;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
-use crate::presentation::FFIObjectPresentation;
+use crate::presentation::BindingPresentation;
 use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposition {
-    pub presentation: TokenStream2,
+    pub presentation: ReturnType,
     pub conversion: FieldTypePresentableContext,
 }
 
@@ -41,15 +41,15 @@ pub struct FnSignatureComposition {
 
 impl Composition for FnSignatureComposition {
     type Context = FnSignatureCompositionContext;
-    type Presentation = FFIObjectPresentation;
+    type Presentation = BindingPresentation;
 
     fn present(self, composition_context: Self::Context, context: &ScopeContext) -> Self::Presentation {
         match composition_context {
             FnSignatureCompositionContext::FFIObject => {
                 let arguments = self.arguments
                     .iter()
-                    .map(|arg| arg.name_type_original.clone().present(context))
-                    .collect::<Vec<_>>();
+                    .map(|arg| arg.name_type_original.clone())
+                    .collect::<Punctuated<_, Comma>>();
 
                 let fn_name = self.ident.unwrap();
                 println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
@@ -58,20 +58,23 @@ impl Composition for FnSignatureComposition {
                     .iter()
                     .map(|arg|
                         OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
-                    .collect::<Vec<_>>();
+                    .collect::<Punctuated<_, _>>();
                 let name = Name::ModFn(fn_name);
                 let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions)).present(context);
-                let output_expression = self.return_type.presentation;
+                let return_type = self.return_type.presentation;
                 let output_conversions = self.return_type.conversion.present(context);
                 println!("present_ffi_object_fn.1: {}", name);
-                println!("present_ffi_object_fn.2: {}", quote!(#(#arguments),*));
+                println!("present_ffi_object_fn.2: {}", quote!(arguments));
                 // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
                 println!("present_ffi_object_fn.3: {}", quote!(#input_conversions));
                 // println!("present_ffi_object_fn.4: {}", quote!(#output_conversions));
-                if self.is_async {
-                    FFIObjectPresentation::AsyncFunction { name, arguments, input_conversions, output_expression, output_conversions }
-                } else {
-                    FFIObjectPresentation::Function { name, arguments, input_conversions, output_expression, output_conversions }
+                BindingPresentation::RegularFunction {
+                    is_async: self.is_async,
+                    name,
+                    arguments: arguments.present(context),
+                    input_conversions,
+                    return_type,
+                    output_conversions
                 }
             },
             FnSignatureCompositionContext::FFIObjectCallback => {
@@ -80,7 +83,7 @@ impl Composition for FnSignatureComposition {
                     .map(|arg| arg.name_type_original.present(context))
                     .collect();
                 let output_expression = self.return_type.presentation;
-                FFIObjectPresentation::Callback {
+                BindingPresentation::Callback {
                     name: self.ident.clone().unwrap().to_token_stream(),
                     arguments,
                     output_expression
@@ -90,13 +93,13 @@ impl Composition for FnSignatureComposition {
                 let arguments = self.arguments.iter()
                     .map(|arg|
                         arg.name_type_original.clone())
-                    .collect::<Vec<_>>();
+                    .collect::<Punctuated<_, _>>();
                 println!("present_trait_vtable_inner_fn: {:#?}", arguments);
                 let fn_name = self.ident.unwrap();
                 let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments)).present(context);
                 let output_expression = self.return_type.presentation;
 
-                FFIObjectPresentation::TraitVTableInnerFn {
+                BindingPresentation::TraitVTableInnerFn {
                     name: Name::ModFn(fn_name),
                     name_and_args,
                     output_expression
@@ -205,14 +208,14 @@ impl FnSignatureComposition {
 
 fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     match output {
-        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(()), conversion: FieldTypePresentableContext::LineTermination },
+        ReturnType::Default => FnReturnTypeComposition { presentation: ReturnType::Default, conversion: FieldTypePresentableContext::LineTermination },
         ReturnType::Type(_, field_type) => {
-            let presentation = context.ffi_full_dictionary_field_type_presenter(field_type).to_token_stream();
+            // let presentation = context.ffi_full_dictionary_field_type_presenter(field_type).to_token_stream();
             let conversion = match &**field_type {
                 Type::Path(TypePath { path, .. }) => to_path(FieldTypePresentableContext::Obj, path),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
-            FnReturnTypeComposition { presentation, conversion }
+            FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_field_type_presenter(field_type))), conversion }
         },
     }
 }
@@ -245,13 +248,13 @@ fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2
 }
 
 fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
-    match output {
-        ReturnType::Default => FnReturnTypeComposition { presentation: quote!(), conversion: FieldTypePresentableContext::Empty },
-        ReturnType::Type(token, field_type) => {
-            let pres = context.ffi_full_dictionary_field_type_presenter(field_type);
-            let presentation = SIMPLE_PAIR_PRESENTER((quote!(#token), pres.to_token_stream()));
-            FnReturnTypeComposition { presentation, conversion: FieldTypePresentableContext::Empty }
-        }
+    FnReturnTypeComposition {
+        presentation: if let ReturnType::Type(token, field_type) = output {
+            ReturnType::Type(token.clone(), Box::new(context.ffi_full_dictionary_field_type_presenter(field_type)))
+        } else {
+            ReturnType::Default
+        },
+        conversion: FieldTypePresentableContext::Empty
     }
 }
 

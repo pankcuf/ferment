@@ -1,9 +1,11 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 use crate::interface::package_boxed_expression;
 
 pub enum ToConversionPresentation {
-    Enum(Vec<TokenStream2>),
+    Enum(Punctuated<TokenStream2, Comma>),
     Struct(TokenStream2),
     Vec,
     Map(TokenStream2, TokenStream2),
@@ -14,7 +16,7 @@ impl ToTokens for ToConversionPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             ToConversionPresentation::Enum(conversions) => {
-                package_boxed_expression(quote!(match obj { #(#conversions,)* }))
+                package_boxed_expression(quote!(match obj { #conversions }))
             },
             ToConversionPresentation::Struct(conversion) => {
                 quote! {

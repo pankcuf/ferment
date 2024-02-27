@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
 
 #[derive(Copy, Clone)]
 pub enum ManglingRules {
@@ -90,5 +90,23 @@ impl Mangle for Path {
 
         }
     }
+}
 
+impl Mangle for Type {
+    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+        match rules {
+            ManglingRules::Default => {
+                match self {
+                    // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
+                    Type::Path(TypePath { path, .. }) =>
+                        path.to_mangled_string(rules),
+                    ty => {
+                        let p: Path = parse_quote!(#ty);
+                        p.get_ident().unwrap().clone().to_string()
+                    }
+                }
+
+            }
+        }
+    }
 }

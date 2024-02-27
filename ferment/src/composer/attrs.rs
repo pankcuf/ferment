@@ -1,7 +1,9 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{ItemTrait, parse_quote};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 use ferment_macro::Parent;
-use crate::composer::Composer;
+use crate::composer::{Composer, Depunctuated};
 use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
 use crate::conversion::TypeConversion;
 use crate::context::{ScopeChain, ScopeContext};
@@ -26,7 +28,7 @@ impl<Parent: SharedAccess> AttrsComposer<Parent> {
 
 impl<Parent: SharedAccess> Composer<Parent> for AttrsComposer<Parent> {
     type Source = ScopeContext;
-    type Result = Vec<TraitVTablePresentation>;
+    type Result = Depunctuated<TraitVTablePresentation>;
 
     fn compose(&self, source: &Self::Source) -> Self::Result {
         let attrs_composition = &self.attrs;
@@ -58,17 +60,17 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
             let arguments = signature_decomposition.arguments
                 .iter()
                 .map(|arg| arg.name_type_original.clone())
-                .collect::<Vec<_>>();
+                .collect::<Punctuated<_, Comma>>();
 
             let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_fn_name), arguments)).present(context);
             let argument_names = IteratorPresentationContext::Round(
                 signature_decomposition.arguments
                     .iter()
-                    .map(|arg| if arg.name.is_some() {
-                        OwnedItemPresentableContext::Conversion(quote!(cast_obj))
+                    .map(|arg| OwnedItemPresentableContext::Conversion(if arg.name.is_some() {
+                        quote!(cast_obj)
                     } else {
-                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone())
-                    })
+                        arg.name_type_conversion.clone()
+                    }))
                     .collect())
                 .present(context);
 

@@ -12,6 +12,7 @@ pub enum ConversionsComposer<'a> {
     UnnamedStruct(&'a FieldsUnnamed),
     UnnamedEnumVariant(&'a FieldsUnnamed),
     TypeAlias(&'a Type),
+    // Enum(&'a Punctuated<Variant, Comma>)
 }
 
 
@@ -47,6 +48,9 @@ impl<'a> ConversionsComposer<'a> {
             Self::TypeAlias(ty) => {
                 vec![FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(parse_quote!(#ty), 0), ctx.full_type_for(ty))]
             }
+            // ConversionsComposer::Enum(variants) => {
+            //
+            // }
         }
     }
 }

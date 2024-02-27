@@ -23,16 +23,6 @@ impl<'a> From<(&'a Ident, &'a PathHolder)> for ImportComposition {
     }
 }
 
-// impl<'a> From<&'a GenericConversion> for ImportComposition {
-//     fn from(value: &'a GenericConversion) -> Self {
-//         ImportComposition {
-//             ident: ffi_mangled_ident(value.0.ty()),
-//             scope: PathHolder::ffi_generics_scope()
-//         }
-//     }
-//
-// }
-
 impl std::fmt::Debug for ImportComposition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("[")?;

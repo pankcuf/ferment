@@ -8,7 +8,7 @@ use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, TypeConversion};
 use crate::ext::{extract_trait_names, Mangle};
 use crate::formatter::format_token_stream;
-use crate::helper::{ffi_mangled_ident, path_arguments_to_paths, path_arguments_to_types};
+use crate::helper::{path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::PathHolder;
 
 #[derive(Clone)]
@@ -435,12 +435,12 @@ impl ScopeContext {
                 self.ffi_dictionary_field_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
             "Vec" | "BTreeMap" | "HashMap" => {
                 let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| ffi_mangled_ident(&full_type).to_token_stream());
+                    .map_or(path.to_token_stream(), |full_type| full_type.to_mangled_ident_default().to_token_stream());
                 parse_quote!(*mut #path)
             },
             "Result" /*if path.segments.len() == 1*/ => {
                 let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| ffi_mangled_ident(&full_type).to_token_stream());
+                    .map_or(path.to_token_stream(), |full_type| full_type.to_mangled_ident_default().to_token_stream());
                 parse_quote!(*mut #path)
             },
             _ =>

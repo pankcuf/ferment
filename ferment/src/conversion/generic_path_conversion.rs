@@ -8,8 +8,9 @@ use crate::composer::SimpleComposerPresenter;
 use crate::conversion::type_conversion::TypeConversion;
 use crate::context::ScopeContext;
 use crate::conversion::PathConversion;
+use crate::ext::Mangle;
 use crate::formatter::format_token_stream;
-use crate::helper::{ffi_mangled_ident, path_arguments_to_path_conversions};
+use crate::helper::path_arguments_to_path_conversions;
 use crate::interface::{ffi_to_conversion, package_boxed_expression};
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 
@@ -133,7 +134,7 @@ impl GenericPathConversion {
 
     pub fn expand(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
         let borrowed_context = context.borrow();
-        let ffi_name = ffi_mangled_ident(full_type.ty());
+        let ffi_name = full_type.ty().to_mangled_ident_default();
         println!("GenericPathConversion::expand: {}: [{}]", full_type, ffi_name);
         match self {
             GenericPathConversion::Result(path) => {

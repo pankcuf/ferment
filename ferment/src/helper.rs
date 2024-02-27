@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, Variant, WherePredicate};
 use syn::__private::{Span, TokenStream2};
@@ -7,13 +8,26 @@ use syn::token::Add;
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TypeComposition};
 use crate::context::TypeChain;
 use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, PathConversion, type_ident, type_ident_ref};
-use crate::ext::{Mangle, NestingExtension};
+use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::interface::ffi_to_conversion;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::tree::ScopeTreeExportID;
 
+#[derive(Clone, Debug)]
+pub struct Void;
+
+impl ToTokens for Void {
+    fn to_tokens(&self, _tokens: &mut TokenStream) {
+        let _ = quote! {};
+    }
+}
+impl Default for Void {
+    fn default() -> Self {
+        Void
+    }
+}
 pub trait ItemExtension {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID;
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
@@ -472,10 +486,10 @@ pub(crate) fn to_path(field_path: FieldTypePresentableContext, path: &Path) -> F
                 FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false)),
             "Vec" =>
                 FieldTypePresentableContext::ToVec(
-                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), vec![
+                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
                         OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
                         OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()))
-                    ]))),
+                    ])))),
             _ => FieldTypePresentableContext::ToOpt(field_path.into()),
         },
         _ => FieldTypePresentableContext::To(field_path.into()),
@@ -517,17 +531,17 @@ pub(crate) fn to_array(field_path: FieldTypePresentableContext, type_array: &Typ
 }
 
 
-pub fn ffi_mangled_ident(ty: &Type) -> Ident {
-    match ty {
-        // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
-        Type::Path(TypePath { path, .. }) =>
-            path.to_mangled_ident_default(),
-        ty => {
-            let p: Path = parse_quote!(#ty);
-            p.get_ident().unwrap().clone()
-        }
-    }
-}
+// pub fn ffi_mangled_ident(ty: &Type) -> Ident {
+//     match ty {
+//         // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
+//         Type::Path(TypePath { path, .. }) =>
+//             path.to_mangled_ident_default(),
+//         ty => {
+//             let p: Path = parse_quote!(#ty);
+//             p.get_ident().unwrap().clone()
+//         }
+//     }
+// }
 pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
     lit.to_token_stream()

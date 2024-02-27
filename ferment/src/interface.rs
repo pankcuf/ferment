@@ -2,6 +2,7 @@ use std::convert::Into;
 use syn::{parse_quote, Path};
 use quote::quote;
 use syn::__private::TokenStream2;
+use syn::token::Comma;
 use crate::composer::{OwnerIteratorConversionComposer, SimplePairConversionComposer, SimpleComposerPresenter, ComposerPresenter};
 
 use crate::formatter::format_token_stream;
@@ -20,9 +21,9 @@ pub const FFI_FROM_ROOT_PRESENTER: ComposerPresenter<(OwnerIteratorPresentationC
     OwnerIteratorPresentationContext::FromRoot(field_path.into(), conversions.into());
 pub const FFI_TO_ROOT_PRESENTER: ComposerPresenter<(OwnerIteratorPresentationContext, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> = |(_, conversions)|
     OwnerIteratorPresentationContext::Boxed(conversions.into());
-pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
+pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
     OwnerIteratorPresentationContext::CurlyBracesFields(local_context);
-pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer = |local_context|
+pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
     OwnerIteratorPresentationContext::RoundBracesFields(local_context);
 
 pub fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {

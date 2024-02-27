@@ -1,5 +1,7 @@
 use proc_macro2::Ident;
 use quote::quote;
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 use crate::composer::ConstructorPresentableContext;
 use crate::context::ScopeContext;
 use crate::naming::Name;
@@ -8,8 +10,9 @@ use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresent
 
 pub enum BindingPresentableContext {
     // Empty,
-    Constructor(ConstructorPresentableContext, Vec<OwnedItemPresentableContext>, IteratorPresentationContext),
+    Constructor(ConstructorPresentableContext, Punctuated<OwnedItemPresentableContext, Comma>, IteratorPresentationContext),
     Destructor(Ident),
+    // Accessor(),
 }
 
 impl ScopeContextPresentable for BindingPresentableContext {
@@ -20,14 +23,14 @@ impl ScopeContextPresentable for BindingPresentableContext {
             BindingPresentableContext::Constructor(context, args, field_names) => {
                 BindingPresentation::Constructor {
                     context: context.clone(),
-                    ctor_arguments: args.iter().map(|arg| arg.present(&source)).collect(),
+                    ctor_arguments: args.present(&source),
                     body_presentation: field_names.present(&source),
                 }
             }
             BindingPresentableContext::Destructor(target_name) => {
                 BindingPresentation::Destructor {
-                    ffi_name: quote!(#target_name),
-                    destructor_ident: Name::Destructor(target_name.clone())
+                    name: Name::Destructor(target_name.clone()),
+                    ffi_name: quote!(#target_name)
                 }
             }
         }

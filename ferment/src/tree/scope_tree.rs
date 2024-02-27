@@ -4,6 +4,7 @@ use std::fmt::Formatter;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
+use syn::punctuated::Punctuated;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
@@ -44,11 +45,11 @@ impl ToTokens for ScopeTree {
             let scope_conversions = self.exported.values().map(|tree_item| {
                 generics.extend(tree_item.generic_conversions());
                 tree_item.to_token_stream()
-            }).collect::<Vec<_>>();
+            }).collect::<Punctuated<_, _>>();
             let mut generic_imports = HashSet::new();
-            let mut generic_conversions = vec![];
-            let vtable_improts = HashSet::new();
-            let vtable_conversions = vec![];
+            let mut generic_conversions = Punctuated::new();
+
+            let vtable_conversions = Punctuated::new();
             for generic in &generics {
                 generic_imports.extend(generic.used_imports());
                 generic_conversions.push(generic.expand(&self.scope_context));
@@ -69,7 +70,7 @@ impl ToTokens for ScopeTree {
             let vtables_expansion = Expansion::Mod {
                 directives,
                 name: quote!(vtables),
-                imports: vtable_improts.into_iter().collect(),
+                imports: Punctuated::new(),
                 conversions: vtable_conversions
             };
             let modules = [types_expansion, generics_expansion, vtables_expansion];

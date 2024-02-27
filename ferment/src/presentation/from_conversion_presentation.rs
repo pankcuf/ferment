@@ -1,8 +1,10 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 
 pub enum FromConversionPresentation {
-    Enum(Vec<TokenStream2>),
+    Enum(Punctuated<TokenStream2, Comma>),
     Struct(TokenStream2),
     Vec,
     Map(TokenStream2, TokenStream2),
@@ -16,14 +18,12 @@ impl ToTokens for FromConversionPresentation {
                 quote! {
                     let ffi_ref = &*ffi;
                     match ffi_ref {
-                        #(#conversions,)*
+                        #conversions
                     }
                 }
             },
             FromConversionPresentation::Struct(conversion) => {
-                quote! {
-                    #conversion
-                }
+                quote!(#conversion)
             },
             FromConversionPresentation::Vec =>
                 quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi)),

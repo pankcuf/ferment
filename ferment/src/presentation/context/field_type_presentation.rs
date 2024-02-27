@@ -29,13 +29,11 @@ pub enum FieldTypePresentableContext {
     From(Box<FieldTypePresentableContext>),
     FromOffsetMap,
     FromOpt(Box<FieldTypePresentableContext>),
-    // FromArray(TokenStream2),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
     IfThenSome(Box<FieldTypePresentableContext>, TokenStream2),
     Named((TokenStream2, Box<FieldTypePresentableContext>)),
     Scope,
-    // Terminated(Box<FieldTypePresentableContext>),
     Deref(TokenStream2),
     DerefContext(Box<FieldTypePresentableContext>),
     FfiRefWithFieldName(Box<FieldTypePresentableContext>),
@@ -117,9 +115,6 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                     ffi_from_conversion(quote!(*values.add(i)));
                 quote!((0..count).map(|i| #ffi_from_conversion).collect())
             },
-            // FieldTypePresentableContext::FromArray(field_path) => {
-            //     quote!(*#field_path)
-            // },
             FieldTypePresentableContext::AsRef(field_path) => {
                 quote!(&#field_path)
             },
@@ -127,7 +122,6 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 quote!(&mut #field_path)
             },
             FieldTypePresentableContext::IfThenSome(presentation_context, condition) => {
-                // quote!((#field_path > 0).then_some(#field_path))
                 let field_path = presentation_context.present(source);
                 quote!((#field_path #condition).then(|| #field_path))
             }
@@ -138,10 +132,6 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::Scope => {
                 quote!({})
             }
-            // FieldTypePresentableContext::Terminated(presentation_context) => {
-            //     let ty = presentation_context.present(source);
-            //     quote!(#ty;)
-            // }
             FieldTypePresentableContext::FfiRefWithFieldName(presentation_context) => {
                 let field_name = presentation_context.present(source);
                 quote!(ffi_ref.#field_name)
