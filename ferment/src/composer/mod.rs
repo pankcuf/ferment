@@ -67,11 +67,11 @@ pub type ItemParentComposer = ParentComposer<ItemComposer>;
 pub type EnumParentComposer = ParentComposer<EnumComposer>;
 pub type ItemParentComposerRef = ParentComposerRef<ItemComposer>;
 pub type EnumParentComposerRef = ParentComposerRef<EnumComposer>;
-pub type ItemComposerPresenter<T> = ComposerPresenterByRef<ItemParentComposerRef, T>;
-pub type EnumComposerPresenter<T> = ComposerPresenterByRef<EnumParentComposerRef, T>;
-pub type ItemComposerTokenStreamPresenter = ItemComposerPresenter<TokenStream2>;
-pub type ItemComposerLocalConversionContextPresenter = ItemComposerPresenter<LocalConversionContext>;
-pub type ItemComposerFieldTypesContextPresenter = ItemComposerPresenter<FieldTypesContext>;
+pub type ItemComposerPresenterRef<T> = ComposerPresenterByRef<ItemParentComposerRef, T>;
+pub type EnumComposerPresenterRef<T> = ComposerPresenterByRef<EnumParentComposerRef, T>;
+pub type ItemComposerTokenStreamPresenter = ItemComposerPresenterRef<TokenStream2>;
+pub type ItemComposerLocalConversionContextPresenter = ItemComposerPresenterRef<LocalConversionContext>;
+pub type ItemComposerFieldTypesContextPresenter = ItemComposerPresenterRef<FieldTypesContext>;
 pub type SimpleContextComposer<Parent> = ContextComposer<TokenStream2, TokenStream2, Parent>;
 pub type SimpleItemParentContextComposer = SimpleContextComposer<ItemParentComposer>;
 

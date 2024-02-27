@@ -3,14 +3,13 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use quote::ToTokens;
-use crate::composer::{AttrsComposer, Composer, Depunctuated, EnumParentComposer, FFIAspect, ItemParentComposer, NameComposer, OwnerIteratorPostProcessingComposer, ParentComposer, VariantComposer};
-use crate::composer::constants::enum_composer_object;
+use crate::composer::{AttrsComposer, Composer, constants, ContextComposer, Depunctuated, EnumParentComposer, FFIAspect, ItemParentComposer, NameComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SimpleContextComposer, VariantComposer};
 use crate::composer::parent_composer::IParentComposer;
 use crate::composition::AttrsComposition;
 use crate::context::ScopeContext;
-use crate::interface::package_unboxed_root;
+use crate::interface::{DEFAULT_DOC_PRESENTER, package_unboxed_root};
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::binding::BindingPresentableContext;
@@ -18,11 +17,12 @@ use crate::shared::HasParent;
 
 pub struct EnumComposer {
     pub context: ParentComposer<ScopeContext>,
-    pub variant_composers: Vec<ItemParentComposer>,
-    pub variant_presenters: Vec<(VariantComposer, Ident, Punctuated<OwnedItemPresentableContext, Comma>)>,
     pub target_name_composer: NameComposer<EnumParentComposer>,
     pub attrs_composer: AttrsComposer<EnumParentComposer>,
+    pub doc_composer: SimpleContextComposer<EnumParentComposer>,
     pub ffi_object_composer: OwnerIteratorPostProcessingComposer<EnumParentComposer>,
+    pub variant_composers: Vec<ItemParentComposer>,
+    pub variant_presenters: Vec<(VariantComposer, Ident, Punctuated<OwnedItemPresentableContext, Comma>)>,
     pub generics: Option<Generics>,
 }
 
@@ -47,7 +47,7 @@ impl IParentComposer for EnumComposer {
     }
 
     fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::Default(self.target_name_composer.compose(&()))
+        DocPresentation::Default(self.doc_composer.compose(&()))
     }
 
     fn compose_object(&self) -> FFIObjectPresentation {
@@ -97,11 +97,12 @@ impl EnumComposer {
         let root = Rc::new(RefCell::new(Self {
             context: Rc::clone(context),
             generics: Some(generics),
+            doc_composer: ContextComposer::new(DEFAULT_DOC_PRESENTER, |composer: &Ref<EnumComposer>| composer.target_name_composer.compose(&())),
             variant_composers,
             variant_presenters,
             target_name_composer: NameComposer::new(target_name),
             attrs_composer: AttrsComposer::new(attrs),
-            ffi_object_composer: enum_composer_object(),
+            ffi_object_composer: constants::enum_composer_object(),
         }));
         {
             let mut root_borrowed = root.borrow_mut();
@@ -111,6 +112,7 @@ impl EnumComposer {
     }
     fn setup_composers(&mut self, root: &EnumParentComposer) {
         self.attrs_composer.set_parent(root);
+        self.doc_composer.set_parent(root);
         self.target_name_composer.set_parent(root);
         self.ffi_object_composer.set_parent(root);
     }

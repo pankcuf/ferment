@@ -18,9 +18,11 @@ use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePre
 
 pub struct ItemComposer {
     pub context: ParentComposer<ScopeContext>,
-    pub ffi_name_composer: NameComposer<ItemParentComposer>,
     pub target_name_composer: NameComposer<ItemParentComposer>,
     pub attrs_composer: AttrsComposer<ItemParentComposer>,
+    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ItemParentComposer>,
+
+    pub ffi_name_composer: NameComposer<ItemParentComposer>,
     pub ffi_conversions_composer: FFIComposer<ItemParentComposer>,
     pub fields_from_composer: FieldsOwnedComposer<ItemParentComposer>,
     pub fields_to_composer: FieldsOwnedComposer<ItemParentComposer>,
@@ -31,7 +33,6 @@ pub struct ItemComposer {
     pub ctor_composer: CtorOwnedComposer<ItemParentComposer>,
     pub dtor_composer: MethodComposer<ItemParentComposer, DestructorContext, DestructorContext>,
 
-    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ItemParentComposer>,
     pub doc_composer: SimpleItemParentContextComposer,
 
     pub generics: Option<Generics>,
