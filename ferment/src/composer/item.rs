@@ -4,12 +4,13 @@ use std::clone::Clone;
 use std::iter::{IntoIterator, Iterator};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Generics, parse_quote, Path};
+use syn::{Generics, parse_quote};
 use syn::token::Comma;
 use syn::punctuated::Punctuated;
-use crate::composer::{AttrsComposer, BindingAccessorContext, Composer, ComposerPresenter, constants, ConversionsComposer, CtorOwnedComposer, Depunctuated, DestructorContext, FFIAspect, FFIComposer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, HasParent, ItemParentComposer, LocalConversionContext, MethodComposer, NameComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorLocalContext, OwnerIteratorPostProcessingComposer, ParentComposer, SimpleItemParentContextComposer};
+use crate::composer::{AttrsComposer, BindingAccessorContext, Composer, ComposerPresenter, constants, ConversionsComposer, CtorOwnedComposer, Depunctuated, DestructorContext, FFIAspect, FFIComposer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, HasParent, ItemParentComposer, LocalConversionContext, MethodComposer, NameComposer, NameContextComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorLocalContext, OwnerIteratorPostProcessingComposer, ParentComposer, r#type};
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, DEFAULT_DOC_COMPOSER, FFI_NAME_DTOR_COMPOSER, FFI_NAME_LOCAL_CONVERSION_COMPOSER, TARGET_NAME_LOCAL_CONVERSION_COMPOSER};
 use crate::composer::parent_composer::IParentComposer;
+use crate::composer::r#type::TypeComposer;
 use crate::composition::AttrsComposition;
 use crate::context::ScopeContext;
 use crate::naming::Name;
@@ -18,32 +19,27 @@ use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePre
 
 pub struct ItemComposer {
     pub context: ParentComposer<ScopeContext>,
-    pub target_name_composer: NameComposer<ItemParentComposer>,
-    pub attrs_composer: AttrsComposer<ItemParentComposer>,
-    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ItemParentComposer>,
+    pub attrs_composer: AttrsComposer<ParentComposer<Self>>,
+    pub doc_composer: NameContextComposer<ParentComposer<Self>>,
+    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ParentComposer<Self>>,
+    pub type_composer: TypeComposer<ParentComposer<Self>>,
+    pub generics: Option<Generics>,
 
-    pub ffi_name_composer: NameComposer<ItemParentComposer>,
     pub ffi_conversions_composer: FFIComposer<ItemParentComposer>,
     pub fields_from_composer: FieldsOwnedComposer<ItemParentComposer>,
     pub fields_to_composer: FieldsOwnedComposer<ItemParentComposer>,
-
     pub getter_composer: MethodComposer<ItemParentComposer, BindingAccessorContext, LocalConversionContext>,
     pub setter_composer: MethodComposer<ItemParentComposer, BindingAccessorContext, LocalConversionContext>,
-
     pub ctor_composer: CtorOwnedComposer<ItemParentComposer>,
     pub dtor_composer: MethodComposer<ItemParentComposer, DestructorContext, DestructorContext>,
-
-    pub doc_composer: SimpleItemParentContextComposer,
-
-    pub generics: Option<Generics>,
     pub field_types: FieldTypesContext,
 }
 
 impl ItemComposer {
 
     pub(crate) fn type_alias_composer(
-        ffi_name: Path,
-        target_name: Path,
+        ffi_name: Name,
+        target_name: Name,
         generics: Option<Generics>,
         attrs: AttrsComposition,
         context: &ParentComposer<ScopeContext>,
@@ -67,8 +63,8 @@ impl ItemComposer {
 
     #[allow(clippy::too_many_arguments)]
     pub fn struct_composer(
-        ffi_name: Path,
-        target_name: Path,
+        ffi_name: Name,
+        target_name: Name,
         generics: Option<Generics>,
         attrs: AttrsComposition,
         context: &Rc<RefCell<ScopeContext>>,
@@ -96,8 +92,8 @@ impl ItemComposer {
 
     #[allow(clippy::too_many_arguments)]
     pub fn enum_variant_composer(
-        ffi_name: Path,
-        target_name: Path,
+        ffi_name: Name,
+        target_name: Name,
         attrs: AttrsComposition,
         context: &Rc<RefCell<ScopeContext>>,
         root_presenter: OwnerIteratorConversionComposer<Comma>,
@@ -124,13 +120,13 @@ impl ItemComposer {
 
     #[allow(clippy::too_many_arguments, non_camel_case_types)]
     fn new(
-        ffi_name: Path,
-        target_name: Path,
+        ffi_name: Name,
+        target_name: Name,
         generics: Option<Generics>,
         attrs: AttrsComposition,
         context: &Rc<RefCell<ScopeContext>>,
         root_presenter: ComposerPresenter<OwnerIteratorLocalContext<Comma>, OwnerIteratorPresentationContext>,
-        doc_composer: SimpleItemParentContextComposer,
+        doc_composer: NameContextComposer<ItemParentComposer>,
         field_presenter: OwnedFieldTypeComposerRef,
         ffi_object_composer: OwnerIteratorPostProcessingComposer<ItemParentComposer>,
         ffi_conversions_composer: FFIComposer<ItemParentComposer>,
@@ -139,8 +135,9 @@ impl ItemComposer {
         let root = Rc::new(RefCell::new(Self {
             context: Rc::clone(context),
             attrs_composer: AttrsComposer::new(attrs),
-            ffi_name_composer: NameComposer::new(ffi_name),
-            target_name_composer: NameComposer::new(target_name),
+            type_composer: TypeComposer::new(
+                NameComposer::new(ffi_name),
+                NameComposer::new(target_name)),
             fields_from_composer: constants::fields_composer(root_presenter, FFI_NAME_LOCAL_CONVERSION_COMPOSER, field_presenter),
             fields_to_composer: constants::fields_composer(root_presenter, TARGET_NAME_LOCAL_CONVERSION_COMPOSER, field_presenter),
             getter_composer: MethodComposer::new(
@@ -161,7 +158,7 @@ impl ItemComposer {
                         field_type: field_type.to_token_stream()
                     },
                 FFI_NAME_LOCAL_CONVERSION_COMPOSER),
-            dtor_composer: MethodComposer::new(BINDING_DTOR_COMPOSER, FFI_NAME_DTOR_COMPOSER, ),
+            dtor_composer: MethodComposer::new(BINDING_DTOR_COMPOSER, FFI_NAME_DTOR_COMPOSER),
             ctor_composer,
             ffi_conversions_composer,
             ffi_object_composer,
@@ -181,8 +178,7 @@ impl ItemComposer {
     }
     fn setup_composers(&mut self, root: &ItemParentComposer) {
         self.attrs_composer.set_parent(root);
-        self.ffi_name_composer.set_parent(root);
-        self.target_name_composer.set_parent(root);
+        self.type_composer.set_parent(root);
         self.fields_from_composer.set_parent(root);
         self.fields_to_composer.set_parent(root);
         self.ctor_composer.set_parent(root);
@@ -229,13 +225,13 @@ impl IParentComposer for ItemComposer {
 
     fn compose_drop(&self) -> DropInterfacePresentation {
         DropInterfacePresentation::Full {
-            name: self.ffi_name_composer.compose(&()),
+            name: self.type_composer.compose_aspect(r#type::FFIAspect::FFI, &self.context.borrow()),
             body: self.compose_aspect(FFIAspect::Drop)
         }
     }
 
-    fn compose_names(&self) -> (TokenStream2, TokenStream2) {
-        (self.ffi_name_composer.compose(&()), self.target_name_composer.compose(&()))
+    fn compose_names(&self) -> (Name, Name) {
+        (self.type_composer.compose_aspect(r#type::FFIAspect::FFI, &self.context.borrow()), self.type_composer.compose_aspect(r#type::FFIAspect::Target, &self.context.borrow()))
     }
 
     fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>) {

@@ -1,9 +1,10 @@
+use std::clone::Clone;
 use syn::token::Comma;
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::{parse_quote, Path};
-use crate::composer::{BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ConstructorPresentableContext, ContextComposer, ConversionComposer, CtorOwnedComposer, Depunctuated, DestructorContext, DropConversionComposer, EnumComposerPresenterRef, EnumParentComposer, FFIComposer, FFIConversionComposer, FieldsOwnedComposer, FieldTypeComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemComposerFieldTypesContextPresenter, ItemComposerLocalConversionContextPresenter, ItemComposerPresenterRef, ItemComposerTokenStreamPresenter, ItemParentComposer, LocalConversionContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorLocalContext, OwnerIteratorPostProcessingComposer, SharedComposer, SimpleContextComposer};
+use crate::composer::{BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ConstructorPresentableContext, ContextComposer, ConversionComposer, CtorOwnedComposer, Depunctuated, DestructorContext, DropConversionComposer, EnumComposerPresenterRef, EnumParentComposer, FFIComposer, FFIConversionComposer, FieldsOwnedComposer, FieldTypeComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemComposerFieldTypesContextPresenter, ItemComposerLocalConversionContextPresenter, ItemComposerPresenterRef, ItemParentComposer, LocalConversionContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorLocalContext, OwnerIteratorPostProcessingComposer, SharedComposer, r#type};
 use crate::conversion::FieldTypeConversion;
 use crate::ext::{Conversion, Mangle, Pop};
 use crate::interface::{DEFAULT_DOC_PRESENTER, FFI_FROM_ROOT_PRESENTER, FFI_TO_ROOT_PRESENTER, ROOT_DESTROY_CONTEXT_COMPOSER};
@@ -12,14 +13,15 @@ use crate::presentation::BindingPresentation;
 use crate::presentation::context::{FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::context::binding::BindingPresentableContext;
 
-pub const DEFAULT_DOC_COMPOSER: SimpleContextComposer<ItemParentComposer> =
+pub const DEFAULT_DOC_COMPOSER: ContextComposer<Name, TokenStream2, ItemParentComposer> =
     ContextComposer::new(DEFAULT_DOC_PRESENTER, TARGET_NAME_PRESENTER);
 pub const FIELDS_FROM_PRESENTER: ItemComposerPresenterRef<OwnerIteratorPresentationContext> =
     |composer| composer.fields_from_composer.compose(&());
 pub const FIELDS_TO_PRESENTER: ItemComposerPresenterRef<OwnerIteratorPresentationContext> =
     |composer| composer.fields_to_composer.compose(&());
-pub const TARGET_NAME_PRESENTER: ItemComposerTokenStreamPresenter =
-    |composer| composer.target_name_composer.compose(&());
+pub const TARGET_NAME_PRESENTER: ItemComposerPresenterRef<Name> =
+    |composer|
+        composer.type_composer.compose_aspect(r#type::FFIAspect::Target, &composer.context.borrow());
 
 pub const FROM_DEREF_FFI_CONTEXT_BY_ADDR_PRESENTER: ItemComposerPresenterRef<OwnerIteratorPresentationContext> =
     |_| OwnerIteratorPresentationContext::AddrDeref(quote!(ffi));
@@ -45,11 +47,11 @@ pub const STRUCT_FIELD_TYPE_DESTROY_PRESENTER: FieldTypeComposer =
 pub const TARGET_NAME_LOCAL_CONVERSION_COMPOSER: ItemComposerLocalConversionContextPresenter =
     |composer| (TARGET_NAME_PRESENTER(composer), composer.field_types.clone());
 pub const FFI_NAME_LOCAL_CONVERSION_COMPOSER: ItemComposerLocalConversionContextPresenter =
-    |composer| (composer.ffi_name_composer.compose(&()), composer.field_types.clone());
+    |composer| (composer.type_composer.compose_aspect(r#type::FFIAspect::FFI, &composer.context.borrow()), composer.field_types.clone());
 pub const FFI_NAME_DTOR_COMPOSER: ItemComposerPresenterRef<DestructorContext> =
     |composer| {
-        let ffi_name = composer.ffi_name_composer.compose(&());
-        (parse_quote!(#ffi_name), ffi_name)
+        let ffi_name = composer.type_composer.compose_aspect(r#type::FFIAspect::FFI, &composer.context.borrow());
+        (ffi_name.clone(), ffi_name)
     };
 
 pub const FIELD_TYPES_COMPOSER: ItemComposerFieldTypesContextPresenter =
@@ -63,8 +65,8 @@ pub const BYPASS_FIELD_CONTEXT: FieldTypePresentationContextPassRef =
 pub const BINDING_DTOR_COMPOSER: BindingDtorComposer =
     |(ffi_ident, ffi_name)|
         BindingPresentation::Destructor {
-            name: Name::Destructor(ffi_ident),
-            ffi_name
+            name: Name::Destructor(Box::new(ffi_ident)),
+            ffi_name: ffi_name.to_token_stream()
         };
 const fn owner_iterator_lambda_composer() -> ComposerPresenter<(OwnerIteratorPresentationContext, OwnerIteratorPresentationContext), OwnerIteratorPresentationContext> {
     |(field_path_context, context)|
@@ -109,8 +111,8 @@ pub const fn composer_ctor(
 
 pub const fn default_ctor_context_composer() -> SharedComposer<ItemParentComposer, (ConstructorPresentableContext, FieldTypesContext)> {
     |composer| {
-        let ffi_name = composer.ffi_name_composer.compose(&());
-        (ConstructorPresentableContext::Default(Name::Constructor(parse_quote!(#ffi_name)), parse_quote!(#ffi_name)), FIELD_TYPES_COMPOSER(composer))
+        let ffi_name = composer.type_composer.compose_aspect(r#type::FFIAspect::FFI, &composer.context.borrow());
+        (ConstructorPresentableContext::Default(Name::Constructor(Box::new(ffi_name.clone())), ffi_name), FIELD_TYPES_COMPOSER(composer))
     }
 }
 
@@ -366,12 +368,14 @@ pub const fn enum_variant_composer_field_presenter() -> OwnedFieldTypeComposerRe
 }
 pub const fn enum_variant_ctor_context_composer() -> SharedComposer<ItemParentComposer, (ConstructorPresentableContext, FieldTypesContext)> {
     |composer| {
-        let ffi = composer.ffi_name_composer.compose(&());
-        let ffi_path: Path = parse_quote!(#ffi);
+        let ffi = composer.type_composer.compose_aspect(r#type::FFIAspect::FFI, &composer.context.borrow());
+        let tt = ffi.to_token_stream();
+        let ffi_path: Path = parse_quote!(#tt);
+        println!("enum_variant_ctor_context_composer::: {} \n\t\t ---- {} \n\t\t ---- {}", ffi, ffi_path.popped().to_token_stream(), ffi_path.to_mangled_ident_default());
         (ConstructorPresentableContext::EnumVariant(
-            Name::Constructor(ffi_path.to_mangled_ident_default()),
+            Name::Constructor(Box::new(ffi.clone())),
             ffi_path.popped().to_token_stream(),
-            ffi
+            ffi_path.to_token_stream()
         ), FIELD_TYPES_COMPOSER(composer))
     }
 }
@@ -419,10 +423,10 @@ pub const fn enum_variant_composer_ctor_named() -> CtorOwnedComposer<ItemParentC
 pub const VARIANTS_FROM_PRESENTER: EnumComposerPresenterRef<OwnerIteratorPresentationContext> =
     |composer|
         OwnerIteratorPresentationContext::Variants((
-            composer.target_name_composer.compose(&()),
+            composer.type_composer.compose_aspect(r#type::FFIAspect::Target, &composer.context.borrow()),
             composer.variant_presenters.iter()
                 .map(|(presenter, variant_name, fields_context)|
-                    presenter((quote!(#variant_name), fields_context.clone())))
+                    presenter((variant_name.clone(), fields_context.clone())))
                 .collect()));
 
 

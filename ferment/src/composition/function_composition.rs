@@ -52,7 +52,7 @@ impl Composition for FnSignatureComposition {
                     .collect::<Punctuated<_, Comma>>();
 
                 let fn_name = self.ident.unwrap();
-                println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
+                // println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
                 let full_fn_path = self.scope.joined(&fn_name);
                 let argument_conversions = self.arguments
                     .iter()
@@ -60,13 +60,13 @@ impl Composition for FnSignatureComposition {
                         OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
                     .collect::<Punctuated<_, _>>();
                 let name = Name::ModFn(fn_name);
-                let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((quote!(#full_fn_path), argument_conversions)).present(context);
+                let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((Name::Path(full_fn_path.0.clone()), argument_conversions)).present(context);
                 let return_type = self.return_type.presentation;
                 let output_conversions = self.return_type.conversion.present(context);
-                println!("present_ffi_object_fn.1: {}", name);
-                println!("present_ffi_object_fn.2: {}", quote!(arguments));
-                // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
-                println!("present_ffi_object_fn.3: {}", quote!(#input_conversions));
+                // println!("present_ffi_object_fn.1: {}", name);
+                // println!("present_ffi_object_fn.2: {}", quote!(arguments));
+                // // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
+                // println!("present_ffi_object_fn.3: {}", quote!(#input_conversions));
                 // println!("present_ffi_object_fn.4: {}", quote!(#output_conversions));
                 BindingPresentation::RegularFunction {
                     is_async: self.is_async,
@@ -96,7 +96,7 @@ impl Composition for FnSignatureComposition {
                     .collect::<Punctuated<_, _>>();
                 println!("present_trait_vtable_inner_fn: {:#?}", arguments);
                 let fn_name = self.ident.unwrap();
-                let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn), arguments)).present(context);
+                let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((Name::Just(quote!(unsafe extern "C" fn)), arguments)).present(context);
                 let output_expression = self.return_type.presentation;
 
                 BindingPresentation::TraitVTableInnerFn {
@@ -184,9 +184,9 @@ impl FnSignatureComposition {
         let ident = Some(ident.clone());
         let arguments = handle_fn_args(inputs, &self_ty, context);
         let is_async = sig.asyncness.is_some();
-        println!("FnSignatureComposition::from_signature.1: {}", sig.to_token_stream());
-        println!("FnSignatureComposition::from_signature.2: {:?}", arguments);
-        println!("FnSignatureComposition::from_signature.3: {:?}", return_type);
+        // println!("FnSignatureComposition::from_signature.1: {}", sig.to_token_stream());
+        // println!("FnSignatureComposition::from_signature.2: {:?}", arguments);
+        // println!("FnSignatureComposition::from_signature.3: {:?}", return_type);
         FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()), self_ty }
     }
 

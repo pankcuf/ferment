@@ -3,14 +3,15 @@ use syn::{parse_quote, Path};
 use quote::quote;
 use syn::__private::TokenStream2;
 use syn::token::Comma;
-use crate::composer::{OwnerIteratorConversionComposer, SimplePairConversionComposer, SimpleComposerPresenter, ComposerPresenter};
+use crate::composer::{OwnerIteratorConversionComposer, SimplePairConversionComposer, ComposerPresenter};
 
 use crate::formatter::format_token_stream;
+use crate::naming::Name;
 use crate::presentation::context::OwnerIteratorPresentationContext;
 
 pub const ROOT_DESTROY_CONTEXT_COMPOSER: ComposerPresenter<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext> =
     |_| OwnerIteratorPresentationContext::UnboxedRoot;
-pub const DEFAULT_DOC_PRESENTER: SimpleComposerPresenter = |target_name| {
+pub const DEFAULT_DOC_PRESENTER: ComposerPresenter<Name, TokenStream2> = |target_name| {
     let comment = format!("FFI-representation of the [`{}`]", format_token_stream(&target_name));
     // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)
     parse_quote! { #[doc = #comment] }
@@ -26,7 +27,7 @@ pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> 
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
     OwnerIteratorPresentationContext::RoundBracesFields(local_context);
 
-pub fn create_struct(name: TokenStream2, implementation: TokenStream2) -> TokenStream2 {
+pub fn create_struct(name: &Name, implementation: TokenStream2) -> TokenStream2 {
     let path: Path = parse_quote!(#name);
     let ident = &path.segments.last().unwrap().ident;
     quote! {

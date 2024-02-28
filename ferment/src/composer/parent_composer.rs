@@ -2,6 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
 use crate::composer::{Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
+use crate::naming::Name;
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation, TraitVTablePresentation};
 
 pub trait IParentComposer {
@@ -12,7 +13,7 @@ pub trait IParentComposer {
     fn compose_object(&self) -> FFIObjectPresentation;
     fn compose_drop(&self) -> DropInterfacePresentation;
 
-    fn compose_names(&self) -> (TokenStream2, TokenStream2);
+    fn compose_names(&self) -> (Name, Name);
     fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>);
     fn expand(&self) -> Expansion {
         let (from_presentation, to_presentation, destroy_presentation, generics) = self.compose_interface_aspects();

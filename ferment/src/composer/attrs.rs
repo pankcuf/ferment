@@ -62,7 +62,7 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
                 .map(|arg| arg.name_type_original.clone())
                 .collect::<Punctuated<_, Comma>>();
 
-            let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((quote!(unsafe extern "C" fn #ffi_fn_name), arguments)).present(context);
+            let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((Name::Just(quote!(unsafe extern "C" fn #ffi_fn_name)), arguments)).present(context);
             let argument_names = IteratorPresentationContext::Round(
                 signature_decomposition.arguments
                     .iter()

@@ -8,10 +8,9 @@ use crate::composer::SimpleComposerPresenter;
 use crate::conversion::type_conversion::TypeConversion;
 use crate::context::ScopeContext;
 use crate::conversion::PathConversion;
-use crate::ext::Mangle;
-use crate::formatter::format_token_stream;
 use crate::helper::path_arguments_to_path_conversions;
 use crate::interface::{ffi_to_conversion, package_boxed_expression};
+use crate::naming::Name;
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 
 pub const PRIMITIVE_VEC_DROP_PRESENTER: SimpleComposerPresenter = |p|
@@ -134,8 +133,7 @@ impl GenericPathConversion {
 
     pub fn expand(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
         let borrowed_context = context.borrow();
-        let ffi_name = full_type.ty().to_mangled_ident_default();
-        println!("GenericPathConversion::expand: {}: [{}]", full_type, ffi_name);
+        // println!("GenericPathConversion::expand: {}", full_type);
         match self {
             GenericPathConversion::Result(path) => {
                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
@@ -145,7 +143,7 @@ impl GenericPathConversion {
 
                 let (arg_0_presentation, arg_1_presentation) = match &path_arguments_to_path_conversions(arguments)[..] {
                     [PathConversion::Primitive(ok), PathConversion::Primitive(error)] => {
-                        println!("Result Primitive x Primitive {} x {}", quote!(#ok), quote!(#error));
+                        // println!("Result Primitive x Primitive {} x {}", quote!(#ok), quote!(#error));
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
@@ -160,7 +158,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Primitive(ok), PathConversion::Complex(error)] => {
-                        println!("Result Primitive x Complex {} x {}", quote!(#ok), quote!(#error));
+                        // println!("Result Primitive x Complex {} x {}", quote!(#ok), quote!(#error));
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
@@ -175,7 +173,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Primitive(ok), PathConversion::Generic(generic_error)] => {
-                        println!("Result Primitive x Generic {} x {}", quote!(#ok), quote!(#generic_error));
+                        // println!("Result Primitive x Generic {} x {}", quote!(#ok), quote!(#generic_error));
                         (
                             GenericArgPresentation::new(
                                 parse_quote!(#ok),
@@ -190,7 +188,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Primitive(error)] => {
-                        println!("Result Complex x Primitive {} x {}", quote!(#ok), quote!(#error));
+                        // println!("Result Complex x Primitive {} x {}", quote!(#ok), quote!(#error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
@@ -205,7 +203,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Complex(error)] => {
-                        println!("Result Complex x Complex {} x {}", format_token_stream(ok), format_token_stream(error));
+                        // println!("Result Complex x Complex {} x {}", format_token_stream(ok), format_token_stream(error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
@@ -220,7 +218,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Complex(ok), PathConversion::Generic(generic_error)] => {
-                        println!("Result Complex x Generic {} x {}", format_token_stream(ok), format_token_stream(generic_error));
+                        // println!("Result Complex x Generic {} x {}", format_token_stream(ok), format_token_stream(generic_error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.ffi_path_converted_or_same(ok),
@@ -235,7 +233,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Primitive(error)] => {
-                        println!("Result Generic x Primitive {} x {}", quote!(#generic_ok), quote!(#error));
+                        // println!("Result Generic x Primitive {} x {}", quote!(#generic_ok), quote!(#error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
@@ -250,7 +248,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Complex(error)] => {
-                        println!("Result Generic x Complex {} x {}", quote!(#generic_ok), quote!(#error));
+                        // println!("Result Generic x Complex {} x {}", quote!(#generic_ok), quote!(#error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
@@ -265,7 +263,7 @@ impl GenericPathConversion {
                         )
                     },
                     [PathConversion::Generic(generic_ok), PathConversion::Generic(generic_error)] => {
-                        println!("Result Generic x Generic {} x {}", quote!(#generic_ok), quote!(#generic_error));
+                        // println!("Result Generic x Generic {} x {}", quote!(#generic_ok), quote!(#generic_error));
                         (
                             GenericArgPresentation::new(
                                 borrowed_context.convert_to_ffi_path(generic_ok),
@@ -281,10 +279,9 @@ impl GenericPathConversion {
                     },
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                println!("FFIObjectPresentation::Result:::: <{}, {}>", arg_0_presentation, arg_1_presentation);
                 FFIObjectPresentation::Result {
-                    target_type: quote!(#path),
-                    ffi_type: ffi_name.clone(),
+                    target_type: Name::Path(path.clone()),
+                    ffi_type: Name::MangledType(full_type.ty().clone()),
                     ok_presentation: arg_0_presentation,
                     error_presentation: arg_1_presentation,
                     generics: None,
@@ -438,8 +435,8 @@ impl GenericPathConversion {
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
                FFIObjectPresentation::Map {
-                    target_type: quote!(#path),
-                    ffi_type: ffi_name,
+                    target_type: Name::Path(path.clone()),
+                    ffi_type: Name::MangledType(full_type.ty().clone()),
                     key_presentation: arg_0_presentation,
                     value_presentation: arg_1_presentation,
                     generics: None,
@@ -476,8 +473,8 @@ impl GenericPathConversion {
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
                 FFIObjectPresentation::Vec {
-                    target_type: quote!(#path),
-                    ffi_type: ffi_name,
+                    target_type: Name::Path(path.clone()),
+                    ffi_type: Name::MangledType(full_type.ty().clone()),
                     value_presentation: arg_0_presentation,
                     generics: None,
                     context: Rc::clone(context)

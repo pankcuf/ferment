@@ -1,10 +1,11 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
+use crate::naming::Name;
 
 pub enum DropInterfacePresentation {
     Empty,
     Full {
-        name: TokenStream2,
+        name: Name,
         body: TokenStream2
     }
 }

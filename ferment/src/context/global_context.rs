@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use syn::{parse_quote, Path, Type};
 use crate::Config;
 use crate::context::{ScopeChain, TypeChain};
@@ -9,7 +9,7 @@ use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
 use crate::conversion::{ObjectConversion, TypeConversion};
-use crate::formatter::{format_global_context, format_token_stream};
+use crate::formatter::format_global_context;
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
 
@@ -54,7 +54,7 @@ impl GlobalContext {
 
 
     pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&ObjectConversion> {
-        println!("resolve_trait_type: {}", from_type.to_token_stream());
+        // println!("resolve_trait_type: {}", from_type.to_token_stream());
         // RESOLVE PATHS
         // Self::asyn::query::TransportRequest::Client::Error
         // ? [Self::asyn::query::TransportRequest::Client::Error] Self
@@ -80,26 +80,26 @@ impl GlobalContext {
             //maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
                 match maybe_trait {
-                    Some(ObjectConversion::Item(TypeConversion::Trait(trait_ty, decomposition, _super_bounds), _)) |
-                    Some(ObjectConversion::Type(TypeConversion::Trait(trait_ty, decomposition, _super_bounds))) => {
+                    Some(ObjectConversion::Item(TypeConversion::Trait(_trait_ty, decomposition, _super_bounds), _)) |
+                    Some(ObjectConversion::Type(TypeConversion::Trait(_trait_ty, decomposition, _super_bounds))) => {
                         let ident = &head.0.segments.last().unwrap().ident;
-                        println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
+                        // println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = decomposition.types.get(ident) {
-                            println!("FFI (first bound) {:?}", trait_type);
+                            // println!("FFI (first bound) {:?}", trait_type);
                             if let Some(first_bound) = trait_type.trait_bounds.first() {
-                                println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
+                                // println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
                                 let tt_type = parse_quote!(#first_bound);
                                 if let Some(scope) = root_scope {
                                     maybe_trait = self.maybe_scope_object(&tt_type, scope);
                                 }
-                                println!("FFI (first bound full) {:?}", maybe_trait);
+                                // println!("FFI (first bound full) {:?}", maybe_trait);
                             }
                         }
                     },
                     _ => {}
                 }
             }
-            println!("FFI (resolve....) for: {} in [{}] ===> {:?}", format_token_stream(&head), format_token_stream(&root), maybe_trait);
+            // println!("FFI (resolve....) for: {} in [{}] ===> {:?}", format_token_stream(&head), format_token_stream(&root), maybe_trait);
             i += 1;
         }
         maybe_trait
@@ -160,7 +160,7 @@ impl GlobalContext {
 
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> ScopeChain {
-        println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
+        // println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
         let p = parse_quote!(#ty);
         let scope = if let Some(st) = self.maybe_scope_object(ty, current_scope) {
             // match st {
@@ -176,7 +176,7 @@ impl GlobalContext {
         } else {
             None
         };
-        println!("actual_scope_for_type: [{:?}]", scope);
+        // println!("actual_scope_for_type: [{:?}]", scope);
         scope.unwrap_or(ScopeChain::crate_root())
     }
     pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {

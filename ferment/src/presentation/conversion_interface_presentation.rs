@@ -2,13 +2,14 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
 use crate::interface::{interface, obj, package};
+use crate::naming::Name;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 
 pub enum ConversionInterfacePresentation {
     Empty,
     Interface {
-        ffi_type: TokenStream2,
-        target_type: TokenStream2,
+        ffi_type: Name,
+        target_type: Name,
         from_presentation: FromConversionPresentation,
         to_presentation: ToConversionPresentation,
         destroy_presentation: TokenStream2,

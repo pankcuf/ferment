@@ -55,10 +55,10 @@ impl ScopeContext {
     }
 
     fn trait_ty(&self, ty: &Type) -> Option<ObjectConversion> {
-        println!("FFI (check...1) for: {}", format_token_stream(ty));
+        // println!("FFI (check...1) for: {}", format_token_stream(ty));
         let lock = self.context.read().unwrap();
         let mut maybe_trait = lock.resolve_trait_type(ty);
-        println!("FFI (trait) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
+        // println!("FFI (trait) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
         match maybe_trait {
             Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, _)) => {
                 // loc
@@ -110,7 +110,7 @@ impl ScopeContext {
         };
 
         let result = result.unwrap_or(ty.clone());
-        println!("FFI (ffi_internal_type_for) for: {} in [{}] = {}", ty.to_token_stream(), self.scope, format_token_stream(&result));
+        //println!("FFI (ffi_internal_type_for) for: {} in [{}] = {}", ty.to_token_stream(), self.scope, format_token_stream(&result));
         result
     }
 
@@ -234,7 +234,7 @@ impl ScopeContext {
         let first_ident = &first_segment.ident;
         let last_segment = segments.iter().last().unwrap();
         let last_ident = &last_segment.ident;
-        println!("ffi_path_converted: {}", format_token_stream(path));
+        // println!("ffi_path_converted: {}", format_token_stream(path));
         let result = match last_ident.to_string().as_str() {
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
             | "isize" | "usize" | "bool" => None,
@@ -274,12 +274,12 @@ impl ScopeContext {
             "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
             _ => {
                 let ty = parse_quote!(#path);
-                println!("ffi_path_converted (resolve.1): {}", format_token_stream(&ty));
+                // println!("ffi_path_converted (resolve.1): {}", format_token_stream(&ty));
                 // if let Some(trait_tyty) = self.trait_ty(&ty) {
                 if let Some(ObjectConversion::Type(TypeConversion::Trait(tc, ..)) |
                             ObjectConversion::Type(TypeConversion::TraitType(tc))) = self.trait_ty(&ty) {
                     let trait_ty = &tc.ty;
-                    println!("ffi_path_converted (resolve.trait): {}", format_token_stream(trait_ty));
+                    // println!("ffi_path_converted (resolve.trait): {}", format_token_stream(trait_ty));
                     let trait_path: Path = parse_quote!(#trait_ty);
                     let trait_segments = &trait_path.segments;
                     let trait_first_segment = trait_segments.first().unwrap();
@@ -302,7 +302,7 @@ impl ScopeContext {
                         "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
                         _ => segments.iter().take(segments.len() - 1).collect()
                     };
-                    println!("ffi_path_converted (resolve.2): {}", format_token_stream(&ty));
+                    // println!("ffi_path_converted (resolve.2): {}", format_token_stream(&ty));
                     let ffi_name = if segments.is_empty() {
                         quote!(#last_ident)
                     } else {
@@ -319,7 +319,7 @@ impl ScopeContext {
     }
 
     fn ffi_external_path_converted(&self, path: &Path) -> Option<Type> {
-        println!("ffi_external_path_converted: {}", format_token_stream(path));
+        // println!("ffi_external_path_converted: {}", format_token_stream(path));
         let lock = self.context.read().unwrap();
         let segments = &path.segments;
         let first_segment = segments.first().unwrap();
@@ -371,9 +371,9 @@ impl ScopeContext {
                 }
             }
         };
-        if let Some(result) = result.as_ref() {
-            println!("•• [FFI] ffi_external_path_converted: {} --> {}", path.to_token_stream(), format_token_stream(result));
-        }
+        // if let Some(result) = result.as_ref() {
+        //     println!("•• [FFI] ffi_external_path_converted: {} --> {}", path.to_token_stream(), format_token_stream(result));
+        // }
         result
     }
 
@@ -422,7 +422,7 @@ impl ScopeContext {
     }
 
     pub fn ffi_dictionary_field_type(&self, path: &Path) -> Type {
-        println!("ffi_dictionary_field_type: {}", format_token_stream(path));
+        // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
         match path.segments.last().unwrap().ident.to_string().as_str() {
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
             "isize" | "usize" | "bool" =>

@@ -5,6 +5,7 @@ use syn::token::Comma;
 use crate::composer::{Depunctuated, OwnerIteratorLocalContext};
 use crate::context::ScopeContext;
 use crate::interface::{create_struct, obj, package_boxed_expression, package_unboxed_root, SIMPLE_PAIR_PRESENTER};
+use crate::naming::Name;
 use crate::presentation::context::{OwnedItemPresentableContext, FieldTypePresentableContext};
 use crate::presentation::ScopeContextPresentable;
 
@@ -12,10 +13,10 @@ use crate::presentation::ScopeContextPresentable;
 #[derive(Clone, Debug)]
 pub enum OwnerIteratorPresentationContext {
     CurlyBracesFields(OwnerIteratorLocalContext<Comma>),
-    Variants((TokenStream2, Punctuated<OwnerIteratorPresentationContext, Comma>)),
+    Variants((Name, Punctuated<OwnerIteratorPresentationContext, Comma>)),
     RoundBracesFields(OwnerIteratorLocalContext<Comma>),
     MatchFields((Box<FieldTypePresentableContext>, Punctuated<OwnedItemPresentableContext, Comma>)),
-    NoFields(TokenStream2),
+    NoFields(Name),
     EnumUnitFields(OwnerIteratorLocalContext<Comma>),
     TypeAlias(OwnerIteratorLocalContext<Comma>),
     TypeAliasFromConversion(Depunctuated<OwnedItemPresentableContext>),
@@ -57,11 +58,11 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
             OwnerIteratorPresentationContext::TypeAlias((name, fields)) |
             OwnerIteratorPresentationContext::UnnamedStruct((name, fields)) => {
                 let items = fields.present(source);
-                create_struct(quote!(#name), quote!(( #items );))
+                create_struct(name, quote!(( #items );))
             },
             OwnerIteratorPresentationContext::NamedStruct((name, fields)) => {
                 let items = fields.present(source);
-                create_struct(quote!(#name), quote!({ #items }))
+                create_struct(name, quote!({ #items }))
             },
             OwnerIteratorPresentationContext::Enum(context) => {
                 let enum_presentation = context.present(source);

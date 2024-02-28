@@ -10,10 +10,11 @@ pub mod constants;
 pub mod chain;
 pub mod enum_composer;
 pub mod parent_composer;
+mod r#type;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
-use proc_macro2::Ident;
+use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Semi};
@@ -46,11 +47,28 @@ pub use self::method::MethodComposer;
 pub use self::name::NameComposer;
 pub use self::owned::OwnedComposer;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum ConstructorPresentableContext {
     EnumVariant(Name, TokenStream2, TokenStream2),
-    Default(Name, Ident)
+    Default(Name, Name)
 }
+impl Debug for ConstructorPresentableContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EnumVariant(ffi_variant_name, enum_path, variant_path) =>
+                f.write_str(format!("EnumVariant({}, {}, {})", ffi_variant_name, enum_path, variant_path.to_token_stream()).as_str()),
+            Self::Default(name, name2) =>
+                f.write_str(format!("Default({}, {})", name, name2).as_str()),
+        }
+    }
+}
+impl Display for ConstructorPresentableContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+
 
 /// Composer Context Presenters
 #[allow(unused)]
@@ -69,11 +87,12 @@ pub type ItemParentComposerRef = ParentComposerRef<ItemComposer>;
 pub type EnumParentComposerRef = ParentComposerRef<EnumComposer>;
 pub type ItemComposerPresenterRef<T> = ComposerPresenterByRef<ItemParentComposerRef, T>;
 pub type EnumComposerPresenterRef<T> = ComposerPresenterByRef<EnumParentComposerRef, T>;
-pub type ItemComposerTokenStreamPresenter = ItemComposerPresenterRef<TokenStream2>;
+// pub type ItemComposerTokenStreamPresenter = ItemComposerPresenterRef<TokenStream2>;
 pub type ItemComposerLocalConversionContextPresenter = ItemComposerPresenterRef<LocalConversionContext>;
 pub type ItemComposerFieldTypesContextPresenter = ItemComposerPresenterRef<FieldTypesContext>;
-pub type SimpleContextComposer<Parent> = ContextComposer<TokenStream2, TokenStream2, Parent>;
-pub type SimpleItemParentContextComposer = SimpleContextComposer<ItemParentComposer>;
+// pub type SimpleContextComposer<Parent> = ContextComposer<TokenStream2, TokenStream2, Parent>;
+pub type NameContextComposer<Parent> = ContextComposer<Name, TokenStream2, Parent>;
+// pub type SimpleItemParentContextComposer = SimpleContextComposer<ItemParentComposer>;
 
 pub type SimpleComposerPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
 pub type SimplePairConversionComposer = ComposerPresenter<(TokenStream2, TokenStream2), TokenStream2>;
@@ -91,11 +110,11 @@ pub type BindingDtorComposer = BindingComposer<DestructorContext>;
 pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentableContext>;
 pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;
 
-pub type OwnerIteratorLocalContext<T> = (TokenStream2, Punctuated<OwnedItemPresentableContext, T>);
+pub type OwnerIteratorLocalContext<T> = (Name, Punctuated<OwnedItemPresentableContext, T>);
 pub type FieldTypesContext = Vec<FieldTypeConversion>;
-pub type LocalConversionContext = (TokenStream2, FieldTypesContext);
-pub type BindingAccessorContext = (TokenStream2, TokenStream2, TokenStream2);
-pub type DestructorContext = (Ident, TokenStream2);
+pub type LocalConversionContext = (Name, FieldTypesContext);
+pub type BindingAccessorContext = (Name, TokenStream2, TokenStream2);
+pub type DestructorContext = (Name, Name);
 
 pub type FieldTypeLocalContext = (TokenStream2, FieldTypePresentableContext);
 pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldTypePresentableContext>;

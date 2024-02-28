@@ -284,11 +284,11 @@ impl ItemConversion {
             ItemConversion::Type(item, scope) =>
                 type_expansion(item, scope, scope_context),
             ItemConversion::Fn(item, scope) => {
-                println!("make_expansion: fn: {}", item.sig.ident.to_token_stream());
+                // println!("make_expansion: fn: {}", item.sig.ident.to_token_stream());
                 let signature = FnSignatureComposition::from_signature(&item.sig, None, scope.self_path_holder().popped(), &scope_context.borrow());
                 // let signature = FnSignatureComposition::from_signature(&item.sig, scope.popped(), &scope_context.borrow());
                 Expansion::Function {
-                    comment: DocPresentation::Safety(signature.ident.to_token_stream()),
+                    comment: DocPresentation::Safety(Name::Optional(signature.ident.clone())),
                     binding: signature.present(FnSignatureCompositionContext::FFIObject, &scope_context.borrow()),
                 }
             },
@@ -343,8 +343,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
         let composer = match fields {
             Fields::Unit =>
                 ItemComposer::enum_variant_composer(
-                    parse_quote!(#target_name::#variant_name),
-                    parse_quote!(#target_full_type::#variant_name),
+                    Name::EnumVariant(parse_quote!(#target_name), variant_name.clone()),
+                    // Name::EnumFFIVariant(target_name.clone(), variant_name.clone()),
+                    Name::EnumVariant(target_full_type.clone(), variant_name.clone()),
                     AttrsComposition::new(attrs.clone(), variant_name.clone(), item_scope.clone()),
                     context,
                     |(name, _)|
@@ -359,8 +360,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                 ),
             Fields::Unnamed(fields) =>
                 ItemComposer::enum_variant_composer(
-                    parse_quote!(#target_name::#variant_name),
-                    parse_quote!(#target_full_type::#variant_name),
+                    Name::EnumVariant(parse_quote!(#target_name), variant_name.clone()),
+                    // Name::EnumFFIVariant(target_name.clone(), variant_name.clone()),
+                    Name::EnumVariant(target_full_type.clone(), variant_name.clone()),
                     AttrsComposition::new(attrs.clone(), variant_name.clone(), item_scope.clone()),
                     context,
                     ROUND_BRACES_FIELDS_PRESENTER,
@@ -373,8 +375,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                 ),
             Fields::Named(fields) =>
                 ItemComposer::enum_variant_composer(
-                    parse_quote!(#target_name::#variant_name),
-                    parse_quote!(#target_full_type::#variant_name),
+                    Name::EnumVariant(parse_quote!(#target_name), variant_name.clone()),
+                    // Name::EnumFFIVariant(target_name.clone(), variant_name.clone()),
+                    Name::EnumVariant(target_full_type.clone(), variant_name.clone()),
                     AttrsComposition::new(attrs.clone(), variant_name.clone(), item_scope.clone()),
                     context,
                     CURLY_BRACES_FIELDS_PRESENTER,
@@ -387,10 +390,10 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                     ConversionsComposer::NamedStruct(fields)
                 )
         };
-       (composer, (variant_presenter, variant_name.clone(), fields_context))
+       (composer, (variant_presenter, Name::Variant(variant_name.clone()), fields_context))
     }).unzip();
     EnumComposer::new(
-        parse_quote!(#target_name),
+        Name::Variant(target_name.clone()),
         generics.clone(),
         AttrsComposition::new(item_enum.attrs.clone(), target_name.clone(), item_scope.clone()),
         composers,
@@ -412,8 +415,8 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
     match f {
         Fields::Unnamed(ref fields) =>
             ItemComposer::struct_composer(
-                parse_quote!(#target_name),
-                parse_quote!(#full_ty),
+                Name::Variant(target_name.clone()),
+                Name::Type(full_ty),
                 Some(generics.clone()),
                 AttrsComposition::new(attrs.clone(), target_name.clone(), scope.clone()),
                 scope_context,
@@ -428,8 +431,8 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
             ),
         Fields::Named(ref fields) =>
             ItemComposer::struct_composer(
-                parse_quote!(#target_name),
-                parse_quote!(#full_ty),
+                Name::Variant(target_name.clone()),
+                Name::Type(full_ty),
                 Some(generics.clone()),
                 AttrsComposition::new(attrs.clone(), target_name.clone(), scope.clone()),
                 scope_context,
@@ -475,15 +478,15 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &Rc<RefCell
     match &**ty {
         Type::BareFn(bare_fn) =>
             Expansion::Callback {
-                comment: DocPresentation::Default(quote!(#ident)),
+                comment: DocPresentation::Default(Name::Variant(ident.clone())),
                 binding: FnSignatureComposition::from_bare_fn(bare_fn, ident, scope.self_path_holder().clone(), &source)
                     .present(FnSignatureCompositionContext::FFIObjectCallback, &source),
             },
         _ => {
             let full_ty = source.full_type_for(&parse_quote!(#ident));
             ItemComposer::type_alias_composer(
-                parse_quote!(#ident),
-                parse_quote!(#full_ty),
+                Name::Variant(ident.clone()),
+                Name::Type(full_ty),
                 Some(generics.clone()),
                 AttrsComposition { attrs: attrs.clone(), ident: ident.clone(), scope: scope.clone() },
                 context,
@@ -507,12 +510,12 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
             _ => None,
         }
     }).collect();
-    let source = scope_context.borrow();
+    // let source = scope_context.borrow();
     match trait_ {
         None => {
 
-            println!("impl_expansion.1: self_ty: {}", self_ty.to_token_stream());
-            println!("impl_expansion.1: items: {}", quote!(#(#items)*));
+            // println!("impl_expansion.1: self_ty: {}", self_ty.to_token_stream());
+            // println!("impl_expansion.1: items: {}", quote!(#(#items)*));
 
             // NEED:
             // pub unsafe extern "C" fn get_balance(obj: *const ()) -> u64 {
@@ -532,28 +535,28 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Rc<R
             // }
 
         },
-        Some((_, path, _)) => {
-            let trait_type = parse_quote!(#path);
-            let trait_full_type = source.full_type_for(&trait_type);
+        Some((_, _path, _)) => {
+            // let trait_type = parse_quote!(#path);
+            // let trait_full_type = source.full_type_for(&trait_type);
 
-            let gtx = source.context.read().unwrap();
-            let trait_scope = gtx.actual_scope_for_type(&trait_type, scope);
+            // let gtx = source.context.read().unwrap();
+            // let trait_scope = gtx.actual_scope_for_type(&trait_type, scope);
 
-            println!("impl_expansion.2: trait_scope: {}", trait_scope.to_token_stream());
+            // println!("impl_expansion.2: trait_scope: {}", trait_scope.to_token_stream());
 
             // let (trait_composition, trait_scope) = ctx.find_item_trait_in_scope(path);
 
             // ctx.item_trait_with_ident_for()
-            let item_full_type = source.full_type_for(self_ty);
+            // let item_full_type = source.full_type_for(self_ty);
 
             // let trait_item = ctx.item_trait_with_ident_for()
-
-            println!("impl_expansion.2: trait_full_type: {}", trait_full_type.to_token_stream());
-            println!("impl_expansion.2: item_ty: {}", item_full_type.to_token_stream());
-            // println!("impl_expansion.2: trait_composition: {:?}", trait_composition);
-            // println!("impl_expansion.2: trait_scope: {:?}", trait_scope);
-            println!("impl_expansion.2: items: {}", quote!(#(#items)*));
-            println!("impl_expansion.2: trait: {}", quote!(#path));
+            //
+            // println!("impl_expansion.2: trait_full_type: {}", trait_full_type.to_token_stream());
+            // println!("impl_expansion.2: item_ty: {}", item_full_type.to_token_stream());
+            // // println!("impl_expansion.2: trait_composition: {:?}", trait_composition);
+            // // println!("impl_expansion.2: trait_scope: {:?}", trait_scope);
+            // println!("impl_expansion.2: items: {}", quote!(#(#items)*));
+            // println!("impl_expansion.2: trait: {}", quote!(#path));
         }
     }
     Expansion::Impl { comment: DocPresentation::Empty, items: impl_item_compositions }

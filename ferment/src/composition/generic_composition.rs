@@ -66,7 +66,7 @@ impl GenericConversion {
     }
 
     fn expand_(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
-        println!("GenericConversion::expand_: {}", full_type.to_token_stream());
+        // println!("GenericConversion::expand_: {}", full_type.to_token_stream());
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>
@@ -78,7 +78,7 @@ impl GenericConversion {
 
     pub fn expand(&self, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
         let Self { 0: full_type } = self;
-        println!("GenericConversion::expand: {}", full_type);
+        // println!("GenericConversion::expand: {}", full_type);
         match full_type {
             ObjectConversion::Type(type_conversion) => {
                 self.expand_(type_conversion, context)
