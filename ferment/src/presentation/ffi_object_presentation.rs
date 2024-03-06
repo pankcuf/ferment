@@ -1,14 +1,14 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
-use syn::{Generics, parse_quote};
-use std::rc::Rc;
-use std::cell::RefCell;
+use syn::{Generics, parse_quote, Path, Type};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use crate::composer::{ConstructorPresentableContext, Depunctuated};
+use syn::token::{Brace, Comma};
+use crate::composer::{ConstructorPresentableContext, Depunctuated, ParentComposer};
 use crate::composition::TraitVTableMethodComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, GenericArgPresentation};
+use crate::ext::{Accessory, Mangle};
+use crate::wrapped::Wrapped;
 use crate::interface::create_struct;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
@@ -18,19 +18,6 @@ use crate::presentation::conversion_interface_presentation::ConversionInterfaceP
 
 pub enum FFIObjectPresentation {
     Empty,
-    // Callback {
-    //     name: TokenStream2,
-    //     arguments: Punctuated<TokenStream2, Comma>,
-    //     output_expression: ReturnType,
-    // },
-    // Function {
-    //     name: Name,
-    //     is_async: bool,
-    //     arguments: Punctuated<TokenStream2, Comma>,
-    //     input_conversions: TokenStream2,
-    //     return_type: ReturnType,
-    //     output_conversions: TokenStream2,
-    // },
     StaticVTable {
         name: Name,
         methods_compositions: Vec<TraitVTableMethodComposition>,
@@ -54,30 +41,42 @@ pub enum FFIObjectPresentation {
         vtable_name: Name,
     },
     Full(TokenStream2),
+    // Generic {
+    //     target_type: Name,
+    //     ffi_type: Name,
+    //     presentations: Depunctuated<GenericArgPresentation>,
+    //     generics: Option<Generics>,
+    //     context: ParentComposer<ScopeContext>
+    // },
+
     Result {
-        target_type: Name,
-        ffi_type: Name,
+        target_type: Type,
+        ffi_type: Type,
 
         ok_presentation: GenericArgPresentation,
         error_presentation: GenericArgPresentation,
+
         generics: Option<Generics>,
-        context: Rc<RefCell<ScopeContext>>
+        context: ParentComposer<ScopeContext>
     },
     Map {
-        target_type: Name,
-        ffi_type: Name,
+        target_type: Type,
+        ffi_type: Type,
 
         key_presentation: GenericArgPresentation,
         value_presentation: GenericArgPresentation,
+
         generics: Option<Generics>,
-        context: Rc<RefCell<ScopeContext>>
+        context: ParentComposer<ScopeContext>
     },
     Vec {
-        target_type: Name,
-        ffi_type: Name,
+        target_type: Type,
+        ffi_type: Type,
+
         value_presentation: GenericArgPresentation,
+
         generics: Option<Generics>,
-        context: Rc<RefCell<ScopeContext>>
+        context: ParentComposer<ScopeContext>
     },
     // Generic {
     //     target_type: TokenStream2,
@@ -90,73 +89,46 @@ pub enum FFIObjectPresentation {
 impl ToTokens for FFIObjectPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            // Self::Callback { name, arguments, output_expression} =>
-            //     quote! {
-            //         pub type #name = unsafe extern "C" fn(#arguments) #output_expression;
-            //     },
-            // Self::Function { is_async, name, arguments, input_conversions, return_type, output_conversions } => {
-            //     if *is_async {
-            //         let mut args = Punctuated::from_iter([quote!(runtime: *mut std::os::raw::c_void)]);
-            //         args.extend(arguments.clone());
-            //         present_function(
-            //             name.to_token_stream(),
-            //             args,
-            //             return_type.clone(),
-            //             quote! {
-            //                 let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
-            //                 let obj = rt.block_on(async { #input_conversions .await });
-            //                 #output_conversions
-            //             }
-            //         )
-            //     } else {
-            //         present_function(
-            //             name.to_token_stream(),
-            //             arguments.clone(),
-            //             return_type.clone(),
-            //             quote!(let obj = #input_conversions; #output_conversions)
-            //         )
-            //     }
-            // },
-            // FFIObjectPresentation::TraitVTableInnerFn { name, name_and_args, output_expression } => {
-            //     quote!(pub #name: #name_and_args -> #output_expression)
-            // }
             Self::Full(presentation) => quote!(#presentation),
-            Self::TraitVTable { name, fields } => {
-                create_struct(name, quote!({ #fields }))
-            },
-            Self::TraitObject { name, vtable_name } => {
-                create_struct(name, quote!({
-                    pub object: *const (),
-                    pub vtable: *const #vtable_name
-                }))
-            },
+            Self::TraitVTable { name, fields } =>
+                create_struct(&parse_quote!(#name), quote!({ #fields })),
+            Self::TraitObject { name, vtable_name } =>
+                create_struct(&parse_quote!(#name), quote!({ pub object: *const (), pub vtable: *const #vtable_name })),
+            // Self::Generic { target_type, ffi_type, presentations, generics, context } => {
+            //     quote!()
+            // },
             Self::Result { target_type, ffi_type, ok_presentation, error_presentation, generics, context} => {
                 let GenericArgPresentation { ty: ok_type, from_conversion: from_ok_conversion, to_conversion: to_ok_conversion, destructor: ok_destructor } = ok_presentation;
                 let GenericArgPresentation { ty: error_type, from_conversion: from_error_conversion, to_conversion: to_error_conversion, destructor: error_destructor } = error_presentation;
-                let drop_code = [ok_destructor, error_destructor];
+                let ffi_name = ffi_type.to_mangled_ident_default();
+                let ffi_as_path: Path = parse_quote!(#ffi_name);
+                let ffi_as_type: Type = parse_quote!(#ffi_name);
+                let drop_code = Depunctuated::from_iter([ok_destructor, error_destructor]);
                 let source = context.borrow();
-                let object_presentation = create_struct(ffi_type, quote!({
-                        pub ok: *mut #ok_type,
-                        pub error: *mut #error_type,
-                    }));
+                let items = Punctuated::<_, Comma>::from_iter([
+                    quote!(pub ok: *mut #ok_type),
+                    quote!(pub error: *mut #error_type),
+                ]);
+                let object_presentation = create_struct(&ffi_as_path, Wrapped::<_, Brace>::new(items.present(&source)).to_token_stream());
                 let conversion_presentation = ConversionInterfacePresentation::Interface {
-                    ffi_type: ffi_type.clone(),
-                    target_type: target_type.clone(),
-                    from_presentation: FromConversionPresentation::Result(quote!(#from_ok_conversion), quote!(#from_error_conversion)),
-                    to_presentation: ToConversionPresentation::Result(quote!(#to_ok_conversion), quote!(#to_error_conversion)),
-                    destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
-                    generics: generics.clone()
+                    types: (ffi_as_type.clone(), target_type.clone()),
+                    conversions: (
+                        FromConversionPresentation::Result(quote!(#from_ok_conversion), quote!(#from_error_conversion)),
+                        ToConversionPresentation::Result(quote!(#to_ok_conversion), quote!(#to_error_conversion)),
+                        quote!(ferment_interfaces::unbox_any(ffi);),
+                        generics.clone()
+                    )
                 };
                 let drop_presentation = DropInterfacePresentation::Full {
-                    name: ffi_type.clone(),
-                    body: quote!(#(#drop_code)*)
+                    ty: ffi_as_type.clone(),
+                    body: drop_code.to_token_stream()
                 };
-                let ok_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Ok), parse_quote!(*mut #ok_type));
-                let error_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Error), parse_quote!(*mut #error_type));
-                let bindings = vec![
+                let ok_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Ok), ok_type.joined_mut());
+                let error_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Error), error_type.joined_mut());
+                let bindings = Depunctuated::from_iter([
                     BindingPresentableContext::Constructor(
-                        ConstructorPresentableContext::Default(Name::Constructor(Box::new(ffi_type.clone())), ffi_type.clone()),
-                        Punctuated::from_iter(vec![
+                        ConstructorPresentableContext::Default(Name::Constructor(ffi_as_type.clone()), ffi_as_type.clone()),
+                        Punctuated::from_iter([
                             OwnedItemPresentableContext::Named(ok_conversion.clone(), false),
                             OwnedItemPresentableContext::Named(error_conversion.clone(), false)
                         ]),
@@ -165,42 +137,48 @@ impl ToTokens for FFIObjectPresentation {
                             OwnedItemPresentableContext::DefaultField(error_conversion),
                         ]))
                     ),
-                    BindingPresentableContext::Destructor(ffi_type.clone())
-                ];
-                let bindings = bindings.iter().map(|ctx| ctx.present(&source));
+                    BindingPresentableContext::Destructor(ffi_as_type.clone())
+                ]).present(&source);
                 quote! {
                     #object_presentation
                     #conversion_presentation
                     #drop_presentation
-                    #(#bindings)*
+                    #bindings
                 }
             },
             Self::Map { target_type, ffi_type, key_presentation, value_presentation, generics, context} => {
+                println!("Self::Map {} -> {} [{}, {}]", target_type.to_token_stream(), ffi_type.to_token_stream(), key_presentation.ty.to_token_stream(), value_presentation.ty.to_token_stream());
+                let ffi_name = ffi_type.to_mangled_ident_default();
+                let ffi_as_path: Path = parse_quote!(#ffi_name);
+                let ffi_as_type: Type = parse_quote!(#ffi_name);
                 let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = key_presentation;
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = value_presentation;
-                let drop_code = [key_destructor, value_destructor];
+                let drop_code = Depunctuated::from_iter([key_destructor, value_destructor]);
                 let source = context.borrow();
-                let object_presentation = create_struct(ffi_type, quote!({
-                        pub count: usize,
-                        pub keys: *mut #key,
-                        pub values: *mut #value,
-                    }));
+                let items = Punctuated::<_, Comma>::from_iter([
+                    quote!(pub count: usize),
+                    quote!(pub keys: *mut #key),
+                    quote!(pub values: *mut #value),
+                ]);
+
+                let object_presentation = create_struct(&ffi_as_path, Wrapped::<_, Brace>::new(items.present(&source)).to_token_stream());
                 let conversion_presentation = ConversionInterfacePresentation::Interface {
-                    ffi_type: ffi_type.clone(),
-                    target_type: target_type.clone(),
-                    from_presentation: FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
-                    to_presentation: ToConversionPresentation::Map(quote!(#to_key_conversion), quote!(#to_value_conversion)),
-                    destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
-                    generics: generics.clone()
+                    types: (ffi_as_type.clone(), target_type.clone()),
+                    conversions: (
+                        FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
+                        ToConversionPresentation::Map(quote!(#to_key_conversion), quote!(#to_value_conversion)),
+                        quote!(ferment_interfaces::unbox_any(ffi);),
+                        generics.clone()
+                    )
                 };
-                let drop_presentation = DropInterfacePresentation::Full { name: ffi_type.clone(), body: quote!(#(#drop_code)*) };
+                let drop_presentation = DropInterfacePresentation::Full { ty: ffi_as_type.clone(), body: drop_code.to_token_stream() };
                 let count_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Count), parse_quote!(usize));
                 let key_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Keys), parse_quote!(*mut #key));
                 let value_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Values), parse_quote!(*mut #value));
-                let bindings = vec![
+                let bindings = Depunctuated::from_iter([
                     BindingPresentableContext::Constructor(
-                        ConstructorPresentableContext::Default(Name::Constructor(Box::new(ffi_type.clone())), ffi_type.clone()),
-                        Punctuated::from_iter(vec![
+                        ConstructorPresentableContext::Default(Name::Constructor(ffi_type.clone()), ffi_as_type.clone()),
+                        Punctuated::from_iter([
                             OwnedItemPresentableContext::Named(key_conversion.clone(), false),
                             OwnedItemPresentableContext::Named(value_conversion.clone(), false),
                             OwnedItemPresentableContext::Named(count_conversion.clone(), false)
@@ -211,41 +189,44 @@ impl ToTokens for FFIObjectPresentation {
                             OwnedItemPresentableContext::DefaultField(value_conversion),
                         ]))
                     ),
-                    BindingPresentableContext::Destructor(ffi_type.clone())
-                ];
-                let bindings = bindings.iter().map(|ctx| ctx.present(&source));
-
+                    BindingPresentableContext::Destructor(ffi_as_type.clone())
+                ]).present(&source);
                 quote! {
                     #object_presentation
                     #conversion_presentation
                     #drop_presentation
-                    #(#bindings)*
+                    #bindings
                 }
             },
             Self::Vec { target_type, ffi_type, value_presentation, generics, context } => {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = value_presentation;
-                let drop_code = [value_destructor];
                 let source = context.borrow();
+                let drop_code = Depunctuated::from_iter([value_destructor]);
+                let ffi_name = ffi_type.to_mangled_ident_default();
+                let ffi_as_path: Path = parse_quote!(#ffi_name);
+                let ffi_as_type: Type = parse_quote!(#ffi_name);
 
                 let conversion_presentation = ConversionInterfacePresentation::Interface {
-                    ffi_type: ffi_type.clone(),
-                    target_type: target_type.clone(),
-                    from_presentation: FromConversionPresentation::Vec,
-                    to_presentation: ToConversionPresentation::Vec,
-                    destroy_presentation: quote!(ferment_interfaces::unbox_any(ffi);),
-                    generics: generics.clone()
+                    types: (ffi_as_type.clone(), target_type.clone()),
+                    conversions: (
+                        FromConversionPresentation::Vec,
+                        ToConversionPresentation::Vec,
+                        quote!(ferment_interfaces::unbox_any(ffi);),
+                        generics.clone())
                 };
-                let object_presentation = create_struct(ffi_type, quote!({
-                        pub count: usize,
-                        pub values: *mut #value,
-                    }));
-                let drop_presentation = DropInterfacePresentation::Full { name: ffi_type.clone(), body: quote!(#(#drop_code)*) };
+                let items = Punctuated::<_, Comma>::from_iter([
+                    quote!(pub count: usize),
+                    quote!(pub values: *mut #value),
+                ]);
+                let object_presentation = create_struct(&ffi_as_path, Wrapped::<_, Brace>::new(items.present(&source)).to_token_stream());
+                let drop_presentation = DropInterfacePresentation::Full { ty: ffi_as_type.clone(), body: drop_code.to_token_stream() };
                 let count_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Count), parse_quote!(usize));
                 let value_conversion = FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Values), parse_quote!(*mut #value));
-                let bindings = Depunctuated::<BindingPresentableContext>::from_iter(vec![
+
+                let bindings = Depunctuated::from_iter([
                     BindingPresentableContext::Constructor(
-                        ConstructorPresentableContext::Default(Name::Constructor(Box::new(ffi_type.clone())), ffi_type.clone()),
-                        Punctuated::from_iter(vec![
+                        ConstructorPresentableContext::Default(Name::Constructor(ffi_as_type.clone()), ffi_as_type.clone()),
+                        Punctuated::from_iter([
                             OwnedItemPresentableContext::Named(value_conversion.clone(), false),
                             OwnedItemPresentableContext::Named(count_conversion.clone(), false)
                         ]),
@@ -254,25 +235,20 @@ impl ToTokens for FFIObjectPresentation {
                             OwnedItemPresentableContext::DefaultField(value_conversion),
                         ]))
                     ),
-                    BindingPresentableContext::Destructor(ffi_type.clone())
-                ]);
-
-                let bindings = bindings.present(&source);
-
+                    BindingPresentableContext::Destructor(ffi_as_type.clone())
+                ]).present(&source);
                 quote! {
                     #object_presentation
                     #conversion_presentation
-                    impl ferment_interfaces::FFIVecConversion for #ffi_type {
+                    impl ferment_interfaces::FFIVecConversion for #ffi_as_type {
                         type Value = #target_type;
                         unsafe fn decode(&self) -> Self::Value { #from_value_conversion }
                         unsafe fn encode(obj: Self::Value) -> *mut Self { #to_value_conversion }
                     }
                     #drop_presentation
                     #bindings
-                    // #(#bindings)*
                 }
             },
-            // FFIObjectPresentation::Generic { .. } => {}
             FFIObjectPresentation::Empty => { /* Box<T> */
                 quote!()
             },
@@ -289,7 +265,6 @@ impl ToTokens for FFIObjectPresentation {
                         })
                     })
                     .unzip();
-                println!("FFIObjectPresentation::StaticVTable::present: {}: {}", quote!(#name), quote!(#fq_trait_vtable));
                 quote! {
                     static #name: #fq_trait_vtable = {
                         #methods_implementations

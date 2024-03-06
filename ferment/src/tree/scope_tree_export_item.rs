@@ -6,6 +6,7 @@ use proc_macro2::Ident;
 use std::sync::{Arc, RwLock};
 use quote::ToTokens;
 use syn::{Item, ItemMod, Path, Type};
+use crate::composer::ParentComposer;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
@@ -48,8 +49,8 @@ impl ScopeTreeExportID {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
-    Item(Rc<RefCell<ScopeContext>>, Item),
-    Tree(Rc<RefCell<ScopeContext>>, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>),
+    Item(ParentComposer<ScopeContext>, Item),
+    Tree(ParentComposer<ScopeContext>, HashSet<GenericConversion>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -74,10 +75,10 @@ impl std::fmt::Display for ScopeTreeExportItem {
 }
 
 impl ScopeTreeExportItem {
-    pub(crate) fn tree_with_context_and_export(context: Rc<RefCell<ScopeContext>>, export: HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> Self {
+    pub(crate) fn tree_with_context_and_export(context: ParentComposer<ScopeContext>, export: HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> Self {
         Self::Tree(context, HashSet::default(), HashMap::default(), export)
     }
-    pub fn with_scope_context(scope_context: Rc<RefCell<ScopeContext>>) -> ScopeTreeExportItem {
+    pub fn with_scope_context(scope_context: ParentComposer<ScopeContext>) -> ScopeTreeExportItem {
         Self::tree_with_context_and_export(scope_context, HashMap::default())
     }
     pub fn with_global_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> ScopeTreeExportItem {

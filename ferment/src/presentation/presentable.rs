@@ -16,7 +16,8 @@ impl ScopeContextPresentable for TokenStream2 {
     }
 }
 
-impl<T: ScopeContextPresentable, SEP: ToTokens + Default> ScopeContextPresentable for Punctuated<T, SEP> {
+impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
+    where T: ScopeContextPresentable, SEP: ToTokens + Default {
     type Presentation = Punctuated<T::Presentation, SEP>;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {

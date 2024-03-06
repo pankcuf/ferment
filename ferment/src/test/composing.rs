@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use quote::quote;
 use syn::parse_quote;
 use syn::__private::TokenStream2;
+use crate::composer::ParentComposer;
 use crate::Config;
 use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, TypeChain};
@@ -23,7 +24,7 @@ fn scope_chain(self_scope: PathHolder) -> ScopeChain {
     ScopeChain::Mod { self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
 }
 
-fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<ScopeContext>> {
+fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ParentComposer<ScopeContext> {
     Rc::new(RefCell::new(ScopeContext::with(scope_chain(self_scope), global_context_ptr)))
 }
 

@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet};
-use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, Variant, WherePredicate};
 use syn::__private::{Span, TokenStream2};
@@ -15,19 +14,6 @@ use crate::interface::ffi_to_conversion;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::tree::ScopeTreeExportID;
 
-#[derive(Clone, Debug)]
-pub struct Void;
-
-impl ToTokens for Void {
-    fn to_tokens(&self, _tokens: &mut TokenStream) {
-        let _ = quote! {};
-    }
-}
-impl Default for Void {
-    fn default() -> Self {
-        Void
-    }
-}
 pub trait ItemExtension {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID;
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
@@ -295,7 +281,7 @@ fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypePa
     involved
 }
 
-fn maybe_generic_type_bound<'a>(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
+fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
     // println!("maybe_generic_type_bound.1: {} in [{} .... {}]", format_token_stream(path), format_token_stream(&generics.params), format_token_stream(&generics.where_clause));
     let result = generics.params.iter().find_map(|param| if let GenericParam::Type(type_param) = param {
         let ty: Type = parse_quote!(#path);
@@ -530,18 +516,6 @@ pub(crate) fn to_array(field_path: FieldTypePresentableContext, type_array: &Typ
     }
 }
 
-
-// pub fn ffi_mangled_ident(ty: &Type) -> Ident {
-//     match ty {
-//         // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
-//         Type::Path(TypePath { path, .. }) =>
-//             path.to_mangled_ident_default(),
-//         ty => {
-//             let p: Path = parse_quote!(#ty);
-//             p.get_ident().unwrap().clone()
-//         }
-//     }
-// }
 pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     let lit = syn::LitInt::new(&value.to_string(), Span::call_site());
     lit.to_token_stream()

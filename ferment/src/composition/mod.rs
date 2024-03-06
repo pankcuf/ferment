@@ -29,8 +29,8 @@ pub use trait_vtable_composition::TraitVTableComposition;
 pub use trait_vtable_composition::TraitVTableMethodComposition;
 use crate::context::ScopeContext;
 
-pub trait CompositionContext {
-}
+pub trait CompositionContext {}
+
 pub trait Composition: Clone {
     type Context: CompositionContext;
     type Presentation;

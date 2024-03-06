@@ -1,7 +1,6 @@
-use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use crate::composer::ParentComposer;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
@@ -13,7 +12,7 @@ pub struct ScopeTreeCompact {
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
-    pub scope_context: Rc<RefCell<ScopeContext>>,
+    pub scope_context: ParentComposer<ScopeContext>,
 }
 
 impl std::fmt::Debug for ScopeTreeCompact {

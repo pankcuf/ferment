@@ -1,7 +1,7 @@
 use quote::ToTokens;
-use crate::composer::{Composer, SharedComposer, BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext};
+use crate::composer::{Composer, BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
 use crate::context::ScopeContext;
-use crate::presentation::BindingPresentation;
+use crate::presentation::{BindingPresentation, ScopeContextPresentable};
 use crate::shared::{HasParent, SharedAccess};
 
 pub struct MethodComposer<Parent: SharedAccess, BCTX: Clone, CTX: Clone> {
@@ -38,9 +38,9 @@ impl<Parent: SharedAccess> Composer<Parent> for MethodComposer<Parent, BindingAc
         let context = parent.access(self.context_composer);
         let result = context.1.iter()
             .map(|field_type| (self.binding_presenter)((
-                context.0.clone(),
+                context.0.present(source),
                 field_type.name(),
-                source.ffi_full_dictionary_field_type_presenter(field_type.ty())
+                source.ffi_full_dictionary_type_presenter(field_type.ty())
                     .to_token_stream())))
             .collect();
 
@@ -55,6 +55,6 @@ impl<Parent: SharedAccess> Composer<Parent> for MethodComposer<Parent, Destructo
     fn compose(&self, _source: &Self::Source) -> Self::Result {
         let parent = self.parent.as_ref().unwrap();
         let context = parent.access(self.context_composer);
-        (self.binding_presenter)(context)
+        (self.binding_presenter)(context.clone())
     }
 }

@@ -1,28 +1,36 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use crate::composer::{Depunctuated, OwnerIteratorLocalContext};
+use syn::token::{Brace, Comma, FatArrow, Paren, Semi};
+use syn::{parse_quote, Path, Type};
+use crate::composer::{Depunctuated, OwnerAspectIteratorLocalContext, VariantIteratorLocalContext};
 use crate::context::ScopeContext;
-use crate::interface::{create_struct, obj, package_boxed_expression, package_unboxed_root, SIMPLE_PAIR_PRESENTER};
-use crate::naming::Name;
+use crate::ext::Mangle;
+use crate::interface::{create_struct, package_unboxed_root};
+use crate::naming::DictionaryFieldName;
+use crate::opposed::Opposed;
 use crate::presentation::context::{OwnedItemPresentableContext, FieldTypePresentableContext};
+use crate::presentation::context::name::Aspect;
 use crate::presentation::ScopeContextPresentable;
+use crate::wrapped::Wrapped;
 
 
 #[derive(Clone, Debug)]
 pub enum OwnerIteratorPresentationContext {
-    CurlyBracesFields(OwnerIteratorLocalContext<Comma>),
-    Variants((Name, Punctuated<OwnerIteratorPresentationContext, Comma>)),
-    RoundBracesFields(OwnerIteratorLocalContext<Comma>),
+    CurlyBracesFields(OwnerAspectIteratorLocalContext<Comma>),
+    Variants((Type, Punctuated<OwnerIteratorPresentationContext, Comma>)),
+    CurlyVariantFields(VariantIteratorLocalContext),
+    RoundVariantFields(VariantIteratorLocalContext),
+    RoundBracesFields(OwnerAspectIteratorLocalContext<Comma>),
     MatchFields((Box<FieldTypePresentableContext>, Punctuated<OwnedItemPresentableContext, Comma>)),
-    NoFields(Name),
-    EnumUnitFields(OwnerIteratorLocalContext<Comma>),
-    TypeAlias(OwnerIteratorLocalContext<Comma>),
+    NoFields(Aspect),
+    NoFieldsConversion(Aspect),
+    EnumUnitFields(VariantIteratorLocalContext),
+    TypeAlias(OwnerAspectIteratorLocalContext<Comma>),
     TypeAliasFromConversion(Depunctuated<OwnedItemPresentableContext>),
-    TypeAliasToConversion(OwnerIteratorLocalContext<Comma>),
-    NamedStruct(OwnerIteratorLocalContext<Comma>),
-    UnnamedStruct(OwnerIteratorLocalContext<Comma>),
+    TypeAliasToConversion(OwnerAspectIteratorLocalContext<Comma>),
+    NamedStruct(OwnerAspectIteratorLocalContext<Comma>),
+    UnnamedStruct(OwnerAspectIteratorLocalContext<Comma>),
     Enum(Box<OwnerIteratorPresentationContext>),
     FromRoot(Box<OwnerIteratorPresentationContext>, Box<OwnerIteratorPresentationContext>),
     Boxed(Box<OwnerIteratorPresentationContext>),
@@ -30,41 +38,51 @@ pub enum OwnerIteratorPresentationContext {
     AddrDeref(TokenStream2),
     Obj,
     Empty,
-    UnboxedRoot
+    UnboxedRoot,
+    StructDropBody(Punctuated<OwnedItemPresentableContext, Semi>),
+    DropCode(Punctuated<OwnedItemPresentableContext, Semi>),
 }
 
 impl ScopeContextPresentable for OwnerIteratorPresentationContext {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
+        // println!("OwnerIteratorPresentationContext::: {:?}", self);
         match self {
             OwnerIteratorPresentationContext::Variants((name, fields)) => {
-                let items = fields.present(source);
-                SIMPLE_PAIR_PRESENTER((quote!(#name), quote!({ #items })))
+                let name = name.to_mangled_ident_default();
+                let presentation = Wrapped::<_, Brace>::new(fields.present(source));
+                // println!("OwnerIteratorPresentationContext::Variants::present {} --- {}", name.to_token_stream(), presentation.to_token_stream());
+                quote!(#name #presentation)
             },
-            OwnerIteratorPresentationContext::CurlyBracesFields((name, fields)) => {
-                let items = fields.present(source);
-                SIMPLE_PAIR_PRESENTER((quote!(#name), quote!({ #items })))
+            OwnerIteratorPresentationContext::CurlyBracesFields((aspect, fields)) => {
+                let name = aspect.present(source);
+                let presentation = Wrapped::<_, Brace>::new(fields.present(source));
+                quote!(#name #presentation)
             },
-            OwnerIteratorPresentationContext::RoundBracesFields((name, fields)) => {
-                let items = fields.present(source);
-                SIMPLE_PAIR_PRESENTER((quote!(#name), quote!(( #items ))))
+            OwnerIteratorPresentationContext::RoundBracesFields((aspect, fields)) => {
+                let name = aspect.present(source);
+                let presentation = Wrapped::<_, Paren>::new(fields.present(source));
+                quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::MatchFields((presentation_context, fields)) => {
                 let name = FieldTypePresentableContext::Match(presentation_context.clone()).present(source);
-                let items = fields.present(source);
-                SIMPLE_PAIR_PRESENTER((name, quote!({ #items })))
+                let presentation = Wrapped::<_, Brace>::new(fields.present(source));
+                quote!(#name #presentation)
             },
-            OwnerIteratorPresentationContext::TypeAlias((name, fields)) |
-            OwnerIteratorPresentationContext::UnnamedStruct((name, fields)) => {
-                let items = fields.present(source);
-                create_struct(name, quote!(( #items );))
+            OwnerIteratorPresentationContext::TypeAlias((aspect, fields)) |
+            OwnerIteratorPresentationContext::UnnamedStruct((aspect, fields)) => {
+                let ffi_type = aspect.present(source);
+                let wrapped = Wrapped::<_, Paren>::new(fields.present(source)).to_token_stream();
+                // println!("OwnerIteratorPresentationContext::UnnamedStruct {}", ffi_type.to_token_stream());
+                create_struct(&parse_quote!(#ffi_type), quote!(#wrapped;))
             },
-            OwnerIteratorPresentationContext::NamedStruct((name, fields)) => {
-                let items = fields.present(source);
-                create_struct(name, quote!({ #items }))
+            OwnerIteratorPresentationContext::NamedStruct((aspect, fields)) => {
+                let ffi_type = aspect.present(source);
+                create_struct(&parse_quote!(#ffi_type), Wrapped::<_, Brace>::new(fields.present(source)).to_token_stream())
             },
             OwnerIteratorPresentationContext::Enum(context) => {
+                // println!("OwnerIteratorPresentationContext::present {:?}", context);
                 let enum_presentation = context.present(source);
                 quote! {
                     #[repr(C)]
@@ -76,16 +94,28 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 fields.present(source)
                     .to_token_stream()
             },
-            OwnerIteratorPresentationContext::TypeAliasToConversion((name, fields)) => {
-                let items = fields.present(source);
-                quote!(#name(#items))
+            OwnerIteratorPresentationContext::TypeAliasToConversion((aspect, fields)) => {
+                let name = aspect.present(source);
+                let presentation = Wrapped::<_, Paren>::new(fields.present(source));
+                quote!(#name #presentation)
             },
-            OwnerIteratorPresentationContext::NoFields(name) => {
+            OwnerIteratorPresentationContext::NoFields(aspect) => {
+                let name = aspect.present(source);
+                let path: Path = parse_quote!(#name);
+                let ident = &path.segments.last().unwrap().ident;
+                quote!(#ident)
+            },
+            OwnerIteratorPresentationContext::NoFieldsConversion(aspect) => {
+                let name = aspect.present(source);
+                // println!("NoFieldsConversion: {:?} {}", aspect, name.to_token_stream());
                 quote!(#name)
             },
             OwnerIteratorPresentationContext::EnumUnitFields((name, fields)) => {
-                let items = fields.present(source);
-                quote!(#name = #items)
+                let ty = name.present(source);
+                let path: Path = parse_quote!(#ty);
+                let ident = &path.segments.last().unwrap().ident;
+                Opposed::<_, _, syn::token::Eq>::new(ident, fields.present(source))
+                    .to_token_stream()
             },
             OwnerIteratorPresentationContext::FromRoot(field_context, conversions) => {
                 let conversions = conversions.present(source);
@@ -93,20 +123,46 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 quote!(let ffi_ref = #field_path; #conversions)
             }
             OwnerIteratorPresentationContext::Boxed(conversions) => {
-                package_boxed_expression(conversions.present(source))
+                DictionaryFieldName::BoxedExpression(conversions.present(source)).to_token_stream()
             }
             OwnerIteratorPresentationContext::Lambda(l_value, r_value) => {
-                let l_value = l_value.present(source);
-                let r_value = r_value.present(source);
-                quote!(#l_value => #r_value)
-
+                Opposed::<_, _, FatArrow>::new(l_value.present(source), r_value.present(source))
+                    .to_token_stream()
             }
+
             OwnerIteratorPresentationContext::AddrDeref(field_path) => {
                 quote!(&*#field_path)
             }
-            OwnerIteratorPresentationContext::Obj => obj(),
+            OwnerIteratorPresentationContext::Obj => DictionaryFieldName::Obj.to_token_stream(),
             OwnerIteratorPresentationContext::Empty => quote!(),
             OwnerIteratorPresentationContext::UnboxedRoot => package_unboxed_root(),
+            OwnerIteratorPresentationContext::StructDropBody(items) => {
+                let mut result = Punctuated::<TokenStream2, Semi>::from_iter([quote!(let ffi_ref = self)]);
+                result.extend(items.present(source));
+                result.to_token_stream()
+            },
+            OwnerIteratorPresentationContext::DropCode(items) =>
+                Wrapped::<_, Brace>::new(items.present(source))
+                    .to_token_stream(),
+
+            OwnerIteratorPresentationContext::RoundVariantFields(context) => {
+                let (aspect, fields) = context;
+                // println!("OwnerIteratorPresentationContext::RoundVariantFields: {:?} ---- {:?}", aspect, fields);
+                let name = aspect.present(source);
+                let path: Path = parse_quote!(#name);
+                let ident = &path.segments.last().unwrap().ident;
+                let presentation = Wrapped::<_, Paren>::new(fields.present(source));
+                // println!("OwnerIteratorPresentationContext::RoundVariantFields: {} ---- {}", ident.to_token_stream(), presentation.to_token_stream());
+                quote!(#ident #presentation)
+            }
+            OwnerIteratorPresentationContext::CurlyVariantFields(context) => {
+                let (aspect, fields) = context;
+                let name = aspect.present(source);
+                let path: Path = parse_quote!(#name);
+                let ident = &path.segments.last().unwrap().ident;
+                let presentation = Wrapped::<_, Brace>::new(fields.present(source));
+                quote!(#ident #presentation)
+            }
         }
     }
 }

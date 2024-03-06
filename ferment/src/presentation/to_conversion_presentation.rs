@@ -2,7 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::interface::package_boxed_expression;
+use crate::naming::DictionaryFieldName;
 
 pub enum ToConversionPresentation {
     Enum(Punctuated<TokenStream2, Comma>),
@@ -16,12 +16,11 @@ impl ToTokens for ToConversionPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             ToConversionPresentation::Enum(conversions) => {
-                package_boxed_expression(quote!(match obj { #conversions }))
+                DictionaryFieldName::BoxedExpression(quote!(match obj { #conversions }))
+                    .to_token_stream()
             },
             ToConversionPresentation::Struct(conversion) => {
-                quote! {
-                    #conversion
-                }
+                quote! { #conversion }
             },
             ToConversionPresentation::Vec =>
                 quote!(ferment_interfaces::FFIVecConversion::encode(obj)),

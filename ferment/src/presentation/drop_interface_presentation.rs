@@ -1,11 +1,11 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use crate::naming::Name;
+use syn::Type;
 
 pub enum DropInterfacePresentation {
     Empty,
     Full {
-        name: Name,
+        ty: Type,
         body: TokenStream2
     }
 }
@@ -15,8 +15,8 @@ impl ToTokens for DropInterfacePresentation {
         match self {
             Self::Empty =>
                 quote!(),
-            Self::Full { name, body} =>
-                quote!(impl Drop for #name { fn drop(&mut self) { unsafe { #body; } } })
+            Self::Full { ty, body} =>
+                quote!(impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } })
         }.to_tokens(tokens)
     }
 }

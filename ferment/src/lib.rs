@@ -17,6 +17,10 @@ mod tree;
 mod naming;
 mod ext;
 mod shared;
+mod wrapped;
+mod opposed;
+mod sequence;
+
 
 pub use self::builder::Builder;
 pub use self::builder::Config;

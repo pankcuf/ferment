@@ -11,7 +11,9 @@ mod visiting;
 mod join;
 mod pop;
 mod mangle;
+mod accessory;
 
+pub use self::accessory::Accessory;
 pub use self::collection::ScopeCollection;
 pub use self::conversion::Conversion;
 pub use self::mangle::{Mangle, ManglingRules};

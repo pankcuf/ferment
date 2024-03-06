@@ -2,18 +2,21 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, RArrow};
+use syn::token::{Comma, Paren, RArrow};
+use crate::composer::constants;
 use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
+use crate::ext::{Mangle};
 use crate::helper::{from_array, from_path, from_slice, to_path};
 use crate::holder::PathHolder;
-use crate::interface::ROUND_BRACES_FIELDS_PRESENTER;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
 use crate::presentation::BindingPresentation;
+use crate::presentation::context::name::{Aspect, Context};
 use crate::presentation::ScopeContextPresentable;
+use crate::wrapped::Wrapped;
 
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposition {
@@ -43,12 +46,14 @@ impl Composition for FnSignatureComposition {
     type Context = FnSignatureCompositionContext;
     type Presentation = BindingPresentation;
 
-    fn present(self, composition_context: Self::Context, context: &ScopeContext) -> Self::Presentation {
+    fn present(self, composition_context: Self::Context, source: &ScopeContext) -> Self::Presentation {
         match composition_context {
             FnSignatureCompositionContext::FFIObject => {
                 let arguments = self.arguments
                     .iter()
-                    .map(|arg| arg.name_type_original.clone())
+                    .map(|arg| {
+                        arg.name_type_original.clone()
+                    })
                     .collect::<Punctuated<_, Comma>>();
 
                 let fn_name = self.ident.unwrap();
@@ -60,9 +65,11 @@ impl Composition for FnSignatureComposition {
                         OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
                     .collect::<Punctuated<_, _>>();
                 let name = Name::ModFn(fn_name);
-                let input_conversions = ROUND_BRACES_FIELDS_PRESENTER((Name::Path(full_fn_path.0.clone()), argument_conversions)).present(context);
+
+                // Aspect::Target()
+                let input_conversions = constants::ROUND_BRACES_FIELDS_PRESENTER((Aspect::FFI(Context::Fn { path: full_fn_path.0 }), argument_conversions)).present(source);
                 let return_type = self.return_type.presentation;
-                let output_conversions = self.return_type.conversion.present(context);
+                let output_conversions = self.return_type.conversion.present(source);
                 // println!("present_ffi_object_fn.1: {}", name);
                 // println!("present_ffi_object_fn.2: {}", quote!(arguments));
                 // // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
@@ -71,7 +78,7 @@ impl Composition for FnSignatureComposition {
                 BindingPresentation::RegularFunction {
                     is_async: self.is_async,
                     name,
-                    arguments: arguments.present(context),
+                    arguments: arguments.present(source),
                     input_conversions,
                     return_type,
                     output_conversions
@@ -80,7 +87,7 @@ impl Composition for FnSignatureComposition {
             FnSignatureCompositionContext::FFIObjectCallback => {
                 let arguments = self.arguments
                     .iter()
-                    .map(|arg| arg.name_type_original.present(context))
+                    .map(|arg| arg.name_type_original.present(source))
                     .collect();
                 let output_expression = self.return_type.presentation;
                 BindingPresentation::Callback {
@@ -93,10 +100,11 @@ impl Composition for FnSignatureComposition {
                 let arguments = self.arguments.iter()
                     .map(|arg|
                         arg.name_type_original.clone())
-                    .collect::<Punctuated<_, _>>();
+                    .collect::<Punctuated<_, Comma>>();
                 println!("present_trait_vtable_inner_fn: {:#?}", arguments);
                 let fn_name = self.ident.unwrap();
-                let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((Name::Just(quote!(unsafe extern "C" fn)), arguments)).present(context);
+                let presentation = Wrapped::<_, Paren>::new(arguments.present(source));
+                let name_and_args = quote!(unsafe extern "C" fn #presentation);
                 let output_expression = self.return_type.presentation;
 
                 BindingPresentation::TraitVTableInnerFn {
@@ -184,9 +192,7 @@ impl FnSignatureComposition {
         let ident = Some(ident.clone());
         let arguments = handle_fn_args(inputs, &self_ty, context);
         let is_async = sig.asyncness.is_some();
-        // println!("FnSignatureComposition::from_signature.1: {}", sig.to_token_stream());
-        // println!("FnSignatureComposition::from_signature.2: {:?}", arguments);
-        // println!("FnSignatureComposition::from_signature.3: {:?}", return_type);
+
         FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()), self_ty }
     }
 
@@ -210,12 +216,11 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
     match output {
         ReturnType::Default => FnReturnTypeComposition { presentation: ReturnType::Default, conversion: FieldTypePresentableContext::LineTermination },
         ReturnType::Type(_, field_type) => {
-            // let presentation = context.ffi_full_dictionary_field_type_presenter(field_type).to_token_stream();
             let conversion = match &**field_type {
                 Type::Path(TypePath { path, .. }) => to_path(FieldTypePresentableContext::Obj, path),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
-            FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_field_type_presenter(field_type))), conversion }
+            FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))), conversion }
         },
     }
 }
@@ -250,7 +255,7 @@ fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2
 fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     FnReturnTypeComposition {
         presentation: if let ReturnType::Type(token, field_type) = output {
-            ReturnType::Type(token.clone(), Box::new(context.ffi_full_dictionary_field_type_presenter(field_type)))
+            ReturnType::Type(token.clone(), Box::new(context.ffi_full_dictionary_type_presenter(field_type)))
         } else {
             ReturnType::Default
         },
@@ -271,22 +276,31 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
                     Some((_, _lifetime)) => quote!(&),
                     None => quote!()
                 };
-
                 let (ffi_type, name_type_conversion) = match (mutability, self_ty) {
-                    (Some(..), Some(ty)) => (parse_quote!(*mut #ty), quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
-                    (None, Some(ty)) => (parse_quote!(*const #ty), quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
+                    (Some(..), Some(ty)) => (
+                        {
+                            let full_ty = context.full_type_for(ty).to_mangled_ident_default();
+                            parse_quote!(*mut #full_ty)
+                        },
+                        quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
+                    (None, Some(ty)) => ({
+                                             let full_ty = context.full_type_for(ty).to_mangled_ident_default();
+                                             parse_quote!(*const #full_ty)
+                                         },
+                        quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
                     (Some(..), None) => (parse_quote!(*mut ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
                     (None, None) => (parse_quote!(*const ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
                 };
+                let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false);
                 FnArgComposition {
                     name: None,
-                    name_type_original: OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false),
+                    name_type_original,
                     name_type_conversion
                 }
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat
-                let full_type = context.ffi_full_dictionary_field_type_presenter(ty);
+                let full_type = context.ffi_full_dictionary_type_presenter(ty);
                 let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgComposition {
@@ -304,7 +318,7 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
         .iter()
         .map(|BareFnArg { ty, name, .. }| {
             let name = name.clone().map(|(ident, _)| ident);
-            let pres = context.ffi_full_dictionary_field_type_presenter(ty);
+            let pres = context.ffi_full_dictionary_type_presenter(ty);
             FnArgComposition {
                 name: name.clone().map(|g| g.to_token_stream()),
                 name_type_original: OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Optional(name), pres), false),

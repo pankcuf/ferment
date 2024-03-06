@@ -1,10 +1,9 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
-use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
+use crate::composer::{Depunctuated, ParentComposer};
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
@@ -19,7 +18,7 @@ pub struct ScopeTree {
     pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
-    pub scope_context: Rc<RefCell<ScopeContext>>,
+    pub scope_context: ParentComposer<ScopeContext>,
 }
 
 impl std::fmt::Debug for ScopeTree {
@@ -73,8 +72,8 @@ impl ToTokens for ScopeTree {
                 imports: Punctuated::new(),
                 conversions: vtable_conversions
             };
-            let modules = [types_expansion, generics_expansion, vtables_expansion];
-            quote!(#(#modules)*)
+            let modules = Depunctuated::from_iter([types_expansion, generics_expansion, vtables_expansion]);
+            quote!(#modules)
         } else {
             Expansion::Mod {
                 directives: quote!(),

@@ -1,36 +1,40 @@
-use syn::{Generics, parse_quote};
-use proc_macro2::{TokenStream as TokenStream2};
+use syn::{Attribute, Generics};
+use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
 use std::rc::Rc;
-use std::cell::{Ref, RefCell};
-use crate::composer::{AttrsComposer, Composer, constants, ContextComposer, Depunctuated, EnumParentComposer, FFIAspect, ItemParentComposer, NameComposer, NameContextComposer, OwnerIteratorPostProcessingComposer, ParentComposer, r#type, VariantComposer};
-use crate::composer::parent_composer::IParentComposer;
+use std::cell::RefCell;
+use quote::quote;
+use crate::composer::{AttrsComposer, Composer, constants, Depunctuated, EnumParentComposer, FFIAspect, ItemParentComposer, OwnerIteratorPostProcessingComposer, ParentComposer, TypeContextComposer, VariantComposer, VariantIteratorLocalContext};
+use crate::composer::composable::Composable;
 use crate::composer::r#type::TypeComposer;
 use crate::composition::AttrsComposition;
-use crate::context::ScopeContext;
-use crate::interface::{DEFAULT_DOC_PRESENTER, package_unboxed_root};
-use crate::naming::Name;
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
+use crate::context::{ScopeChain, ScopeContext};
+use crate::interface::package_unboxed_root;
+use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::binding::BindingPresentableContext;
+use crate::presentation::context::name::{Aspect, Context};
 use crate::shared::HasParent;
 
 pub struct EnumComposer {
     pub context: ParentComposer<ScopeContext>,
-    pub attrs_composer: AttrsComposer<ParentComposer<Self>>,
-    pub doc_composer: NameContextComposer<ParentComposer<Self>>,
-    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ParentComposer<Self>>,
-    pub type_composer: TypeComposer<ParentComposer<Self>>,
+    pub attrs_composer: AttrsComposer<ParentComposer<EnumComposer>>,
+    pub doc_composer: TypeContextComposer<ParentComposer<EnumComposer>>,
+    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ParentComposer<EnumComposer>>,
+    pub type_composer: TypeComposer<ParentComposer<EnumComposer>>,
     pub generics: Option<Generics>,
 
     pub variant_composers: Vec<ItemParentComposer>,
-    pub variant_presenters: Vec<(VariantComposer, Name, Punctuated<OwnedItemPresentableContext, Comma>)>,
+    pub variant_presenters: Vec<(VariantComposer, VariantIteratorLocalContext)>,
 }
 
-impl IParentComposer for EnumComposer {
+impl Composable for EnumComposer {
     fn context(&self) -> &ParentComposer<ScopeContext> {
         &self.context
+    }
+
+    fn name_context_ref(&self) -> &Context {
+        &self.type_composer.context
     }
 
     fn compose_attributes(&self) -> Depunctuated<TraitVTablePresentation> {
@@ -43,7 +47,7 @@ impl IParentComposer for EnumComposer {
         bindings.extend(self.variant_composers
             .iter()
             .map(|composer| composer.borrow().ctor_composer.compose(&()).present(&source)));
-        bindings.push(BindingPresentableContext::Destructor(self.type_composer.compose_aspect(r#type::FFIAspect::Target, &self.context.borrow())).present(&source));
+        bindings.push(BindingPresentableContext::Destructor(Aspect::FFI(self.name_context()).present(&source)).present(&source));
         bindings
     }
 
@@ -57,27 +61,25 @@ impl IParentComposer for EnumComposer {
     }
 
     fn compose_drop(&self) -> DropInterfacePresentation {
+        let source = self.as_source_ref();
         DropInterfacePresentation::Full {
-            name: self.type_composer.compose_aspect(r#type::FFIAspect::Target, &self.context.borrow()),
-            body: IteratorPresentationContext::EnumDropBody(self.variant_composers
-                .iter()
-                .map(|composer|
-                    OwnedItemPresentableContext::Conversion(composer.borrow().compose_aspect(FFIAspect::Drop)))
-                .collect())
-                .present(&self.context().borrow()),
+            ty: self.ffi_name_aspect().present(&source),
+            body: OwnerIteratorPresentationContext::MatchFields((
+                FieldTypePresentableContext::Simple(quote!(self)).into(),
+                self.variant_composers
+                    .iter()
+                    .map(|composer|
+                        OwnedItemPresentableContext::Conversion(composer.borrow().compose_aspect(FFIAspect::Drop)))
+                    .collect()))
+                .present(&source)
         }
-    }
-
-    fn compose_names(&self) -> (Name, Name) {
-        let ffi_type = self.type_composer.compose_aspect(r#type::FFIAspect::Target, &self.context.borrow());
-        let target_type = self.context().borrow().full_type_for(&parse_quote!(#ffi_type));
-        (ffi_type, Name::Type(target_type))
     }
 
     fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>) {
         let (conversions_from_ffi, conversions_to_ffi) = self.variant_composers.iter().map(|composer| {
             let composer_owned = composer.borrow();
-            (composer_owned.compose_aspect(FFIAspect::From), composer_owned.compose_aspect(FFIAspect::To))
+            (composer_owned.compose_aspect(FFIAspect::From),
+             composer_owned.compose_aspect(FFIAspect::To))
         }).unzip();
         (FromConversionPresentation::Enum(conversions_from_ffi),
          ToConversionPresentation::Enum(conversions_to_ffi),
@@ -88,21 +90,21 @@ impl IParentComposer for EnumComposer {
 
 impl EnumComposer {
     pub fn new(
-        target_name: Name,
-        generics: Generics,
-        attrs: AttrsComposition,
-        variant_composers: Vec<ItemParentComposer>,
-        variant_presenters: Vec<(VariantComposer, Name, Punctuated<OwnedItemPresentableContext, Comma>)>,
+        target_name: &Ident,
+        generics: &Generics,
+        attrs: &Vec<Attribute>,
+        scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>,
+        variant_composers: (Vec<ItemParentComposer>, Vec<(VariantComposer, VariantIteratorLocalContext)>),
     ) -> EnumParentComposer {
         let root = Rc::new(RefCell::new(Self {
             context: Rc::clone(context),
-            generics: Some(generics),
-            doc_composer: ContextComposer::new(DEFAULT_DOC_PRESENTER, |composer: &Ref<EnumComposer>| composer.type_composer.compose_aspect(r#type::FFIAspect::Target, &composer.context.borrow())),
-            variant_composers,
-            variant_presenters,
-            type_composer: TypeComposer::new(NameComposer::new(target_name.clone()), NameComposer::new(target_name)),
-            attrs_composer: AttrsComposer::new(attrs),
+            generics: Some(generics.clone()),
+            doc_composer: constants::enum_composer_doc(),
+            variant_composers: variant_composers.0,
+            variant_presenters: variant_composers.1,
+            type_composer: TypeComposer::new(Context::Enum { ident: target_name.clone() }),
+            attrs_composer: AttrsComposer::new(AttrsComposition::from(attrs, target_name, scope)),
             ffi_object_composer: constants::enum_composer_object(),
         }));
         {

@@ -1,28 +1,33 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{ItemTrait, parse_quote};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use ferment_macro::Parent;
+use syn::token::{Comma, Paren};
 use crate::composer::{Composer, Depunctuated};
 use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
 use crate::conversion::TypeConversion;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::holder::EMPTY;
-use crate::interface::ROUND_BRACES_FIELDS_PRESENTER;
 use crate::naming::Name;
-use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
+use crate::presentation::context::OwnedItemPresentableContext;
 use crate::presentation::{BindingPresentation, FFIObjectPresentation, ScopeContextPresentable, TraitVTablePresentation};
-use crate::shared::SharedAccess;
+use crate::shared::{HasParent, SharedAccess};
+use crate::wrapped::Wrapped;
 
-#[derive(Parent)]
+// #[derive(Parent<'a>)]
 pub struct AttrsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,
-    pub attrs: AttrsComposition
+    pub attrs: AttrsComposition,
 }
 
 impl<Parent: SharedAccess> AttrsComposer<Parent> {
-    pub const fn new(attrs: AttrsComposition) -> Self {
+    pub fn new(attrs: AttrsComposition) -> AttrsComposer<Parent> {
         Self { parent: None, attrs }
+    }
+}
+
+impl<Parent> HasParent<Parent> for AttrsComposer<Parent> where Parent: SharedAccess {
+    fn set_parent(&mut self, parent: &Parent) {
+        self.parent = Some(parent.clone_container());
     }
 }
 
@@ -62,25 +67,28 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
                 .map(|arg| arg.name_type_original.clone())
                 .collect::<Punctuated<_, Comma>>();
 
-            let name_and_args = ROUND_BRACES_FIELDS_PRESENTER((Name::Just(quote!(unsafe extern "C" fn #ffi_fn_name)), arguments)).present(context);
-            let argument_names = IteratorPresentationContext::Round(
-                signature_decomposition.arguments
-                    .iter()
-                    .map(|arg| OwnedItemPresentableContext::Conversion(if arg.name.is_some() {
-                        quote!(cast_obj)
-                    } else {
-                        arg.name_type_conversion.clone()
-                    }))
-                    .collect())
-                .present(context);
+            let arguments_presentation = Wrapped::<_, Paren>::new(arguments.present(context));
+            // OwnerIteratorPresentationContext::RoundBracesFields(local_context)
+            // let arguments_presentation = constants::ROUND_BRACES_FIELDS_PRESENTER((Name::Just(quote!(unsafe extern "C" fn #ffi_fn_name)), arguments)).present(context);
+            let argument_conversions = signature_decomposition
+                .arguments
+                .iter()
+                .map(|arg| OwnedItemPresentableContext::Conversion(if arg.name.is_some() {
+                    quote!(cast_obj)
+                } else {
+                    arg.name_type_conversion.clone()
+                }))
+                .collect::<Punctuated<_, Comma>>();
+            let argument_names = Wrapped::<_, Paren>::new(argument_conversions.present(context))
+                .to_token_stream();
 
 
             TraitVTableMethodComposition {
+                name_and_args: quote!(unsafe extern "C" fn #ffi_fn_name #arguments_presentation),
                 fn_name,
                 ffi_fn_name,
                 item_type: item_full_ty.clone(),
                 trait_type: trait_full_ty.clone(),
-                name_and_args,
                 output_expression,
                 output_conversions: output_conversions.present(context),
                 argument_names

@@ -3,6 +3,8 @@ use std::fmt::{Display, Formatter, Write};
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Ident, Path, Signature, Type};
+use syn::punctuated::Punctuated;
+use syn::token::Comma;
 use crate::chunk::InitialType;
 use crate::composition::{GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
 use crate::context::{GlobalContext, ScopeChain};
@@ -14,8 +16,8 @@ use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 pub fn format_imported_dict(dict: &HashMap<ImportConversion, HashSet<ImportComposition>>) -> String {
     let debug_imports = dict.iter().map(|(i, p)| {
         let import = i.as_path();
-        let ppp = p.iter().map(|ImportComposition { ident: i, scope: p}| quote!(#i: #p)).collect::<Vec<_>>();
-        quote!(#import: #(#ppp,)*)
+        let ppp = p.iter().map(|ImportComposition { ident: i, scope: p}| quote!(#i: #p)).collect::<Punctuated<_, Comma>>();
+        quote!(#import: #ppp)
     }).collect::<Vec<_>>();
     let all = quote!(#(#debug_imports,)*);
     all.to_string()

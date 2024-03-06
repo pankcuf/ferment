@@ -2,7 +2,8 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::interface::{ffi_from_conversion, ffi_to_conversion, interface, obj, package, package_boxed_expression, package_unbox_any_expression, package_unbox_any_expression_terminated};
+use crate::interface::{ffi_from_conversion, ffi_to_conversion, package_unbox_any_expression, package_unbox_any_expression_terminated};
+use crate::naming::DictionaryFieldName;
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
@@ -33,10 +34,10 @@ pub enum FieldTypePresentableContext {
     AsMutRef(TokenStream2),
     IfThenSome(Box<FieldTypePresentableContext>, TokenStream2),
     Named((TokenStream2, Box<FieldTypePresentableContext>)),
-    Scope,
     Deref(TokenStream2),
     DerefContext(Box<FieldTypePresentableContext>),
     FfiRefWithFieldName(Box<FieldTypePresentableContext>),
+    FfiRefWithConversion(FieldTypeConversion),
     Match(Box<FieldTypePresentableContext>),
 }
 
@@ -63,21 +64,20 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 presentation_context.present(source)
             }
             FieldTypePresentableContext::ToOpt(presentation_context) => {
-                let package = package();
-                let interface = interface();
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
                 let field_path = presentation_context.present(source);
                 quote!(#package::#interface::ffi_to_opt(#field_path))
             },
             FieldTypePresentableContext::ToVecPtr => {
-                let expr = package_boxed_expression(quote!(o));
-                let package = package();
+                let expr = DictionaryFieldName::BoxedExpression(quote!(o));
+                let package = DictionaryFieldName::Package;
                 quote!(#package::boxed_vec(obj.map(|o| #expr).collect()))
             },
             FieldTypePresentableContext::LineTermination => quote!(;),
             FieldTypePresentableContext::Empty => quote!(),
-            FieldTypePresentableContext::Boxed(presentation_context) => {
-                package_boxed_expression(presentation_context.present(source))
-            },
+            FieldTypePresentableContext::Boxed(presentation_context) =>
+                DictionaryFieldName::BoxedExpression(presentation_context.present(source)).to_token_stream(),
             FieldTypePresentableContext::UnboxAny(presentation_context) => {
                 package_unbox_any_expression(presentation_context.present(source))
             }
@@ -91,8 +91,8 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 quote!(if !#field_path.is_null() { #conversion })
             },
             FieldTypePresentableContext::DestroyConversion(presentation_context, path) => {
-                let package = package();
-                let interface = interface();
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
                 let field_path = presentation_context.present(source);
                 quote!(<std::os::raw::c_char as #package::#interface<#path>>::destroy(#field_path))
             },
@@ -105,8 +105,8 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 ffi_from_conversion(field_path)
             },
             FieldTypePresentableContext::FromOpt(presentation_context) => {
-                let package = package();
-                let interface = interface();
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
                 let field_path = presentation_context.present(source);
                 quote!(#package::#interface::ffi_from_opt(#field_path))
             },
@@ -129,9 +129,6 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let ty = presentation_context.present(source);
                 quote!(#l_value: #ty)
             }
-            FieldTypePresentableContext::Scope => {
-                quote!({})
-            }
             FieldTypePresentableContext::FfiRefWithFieldName(presentation_context) => {
                 let field_name = presentation_context.present(source);
                 quote!(ffi_ref.#field_name)
@@ -142,7 +139,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::DerefContext(presentation_context) => {
                 FieldTypePresentableContext::Deref(presentation_context.present(source)).present(source)
             }
-            FieldTypePresentableContext::Obj => obj(),
+            FieldTypePresentableContext::Obj => DictionaryFieldName::Obj.to_token_stream(),
             FieldTypePresentableContext::ObjFieldName(field_name) => {
                 quote!(obj.#field_name)
             }
@@ -152,6 +149,10 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::Match(presentation_context) => {
                 let field_path = presentation_context.present(source);
                 quote!(match #field_path)
+            }
+            FieldTypePresentableContext::FfiRefWithConversion(field_type) => {
+                FieldTypePresentableContext::FfiRefWithFieldName(FieldTypePresentableContext::FieldTypeConversionName(field_type.clone()).into())
+                    .present(source)
             }
         }
     }

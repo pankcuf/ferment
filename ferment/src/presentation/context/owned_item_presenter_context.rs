@@ -60,11 +60,11 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 field_type.name()
             },
             OwnedItemPresentableContext::DefaultFieldType(field_type) =>
-                source.ffi_full_dictionary_field_type_presenter(field_type)
+                source.ffi_full_dictionary_type_presenter(field_type)
                     .to_token_stream(),
             OwnedItemPresentableContext::Named(field_type, is_public) => {
                 let name = field_type.name();
-                let ty = source.ffi_full_dictionary_field_type_presenter(field_type.ty());
+                let ty = source.ffi_full_dictionary_type_presenter(field_type.ty());
                 if *is_public {
                     quote!(pub #name: #ty)
                 } else {
@@ -78,12 +78,12 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingArg(field_type) => {
                 match field_type {
                     FieldTypeConversion::Named(field_name, field_type) => {
-                        let ty = source.ffi_full_dictionary_field_type_presenter(field_type);
+                        let ty = source.ffi_full_dictionary_type_presenter(field_type);
                         quote!(#field_name: #ty)
                     },
                     FieldTypeConversion::Unnamed(field_name, field_type) => {
                         let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
-                        let ty = source.ffi_full_dictionary_field_type_presenter(field_type);
+                        let ty = source.ffi_full_dictionary_type_presenter(field_type);
                         quote!(#field_name: #ty)
                     }
                 }

@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Item;
 use std::collections::HashSet;
-use std::rc::Rc;
+use crate::composer::ParentComposer;
 use crate::composition::GenericConversion;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ItemConversion;
@@ -14,7 +13,7 @@ pub enum ScopeTreeItem {
     Item {
         item: Item,
         scope: ScopeChain,
-        scope_context: Rc<RefCell<ScopeContext>>,
+        scope_context: ParentComposer<ScopeContext>,
     },
     Tree {
         tree: ScopeTree

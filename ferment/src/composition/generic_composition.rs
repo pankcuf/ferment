@@ -1,11 +1,10 @@
-use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::collections::HashSet;
-use std::rc::Rc;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
+use crate::composer::ParentComposer;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, PathConversion, TypeConversion};
 use crate::formatter::format_token_stream;
@@ -65,7 +64,7 @@ impl GenericConversion {
         generic_imports(self.0.ty())
     }
 
-    fn expand_(&self, full_type: &TypeConversion, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
+    fn expand_(&self, full_type: &TypeConversion, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         // println!("GenericConversion::expand_: {}", full_type.to_token_stream());
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
@@ -76,7 +75,7 @@ impl GenericConversion {
         }
     }
 
-    pub fn expand(&self, context: &Rc<RefCell<ScopeContext>>) -> TokenStream2 {
+    pub fn expand(&self, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         let Self { 0: full_type } = self;
         // println!("GenericConversion::expand: {}", full_type);
         match full_type {

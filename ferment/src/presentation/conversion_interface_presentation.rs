@@ -1,19 +1,19 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::Generics;
-use crate::interface::{interface, obj, package};
-use crate::naming::Name;
+use syn::{Generics, Type};
+use crate::naming::DictionaryFieldName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 
 pub enum ConversionInterfacePresentation {
     Empty,
     Interface {
-        ffi_type: Name,
-        target_type: Name,
-        from_presentation: FromConversionPresentation,
-        to_presentation: ToConversionPresentation,
-        destroy_presentation: TokenStream2,
-        generics: Option<Generics>,
+        // (FFI, ORIGINAL)
+        types: (Type, Type),
+        conversions: (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>),
+        // from_presentation: FromConversionPresentation,
+        // to_presentation: ToConversionPresentation,
+        // destroy_presentation: TokenStream2,
+        // generics: Option<Generics>,
     },
     // GenericInterface {
     //     ffi_type: TokenStream2,
@@ -30,12 +30,15 @@ impl ToTokens for ConversionInterfacePresentation {
         match self {
             Self::Empty => quote!(),
             Self::Interface {
-                ffi_type,
-                target_type,
-                from_presentation,
-                to_presentation,
-                destroy_presentation,
-                generics} => {
+                types: (
+                    ffi_type,
+                    target_type),
+                conversions: (
+                    from_presentation,
+                    to_presentation,
+                    destroy_presentation,
+                    generics),
+            } => {
                 let (generic_bounds, where_clause) = match generics {
                     Some(generics) => {
                         let gens = generics.params.iter().map(|generic_param| generic_param.to_token_stream());
@@ -54,9 +57,9 @@ impl ToTokens for ConversionInterfacePresentation {
                     None => (quote!(), quote!())
                 };
 
-                let package = package();
-                let interface = interface();
-                let obj = obj();
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
+                let obj = DictionaryFieldName::Obj;
                 quote! {
                     impl #generic_bounds #package::#interface<#target_type> for #ffi_type #where_clause {
                         unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type {

@@ -1,10 +1,12 @@
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
+use syn::punctuated::Punctuated;
+use syn::token::Colon2;
 
 #[derive(Copy, Clone)]
 pub enum ManglingRules {
-    Default // "::" -> "_"
+    Default, // "::" -> "_"
 }
 
 pub trait Mangle {
@@ -21,8 +23,36 @@ pub trait Mangle {
 impl Mangle for Path {
     fn to_mangled_string(&self, rules: ManglingRules) -> String {
         match rules {
+            ManglingRules::Default =>
+                self.segments.to_mangled_string(rules),
+        }
+    }
+}
+
+impl Mangle for Type {
+    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+        match rules {
             ManglingRules::Default => {
-                self.segments
+                match self {
+                    // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
+                    Type::Path(TypePath { path, .. }) =>
+                        path.to_mangled_string(rules),
+                    ty => {
+                        let p: Path = parse_quote!(#ty);
+                        p.get_ident().unwrap().clone().to_string()
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Mangle for Punctuated<PathSegment, Colon2> {
+    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+        match rules {
+            ManglingRules::Default =>
+                // Punctuated::<&PathSegment, Underscore>::from_iter(self.iter()).to_token_stream().to_string()
+                self
                     .iter()
                     .map(|segment| {
                         let mut segment_str = segment.ident.to_string();
@@ -84,29 +114,7 @@ impl Mangle for Path {
                         }
                     })
                     .collect::<Vec<_>>()
-                    .join("_")
-
-            }
-
-        }
-    }
-}
-
-impl Mangle for Type {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
-        match rules {
-            ManglingRules::Default => {
-                match self {
-                    // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
-                    Type::Path(TypePath { path, .. }) =>
-                        path.to_mangled_string(rules),
-                    ty => {
-                        let p: Path = parse_quote!(#ty);
-                        p.get_ident().unwrap().clone().to_string()
-                    }
-                }
-
-            }
+                    .join("_"),
         }
     }
 }

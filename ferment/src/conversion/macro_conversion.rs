@@ -7,19 +7,15 @@ pub enum MacroType {
     Register(PathHolder)
 }
 
-impl MacroType {
-    pub fn name(&self) -> &str {
-        match self {
-            Self::Export => "export",
-            Self::Register(..) => "register",
-        }
-    }
-
-    pub fn is(&self, str: &str) -> bool {
-        self.name() == str
-    }
-}
-
+// impl MacroType {
+//     pub fn name(&self) -> &str {
+//         match self {
+//             Self::Export => "export",
+//             Self::Register(..) => "register",
+//         }
+//     }
+// }
+//
 
 impl TryFrom<&Item> for MacroType {
     type Error = ();
