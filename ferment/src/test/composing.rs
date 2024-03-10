@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::parse_quote;
 use syn::__private::TokenStream2;
 use crate::builder::Crate;
@@ -18,10 +18,7 @@ use crate::tree::{ScopeTree, ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExpor
 
 #[test]
 fn decompose_module() {
-    // let tree = root_scope_tree_item()
-    let x = ScopeTree::from(root_scope_tree_item());
-    // let expansion = Expansion::Root { tree: CrateTree::new(&Crate::new("crate", PathBuf::new()), ScopeTree::from(root_scope_tree_item()), HashMap::new()) };
-    println!("{}", quote!(#x));
+    println!("{}", ScopeTree::from(root_scope_tree_item()).to_token_stream());
 }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
     ScopeChain::Mod { crate_scope: format_ident!("crate"), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
