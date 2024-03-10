@@ -1,10 +1,9 @@
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::format_ident;
+use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Path, Type};
 use crate::Config;
 use crate::context::{ScopeChain, TypeChain};
-use crate::composition::TraitCompositionPart1;
 use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
@@ -13,7 +12,7 @@ use crate::formatter::format_global_context;
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct GlobalContext {
     pub config: Config,
     pub scope_register: ScopeResolver,
@@ -43,7 +42,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, ..Default::default() }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default() }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -106,15 +105,15 @@ impl GlobalContext {
     }
 
 
-    pub fn maybe_scope_generic_bounds_or_parent(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        // println!("maybe_scope_generic_bounds_or_parent: {} in [{}]...", ident, scope);
-        self.generics.maybe_generic_bounds(scope, ident)
-            .and_then(|generic_bounds| {
-                let first_bound = generic_bounds.first().unwrap();
-                let first_bound_as_scope = PathHolder::from(first_bound);
-                self.maybe_import(scope, &first_bound_as_scope)
-            })
-    }
+    // pub fn maybe_scope_generic_bounds_or_parent(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+    //     // println!("maybe_scope_generic_bounds_or_parent: {} in [{}]...", ident, scope);
+    //     self.generics.maybe_generic_bounds(scope, ident)
+    //         .and_then(|generic_bounds| {
+    //             let first_bound = generic_bounds.first().unwrap();
+    //             let first_bound_as_scope = PathHolder::from(first_bound);
+    //             self.maybe_import(scope, &first_bound_as_scope)
+    //         })
+    // }
 
 
 
@@ -177,13 +176,13 @@ impl GlobalContext {
             None
         };
         // println!("actual_scope_for_type: [{:?}]", scope);
-        scope.unwrap_or(ScopeChain::crate_root())
+        scope.unwrap_or(ScopeChain::crate_root(current_scope.crate_scope().clone()))
     }
-    pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {
-        let full_scope: PathHolder = parse_quote!(#full_ty);
-        self.maybe_scope(&full_scope.0)
-            .and_then(|scope| self.traits.maybe_trait(scope).cloned())
-    }
+    // pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {
+    //     let full_scope: PathHolder = parse_quote!(#full_ty);
+    //     self.maybe_scope(&full_scope.0)
+    //         .and_then(|scope| self.traits.maybe_trait(scope).cloned())
+    // }
 
 
     // fn find_trait_item_full_paths_pair(&self, ) -> (Scope, Scope) {
@@ -280,7 +279,10 @@ impl GlobalContext {
     }
 
     pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        self.imports.maybe_import(scope, ident)
+        let result = self.imports.maybe_import(scope, ident);
+        println!("maybe_import: {ident} in [{}] ---> {}", scope.self_path_holder(), result.map_or(quote!(None), |r| r.to_token_stream()));
+
+        result
     }
 }
 

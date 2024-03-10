@@ -64,7 +64,7 @@ pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExpo
 #[allow(unused)]
 pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeItem>) -> String {
     dict.iter()
-        .map(|(ident, tree_item)| format!("\t{}: {:?}", ident, quote!(#tree_item)))
+        .map(|(ident, tree_item)| format!("\t{}: {}", ident, quote!(#tree_item)))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -350,10 +350,13 @@ fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<PathHolder>>) -> Vec<String> 
     // nested_scope_dict(dict, |scope, sub_dict|
     //     format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t")))
     let mut iter = dict.iter()
-        .map(|(key, value)| {
+        .filter_map(|(key, value)| {
             let scopes = quote!(#(#value),*);
-
-            format!("\t{}:\n\t\t{}", format_token_stream(key), format_token_stream(&scopes))
+            if value.is_empty() {
+                None
+            } else {
+                Some(format!("\t{}:\n\t\t{}", format_token_stream(key), format_token_stream(&scopes)))
+            }
         })
         .collect::<Vec<String>>();
     iter.sort();

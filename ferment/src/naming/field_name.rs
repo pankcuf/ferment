@@ -1,7 +1,6 @@
 use crate::conversion::PathConversion;
 use crate::ext::{Mangle, ManglingRules};
 use crate::helper::usize_to_tokenstream;
-use crate::holder::PathHolder;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use std::fmt::Formatter;
@@ -75,15 +74,15 @@ pub enum Name {
     ModFn(Ident),
     Getter(Path, TokenStream2),
     Setter(Path, TokenStream2),
-    EnumFFIVariant(Ident, Ident),
-    EnumVariant(Type, Ident),
-    MangledType(Type),
+    // EnumFFIVariant(Ident, Ident),
+    // EnumVariant(Type, Ident),
+    // MangledType(Type),
     Ident(Ident),
     Pat(Pat),
-    Path(Path),
-    Type(Type),
-    Just(TokenStream2),
-    ScopeName(Ident, PathHolder),
+    // Path(Path),
+    // Type(Type),
+    // Just(TokenStream2),
+    // ScopeName(Ident, PathHolder),
 }
 
 impl ToTokens for Name {
@@ -131,24 +130,24 @@ impl ToTokens for Name {
                 field_name.to_string()
             )
             .to_token_stream(),
-            Name::MangledType(ty) => ty.to_mangled_ident_default().to_token_stream(),
+            // Name::MangledType(ty) => ty.to_mangled_ident_default().to_token_stream(),
             Name::Ident(variant) => quote!(#variant),
             Name::Optional(ident) => quote!(#ident),
             Name::Pat(pat) => pat.to_token_stream(),
-            Name::Path(path) => path.to_token_stream(),
-            Name::EnumVariant(enum_name, variant) => {
-                let enum_name = enum_name.to_mangled_ident_default();
-                quote!(#enum_name::#variant)
-            }
-            Name::EnumFFIVariant(enum_name, variant) => {
-                format_ident!("{}_{}", enum_name, variant).to_token_stream()
-            }
-            Name::Type(ty) => quote!(#ty),
-            Name::Just(ts) => quote!(#ts),
-            Name::ScopeName(_ident, scope) => {
-                scope.0.to_mangled_ident_default().to_token_stream()
-                // quote!(#scope)
-            }
+            // Name::Path(path) => path.to_token_stream(),
+            // Name::EnumVariant(enum_name, variant) => {
+            //     let enum_name = enum_name.to_mangled_ident_default();
+            //     quote!(#enum_name::#variant)
+            // }
+            // Name::EnumFFIVariant(enum_name, variant) => {
+            //     format_ident!("{}_{}", enum_name, variant).to_token_stream()
+            // }
+            // Name::Type(ty) => quote!(#ty),
+            // Name::Just(ts) => quote!(#ts),
+            // Name::ScopeName(_ident, scope) => {
+            //     scope.0.to_mangled_ident_default().to_token_stream()
+            //     // quote!(#scope)
+            // }
         }
         .to_tokens(tokens)
     }
@@ -194,20 +193,20 @@ impl Mangle for Name {
                     obj_type.to_mangled_ident_default(),
                     field_name.to_string()
                 ),
-                Name::EnumFFIVariant(enum_name, variant) => format!("{}_{}", enum_name, variant),
-                Name::EnumVariant(enum_name, variant) => {
-                    format!("{}_{}", enum_name.to_mangled_ident_default(), variant)
-                }
-                Name::MangledType(ty) => ty.to_mangled_ident_default().to_string(),
+                // Name::EnumFFIVariant(enum_name, variant) => format!("{}_{}", enum_name, variant),
+                // Name::EnumVariant(enum_name, variant) => {
+                //     format!("{}_{}", enum_name.to_mangled_ident_default(), variant)
+                // }
+                // Name::MangledType(ty) => ty.to_mangled_ident_default().to_string(),
                 Name::Ident(variant) => variant.to_string(),
                 Name::Optional(ident) => quote!(#ident).to_string(),
                 Name::Pat(pat) => pat.to_token_stream().to_string(),
-                Name::Path(path) => path.to_mangled_ident_default().to_string(),
-                Name::Type(ty) => ty.to_mangled_ident_default().to_string(),
-                Name::Just(ts) => ts.to_string(),
-                Name::ScopeName(ident, scope) => {
-                    format!("{}_{}", scope.0.to_mangled_ident_default(), ident)
-                }
+                // Name::Path(path) => path.to_mangled_ident_default().to_string(),
+                // Name::Type(ty) => ty.to_mangled_ident_default().to_string(),
+                // Name::Just(ts) => ts.to_string(),
+                // Name::ScopeName(ident, scope) => {
+                //     format!("{}_{}", scope.0.to_mangled_ident_default(), ident)
+                // }
             },
         }
     }

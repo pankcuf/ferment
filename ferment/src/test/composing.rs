@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use proc_macro2::Ident;
 use quote::quote;
-use syn::parse_quote;
+use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::composer::ParentComposer;
 use crate::Config;
@@ -14,6 +15,16 @@ use crate::holder::{PathHolder, TypeHolder};
 use crate::presentation::expansion::Expansion;
 use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem};
 
+impl ImportComposition {
+    pub fn new(ident: Ident, scope: PathHolder) -> Self {
+        Self { ident, scope }
+    }
+}
+impl TypeComposition {
+    pub fn new_default(ty: Type) -> Self {
+        Self::new(ty, None)
+    }
+}
 
 #[test]
 fn decompose_module() {
@@ -21,7 +32,7 @@ fn decompose_module() {
     println!("{}", quote!(#expansion));
 }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
-    ScopeChain::Mod { self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
+    ScopeChain::Mod { crate_scope: parse_quote!(crate), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ParentComposer<ScopeContext> {
@@ -30,7 +41,7 @@ fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContex
 
 fn root_scope_tree_item() -> ScopeTreeCompact {
     let mut global_context = GlobalContext::with_config(Config::default());
-    let root_scope = ScopeChain::crate_root();
+    let root_scope = ScopeChain::crate_root(parse_quote!(crate));
     global_context
         .scope_mut(&root_scope)
         .add_many(TypeChain::from(HashMap::from([
@@ -61,7 +72,7 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
         ])));
     let global_context_ptr = Arc::new(RwLock::new(global_context));
     ScopeTreeCompact {
-        scope: ScopeChain::crate_root(),
+        scope: ScopeChain::crate_root(parse_quote!(crate)),
         scope_context: scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
         generics: HashSet::from([]),
         imported: HashMap::from([]),

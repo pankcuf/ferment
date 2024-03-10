@@ -10,19 +10,19 @@ pub enum Aspect {
     Target(Context),
     FFI(Context),
     RawTarget(Context),
-    RawFFI(Context)
+    // RawFFI(Context)
 }
 
-impl Aspect {
-    pub fn context(&self) -> &Context {
-        match self {
-            Aspect::Target(context) => context,
-            Aspect::FFI(context) => context,
-            Aspect::RawTarget(context) => context,
-            Aspect::RawFFI(context) => context,
-        }
-    }
-}
+// impl Aspect {
+//     pub fn context(&self) -> &Context {
+//         match self {
+//             Aspect::Target(context) => context,
+//             Aspect::FFI(context) => context,
+//             Aspect::RawTarget(context) => context,
+//             // Aspect::RawFFI(context) => context,
+//         }
+//     }
+// }
 #[derive(Clone, Debug)]
 pub enum Context {
     Enum {
@@ -136,22 +136,22 @@ impl ScopeContextPresentable for Aspect {
                 }
 
             }
-            Aspect::RawFFI(context) => {
-                match context {
-                    Context::Enum { ident } =>
-                        parse_quote!(#ident),
-                    Context::EnumVariant { ident, variant_ident } => {
-                        let ty = parse_quote!(#ident);
-                        let full_ty = source.full_type_for(&ty);
-                        let mangled_ty = full_ty.to_mangled_ident_default();
-                        parse_quote!(#mangled_ty::#variant_ident)
-                    }
-                    Context::Struct { ident } =>
-                        parse_quote!(#ident),
-                    Context::Fn { path } => parse_quote!(#path)
-                }
-
-            }
+            // Aspect::RawFFI(context) => {
+            //     match context {
+            //         Context::Enum { ident } =>
+            //             parse_quote!(#ident),
+            //         Context::EnumVariant { ident, variant_ident } => {
+            //             let ty = parse_quote!(#ident);
+            //             let full_ty = source.full_type_for(&ty);
+            //             let mangled_ty = full_ty.to_mangled_ident_default();
+            //             parse_quote!(#mangled_ty::#variant_ident)
+            //         }
+            //         Context::Struct { ident } =>
+            //             parse_quote!(#ident),
+            //         Context::Fn { path } => parse_quote!(#path)
+            //     }
+            //
+            // }
         }
     }
 }

@@ -2,7 +2,7 @@
 name = "ferment-example"
 version = "0.1.4"
 edition = "2021"
-build = "build.rs"
+#build = "build.backup"
 
 [dependencies]
 async-trait = "0.1.74"

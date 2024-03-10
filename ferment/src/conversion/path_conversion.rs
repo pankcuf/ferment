@@ -1,9 +1,7 @@
 use std::fmt;
 use std::fmt::Debug;
-use quote::{format_ident, quote, ToTokens};
-use syn::__private::TokenStream2;
-use syn::{Ident, Path, PathArguments};
-use crate::context::ScopeContext;
+use quote::{quote, ToTokens};
+use syn::{Path, PathArguments};
 use crate::conversion::GenericPathConversion;
 
 #[derive(Clone)]
@@ -125,33 +123,33 @@ impl PathConversion {
         }
     }
 
-    pub fn mangled_map_ident(&self, context: &ScopeContext) -> Ident {
-        format_ident!("{}", match self {
-            PathConversion::Primitive(path) |
-            PathConversion::Complex(path) =>
-                path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>().join("_"),
-            PathConversion::Generic(generic_path_conversion) =>
-                format!("{}_{}", generic_path_conversion.prefix(), generic_path_conversion.arguments_presentation(context))
-        })
-    }
-
-    pub fn mangled_vec_arguments(&self, context: &ScopeContext) -> TokenStream2 {
-        match self {
-            PathConversion::Primitive(path) |
-            PathConversion::Complex(path) =>
-                quote!(#path),
-            PathConversion::Generic(conversion) =>
-                conversion.arguments_presentation(context)
-        }
-    }
-    pub fn mangled_box_arguments(&self, context: &ScopeContext) -> TokenStream2 {
-        match self {
-            PathConversion::Primitive(path) |
-            PathConversion::Complex(path) =>
-                quote!(#path),
-            PathConversion::Generic(conversion) =>
-                conversion.arguments_presentation(context)
-        }
-
-    }
+    // pub fn mangled_map_ident(&self, context: &ScopeContext) -> Ident {
+    //     format_ident!("{}", match self {
+    //         PathConversion::Primitive(path) |
+    //         PathConversion::Complex(path) =>
+    //             path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>().join("_"),
+    //         PathConversion::Generic(generic_path_conversion) =>
+    //             format!("{}_{}", generic_path_conversion.prefix(), generic_path_conversion.arguments_presentation(context))
+    //     })
+    // }
+    //
+    // pub fn mangled_vec_arguments(&self, context: &ScopeContext) -> TokenStream2 {
+    //     match self {
+    //         PathConversion::Primitive(path) |
+    //         PathConversion::Complex(path) =>
+    //             quote!(#path),
+    //         PathConversion::Generic(conversion) =>
+    //             conversion.arguments_presentation(context)
+    //     }
+    // }
+    // pub fn mangled_box_arguments(&self, context: &ScopeContext) -> TokenStream2 {
+    //     match self {
+    //         PathConversion::Primitive(path) |
+    //         PathConversion::Complex(path) =>
+    //             quote!(#path),
+    //         PathConversion::Generic(conversion) =>
+    //             conversion.arguments_presentation(context)
+    //     }
+    //
+    // }
 }

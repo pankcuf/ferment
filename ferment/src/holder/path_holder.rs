@@ -1,6 +1,5 @@
-use quote::{format_ident, quote, ToTokens};
-use syn::{Ident, parse_quote, Path, PathSegment, Type, TypePath};
-use syn::__private::TokenStream2;
+use quote::{format_ident, ToTokens};
+use syn::{Ident, parse_quote, Path, PathSegment, Type};
 use syn::punctuated::Punctuated;
 use crate::holder::Holder;
 use crate::impl_holder;
@@ -15,22 +14,22 @@ impl PathHolder {
     pub fn crate_root() -> Self {
         parse_quote!(crate)
     }
-    pub fn ffi_expansion_scope() -> Self {
-        Self::crate_and(quote!(fermented))
-    }
-    pub fn ffi_generics_scope() -> Self {
-        Self::ffi_expansion_scope().joined_path(parse_quote!(generics))
-    }
-    pub fn ffi_types_scope() -> Self {
-        Self::ffi_expansion_scope().joined_path(parse_quote!(types))
-    }
+    // pub fn ffi_expansion_scope() -> Self {
+    //     Self::crate_and(quote!(fermented))
+    // }
+    // pub fn ffi_generics_scope() -> Self {
+    //     Self::ffi_expansion_scope().joined_path(parse_quote!(generics))
+    // }
+    // pub fn ffi_types_scope() -> Self {
+    //     Self::ffi_expansion_scope().joined_path(parse_quote!(types))
+    // }
 
-    pub fn crate_and(path: TokenStream2) -> Self {
-        Self::crate_root().joined_path(parse_quote!(#path))
-    }
-    pub fn ffi_types_and(path: TokenStream2) -> Self {
-        Self::ffi_types_scope().joined_path(parse_quote!(#path))
-    }
+    // pub fn crate_and(path: TokenStream2) -> Self {
+    //     Self::crate_root().joined_path(parse_quote!(#path))
+    // }
+    // pub fn ffi_types_and(path: TokenStream2) -> Self {
+    //     Self::ffi_types_scope().joined_path(parse_quote!(#path))
+    // }
 
 
     pub fn len(&self) -> usize {
@@ -40,30 +39,30 @@ impl PathHolder {
         self.0.segments.is_empty()
     }
 
-    pub fn extract_type_scope(ty: &Type) -> PathHolder {
-        match ty {
-            Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
-                let new_segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
-                if new_segments.is_empty() {
-                    EMPTY
-                } else {
-                    parse_quote!(#(#new_segments)::*)
-                }
-            },
-            _ => EMPTY
-        }
-    }
-
-
-    pub fn is_crate(&self) -> bool {
-        self.0.segments.last().unwrap().ident == format_ident!("crate")
-    }
+    // pub fn extract_type_scope(ty: &Type) -> PathHolder {
+    //     match ty {
+    //         Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+    //             let new_segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
+    //             if new_segments.is_empty() {
+    //                 EMPTY
+    //             } else {
+    //                 parse_quote!(#(#new_segments)::*)
+    //             }
+    //         },
+    //         _ => EMPTY
+    //     }
+    // }
+    //
+    //
+    // pub fn is_crate(&self) -> bool {
+    //     self.0.segments.last().unwrap().ident == format_ident!("crate")
+    // }
 
     pub fn has_belong_to_current_crate(&self) -> bool {
         self.0.segments.first().unwrap().ident == format_ident!("crate")
     }
 
-    pub fn root_ident(&self) -> Ident {
+    pub fn root(&self) -> Ident {
         self.0.segments.first().unwrap().ident.clone()
     }
     pub fn head(&self) -> Ident {
@@ -82,15 +81,15 @@ impl PathHolder {
     //     PathHolder::from(Path { leading_colon: None, segments })
     // }
 
-    pub fn joined_chunk(&self, chunk: &Vec<Ident>) -> PathHolder {
-        let mut segments = self.0.segments.clone();
-        chunk.iter().for_each(|name| segments.push(PathSegment::from(name.clone())));
-        PathHolder::from(Path { leading_colon: None, segments })
-    }
+    // pub fn joined_chunk(&self, chunk: &Vec<Ident>) -> PathHolder {
+    //     let mut segments = self.0.segments.clone();
+    //     chunk.iter().for_each(|name| segments.push(PathSegment::from(name.clone())));
+    //     PathHolder::from(Path { leading_colon: None, segments })
+    // }
 
-    pub fn joined_path(&self, path: Path) -> PathHolder {
-        parse_quote!(#self::#path)
-    }
+    // pub fn joined_path(&self, path: Path) -> PathHolder {
+    //     parse_quote!(#self::#path)
+    // }
 
     // pub fn popped(&self) -> PathHolder {
     // }

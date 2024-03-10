@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::__private::{Span, TokenStream2};
+use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
 use crate::composer::{ParentComposer, SimpleComposerPresenter};
 use crate::conversion::type_conversion::TypeConversion;
@@ -37,52 +37,52 @@ impl ToTokens for GenericPathConversion {
 }
 
 impl GenericPathConversion {
-    pub fn prefix(&self) -> String {
-        match self {
-            GenericPathConversion::Map(_) => "Map_",
-            GenericPathConversion::Vec(_) => "Vec_",
-            GenericPathConversion::Result(_) => "Result_",
-            GenericPathConversion::Box(_) => "",
-            GenericPathConversion::AnyOther(_) => "",
-        }.to_string()
-    }
+    // pub fn prefix(&self) -> String {
+    //     match self {
+    //         GenericPathConversion::Map(_) => "Map_",
+    //         GenericPathConversion::Vec(_) => "Vec_",
+    //         GenericPathConversion::Result(_) => "Result_",
+    //         GenericPathConversion::Box(_) => "",
+    //         GenericPathConversion::AnyOther(_) => "",
+    //     }.to_string()
+    // }
 
-    pub fn arguments_presentation(&self, context: &ScopeContext) -> TokenStream2 {
-        match self {
-            GenericPathConversion::Map(path) =>
-                match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
-                    [key_conversion, value_conversion] => {
-                        let ident_string = format!("keys_{}_values_{}", key_conversion.mangled_map_ident(context), value_conversion.mangled_map_ident(context));
-                        syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-                    },
-                    _ => panic!("arguments_presentation: Map nested in Vec not supported yet"),
-                },
-            GenericPathConversion::Result(path) =>
-                match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
-                    [ok_conversion, error_conversion] => {
-                        let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(context), error_conversion.mangled_map_ident(context));
-                        syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
-                    },
-                    _ => panic!("arguments_presentation: Map nested in Vec not supported yet")
-                },
-            GenericPathConversion::Vec(path) =>
-                path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
-                    .first()
-                    .unwrap()
-                    .mangled_vec_arguments(context),
-            GenericPathConversion::Box(path) =>
-                path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
-                    .first()
-                    .unwrap()
-                    .mangled_box_arguments(context),
-            GenericPathConversion::AnyOther(path) => {
-                path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
-                    .first()
-                    .unwrap()
-                    .mangled_box_arguments(context)
-            }
-        }
-    }
+    // pub fn arguments_presentation(&self, context: &ScopeContext) -> TokenStream2 {
+    //     match self {
+    //         GenericPathConversion::Map(path) =>
+    //             match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
+    //                 [key_conversion, value_conversion] => {
+    //                     let ident_string = format!("keys_{}_values_{}", key_conversion.mangled_map_ident(context), value_conversion.mangled_map_ident(context));
+    //                     syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
+    //                 },
+    //                 _ => panic!("arguments_presentation: Map nested in Vec not supported yet"),
+    //             },
+    //         GenericPathConversion::Result(path) =>
+    //             match &path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)[..] {
+    //                 [ok_conversion, error_conversion] => {
+    //                     let ident_string = format!("ok_{}_err_{}", ok_conversion.mangled_map_ident(context), error_conversion.mangled_map_ident(context));
+    //                     syn::LitInt::new(&ident_string, Span::call_site()).to_token_stream()
+    //                 },
+    //                 _ => panic!("arguments_presentation: Map nested in Vec not supported yet")
+    //             },
+    //         GenericPathConversion::Vec(path) =>
+    //             path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
+    //                 .first()
+    //                 .unwrap()
+    //                 .mangled_vec_arguments(context),
+    //         GenericPathConversion::Box(path) =>
+    //             path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
+    //                 .first()
+    //                 .unwrap()
+    //                 .mangled_box_arguments(context),
+    //         GenericPathConversion::AnyOther(path) => {
+    //             path_arguments_to_path_conversions(&path.segments.last().unwrap().arguments)
+    //                 .first()
+    //                 .unwrap()
+    //                 .mangled_box_arguments(context)
+    //         }
+    //     }
+    // }
 
     pub fn as_path(&self) -> &Path {
         match self {
@@ -94,15 +94,15 @@ impl GenericPathConversion {
         }
     }
 
-    pub fn path(self) -> Path {
-        match self {
-            GenericPathConversion::Map(path) |
-            GenericPathConversion::Vec(path) |
-            GenericPathConversion::Result(path) |
-            GenericPathConversion::Box(path) |
-            GenericPathConversion::AnyOther(path) => path
-        }
-    }
+    // pub fn path(self) -> Path {
+    //     match self {
+    //         GenericPathConversion::Map(path) |
+    //         GenericPathConversion::Vec(path) |
+    //         GenericPathConversion::Result(path) |
+    //         GenericPathConversion::Box(path) |
+    //         GenericPathConversion::AnyOther(path) => path
+    //     }
+    // }
 }
 
 pub struct GenericArgPresentation {
@@ -133,7 +133,7 @@ impl GenericPathConversion {
 
     pub fn expand(&self, full_type: &TypeConversion, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         let borrowed_context = context.borrow();
-        println!("GenericPathConversion::expand: {} {}", self.as_path().to_token_stream(), full_type);
+        // println!("GenericPathConversion::expand: {} {}", self.as_path().to_token_stream(), full_type);
         match self {
             GenericPathConversion::Result(path) => {
                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
@@ -356,8 +356,8 @@ impl GenericPathConversion {
                     [PathConversion::Complex(arg_0_target_path), PathConversion::Complex(arg_1_target_path)] => {
                         let arg_0_ffi_type = borrowed_context.ffi_path_converted_or_same(arg_0_target_path);
                         let arg_1_ffi_type = borrowed_context.ffi_path_converted_or_same(arg_1_target_path);
-                        println!("Map {} -x- {}", arg_0_target_path.to_token_stream(), arg_1_target_path.to_token_stream());
-                        println!(" -> {} -x- {}", arg_0_ffi_type.to_token_stream(), arg_1_ffi_type.to_token_stream());
+                        // println!("Map {} -x- {}", arg_0_target_path.to_token_stream(), arg_1_target_path.to_token_stream());
+                        // println!(" -> {} -x- {}", arg_0_ffi_type.to_token_stream(), arg_1_ffi_type.to_token_stream());
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type.joined_mut(),

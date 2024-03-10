@@ -1,16 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use syn::{parse_quote, Path, Type};
+use syn::{Path, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
-use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub enum TypeConversion {
     Trait(TypeComposition, TraitDecompositionPart1, Vec<Path>),
     TraitType(TypeComposition),
-    TraitAssociatedType(TypeComposition),
+    // TraitAssociatedType(TypeComposition),
     Object(TypeComposition),
     Primitive(TypeComposition),
     Bounds(GenericBoundComposition),
@@ -30,7 +29,7 @@ impl TypeConversion {
         match self {
             TypeConversion::Trait(ty, ..) |
             TypeConversion::TraitType(ty) |
-            TypeConversion::TraitAssociatedType(ty) |
+            // TypeConversion::TraitAssociatedType(ty) |
             TypeConversion::Object(ty, ..) |
             TypeConversion::Primitive(ty) |
             TypeConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
@@ -42,10 +41,10 @@ impl TypeConversion {
     pub fn ty(&self) -> &Type {
         &self.ty_composition().ty
     }
-    pub fn as_scope(&self) -> PathHolder {
-        let ty = self.ty();
-        parse_quote!(#ty)
-    }
+    // pub fn as_scope(&self) -> PathHolder {
+    //     let ty = self.ty();
+    //     parse_quote!(#ty)
+    // }
 }
 
 impl Debug for TypeConversion {
@@ -65,8 +64,8 @@ impl Debug for TypeConversion {
                 f.write_str(format!("Bounds({})", gbc).as_str()),
             TypeConversion::SmartPointer(ty) =>
                 f.write_str(format!("SmartPointer({})", ty).as_str()),
-            TypeConversion::TraitAssociatedType(ty) =>
-                f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
+            // TypeConversion::TraitAssociatedType(ty) =>
+            //     f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
             TypeConversion::Fn(ty) =>
                 f.write_str(format!("Fn({})", ty).as_str()),
         }

@@ -58,7 +58,14 @@ impl Composition for FnSignatureComposition {
 
                 let fn_name = self.ident.unwrap();
                 // println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
-                let full_fn_path = self.scope.joined(&fn_name);
+
+                let mut full_fn_path = self.scope.joined(&fn_name);
+                if self.scope.has_belong_to_current_crate() {
+
+                    let crate_scope = source.scope.crate_scope();
+                    let local_path: Vec<_> = full_fn_path.0.segments.iter().skip(1).collect();
+                    full_fn_path.0 = parse_quote!(#crate_scope::#(#local_path)::*);
+                }
                 let argument_conversions = self.arguments
                     .iter()
                     .map(|arg|

@@ -19,6 +19,7 @@ pub use function_composition::FnSignatureComposition;
 pub use generic_bound_composition::GenericBoundComposition;
 pub use generic_composition::GenericConversion;
 pub use import_composition::ImportComposition;
+pub use import_composition::{create_item_use_with_tree, create_items_use_from_path};
 pub use qself_composition::QSelfComposition;
 pub use traits::TraitCompositionPart1;
 pub use traits::TraitDecompositionPart1;

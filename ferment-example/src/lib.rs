@@ -3,7 +3,8 @@
 pub mod fermented;
 // mod traits;
 // mod asyn;
-mod identity;
+#[allow(dead_code)]
+pub mod identity;
 
 extern crate ferment_macro;
 extern crate tokio;

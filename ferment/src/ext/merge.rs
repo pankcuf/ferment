@@ -76,8 +76,8 @@ impl MergeInto for ScopeTreeExportItem {
     fn merge_into(&self, destination: &mut Self) {
         if let (ScopeTreeExportItem::Tree(_, _, _, ref mut dest_exports),
             ScopeTreeExportItem::Tree(_, _, _, source_exports), ) = (destination, &self) {
-            // println!("merge_trees: source: {}", source_context);
-            // println!("merge_trees: destination: {}", dest_context);
+            // println!("•• merge_trees: source: {}", format_tree_exported_dict(dest_exports));
+            // println!("•• merge_trees: destination: {:?}", format_tree_exported_dict(dest_exports));
             // dest_exports.extend_with_policy(source_exports, DefaultScopePolicy);
 
             for (name, source_tree) in source_exports {

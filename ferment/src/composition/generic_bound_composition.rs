@@ -29,9 +29,9 @@ impl Display for GenericBoundComposition {
 
 
 impl GenericBoundComposition {
-    pub fn is_empty(&self) -> bool {
-        self.bounds.is_empty()
-    }
+    // pub fn is_empty(&self) -> bool {
+    //     self.bounds.is_empty()
+    // }
 
     // pub fn from_generics(generics: &Generics) -> Self {
     //     let bounds

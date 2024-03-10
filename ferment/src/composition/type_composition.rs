@@ -12,9 +12,6 @@ impl TypeComposition {
     pub fn new(ty: Type, generics: Option<Generics>) -> Self {
         Self { ty, generics }
     }
-    pub fn new_default(ty: Type) -> Self {
-        Self::new(ty, None)
-    }
 }
 
 impl Debug for TypeComposition {

@@ -21,11 +21,11 @@ impl TraitsResolver {
             .insert(item_trait.ident.clone(), TraitCompositionPart1::new(item_trait.clone()));
     }
 
-    pub fn maybe_trait(&self, scope: &ScopeChain) -> Option<&TraitCompositionPart1> {
-        let last_ident = scope.head();
-        self.inner.get(&scope)
-            .and_then(|scope_traits| scope_traits.get(&last_ident))
-    }
+    // pub fn maybe_trait(&self, scope: &ScopeChain) -> Option<&TraitCompositionPart1> {
+    //     let last_ident = scope.head();
+    //     self.inner.get(&scope)
+    //         .and_then(|scope_traits| scope_traits.get(&last_ident))
+    // }
 
     pub fn add_used_traits(&mut self, scope: &ScopeChain, trait_names: Vec<Path>) {
         self.used_traits_dictionary

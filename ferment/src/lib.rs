@@ -20,6 +20,7 @@ mod shared;
 mod wrapped;
 mod opposed;
 mod sequence;
+mod file;
 
 
 pub use self::builder::Builder;

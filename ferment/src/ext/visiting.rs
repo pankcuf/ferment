@@ -125,6 +125,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 add_local_type(visitor, sig_ident, scope);
                 let object = ObjectConversion::new_item(TypeConversion::Fn(TypeComposition::new(parse_quote!(#fn_self_scope), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone()));
                 let fn_scope = ScopeChain::Fn {
+                    crate_scope: scope.crate_scope().clone(),
                     self_scope: Scope::new(fn_self_scope, object),
                     parent_scope_chain: Box::new(scope.clone())
                 };

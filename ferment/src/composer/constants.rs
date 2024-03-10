@@ -468,7 +468,7 @@ pub const fn enum_variant_composer_conversion_unit() -> OwnerIteratorConversionC
             Aspect::Target(context) => Aspect::RawTarget(context.clone()),
             Aspect::FFI(_) => aspect.clone(),
             Aspect::RawTarget(_) => aspect.clone(),
-            Aspect::RawFFI(_) => aspect.clone(),
+            // Aspect::RawFFI(_) => aspect.clone(),
         })
     }
 }

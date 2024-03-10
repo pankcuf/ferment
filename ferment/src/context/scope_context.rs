@@ -1,13 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
+use proc_macro2::Ident;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{Attribute, Ident, Item, parse_quote, Path, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{Attribute, Item, parse_quote, Path, PathSegment, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::punctuated::Punctuated;
+use syn::token::Colon2;
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, TypeConversion};
 use crate::ext::{Accessory, extract_trait_names, Mangle};
-use crate::formatter::format_token_stream;
 use crate::helper::{path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::PathHolder;
 
@@ -33,6 +35,10 @@ impl std::fmt::Display for ScopeContext {
 }
 
 impl ScopeContext {
+    pub fn is_from_current_crate(&self) -> bool {
+        let context = self.context.read().unwrap();
+        context.config.current_crate.ident().eq(self.scope.crate_scope())
+    }
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
     }
@@ -45,10 +51,12 @@ impl ScopeContext {
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        // println!("full_type_for: {}: {:?}", quote!(#ty), lock.maybe_type(ty, &self.scope));
-        lock.maybe_type(ty, &self.scope)
+        let full_ty = lock.maybe_type(ty, &self.scope)
             .and_then(|full_type| full_type.ty().cloned())
-            .unwrap_or(ty.clone())
+            .unwrap_or(ty.clone());
+        // println!("[{}] [{}] full_type_for: {} is: [{}]", self.scope.crate_scope(), self.scope.self_path_holder(), quote!(#ty), quote!(#full_ty));
+
+        full_ty
         // lock.maybe_scope_type_or_parent_type(ty, &self.scope)
         //     .and_then(|sty| sty.ty().cloned())
         //     .unwrap_or(ty.clone())
@@ -105,7 +113,7 @@ impl ScopeContext {
         //     }).unwrap_or(TypeConversion::Unknown(TypeComposition::new(ty.clone(), None)));
         let result = match tyty.ty() {
             Type::Path(TypePath { path, .. }) =>
-                self.ffi_external_path_converted(path),
+                self.ffi_external_path_converted(path, self.scope.crate_scope()),
             _ => None
         };
 
@@ -164,11 +172,11 @@ impl ScopeContext {
         lock.scope_register.scope_type_for_path(path, &self.scope)
     }
 
-    pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<TraitCompositionPart1> {
-        println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
-        let lock = self.context.read().unwrap();
-        lock.traits.item_trait_with_ident_for(ident, scope).cloned()
-    }
+    // pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<TraitCompositionPart1> {
+    //     println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
+    //     let lock = self.context.read().unwrap();
+    //     lock.traits.item_trait_with_ident_for(ident, scope).cloned()
+    // }
 
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
         // println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
@@ -199,7 +207,7 @@ impl ScopeContext {
     }
 
     pub fn convert_to_ffi_path(&self, generic_path_conversion: &GenericPathConversion) -> Type {
-        println!("convert_to_ffi_path: {}", format_token_stream(generic_path_conversion));
+        // println!("convert_to_ffi_path: {}", format_token_stream(generic_path_conversion));
         let path = generic_path_conversion.as_path();
         let mut cloned_segments = path.segments.clone();
         let last_segment = cloned_segments.iter_mut().last().unwrap();
@@ -227,14 +235,12 @@ impl ScopeContext {
                 parse_quote!(#(#new_segments)::*)
             }
         };
-        println!("•• [FFI] convert_to_ffi_path (generic): {} --> {}", format_token_stream(path), format_token_stream(&result));
+        // println!("•• [FFI] convert_to_ffi_path (generic): {} --> {}", format_token_stream(path), format_token_stream(&result));
         result
     }
 
     fn resolve_ffi_path(&self, path: &Path) -> Option<Type> {
         let segments = &path.segments;
-        let first_segment = segments.first().unwrap();
-        let first_ident = &first_segment.ident;
         let last_segment = segments.iter().last().unwrap();
         let last_ident = &last_segment.ident;
         // println!("ffi_path_converted: {}", format_token_stream(path));
@@ -277,66 +283,22 @@ impl ScopeContext {
             "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
             _ => {
                 let ty = parse_quote!(#path);
-                // println!("ffi_path_converted (resolve.1): {}", format_token_stream(&ty));
-                // if let Some(trait_tyty) = self.trait_ty(&ty) {
-                if let Some(ObjectConversion::Type(TypeConversion::Trait(tc, ..)) |
+                let ffi_type = if let Some(ObjectConversion::Type(TypeConversion::Trait(tc, ..)) |
                             ObjectConversion::Type(TypeConversion::TraitType(tc))) = self.trait_ty(&ty) {
                     let trait_ty = &tc.ty;
-                    // println!("ffi_path_converted (resolve.trait): {}", format_token_stream(trait_ty));
                     let trait_path: Path = parse_quote!(#trait_ty);
-                    let trait_segments = &trait_path.segments;
-                    let trait_first_segment = trait_segments.first().unwrap();
-                    let trait_first_ident = &trait_first_segment.ident;
-                    let trait_last_segment = trait_segments.iter().last().unwrap();
-                    let trait_last_ident = &trait_last_segment.ident;
-
-                    //let uncrate_segments: Vec<_> = segments.iter().skip(1).take(segments.len() - 2).collect();
-
-
-                    let uncrate_segments: Vec<_> = match trait_first_ident.to_string().as_str() {
-                        "crate" => trait_segments.iter().take(trait_segments.len() - 1).skip(1).collect(),
-                        _ => trait_segments.iter().take(trait_segments.len() - 1).collect()
-                    };
-                    let ffi_name = if uncrate_segments.is_empty() {
-                        quote!(#trait_last_ident)
-                    } else {
-                        let ty: Type = parse_quote!(#trait_segments::#trait_last_ident);
-                        let mangled_ty = ty.to_mangled_ident_default();
-                        quote!(#(#uncrate_segments)::*::#mangled_ty)
-                    };
-                    // println!("ffi_path_converted (ffi_name): {}", ffi_name);
-
-                    // let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
-                    // let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);
-                    // let mangled_ty = ty.to_mangled_ident_default();
-                    // println!("ffi_external_path_converted:segments: {} ty: {} mangled_ty: {}  ", segments.to_token_stream(), ty.to_token_stream(), mangled_ty);
-                    // quote!(#(#uncrate_segments)::*::#mangled_ty)
-
-                    Some(parse_quote!(crate::fermented::types::#ffi_name))
+                    ffi_chunk_converted(&trait_path.segments)
                 } else {
-                    let uncrate_segments: Vec<_> = match first_ident.to_string().as_str() {
-                        "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
-                        _ => segments.iter().take(segments.len() - 1).collect()
-                    };
-                    let ffi_name = if uncrate_segments.is_empty() {
-                        quote!(#last_ident)
-                    } else {
-                        // let ty: Type = parse_quote!(#segments::#last_ident);
-                        let mangled_ty = segments.to_mangled_ident_default();
-                        quote!(#(#uncrate_segments)::*::#mangled_ty)
-                    };
-                    // println!("ffi_path_converted (ffi_name): {} -> {}", segments.to_token_stream().to_string(), ffi_name);
-                    Some(parse_quote!(crate::fermented::types::#ffi_name))
-                }
+                    ffi_chunk_converted(&path.segments)
+                };
+                // println!("[{}] [{}] resolve_ffi_path: {} ----> {}", self.scope.crate_scope(), self.scope.self_path_holder(), ty.to_token_stream(), ffi_type.to_token_stream());
+                Some(ffi_type)
             }
         };
-        // if let Some(result) = result.as_ref() {
-            // println!("•• [FFI] ffi_path_converted: {}: {}", format_token_stream(path), format_token_stream(result));
-        // }
         result
     }
 
-    fn ffi_external_path_converted(&self, path: &Path) -> Option<Type> {
+    fn ffi_external_path_converted(&self, path: &Path, crate_scope: &Ident) -> Option<Type> {
         // println!("ffi_external_path_converted: {}", format_token_stream(path));
         let lock = self.context.read().unwrap();
         let segments = &path.segments;
@@ -346,7 +308,7 @@ impl ScopeContext {
         let last_segment = segments.iter().last().unwrap();
         let last_ident = &last_segment.ident;
 
-        let result = match last_ident.to_string().as_str() {
+        match last_ident.to_string().as_str() {
             "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
             "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
@@ -361,43 +323,20 @@ impl ScopeContext {
             "Option" => path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
-                .and_then(|ty| self.ffi_external_path_converted(ty)),
+                .and_then(|ty| self.ffi_external_path_converted(ty, crate_scope)),
             "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
             "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
             _ => match first_ident.to_string().as_str() {
-                "crate" => {
-                    // let uncrate_segments = segments.iter().skip(1).collect::<Vec<_>>();
-                    let uncrate_segments: Vec<_> = segments.iter().skip(1).take(segments.len() - 2).collect();
-                    let ffi_name = if uncrate_segments.is_empty() {
-                        quote!(#last_ident)
-                    } else {
-                        let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
-                        let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);
-                        let mangled_ty = ty.to_mangled_ident_default();
-                        // println!("ffi_external_path_converted:segments: {} ty: {} mangled_ty: {}  ", segments.to_token_stream(), ty.to_token_stream(), mangled_ty);
-                        quote!(#(#uncrate_segments)::*::#mangled_ty)
-                    };
-                    Some(parse_quote!(crate::fermented::types::#ffi_name))
-                },
-                _ if lock.config.contains_fermented_crate(&first_ident.to_string()) => {
-                    let segments: Vec<_> = segments.iter().skip(1).take(segments.len() - 2).collect();
-                    let ffi_name = if segments.is_empty() {
-                        quote!(#last_ident)
-                    } else {
-                        quote!(#(#segments)::*::#last_ident)
-                    };
-                    Some(parse_quote!(#first_ident::fermented::types::#ffi_name))
-                },
+                "crate" | _ if lock.config.is_current_crate(first_ident) =>
+                    Some(ffi_external_chunk(crate_scope, segments)),
+                _ if lock.config.contains_fermented_crate(first_ident) =>
+                    Some(ffi_external_chunk(first_ident, segments)),
                 _ => {
                     let segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
                     Some(if segments.is_empty() { parse_quote!(#last_ident) } else { parse_quote!(#(#segments)::*::#last_ident) })
                 }
             }
-        };
-        // if let Some(result) = result.as_ref() {
-        //     println!("•• [FFI] ffi_external_path_converted: {} --> {}", path.to_token_stream(), format_token_stream(result));
-        // }
-        result
+        }
     }
 
 
@@ -407,7 +346,7 @@ impl ScopeContext {
     }
 
     fn ffi_dictionary_type_presenter(&self, field_type: &Type) -> Type {
-        println!("ffi_dictionary_field_type_presenter: {:?}", format_token_stream(field_type));
+        // println!("ffi_dictionary_field_type_presenter: {:?}", format_token_stream(field_type));
         match field_type {
             Type::Path(TypePath { path, .. }) =>
                 self.ffi_dictionary_type(path),
@@ -426,7 +365,6 @@ impl ScopeContext {
                         _ => parse_quote!(*mut #path)
                     },
                     Type::Ptr(type_ptr) => parse_quote!(*mut #type_ptr),
-                    // _ => panic!("FFI_DICTIONARY_FIELD_TYPE_PRESENTER:: Type::Ptr: {} not supported", quote!(#elem))
                     _ => parse_quote!(#field_type)
                 },
             Type::Slice(TypeSlice { elem, .. }) => self.ffi_dictionary_type_presenter(elem),
@@ -518,3 +456,33 @@ impl ScopeContext {
         composition.present(context, self)
     }
 }
+
+fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
+    let crate_local_segments: Vec<_> = match segments.first().unwrap().ident.to_string().as_str() {
+        "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
+        _ => segments.iter().take(segments.len() - 1).collect()
+    };
+    let ffi_path_chunk = if crate_local_segments.is_empty() {
+        segments.iter().last().unwrap().to_token_stream()
+    } else {
+        let mangled_ty = segments.to_mangled_ident_default();
+        quote!(#(#crate_local_segments)::*::#mangled_ty)
+    };
+    parse_quote!(crate::fermented::types::#ffi_path_chunk)
+}
+fn ffi_external_chunk(crate_ident: &Ident, segments: &Punctuated<PathSegment, Colon2>) -> Type {
+    let crate_local_segments: Vec<_> = segments.iter().take(segments.len() - 1).skip(1).collect();
+    let last_ident = &segments.iter().last().unwrap().ident;
+    let ffi_chunk_path = if crate_local_segments.is_empty() {
+        last_ident.to_token_stream()
+    } else {
+        let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
+        let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);
+        let mangled_ty = ty.to_mangled_ident_default();
+        quote!(#(#crate_local_segments)::*::#mangled_ty)
+    };
+    parse_quote!(crate::fermented::types::#crate_ident::#ffi_chunk_path)
+}
+
+
+

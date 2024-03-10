@@ -5,7 +5,7 @@ use crate::naming::DictionaryFieldName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 
 pub enum ConversionInterfacePresentation {
-    Empty,
+    // Empty,
     Interface {
         // (FFI, ORIGINAL)
         types: (Type, Type),
@@ -28,7 +28,7 @@ pub enum ConversionInterfacePresentation {
 impl ToTokens for ConversionInterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Empty => quote!(),
+            // Self::Empty => quote!(),
             Self::Interface {
                 types: (
                     ffi_type,

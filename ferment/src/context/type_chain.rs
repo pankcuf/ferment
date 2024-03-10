@@ -118,9 +118,9 @@ impl TypeChain {
         self.inner.get(ty)
     }
 
-    pub fn entry(&mut self, ty: TypeHolder) -> std::collections::hash_map::Entry<TypeHolder, ObjectConversion> {
-        self.inner.entry(ty)
-    }
+    // pub fn entry(&mut self, ty: TypeHolder) -> std::collections::hash_map::Entry<TypeHolder, ObjectConversion> {
+    //     self.inner.entry(ty)
+    // }
 
     pub fn selfless(&self) -> Self {
         let mut inner = HashMap::new();

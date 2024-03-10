@@ -59,9 +59,9 @@ impl ObjectConversion {
     pub fn new_obj_item(ty: TypeComposition, item: ScopeItemConversion) -> ObjectConversion {
         ObjectConversion::Item(TypeConversion::Object(ty), item)
     }
-    pub fn new_type(ty: TypeConversion) -> ObjectConversion {
-        ObjectConversion::Type(ty)
-    }
+    // pub fn new_type(ty: TypeConversion) -> ObjectConversion {
+    //     ObjectConversion::Type(ty)
+    // }
     pub fn type_conversion(&self) -> Option<&TypeConversion> {
         match self {
             ObjectConversion::Type(type_conversion) => Some(type_conversion),

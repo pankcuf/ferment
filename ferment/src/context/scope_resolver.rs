@@ -54,12 +54,12 @@ impl ScopeResolver {
             .and_then(|chain| chain.get(&tc))
     }
 
-    pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &ScopeChain) -> Option<ObjectConversion> {
-        self.maybe_scope_type(ty, scope)
-            .or(scope.parent_scope()
-                .and_then(|parent_scope| self.maybe_scope_type(ty, parent_scope)))
-            .cloned()
-    }
+    // pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &ScopeChain) -> Option<ObjectConversion> {
+    //     self.maybe_scope_type(ty, scope)
+    //         .or(scope.parent_scope()
+    //             .and_then(|parent_scope| self.maybe_scope_type(ty, parent_scope)))
+    //         .cloned()
+    // }
 
     pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
         self.inner

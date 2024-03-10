@@ -78,11 +78,11 @@ impl ToTokens for BindingPresentation {
             Self::Constructor { context, ctor_arguments, body_presentation} => {
                 match context {
                     ConstructorPresentableContext::EnumVariant(ffi_variant_name, enum_path, variant_path) => {
-                        println!("BindingPresentation::Constructor:EnumVariant {} ---- {} ---- {} ---- {}",
-                                 ffi_variant_name.to_token_stream(),
-                                 enum_path.to_token_stream(),
-                                 variant_path.to_token_stream(),
-                                 ffi_variant_name.to_mangled_ident_default().to_token_stream());
+                        // println!("BindingPresentation::Constructor:EnumVariant {} ---- {} ---- {} ---- {}",
+                        //          ffi_variant_name.to_token_stream(),
+                        //          enum_path.to_token_stream(),
+                        //          variant_path.to_token_stream(),
+                        //          ffi_variant_name.to_mangled_ident_default().to_token_stream());
                         present_function(
                             ffi_variant_name.to_mangled_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
@@ -163,7 +163,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
                 quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
             BindingPresentation::TraitVTableInnerFn { name, name_and_args, output_expression } => {
-                quote!(pub #name: #name_and_args -> #output_expression)
+                quote!(pub #name: #name_and_args #output_expression)
             }
 
 

@@ -1,13 +1,16 @@
 extern crate cbindgen;
 extern crate ferment;
 
+use std::path::PathBuf;
 use std::process::Command;
-
+use ferment::builder::Crate;
+const NAME: &str = "ferment_example_traits_nested";
 fn main() {
-   let c_header = "target/example_nested_traits.h";
-   match ferment::Builder::new()
+   let c_header = format!("target/{NAME}.h");
+   let crates = vec![Crate::new("ferment_example_traits", PathBuf::from("../ferment-example/src"))];
+   match ferment::Builder::new(Crate::current_with_name(NAME))
        .with_mod_name("fermented")
-       .with_crates(vec!["ferment_example_traits".to_string()])
+       .with_crates(crates)
        .generate() {
       Ok(()) => match Command::new("cbindgen")
           .args(["--config", "cbindgen.toml", "-o", c_header])

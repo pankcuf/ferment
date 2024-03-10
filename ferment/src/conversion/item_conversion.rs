@@ -211,7 +211,7 @@ impl ItemConversion {
     //     self.attrs().iter().filter(|Attribute { path, .. }| Self::is_labeled_for_register(path)).count() > 0
     // }
 
-    pub fn make_expansion<'a>(&self, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
+    pub fn make_expansion(&self, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
         match self {
             ItemConversion::Mod(..) => Expansion::Empty,
             ItemConversion::Struct(item, scope) =>
@@ -220,7 +220,8 @@ impl ItemConversion {
                 enum_expansion(item, scope, scope_context),
             ItemConversion::Type(item, scope) =>
                 type_expansion(item, scope, scope_context),
-            ItemConversion::Fn(item, scope) => fn_expansion(item, scope, scope_context),
+            ItemConversion::Fn(item, scope) =>
+                fn_expansion(item, scope, scope_context),
             ItemConversion::Trait(item, scope) =>
                 trait_expansion(item, scope, scope_context),
             ItemConversion::Impl(item, scope) =>
@@ -231,6 +232,13 @@ impl ItemConversion {
     }
 }
 
+// impl ScopeContextPresentable for Item {
+//     type Presentation = Expansion;
+//
+//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
+//         match self {  }
+//     }
+// }
 
 
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
@@ -287,6 +295,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
 
 fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemStruct { attrs, fields: ref f, ident: target_name, generics, .. } = item_struct;
+    // println!("struct_expansion: {}: [{} --- {}]", item_struct.ident, scope.crate_scope(), scope.self_path_holder());
     match f {
         Fields::Unnamed(ref fields) =>
             ItemComposer::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context),
