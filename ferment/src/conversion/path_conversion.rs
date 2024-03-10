@@ -97,19 +97,6 @@ impl From<&Path> for PathConversion {
 
 impl PathConversion {
 
-    #[cfg(test)]
-    pub fn as_generic_arg_type(&self, context: &ScopeContext) -> TokenStream2 {
-        match self {
-            PathConversion::Primitive(path) =>
-                quote!(#path),
-            PathConversion::Complex(path) =>
-                context.ffi_path_converted_or_same(path)
-                    .to_token_stream(),
-            PathConversion::Generic(conversion) =>
-                context.convert_to_ffi_path(conversion)
-                    .to_token_stream()
-        }
-    }
 
     pub fn as_path(&self) -> &Path {
         match self {

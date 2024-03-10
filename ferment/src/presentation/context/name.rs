@@ -37,7 +37,7 @@ pub enum Context {
     },
     Fn {
         path: Path,
-    }
+    },
 }
 
 // impl Context {

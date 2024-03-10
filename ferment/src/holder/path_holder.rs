@@ -75,21 +75,6 @@ impl PathHolder {
         PathHolder::from(Path { leading_colon: None, segments })
     }
 
-    // pub fn joined_export_id(&self, name: &ScopeTreeExportID) -> PathHolder {
-    //     let mut segments = self.0.segments.clone();
-    //     segments.push(PathSegment::from(name.clone()));
-    //     PathHolder::from(Path { leading_colon: None, segments })
-    // }
-
-    // pub fn joined_chunk(&self, chunk: &Vec<Ident>) -> PathHolder {
-    //     let mut segments = self.0.segments.clone();
-    //     chunk.iter().for_each(|name| segments.push(PathSegment::from(name.clone())));
-    //     PathHolder::from(Path { leading_colon: None, segments })
-    // }
-
-    // pub fn joined_path(&self, path: Path) -> PathHolder {
-    //     parse_quote!(#self::#path)
-    // }
 
     // pub fn popped(&self) -> PathHolder {
     // }

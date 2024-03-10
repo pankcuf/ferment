@@ -1,38 +1,30 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use proc_macro2::Ident;
-use quote::quote;
-use syn::{parse_quote, Type};
+use quote::{format_ident, quote};
+use syn::parse_quote;
 use syn::__private::TokenStream2;
+use crate::builder::Crate;
 use crate::composer::ParentComposer;
 use crate::Config;
 use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, TypeChain};
 use crate::conversion::{ImportConversion, ObjectConversion, TypeConversion};
 use crate::holder::{PathHolder, TypeHolder};
-use crate::presentation::expansion::Expansion;
-use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem};
+use crate::tree::{ScopeTree, ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem};
 
-impl ImportComposition {
-    pub fn new(ident: Ident, scope: PathHolder) -> Self {
-        Self { ident, scope }
-    }
-}
-impl TypeComposition {
-    pub fn new_default(ty: Type) -> Self {
-        Self::new(ty, None)
-    }
-}
 
 #[test]
 fn decompose_module() {
-    let expansion = Expansion::Root { tree: root_scope_tree_item().into() };
-    println!("{}", quote!(#expansion));
+    // let tree = root_scope_tree_item()
+    let x = ScopeTree::from(root_scope_tree_item());
+    // let expansion = Expansion::Root { tree: CrateTree::new(&Crate::new("crate", PathBuf::new()), ScopeTree::from(root_scope_tree_item()), HashMap::new()) };
+    println!("{}", quote!(#x));
 }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
-    ScopeChain::Mod { crate_scope: parse_quote!(crate), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
+    ScopeChain::Mod { crate_scope: format_ident!("crate"), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ParentComposer<ScopeContext> {
@@ -40,8 +32,8 @@ fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContex
 }
 
 fn root_scope_tree_item() -> ScopeTreeCompact {
-    let mut global_context = GlobalContext::with_config(Config::default());
-    let root_scope = ScopeChain::crate_root(parse_quote!(crate));
+    let mut global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new())));
+    let root_scope = ScopeChain::crate_root(format_ident!("crate"));
     global_context
         .scope_mut(&root_scope)
         .add_many(TypeChain::from(HashMap::from([
@@ -72,7 +64,7 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
         ])));
     let global_context_ptr = Arc::new(RwLock::new(global_context));
     ScopeTreeCompact {
-        scope: ScopeChain::crate_root(parse_quote!(crate)),
+        scope: ScopeChain::crate_root(format_ident!("crate")),
         scope_context: scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
         generics: HashSet::from([]),
         imported: HashMap::from([]),

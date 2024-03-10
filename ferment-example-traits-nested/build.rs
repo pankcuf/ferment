@@ -13,7 +13,7 @@ fn main() {
        .with_crates(crates)
        .generate() {
       Ok(()) => match Command::new("cbindgen")
-          .args(["--config", "cbindgen.toml", "-o", c_header])
+          .args(["--config", "cbindgen.toml", "-o", c_header.as_str()])
           .status() {
          Ok(status) => println!("[cbindgen] [ok] generated into {c_header} with status: {status}"),
          Err(err) => panic!("[cbindgen] [error] {err}")

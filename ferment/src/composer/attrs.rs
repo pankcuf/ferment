@@ -98,9 +98,10 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
     let trait_object_ident = Name::TraitObj(trait_ident.clone());
     let is_defined_in_same_scope = item_scope.has_same_parent(&trait_scope);
     let full_trait_type = if is_defined_in_same_scope { quote!(#trait_object_ident) } else { quote!(#trait_scope::#trait_object_ident) };
+    let vtable_name = Name::TraitImplVtable(item_name.clone(), trait_ident.clone());
     TraitVTablePresentation::Full {
         vtable: FFIObjectPresentation::StaticVTable {
-            name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+            name: vtable_name.clone(),
             fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_scope::#trait_vtable_ident) },
             methods_compositions,
         },
@@ -108,7 +109,7 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
             name: Name::TraitFn(item_name.clone(), trait_ident.clone()),
             item_type: item_full_ty.to_token_stream(),
             trait_type: full_trait_type.to_token_stream(),
-            vtable_name: Name::TraitImplVtable(item_name.clone(), trait_ident.clone()),
+            vtable_name,
         },
         destructor: BindingPresentation::ObjAsTraitDestructor {
             name: Name::TraitDestructor(item_name.clone(), trait_ident.clone()),

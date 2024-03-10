@@ -10,7 +10,7 @@ use crate::composition::{AttrsComposition, Composition, context::FnSignatureComp
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::FieldTypeConversion;
-use crate::ext::Pop;
+use crate::ext::{Mangle, Pop};
 use crate::naming::Name;
 use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation};
 use crate::presentation::context::{OwnedItemPresentableContext, OwnerIteratorPresentationContext};
@@ -232,15 +232,6 @@ impl ItemConversion {
     }
 }
 
-// impl ScopeContextPresentable for Item {
-//     type Presentation = Expansion;
-//
-//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-//         match self {  }
-//     }
-// }
-
-
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
     EnumComposer::new(target_name, generics, attrs, item_scope, context, variants.iter().map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
@@ -327,7 +318,10 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
     let source = context.borrow();
     let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, Some(parse_quote!(#ident)), scope.self_path_holder(), &source);
     let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source);
-    let vtable_name = Name::Vtable(ident.clone());
+    println!("trait_expansion: {}: {}", scope, ident);
+    let full_ty = source.full_type_for(&parse_quote!(#ident));
+    let mangled_ty = full_ty.to_mangled_ident_default();
+    let vtable_name = Name::Vtable(mangled_ty.clone());
     Expansion::Trait {
         comment: DocPresentation::Empty,
         vtable: FFIObjectPresentation::TraitVTable {
@@ -335,7 +329,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
             fields
         },
         trait_object: FFIObjectPresentation::TraitObject {
-            name: Name::TraitObj(ident.clone()),
+            name: Name::TraitObj(mangled_ty),
             vtable_name
         }
     }
