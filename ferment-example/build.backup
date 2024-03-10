@@ -1,11 +1,11 @@
 extern crate cbindgen;
 extern crate ferment;
 use std::process::Command;
-use ferment::builder::Language;
+use ferment::builder::{Crate, Language};
 
 fn main() {
    let c_header = "target/example.h";
-   match ferment::Builder::new()
+   match ferment::Builder::new(Crate::current_with_name("ferment_example"))
        .with_mod_name("fermented")
        .with_languages(vec![Language::ObjC])
        .generate() {

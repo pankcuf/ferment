@@ -10,10 +10,10 @@ use crate::composer::ParentComposer;
 use crate::composition::{GenericConversion, ImportComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext};
 use crate::conversion::{ImportConversion, ObjectConversion};
+use crate::ext::Join;
 use crate::formatter::{format_imported_dict, format_token_stream, format_tree_exported_dict};
 use crate::helper::ItemExtension;
-use crate::presentation::Expansion;
-use crate::tree::{ScopeTree, ScopeTreeCompact};
+use crate::tree::{ScopeTree, ScopeTreeCompact, ScopeTreeItem};
 
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -39,10 +39,23 @@ impl std::fmt::Display for ScopeTreeExportID {
     }
 }
 
+
 impl ScopeTreeExportID {
     pub fn from_ident(ident: &Ident) -> Self {
         ScopeTreeExportID::Ident(ident.clone())
     }
+
+    pub fn child_scope(&self, scope: &ScopeChain) -> ScopeChain {
+        match &self {
+            ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
+                crate_scope: scope.crate_scope().clone(),
+                self_scope: Scope::new(scope.self_path_holder().joined(ident), ObjectConversion::Empty),
+            },
+            ScopeTreeExportID::Impl(_, _) =>
+                panic!("impl not implemented")
+        }
+    }
+
 }
 
 
@@ -56,7 +69,7 @@ pub enum ScopeTreeExportItem {
 impl std::fmt::Debug for ScopeTreeExportItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ScopeTreeExportItem::Item(..) => f.write_str("ScopeTreeExportItem::Item"),
+            ScopeTreeExportItem::Item(_, item) => f.write_str(&format!("ScopeTreeExportItem::Item({:?})", item.maybe_ident())),
             ScopeTreeExportItem::Tree(context, generics, imported, exported) =>
                 f.debug_struct("ScopeTreeExportItem::Tree")
                     .field("context", context)
@@ -128,7 +141,7 @@ impl ScopeTreeExportItem {
         match &item_mod.content {
             Some((_, items)) => {
                 let ident = &item_mod.ident;
-                let inner_scope = ScopeChain::new_mod(Scope::new(
+                let inner_scope = ScopeChain::new_mod(scope.crate_scope().clone(), Scope::new(
                     scope.self_path_holder().joined(ident),
                     ObjectConversion::Empty));
                 match self {
@@ -157,28 +170,52 @@ impl ScopeTreeExportItem {
         }
     }
 
-    pub fn into_expansion(self) -> Expansion {
+    pub fn into_tree_item(self, scope: &ScopeChain, scope_id: &ScopeTreeExportID) -> ScopeTreeItem {
         match self {
-            ScopeTreeExportItem::Item(..) => Expansion::Empty,
+            ScopeTreeExportItem::Item(scope_context, item) => {
+                let scope = scope.joined(&item);
+                ScopeTreeItem::Item { item, scope, scope_context }
+            },
             ScopeTreeExportItem::Tree(
                 scope_context,
                 generics,
                 imported,
-                exported) => {
-                // {
-                //     let mut lock = context.write().unwrap();
-                //     lock.inject_types_from_traits_implementation();
-                // }
-                println!("•• TREE 1 MORPHING generics: {:#?}", generics);
-                let compact_tree = ScopeTreeCompact { scope: ScopeChain::crate_root(), scope_context, generics, imported, exported };
-                let tree = ScopeTree::from(compact_tree);
-                println!();
-                println!("•• TREE 2 MORPHING using ScopeContext:");
-                println!();
-                println!("{}", tree.scope_context.borrow());
-                Expansion::Root { tree }
-            }
+                exported) =>
+                ScopeTreeItem::Tree {
+                    tree: ScopeTree::from(ScopeTreeCompact {
+                        scope: scope_id.child_scope(scope),
+                        generics,
+                        imported,
+                        exported,
+                        scope_context
+                    })
+                }
         }
-
     }
+    //
+    // pub fn into_expansion(self, scope: ScopeChain) -> Expansion {
+    //     match self {
+    //         ScopeTreeExportItem::Item(..) => Expansion::Empty,
+    //         ScopeTreeExportItem::Tree(
+    //             scope_context,
+    //             generics,
+    //             imported,
+    //             exported) => {
+    //             // {
+    //             //     let mut lock = context.write().unwrap();
+    //             //     lock.inject_types_from_traits_implementation();
+    //             // }
+    //             println!("•• TREE 1 MORPHING generics: {:#?}", generics);
+    //             let compact_tree = ScopeTreeCompact { scope, scope_context, generics, imported, exported };
+    //             println!("•• TREE 1 MORPHING compact tree: {:#?}", compact_tree);
+    //             let tree = ScopeTree::from(compact_tree);
+    //             println!();
+    //             println!("•• TREE 2 MORPHING using ScopeContext:");
+    //             println!();
+    //             println!("{}", tree.scope_context.borrow());
+    //             Expansion::Root { tree }
+    //         }
+    //     }
+    //
+    // }
 }

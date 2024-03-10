@@ -20,6 +20,15 @@ pub enum ScopeTreeItem {
     }
 }
 
+impl ScopeTreeItem {
+    pub fn scope(&self) -> &ScopeChain {
+        match self {
+            ScopeTreeItem::Item { scope, .. } => scope,
+            ScopeTreeItem::Tree { tree } => &tree.scope,
+        }
+    }
+}
+
 impl ToTokens for ScopeTreeItem {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {

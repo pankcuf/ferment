@@ -25,18 +25,3 @@ impl std::fmt::Debug for ScopeTreeCompact {
             .finish()
     }
 }
-
-// impl ScopeTreeCompact {
-//     pub fn init_with(item: ScopeTreeExportItem, scope: ScopeChain) -> Option<Self> {
-//         match item {
-//             ScopeTreeExportItem::Item(..) =>
-//                 None,
-//             ScopeTreeExportItem::Tree(
-//                 scope_context,
-//                 generics,
-//                 imported,
-//                 exported) =>
-//                 Some(ScopeTreeCompact { scope, scope_context, generics, imported, exported })
-//         }
-//     }
-// }
