@@ -10,13 +10,6 @@ use crate::presentation::Expansion;
 use crate::tree::{CrateTree, ScopeTreeExportItem};
 use crate::visitor::Visitor;
 
-pub struct FileTreeProcessor {
-    pub path: PathBuf,
-    pub scope: ScopeChain,
-    pub context: Arc<RwLock<GlobalContext>>,
-}
-
-
 fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> HashMap<Crate, ScopeTreeExportItem> {
     crates
         .iter()
@@ -30,6 +23,12 @@ fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> Has
             }).collect()
 }
 
+pub struct FileTreeProcessor {
+    pub path: PathBuf,
+    pub scope: ScopeChain,
+    pub context: Arc<RwLock<GlobalContext>>,
+}
+
 impl FileTreeProcessor {
 
     pub fn expand(config: &Config) -> Result<Expansion, error::Error> {
@@ -37,39 +36,7 @@ impl FileTreeProcessor {
         let context = Arc::new(RwLock::new(GlobalContext::from(config)));
         let external_crates = process_crates(external_crates, &context);
         Self::process_crate_tree(crate_config, &context)
-            .map(|current_tree|
-                Expansion::Root { tree: CrateTree::new(crate_config.clone(), current_tree, external_crates)
-
-                // let crates = process_crates(&config.crate_names, &context);
-                // // let scope = ScopeChain::crate_root(config.current_crate.ident());
-                //
-                // //merge_with_crates(&mut root,  &config.crate_names, &context);
-                // // let expansion = root.into_expansion(scope);
-                // match root {
-                //     ScopeTreeExportItem::Item(..) => Expansion::Empty,
-                //     ScopeTreeExportItem::Tree(
-                //         scope_context,
-                //         generics,
-                //         imported,
-                //         exported) => {
-                //         // {
-                //         //     let mut lock = context.write().unwrap();
-                //         //     lock.inject_types_from_traits_implementation();
-                //         // }
-                //         println!("•• TREE 1 MORPHING ••");
-                //
-                //         let tree = CrateTree::new(
-                //             ScopeTree::from(ScopeTreeCompact { scope, scope_context, generics, imported, exported }),
-                //
-                //         );
-                //
-                //         println!();
-                //         println!("•• TREE 2 MORPHING using ScopeContext:");
-                //         println!();
-                //         println!("{}", tree.scope_context.borrow());
-                //     }
-                // }
-            })
+            .map(|current_tree| Expansion::Root { tree: CrateTree::new(crate_config, current_tree, external_crates) })
     }
 
     pub fn process_crate_tree(crate_config: &Crate, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
