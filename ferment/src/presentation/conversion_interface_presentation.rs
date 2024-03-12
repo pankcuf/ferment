@@ -3,13 +3,21 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Type};
 use crate::naming::DictionaryFieldName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::destroy_presentation::DestroyPresentation;
 
 pub enum ConversionInterfacePresentation {
     // Empty,
     Interface {
-        // (FFI, ORIGINAL)
-        types: (Type, Type),
-        conversions: (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>),
+        types: (
+            Type, // FFI
+            Type // Original
+        ),
+        conversions: (
+            FromConversionPresentation,
+            ToConversionPresentation,
+            DestroyPresentation,
+            Option<Generics>
+        ),
         // from_presentation: FromConversionPresentation,
         // to_presentation: ToConversionPresentation,
         // destroy_presentation: TokenStream2,

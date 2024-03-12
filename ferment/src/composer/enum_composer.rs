@@ -1,5 +1,5 @@
 use syn::{Attribute, Generics};
-use proc_macro2::{Ident, TokenStream as TokenStream2};
+use proc_macro2::Ident;
 use syn::punctuated::Punctuated;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -9,11 +9,11 @@ use crate::composer::composable::Composable;
 use crate::composer::r#type::TypeComposer;
 use crate::composition::AttrsComposition;
 use crate::context::{ScopeChain, ScopeContext};
-use crate::interface::package_unboxed_root;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::binding::BindingPresentableContext;
 use crate::presentation::context::name::{Aspect, Context};
+use crate::presentation::destroy_presentation::DestroyPresentation;
 use crate::shared::HasParent;
 
 pub struct EnumComposer {
@@ -75,7 +75,7 @@ impl Composable for EnumComposer {
         }
     }
 
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>) {
+    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
         let (conversions_from_ffi, conversions_to_ffi) = self.variant_composers.iter().map(|composer| {
             let composer_owned = composer.borrow();
             (composer_owned.compose_aspect(FFIAspect::From),
@@ -83,7 +83,7 @@ impl Composable for EnumComposer {
         }).unzip();
         (FromConversionPresentation::Enum(conversions_from_ffi),
          ToConversionPresentation::Enum(conversions_to_ffi),
-         package_unboxed_root(),
+         DestroyPresentation::Default,
          self.generics.clone())
     }
 }

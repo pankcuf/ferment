@@ -1,10 +1,10 @@
 use proc_macro2::{TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
-use syn::{parse_quote, ReturnType};
+use syn::{parse_quote, Path, ReturnType};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, RArrow};
 use crate::composer::ConstructorPresentableContext;
-use crate::ext::Mangle;
+use crate::ext::{Mangle, Pop};
 use crate::naming::Name;
 
 #[derive(Debug)]
@@ -77,25 +77,24 @@ impl ToTokens for BindingPresentation {
         match self {
             Self::Constructor { context, ctor_arguments, body_presentation} => {
                 match context {
-                    ConstructorPresentableContext::EnumVariant(ffi_variant_name, enum_path, variant_path) => {
-                        // println!("BindingPresentation::Constructor:EnumVariant {} ---- {} ---- {} ---- {}",
-                        //          ffi_variant_name.to_token_stream(),
-                        //          enum_path.to_token_stream(),
-                        //          variant_path.to_token_stream(),
-                        //          ffi_variant_name.to_mangled_ident_default().to_token_stream());
+                    ConstructorPresentableContext::EnumVariant(ffi_type) => {
+                        let ffi_variant_name = Name::Constructor(ffi_type.clone());
+                        let tt = ffi_type.to_token_stream();
+                        let variant_path: Path = parse_quote!(#tt);
+                        let enum_path = variant_path.popped();
                         present_function(
                             ffi_variant_name.to_mangled_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), parse_quote!(*mut #enum_path)),
                             quote!(ferment_interfaces::boxed(#variant_path #body_presentation)))
                     }
-                    ConstructorPresentableContext::Default(name, ffi_ident) => {
-                        // println!("BindingPresentation::Constructor:Default {} ---- {} ---- {}", name.to_token_stream(), ffi_ident.to_token_stream(), name.to_mangled_ident_default().to_token_stream());
+                    ConstructorPresentableContext::Default(ffi_type) => {
+                        let name = Name::Constructor(ffi_type.clone());
                         present_function(
                             name.to_mangled_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
-                            ReturnType::Type(RArrow::default(), parse_quote!(*mut #ffi_ident)),
-                            quote!(ferment_interfaces::boxed(#ffi_ident #body_presentation)))
+                            ReturnType::Type(RArrow::default(), parse_quote!(*mut #ffi_type)),
+                            quote!(ferment_interfaces::boxed(#ffi_type #body_presentation)))
                     }
                 }
             },

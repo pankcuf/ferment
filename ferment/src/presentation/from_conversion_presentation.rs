@@ -6,7 +6,6 @@ use syn::token::Comma;
 pub enum FromConversionPresentation {
     Just(TokenStream2),
     Enum(Punctuated<TokenStream2, Comma>),
-    Vec,
     Map(TokenStream2, TokenStream2),
     Result(TokenStream2, TokenStream2),
 }
@@ -22,10 +21,6 @@ impl ToTokens for FromConversionPresentation {
                 match ffi_ref {
                     #conversions
                 }
-            },
-            FromConversionPresentation::Vec => quote! {
-                let ffi_ref = &*ffi;
-                ferment_interfaces::FFIVecConversion::decode(ffi_ref)
             },
             FromConversionPresentation::Map(from_key_conversion, from_value_conversion) => quote! {
                 let ffi_ref = &*ffi;

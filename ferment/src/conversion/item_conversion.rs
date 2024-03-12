@@ -71,7 +71,7 @@ impl<'a> TryFrom<(&'a Item, &'a ScopeChain)> for ItemConversion {
     }
 }
 
-fn path_ident_ref<'a>(path: &'a Path) -> Option<&'a Ident> {
+fn path_ident_ref(path: &Path) -> Option<&Ident> {
     path.segments.last().map(|last_segment| &last_segment.ident)
 }
 fn path_ident(path: &Path) -> Option<Ident> {
@@ -90,10 +90,10 @@ pub fn type_ident(ty: &Type) -> Option<Ident> {
                 _ => None
             })
         }
-        _ => panic!("DDDDD")
+        _ => panic!("No ident for {}", ty.to_token_stream())
     }
 }
-pub fn type_ident_ref<'a>(ty: &'a Type) -> Option<&'a Ident> {
+pub fn type_ident_ref(ty: &Type) -> Option<&Ident> {
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path_ident_ref(path),
@@ -106,7 +106,7 @@ pub fn type_ident_ref<'a>(ty: &'a Type) -> Option<&'a Ident> {
                 _ => None
             })
         }
-        _ => panic!("DDDDD")
+        _ => panic!("No ident ref for {}", ty.to_token_stream())
     }
 }
 
@@ -154,62 +154,12 @@ impl ItemConversion {
             ItemConversion::Enum(ItemEnum { ident, .. }, ..) |
             ItemConversion::Type(ItemType { ident, .. }, ..) |
             ItemConversion::Fn(ItemFn { sig: Signature { ident, .. }, .. }, ..) |
-            ItemConversion::Trait(ItemTrait { ident, .. }, ..) => ScopeTreeExportID::Ident(ident.clone()),
-            // ItemConversion::Use(ItemUse { tree, .. }, ..) =>
-            //     ScopeTreeExportID::Ident(Self::fold_use(tree).first().cloned().unwrap().clone()),
-            ItemConversion::Impl(ItemImpl { self_ty, trait_, .. }, ..) => ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path)),
-                // type_ident(self_ty).unwrap(),
+            ItemConversion::Trait(ItemTrait { ident, .. }, ..) =>
+                ScopeTreeExportID::Ident(ident.clone()),
+            ItemConversion::Impl(ItemImpl { self_ty, trait_, .. }, ..) =>
+                ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path)),
         }
     }
-
-    // pub fn is_labeled_with_macro_type(path: &Path, macro_type: &str) -> bool {
-    //     path.segments
-    //         .iter()
-    //         .any(|segment| macro_type == segment.ident.to_string().as_str())
-    // }
-    //
-    //
-    // pub fn is_labeled_for_register(path: &Path) -> bool {
-    //     Self::is_labeled_with_macro_type(path, "register")
-    // }
-    //
-    // pub fn is_owner_labeled_with_trait_implementation(path: &Path) -> bool {
-    //     Self::is_labeled_with_macro_type(path, "export")
-    // }
-    //
-    // pub fn has_export_macro_attribute(&self) -> bool {
-    //     self.attrs().iter().filter(|Attribute { path, .. }| Self::is_labeled_for_export(path)).count() > 0
-    // }
-    //
-    // pub fn macro_type(&self) -> Option<MacroType> {
-    //     self.attrs()
-    //         .iter()
-    //         .find_map(|attr| {
-    //             let path = &attr.path;
-    //             let mut arguments = Vec::<Path>::new();
-    //             if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-    //                 meta_list.nested.iter().for_each(|meta| {
-    //                     if let NestedMeta::Meta(Meta::Path(path)) = meta {
-    //                         arguments.push(path.clone());
-    //                     }
-    //                 });
-    //             }
-    //             match path.segments.last().unwrap().ident.to_string().as_str() {
-    //                 "export" =>
-    //                     Some(MacroType::Export),
-    //                 "register" => {
-    //                     let first_path = arguments.first().unwrap();
-    //                     Some(MacroType::Register(parse_quote!(#first_path)))
-    //                 },
-    //                 _ =>
-    //                     None
-    //             }
-    //         })
-    // }
-    //
-    // pub fn has_register_macro_attribute(&self) -> bool {
-    //     self.attrs().iter().filter(|Attribute { path, .. }| Self::is_labeled_for_register(path)).count() > 0
-    // }
 
     pub fn make_expansion(&self, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
         match self {
@@ -226,8 +176,6 @@ impl ItemConversion {
                 trait_expansion(item, scope, scope_context),
             ItemConversion::Impl(item, scope) =>
                 impl_expansion(item, scope, scope_context),
-            // ItemConversion::Use(_item, _scope) =>
-            //     Expansion::Use { comment: DocPresentation::Empty },
         }
     }
 }

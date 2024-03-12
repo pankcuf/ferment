@@ -56,7 +56,6 @@ impl From<&Path> for PathConversion {
                         _ => None
                     }).unwrap_or(PathConversion::Complex(path.clone()))
                 }
-
             },
             _ => match last_segment.ident.to_string().as_str() {
                 // std convertible
@@ -72,32 +71,11 @@ impl From<&Path> for PathConversion {
                     _ => None
                 }).unwrap_or(PathConversion::Complex(path.clone())),
             }
-
         }
-
-
-
-        // match last_segment.ident.to_string().as_str() {
-        //     // std convertible
-        //     "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
-        //     | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
-        //     "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
-        //     "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),
-        //     "Vec" => PathConversion::Generic(GenericPathConversion::Vec(path.clone())),
-        //     "Result" if path.segments.len() == 1 => PathConversion::Generic(GenericPathConversion::Result(path.clone())),
-        //     _ => path.segments.iter().find_map(|ff| match &ff.arguments {
-        //         PathArguments::AngleBracketed(args) =>
-        //             Some(PathConversion::Generic(GenericPathConversion::AnyOther(path.clone()))),
-        //             _ => None
-        //     }).unwrap_or(PathConversion::Complex(path.clone())),
-        // }
-
     }
 }
 
 impl PathConversion {
-
-
     pub fn as_path(&self) -> &Path {
         match self {
             PathConversion::Primitive(path) |
@@ -109,34 +87,4 @@ impl PathConversion {
             PathConversion::Generic(GenericPathConversion::AnyOther(path)) => path
         }
     }
-
-    // pub fn mangled_map_ident(&self, context: &ScopeContext) -> Ident {
-    //     format_ident!("{}", match self {
-    //         PathConversion::Primitive(path) |
-    //         PathConversion::Complex(path) =>
-    //             path.segments.iter().map(|segment| segment.ident.to_string()).collect::<Vec<_>>().join("_"),
-    //         PathConversion::Generic(generic_path_conversion) =>
-    //             format!("{}_{}", generic_path_conversion.prefix(), generic_path_conversion.arguments_presentation(context))
-    //     })
-    // }
-    //
-    // pub fn mangled_vec_arguments(&self, context: &ScopeContext) -> TokenStream2 {
-    //     match self {
-    //         PathConversion::Primitive(path) |
-    //         PathConversion::Complex(path) =>
-    //             quote!(#path),
-    //         PathConversion::Generic(conversion) =>
-    //             conversion.arguments_presentation(context)
-    //     }
-    // }
-    // pub fn mangled_box_arguments(&self, context: &ScopeContext) -> TokenStream2 {
-    //     match self {
-    //         PathConversion::Primitive(path) |
-    //         PathConversion::Complex(path) =>
-    //             quote!(#path),
-    //         PathConversion::Generic(conversion) =>
-    //             conversion.arguments_presentation(context)
-    //     }
-    //
-    // }
 }

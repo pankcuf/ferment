@@ -46,7 +46,7 @@ impl GenericComposer {
     // }
 }
 
-// impl IParentComposer for EnumComposer {
+// impl IParentComposer for GenericComposer {
 //     fn context(&self) -> &ParentComposer<ScopeContext> {
 //         &self.context
 //     }

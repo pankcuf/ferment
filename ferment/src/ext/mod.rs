@@ -12,6 +12,7 @@ mod join;
 mod pop;
 mod mangle;
 mod accessory;
+mod terminated;
 
 pub use self::accessory::Accessory;
 pub use self::collection::ScopeCollection;
@@ -26,6 +27,7 @@ pub use self::merge::MergeInto;
 pub use self::merge::MergePolicy;
 pub use self::merge::ValueReplaceScenario;
 pub use self::pop::Pop;
+pub use self::terminated::Terminated;
 pub use self::visiting::add_trait_names;
 pub use self::visiting::create_generics_chain;
 pub use self::visiting::extract_trait_names;

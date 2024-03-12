@@ -39,20 +39,19 @@ pub use self::attrs::{AttrsComposer, implement_trait_for_item};
 pub use self::ffi_conversions::{FFIAspect, FFIComposer};
 pub use self::item::ItemComposer;
 pub use self::method::MethodComposer;
-// pub use self::name::NameComposer;
 
 #[derive(Clone)]
 pub enum ConstructorPresentableContext {
-    EnumVariant(Name, TokenStream2, TokenStream2),
-    Default(Name, Type)
+    EnumVariant(Type),
+    Default(Type)
 }
 impl Debug for ConstructorPresentableContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EnumVariant(ffi_variant_name, enum_path, variant_path) =>
-                f.write_str(format!("EnumVariant({:?}, {}, {})", ffi_variant_name, enum_path, variant_path.to_token_stream()).as_str()),
-            Self::Default(name, name2) =>
-                f.write_str(format!("Default({:?}, {:?})", name, name2).as_str()),
+            Self::EnumVariant(ty) =>
+                f.write_str(format!("EnumVariant({})", ty.to_token_stream()).as_str()),
+            Self::Default(ty) =>
+                f.write_str(format!("Default({})", ty.to_token_stream()).as_str()),
         }
     }
 }

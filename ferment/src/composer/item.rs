@@ -17,6 +17,7 @@ use crate::naming::Name;
 use crate::presentation::context::{FieldTypePresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::name::{Aspect, Context};
+use crate::presentation::destroy_presentation::DestroyPresentation;
 
 pub struct ItemComposer {
     pub context: ParentComposer<ScopeContext>,
@@ -355,10 +356,10 @@ impl Composable for ItemComposer {
         }
     }
 
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>) {
+    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
         (FromConversionPresentation::Just(self.compose_aspect(FFIAspect::From)),
          ToConversionPresentation::Struct(self.compose_aspect(FFIAspect::To)),
-         self.compose_aspect(FFIAspect::Destroy),
+         DestroyPresentation::Custom(self.compose_aspect(FFIAspect::Destroy)),
          self.generics.clone())
     }
 }

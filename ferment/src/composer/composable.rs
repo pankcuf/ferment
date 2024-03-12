@@ -1,11 +1,11 @@
 use std::cell::Ref;
-use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
 use crate::composer::{Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
 use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::name;
 use crate::presentation::context::name::Aspect;
+use crate::presentation::destroy_presentation::DestroyPresentation;
 
 pub trait Composable {
     fn context(&self) -> &ParentComposer<ScopeContext>;
@@ -19,13 +19,7 @@ pub trait Composable {
     fn compose_docs(&self) -> DocPresentation;
     fn compose_object(&self) -> FFIObjectPresentation;
     fn compose_drop(&self) -> DropInterfacePresentation;
-
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, TokenStream2, Option<Generics>);
-    // fn compose_ffi_name(&self) -> Type;
-    // fn compose_target_name(&self) -> Type;
-    // fn compose_names(&self) -> (Type, Type) {
-    //     (self.compose_ffi_name(), self.compose_target_name())
-    // }
+    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>);
     fn expand(&self) -> Expansion {
         let source = self.context().borrow();
         Expansion::Full {
@@ -33,7 +27,8 @@ pub trait Composable {
             ffi_presentation: self.compose_object(),
             conversion: ConversionInterfacePresentation::Interface {
                 types: (self.ffi_name_aspect().present(&source), self.target_name_aspect().present(&source)),
-                conversions: self.compose_interface_aspects() },
+                conversions: self.compose_interface_aspects()
+            },
             drop: self.compose_drop(),
             bindings: self.compose_bindings(),
             traits: self.compose_attributes()

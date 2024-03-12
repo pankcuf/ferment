@@ -2,13 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use proc_macro2::Ident;
-use quote::{quote, quote_spanned, ToTokens};
-use syn::{Attribute, Item, parse_quote, Path, PathSegment, spanned::Spanned, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use quote::{quote, ToTokens};
+use syn::{Attribute, Item, parse_quote, Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{GenericPathConversion, ImportConversion, ObjectConversion, TypeConversion};
+use crate::conversion::{ImportConversion, ObjectConversion, TypeConversion};
 use crate::ext::{Accessory, extract_trait_names, Mangle};
 use crate::helper::{path_arguments_to_paths, path_arguments_to_types};
 use crate::holder::PathHolder;
@@ -206,38 +206,7 @@ impl ScopeContext {
             .unwrap_or(parse_quote!(#path))
     }
 
-    pub fn convert_to_ffi_path(&self, generic_path_conversion: &GenericPathConversion) -> Type {
-        // println!("convert_to_ffi_path: {}", format_token_stream(generic_path_conversion));
-        let path = generic_path_conversion.as_path();
-        let mut cloned_segments = path.segments.clone();
-        let last_segment = cloned_segments.iter_mut().last().unwrap();
-        let last_ident = &last_segment.ident;
-        let result = match last_ident.to_string().as_str() {
-            // simple primitive type
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
-            "isize" | "usize" | "bool" => parse_quote!(#last_ident),
-            // complex special type
-            "str" | "String" => parse_quote!(std::os::raw::c_char),
-            "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = path.to_mangled_ident_default();
-                parse_quote!(crate::fermented::generics::#ffi_name)
-            },
-            "Result" if cloned_segments.len() == 1 => {
-                let ffi_name = path.to_mangled_ident_default();
-                parse_quote!(crate::fermented::generics::#ffi_name)
 
-            },
-            _ => {
-                let new_segments = cloned_segments
-                    .into_iter()
-                    .map(|segment| quote_spanned! { segment.span() => #segment })
-                    .collect::<Vec<_>>();
-                parse_quote!(#(#new_segments)::*)
-            }
-        };
-        // println!("•• [FFI] convert_to_ffi_path (generic): {} --> {}", format_token_stream(path), format_token_stream(&result));
-        result
-    }
 
     fn resolve_ffi_path(&self, path: &Path) -> Option<Type> {
         let segments = &path.segments;

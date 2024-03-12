@@ -4,10 +4,10 @@ use syn::token::Comma;
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::punctuated::Punctuated;
-use syn::{Field, parse_quote, Path, Type};
+use syn::{Field, parse_quote, Type};
 use crate::composer::{BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ConstructorPresentableContext, ContextComposer, ConversionComposer, CtorOwnedComposer, Depunctuated, DropConversionComposer, EnumComposerPresenterRef, EnumParentComposer, FFIComposer, FFIConversionComposer, FieldsOwnedComposer, FieldTypeComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemComposerFieldTypesContextPresenter, ItemComposerPresenterRef, ItemParentComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectIteratorLocalContext, OwnerIteratorPostProcessingComposer, SharedComposer, Composable, ItemComposer, EnumComposer, LocalConversionContext};
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Conversion, Pop};
+use crate::ext::Conversion;
 use crate::formatter::format_token_stream;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
@@ -125,7 +125,7 @@ pub const fn default_ctor_context_composer() -> SharedComposer<ItemParentCompose
     move |composer| {
         let source = composer.as_source_ref();
         let ffi_name = Aspect::FFI(composer.name_context()).present(&source);
-        (ConstructorPresentableContext::Default(Name::Constructor(ffi_name.clone()), ffi_name), FIELD_TYPES_COMPOSER(composer))
+        (ConstructorPresentableContext::Default(ffi_name), FIELD_TYPES_COMPOSER(composer))
     }
 }
 
@@ -411,16 +411,12 @@ pub const fn enum_variant_composer_field_presenter() -> OwnedFieldTypeComposerRe
 pub const fn enum_variant_ctor_context_composer() -> SharedComposer<ItemParentComposer, (ConstructorPresentableContext, FieldTypesContext)> {
     |composer| {
         let ffi = Aspect::FFI(composer.name_context()).present(&composer.as_source_ref());
-        // let ffi = composer.compose_ffi_name();
-        // println!("enum_variant_ctor_context_composer.1::: {} ", ffi.to_token_stream());
-        let tt = ffi.to_token_stream();
-        let ffi_path: Path = parse_quote!(#tt);
-        // println!("enum_variant_ctor_context_composer.2::: {} \n\t\t ---- {} \n\t\t ", ffi.to_token_stream(), ffi_path.popped().to_token_stream());
-        (ConstructorPresentableContext::EnumVariant(
-            Name::Constructor(ffi),
-            // ffi_path.to_token_stream(),
-            ffi_path.popped().to_token_stream(),
-            ffi_path.to_token_stream()
+        // let tt = ffi.to_token_stream();
+        // let ffi_path: Path = parse_quote!(#tt);
+        (ConstructorPresentableContext::EnumVariant(ffi
+            // Name::Constructor(ffi),
+            // ffi_path.popped().to_token_stream(),
+            // ffi_path.to_token_stream()
         ), FIELD_TYPES_COMPOSER(composer))
     }
 }

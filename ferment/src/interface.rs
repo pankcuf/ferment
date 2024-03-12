@@ -1,6 +1,7 @@
 use syn::Path;
 use quote::quote;
 use syn::__private::TokenStream2;
+use crate::ext::Terminated;
 use crate::naming::DictionaryFieldName;
 
 
@@ -21,8 +22,8 @@ pub fn package_unbox_any_expression(expr: TokenStream2) -> TokenStream2 {
 }
 
 pub fn package_unbox_any_expression_terminated(expr: TokenStream2) -> TokenStream2 {
-    let package_unbox_any_expr = package_unbox_any_expression(expr);
-    quote!(#package_unbox_any_expr;)
+    package_unbox_any_expression(expr)
+        .terminated()
 }
 
 pub fn package_unboxed_root() -> TokenStream2 {

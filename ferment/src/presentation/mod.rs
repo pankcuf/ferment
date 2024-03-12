@@ -9,6 +9,7 @@ pub mod drop_interface_presentation;
 pub mod from_conversion_presentation;
 pub mod to_conversion_presentation;
 pub mod context;
+pub mod destroy_presentation;
 
 pub use self::conversion_interface_presentation::ConversionInterfacePresentation;
 pub use self::doc_presentation::DocPresentation;

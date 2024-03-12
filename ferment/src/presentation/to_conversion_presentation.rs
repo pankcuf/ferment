@@ -7,7 +7,6 @@ use crate::naming::DictionaryFieldName;
 pub enum ToConversionPresentation {
     Enum(Punctuated<TokenStream2, Comma>),
     Struct(TokenStream2),
-    Vec,
     Map(TokenStream2, TokenStream2),
     Result(TokenStream2, TokenStream2)
 }
@@ -22,8 +21,6 @@ impl ToTokens for ToConversionPresentation {
             ToConversionPresentation::Struct(conversion) => {
                 quote! { #conversion }
             },
-            ToConversionPresentation::Vec =>
-                quote!(ferment_interfaces::FFIVecConversion::encode(obj)),
             ToConversionPresentation::Map(to_key_conversion, to_value_conversion) =>
                 quote!(ferment_interfaces::boxed(Self { count: obj.len(), keys: #to_key_conversion, values: #to_value_conversion  })),
             ToConversionPresentation::Result(to_ok_conversion, to_error_conversion) => quote! {
