@@ -9,6 +9,7 @@ description = "Syntax tree morphing of FFI-compatible stuff"
 syn = { version = "1.0.109", features = ["default", "full", "visit", "extra-traits"] }
 quote = "1.0.28"
 proc-macro2 = "1.0.70"
+cargo_metadata = "0.18.1"
 ferment-macro = { path = "../ferment-macro" }
 
 [lib]

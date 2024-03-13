@@ -445,6 +445,7 @@ fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
         let mangled_ty = segments.to_mangled_ident_default();
         quote!(#(#crate_local_segments)::*::#mangled_ty)
     };
+    println!("ffi_chunk_converted: {} -> {}", segments.to_token_stream(), quote!(crate::fermented::types::#ffi_path_chunk));
     parse_quote!(crate::fermented::types::#ffi_path_chunk)
 }
 fn ffi_external_chunk(crate_ident: &Ident, segments: &Punctuated<PathSegment, Colon2>) -> Type {

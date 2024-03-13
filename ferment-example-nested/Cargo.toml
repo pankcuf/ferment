@@ -8,11 +8,13 @@ build = "build.rs"
 ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
 ferment-example = { path = "../ferment-example" }
+platform-value = { path = "../../platform/packages/rs-platform-value" }
+
 
 [build-dependencies]
 cbindgen = "0.26.0"
 ferment = { path = "../ferment" }
 toml = "0.8.8"
-cargo_metadata = "0.18.1"
+
 [lib]
 name = "ferment_example_nested"

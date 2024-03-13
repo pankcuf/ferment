@@ -65,7 +65,7 @@ impl GenericConversion {
     }
 
     fn expand_(&self, full_type: &TypeConversion, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
-        // println!("GenericConversion::expand_: {}", full_type.to_token_stream());
+        println!("GenericConversion::expand_: {}", full_type.to_token_stream());
         let path: Path = parse_quote!(#full_type);
         match PathConversion::from(path) {
             PathConversion::Generic(generic_conversion) =>

@@ -9,6 +9,7 @@ use crate::context::GlobalContext;
 use crate::error;
 use crate::file::FileTreeProcessor;
 use crate::tree::ScopeTreeExportItem;
+use cargo_metadata::MetadataCommand;
 
 #[derive(Debug, Clone)]
 pub struct Builder {
@@ -88,8 +89,8 @@ impl Builder {
     }
 
     #[allow(unused)]
-    pub fn with_crates(mut self, crates: Vec<Crate>) -> Builder {
-        self.config.external_crates = crates;
+    pub fn with_crates(mut self, crates: Vec<&str>) -> Builder {
+        self.config.external_crates = find_crates_paths(crates);
         self
     }
 
@@ -150,4 +151,22 @@ impl Builder {
                         .map_err(error::Error::from))
             })
     }
+}
+
+fn find_crates_paths(crate_names: Vec<&str>) -> Vec<Crate> {
+    let metadata = MetadataCommand::new().exec().unwrap();
+    crate_names.into_iter()
+        .filter_map(|crate_name| {
+            metadata.packages
+                .iter()
+                .find_map(|p| {
+                    if p.name.as_str() == crate_name {
+                        if let Some(target) = p.targets.first() {
+                            return Some(Crate::new(p.name.replace("-", "_").as_str(),PathBuf::from(target.src_path.parent().unwrap())))
+                        }
+                    }
+                    None
+                })
+        })
+        .collect()
 }

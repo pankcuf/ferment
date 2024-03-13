@@ -8,7 +8,7 @@ use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeConversion};
 use crate::ext::Join;
-use crate::helper::{collect_bounds, ItemExtension};
+use crate::helper::collect_bounds;
 use crate::holder::PathHolder;
 use crate::visitor::Visitor;
 
