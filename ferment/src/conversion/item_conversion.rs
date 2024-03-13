@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
+use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
@@ -89,7 +89,8 @@ pub fn type_ident(ty: &Type) -> Option<Ident> {
                 TypeParamBound::Trait(TraitBound { path, ..}) => path_ident(path),
                 _ => None
             })
-        }
+        },
+        Type::Array(TypeArray { elem, .. }) => type_ident(elem),
         _ => panic!("No ident for {}", ty.to_token_stream())
     }
 }
@@ -105,7 +106,9 @@ pub fn type_ident_ref(ty: &Type) -> Option<&Ident> {
                 TypeParamBound::Trait(TraitBound { path, ..}) => path_ident_ref(path),
                 _ => None
             })
-        }
+        },
+        Type::Array(TypeArray { elem, .. }) => type_ident_ref(elem),
+
         _ => panic!("No ident ref for {}", ty.to_token_stream())
     }
 }
