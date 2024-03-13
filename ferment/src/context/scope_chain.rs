@@ -253,7 +253,7 @@ impl ScopeChain {
             } else if matches!(ident, "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")  {
                 // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
                 Some(TypeConversion::SmartPointer(TypeComposition::new(parse_quote!(#path), None)))
-            } else if matches!(ident, "Send" | "Sync" | "Clone" | "Sized")  {
+            } else if matches!(ident, "Send" | "Sync" | "Clone" | "Sized" | "FromIterator")  {
                 // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
                 Some(TypeConversion::TraitType(TypeComposition::new(parse_quote!(#path), None)))
             } else {

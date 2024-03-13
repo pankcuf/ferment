@@ -478,7 +478,11 @@ impl Visitor {
                         } else {
                             nprint!(1, Emoji::Local, "(Local join multi: {}) {} + {}", first_ident, format_token_stream(scope), format_token_stream(&path));
                             let last_segment = segments.last().cloned().unwrap();
-                            let new_segments: Punctuated<PathSegment, Colon2> = parse_quote!(#scope::#path);
+                            let new_segments: Punctuated<PathSegment, Colon2> = if path.leading_colon.is_none() {
+                                parse_quote!(#scope::#path)
+                            } else {
+                                parse_quote!(#scope #path)
+                            };
                             segments.clear();
                             segments.extend(new_segments);
                             segments.last_mut().unwrap().arguments = last_segment.arguments;
