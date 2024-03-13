@@ -15,7 +15,7 @@ pub enum DictionaryFieldName {
     Values,
     Count,
     Obj,
-    O,
+    // O,
     Package,
     Interface,
     BoxedExpression(TokenStream2),
@@ -53,7 +53,7 @@ impl ToTokens for DictionaryFieldName {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_vec(#values, #count))
             }
-            DictionaryFieldName::O => quote!(o)
+            // DictionaryFieldName::O => quote!(o)
         }
         .to_tokens(tokens)
     }

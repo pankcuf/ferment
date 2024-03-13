@@ -26,7 +26,7 @@ impl ImportResolver {
             UseTree::Rename(UseRename { rename: ident, .. }) => {
                 if ident != "_" {
                     current_path.push(ident.clone());
-                    println!("ident: {}", ident);
+                    // println!("ident: {}", ident);
                     self.inner
                         .entry(scope.clone())
                         .or_default()
@@ -59,8 +59,7 @@ impl ImportResolver {
         // so smth like can_have_more_than_one_grandfather,
         // println!("maybe_import: {} in {}", ident, scope);
         match scope {
-            ScopeChain::CrateRoot { .. } =>
-                self.maybe_path(&scope, ident),
+            ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
                 self.maybe_path(&scope, ident),
             ScopeChain::Fn { parent_scope_chain, .. } =>

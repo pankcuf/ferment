@@ -68,7 +68,24 @@ pub struct ExcludedStruct {
     pub name: String,
 }
 
+#[ferment_macro::export]
+pub fn get_root_struct() -> RootStruct {
+    RootStruct { name: format!("Root") }
+}
+
 pub mod nested {
+    use crate::RootStruct;
+
+    #[ferment_macro::export]
+    pub fn get_root_struct_2() -> RootStruct {
+        RootStruct { name: format!("Root") }
+    }
+
+    #[ferment_macro::export]
+    pub struct RootUser {
+        pub root: RootStruct
+    }
+
     // use crate::asyn::query::{AppliedRequestSettings, Query, RequestSettings, TransportClient, TransportRequest};
 
     //     use std::collections::BTreeMap;

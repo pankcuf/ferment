@@ -338,11 +338,17 @@ fn path_from_type(ty: &Type) -> Option<&Path> {
     match ty {
         Type::Array(TypeArray { elem, len: _, .. }) => path_from_type(elem),
         Type::Path(TypePath { path, .. }) => Some(path),
+        Type::Tuple(TypeTuple { elems, .. }) => {
+            let first = elems.first().unwrap();
+            path_from_type(first)
+            // parse_quote!(#elems)
+        }
         _ => None,
     }
 }
 
 pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
+
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
             args.iter().filter_map(|arg| match arg {
@@ -385,10 +391,10 @@ pub(crate) fn from_slice(field_path: FieldTypePresentableContext, type_slice: &T
 pub(crate) fn destroy_path(field_path: FieldTypePresentableContext, path: &Path) -> FieldTypePresentableContext {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
+        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
         | "usize" | "bool" => FieldTypePresentableContext::Empty,
         "Option" => match path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" =>
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool" =>
                 FieldTypePresentableContext::Empty,
             _ =>
                 FieldTypePresentableContext::IsNull(field_path.into())
@@ -402,11 +408,11 @@ pub(crate) fn destroy_path(field_path: FieldTypePresentableContext, path: &Path)
 pub(crate) fn from_path(field_path: FieldTypePresentableContext, path: &Path) -> FieldTypePresentableContext {
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool" => field_path,
+        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool" => field_path,
         "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
             // std convertible
             // TODO: what to use? 0 or ::MAX
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
             | "isize" | "usize" => FieldTypePresentableContext::IfThenSome(field_path.into(), quote!(> 0)),
             // TODO: mmm shit that's incorrect
             "bool" => FieldTypePresentableContext::IfThenSome(field_path.into(), quote!()),
@@ -462,11 +468,11 @@ pub(crate) fn to_path(field_path: FieldTypePresentableContext, path: &Path) -> F
     // println!("to_path: {}: {}: {:?}", field_path, quote!(#path), path.segments.last());
     let last_segment = path.segments.last().unwrap();
     match last_segment.ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
+        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
         | "usize" | "bool" => field_path,
         "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
             // TODO: MAX/MIN? use optional primitive?
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" =>
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" =>
                 FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0)),
             "bool" =>
                 FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false)),
@@ -574,7 +580,7 @@ fn import_pair(path: &Path, imports: &HashMap<PathHolder, Path>) -> (ImportConve
     match path.get_ident() {
         Some(ident) => match ident.to_string().as_str() {
             // accessible without specifying scope
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize"
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
             | "usize" | "bool" | "str" | "String" | "Vec" | "Option" | "Box" =>
                 (ImportConversion::None, parse_quote!(#ident)),
             // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)

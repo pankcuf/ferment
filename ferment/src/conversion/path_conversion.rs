@@ -59,7 +59,7 @@ impl From<&Path> for PathConversion {
             },
             _ => match last_segment.ident.to_string().as_str() {
                 // std convertible
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
                 | "isize" | "usize" | "bool" => PathConversion::Primitive(path.clone()),
                 "Box" => PathConversion::Generic(GenericPathConversion::Box(path.clone())),
                 "BTreeMap" | "HashMap" => PathConversion::Generic(GenericPathConversion::Map(path.clone())),

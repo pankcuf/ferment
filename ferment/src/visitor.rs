@@ -245,7 +245,6 @@ impl Visitor {
 
         let first_segment = &segments.first().unwrap();
         let first_ident = &first_segment.ident;
-        // let is_crate_path = format_ident!("crate").eq(first_ident);
         let last_segment = &segments.last().unwrap();
         let last_ident = &last_segment.ident;
         let import_seg: PathHolder = parse_quote!(#first_ident);
@@ -396,36 +395,32 @@ impl Visitor {
                     let obj_parent_scope = obj_scope.parent_scope();
                     let len = segments.len();
                     if len == 1 {
-                        match obj_parent_scope {
+                        nprint!(1, Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}", if obj_parent_scope.is_some() { "some" } else { "no" }, first_ident, scope, format_token_stream(&path));
+                        let last_segment = segments.pop().unwrap();
+                        let new_segments: Punctuated<PathSegment, Token![::]> = match obj_parent_scope {
                             None => {
                                 // Global
-                                nprint!(1, Emoji::Local, "(Local join single (has no parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
-                                let last_segment = segments.pop().unwrap();
-                                let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#scope::#path);
-                                segments.extend(new_segments);
-                                segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                                ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(
-                                    Type::Path(
-                                        TypePath {
-                                            qself: new_qself,
-                                            path: Path { leading_colon: path.leading_colon, segments } }),
-                                    None)))
+                                if scope.is_crate_root() {
+                                    let scope = scope.crate_scope();
+                                    parse_quote!(#scope::#path)
+                                } else {
+                                    parse_quote!(#scope::#path)
+                                }
                             },
                             Some(parent) => {
                                 let scope = parent.self_path_holder();
-                                nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
-                                let last_segment = segments.pop().unwrap();
-                                let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#scope::#path);
-                                segments.extend(new_segments);
-                                segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                                ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(
-                                    Type::Path(
-                                        TypePath {
-                                            qself: new_qself,
-                                            path: Path { leading_colon: path.leading_colon, segments } }),
-                                    None)))
+                                // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
+                                parse_quote!(#scope::#path)
                             }
-                        }
+                        };
+                        segments.extend(new_segments);
+                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                        ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(
+                            Type::Path(
+                                TypePath {
+                                    qself: new_qself,
+                                    path: Path { leading_colon: path.leading_colon, segments } }),
+                            None)))
 
                     } else {
                         let tail: Vec<_> = segments.iter().skip(1).cloned().collect();

@@ -214,7 +214,7 @@ impl ScopeContext {
         let last_ident = &last_segment.ident;
         // println!("ffi_path_converted: {}", format_token_stream(path));
         let result = match last_ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128"
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
             | "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
@@ -268,7 +268,6 @@ impl ScopeContext {
     }
 
     fn ffi_external_path_converted(&self, path: &Path, crate_scope: &Ident) -> Option<Type> {
-        // println!("ffi_external_path_converted: {}", format_token_stream(path));
         let lock = self.context.read().unwrap();
         let segments = &path.segments;
         let first_segment = segments.first().unwrap();
@@ -277,8 +276,8 @@ impl ScopeContext {
         let last_segment = segments.iter().last().unwrap();
         let last_ident = &last_segment.ident;
 
-        match last_ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
+        let result = match last_ident.to_string().as_str() {
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
             "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
@@ -295,17 +294,25 @@ impl ScopeContext {
                 .and_then(|ty| self.ffi_external_path_converted(ty, crate_scope)),
             "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
             "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
-            _ => match first_ident.to_string().as_str() {
-                "crate" | _ if lock.config.is_current_crate(first_ident) =>
-                    Some(ffi_external_chunk(crate_scope, segments)),
-                _ if lock.config.contains_fermented_crate(first_ident) =>
-                    Some(ffi_external_chunk(first_ident, segments)),
-                _ => {
-                    let segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
-                    Some(if segments.is_empty() { parse_quote!(#last_ident) } else { parse_quote!(#(#segments)::*::#last_ident) })
+            _ => {
+                match first_ident.to_string().as_str() {
+                    "crate" | _ if lock.config.is_current_crate(first_ident) =>
+                        Some(ffi_external_chunk(crate_scope, segments)),
+                    _ if lock.config.contains_fermented_crate(first_ident) =>
+                        Some(ffi_external_chunk(first_ident, segments)),
+                    _ => {
+                        let segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
+                        Some(if segments.is_empty() { parse_quote!(#last_ident) } else { parse_quote!(#(#segments)::*::#last_ident) })
+                    }
                 }
             }
-        }
+        };
+        // println!("ffi_external_path_converted: {} ---> {}", path.to_token_stream(), result.to_token_stream());
+        // ffi_external_path_converted: ferment_example :: RootStruct ---> crate :: fermented :: types :: ferment_example :: RootStruct
+        // ffi_external_path_converted: ferment_example :: RootStruct ---> crate :: fermented :: types :: ferment_example :: RootStruct
+        // ffi_external_path_converted: ferment_example :: nested :: FeatureVersion ---> crate :: fermented :: types :: ferment_example :: nested :: ferment_example_nested_FeatureVersion
+
+        result
     }
 
 
@@ -354,7 +361,7 @@ impl ScopeContext {
     pub fn ffi_dictionary_type(&self, path: &Path) -> Type {
         // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
         match path.segments.last().unwrap().ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
             "isize" | "usize" | "bool" =>
                 parse_quote!(#path),
             "OpaqueContext" =>
@@ -432,7 +439,8 @@ fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
         _ => segments.iter().take(segments.len() - 1).collect()
     };
     let ffi_path_chunk = if crate_local_segments.is_empty() {
-        segments.iter().last().unwrap().to_token_stream()
+        segments.to_mangled_ident_default()
+            .to_token_stream()
     } else {
         let mangled_ty = segments.to_mangled_ident_default();
         quote!(#(#crate_local_segments)::*::#mangled_ty)
@@ -442,8 +450,11 @@ fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
 fn ffi_external_chunk(crate_ident: &Ident, segments: &Punctuated<PathSegment, Colon2>) -> Type {
     let crate_local_segments: Vec<_> = segments.iter().take(segments.len() - 1).skip(1).collect();
     let last_ident = &segments.iter().last().unwrap().ident;
+
     let ffi_chunk_path = if crate_local_segments.is_empty() {
-        last_ident.to_token_stream()
+        let ty: Type = parse_quote!(#crate_ident::#last_ident);
+        let mangled_ty = ty.to_mangled_ident_default();
+        mangled_ty.to_token_stream()
     } else {
         let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
         let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);

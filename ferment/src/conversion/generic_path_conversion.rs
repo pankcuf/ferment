@@ -109,7 +109,7 @@ impl GenericPathConversion {
         let last_ident = &last_segment.ident;
         match last_ident.to_string().as_str() {
             // simple primitive type
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" |
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "f64" | "u64" | "i128" | "u128" |
             "isize" | "usize" | "bool" => parse_quote!(#last_ident),
             // complex special type
             "str" | "String" => parse_quote!(std::os::raw::c_char),
@@ -131,6 +131,7 @@ impl GenericPathConversion {
             }
         }
     }
+
 
     pub fn expand(&self, full_type: &TypeConversion, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         let source = context.borrow();

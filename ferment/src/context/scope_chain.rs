@@ -244,7 +244,7 @@ impl ScopeChain {
         path.get_ident().and_then(|ident| {
             let ident = ident.to_string();
             let ident = ident.as_str();
-            if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "i128" | "u128" | "isize" | "usize" | "bool") {
+            if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool") {
                 // println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
                 Some(TypeConversion::Primitive(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "String" | "str" ) {
