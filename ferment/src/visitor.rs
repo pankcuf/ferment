@@ -224,8 +224,8 @@ impl Visitor {
 
     fn handle_full_path(&self, scope: &ScopeChain, path: &Path, qself: Option<QSelfComposition>) -> ObjectConversion {
         nprint!(1, Emoji::Branch, "handle_full_path: {} with qself: [{}] in {}",
-            format_token_stream(path),
-            qself.as_ref().map_or(format!("None"), |q| format_token_stream(&q.qself.ty)),
+            path.to_token_stream(),
+            qself.as_ref().map_or(format!("None"), |q| q.qself.ty.to_token_stream().to_string()),
             scope);
         let new_qself = qself.as_ref().map(|q| q.qself.clone());
         let mut segments = path.segments.clone();
@@ -289,29 +289,51 @@ impl Visitor {
             }
 
         } else if let Some(generic_bounds) = lock.generics.maybe_generic_bounds(scope, &import_seg) {
-            let first_bound = generic_bounds.first().unwrap();
-            let first_bound_as_scope = PathHolder::from(first_bound);
-            if let Some(imported) = lock.maybe_import(scope, &first_bound_as_scope).cloned() {
-                nprint!(1, Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
-                let last_segment = segments.pop().unwrap();
-                let new_segments = imported.segments.clone();
-                segments.extend(new_segments);
-                segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+            if let Some(first_bound) = generic_bounds.first() {
+                let first_bound_as_scope = PathHolder::from(first_bound);
+                if let Some(imported) = lock.maybe_import(scope, &first_bound_as_scope).cloned() {
+                    nprint!(1, Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
+                    let last_segment = segments.pop().unwrap();
+                    let new_segments = imported.segments.clone();
+                    segments.extend(new_segments);
+                    segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                } else {
+                    nprint!(1, Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
+                    let first_bound_ident = &first_bound.segments.first().unwrap().ident;
+
+                    if matches!(first_bound_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") {
+                        let last_segment = segments.pop().unwrap();
+                        let scope = scope.self_path_holder();
+                        let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#scope::#first_bound_ident);
+
+                        segments.extend(new_segments);
+                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+
+                    } else {
+                        let last_segment = segments.pop().unwrap();
+                        let scope = scope.self_path_holder();
+                        let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#scope::#first_bound);
+                        segments.extend(new_segments);
+                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                    }
+                }
+                ObjectConversion::Type(
+                    TypeConversion::TraitType(
+                        TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: path.leading_colon, segments } }),
+                                             None)))
             } else {
-                nprint!(1, Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
-                let last_segment = segments.pop().unwrap();
-                let scope = scope.self_path_holder();
-                let new_segments: Punctuated<PathSegment, Token![::]> = parse_quote!(#scope::#first_bound);
-                segments.extend(new_segments);
-                segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                ObjectConversion::Type(
+                    TypeConversion::TraitType(
+                        TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: path.leading_colon, segments } }),
+                                             None)))
+
             }
-            ObjectConversion::Type(
-                TypeConversion::TraitType(
-                    TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: path.leading_colon, segments } }),
-                        None)))
+            // let first_bound = generic_bounds.first().unwrap();
+
         } else {
             // if let Some(same_mod_defined_obj) = lock.mayb
-            nprint!(1, Emoji::Local, "(Local or Global ....) {}", format_token_stream(&segments));
+            nprint!(1, Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
+
             let self_scope_path = &object_self_scope.self_scope;
             match first_ident.to_string().as_str() {
                 "Self" if segments.len() <= 1 => {
@@ -383,7 +405,7 @@ impl Visitor {
                                 path: Path { leading_colon: path.leading_colon, segments } }),
                         None)))
                 },
-                _ if last_ident.to_string().as_str() == "BTreeMap" || last_ident.to_string().as_str() == "HashMap" => {
+                _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap") => {
                     ObjectConversion::Type(TypeConversion::Object(TypeComposition::new(
                         Type::Path(
                             TypePath {
@@ -391,11 +413,24 @@ impl Visitor {
                                 path: Path { leading_colon: path.leading_colon, segments } }),
                         None)))
                 },
+                _ if matches!(first_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") => {
+                    ObjectConversion::Type(TypeConversion::Object(TypeComposition::new(
+                        Type::Path(
+                            TypePath {
+                                qself: new_qself,
+                                path: Path { leading_colon: path.leading_colon, segments } }),
+                        None)))
+
+                },
                 _ => {
                     let obj_parent_scope = obj_scope.parent_scope();
                     let len = segments.len();
                     if len == 1 {
-                        nprint!(1, Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}", if obj_parent_scope.is_some() { "some" } else { "no" }, first_ident, scope, format_token_stream(&path));
+                        nprint!(1, Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}",
+                            if obj_parent_scope.is_some() { "some" } else { "no" },
+                            first_ident,
+                            scope,
+                            path.to_token_stream());
                         let last_segment = segments.pop().unwrap();
                         let new_segments: Punctuated<PathSegment, Token![::]> = match obj_parent_scope {
                             None => {

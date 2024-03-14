@@ -2,7 +2,7 @@ use std::cell::Ref;
 use syn::Generics;
 use crate::composer::{Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
-use crate::presentation::{BindingPresentation, ConversionInterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
+use crate::presentation::{BindingPresentation, InterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
 use crate::presentation::context::name;
 use crate::presentation::context::name::Aspect;
 use crate::presentation::destroy_presentation::DestroyPresentation;
@@ -25,7 +25,7 @@ pub trait Composable {
         Expansion::Full {
             comment: self.compose_docs(),
             ffi_presentation: self.compose_object(),
-            conversion: ConversionInterfacePresentation::Interface {
+            conversion: InterfacePresentation::Conversion {
                 types: (self.ffi_name_aspect().present(&source), self.target_name_aspect().present(&source)),
                 conversions: self.compose_interface_aspects()
             },

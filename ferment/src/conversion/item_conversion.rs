@@ -91,7 +91,8 @@ pub fn type_ident(ty: &Type) -> Option<Ident> {
             })
         },
         Type::Array(TypeArray { elem, .. }) => type_ident(elem),
-        _ => panic!("No ident for {}", ty.to_token_stream())
+        _ => None,
+        // _ => panic!("No ident for {}", ty.to_token_stream())
     }
 }
 pub fn type_ident_ref(ty: &Type) -> Option<&Ident> {
@@ -109,7 +110,8 @@ pub fn type_ident_ref(ty: &Type) -> Option<&Ident> {
         },
         Type::Array(TypeArray { elem, .. }) => type_ident_ref(elem),
 
-        _ => panic!("No ident ref for {}", ty.to_token_stream())
+        // _ => panic!("No ident ref for {}", ty.to_token_stream())
+        _ => None
     }
 }
 

@@ -11,9 +11,6 @@ mod local_type_conversion;
 mod variant_conversion;
 
 pub use self::field_type_conversion::FieldTypeConversion;
-pub use self::generic_path_conversion::COMPLEX_VEC_DROP_PRESENTER;
-pub use self::generic_path_conversion::PRIMITIVE_VEC_DROP_PRESENTER;
-pub use self::generic_path_conversion::UNBOX_OPTION;
 pub use self::generic_path_conversion::GenericArgPresentation;
 pub use self::generic_path_conversion::GenericPathConversion;
 pub use self::import_conversion::ImportConversion;

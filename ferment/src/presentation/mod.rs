@@ -11,7 +11,7 @@ pub mod to_conversion_presentation;
 pub mod context;
 pub mod destroy_presentation;
 
-pub use self::conversion_interface_presentation::ConversionInterfacePresentation;
+pub use self::conversion_interface_presentation::InterfacePresentation;
 pub use self::doc_presentation::DocPresentation;
 pub use self::drop_interface_presentation::DropInterfacePresentation;
 pub use self::ffi_object_presentation::FFIObjectPresentation;

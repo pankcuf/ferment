@@ -8,7 +8,7 @@ use crate::composition::TraitVTableMethodComposition;
 use crate::interface::create_struct;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation};
-use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
+use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 
 pub enum FFIObjectPresentation {
     Empty,
@@ -37,10 +37,9 @@ pub enum FFIObjectPresentation {
     Full(TokenStream2),
     Generic {
         object_presentation: TokenStream2,
-        conversion_presentation: ConversionInterfacePresentation,
+        interface_presentations: Depunctuated<InterfacePresentation>,
         drop_presentation: DropInterfacePresentation,
         bindings: Depunctuated<BindingPresentation>,
-        special: Option<TokenStream2>
     },
 }
 
@@ -53,27 +52,21 @@ impl ToTokens for FFIObjectPresentation {
                 create_struct(&parse_quote!(#name), quote!({ #fields })),
             Self::TraitObject { name, vtable_name } =>
                 create_struct(&parse_quote!(#name), quote!({ pub object: *const (), pub vtable: *const #vtable_name })),
-            FFIObjectPresentation::Generic {
+            Self::Generic {
                 object_presentation,
-                conversion_presentation,
+                interface_presentations,
                 drop_presentation,
-                bindings,
-                special
-            } => {
-                let special_presentation = special.as_ref().map_or(quote!(), |special| quote!(#special));
-                quote! {
-                    #object_presentation
-                    #conversion_presentation
-                    #special_presentation
-                    #drop_presentation
-                    #bindings
-                }
-
+                bindings
+            } => quote! {
+                #object_presentation
+                #interface_presentations
+                #drop_presentation
+                #bindings
             },
-            FFIObjectPresentation::Empty => { /* Box<T> */
+            Self::Empty => { /* Box<T> */
                 quote!()
             },
-            FFIObjectPresentation::StaticVTable { name, fq_trait_vtable, methods_compositions } => {
+            Self::StaticVTable { name, fq_trait_vtable, methods_compositions } => {
                 let (methods_implementations, methods_declarations): (Depunctuated<TokenStream2>, Punctuated<TokenStream2, Comma>) = methods_compositions
                     .iter()
                     .map(|TraitVTableMethodComposition { fn_name, ffi_fn_name, item_type, trait_type, argument_names, name_and_args, output_expression, output_conversions }| {

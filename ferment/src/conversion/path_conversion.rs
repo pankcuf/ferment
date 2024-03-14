@@ -1,8 +1,10 @@
 use std::fmt;
 use std::fmt::Debug;
 use quote::{quote, ToTokens};
-use syn::{Path, PathArguments};
+use syn::{parse_quote, Path, PathArguments, Type};
+use crate::context::ScopeContext;
 use crate::conversion::GenericPathConversion;
+use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone)]
 pub enum PathConversion {
@@ -40,8 +42,6 @@ impl From<Path> for PathConversion {
 impl From<&Path> for PathConversion {
     fn from(path: &Path) -> Self {
         let last_segment = path.segments.last().unwrap();
-        // println!("path_conversion_from_path: {}", path.to_token_stream());
-
         match &last_segment.arguments {
             PathArguments::AngleBracketed(_) => {
                 match last_segment.ident.to_string().as_str() {
@@ -85,6 +85,23 @@ impl PathConversion {
             PathConversion::Generic(GenericPathConversion::Result(path)) |
             PathConversion::Generic(GenericPathConversion::Box(path)) |
             PathConversion::Generic(GenericPathConversion::AnyOther(path)) => path
+        }
+    }
+}
+
+impl ScopeContextPresentable for PathConversion {
+    type Presentation = Type;
+
+    fn present(&self, source: &ScopeContext) -> Self::Presentation {
+        match self {
+            PathConversion::Primitive(path) =>
+                parse_quote!(#path),
+            PathConversion::Complex(path) =>
+            // .joined_mut() for Map/Vec
+                source.ffi_path_converted_or_same(path),
+            PathConversion::Generic(path_conversion) =>
+            // .joined_mut() for Map/Vec
+                path_conversion.to_ffi_path()
         }
     }
 }

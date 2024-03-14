@@ -5,9 +5,8 @@ use crate::naming::DictionaryFieldName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
-pub enum ConversionInterfacePresentation {
-    // Empty,
-    Interface {
+pub enum InterfacePresentation {
+    Conversion {
         types: (
             Type, // FFI
             Type // Original
@@ -18,26 +17,22 @@ pub enum ConversionInterfacePresentation {
             DestroyPresentation,
             Option<Generics>
         ),
-        // from_presentation: FromConversionPresentation,
-        // to_presentation: ToConversionPresentation,
-        // destroy_presentation: TokenStream2,
-        // generics: Option<Generics>,
     },
-    // GenericInterface {
-    //     ffi_type: TokenStream2,
-    //     target_type: TokenStream2,
-    //     from_presentation: FromConversionPresentation,
-    //     to_presentation: ToConversionPresentation,
-    //     destroy_presentation: TokenStream2,
-    //     generics: Vec<TokenStream2>,
-    // }
+    VecConversion {
+        types: (
+            Type, // FFI
+            Type // Original
+        ),
+        decode: TokenStream2,
+        encode: TokenStream2,
+    }
 }
 
-impl ToTokens for ConversionInterfacePresentation {
+impl ToTokens for InterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             // Self::Empty => quote!(),
-            Self::Interface {
+            Self::Conversion {
                 types: (
                     ffi_type,
                     target_type),
@@ -80,43 +75,15 @@ impl ToTokens for ConversionInterfacePresentation {
                             #destroy_presentation;
                         }
                     }
-
                 }
             },
-            // Self::GenericInterface {
-            //     ffi_type,
-            //     target_type,
-            //     from_presentation,
-            //     to_presentation,
-            //     destroy_presentation,
-            //     generics } => {
-            //     let package = package();
-            //     let interface = interface();
-            //     let obj = obj();
-            //     let ffi_from_const = ffi_from_const();
-            //     let ffi_to_const = ffi_to_const();
-            //     //<T: crate::asyn::query::TransportRequest, E: std::error::Error>
-            //     //vec![T: crate::asyn::query::TransportRequest, E: std::error::Error]
-            //
-            //     let generic_bounds = (!generics.is_empty())
-            //         .then_some(quote!(<#(#generics)*,>))
-            //         .unwrap_or_default();
-            //
-            //     quote! {
-            //         impl #generic_bounds #package::#interface<#target_type> for #ffi_type {
-            //             unsafe fn #ffi_from_const(ffi: *const #ffi_type) -> #target_type {
-            //                 #from_presentation
-            //             }
-            //             unsafe fn #ffi_to_const(#obj: #target_type) -> *const #ffi_type {
-            //                 #to_presentation
-            //             }
-            //             unsafe fn destroy(ffi: *mut #ffi_type) {
-            //                 #destroy_presentation;
-            //             }
-            //         }
-            //
-            //     }
-            // }
+            InterfacePresentation::VecConversion { types: (ffi_type, target_type), decode, encode } => quote! {
+                impl ferment_interfaces::FFIVecConversion for #ffi_type {
+                    type Value = #target_type;
+                    unsafe fn decode(&self) -> Self::Value { #decode }
+                    unsafe fn encode(obj: Self::Value) -> *mut Self { #encode }
+                }
+            }
         }.to_tokens(tokens)
     }
 }

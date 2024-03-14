@@ -9,6 +9,7 @@ ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
 ferment-example = { path = "../ferment-example" }
 platform-value = { path = "../../platform/packages/rs-platform-value" }
+dpp = { path = "../../platform/packages/rs-dpp" }
 
 
 [build-dependencies]

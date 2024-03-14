@@ -5,7 +5,7 @@ use syn::token::Semi;
 use syn::ItemUse;
 use crate::composer::Depunctuated;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, TraitVTablePresentation};
-use crate::presentation::conversion_interface_presentation::ConversionInterfacePresentation;
+use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 use crate::presentation::doc_presentation::DocPresentation;
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
 use crate::tree::CrateTree;
@@ -24,7 +24,7 @@ pub enum Expansion {
     Full {
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
-        conversion: ConversionInterfacePresentation,
+        conversion: InterfacePresentation,
         drop: DropInterfacePresentation,
         bindings: Depunctuated<BindingPresentation>,
         traits: Depunctuated<TraitVTablePresentation>,

@@ -87,7 +87,7 @@ pub type ItemComposerFieldTypesContextPresenter<'a> = ItemComposerPresenterRef<'
 pub type NameContextComposer<Parent> = ContextComposer<Name, TokenStream2, Parent>;
 pub type TypeContextComposer<Parent> = ContextComposer<Type, TokenStream2, Parent>;
 
-pub type SimpleComposerPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
+// pub type SimpleComposerPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
 pub type OwnerIteratorConversionComposer<T> = ComposerPresenter<OwnerAspectIteratorLocalContext<T>, OwnerIteratorPresentationContext>;
 pub type OwnerIteratorPostProcessingComposer<T> = ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, T>;
 
