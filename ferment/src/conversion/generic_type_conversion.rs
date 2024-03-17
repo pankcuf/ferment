@@ -519,14 +519,6 @@ impl GenericTypeConversion {
                 )
             },
             GenericTypeConversion::Tuple(tuple) => {
-                // match tuple.len() {
-                //     0 => single_generic_ffi_path(tuple.first().unwrap()),
-                //     _ => {
-                //         // let ffi_name = format_ident!("{}_Tuple", paths.iter().map(|p| p.to_mangled_ident_default().to_string()).collect::<Vec<_>>().join("_"));
-                //         // parse_quote!(crate::fermented::generics::#ffi_name)
-                //     }
-                // }
-                //
                 println!("GenericTypeConversion::Tuple: {}", tuple.to_token_stream());
                 let tuple_items = tuple.iter()
                     .enumerate()

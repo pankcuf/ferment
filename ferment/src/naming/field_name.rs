@@ -71,7 +71,8 @@ pub enum Name {
     TraitFn(Ident, Ident),
     TraitDestructor(Ident, Ident),
     Vtable(Ident),
-    ModFn(Ident),
+    ModFn(Path),
+    VTableInnerFn(Ident),
     Getter(Path, TokenStream2),
     Setter(Path, TokenStream2),
     Ident(Ident),
@@ -91,7 +92,7 @@ impl ToTokens for Name {
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream(),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_token_stream(),
             Name::TraitObj(ident) => ident.to_token_stream(),
-            Name::ModFn(name) => format_ident!("{}", name).to_token_stream(),
+            Name::ModFn(path) => path.to_mangled_ident_default().to_token_stream(),
             Name::TraitFn(item_name, trait_name) => {
                 format_ident!("{}_as_{}", item_name, trait_name).to_token_stream()
             }
@@ -114,6 +115,7 @@ impl ToTokens for Name {
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
             }
+            Name::VTableInnerFn(ident) => ident.to_token_stream(),
 
             Name::Getter(obj_type, field_name) => format_ident!(
                 "{}_get_{}",
@@ -152,7 +154,7 @@ impl Mangle for Name {
                 Name::Constructor(ident) => format!("{}_ctor", ident.to_mangled_ident_default()),
                 Name::Destructor(ident) => format!("{}_destroy", ident.to_mangled_ident_default()),
                 Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
-                Name::ModFn(name) => name.to_string(),
+                Name::ModFn(name) => name.to_mangled_string(rules).to_string(),
                 Name::TraitObj(ident) => ident.to_string(),
                 Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                     format!("{}_{}", item_name, trait_vtable_ident)
@@ -175,6 +177,7 @@ impl Mangle for Name {
                 Name::Ident(variant) => variant.to_string(),
                 Name::Optional(ident) => quote!(#ident).to_string(),
                 Name::Pat(pat) => pat.to_token_stream().to_string(),
+                Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
             },
         }
     }

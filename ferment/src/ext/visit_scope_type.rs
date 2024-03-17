@@ -15,12 +15,6 @@ pub trait VisitScopeType<'a> where Self: Sized + 'a {
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result;
 }
 
-// impl VisitScopeType for TypeTuple {
-//     fn update_nested(&self, scope: &ScopeChain) -> ObjectConversion {
-//         todo!()
-//     }
-// }
-
 impl<'a> VisitScopeType<'a> for Type {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectConversion;
@@ -36,16 +30,6 @@ impl<'a> VisitScopeType<'a> for Type {
         }
     }
 }
-
-
-// impl VisitScopeType for (Path, Option<QSelf>) {
-//     type Result = ObjectConversion;
-//
-//     fn update_nested_generics(&self, scope: &ScopeChain, source: &GlobalContext) -> Self::Result {
-//         todo!()
-//     }
-// }
-
 
 impl<'a> VisitScopeType<'a> for Path {
     type Source = (&'a ScopeChain, &'a GlobalContext, Option<QSelfComposition>);
@@ -359,7 +343,6 @@ impl<'a> VisitScopeType<'a> for Option<QSelf> {
     type Result = Option<QSelfComposition>;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        // let (scope, context) = source;
         self.as_ref().map(|qself| {
             let mut new_qself = qself.clone();
             let qs = qself.ty.update_nested_generics(source);

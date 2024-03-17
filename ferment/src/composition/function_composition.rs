@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
+use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Paren, RArrow};
@@ -8,8 +8,7 @@ use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Mangle};
-use crate::helper::{from_array, from_path, from_slice, to_path};
+use crate::ext::{Conversion, Mangle};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
@@ -71,7 +70,7 @@ impl Composition for FnSignatureComposition {
                     .map(|arg|
                         OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
                     .collect::<Punctuated<_, _>>();
-                let name = Name::ModFn(fn_name);
+                let name = Name::ModFn(full_fn_path.0.clone());
 
                 // Aspect::Target()
                 let input_conversions = constants::ROUND_BRACES_FIELDS_PRESENTER((Aspect::FFI(Context::Fn { path: full_fn_path.0 }), argument_conversions)).present(source);
@@ -115,7 +114,7 @@ impl Composition for FnSignatureComposition {
                 let output_expression = self.return_type.presentation;
 
                 BindingPresentation::TraitVTableInnerFn {
-                    name: Name::ModFn(fn_name),
+                    name: Name::VTableInnerFn(fn_name),
                     name_and_args,
                     output_expression
                 }
@@ -224,10 +223,10 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
         ReturnType::Default => FnReturnTypeComposition { presentation: ReturnType::Default, conversion: FieldTypePresentableContext::LineTermination },
         ReturnType::Type(_, field_type) => {
             let conversion = match &**field_type {
-                Type::Path(TypePath { path, .. }) =>
-                    to_path(FieldTypePresentableContext::Obj, path),
-                Type::Tuple(..) =>
-                    FieldTypePresentableContext::To(FieldTypePresentableContext::Obj.into()),
+                Type::Path(type_path) =>
+                    type_path.conversion_to(FieldTypePresentableContext::Obj),
+                Type::Tuple(type_tuple) =>
+                    type_tuple.conversion_to(FieldTypePresentableContext::Obj),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
             FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))), conversion }
@@ -236,24 +235,25 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
 }
 fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2 {
     match (ty, pat) {
-        (Type::Path(TypePath { path, .. }), Pat::Ident(PatIdent { ident, .. })) =>
-            from_path(FieldTypePresentableContext::Simple(quote!(#ident)), path).present(context),
+        (Type::Path(type_path), Pat::Ident(PatIdent { ident, .. })) =>
+            type_path.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
+                .present(context),
         (Type::Reference(type_reference), pat) => {
             let arg_type = handle_arg_type(&type_reference.elem, pat, context);
-            if let Some(_mutable) = type_reference.mutability {
+            if type_reference.mutability.is_some() {
                 FieldTypePresentableContext::AsMutRef(arg_type)
             } else {
                 FieldTypePresentableContext::AsRef(arg_type)
             }.present(context)
         },
-        (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) => {
-            // let arg_type = handle_arg_type(&type_array.elem, pat, context);
-            // let len = &type_array.len;
-            from_array(FieldTypePresentableContext::Simple(quote!(#ident)), type_array).present(context)
-        },
-        (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) => {
-            from_slice(FieldTypePresentableContext::Simple(quote!(#ident)), type_slice).present(context)
-        },
+        (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) =>
+            type_array.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
+                .present(context),
+        (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) =>
+            type_slice.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
+                .present(context),
+        (Type::Tuple(type_tuple), Pat::Ident(PatIdent { ident, .. })) =>
+            type_tuple.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))).present(context),
         (Type::TraitObject(type_trait_object), Pat::Ident(PatIdent { ident: _, .. })) => {
             FieldTypePresentableContext::AsRef(type_trait_object.to_token_stream()).present(context)
         },

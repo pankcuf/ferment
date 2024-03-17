@@ -43,19 +43,19 @@ pub const EMPTY_CONTEXT_PRESENTER: ItemComposerPresenterRef<OwnerIteratorPresent
 
 /// FieldTypeComposers
 pub const FIELD_PATH_FROM_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.from(FieldTypePresentableContext::FfiRefWithFieldName(FieldTypePresentableContext::Simple(field_type.name()).into()));
+    |field_type| field_type.conversion_from(FieldTypePresentableContext::FfiRefWithFieldName(FieldTypePresentableContext::Simple(field_type.name()).into()));
 pub const DEREF_FIELD_PATH_FROM_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.from(FieldTypePresentableContext::Deref(field_type.name()));
+    |field_type| field_type.conversion_from(FieldTypePresentableContext::Deref(field_type.name()));
 pub const TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.to(FieldTypePresentableContext::Obj);
+    |field_type| field_type.conversion_to(FieldTypePresentableContext::Obj);
 pub const STRUCT_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.to(FieldTypePresentableContext::ObjFieldName(field_type.name()));
+    |field_type| field_type.conversion_to(FieldTypePresentableContext::ObjFieldName(field_type.name()));
 pub const ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.to(FieldTypePresentableContext::FieldTypeConversionName(field_type.clone()));
+    |field_type| field_type.conversion_to(FieldTypePresentableContext::FieldTypeConversionName(field_type.clone()));
 pub const ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.destroy(FieldTypePresentableContext::Deref(field_type.name()));
+    |field_type| field_type.conversion_destroy(FieldTypePresentableContext::Deref(field_type.name()));
 pub const STRUCT_FIELD_TYPE_DESTROY_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.destroy(FieldTypePresentableContext::FfiRefWithConversion(field_type.clone()));
+    |field_type| field_type.conversion_destroy(FieldTypePresentableContext::FfiRefWithConversion(field_type.clone()));
 
 // pub const TARGET_NAME_LOCAL_CONVERSION_COMPOSER: ItemComposerLocalConversionContextPresenterRef =
 //     |composer| (Aspect::Target(composer.name_context()), composer.field_types.clone());
