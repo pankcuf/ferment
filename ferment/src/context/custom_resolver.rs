@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, parse_quote, Path, PathArguments, Type, TypePath};
 use crate::composition::TypeComposition;
 use crate::context::{ScopeChain, TypeChain};
-use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::formatter::types_dict;
 use crate::holder::TypeHolder;
 
@@ -32,7 +32,7 @@ impl CustomResolver {
         self.inner
             .entry(scope.clone())
             .or_default()
-            .insert(parse_quote!(#path), ObjectConversion::Type(TypeConversion::Unknown(TypeComposition::new(ffi_type, None))));
+            .insert(parse_quote!(#path), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new(ffi_type, None))));
     }
     pub fn maybe_conversion(&self, ty: &Type) -> Option<Type> {
         //println!("maybe_custom_conversion: {}", format_token_stream(ty));

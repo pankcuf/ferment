@@ -158,8 +158,10 @@ impl NestingExtension for Type {
                     involved.extend(qself.nested_items());
                 }
             },
-            Type::Tuple(TypeTuple { elems, .. }) =>
-                involved.extend(elems.nested_items()),
+            Type::Tuple(TypeTuple { elems, .. }) => {
+                involved.insert(self.clone());
+                involved.extend(elems.nested_items())
+            },
             _ => {}
         }
         involved

@@ -5,7 +5,7 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Type;
-use crate::conversion::TypeConversion;
+use crate::conversion::TypeCompositionConversion;
 use crate::formatter::format_ident_types_dict;
 use crate::holder::{PathHolder, TypeHolder};
 
@@ -35,9 +35,9 @@ impl Display for TraitLink {
 #[derive(Clone, PartialEq, Eq)]
 pub enum InitialType {
     Unknown(TypeHolder),
-    Local(TypeHolder, TypeConversion, PathHolder),
-    Crate(TypeHolder, TypeConversion, PathHolder),
-    Global(TypeHolder, TypeConversion)
+    Local(TypeHolder, TypeCompositionConversion, PathHolder),
+    Crate(TypeHolder, TypeCompositionConversion, PathHolder),
+    Global(TypeHolder, TypeCompositionConversion)
 }
 
 impl Hash for InitialType {

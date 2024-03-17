@@ -6,7 +6,7 @@ use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, Type};
 use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::scope::Scope;
-use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::holder::PathHolder;
 
 #[derive(Clone, Eq)]
@@ -240,31 +240,31 @@ impl ScopeChain {
         }
     }
 
-    pub fn maybe_dictionary_type(&self, path: &Path) -> Option<TypeConversion> {
+    pub fn maybe_dictionary_type(&self, path: &Path) -> Option<TypeCompositionConversion> {
         path.get_ident().and_then(|ident| {
             let ident = ident.to_string();
             let ident = ident.as_str();
             if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool") {
                 // println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
-                Some(TypeConversion::Primitive(TypeComposition::new(parse_quote!(#path), None)))
+                Some(TypeCompositionConversion::Primitive(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "String" | "str" ) {
                 // println!("maybe_dictionary_type (found {}):  {}", ident, path.to_token_stream());
-                Some(TypeConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
+                Some(TypeCompositionConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")  {
                 // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
-                Some(TypeConversion::SmartPointer(TypeComposition::new(parse_quote!(#path), None)))
+                Some(TypeCompositionConversion::SmartPointer(TypeComposition::new(parse_quote!(#path), None)))
             } else if matches!(ident, "Send" | "Sync" | "Clone" | "Sized" | "FromIterator")  {
                 // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
-                Some(TypeConversion::TraitType(TypeComposition::new(parse_quote!(#path), None)))
+                Some(TypeCompositionConversion::TraitType(TypeComposition::new(parse_quote!(#path), None)))
             } else {
                 None
             }
         })
     }
 
-    // pub fn maybe_self_type(&self, path: &Path) -> Option<TypeConversion> {
+    // pub fn maybe_self_type(&self, path: &Path) -> Option<TypeCompositionConversion> {
     //     if path.get_ident().map_or(false, |ident| ident.to_string().as_str().eq("Self")) {
-    //         Some(TypeConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
+    //         Some(TypeCompositionConversion::Object(TypeComposition::new(parse_quote!(#path), None)))
     //     } else {
     //         None
     //     }

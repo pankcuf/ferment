@@ -10,7 +10,7 @@ use crate::composition::{Composition, FnSignatureComposition};
 use crate::composition::context::{FnSignatureCompositionContext, TraitDecompositionPart2Context};
 use crate::composition::generic_composition::GenericsComposition;
 use crate::context::ScopeContext;
-use crate::conversion::TypeConversion;
+use crate::conversion::TypeCompositionConversion;
 use crate::holder::PathHolder;
 use crate::presentation::BindingPresentation;
 
@@ -143,7 +143,7 @@ impl Composition for TraitDecompositionPart2 {
 #[derive(Clone)]
 pub struct TraitCompositionPart1 {
     pub item: ItemTrait,
-    pub implementors: Vec<TypeConversion>,
+    pub implementors: Vec<TypeCompositionConversion>,
 }
 
 impl std::fmt::Debug for TraitCompositionPart1 {

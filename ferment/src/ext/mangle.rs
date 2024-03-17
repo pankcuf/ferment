@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 
@@ -18,6 +18,11 @@ pub trait Mangle {
     fn to_mangled_ident_default(&self) -> Ident {
         format_ident!("{}", self.to_mangled_string(ManglingRules::Default))
     }
+
+    // fn to_mangled_path(&self, rules: ManglingRules) -> Path {
+    //     let ident = self.to_mangled_ident(rules);
+    //
+    // }
 }
 
 impl Mangle for Path {
@@ -29,6 +34,12 @@ impl Mangle for Path {
     }
 }
 
+impl Mangle for TypeTuple {
+    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+        format!("Tuple_{}", self.elems.iter().map(|ty| ty.to_mangled_string(rules)).collect::<Vec<String>>().join("_"))
+    }
+}
+
 impl Mangle for Type {
     fn to_mangled_string(&self, rules: ManglingRules) -> String {
         match rules {
@@ -37,6 +48,7 @@ impl Mangle for Type {
                     // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
                     Type::Path(TypePath { path, .. }) =>
                         path.to_mangled_string(rules),
+                    Type::Tuple(type_tuple) => type_tuple.to_mangled_string(rules),
                     ty => {
                         let p: Path = parse_quote!(#ty);
                         p.get_ident().unwrap().clone().to_string()

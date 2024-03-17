@@ -2,37 +2,24 @@ use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::collections::HashSet;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
-use crate::composer::ParentComposer;
 use crate::context::ScopeContext;
-use crate::conversion::{ObjectConversion, PathConversion, TypeConversion};
-use crate::formatter::format_token_stream;
+use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::holder::PathHolder;
+use crate::presentation::ScopeContextPresentable;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GenericConversion(pub ObjectConversion);
 
-// impl<'a> From<&'a TypeConversion> for GenericConversion {
-//     fn from(value: &'a TypeConversion) -> Self {
-//         GenericConversion::new(value.clone())
-//     }
-// }
 impl<'a> From<&'a ObjectConversion> for GenericConversion {
     fn from(value: &'a ObjectConversion) -> Self {
         GenericConversion::new(value.clone())
     }
 }
-
-impl std::fmt::Debug for GenericConversion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0.to_token_stream().to_string().as_str())
-    }
-}
-
 impl std::fmt::Display for GenericConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
+        f.write_str(self.0.to_token_stream().to_string().as_str())
     }
 }
 
@@ -63,42 +50,28 @@ impl GenericConversion {
     pub fn used_imports(&self) -> HashSet<PathHolder> {
         generic_imports(self.0.ty())
     }
+}
 
-    fn expand_(&self, full_type: &TypeConversion, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
-        println!("GenericConversion::expand_: {}", full_type.to_token_stream());
-        let path: Path = parse_quote!(#full_type);
-        match PathConversion::from(path) {
-            PathConversion::Generic(generic_conversion) =>
-                generic_conversion.expand(full_type, context),
-            conversion =>
-                unimplemented!("non-generic PathConversion: {}", format_token_stream(conversion.as_path()))
-        }
-    }
+impl ScopeContextPresentable for GenericConversion {
+    type Presentation = TokenStream2;
 
-    pub fn expand(&self, context: &ParentComposer<ScopeContext>) -> TokenStream2 {
+    fn present(&self, source: &ScopeContext) -> Self::Presentation {
         let Self { 0: full_type } = self;
-        // println!("GenericConversion::expand: {}", full_type);
+        println!("GenericConversion::present: {}", full_type.to_token_stream());
         match full_type {
-            ObjectConversion::Type(type_conversion) => {
-                self.expand_(type_conversion, context)
-            },
-            ObjectConversion::Item(type_conversion, _) => {
-                self.expand_(type_conversion, context)
+            ObjectConversion::Type(type_conversion) |
+            ObjectConversion::Item(type_conversion, _) => match TypeConversion::from(type_conversion.ty()) {
+                TypeConversion::Generic(generic_conversion) =>
+                    generic_conversion.expand(type_conversion, source),
+                conversion =>
+                    unimplemented!("non-generic GenericConversion: {}", conversion.to_token_stream())
             },
             ObjectConversion::Empty => {
                 unimplemented!("expand: ObjectConversion::Empty")
             }
         }
-        // let path: Path = parse_quote!(#full_type);
-        // match PathConversion::from(path) {
-        //     PathConversion::Generic(generic_conversion) =>
-        //         generic_conversion.expand(full_type, context),
-        //     conversion =>
-        //         unimplemented!("non-generic PathConversion: {}", format_token_stream(conversion.as_path()))
-        // }
     }
 }
-
 
 fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
     match ty {

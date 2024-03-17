@@ -8,7 +8,7 @@ use crate::composer::{Depunctuated, ParentComposer};
 use crate::composition::{create_items_use_from_path, GenericConversion, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
-use crate::presentation::Expansion;
+use crate::presentation::{Expansion, ScopeContextPresentable};
 use crate::tree::{ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl ToTokens for CrateTree {
 
         for generic in &generics {
             generic_imports.extend(generic.used_imports());
-            generic_conversions.push(generic.expand(&self.current_tree.scope_context));
+            generic_conversions.push(generic.present(&self.current_tree.scope_context.borrow()));
         }
         let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
         Expansion::Mod {

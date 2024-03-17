@@ -1,11 +1,10 @@
-use crate::conversion::PathConversion;
 use crate::ext::{Mangle, ManglingRules};
 use crate::helper::usize_to_tokenstream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use std::fmt::Formatter;
 use syn::__private::TokenStream2;
-use syn::{Pat, Path, Type, TypePath};
+use syn::{Pat, Path, Type};
 
 #[derive(Clone, Debug)]
 pub enum DictionaryFieldName {
@@ -100,14 +99,18 @@ impl ToTokens for Name {
                 format_ident!("{}_as_{}_destroy", item_name, trait_name).to_token_stream()
             }
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
-                Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-                    PathConversion::Primitive(..) => usize_to_tokenstream(*index),
-                    _ => usize_to_tokenstream(*index),
-                },
-                Type::Array(_type_array) => usize_to_tokenstream(*index),
-                Type::Ptr(_type_ptr) => DictionaryFieldName::Obj.to_token_stream(),
-                _ => unimplemented!("from_unnamed_struct: not supported {}", quote!(#ty)),
+                Type::Ptr(_) => DictionaryFieldName::Obj.to_token_stream(),
+                _ => usize_to_tokenstream(* index)
             },
+            // Name::UnnamedStructFieldsComp(ty, index) => match ty {
+            //     Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
+            //         PathConversion::Primitive(..) => usize_to_tokenstream(*index),
+            //         _ => usize_to_tokenstream(*index),
+            //     },
+            //     Type::Array(_type_array) => usize_to_tokenstream(*index),
+            //     Type::Ptr(_type_ptr) => DictionaryFieldName::Obj.to_token_stream(),
+            //     _ => unimplemented!("from_unnamed_struct: not supported {}", quote!(#ty)),
+            // },
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
             }
@@ -137,10 +140,7 @@ impl Mangle for Name {
         match rules {
             ManglingRules::Default => match self {
                 Name::UnnamedStructFieldsComp(ty, index) => match ty {
-                    Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-                        PathConversion::Primitive(..) => usize_to_tokenstream(*index).to_string(),
-                        _ => usize_to_tokenstream(*index).to_string(),
-                    },
+                    Type::Path(..) => usize_to_tokenstream(*index).to_string(),
                     Type::Array(_type_array) => usize_to_tokenstream(*index).to_string(),
                     Type::Ptr(_type_ptr) => DictionaryFieldName::Obj.to_string(),
                     _ => unimplemented!(

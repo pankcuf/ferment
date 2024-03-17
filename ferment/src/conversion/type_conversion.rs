@@ -1,99 +1,95 @@
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
-use syn::{Path, Type};
+use std::fmt;
+use std::fmt::{Debug, Formatter};
+use proc_macro2::TokenStream;
 use quote::ToTokens;
-use proc_macro2::TokenStream as TokenStream2;
-pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
+use syn::{PathArguments, Type, TypeArray, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use crate::conversion::GenericTypeConversion;
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub enum TypeConversion {
-    Trait(TypeComposition, TraitDecompositionPart1, Vec<Path>),
-    TraitType(TypeComposition),
-    // TraitAssociatedType(TypeComposition),
-    Object(TypeComposition),
-    Primitive(TypeComposition),
-    Bounds(GenericBoundComposition),
-    SmartPointer(TypeComposition),
-    Fn(TypeComposition),
-    Unknown(TypeComposition),
-}
-
-impl ToTokens for TypeConversion {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.ty().to_tokens(tokens)
-    }
-}
-
-impl TypeConversion {
-    pub fn ty_composition(&self) -> &TypeComposition {
-        match self {
-            TypeConversion::Trait(ty, ..) |
-            TypeConversion::TraitType(ty) |
-            // TypeConversion::TraitAssociatedType(ty) |
-            TypeConversion::Object(ty, ..) |
-            TypeConversion::Primitive(ty) |
-            TypeConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
-            TypeConversion::SmartPointer(ty, ..) |
-            TypeConversion::Unknown(ty, ..) |
-            TypeConversion::Fn(ty, ..) => ty
-        }
-    }
-    pub fn ty(&self) -> &Type {
-        &self.ty_composition().ty
-    }
-    // pub fn as_scope(&self) -> PathHolder {
-    //     let ty = self.ty();
-    //     parse_quote!(#ty)
-    // }
+    Primitive(Type),
+    Complex(Type),
+    Generic(GenericTypeConversion),
 }
 
 impl Debug for TypeConversion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TypeConversion::Trait(ty, _decomposition, _super_bounds) =>
-                f.write_str(format!("Trait({})", ty).as_str()),
-            TypeConversion::Object(ty) =>
-                f.write_str(format!("Object({})", ty).as_str()),
-            TypeConversion::Unknown(ty) =>
-                f.write_str(format!("Unknown({})", ty).as_str()),
-            TypeConversion::Primitive(ty) =>
-                f.write_str(format!("Primitive({})", ty).as_str()),
-            TypeConversion::TraitType(ty) =>
-                f.write_str(format!("TraitType({})", ty).as_str()),
-            TypeConversion::Bounds(gbc) =>
-                f.write_str(format!("Bounds({})", gbc).as_str()),
-            TypeConversion::SmartPointer(ty) =>
-                f.write_str(format!("SmartPointer({})", ty).as_str()),
-            // TypeConversion::TraitAssociatedType(ty) =>
-            //     f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
-            TypeConversion::Fn(ty) =>
-                f.write_str(format!("Fn({})", ty).as_str()),
-        }
-    }
-}
-
-impl Display for TypeConversion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.to_token_stream())
+            .finish()
     }
 }
 
 impl PartialEq for TypeConversion {
-    fn eq(&self, other: &Self) -> bool {
-        let self_tokens = [self.ty().to_token_stream()];
-        let other_tokens = [other.ty().to_token_stream()];
-        self_tokens.iter()
-            .map(|t| t.to_string())
-            .zip(other_tokens.iter().map(|t| t.to_string()))
-            .all(|(a, b)| a == b)
+    fn eq(&self, other: &TypeConversion) -> bool {
+        self.to_token_stream().to_string() == other.to_token_stream().to_string()
     }
 }
 
-impl Eq for TypeConversion {}
-
-impl Hash for TypeConversion {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.ty().to_token_stream().to_string().hash(state);
+impl ToTokens for TypeConversion {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            TypeConversion::Primitive(ty) |
+            TypeConversion::Complex(ty) => ty.to_tokens(tokens),
+            TypeConversion::Generic(generic) => generic.to_tokens(tokens),
+        }
     }
 }
-
+impl From<&Type> for TypeConversion {
+    fn from(value: &Type) -> Self {
+        TypeConversion::from(value.clone())
+    }
+}
+impl From<Type> for TypeConversion {
+    fn from(ty: Type) -> Self {
+        match ty {
+            Type::Path(TypePath { ref path , ..}) => {
+                let last_segment = path.segments.last().unwrap();
+                match &last_segment.arguments {
+                    PathArguments::AngleBracketed(..) => {
+                        match last_segment.ident.to_string().as_str() {
+                            "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
+                            "Arc" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
+                            "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
+                            "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
+                            "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
+                            _ => path.segments.iter().find_map(|ff| match &ff.arguments {
+                                PathArguments::AngleBracketed(_) =>
+                                    Some(TypeConversion::Generic(GenericTypeConversion::AnyOther(ty.clone()))),
+                                _ => None
+                            }).unwrap_or(TypeConversion::Complex(ty))
+                        }
+                    },
+                    _ => match last_segment.ident.to_string().as_str() {
+                        // std convertible
+                        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
+                        | "isize" | "usize" | "bool" => TypeConversion::Primitive(ty),
+                        "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
+                        "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
+                        "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
+                        "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
+                        _ => {
+                            path.segments.iter().find_map(|ff| match &ff.arguments {
+                                PathArguments::AngleBracketed(_) =>
+                                    Some(TypeConversion::Generic(GenericTypeConversion::AnyOther(ty.clone()))),
+                                _ => None
+                            }).unwrap_or(TypeConversion::Complex(ty))
+                        },
+                    }
+                }
+            },
+            Type::Tuple(TypeTuple { elems, .. }) =>
+                TypeConversion::Generic(GenericTypeConversion::Tuple(elems)),
+            Type::Slice(TypeSlice { elem, .. }) |
+            Type::Array(TypeArray { elem, .. }) =>
+                TypeConversion::Generic(GenericTypeConversion::Array(*elem)),
+            // Type::BareFn(_) => {}
+            // Type::ImplTrait(_) => {}
+            // Type::Ptr(_) => {}
+            Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(*elem),
+            Type::TraitObject(TypeTraitObject { bounds, .. }) =>
+                TypeConversion::Generic(GenericTypeConversion::TraitBounds(bounds)),
+            ty => unimplemented!("TypeConversion: Unknown type: {}", ty.to_token_stream())
+        }
+    }
+}

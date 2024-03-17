@@ -1,12 +1,11 @@
 use std::fmt;
 use std::fmt::Debug;
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Path, PathArguments, Type};
-use crate::context::ScopeContext;
+use proc_macro2::TokenStream;
+use quote::ToTokens;
+use syn::{Path, PathArguments};
 use crate::conversion::GenericPathConversion;
-use crate::presentation::ScopeContextPresentable;
 
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 pub enum PathConversion {
     Primitive(Path),
     Complex(Path),
@@ -17,25 +16,28 @@ impl Debug for PathConversion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("PathConversion")?;
         f.debug_list()
-            .entries(self.as_path().to_token_stream())
+            .entries(self.to_token_stream())
             .finish()
     }
 }
 
 impl PartialEq for PathConversion {
     fn eq(&self, other: &PathConversion) -> bool {
-        let self_inner = self.as_path();
-        let other_inner = other.as_path();
-        let self_inner_str = quote! { #self_inner }.to_string();
-        let other_inner_str = quote! { #other_inner }.to_string();
-        self_inner_str == other_inner_str
+        self.to_token_stream().to_string() == other.to_token_stream().to_string()
     }
 }
-impl Eq for PathConversion {}
-
 impl From<Path> for PathConversion {
     fn from(path: Path) -> Self {
         Self::from(&path)
+    }
+}
+impl ToTokens for PathConversion {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            PathConversion::Primitive(path) |
+            PathConversion::Complex(path) => path.to_tokens(tokens),
+            PathConversion::Generic(generic) => generic.to_tokens(tokens),
+        }
     }
 }
 
@@ -75,33 +77,28 @@ impl From<&Path> for PathConversion {
     }
 }
 
-impl PathConversion {
-    pub fn as_path(&self) -> &Path {
-        match self {
-            PathConversion::Primitive(path) |
-            PathConversion::Complex(path) |
-            PathConversion::Generic(GenericPathConversion::Map(path)) |
-            PathConversion::Generic(GenericPathConversion::Vec(path)) |
-            PathConversion::Generic(GenericPathConversion::Result(path)) |
-            PathConversion::Generic(GenericPathConversion::Box(path)) |
-            PathConversion::Generic(GenericPathConversion::AnyOther(path)) => path
-        }
-    }
-}
+// impl ScopeContextPresentable for PathConversion {
+//     type Presentation = Type;
+//
+//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
+//         match self {
+//             PathConversion::Primitive(path) =>
+//                 parse_quote!(#path),
+//             PathConversion::Complex(path) =>
+//             // .joined_mut() for Map/Vec
+//                 source.ffi_path_converted_or_same(path),
+//             PathConversion::Generic(path_conversion) =>
+//             // .joined_mut() for Map/Vec
+//                 path_conversion.to_ffi_path()
+//         }
+//     }
+// }
 
-impl ScopeContextPresentable for PathConversion {
-    type Presentation = Type;
 
-    fn present(&self, source: &ScopeContext) -> Self::Presentation {
-        match self {
-            PathConversion::Primitive(path) =>
-                parse_quote!(#path),
-            PathConversion::Complex(path) =>
-            // .joined_mut() for Map/Vec
-                source.ffi_path_converted_or_same(path),
-            PathConversion::Generic(path_conversion) =>
-            // .joined_mut() for Map/Vec
-                path_conversion.to_ffi_path()
-        }
-    }
-}
+
+
+
+
+
+
+

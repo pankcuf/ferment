@@ -4,8 +4,9 @@ use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
 use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
-use crate::conversion::PathConversion;
-use crate::helper::path_arguments_to_paths;
+use crate::conversion::TypeConversion;
+use crate::ext::FFIResolver;
+use crate::helper::path_arguments_to_types;
 use crate::holder::PathHolder;
 
 pub mod composing;
@@ -21,13 +22,14 @@ impl TypeComposition {
         Self::new(ty, None)
     }
 }
-impl PathConversion {
+impl TypeConversion {
     fn mangled_generic_arguments_types_strings(&self, context: &ScopeContext) -> Vec<String> {
-        self.as_path()
+        let path: Path = parse_quote!(#self);
+        path
             .segments
             .iter()
             .flat_map(|PathSegment { arguments, .. }| {
-                path_arguments_to_paths(arguments)
+                path_arguments_to_types(&arguments)
                     .into_iter()
                     .map(Self::from)
                     .map(|arg| arg.as_generic_arg_type(context).to_string())
@@ -38,14 +40,12 @@ impl PathConversion {
 
     pub fn as_generic_arg_type(&self, context: &ScopeContext) -> TokenStream2 {
         match self {
-            PathConversion::Primitive(path) =>
+            TypeConversion::Primitive(path) =>
                 quote!(#path),
-            PathConversion::Complex(path) =>
-                context.ffi_path_converted_or_same(path)
-                    .to_token_stream(),
-            PathConversion::Generic(conversion) =>
-                context.convert_to_ffi_path(conversion)
-                    .to_token_stream()
+            TypeConversion::Complex(ty) =>
+                ty.ffi_path_converted_or_same(context).to_token_stream(),
+            TypeConversion::Generic(conversion) =>
+                conversion.to_ffi_path().to_token_stream()
         }
     }
 

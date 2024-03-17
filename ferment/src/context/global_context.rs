@@ -7,7 +7,7 @@ use crate::context::{ScopeChain, TypeChain};
 use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
-use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::formatter::format_global_context;
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
@@ -79,8 +79,8 @@ impl GlobalContext {
             //maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
                 match maybe_trait {
-                    Some(ObjectConversion::Item(TypeConversion::Trait(_trait_ty, decomposition, _super_bounds), _)) |
-                    Some(ObjectConversion::Type(TypeConversion::Trait(_trait_ty, decomposition, _super_bounds))) => {
+                    Some(ObjectConversion::Item(TypeCompositionConversion::Trait(_trait_ty, decomposition, _super_bounds), _)) |
+                    Some(ObjectConversion::Type(TypeCompositionConversion::Trait(_trait_ty, decomposition, _super_bounds))) => {
                         let ident = &head.0.segments.last().unwrap().ident;
                         // println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = decomposition.types.get(ident) {

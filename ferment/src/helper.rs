@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TypeComposition};
 use crate::context::TypeChain;
-use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, PathConversion, type_ident, type_ident_ref};
+use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, type_ident, type_ident_ref, TypeConversion};
 use crate::ext::NestingExtension;
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
@@ -55,7 +55,11 @@ pub trait ItemExtension {
     fn find_generics_fq(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
         self.find_generics()
             .iter()
-            .filter_map(|ty| chain.get(ty))
+            .filter_map(|ty| {
+                println!("find_generics_fq: {} -> {}", ty.to_token_stream(), chain.get(ty).map_or(format!("None"), |ty| ty.to_token_stream().to_string()));
+
+                chain.get(ty)
+            })
             .map(GenericConversion::from)
             .collect()
     }
@@ -360,10 +364,16 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
     }
 }
 
-pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<PathConversion> {
-    path_arguments_to_paths(arguments)
+// pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<PathConversion> {
+//     path_arguments_to_paths(arguments)
+//         .into_iter()
+//         .map(PathConversion::from)
+//         .collect()
+// }
+pub fn path_arguments_to_type_conversions(arguments: &PathArguments) -> Vec<TypeConversion> {
+    path_arguments_to_types(arguments)
         .into_iter()
-        .map(PathConversion::from)
+        .map(TypeConversion::from)
         .collect()
 }
 
@@ -646,6 +656,7 @@ pub fn collect_bounds(bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
 
 
 pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
+    //println!("collect_generic_types_in_type.1: {}", field_type.to_token_stream());
     match field_type {
         Type::Path(TypePath { path, .. }) => {
             collect_generic_types_in_path(path, generics);
@@ -664,8 +675,10 @@ pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<T
             })
         },
         Type::Tuple(TypeTuple { elems, .. }) => {
+            //println!("collect_generic_types_in_type.t: {}", field_type.to_token_stream());
+            generics.insert(TypeHolder(field_type.clone()));
             elems.iter()
-                .for_each(|t| collect_generic_types_in_type(t, generics));
+                .for_each(|ty| collect_generic_types_in_type(ty, generics));
         },
         // Type::Array ??
         _ => {}

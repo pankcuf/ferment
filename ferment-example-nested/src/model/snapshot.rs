@@ -15,3 +15,9 @@ pub struct LLMQSnapshot {
     pub skip_list_mode: LLMQSnapshotSkipMode,
     pub option_vec: Option<Vec<u8>>,
 }
+
+impl Default for LLMQSnapshot {
+    fn default() -> Self {
+        Self { member_list: vec![], skip_list: vec![], skip_list_mode: LLMQSnapshotSkipMode::NoSkipping, option_vec: None }
+    }
+}

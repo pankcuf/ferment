@@ -7,6 +7,7 @@ use crate::naming::DictionaryFieldName;
 pub enum ToConversionPresentation {
     Enum(Punctuated<TokenStream2, Comma>),
     Struct(TokenStream2),
+    Tuple(Punctuated<TokenStream2, Comma>),
     Map(TokenStream2, TokenStream2),
     Result(TokenStream2, TokenStream2)
 }
@@ -29,6 +30,9 @@ impl ToTokens for ToConversionPresentation {
                     Err(o) => (std::ptr::null_mut(), #to_error_conversion)
                 };
                 ferment_interfaces::boxed(Self { ok, error })
+            },
+            ToConversionPresentation::Tuple(conversions) => quote! {
+                ferment_interfaces::boxed(Self { #conversions })
             }
         }.to_tokens(tokens)
     }

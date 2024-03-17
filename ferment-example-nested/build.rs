@@ -11,6 +11,7 @@ fn main() {
    match Builder::new(Crate::current_with_name(SELF_NAME))
        .with_mod_name("fermented")
        .with_crates(vec!["ferment-example", "platform-value", "dpp"])
+       .with_crates(vec!["ferment-example"])
        .generate() {
       Ok(()) => match Command::new("cbindgen")
           .args(["--config", "cbindgen.toml", "-o", c_header.as_str()])

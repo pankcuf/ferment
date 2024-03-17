@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain};
-use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeConversion};
+use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::Join;
 use crate::helper::collect_bounds;
 use crate::holder::PathHolder;
@@ -38,7 +38,7 @@ impl Visiting for Item {
         match self {
             Item::Const(_) => {}
             Item::Enum(item_enum) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()))), ScopeItemConversion::Item(Item::Enum(item_enum.clone()))));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()))), ScopeItemConversion::Item(Item::Enum(item_enum.clone()))));
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
                 visitor.add_generic_chain(scope, &item_enum.generics);
                 item_enum.variants.iter().for_each(|Variant { fields, .. }|
@@ -48,7 +48,7 @@ impl Visiting for Item {
             }
             Item::Fn(ItemFn { sig, .. }) => {
                 let sig_ident = &sig.ident;
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, ObjectConversion::new_item(TypeConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone())));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone())));
                 add_full_qualified_signature(visitor, sig, scope);
             }
             Item::Impl(item_impl) => {
@@ -84,7 +84,7 @@ impl Visiting for Item {
                 add_inner_module_conversion(visitor, item_mod, scope);
             }
             Item::Struct(item_struct) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()))), ScopeItemConversion::Item(Item::Struct(item_struct.clone()))));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()))), ScopeItemConversion::Item(Item::Struct(item_struct.clone()))));
                 visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
                 visitor.add_generic_chain(scope, &item_struct.generics);
                 item_struct.fields.iter().for_each(|Field { ty, .. }|
@@ -92,7 +92,7 @@ impl Visiting for Item {
             }
             Item::Trait(item_trait) => add_full_qualified_trait(visitor, item_trait, scope),
             Item::Type(item_type) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, ObjectConversion::new_item(TypeConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemConversion::Item(Item::Type(item_type.clone()))));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemConversion::Item(Item::Type(item_type.clone()))));
                 visitor.add_generic_chain(scope, &item_type.generics);
                 visitor.add_full_qualified_type_match(scope, &item_type.ty);
             }
@@ -105,7 +105,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
     let ident = &item_trait.ident;
     let type_compo = TypeComposition::new(scope.to_type(), Some(item_trait.generics.clone()));
     let itself = ObjectConversion::new_item(
-        TypeConversion::Trait(
+        TypeCompositionConversion::Trait(
             type_compo,
             TraitDecompositionPart1::from_trait_items(ident, &item_trait.items),
             add_bounds(visitor, &item_trait.supertraits, scope)),
@@ -123,7 +123,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 let self_scope = scope.self_scope();
                 let fn_self_scope = self_scope.self_scope.joined(sig_ident);
                 add_local_type(visitor, sig_ident, scope);
-                let object = ObjectConversion::new_item(TypeConversion::Fn(TypeComposition::new(parse_quote!(#fn_self_scope), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone()));
+                let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(parse_quote!(#fn_self_scope), Some(sig.generics.clone()))), ScopeItemConversion::Fn(sig.clone()));
                 let fn_scope = ScopeChain::Fn {
                     crate_scope: scope.crate_scope().clone(),
                     self_scope: Scope::new(fn_self_scope, object),

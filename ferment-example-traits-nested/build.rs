@@ -7,10 +7,10 @@ use ferment::builder::Crate;
 const NAME: &str = "ferment_example_traits_nested";
 fn main() {
    let c_header = format!("target/{NAME}.h");
-   let crates = vec![Crate::new("ferment_example_traits", PathBuf::from("../ferment-example/src"))];
+   // let crates = vec![Crate::new("ferment_example_traits", PathBuf::from("../ferment-example/src"))];
    match ferment::Builder::new(Crate::current_with_name(NAME))
        .with_mod_name("fermented")
-       .with_crates(crates)
+       .with_crates(vec!["ferment-example-traits"])
        .generate() {
       Ok(()) => match Command::new("cbindgen")
           .args(["--config", "cbindgen.toml", "-o", c_header.as_str()])

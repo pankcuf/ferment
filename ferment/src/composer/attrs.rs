@@ -4,7 +4,7 @@ use syn::punctuated::Punctuated;
 use syn::token::{Comma, Paren};
 use crate::composer::{Composer, Depunctuated};
 use crate::composition::{AttrsComposition, FnReturnTypeComposition, TraitDecompositionPart2, TraitVTableMethodComposition, TypeComposition};
-use crate::conversion::TypeConversion;
+use crate::conversion::TypeCompositionConversion;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::holder::EMPTY;
 use crate::naming::Name;
@@ -41,7 +41,7 @@ impl<Parent: SharedAccess> Composer<Parent> for AttrsComposer<Parent> {
         trait_types.iter_mut()
             .map(|(composition, trait_scope)| {
                 // TODO: move to full
-                let conversion = TypeConversion::Object(TypeComposition::new(source.scope.to_type(), Some(composition.item.generics.clone())));
+                let conversion = TypeCompositionConversion::Object(TypeComposition::new(source.scope.to_type(), Some(composition.item.generics.clone())));
                 println!("AttrsComposer: {} {} {}", composition.item.ident, trait_scope, conversion);
                 composition.implementors.push(conversion);
                 implement_trait_for_item((&composition.item, trait_scope), attrs_composition, source)

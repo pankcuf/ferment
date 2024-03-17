@@ -3,15 +3,14 @@ use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::{Item, parse_quote, Type};
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
-use crate::conversion::{ScopeItemConversion, TypeConversion};
+use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::ValueReplaceScenario;
 use crate::helper::collect_bounds;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
-    Type(TypeConversion),
-    Item(TypeConversion, ScopeItemConversion),
-    // Constraint(TypeConversion, ScopeItemConstra),
+    Type(TypeCompositionConversion),
+    Item(TypeCompositionConversion, ScopeItemConversion),
     Empty
 }
 
@@ -53,16 +52,13 @@ impl Display for ObjectConversion {
 }
 
 impl ObjectConversion {
-    pub fn new_item(ty: TypeConversion, item: ScopeItemConversion) -> ObjectConversion {
+    pub fn new_item(ty: TypeCompositionConversion, item: ScopeItemConversion) -> ObjectConversion {
         ObjectConversion::Item(ty, item)
     }
     pub fn new_obj_item(ty: TypeComposition, item: ScopeItemConversion) -> ObjectConversion {
-        ObjectConversion::Item(TypeConversion::Object(ty), item)
+        ObjectConversion::Item(TypeCompositionConversion::Object(ty), item)
     }
-    // pub fn new_type(ty: TypeConversion) -> ObjectConversion {
-    //     ObjectConversion::Type(ty)
-    // }
-    pub fn type_conversion(&self) -> Option<&TypeConversion> {
+    pub fn type_conversion(&self) -> Option<&TypeCompositionConversion> {
         match self {
             ObjectConversion::Type(type_conversion) => Some(type_conversion),
             ObjectConversion::Item(scope, _item) => Some(scope),
@@ -86,7 +82,7 @@ impl TryFrom<&Item> for ObjectConversion {
             Item::Trait(item) => {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_item(
-                    TypeConversion::Trait(
+                    TypeCompositionConversion::Trait(
                         TypeComposition::new(
                             parse_quote!(#ident),
                             Some(item.generics.clone())),
@@ -126,7 +122,7 @@ impl TryFrom<&Item> for ObjectConversion {
             Item::Mod(item) => {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_item(
-                    TypeConversion::Unknown(
+                    TypeCompositionConversion::Unknown(
                         TypeComposition::new(parse_quote!(#ident), None)),
                     ScopeItemConversion::Item(value.clone())))
 

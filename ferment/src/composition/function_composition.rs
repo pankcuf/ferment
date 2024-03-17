@@ -224,7 +224,10 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
         ReturnType::Default => FnReturnTypeComposition { presentation: ReturnType::Default, conversion: FieldTypePresentableContext::LineTermination },
         ReturnType::Type(_, field_type) => {
             let conversion = match &**field_type {
-                Type::Path(TypePath { path, .. }) => to_path(FieldTypePresentableContext::Obj, path),
+                Type::Path(TypePath { path, .. }) =>
+                    to_path(FieldTypePresentableContext::Obj, path),
+                Type::Tuple(..) =>
+                    FieldTypePresentableContext::To(FieldTypePresentableContext::Obj.into()),
                 _ => panic!("error: output conversion: {}", quote!(#field_type)),
             };
             FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))), conversion }
