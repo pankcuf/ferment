@@ -4,6 +4,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::Type;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
+use crate::ext::FFIResolveExtended;
 use crate::presentation::context::FieldTypePresentableContext;
 use crate::presentation::ScopeContextPresentable;
 
@@ -60,11 +61,11 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 field_type.name()
             },
             OwnedItemPresentableContext::DefaultFieldType(field_type) =>
-                source.ffi_full_dictionary_type_presenter(field_type)
+                field_type.ffi_full_dictionary_type_presenter(source)
                     .to_token_stream(),
             OwnedItemPresentableContext::Named(field_type, is_public) => {
                 let name = field_type.name();
-                let ty = source.ffi_full_dictionary_type_presenter(field_type.ty());
+                let ty = field_type.ty().ffi_full_dictionary_type_presenter(source);
                 if *is_public {
                     quote!(pub #name: #ty)
                 } else {
@@ -78,12 +79,12 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingArg(field_type) => {
                 match field_type {
                     FieldTypeConversion::Named(field_name, field_type) => {
-                        let ty = source.ffi_full_dictionary_type_presenter(field_type);
+                        let ty = field_type.ffi_full_dictionary_type_presenter(source);
                         quote!(#field_name: #ty)
                     },
                     FieldTypeConversion::Unnamed(field_name, field_type) => {
                         let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
-                        let ty = source.ffi_full_dictionary_type_presenter(field_type);
+                        let ty = field_type.ffi_full_dictionary_type_presenter(source);
                         quote!(#field_name: #ty)
                     }
                 }

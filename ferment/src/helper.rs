@@ -346,7 +346,6 @@ fn path_from_type(ty: &Type) -> Option<&Path> {
 }
 
 pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
-
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
             args.iter().filter_map(|arg| match arg {
@@ -358,12 +357,6 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
     }
 }
 
-// pub fn path_arguments_to_path_conversions(arguments: &PathArguments) -> Vec<PathConversion> {
-//     path_arguments_to_paths(arguments)
-//         .into_iter()
-//         .map(PathConversion::from)
-//         .collect()
-// }
 pub fn path_arguments_to_type_conversions(arguments: &PathArguments) -> Vec<TypeConversion> {
     path_arguments_to_types(arguments)
         .into_iter()

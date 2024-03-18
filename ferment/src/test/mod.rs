@@ -5,7 +5,7 @@ use syn::{parse_quote, Path, PathSegment, Type};
 use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::FFIResolver;
+use crate::ext::FFIResolveExtended;
 use crate::helper::path_arguments_to_types;
 use crate::holder::PathHolder;
 
@@ -43,7 +43,7 @@ impl TypeConversion {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.ffi_path_converted_or_same(context).to_token_stream(),
+                ty.resolve_or_same(context).to_token_stream(),
             TypeConversion::Generic(conversion) =>
                 conversion.to_ffi_path().to_token_stream()
         }

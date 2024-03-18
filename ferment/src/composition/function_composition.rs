@@ -8,7 +8,7 @@ use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Conversion, Mangle};
+use crate::ext::{Conversion, FFIResolveExtended, Mangle};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
@@ -225,7 +225,7 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
             conversion: FieldTypePresentableContext::LineTermination
         },
         ReturnType::Type(_, field_type) => FnReturnTypeComposition {
-            presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))),
+            presentation: ReturnType::Type(RArrow::default(), Box::new(field_type.ffi_full_dictionary_type_presenter(context))),
             conversion: field_type.conversion_to(FieldTypePresentableContext::Obj)
         },
     }
@@ -262,7 +262,7 @@ fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2
 fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     FnReturnTypeComposition {
         presentation: if let ReturnType::Type(token, field_type) = output {
-            ReturnType::Type(token.clone(), Box::new(context.ffi_full_dictionary_type_presenter(field_type)))
+            ReturnType::Type(token.clone(), Box::new(field_type.ffi_full_dictionary_type_presenter(context)))
         } else {
             ReturnType::Default
         },
@@ -307,7 +307,7 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat
-                let full_type = context.ffi_full_dictionary_type_presenter(ty);
+                let full_type = ty.ffi_full_dictionary_type_presenter(context);
                 let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
                 let name_type_conversion = handle_arg_type(ty, pat, context);
                 FnArgComposition {
@@ -325,10 +325,13 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
         .iter()
         .map(|BareFnArg { ty, name, .. }| {
             let name = name.clone().map(|(ident, _)| ident);
-            let pres = context.ffi_full_dictionary_type_presenter(ty);
             FnArgComposition {
                 name: name.clone().map(|g| g.to_token_stream()),
-                name_type_original: OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Optional(name), pres), false),
+                name_type_original: OwnedItemPresentableContext::Named(
+                    FieldTypeConversion::Named(
+                        Name::Optional(name),
+                        ty.ffi_full_dictionary_type_presenter(context)),
+                    false),
                 name_type_conversion: quote!()
             }
         })

@@ -1,6 +1,7 @@
 use quote::ToTokens;
 use crate::composer::{Composer, BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
 use crate::context::ScopeContext;
+use crate::ext::FFIResolveExtended;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
 use crate::shared::{HasParent, SharedAccess};
 
@@ -40,7 +41,8 @@ impl<Parent: SharedAccess> Composer<Parent> for MethodComposer<Parent, BindingAc
             .map(|field_type| (self.binding_presenter)((
                 context.0.present(source),
                 field_type.name(),
-                source.ffi_full_dictionary_type_presenter(field_type.ty())
+                field_type.ty()
+                    .ffi_full_dictionary_type_presenter(source)
                     .to_token_stream())))
             .collect();
 

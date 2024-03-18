@@ -20,7 +20,7 @@ mod visit_scope_type;
 pub use self::accessory::Accessory;
 pub use self::collection::ScopeCollection;
 pub use self::conversion::Conversion;
-pub use self::ffi_resolver::{FFIResolver, ffi_chunk_converted, ffi_external_chunk};
+pub use self::ffi_resolver::{FFIResolveExtended, ffi_chunk_converted, ffi_external_chunk, FFIResolve};
 pub use self::mangle::{Mangle, MangleDefault};
 pub use self::nesting::NestingExtension;
 pub use self::constraints::Constraints;

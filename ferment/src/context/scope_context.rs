@@ -1,13 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, Item, parse_quote, Path, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use quote::ToTokens;
+use syn::{Attribute, Item, parse_quote, Path, Type};
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::ImportConversion;
-use crate::ext::{Accessory, extract_trait_names, FFIResolver, Mangle};
-use crate::helper::path_arguments_to_paths;
+use crate::ext::extract_trait_names;
 use crate::holder::PathHolder;
 
 #[derive(Clone)]
@@ -125,88 +124,36 @@ impl ScopeContext {
         generics.extend(self.find_generics_fq_in(item, &scope));
     }
 
-    pub fn ffi_full_dictionary_type_presenter(&self, ty: &Type) -> Type {
-        let full_ty = ty.ffi_custom_or_internal_type(self);
-        // let full_ty = self.ffi_custom_or_internal_type(ty);
-        self.ffi_dictionary_type_presenter(&full_ty)
-    }
-
-    fn ffi_dictionary_type_presenter(&self, field_type: &Type) -> Type {
-        // println!("ffi_dictionary_field_type_presenter: {:?}", format_token_stream(field_type));
-        match field_type {
-            Type::Path(TypePath { path, .. }) =>
-                self.ffi_dictionary_type(path),
-            Type::Array(TypeArray { elem, len, .. }) =>
-                parse_quote!(*mut [#elem; #len]),
-            Type::Reference(TypeReference { elem, .. }) =>
-                self.ffi_dictionary_type_presenter(elem),
-            Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
-                match &**elem {
-                    Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                        "c_void" => match (star_token, const_token, mutability) {
-                            (_, Some(_const_token), None) => parse_quote!(OpaqueContext_FFI),
-                            (_, None, Some(_mut_token)) => parse_quote!(OpaqueContextMut_FFI),
-                            _ => panic!("extract_struct_field: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
-                        },
-                        _ => parse_quote!(*mut #path)
-                    },
-                    Type::Ptr(type_ptr) => parse_quote!(*mut #type_ptr),
-                    _ => parse_quote!(#field_type)
-                },
-            Type::Slice(TypeSlice { elem, .. }) => self.ffi_dictionary_type_presenter(elem),
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                let bound = bounds.iter().find_map(|bound| match bound {
-                    TypeParamBound::Trait(TraitBound { path, .. }) => {
-                        let p: Type = parse_quote!(#path);
-                        Some(p)
-                    }
-                    TypeParamBound::Lifetime(_) => None
-                }).unwrap();
-                self.ffi_dictionary_type_presenter(&bound)
-            },
-            Type::Tuple(TypeTuple { elems, .. }) => {
-                let ffi_types = elems.iter().map(|ty| {
-                    let ident = ty.mangle_ident_default();
-                    ident.to_string()
-                    // self.ffi_dictionary_type_presenter(ty)
-                }).collect::<Vec<String>>().join("_");
-                let ffi_ident = format_ident!("Tuple_{}", ffi_types);
-                parse_quote!(#ffi_ident)
-            },
-            _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", field_type.to_token_stream())
-        }
-    }
-
-    pub fn ffi_dictionary_type(&self, path: &Path) -> Type {
-        // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
-        match path.segments.last().unwrap().ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
-            "isize" | "usize" | "bool" =>
-                parse_quote!(#path),
-            "OpaqueContext" =>
-                parse_quote!(ferment_interfaces::OpaqueContext_FFI),
-            "OpaqueContextMut" =>
-                parse_quote!(ferment_interfaces::OpaqueContextMut_FFI),
-            "Option" =>
-                self.ffi_dictionary_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
-            "Vec" | "BTreeMap" | "HashMap" => {
-                let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-                    .joined_mut();
-                parse_quote!(#path)
-            },
-            "Result" /*if path.segments.len() == 1*/ => {
-                let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-                    .joined_mut();
-                parse_quote!(#path)
-            },
-            _ => {
-                let ty: Type = parse_quote!(#path);
-                ty.joined_mut()
-            }
-        }
-    }
+    // pub fn ffi_dictionary_type(&self, path: &Path) -> Type {
+    //     // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
+    //     match path.segments.last().unwrap().ident.to_string().as_str() {
+    //         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
+    //         "isize" | "usize" | "bool" =>
+    //             parse_quote!(#path),
+    //         "OpaqueContext" =>
+    //             parse_quote!(ferment_interfaces::OpaqueContext_FFI),
+    //         "OpaqueContextMut" =>
+    //             parse_quote!(ferment_interfaces::OpaqueContextMut_FFI),
+    //         "Option" =>
+    //             self.ffi_dictionary_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
+    //         "Vec" | "BTreeMap" | "HashMap" => {
+    //             let path = self.scope_type_for_path(path)
+    //                 .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
+    //                 .joined_mut();
+    //             parse_quote!(#path)
+    //         },
+    //         "Result" /*if path.segments.len() == 1*/ => {
+    //             let path = self.scope_type_for_path(path)
+    //                 .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
+    //                 .joined_mut();
+    //             parse_quote!(#path)
+    //         },
+    //         _ => {
+    //             let ty: Type = parse_quote!(#path);
+    //             ty.joined_mut()
+    //         }
+    //     }
+    // }
 
     pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Vec<(TraitCompositionPart1, ScopeChain)> {
         let attr_traits = extract_trait_names(attrs);
