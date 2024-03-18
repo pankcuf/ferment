@@ -246,12 +246,12 @@ pub fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
         "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
         _ => segments.iter().take(segments.len() - 1).collect()
     };
+    let mangled_segments_ident = segments.mangle_ident_default();
     let ffi_path_chunk = if crate_local_segments.is_empty() {
-        segments.mangle_ident_default()
+        mangled_segments_ident
             .to_token_stream()
     } else {
-        let mangled_ty = segments.mangle_ident_default();
-        quote!(#(#crate_local_segments)::*::#mangled_ty)
+        quote!(#(#crate_local_segments)::*::#mangled_segments_ident)
     };
     parse_quote!(crate::fermented::types::#ffi_path_chunk)
 }

@@ -137,10 +137,10 @@ impl ToTokens for Name {
     }
 }
 
-impl Mangle for Name {
-    type Context = MangleDefault;
+impl Mangle<MangleDefault> for Name {
+    // type Context = MangleDefault;
 
-    fn mangle_string(&self, context: Self::Context) -> String {
+    fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
                 Type::Path(..) => usize_to_tokenstream(*index).to_string(),
