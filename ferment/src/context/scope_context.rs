@@ -51,83 +51,9 @@ impl ScopeContext {
         let full_ty = lock.maybe_type(ty, &self.scope)
             .and_then(|full_type| full_type.ty().cloned())
             .unwrap_or(ty.clone());
-        // println!("[{}] [{}] full_type_for: {} is: [{}]", self.scope.crate_scope(), self.scope.self_path_holder(), quote!(#ty), quote!(#full_ty));
-        // println!("full_type_for: {} ---> {}", ty.to_token_stream(), full_ty.to_token_stream());
-
         full_ty
-        // lock.maybe_scope_type_or_parent_type(ty, &self.scope)
-        //     .and_then(|sty| sty.ty().cloned())
-        //     .unwrap_or(ty.clone())
     }
 
-    // fn trait_ty(&self, ty: &Type) -> Option<ObjectConversion> {
-    //     // println!("FFI (check...1) for: {}", format_token_stream(ty));
-    //     let lock = self.context.read().unwrap();
-    //     let mut maybe_trait = lock.resolve_trait_type(ty);
-    //     // println!("FFI (trait) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
-    //     match maybe_trait {
-    //         Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, _)) => {
-    //             // loc
-    //             // check maybe it's really known
-    //             let trait_scope = lock.actual_scope_for_type(ty.ty(), &self.scope);
-    //             if let Some(obj) = lock.maybe_scope_object(&parse_quote!(Self), &trait_scope) {
-    //                 maybe_trait = Some(obj);
-    //             }
-    //             // if let Some(tt) = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty)) {
-    //             //     maybe_trait = Some(tt);
-    //             // }
-    //             // maybe_trait = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty));
-    //             // println!("FFI (trait unknown but maybe known) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
-    //             // if let Some(ty) = maybe_trait {
-    //             //     println!("FFI (trait unknown but known) for: {}", ty.to_string());
-    //             // }
-    //         },
-    //         _ => {}
-    //     }
-    //     maybe_trait.cloned()
-    // }
-    //
-    // fn ffi_internal_type_for(&self, ty: &Type) -> Type {
-    //     let lock = self.context.read().unwrap();
-    //     let tyty = lock.maybe_type(ty, &self.scope)
-    //         .and_then(|external_type| {
-    //             match external_type.type_conversion() {
-    //                 Some(TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds)) =>
-    //                     self.trait_ty(&ty.ty)
-    //                         .map(|oc| oc.type_conversion().cloned()),
-    //                 _ => None
-    //             }.unwrap_or(external_type.type_conversion().cloned())
-    //
-    //         }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None)));
-    //     // let tyty = lock.maybe_scope_type(ty, &self.scope)
-    //     //     .and_then(|external_type| {
-    //     //         match external_type.type_conversion() {
-    //     //             Some(TypeCompositionConversion::Trait(ty, _decomposition)) =>
-    //     //                 self.trait_ty(&ty.ty)
-    //     //                     .map(|oc| oc.type_conversion().cloned()),
-    //     //             _ => None
-    //     //         }.unwrap_or(external_type.type_conversion().cloned())
-    //     //
-    //     //     }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None)));
-    //     let result = match tyty.ty() {
-    //         Type::Path(TypePath { path, .. }) =>
-    //             path.ffi_external_path_converted(self).map(|path| parse_quote!(#path)),
-    //         _ => None
-    //     };
-    //
-    //     let result = result.unwrap_or(ty.clone());
-    //
-    //     // let mangled = result.to_mangled_ident_default();
-    //     // parse_quote!(#mangled)
-    //     //println!("FFI (ffi_internal_type_for) for: {} in [{}] = {}", ty.to_token_stream(), self.scope, format_token_stream(&result));
-    //     result
-    // }
-    //
-    // pub fn ffi_custom_or_internal_type(&self, ty: &Type) -> Type {
-    //     let lock = self.context.read().unwrap();
-    //     lock.custom.maybe_conversion(ty)
-    //         .unwrap_or(self.ffi_internal_type_for(ty))
-    // }
 
     // pub fn find_item_trait_in_scope(&self, trait_name: &Path, scope: &ScopeChain) -> (TraitCompositionPart1, ScopeChain) {
     //     let trait_ty = parse_quote!(#trait_name);
@@ -198,20 +124,6 @@ impl ScopeContext {
         }
         generics.extend(self.find_generics_fq_in(item, &scope));
     }
-
-    // pub fn ffi_path_converted_or_same(&self, path: &Path) -> Type {
-    //     self.resolve_ffi_path(path)
-    //         .unwrap_or(parse_quote!(#path))
-    // }
-    //
-    //
-    //
-    // fn resolve_ffi_path(&self, path: &Path) -> Option<Type> {
-    //     path.resolve(self)
-    //         .map(|path| parse_quote!(#path))
-    // }
-
-
 
     pub fn ffi_full_dictionary_type_presenter(&self, ty: &Type) -> Type {
         let full_ty = ty.ffi_custom_or_internal_type(self);

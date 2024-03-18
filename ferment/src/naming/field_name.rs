@@ -1,4 +1,4 @@
-use crate::ext::{Mangle, ManglingRules};
+use crate::ext::{Mangle, MangleDefault};
 use crate::helper::usize_to_tokenstream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
@@ -138,47 +138,48 @@ impl ToTokens for Name {
 }
 
 impl Mangle for Name {
-    fn mangle_string(&self, rules: ManglingRules) -> String {
-        match rules {
-            ManglingRules::Default => match self {
-                Name::UnnamedStructFieldsComp(ty, index) => match ty {
-                    Type::Path(..) => usize_to_tokenstream(*index).to_string(),
-                    Type::Array(_type_array) => usize_to_tokenstream(*index).to_string(),
-                    Type::Ptr(_type_ptr) => DictionaryFieldName::Obj.to_string(),
-                    _ => unimplemented!(
-                        "Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}",
-                        quote!(#ty)
-                    ),
-                },
-                Name::UnnamedArg(index) => format!("o_{}", index),
-                Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
-                Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
-                Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
-                Name::ModFn(name) => name.mangle_string(rules).to_string(),
-                Name::TraitObj(ident) => ident.to_string(),
-                Name::TraitImplVtable(item_name, trait_vtable_ident) => {
-                    format!("{}_{}", item_name, trait_vtable_ident)
-                }
-                Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name, trait_name),
-                Name::TraitDestructor(item_name, trait_name) => {
-                    format!("{}_as_{}_destroy", item_name, trait_name)
-                }
-                Name::Vtable(trait_name) => format!("{}_VTable", trait_name),
-                Name::Getter(obj_type, field_name) => format!(
-                    "{}_get_{}",
-                    obj_type.mangle_ident_default(),
-                    field_name.to_string()
+    type Context = MangleDefault;
+
+    fn mangle_string(&self, context: Self::Context) -> String {
+        match self {
+            Name::UnnamedStructFieldsComp(ty, index) => match ty {
+                Type::Path(..) => usize_to_tokenstream(*index).to_string(),
+                Type::Array(_type_array) => usize_to_tokenstream(*index).to_string(),
+                Type::Ptr(_type_ptr) => DictionaryFieldName::Obj.to_string(),
+                _ => unimplemented!(
+                    "Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}",
+                    quote!(#ty)
                 ),
-                Name::Setter(obj_type, field_name) => format!(
-                    "{}_set_{}",
-                    obj_type.mangle_ident_default(),
-                    field_name.to_string()
-                ),
-                Name::Ident(variant) => variant.to_string(),
-                Name::Optional(ident) => quote!(#ident).to_string(),
-                Name::Pat(pat) => pat.to_token_stream().to_string(),
-                Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
             },
+            Name::UnnamedArg(index) => format!("o_{}", index),
+            Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
+            Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
+            Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
+            Name::ModFn(name) => name.mangle_string(context).to_string(),
+            Name::TraitObj(ident) => ident.to_string(),
+            Name::TraitImplVtable(item_name, trait_vtable_ident) => {
+                format!("{}_{}", item_name, trait_vtable_ident)
+            }
+            Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name, trait_name),
+            Name::TraitDestructor(item_name, trait_name) => {
+                format!("{}_as_{}_destroy", item_name, trait_name)
+            }
+            Name::Vtable(trait_name) => format!("{}_VTable", trait_name),
+            Name::Getter(obj_type, field_name) => format!(
+                "{}_get_{}",
+                obj_type.mangle_ident_default(),
+                field_name.to_string()
+            ),
+            Name::Setter(obj_type, field_name) => format!(
+                "{}_set_{}",
+                obj_type.mangle_ident_default(),
+                field_name.to_string()
+            ),
+            Name::Ident(variant) => variant.to_string(),
+            Name::Optional(ident) => quote!(#ident).to_string(),
+            Name::Pat(pat) => pat.to_token_stream().to_string(),
+            Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
+
         }
     }
 }
