@@ -21,6 +21,17 @@ pub trait Mangle {
     }
 }
 
+impl<T> Mangle for Punctuated<T, Colon2>  where T: Mangle, T::Context: Default + Copy {
+    type Context = T::Context;
+
+    fn mangle_string(&self, context: Self::Context) -> String {
+        self.iter()
+            .map(|item| item.mangle_string(context))
+            .collect::<Vec<_>>()
+            .join("_")
+    }
+}
+
 impl Mangle for Path {
     type Context = MangleDefault;
 
@@ -73,11 +84,11 @@ impl Mangle for Type {
 }
 
 impl Mangle for TypePath {
-    type Context = (bool, bool, usize);
+    type Context = ((bool, bool), usize);
 
     fn mangle_string(&self, context: Self::Context) -> String {
-        let (is_map, is_result, i) = context;
-        let mangled = self.path.mangle_string(MangleDefault::default());
+        let ((is_map, is_result), i) = context;
+        let mangled = self.path.mangle_string_default();
         if is_map {
             format!("{}{}", if i == 0 { "keys_" } else { "values_" }, mangled)
         } else if is_result {
@@ -90,12 +101,12 @@ impl Mangle for TypePath {
 }
 
 impl Mangle for TypeArray {
-    type Context = (bool, bool, usize);
+    type Context = ((bool, bool), usize);
 
     fn mangle_string(&self, context: Self::Context) -> String {
-        let (is_map, is_result, i) = context;
+        let ((is_map, is_result), ..) = context;
         if let Type::Path(type_path) = &*self.elem {
-            let mangled_type_path = type_path.mangle_string((is_map, is_result, i));
+            let mangled_type_path = type_path.mangle_string(context);
             if is_map || is_result {
                 format!("{mangled_type_path}{}_{}", "arr_", self.len.to_token_stream().to_string())
             } else {
@@ -107,18 +118,43 @@ impl Mangle for TypeArray {
     }
 }
 
+impl Mangle for PathArguments {
+    type Context = String;
+
+    fn mangle_string(&self, context: Self::Context) -> String {
+        let mut segment_str = context.clone();
+        let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
+        if is_map {
+            segment_str = String::from("Map");
+        }
+        let is_result = segment_str == "Result";
+        match self {
+            PathArguments::AngleBracketed(arguments) =>
+                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
+            _ => segment_str,
+        }
+    }
+}
+
+impl Mangle for PathSegment {
+    type Context = MangleDefault;
+
+    fn mangle_string(&self, _context: Self::Context) -> String {
+        self.arguments.mangle_string(self.ident.to_string())
+    }
+}
+
 impl Mangle for AngleBracketedGenericArguments {
     type Context = (bool, bool);
 
     fn mangle_string(&self, context: Self::Context) -> String {
-        let (is_map, is_result) = context;
         self.args.iter()
             .enumerate()
             .filter_map(|(i, gen_arg)| match gen_arg {
                 GenericArgument::Type(Type::Path(type_path)) =>
-                    Some(type_path.mangle_string((is_map, is_result, i))),
+                    Some(type_path.mangle_string((context, i))),
                 GenericArgument::Type(Type::Array(type_array)) =>
-                    Some(type_array.mangle_string((is_map, is_result, i))),
+                    Some(type_array.mangle_string((context, i))),
                 GenericArgument::Type(Type::Tuple(type_tuple)) =>
                     Some(type_tuple.mangle_string_default()),
                 GenericArgument::Type(Type::TraitObject(type_trait_object)) =>
@@ -130,26 +166,3 @@ impl Mangle for AngleBracketedGenericArguments {
     }
 }
 
-impl Mangle for Punctuated<PathSegment, Colon2> {
-    type Context = MangleDefault;
-
-    fn mangle_string(&self, _context: Self::Context) -> String {
-        self
-            .iter()
-            .map(|segment| {
-                let mut segment_str = segment.ident.to_string();
-                let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
-                if is_map {
-                    segment_str = String::from("Map");
-                }
-                let is_result = segment_str == "Result";
-                match &segment.arguments {
-                    PathArguments::AngleBracketed(arguments) =>
-                        format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
-                    _ => segment_str,
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("_")
-    }
-}
