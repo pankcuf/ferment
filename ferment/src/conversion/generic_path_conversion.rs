@@ -111,7 +111,7 @@ impl GenericPathConversion {
                 match paths.len() {
                     0 => single_generic_ffi_path(paths.first().unwrap()),
                     _ => {
-                        let ffi_name = format_ident!("{}_Tuple", paths.iter().map(|p| p.to_mangled_ident_default().to_string()).collect::<Vec<_>>().join("_"));
+                        let ffi_name = format_ident!("Tuple_{}", paths.iter().map(|p| p.to_mangled_ident_default().to_string()).collect::<Vec<_>>().join("_"));
                         parse_quote!(crate::fermented::generics::#ffi_name)
                     }
                 }
@@ -568,8 +568,8 @@ impl GenericPathConversion {
                 )
             },
             GenericPathConversion::Tuple(tuple) => {
-                // match tuple.len() {
-                //     0 => single_generic_ffi_path(tuple.first().unwrap()),
+                // match types.len() {
+                //     0 => single_generic_ffi_path(types.first().unwrap()),
                 //     _ => {
                 //         // let ffi_name = format_ident!("{}_Tuple", paths.iter().map(|p| p.to_mangled_ident_default().to_string()).collect::<Vec<_>>().join("_"));
                 //         // parse_quote!(crate::fermented::generics::#ffi_name)

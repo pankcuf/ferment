@@ -53,11 +53,7 @@ pub trait ItemExtension {
     fn find_generics_fq(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
         self.find_generics()
             .iter()
-            .filter_map(|ty| {
-                println!("find_generics_fq: {} -> {}", ty.to_token_stream(), chain.get(ty).map_or(format!("None"), |ty| ty.to_token_stream().to_string()));
-
-                chain.get(ty)
-            })
+            .filter_map(|ty| chain.get(ty))
             .map(GenericConversion::from)
             .collect()
     }

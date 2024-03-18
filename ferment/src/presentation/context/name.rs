@@ -55,13 +55,13 @@ impl ScopeContextPresentable for Aspect {
                     Context::Struct { ident } => {
                         let ty = parse_quote!(#ident);
                         let full_ty = source.full_type_for(&ty);
-                        let mangled_ty = full_ty.to_mangled_ident_default();
+                        let mangled_ty = full_ty.mangle_ident_default();
                         parse_quote!(#mangled_ty)
                     }
                     Context::EnumVariant { ident, variant_ident } => {
                         let ty = parse_quote!(#ident);
                         let full_ty = source.full_type_for(&ty);
-                        let mangled_ty = full_ty.to_mangled_ident_default();
+                        let mangled_ty = full_ty.mangle_ident_default();
                         parse_quote!(#mangled_ty::#variant_ident)
                     },
                     Context::Fn { path } => parse_quote!(#path)

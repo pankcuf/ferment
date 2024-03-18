@@ -83,7 +83,7 @@ impl ToTokens for BindingPresentation {
                         let variant_path: Path = parse_quote!(#tt);
                         let enum_path = variant_path.popped();
                         present_function(
-                            ffi_variant_name.to_mangled_ident_default().to_token_stream(),
+                            ffi_variant_name.mangle_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), parse_quote!(*mut #enum_path)),
                             quote!(ferment_interfaces::boxed(#variant_path #body_presentation)))
@@ -91,7 +91,7 @@ impl ToTokens for BindingPresentation {
                     ConstructorPresentableContext::Default(ffi_type) => {
                         let name = Name::Constructor(ffi_type.clone());
                         present_function(
-                            name.to_mangled_ident_default().to_token_stream(),
+                            name.mangle_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), parse_quote!(*mut #ffi_type)),
                             quote!(ferment_interfaces::boxed(#ffi_type #body_presentation)))
@@ -100,7 +100,7 @@ impl ToTokens for BindingPresentation {
             },
             Self::Destructor { name, ffi_name, } => {
                 present_function(
-                    name.to_mangled_ident_default().to_token_stream(),
+                    name.mangle_ident_default().to_token_stream(),
                     Punctuated::from_iter([quote!(ffi: *mut #ffi_name)]),
                     ReturnType::Default,
                     quote!(ferment_interfaces::unbox_any(ffi);)
@@ -108,7 +108,7 @@ impl ToTokens for BindingPresentation {
             },
             Self::ObjAsTrait { name, item_type, trait_type, vtable_name, .. } => {
                 present_function(
-                    name.to_mangled_ident_default().to_token_stream(),
+                    name.mangle_ident_default().to_token_stream(),
                     Punctuated::from_iter([quote!(obj: *const #item_type)]),
                     ReturnType::Type(RArrow::default(), parse_quote!(#trait_type)),
                     quote!(#trait_type { object: obj as *const (), vtable: &#vtable_name })
@@ -116,14 +116,14 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, } => {
                 present_function(
-                    name.to_mangled_ident_default().to_token_stream(),
+                    name.mangle_ident_default().to_token_stream(),
                     Punctuated::from_iter([quote!(obj: #trait_type)]),
                     ReturnType::Default,
                     quote!(ferment_interfaces::unbox_any(obj.object as *mut #item_type);))
             },
             BindingPresentation::Getter { name, field_name, obj_type, field_type } => {
                 present_function(
-                    name.to_mangled_ident_default().to_token_stream(),
+                    name.mangle_ident_default().to_token_stream(),
                     Punctuated::from_iter([quote!(obj: *const #obj_type)]),
                     ReturnType::Type(RArrow::default(), parse_quote!(#field_type)),
                     quote!((*obj).#field_name)
@@ -131,7 +131,7 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::Setter { name, field_name, obj_type, field_type } => {
                 present_function(
-                    name.to_mangled_ident_default().to_token_stream(),
+                    name.mangle_ident_default().to_token_stream(),
                     Punctuated::from_iter([quote!(obj: *mut #obj_type), quote!(value: #field_type)]),
                     ReturnType::Default,
                     quote!((*obj).#field_name = value;))
@@ -141,7 +141,7 @@ impl ToTokens for BindingPresentation {
                     let mut args = Punctuated::from_iter([quote!(runtime: *mut std::os::raw::c_void)]);
                     args.extend(arguments.clone());
                     present_function(
-                        name.to_mangled_ident_default().to_token_stream(),
+                        name.mangle_ident_default().to_token_stream(),
                         args,
                         return_type.clone(),
                         quote! {
@@ -152,7 +152,7 @@ impl ToTokens for BindingPresentation {
                     )
                 } else {
                     present_function(
-                        name.to_mangled_ident_default().to_token_stream(),
+                        name.mangle_ident_default().to_token_stream(),
                         arguments.clone(),
                         return_type.clone(),
                         quote!(let obj = #input_conversions; #output_conversions)

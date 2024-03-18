@@ -32,11 +32,11 @@ impl FFIResolver for Path {
             | "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = self.to_mangled_ident_default();
+                let ffi_name = self.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Result" if segments.len() == 1 => {
-                let ffi_name = self.to_mangled_ident_default();
+                let ffi_name = self.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Box" => path_arguments_to_paths(&last_segment.arguments)
@@ -100,11 +100,11 @@ impl FFIResolver for Path {
             "isize" | "usize" | "bool" => None,
             "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
             "Vec" | "BTreeMap" | "HashMap" => {
-                let ffi_name = path.to_mangled_ident_default();
+                let ffi_name = path.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Result" if segments.len() == 1 => {
-                let ffi_name = path.to_mangled_ident_default();
+                let ffi_name = path.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_name))
             },
             "Option" => path_arguments_to_paths(&last_segment.arguments)
@@ -188,7 +188,7 @@ impl FFIResolver for Type {
                 unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject")
             },
             Type::Tuple(type_tuple) => {
-                let ffi_chunk = type_tuple.to_mangled_ident_default();
+                let ffi_chunk = type_tuple.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
             }
             // Type::Tuple(TypeTuple { elems, .. }) => {
@@ -210,7 +210,7 @@ impl FFIResolver for Type {
             Type::Slice(TypeSlice { elem, .. }) => elem.ffi_external_path_converted(source),
             // Type::TraitObject(_) => {}
             Type::Tuple(type_tuple) => {
-                let ffi_chunk = type_tuple.to_mangled_ident_default();
+                let ffi_chunk = type_tuple.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
             }
             _ => None
@@ -247,10 +247,10 @@ pub fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
         _ => segments.iter().take(segments.len() - 1).collect()
     };
     let ffi_path_chunk = if crate_local_segments.is_empty() {
-        segments.to_mangled_ident_default()
+        segments.mangle_ident_default()
             .to_token_stream()
     } else {
-        let mangled_ty = segments.to_mangled_ident_default();
+        let mangled_ty = segments.mangle_ident_default();
         quote!(#(#crate_local_segments)::*::#mangled_ty)
     };
     parse_quote!(crate::fermented::types::#ffi_path_chunk)
@@ -261,12 +261,12 @@ pub fn ffi_external_chunk<T: FFIResolver>(crate_ident: &Ident, segments: &Punctu
 
     let ffi_chunk_path = if crate_local_segments.is_empty() {
         let ty: Type = parse_quote!(#crate_ident::#last_ident);
-        let mangled_ty = ty.to_mangled_ident_default();
+        let mangled_ty = ty.mangle_ident_default();
         mangled_ty.to_token_stream()
     } else {
         let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
         let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);
-        let mangled_ty = ty.to_mangled_ident_default();
+        let mangled_ty = ty.mangle_ident_default();
         quote!(#(#crate_local_segments)::*::#mangled_ty)
     };
     parse_quote!(crate::fermented::types::#crate_ident::#ffi_chunk_path)

@@ -10,45 +10,68 @@ pub enum ManglingRules {
 }
 
 pub trait Mangle {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String;
-    fn to_mangled_ident(&self, rules: ManglingRules) -> Ident {
-        format_ident!("{}", self.to_mangled_string(rules))
+    fn mangle_string(&self, rules: ManglingRules) -> String;
+    fn mangle_ident(&self, rules: ManglingRules) -> Ident {
+        format_ident!("{}", self.mangle_string(rules))
     }
 
-    fn to_mangled_ident_default(&self) -> Ident {
-        format_ident!("{}", self.to_mangled_string(ManglingRules::Default))
+    fn mangle_ident_default(&self) -> Ident {
+        format_ident!("{}", self.mangle_string(ManglingRules::Default))
     }
-
-    // fn to_mangled_path(&self, rules: ManglingRules) -> Path {
-    //     let ident = self.to_mangled_ident(rules);
-    //
-    // }
 }
 
 impl Mangle for Path {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
         match rules {
             ManglingRules::Default =>
-                self.segments.to_mangled_string(rules),
+                self.segments.mangle_string(rules),
         }
     }
 }
 
 impl Mangle for TypeTuple {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
-        format!("Tuple_{}", self.elems.iter().map(|ty| ty.to_mangled_string(rules)).collect::<Vec<String>>().join("_"))
+    fn mangle_string(&self, rules: ManglingRules) -> String {
+        match rules {
+            ManglingRules::Default => {
+                format!("Tuple_{}", self.elems.iter().map(|ty| ty.mangle_string(rules)).collect::<Vec<String>>().join("_"))
+            }
+        }
+    }
+}
+
+impl Mangle for TraitBound {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
+        match rules {
+            ManglingRules::Default => {
+                format!("dyn_trait_{}", self.path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"))
+            }
+        }
+    }
+}
+
+impl Mangle for TypeTraitObject {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
+        match rules {
+            ManglingRules::Default => {
+                // TODO: need mixins impl to process multiple bounds
+                self.bounds.iter().find_map(|b| match b {
+                    TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(rules)),
+                    TypeParamBound::Lifetime(_) => None,
+                })
+            }
+        }.unwrap_or(format!("Any"))
     }
 }
 
 impl Mangle for Type {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
         match rules {
             ManglingRules::Default => {
                 match self {
                     // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
                     Type::Path(TypePath { path, .. }) =>
-                        path.to_mangled_string(rules),
-                    Type::Tuple(type_tuple) => type_tuple.to_mangled_string(rules),
+                        path.mangle_string(rules),
+                    Type::Tuple(type_tuple) => type_tuple.mangle_string(rules),
                     ty => {
                         let p: Path = parse_quote!(#ty);
                         p.get_ident().unwrap().clone().to_string()
@@ -60,15 +83,14 @@ impl Mangle for Type {
 }
 
 impl Mangle for Punctuated<PathSegment, Colon2> {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
         match rules {
             ManglingRules::Default =>
-                // Punctuated::<&PathSegment, Underscore>::from_iter(self.iter()).to_token_stream().to_string()
                 self
                     .iter()
                     .map(|segment| {
                         let mut segment_str = segment.ident.to_string();
-                        let is_map = segment_str == "BTreeMap" || segment_str == "HashMap";
+                        let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
                         if is_map {
                             segment_str = String::from("Map");
                         }
@@ -81,7 +103,7 @@ impl Mangle for Punctuated<PathSegment, Colon2> {
                                             .enumerate()
                                             .filter_map(|(i, gen_arg)| match gen_arg {
                                                 GenericArgument::Type(Type::Path(TypePath { path, .. })) => {
-                                                    let mangled = path.to_mangled_string(rules);
+                                                    let mangled = path.mangle_string(rules);
                                                     Some(if is_map {
                                                         format!("{}{}", if i == 0 { "keys_" } else { "values_" }, mangled)
                                                     } else if is_result {
@@ -90,17 +112,14 @@ impl Mangle for Punctuated<PathSegment, Colon2> {
                                                         mangled
                                                     })
                                                 },
-                                                GenericArgument::Type(Type::TraitObject(TypeTraitObject { dyn_token: _, bounds })) => {
-                                                    // TODO: need mixins impl to process multiple bounds
-                                                    bounds.iter().find_map(|b| match b {
-                                                        TypeParamBound::Trait(TraitBound { paren_token: _, modifier: _, lifetimes: _, path }) =>
-                                                            Some(format!("dyn_trait_{}", path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"))),
-                                                        TypeParamBound::Lifetime(_) => None,
-                                                    })
+                                                GenericArgument::Type(Type::Tuple(type_tuple)) =>
+                                                    Some(type_tuple.mangle_string(rules)),
+                                                GenericArgument::Type(Type::TraitObject(type_trait_object)) => {
+                                                    Some(type_trait_object.mangle_string(rules))
                                                 },
                                                 GenericArgument::Type(Type::Array(TypeArray { elem, len, .. })) => {
                                                     if let Type::Path(TypePath { path, .. }) = &**elem {
-                                                        let mangled = path.to_mangled_string(rules);
+                                                        let mangled = path.mangle_string(rules);
                                                         Some(if is_map {
                                                             format!("{}{}{}_{}", if i == 0 { "keys_" } else { "values_" }, "arr_", mangled, quote!(#len).to_string())
                                                         } else if is_result {

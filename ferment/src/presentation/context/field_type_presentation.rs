@@ -34,7 +34,7 @@ pub enum FieldTypePresentableContext {
     FromOpt(Box<FieldTypePresentableContext>),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
-    IfThenSome(Box<FieldTypePresentableContext>, TokenStream2),
+    IfThen(Box<FieldTypePresentableContext>, TokenStream2),
     Named((TokenStream2, Box<FieldTypePresentableContext>)),
     Deref(TokenStream2),
     DerefContext(Box<FieldTypePresentableContext>),
@@ -124,7 +124,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::AsMutRef(field_path) => {
                 quote!(&mut #field_path)
             },
-            FieldTypePresentableContext::IfThenSome(presentation_context, condition) => {
+            FieldTypePresentableContext::IfThen(presentation_context, condition) => {
                 let field_path = presentation_context.present(source);
                 quote!((#field_path #condition).then(|| #field_path))
             }

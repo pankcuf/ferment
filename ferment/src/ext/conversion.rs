@@ -43,16 +43,6 @@ impl Conversion for Type {
             Type::Tuple(ty) =>
                 ty.conversion_from(field_path),
             _ => unimplemented!("No conversions for {}", self.to_token_stream())
-            // Type::BareFn(_) => {}
-            // Type::Group(_) => {}
-            // Type::ImplTrait(_) => {}
-            // Type::Infer(_) => {}
-            // Type::Macro(_) => {}
-            // Type::Never(_) => {}
-            // Type::Paren(_) => {}
-            // Type::TraitObject(_) => {}
-            // Type::Verbatim(_) => {}
-            // Type::__NonExhaustive => {}
         }
     }
 
@@ -123,21 +113,35 @@ impl Conversion for TypeArray {
 impl Conversion for TypeSlice {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         match &*self.elem {
-            Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
-                match segments.last().unwrap().ident.to_string().as_str() {
-                    "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
-                    _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
-                },
+            Type::Path(type_path) =>
+                type_path.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
+                // match segments.last().unwrap().ident.to_string().as_str() {
+                //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
+                //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
+                // },
             _ => panic!("from_slice: unsupported {}", quote!(#self)),
         }
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        todo!()
+        // TODO: fix it TypeConversion::from
+        match &*self.elem {
+            Type::Path(type_path) =>
+                type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
+            // match segments.last().unwrap().ident.to_string().as_str() {
+            //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
+            //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
+            // },
+            _ => panic!("from_slice: unsupported {}", quote!(#self)),
+        }
     }
 
     fn conversion_destroy(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        todo!()
+        // TODO: fix it TypeConversion::from
+        FieldTypePresentableContext::UnboxAny(field_path.into())
+
+        // TypeConversion::from()
+        // todo!()
     }
 }
 impl Conversion for TypePtr {
@@ -197,10 +201,12 @@ impl Conversion for TypeReference {
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        match &*self.elem {
-            Type::Path(type_path) => type_path.conversion_to(field_path),
-            _ => panic!("to_reference: Unknown type {}", quote!(#self)),
-        }
+        //
+        self.elem.conversion_to(field_path)
+        // match &*self.elem {
+        //     Type::Path(type_path) => type_path.conversion_to(field_path),
+        //     _ => panic!("to_reference: Unknown type {}", quote!(#self)),
+        // }
     }
 
     fn conversion_destroy(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
@@ -221,9 +227,9 @@ impl Conversion for TypePath {
                 // std convertible
                 // TODO: what to use? 0 or ::MAX
                 "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
-                | "isize" | "usize" => FieldTypePresentableContext::IfThenSome(field_path.into(), quote!(> 0)),
+                | "isize" | "usize" => FieldTypePresentableContext::IfThen(field_path.into(), quote!(> 0)),
                 // TODO: mmm shit that's incorrect
-                "bool" => FieldTypePresentableContext::IfThenSome(field_path.into(), quote!()),
+                "bool" => FieldTypePresentableContext::IfThen(field_path.into(), quote!()),
                 _ => FieldTypePresentableContext::FromOpt(field_path.into()),
             },
             _ => FieldTypePresentableContext::From(field_path.into()),

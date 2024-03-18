@@ -254,11 +254,11 @@ impl ScopeContext {
             },
             Type::Tuple(TypeTuple { elems, .. }) => {
                 let ffi_types = elems.iter().map(|ty| {
-                    let ident = ty.to_mangled_ident_default();
+                    let ident = ty.mangle_ident_default();
                     ident.to_string()
                     // self.ffi_dictionary_type_presenter(ty)
                 }).collect::<Vec<String>>().join("_");
-                let ffi_ident = format_ident!("{}_Tuple", ffi_types);
+                let ffi_ident = format_ident!("Tuple_{}", ffi_types);
                 parse_quote!(#ffi_ident)
             },
             _ => panic!("FFI_DICTIONARY_TYPE_PRESENTER: type not supported: {}", field_type.to_token_stream())
@@ -279,13 +279,13 @@ impl ScopeContext {
                 self.ffi_dictionary_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
             "Vec" | "BTreeMap" | "HashMap" => {
                 let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| full_type.to_mangled_ident_default().to_token_stream())
+                    .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
                     .joined_mut();
                 parse_quote!(#path)
             },
             "Result" /*if path.segments.len() == 1*/ => {
                 let path = self.scope_type_for_path(path)
-                    .map_or(path.to_token_stream(), |full_type| full_type.to_mangled_ident_default().to_token_stream())
+                    .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
                     .joined_mut();
                 parse_quote!(#path)
             },

@@ -82,17 +82,17 @@ pub enum Name {
 impl ToTokens for Name {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Name::UnnamedArg(..) => self.to_mangled_ident_default().to_token_stream(),
+            Name::UnnamedArg(..) => self.mangle_ident_default().to_token_stream(),
             Name::Constructor(ident) => {
-                format_ident!("{}_ctor", ident.to_mangled_ident_default()).to_token_stream()
+                format_ident!("{}_ctor", ident.mangle_ident_default()).to_token_stream()
             }
             Name::Destructor(ident) => {
-                format_ident!("{}_destroy", ident.to_mangled_ident_default()).to_token_stream()
+                format_ident!("{}_destroy", ident.mangle_ident_default()).to_token_stream()
             }
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream(),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_token_stream(),
             Name::TraitObj(ident) => ident.to_token_stream(),
-            Name::ModFn(path) => path.to_mangled_ident_default().to_token_stream(),
+            Name::ModFn(path) => path.mangle_ident_default().to_token_stream(),
             Name::TraitFn(item_name, trait_name) => {
                 format_ident!("{}_as_{}", item_name, trait_name).to_token_stream()
             }
@@ -119,13 +119,13 @@ impl ToTokens for Name {
 
             Name::Getter(obj_type, field_name) => format_ident!(
                 "{}_get_{}",
-                obj_type.to_mangled_ident_default(),
+                obj_type.mangle_ident_default(),
                 field_name.to_string()
             )
             .to_token_stream(),
             Name::Setter(obj_type, field_name) => format_ident!(
                 "{}_set_{}",
-                obj_type.to_mangled_ident_default(),
+                obj_type.mangle_ident_default(),
                 field_name.to_string()
             )
             .to_token_stream(),
@@ -138,7 +138,7 @@ impl ToTokens for Name {
 }
 
 impl Mangle for Name {
-    fn to_mangled_string(&self, rules: ManglingRules) -> String {
+    fn mangle_string(&self, rules: ManglingRules) -> String {
         match rules {
             ManglingRules::Default => match self {
                 Name::UnnamedStructFieldsComp(ty, index) => match ty {
@@ -151,10 +151,10 @@ impl Mangle for Name {
                     ),
                 },
                 Name::UnnamedArg(index) => format!("o_{}", index),
-                Name::Constructor(ident) => format!("{}_ctor", ident.to_mangled_ident_default()),
-                Name::Destructor(ident) => format!("{}_destroy", ident.to_mangled_ident_default()),
+                Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
+                Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
                 Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
-                Name::ModFn(name) => name.to_mangled_string(rules).to_string(),
+                Name::ModFn(name) => name.mangle_string(rules).to_string(),
                 Name::TraitObj(ident) => ident.to_string(),
                 Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                     format!("{}_{}", item_name, trait_vtable_ident)
@@ -166,12 +166,12 @@ impl Mangle for Name {
                 Name::Vtable(trait_name) => format!("{}_VTable", trait_name),
                 Name::Getter(obj_type, field_name) => format!(
                     "{}_get_{}",
-                    obj_type.to_mangled_ident_default(),
+                    obj_type.mangle_ident_default(),
                     field_name.to_string()
                 ),
                 Name::Setter(obj_type, field_name) => format!(
                     "{}_set_{}",
-                    obj_type.to_mangled_ident_default(),
+                    obj_type.mangle_ident_default(),
                     field_name.to_string()
                 ),
                 Name::Ident(variant) => variant.to_string(),

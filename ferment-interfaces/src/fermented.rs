@@ -112,6 +112,39 @@ pub mod types {
         }
     }
 
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug)]
+    pub struct ByteArray {
+        pub ptr: *const u8,
+        pub len: usize,
+    }
+
+
+    impl FFIConversion<&[u8]> for ByteArray {
+        unsafe fn ffi_from_const(ffi: *const Self) -> &'static [u8] {
+            let ffi_ref = &*ffi;
+            std::slice::from_raw_parts(ffi_ref.ptr, ffi_ref.len)
+        }
+
+        unsafe fn ffi_to_const(obj: &[u8]) -> *const Self {
+            &Self { ptr: obj.as_ptr(), len: obj.len(), } as *const _
+        }
+
+        unsafe fn ffi_from(ffi: *mut Self) -> &'static [u8] {
+            Self::ffi_from_const(ffi)
+        }
+
+        unsafe fn ffi_to(obj: &[u8]) -> *mut Self {
+            Self::ffi_to_const(obj) as *mut _
+            // Self { ptr: obj.as_ptr(), len: obj.len(), } as *mut _
+        }
+
+        unsafe fn destroy(_ffi: *mut Self) {
+            // TODO: check
+        }
+    }
+
     impl FFIConversion<&str> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> &'static str {
             CStr::from_ptr(ffi).to_str().unwrap()

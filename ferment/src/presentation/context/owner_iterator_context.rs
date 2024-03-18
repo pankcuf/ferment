@@ -50,7 +50,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
         // println!("OwnerIteratorPresentationContext::: {:?}", self);
         match self {
             OwnerIteratorPresentationContext::Variants((name, fields)) => {
-                let name = name.to_mangled_ident_default();
+                let name = name.mangle_ident_default();
                 let presentation = Wrapped::<_, Brace>::new(fields.present(source));
                 // println!("OwnerIteratorPresentationContext::Variants::present {} --- {}", name.to_token_stream(), presentation.to_token_stream());
                 quote!(#name #presentation)

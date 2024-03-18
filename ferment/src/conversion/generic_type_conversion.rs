@@ -80,7 +80,7 @@ impl GenericTypeConversion {
                 match types.len() {
                     0 => single_generic_ffi_path(types.first().unwrap()),
                     _ => {
-                        let ffi_name = format_ident!("{}_Tuple", types.iter().map(|p| p.to_mangled_ident_default().to_string()).collect::<Vec<_>>().join("_"));
+                        let ffi_name = format_ident!("Tuple_{}", types.iter().map(|p| p.mangle_ident_default().to_string()).collect::<Vec<_>>().join("_"));
                         parse_quote!(crate::fermented::generics::#ffi_name)
                     }
                 }
@@ -95,7 +95,7 @@ impl GenericTypeConversion {
     pub fn expand(&self, full_type: &TypeCompositionConversion, source: &ScopeContext) -> TokenStream2 {
         println!("GenericTypeConversion::expand: {}", full_type.to_token_stream());
         let ffi_type = full_type.ty();
-        let ffi_name = ffi_type.to_mangled_ident_default();
+        let ffi_name = ffi_type.mangle_ident_default();
         let ffi_as_type: Type = parse_quote!(#ffi_name);
 
         match self {
@@ -710,11 +710,11 @@ pub fn single_generic_ffi_path(ty: &Type) -> Type {
         // complex special type
         "str" | "String" => parse_quote!(std::os::raw::c_char),
         "Vec" | "BTreeMap" | "HashMap" => {
-            let ffi_name = path.to_mangled_ident_default();
+            let ffi_name = path.mangle_ident_default();
             parse_quote!(crate::fermented::generics::#ffi_name)
         },
         "Result" if cloned_segments.len() == 1 => {
-            let ffi_name = path.to_mangled_ident_default();
+            let ffi_name = path.mangle_ident_default();
             parse_quote!(crate::fermented::generics::#ffi_name)
 
         },

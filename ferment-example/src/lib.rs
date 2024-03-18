@@ -5,7 +5,7 @@ pub mod fermented;
 // mod asyn;
 #[allow(dead_code)]
 pub mod identity;
-pub mod tuple;
+pub mod types;
 
 extern crate ferment_macro;
 extern crate tokio;

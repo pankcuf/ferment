@@ -220,16 +220,13 @@ impl FnSignatureComposition {
 
 fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     match output {
-        ReturnType::Default => FnReturnTypeComposition { presentation: ReturnType::Default, conversion: FieldTypePresentableContext::LineTermination },
-        ReturnType::Type(_, field_type) => {
-            let conversion = match &**field_type {
-                Type::Path(type_path) =>
-                    type_path.conversion_to(FieldTypePresentableContext::Obj),
-                Type::Tuple(type_tuple) =>
-                    type_tuple.conversion_to(FieldTypePresentableContext::Obj),
-                _ => panic!("error: output conversion: {}", quote!(#field_type)),
-            };
-            FnReturnTypeComposition { presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))), conversion }
+        ReturnType::Default => FnReturnTypeComposition {
+            presentation: ReturnType::Default,
+            conversion: FieldTypePresentableContext::LineTermination
+        },
+        ReturnType::Type(_, field_type) => FnReturnTypeComposition {
+            presentation: ReturnType::Type(RArrow::default(), Box::new(context.ffi_full_dictionary_type_presenter(field_type))),
+            conversion: field_type.conversion_to(FieldTypePresentableContext::Obj)
         },
     }
 }
@@ -289,12 +286,12 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
                 let (ffi_type, name_type_conversion) = match (mutability, self_ty) {
                     (Some(..), Some(ty)) => (
                         {
-                            let full_ty = context.full_type_for(ty).to_mangled_ident_default();
+                            let full_ty = context.full_type_for(ty).mangle_ident_default();
                             parse_quote!(*mut #full_ty)
                         },
                         quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
                     (None, Some(ty)) => ({
-                                             let full_ty = context.full_type_for(ty).to_mangled_ident_default();
+                                             let full_ty = context.full_type_for(ty).mangle_ident_default();
                                              parse_quote!(*const #full_ty)
                                          },
                         quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),

@@ -273,7 +273,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
     let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source);
     println!("trait_expansion: {}: {}", scope, ident);
     let full_ty = source.full_type_for(&parse_quote!(#ident));
-    let mangled_ty = full_ty.to_mangled_ident_default();
+    let mangled_ty = full_ty.mangle_ident_default();
     let vtable_name = Name::Vtable(mangled_ty.clone());
     Expansion::Trait {
         comment: DocPresentation::Empty,
