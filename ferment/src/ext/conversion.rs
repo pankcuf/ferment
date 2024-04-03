@@ -1,5 +1,5 @@
 use quote::{quote, ToTokens};
-use syn::{Path, Type, TypeArray, TypePath, TypePtr, TypeReference, TypeSlice, TypeTuple};
+use syn::{Path, Type, TypeArray, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::conversion::FieldTypeConversion;
 use crate::helper::path_arguments_to_paths;
@@ -42,6 +42,8 @@ impl Conversion for Type {
                 ty.conversion_from(field_path),
             Type::Tuple(ty) =>
                 ty.conversion_from(field_path),
+            Type::TraitObject(ty) =>
+                ty.conversion_from(field_path),
             _ => unimplemented!("No conversions for {}", self.to_token_stream())
         }
     }
@@ -57,6 +59,8 @@ impl Conversion for Type {
             Type::Reference(ty) =>
                 ty.conversion_to(field_path),
             Type::Slice(ty) =>
+                ty.conversion_to(field_path),
+            Type::TraitObject(ty) =>
                 ty.conversion_to(field_path),
             Type::Tuple(ty) =>
                 ty.conversion_to(field_path),
@@ -75,6 +79,8 @@ impl Conversion for Type {
             Type::Reference(ty) =>
                 ty.conversion_destroy(field_path),
             Type::Slice(ty) =>
+                ty.conversion_destroy(field_path),
+            Type::TraitObject(ty) =>
                 ty.conversion_destroy(field_path),
             Type::Tuple(ty) =>
                 ty.conversion_destroy(field_path),
@@ -195,7 +201,24 @@ impl Conversion for TypePtr {
 impl Conversion for TypeReference {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         match &*self.elem {
-            Type::Path(type_path) => type_path.conversion_from(field_path),
+            Type::Path(type_path) => {
+                match type_path.path.segments.last().unwrap().ident.to_string().as_str() {
+                    "str" => type_path.conversion_from(field_path),
+                    _ => {
+                        if self.mutability.is_some() {
+                            FieldTypePresentableContext::AsMutRef(type_path.conversion_from(field_path).into())
+                        } else {
+                            FieldTypePresentableContext::AsRef(type_path.conversion_from(field_path).into())
+                        }
+                    }
+                }
+                // if self.mutability.is_some() {
+                //     FieldTypePresentableContext::AsMutRef(type_path.conversion_from(field_path).into())
+                // } else {
+                //     FieldTypePresentableContext::AsRef(type_path.conversion_from(field_path).into())
+                // }
+                //type_path.conversion_from(field_path)
+            },
             _ => panic!("from_reference: unsupported type: {}", quote!(#self)),
         }
     }
@@ -293,5 +316,19 @@ impl Conversion for TypeTuple {
 
     fn conversion_destroy(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         FieldTypePresentableContext::UnboxAny(field_path.into())
+    }
+}
+
+impl Conversion for TypeTraitObject {
+    fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        FieldTypePresentableContext::AsRef(field_path.into())
+    }
+
+    fn conversion_to(&self, _field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        todo!()
+    }
+
+    fn conversion_destroy(&self, _field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        todo!()
     }
 }

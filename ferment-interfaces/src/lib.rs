@@ -209,6 +209,35 @@ macro_rules! impl_custom_conversion {
     };
 }
 
+#[macro_export]
+macro_rules! impl_custom_conversion2 {
+    ($RustType:ty, $FFIType:ident { $($field_name:ident: $field_type:ty),* $(,)? }, $from:expr, $to:expr) => {
+        #[allow(non_camel_case_types)]
+        pub struct $FFIType {
+            $(pub $field_name: $field_type),*
+        }
+        impl From<&$FFIType> for $RustType {
+            fn from(value: &$FFIType) -> Self {
+                $from(value)
+            }
+        }
+        impl From<&$RustType> for $FFIType {
+            fn from(value: &$RustType) -> Self {
+                $to(value)
+            }
+        }
+        impl ferment_interfaces::FFIConversion<$RustType> for $FFIType {
+            unsafe fn ffi_from_const(ffi: *const Self) -> $RustType {
+                <$RustType>::from(&*ffi)
+            }
+            unsafe fn ffi_to_const(obj: $RustType) -> *const Self {
+                ferment_interfaces::boxed(<$FFIType>::from(&obj))
+            }
+        }
+    };
+}
+
+
 // pub trait ResultFrom<T, E, TF, EF> {
 //     fn result_from<RT>(from: &RT) -> Result<T, E> where RT: ResultTo<T, E>;
 // }

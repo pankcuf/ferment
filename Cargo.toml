@@ -3,6 +3,7 @@ members = [
     "ferment",
     "ferment-example",
     "ferment-example-nested",
+    "ferment-example-platform",
     "ferment-example-traits-nested",
     "ferment-example-traits",
     "ferment-interfaces",

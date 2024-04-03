@@ -2,7 +2,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::naming::DictionaryFieldName;
+use crate::naming::DictionaryExpression;
 
 pub enum ToConversionPresentation {
     Enum(Punctuated<TokenStream2, Comma>),
@@ -16,7 +16,7 @@ impl ToTokens for ToConversionPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             ToConversionPresentation::Enum(conversions) => {
-                DictionaryFieldName::BoxedExpression(quote!(match obj { #conversions }))
+                DictionaryExpression::BoxedExpression(quote!(match obj { #conversions }))
                     .to_token_stream()
             },
             ToConversionPresentation::Struct(conversion) => {
@@ -24,12 +24,14 @@ impl ToTokens for ToConversionPresentation {
             },
             ToConversionPresentation::Map(to_key_conversion, to_value_conversion) =>
                 quote!(ferment_interfaces::boxed(Self { count: obj.len(), keys: #to_key_conversion, values: #to_value_conversion  })),
-            ToConversionPresentation::Result(to_ok_conversion, to_error_conversion) => quote! {
-                let (ok, error) = match obj {
-                    Ok(o) => (#to_ok_conversion, std::ptr::null_mut()),
-                    Err(o) => (std::ptr::null_mut(), #to_error_conversion)
-                };
-                ferment_interfaces::boxed(Self { ok, error })
+            ToConversionPresentation::Result(to_ok_conversion, to_error_conversion) => {
+                DictionaryExpression::BoxedExpression(quote!({
+                    let (ok, error) = match obj {
+                        Ok(o) => (#to_ok_conversion, std::ptr::null_mut()),
+                        Err(o) => (std::ptr::null_mut(), #to_error_conversion)
+                    };
+                    Self { ok, error }
+                })).to_token_stream()
             },
             ToConversionPresentation::Tuple(conversions) => quote! {
                 ferment_interfaces::boxed(Self { #conversions })

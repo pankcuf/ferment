@@ -13,22 +13,22 @@ use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, TypeChain};
 use crate::conversion::{ImportConversion, ObjectConversion, TypeCompositionConversion};
 use crate::holder::{PathHolder, TypeHolder};
-use crate::tree::{ScopeTree, ScopeTreeCompact, ScopeTreeExportID, ScopeTreeExportItem};
+use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
 
 #[test]
 fn decompose_module() {
-    println!("{}", ScopeTree::from(root_scope_tree_item()).to_token_stream());
+    println!("{}", root_scope_tree().to_token_stream());
 }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
-    ScopeChain::Mod { crate_scope: format_ident!("crate"), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
+    ScopeChain::CrateRoot { crate_ident: format_ident!("crate"), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ParentComposer<ScopeContext> {
     Rc::new(RefCell::new(ScopeContext::with(scope_chain(self_scope), global_context_ptr)))
 }
 
-fn root_scope_tree_item() -> ScopeTreeCompact {
+fn root_scope_tree() -> ScopeTree {
     let mut global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new())));
     let root_scope = ScopeChain::crate_root(format_ident!("crate"));
     global_context
@@ -50,7 +50,7 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
         .scope_mut(&scope_chain(parse_quote!(crate::example::address)))
         .add_many(TypeChain::from(HashMap::from([
             (TypeHolder(parse_quote!(u8)), ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(u8))))),
-            (TypeHolder(parse_quote!(String)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(String))))),
+            (TypeHolder(parse_quote!(String)),  ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(String))))),
             (TypeHolder(parse_quote!(Option)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Option))))),
             (TypeHolder(parse_quote!(Option<String>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Option<String>))))),
             (TypeHolder(parse_quote!(Vec<u8>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
@@ -60,12 +60,13 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
             (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
         ])));
     let global_context_ptr = Arc::new(RwLock::new(global_context));
-    ScopeTreeCompact {
-        scope: ScopeChain::crate_root(format_ident!("crate")),
-        scope_context: scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
-        generics: HashSet::from([]),
-        imported: HashMap::from([]),
-        exported: HashMap::from([
+
+    create_crate_root_scope_tree(
+        format_ident!("crate"),
+        scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
+        HashSet::from([]),
+        HashMap::from([]),
+        HashMap::from([
             (ScopeTreeExportID::Ident(parse_quote!(RootStruct)), ScopeTreeExportItem::Item(
                 scope_ctx(parse_quote!(crate::RootStruct), global_context_ptr.clone()),
                 parse_quote!(pub struct RootStruct { pub name: String }))),
@@ -89,25 +90,25 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
                 ]),
             )),
             (ScopeTreeExportID::Ident(parse_quote!(chain)),
-                ScopeTreeExportItem::tree_with_context_and_export(
-                    scope_ctx(parse_quote!(crate::chain), global_context_ptr.clone()),
-                    HashMap::from([
-                        (ScopeTreeExportID::Ident(parse_quote!(common)), ScopeTreeExportItem::tree_with_context_and_export(
-                            scope_ctx(parse_quote!(crate::chain::common), global_context_ptr.clone()),
-                            HashMap::from([
-                                (ScopeTreeExportID::Ident(parse_quote!(chain_type)), ScopeTreeExportItem::tree_with_context_and_export(
-                                    scope_ctx(parse_quote!(crate::chain::common::chain_type), global_context_ptr.clone()),
-                                    HashMap::from([
-                                        (ScopeTreeExportID::Ident(parse_quote!(ChainType)), ScopeTreeExportItem::Item(
-                                            scope_ctx(
-                                                parse_quote!(crate::chain::common::chain_type::ChainType),
-                                                global_context_ptr.clone()),
-                                            parse_quote!(pub enum ChainType { MainNet, TestNet })))
-                                    ])
-                                ))
-                            ])
-                        ))
-                    ])),
+             ScopeTreeExportItem::tree_with_context_and_export(
+                 scope_ctx(parse_quote!(crate::chain), global_context_ptr.clone()),
+                 HashMap::from([
+                     (ScopeTreeExportID::Ident(parse_quote!(common)), ScopeTreeExportItem::tree_with_context_and_export(
+                         scope_ctx(parse_quote!(crate::chain::common), global_context_ptr.clone()),
+                         HashMap::from([
+                             (ScopeTreeExportID::Ident(parse_quote!(chain_type)), ScopeTreeExportItem::tree_with_context_and_export(
+                                 scope_ctx(parse_quote!(crate::chain::common::chain_type), global_context_ptr.clone()),
+                                 HashMap::from([
+                                     (ScopeTreeExportID::Ident(parse_quote!(ChainType)), ScopeTreeExportItem::Item(
+                                         scope_ctx(
+                                             parse_quote!(crate::chain::common::chain_type::ChainType),
+                                             global_context_ptr.clone()),
+                                         parse_quote!(pub enum ChainType { MainNet, TestNet })))
+                                 ])
+                             ))
+                         ])
+                     ))
+                 ])),
             ),
             (ScopeTreeExportID::Ident(parse_quote!(example)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::example), global_context_ptr.clone()),
@@ -135,7 +136,7 @@ fn root_scope_tree_item() -> ScopeTreeCompact {
                 ]),
             ))
         ])
-    }
+    )
 }
 
 #[allow(unused)]

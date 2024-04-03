@@ -5,9 +5,11 @@ use crate::composition::GenericConversion;
 use crate::context::ScopeChain;
 use crate::context::type_chain::TypeChain;
 use crate::conversion::ObjectConversion;
+use crate::ext::RefineMut;
 use crate::formatter::types_dict;
-use crate::helper::ItemExtension;
+use crate::helper::GenericExtension;
 use crate::holder::TypeHolder;
+pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
 
 #[derive(Clone, Default)]
 pub struct ScopeResolver {
@@ -65,7 +67,6 @@ impl ScopeResolver {
         self.inner
             .get(scope)
             .and_then(|chain| chain.get_by_path(path))
-            .cloned()
     }
 
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
@@ -73,5 +74,18 @@ impl ScopeResolver {
             .get(scope)
             .map(|chain| item.find_generics_fq(chain))
             .unwrap_or_default()
+    }
+
+}
+
+impl RefineMut for ScopeResolver {
+    type Refinement = ScopeRefinement;
+
+    fn refine_with(&mut self, refined: Self::Refinement) {
+        refined.into_iter()
+            .for_each(|(scope, updates)|
+                self.scope_register_mut(&scope)
+                    .add_many(TypeChain::from(updates)));
+
     }
 }

@@ -42,9 +42,6 @@ pub enum Expansion {
         comment: DocPresentation,
         items: Depunctuated<BindingPresentation>,
     },
-    // Use {
-    //     comment: DocPresentation,
-    // },
     Trait {
         comment: DocPresentation,
         vtable: FFIObjectPresentation,
@@ -56,16 +53,14 @@ impl ToTokens for Expansion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let presentations = match self {
             Self::Empty => vec![],
-            Self::Impl { comment, items } => {
-                vec![comment.to_token_stream(), items.to_token_stream()]
-            },
+            Self::Impl { comment, items } =>
+                vec![comment.to_token_stream(), items.to_token_stream()],
             Self::Callback { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Function { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
-            Self::Full { comment, ffi_presentation, conversion, drop, bindings, traits } => {
-                vec![comment.to_token_stream(), ffi_presentation.to_token_stream(), conversion.to_token_stream(), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()]
-            },
+            Self::Full { comment, ffi_presentation, conversion, drop, bindings, traits } =>
+                vec![comment.to_token_stream(), ffi_presentation.to_token_stream(), conversion.to_token_stream(), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()],
             Self::Mod { directives, name, imports , conversions } =>
                 vec![quote!(#directives pub mod #name { #imports #conversions })],
             Self::Trait { comment, vtable, trait_object } =>
@@ -73,8 +68,6 @@ impl ToTokens for Expansion {
             Self::Root { tree } =>
                 vec![tree.to_token_stream()]
         };
-        let expanded = quote!(#(#presentations)*);
-        // println!("{}", expanded);
-        expanded.to_tokens(tokens)
+        quote!(#(#presentations)*).to_tokens(tokens)
     }
 }

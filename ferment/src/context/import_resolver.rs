@@ -49,9 +49,16 @@ impl ImportResolver {
             .map(|imports| item.get_used_imports(imports))
     }
 
+    pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&HashMap<PathHolder, Path>> {
+        let result = self.inner.get(scope);
+        // println!("maybe_scope_imports: {}:\n{}", scope, scope_imports_dict(&self.inner).join("\n"));
+        // if let Some(result) = result {
+        //     println!("maybe_scope_imports.result: {}: \n{}", scope, imports_dict(result).join("\n"));
+        // }
+        result
+    }
     pub fn maybe_path(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        self.inner
-            .get(scope)
+        self.maybe_scope_imports(scope)
             .and_then(|imports| imports.get(ident))
     }
     pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
@@ -70,6 +77,7 @@ impl ImportResolver {
                 self.maybe_obj_or_parent(scope, parent_scope_chain, ident),
         }
     }
+
 
 
     fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {

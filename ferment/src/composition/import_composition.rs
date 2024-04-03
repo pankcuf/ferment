@@ -5,7 +5,7 @@ use syn::{ItemUse, PathSegment, UseName, UsePath, UseTree};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use crate::conversion::ImportConversion;
-use crate::ext::Pop;
+use crate::ext::{CrateExtension, Pop};
 use crate::holder::PathHolder;
 
 #[derive(Clone)]
@@ -72,7 +72,7 @@ pub fn create_items_use_from_path(path: &PathHolder) -> ItemUse {
     create_item_use_with_tree(UseTree::Path(UsePath {
         ident: path.0.segments[0].ident.clone(),
         colon2_token: Default::default(),
-        tree: Box::new(build_nested_use_tree(path.0.segments.clone().into_iter().skip(1).collect())),
+        tree: Box::new(build_nested_use_tree(path.0.segments.crate_less())),
     }))
 }
 fn build_nested_use_tree(segments: Punctuated<PathSegment, Colon2>) -> UseTree {
@@ -82,7 +82,7 @@ fn build_nested_use_tree(segments: Punctuated<PathSegment, Colon2>) -> UseTree {
         UseTree::Path(UsePath {
             ident: segments[0].ident.clone(),
             colon2_token: Default::default(),
-            tree: Box::new(build_nested_use_tree(segments.into_iter().skip(1).collect())),
+            tree: Box::new(build_nested_use_tree(segments.crate_less())),
         })
     }
 }

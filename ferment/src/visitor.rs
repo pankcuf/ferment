@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, ToTokens};
@@ -5,7 +6,7 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion};
-use crate::ext::{add_trait_names, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, Visiting, VisitScopeType};
+use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, Visiting, VisitScopeType};
 use crate::formatter::Emoji;
 use crate::helper::ident_from_item;
 use crate::holder::{PathHolder, TypeHolder};
@@ -55,6 +56,7 @@ impl<'ast> Visit<'ast> for Visitor {
         if node.ident.to_string().eq("fermented") {
             return;
         }
+        println!("visit_item_mod: {}", node.to_token_stream());
         let item = Item::Mod(node.clone());
         let module = self.current_module_scope.clone();
         self.current_module_scope = self.current_module_scope.joined(&item);
@@ -80,6 +82,7 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_use(&mut self, node: &'ast ItemUse) {
+        println!("visit_item_use: {}", node.to_token_stream());
         // TODO: what to do with fn-level use statement?
         let scope = self.current_module_scope.clone();
         self.fold_import_tree(&scope, &node.tree, vec![]);
@@ -131,6 +134,7 @@ impl Visitor {
     pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics) {
         let generics = create_generics_chain(self, generics, scope);
         let mut lock = self.context.write().unwrap();
+        // println!("Visitor::add_generic_chain: {:?}", generics); // TODO: always empty
         lock.generics.extend_in_scope(scope, generics)
     }
 
@@ -164,18 +168,17 @@ impl Visitor {
     fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
         let involved_types = ty.nested_items();
         let mut destination = TypeChain::default();
-        for ty  in &involved_types {
-            let object = ty.update_nested_generics(&(scope, &self.context.read().unwrap()));
-            // let object = self.update_nested_generics(scope, ty);
-            destination.add_one(TypeHolder::from(ty), object);
-        }
-        println!("TYPECHAIN: {} ---> {}", ty.to_token_stream(), destination);
+        involved_types.iter()
+            .for_each(|ty|
+                destination.add_one(
+                    TypeHolder::from(ty),
+                    ty.update_nested_generics(&(scope, &self.context.read().unwrap()))));
+        // println!("TYPECHAIN: {} ---> {}", ty.to_token_stream(), destination);
         destination
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
         nprint!(0, Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
-        // let ff: HashMap<TypeHolder, ObjectConversion> = ty.scope_items();
         // println!("::: scope_items: {}: {}", ty.to_token_stream(), format_types_dict(&ff));
         let self_obj = &scope.self_scope().object;
         let type_chain = self.create_type_chain(ty, scope);
@@ -222,15 +225,15 @@ impl Visitor {
 
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        let path_to_traverse: Vec<ScopeTreeExportID> = scope.0.segments.iter().skip(1).map(|segment| ScopeTreeExportID::Ident(segment.ident.clone())).collect();
-        for ident in &path_to_traverse {
+        for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
             match current_tree {
-                ScopeTreeExportItem::Item(..) => panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(scope_context, _, _, exported) => {
-                    if !exported.contains_key(ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::with_scope_context(scope_context.clone()));
+                ScopeTreeExportItem::Item(..) =>
+                    panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
+                ScopeTreeExportItem::Tree(scope_context, _, exported) => {
+                    if !exported.contains_key(&ident) {
+                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_export(scope_context.clone(), HashMap::default()));
                     }
-                    current_tree = exported.get_mut(ident).unwrap();
+                    current_tree = exported.get_mut(&ident).unwrap();
                 }
             }
         }
@@ -251,9 +254,8 @@ impl Visitor {
             (Ok(MacroType::Register(path)), Ok(_object)) => {
                 if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
                     ident.map(|ident| {
-                        let ffi_type = parse_quote!(#self_scope::#ident);
-                        let ctx = scope_context.borrow();
-                        ctx.add_custom_conversion(current_scope, path, ffi_type);
+                        scope_context.borrow()
+                            .add_custom_conversion(current_scope, path, parse_quote!(#self_scope::#ident));
                     });
                 }
             },
@@ -265,5 +267,4 @@ impl Visitor {
         }
     }
 }
-
 

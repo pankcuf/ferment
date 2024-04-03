@@ -40,8 +40,8 @@ impl<Parent: SharedAccess> Composer<Parent> for AttrsComposer<Parent> {
         let mut trait_types = source.trait_items_from_attributes(&attrs_composition.attrs);
         trait_types.iter_mut()
             .map(|(composition, trait_scope)| {
-                // TODO: move to full
-                let conversion = TypeCompositionConversion::Object(TypeComposition::new(source.scope.to_type(), Some(composition.item.generics.clone())));
+                // TODO: move to full and replace nested_arguments
+                let conversion = TypeCompositionConversion::Object(TypeComposition::new(source.scope.to_type(), Some(composition.item.generics.clone()), Punctuated::new()));
                 println!("AttrsComposer: {} {} {}", composition.item.ident, trait_scope, conversion);
                 composition.implementors.push(conversion);
                 implement_trait_for_item((&composition.item, trait_scope), attrs_composition, source)
@@ -76,7 +76,7 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
                 .map(|arg| OwnedItemPresentableContext::Conversion(if arg.name.is_some() {
                     quote!(cast_obj)
                 } else {
-                    arg.name_type_conversion.clone()
+                    arg.name_type_conversion.present(context)
                 }))
                 .collect::<Punctuated<_, Comma>>();
             let argument_names = Wrapped::<_, Paren>::new(argument_conversions.present(context))
@@ -96,13 +96,15 @@ pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_com
         }).collect();
     let trait_vtable_ident = Name::Vtable(trait_ident.clone());
     let trait_object_ident = Name::TraitObj(trait_ident.clone());
-    let is_defined_in_same_scope = item_scope.has_same_parent(&trait_scope);
-    let full_trait_type = if is_defined_in_same_scope { quote!(#trait_object_ident) } else { quote!(#trait_scope::#trait_object_ident) };
+    let other = trait_scope;
+    let trait_self_scope = other.self_path_holder();
+    let is_defined_in_same_scope = item_scope.has_same_parent(&other);
+    let full_trait_type = if is_defined_in_same_scope { quote!(#trait_object_ident) } else { quote!(#trait_self_scope::#trait_object_ident) };
     let vtable_name = Name::TraitImplVtable(item_name.clone(), trait_ident.clone());
     TraitVTablePresentation::Full {
         vtable: FFIObjectPresentation::StaticVTable {
             name: vtable_name.clone(),
-            fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_scope::#trait_vtable_ident) },
+            fq_trait_vtable: if is_defined_in_same_scope { quote!(#trait_vtable_ident) } else { quote!(#trait_self_scope::#trait_vtable_ident) },
             methods_compositions,
         },
         export: BindingPresentation::ObjAsTrait {

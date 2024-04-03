@@ -1,13 +1,58 @@
-use quote::{format_ident, quote, ToTokens};
-use syn::{GenericArgument, parse_quote, Path, PathArguments, PathSegment, QSelf, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
+use quote::ToTokens;
+use syn::{GenericArgument, parse_quote, Path, PathArguments, QSelf, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
-use crate::composition::{QSelfComposition, TypeComposition};
+use syn::token::Comma;
+use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
+use crate::ext::CrateExtension;
 use crate::formatter::{Emoji, format_token_stream};
 use crate::holder::PathHolder;
 use crate::nprint;
+
+pub trait ToObjectConversion {
+    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
+    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
+    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
+
+    // fn to_import(self) -> ObjectConversion;
+}
+
+impl ToObjectConversion for Type {
+    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
+    }
+
+    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_composition(self, nested_arguments)))
+    }
+
+    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
+    }
+
+    // fn to_import(self) -> ObjectConversion {
+    //     ObjectConversion::Type(TypeCompositionConversion::Imported(handle_type_composition(self)))
+    // }
+}
+
+impl ToObjectConversion for TypePath {
+    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
+    }
+
+    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_path_composition(self, nested_arguments)))
+    }
+
+    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
+    }
+
+    // fn to_import(self) -> ObjectConversion {
+    //     ObjectConversion::Type(TypeCompositionConversion::Imported(handle_type_path_composition(self)))
+    // }
+}
 
 pub trait VisitScopeType<'a> where Self: Sized + 'a {
     type Source;
@@ -20,15 +65,20 @@ impl<'a> VisitScopeType<'a> for Type {
     type Result = ObjectConversion;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        nprint!(1, Emoji::Node, "=== {} [{:?}]", format_token_stream(self), self);
+        nprint!(1, Emoji::Node, "=== {} [{:?}]", self.to_token_stream(), self);
         match self {
             Type::Path(type_path) => type_path.update_nested_generics(source),
             Type::TraitObject(type_trait_object) => type_trait_object.update_nested_generics(source),
             Type::Tuple(type_tuple) => type_tuple.update_nested_generics(source),
-            tttt =>
-                ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new(tttt.clone(), None)))
+            ty => ty.clone().to_unknown(Punctuated::new())
         }
     }
+}
+fn handle_type_composition(ty: Type, nested_arguments: Punctuated<NestedArgument, Comma>) -> TypeComposition {
+    TypeComposition::new(ty, None, nested_arguments)
+}
+fn handle_type_path_composition(type_path: TypePath, nested_arguments: Punctuated<NestedArgument, Comma>) -> TypeComposition {
+    TypeComposition::new(Type::Path(type_path), None, nested_arguments)
 }
 
 impl<'a> VisitScopeType<'a> for Path {
@@ -36,198 +86,133 @@ impl<'a> VisitScopeType<'a> for Path {
     type Result = ObjectConversion;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        // println!("PAth: update_nested_generics {}", self.to_token_stream());
         let (scope, context, qself) = source;
         let new_qself = qself.as_ref().map(|q| q.qself.clone());
         let mut segments = self.segments.clone();
+        let mut nested_arguments = Punctuated::new();
         for segment in &mut segments {
             if let PathArguments::AngleBracketed(angle_bracketed_generic_arguments) = &mut segment.arguments {
                 for arg in &mut angle_bracketed_generic_arguments.args {
+                    // println!("PAth: update_nested_generics.2222 {}", arg.to_token_stream());
                     match arg {
                         GenericArgument::Type(inner_type) => {
                             let obj_conversion = inner_type.update_nested_generics(&(scope, context));
-                            *arg = GenericArgument::Type(obj_conversion.ty().cloned().unwrap())
+                            let ty = obj_conversion.to_ty().unwrap();
+                            // println!("aADDD Generic: {}", obj_conversion);
+                            nested_arguments.push(NestedArgument::Object(obj_conversion));
+                            *arg = GenericArgument::Type(ty)
                         },
                         _ => {}
                     }
                 }
             }
         }
-        let first_segment = &segments.first().unwrap();
+        let first_segment = segments.first().unwrap();
         let first_ident = &first_segment.ident;
-        let last_segment = &segments.last().unwrap();
+        let last_segment = segments.last().unwrap();
         let last_ident = &last_segment.ident;
+        // let last_ident_str = last_ident.to_string().as_str();
         let import_seg: PathHolder = parse_quote!(#first_ident);
 
-        let obj_scope = scope.obj_root_chain().unwrap_or(scope);
-        let object_self_scope = obj_scope.self_scope();
-        if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0) {
+        if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0, context) {
+            nprint!(1, Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
             ObjectConversion::Type(dict_type_composition)
         } else if let Some(bounds_composition) = scope.maybe_generic_bound_for_path(&import_seg.0) {
             nprint!(1, Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
             ObjectConversion::Type(TypeCompositionConversion::Bounds(bounds_composition))
-        } else if let Some(replacement_path) = context.maybe_import(scope, &import_seg).cloned() {
-            let last_segment = segments.pop().unwrap();
-            if format_ident!("crate").eq(&replacement_path.segments.first().unwrap().ident) /*&& !lock.config.current_crate.ident().eq(crate_scope)*/ {
-                nprint!(1, Emoji::Local, "(ScopeImport Local) {}", format_token_stream(&replacement_path));
-                let crate_scope = scope.crate_scope();
-                let replaced: Vec<_> = replacement_path.segments.iter().skip(1).collect();
-                let mut new_path: Path = parse_quote!(#crate_scope::#(#replaced)::*);
-                new_path.segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                ObjectConversion::Type(
-                    TypeCompositionConversion::Unknown(
-                        TypeComposition::new(
-                            Type::Path(
-                                TypePath {
-                                    qself: new_qself,
-                                    path: new_path }),
-                            None)))
-            } else {
-                nprint!(1, Emoji::Local, "(ScopeImport External) {}", format_token_stream(&replacement_path));
-                segments.extend(replacement_path.segments.clone());
-                segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                ObjectConversion::Type(
-                    TypeCompositionConversion::Unknown(
-                        TypeComposition::new(
-                            Type::Path(
-                                TypePath {
-                                    qself: new_qself,
-                                    path: Path { leading_colon: self.leading_colon, segments } }),
-                            None)))
+        } else if let Some(mut import_path) = context.maybe_import(scope, &import_seg).cloned() {
+            // Can be reevaluated after processing entire scope tree:
+            // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
+            // We can also determine the type after processing entire scope (if one in fermented crate)
+            nprint!(1, Emoji::Local, "(ScopeImport) {}", format_token_stream(&import_path));
+            if import_path.is_crate_based() {
+                import_path.replace_first_with(&scope.crate_ident_as_path());
             }
+
+            ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: parse_quote!(#segments) }), None, nested_arguments), import_path))
+            /*
+            let last_segment = segments.pop().unwrap();
+            let import_path = if import_path.is_crate_based() {
+                nprint!(1, Emoji::Local, "(ScopeImport Local) {}", format_token_stream(&import_path));
+                let path = import_path.replaced_first_with_ident(&scope.crate_ident_as_path());
+                parse_quote!(#path)
+            } else {
+                nprint!(1, Emoji::Local, "(ScopeImport External) {}", format_token_stream(&import_path));
+                segments.extend(import_path.segments.clone());
+                parse_quote!(#segments)
+            };
+            let mut full_import_path = context.ensure_full_import(import_path);
+            full_import_path.segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+            TypePath { qself: new_qself, path: full_import_path }
+                .to_unknown()
+            */
 
         } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_seg) {
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
-                if let Some(imported) = context.maybe_import(scope, &first_bound_as_scope).cloned() {
+                let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope).cloned() {
                     nprint!(1, Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
-                    let last_segment = segments.pop().unwrap();
-                    let new_segments = imported.segments.clone();
-                    segments.extend(new_segments);
-                    segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                    segments
                 } else {
                     nprint!(1, Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
                     let first_bound_ident = &first_bound.segments.first().unwrap().ident;
-
-                    if matches!(first_bound_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") {
-                        let last_segment = segments.pop().unwrap();
-                        let scope = scope.self_path_holder();
-                        let new_segments: Punctuated<PathSegment, Colon2> = parse_quote!(#scope::#first_bound_ident);
-
-                        segments.extend(new_segments);
-                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-
+                    let bounds = if matches!(first_bound_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") {
+                        first_bound_ident.to_token_stream()
                     } else {
-                        let last_segment = segments.pop().unwrap();
-                        let scope = scope.self_path_holder();
-                        let new_segments: Punctuated<PathSegment, Colon2> = parse_quote!(#scope::#first_bound);
-                        segments.extend(new_segments);
-                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                    }
-                }
-                ObjectConversion::Type(
-                    TypeCompositionConversion::TraitType(
-                        TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }),
-                                             None)))
-            } else {
-                ObjectConversion::Type(
-                    TypeCompositionConversion::TraitType(
-                        TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }),
-                                             None)))
-
+                        first_bound.to_token_stream()
+                    };
+                    parse_quote!(#scope::#bounds)
+                };
+                segments.replace_last_with(&new_segments);
             }
-            // let first_bound = generic_bounds.first().unwrap();
-
+            TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                .to_trait(nested_arguments)
         } else {
-            // if let Some(same_mod_defined_obj) = lock.mayb
             nprint!(1, Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
-
+            let obj_scope = scope.obj_root_chain().unwrap_or(scope);
+            let object_self_scope = obj_scope.self_scope();
             let self_scope_path = &object_self_scope.self_scope;
             match first_ident.to_string().as_str() {
                 "Self" if segments.len() <= 1 => {
                     nprint!(1, Emoji::Local, "(Self) {}", format_token_stream(first_ident));
-                    let last_segment = segments.pop().unwrap();
-                    let new_segments: Punctuated<PathSegment, Colon2> = parse_quote!(#self_scope_path);
-                    println!("::: new_segments: {} ", new_segments.to_token_stream());
-                    segments.extend(new_segments);
-                    segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                    println!("::: add_obj_self: {} scope: [{}]", object_self_scope, scope);
-                    // object_self_scope.object.clone()
-
-                    ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
-
+                    segments.replace_last_with(&self_scope_path.0.segments);
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_unknown(nested_arguments)
                 },
                 "Self" => {
-                    let tail = segments.iter().skip(1).cloned().collect::<Vec<_>>();
+                    let tail = segments.crate_less();
                     let last_segment = segments.pop().unwrap();
+                    let new_path: Path = parse_quote!(#self_scope_path::#tail);
                     nprint!(1, Emoji::Local, "(SELF::->) {}: {}", format_token_stream(&last_segment), format_token_stream(&last_segment.clone().into_value().arguments));
-                    let new_path: Path = parse_quote!(#self_scope_path::#(#tail)::*);
                     segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                    // TODO: why clear ????
                     segments.clear();
                     segments.extend(new_path.segments);
 
                     match scope.obj_root_chain() {
                         Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                            ObjectConversion::Type(
-                                TypeCompositionConversion::Object(
-                                    TypeComposition::new(
-                                        Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }),
-                                        None))),
+                            TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                                .to_object(nested_arguments),
                         Some(ScopeChain::Trait { .. }) =>
-                            ObjectConversion::Type(
-                                TypeCompositionConversion::TraitType(
-                                    TypeComposition::new(
-                                        Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }),
-                                        None))),
+                            TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                                .to_trait(nested_arguments),
                         _ => panic!("Unexpected scope obj root chain")
                     }
 
                 },
-                "Vec" => {
-                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
-                    // nprint!(*counter, Emoji::Nothing, "(Global Object) {}", format_token_stream(&path));
-                },
-                "Option" => {
-                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
-                },
-                "Result" if segments.len() == 1 => {
-                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
+                "Vec" | "Option" | "Result" if segments.len() == 1 => {
+                    // println!("update_nested_generics (Vec): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_object(nested_arguments)
                 },
                 _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap") => {
-                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_object(nested_arguments)
                 },
                 _ if matches!(first_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") => {
-                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(
-                        Type::Path(
-                            TypePath {
-                                qself: new_qself,
-                                path: Path { leading_colon: self.leading_colon, segments } }),
-                        None)))
-
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_trait(nested_arguments)
                 },
                 _ => {
                     let obj_parent_scope = obj_scope.parent_scope();
@@ -238,12 +223,11 @@ impl<'a> VisitScopeType<'a> for Path {
                             first_ident,
                             scope,
                             self.to_token_stream());
-                        let last_segment = segments.pop().unwrap();
-                        let new_segments: Punctuated<PathSegment, Colon2> = match obj_parent_scope {
+                        segments.replace_last_with(&match obj_parent_scope {
                             None => {
                                 // Global
                                 if scope.is_crate_root() {
-                                    let scope = scope.crate_scope();
+                                    let scope = scope.crate_ident();
                                     parse_quote!(#scope::#self)
                                 } else {
                                     parse_quote!(#scope::#self)
@@ -254,18 +238,32 @@ impl<'a> VisitScopeType<'a> for Path {
                                 // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
                                 parse_quote!(#scope::#self)
                             }
-                        };
-                        segments.extend(new_segments);
-                        segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-                        ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new(
-                            Type::Path(
-                                TypePath {
-                                    qself: new_qself,
-                                    path: Path { leading_colon: self.leading_colon, segments } }),
-                            None)))
+                        });
+                        // let last_segment = segments.pop().unwrap();
+                        // let new_segments: Punctuated<PathSegment, Colon2> = match obj_parent_scope {
+                        //     None => {
+                        //         // Global
+                        //         if scope.is_crate_root() {
+                        //             let scope = scope.crate_ident();
+                        //
+                        //             parse_quote!(#scope::#self)
+                        //         } else {
+                        //             parse_quote!(#scope::#self)
+                        //         }
+                        //     },
+                        //     Some(parent) => {
+                        //         let scope = parent.self_path_holder();
+                        //         // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
+                        //         parse_quote!(#scope::#self)
+                        //     }
+                        // };
+                        // segments.extend(new_segments);
+                        // segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+                        TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                            .to_unknown(nested_arguments)
 
                     } else {
-                        let tail: Vec<_> = segments.iter().skip(1).cloned().collect();
+                        let tail = segments.crate_less();
                         if let Some(QSelfComposition { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
                             nprint!(1, Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
 
@@ -285,51 +283,36 @@ impl<'a> VisitScopeType<'a> for Path {
                                 let local = obj_parent_scope.unwrap_or(scope);
                                 parse_quote!(#local::#import_seg)
                             };
-                            let tail_path = quote!(#(#tail)::*);
-                            // println!("{}: <{} as {}>::{}", tail.len(), format_token_stream(ty), format_token_stream(&tt), format_token_stream(&tail_path));
+                            let converted: TypePath = match len {
+                                0 => parse_quote!(<#ty as #tt>),
+                                _ => parse_quote!(<#ty as #tt>::#tail)
+                            };
+
                             match scope.obj_root_chain() {
                                 Some(ScopeChain::Trait { .. }) =>
-                                    ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition {
-                                        ty: match len {
-                                            0 => parse_quote!(<#ty as #tt>),
-                                            _ => parse_quote!(<#ty as #tt>::#tail_path)
-                                        },
-                                        generics: None,
-                                    })),
+                                    converted.to_trait(nested_arguments),
                                 Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                                    ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition {
-                                        ty: match len {
-                                            0 => parse_quote!(<#ty as #tt>),
-                                            _ => parse_quote!(<#ty as #tt>::#tail_path)
-                                        },
-                                        generics: None,
-                                    })),
-                                _ => ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition {
-                                    ty: match len {
-                                        0 => parse_quote!(<#ty as #tt>),
-                                        _ => parse_quote!(<#ty as #tt>::#tail_path)
-                                    },
-                                    generics: None,
-                                }))
+                                    converted.to_object(nested_arguments),
+                                _ =>
+                                    converted.to_unknown(nested_arguments)
                             }
                         } else {
-                            nprint!(1, Emoji::Local, "(Local join multi: {}) {} + {}", first_ident, format_token_stream(scope), format_token_stream(self));
-                            let last_segment = segments.last().cloned().unwrap();
-                            let new_segments: Punctuated<PathSegment, Colon2> = if self.leading_colon.is_none() {
-                                parse_quote!(#scope::#self)
-                            } else {
-                                parse_quote!(#scope #self)
-                            };
-                            segments.clear();
-                            segments.extend(new_segments);
-                            segments.last_mut().unwrap().arguments = last_segment.arguments;
+                            TypePath { qself: new_qself, path: self.clone() }
+                                .to_unknown(nested_arguments)
 
-                            ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new(
-                                Type::Path(
-                                    TypePath {
-                                        qself: new_qself,
-                                        path: Path { leading_colon: self.leading_colon, segments } }),
-                                None)))
+                            //(Local join multi: std) ferment_example::std_error_Error_FFI + std::fmt::Result
+                            // nprint!(1, Emoji::Local, "(Local or ExternalChunks join multi) {} + {}", format_token_stream(scope), format_token_stream(self));
+                            // let last_segment = segments.last().cloned().unwrap();
+                            // let new_segments: Punctuated<PathSegment, Colon2> = if self.leading_colon.is_none() {
+                            //     parse_quote!(#scope::#self)
+                            // } else {
+                            //     parse_quote!(#scope #self)
+                            // };
+                            // segments.clear();
+                            // segments.extend(new_segments);
+                            // segments.last_mut().unwrap().arguments = last_segment.arguments;
+                            // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                            //     .to_unknown()
                         }
                     }
                 },
@@ -363,6 +346,19 @@ impl<'a> VisitScopeType<'a> for TypePath {
     }
 }
 
+impl<'a> VisitScopeType<'a> for TypeTuple {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = ObjectConversion;
+
+    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        let nested_arguments = self.elems.iter().map(|ty| NestedArgument::Object(ty.update_nested_generics(source))).collect();
+        ObjectConversion::Type(
+            TypeCompositionConversion::Tuple(
+                TypeComposition::new(Type::Tuple(self.clone()), None, nested_arguments)))
+        // TypeComposition::new(Type::Tuple(TypeTuple { paren_token: Default::default(), elems }), None, elems)))
+    }
+}
+
 impl<'a> VisitScopeType<'a> for TypeTraitObject {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectConversion;
@@ -378,25 +374,7 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
             },
             _ => {},
         });
-        ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(Type::TraitObject(TypeTraitObject {
-            dyn_token: dyn_token.clone(),
-            bounds
-        }), None)))
-
+        Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds })
+            .to_trait(Punctuated::new())
     }
 }
-impl<'a> VisitScopeType<'a> for TypeTuple {
-    type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
-
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        let elems = self.elems.iter().filter_map(|ty| ty.update_nested_generics(source).ty().cloned()).collect();
-        ObjectConversion::Type(
-            TypeCompositionConversion::Tuple(
-                TypeComposition::new(Type::Tuple(TypeTuple { paren_token: Default::default(), elems }), None)))
-    }
-}
-
-
-
-

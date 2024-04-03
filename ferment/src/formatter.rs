@@ -26,14 +26,16 @@ pub fn format_imported_dict(dict: &HashMap<ImportConversion, HashSet<ImportCompo
 #[allow(unused)]
 pub fn format_type_holders(dict: &HashSet<TypeHolder>) -> String {
     dict.iter()
-        .map(|item| format_token_stream(&item.0))
+        // .map(|item| format_token_stream(&item.0))
+        .map(|item| item.0.to_token_stream().to_string())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
 #[allow(unused)]
 pub fn format_types(dict: &HashSet<Type>) -> String {
     dict.iter()
-        .map(|item| format_token_stream(item))
+        // .map(|item| format_token_stream(item))
+        .map(|item| item.to_token_stream().to_string())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -41,9 +43,9 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 #[allow(unused)]
 pub fn format_generic_conversions(dict: &HashSet<GenericConversion>) -> String {
     dict.iter()
-        .map(|item| format_token_stream(&item.0))
+        .map(|item| item.0.to_token_stream().to_string())
         .collect::<Vec<_>>()
-        .join("\n\n")
+        .join("\n")
 }
 
 #[allow(unused)]
@@ -71,7 +73,15 @@ pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeItem>) -
 
 #[allow(unused)]
 pub fn scope_type_conversion_pair(dict: (&TypeHolder, &ObjectConversion)) -> String {
-    format!("\t{}: {}", format_token_stream(dict.0), dict.1)
+    format!("\t{}: {}", dict.0.to_token_stream(), dict.1)
+    // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
+}
+
+#[allow(unused)]
+pub fn refinement_pair(dict: (&TypeHolder, &Vec<ObjectConversion>)) -> String {
+    format!("\t{}: \n\t\t{}", dict.0.to_token_stream(), dict.1.iter().map(|i| i.to_string()).collect::<Vec<_>>()
+        .join("\n\t"))
+    // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
 }
 
 #[allow(unused)]
@@ -134,6 +144,14 @@ pub fn format_types_dict(dict: &HashMap<TypeHolder, ObjectConversion>) -> String
     types_dict(dict)
         .join("\n")
 }
+#[allow(unused)]
+pub fn format_types_to_refine(dict: &HashMap<TypeHolder, Vec<ObjectConversion>>) -> String {
+    let mut iter = dict.iter()
+        .map(refinement_pair)
+        .collect::<Vec<String>>();
+    iter.sort();
+    iter.join("\n")
+}
 
 #[allow(unused)]
 pub fn format_ident_types_dict(dict: &HashMap<Ident, Type>) -> String {
@@ -162,6 +180,7 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
     let mut formatted_string = String::new();
     let mut space_needed = false;
     let mut inside_angle_brackets = 0;
+    let mut inside_round_brackets = 0;
     // let mut inside_square_brackets = 0;
     let mut last_token_was_ampersand = false;
     let mut last_token_was_comma = false;
@@ -193,6 +212,16 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                     ':' => {
                         formatted_string.push(':');
                         space_needed = false;
+                    }
+                    '(' => {
+                        inside_round_brackets += 1;
+                        formatted_string.push('(');
+                        space_needed = false;
+                    }
+                    ')' => {
+                        inside_round_brackets -= 1;
+                        formatted_string.push(')');
+                        space_needed = true;
                     }
                     '<' => {
                         inside_angle_brackets += 1;
@@ -242,7 +271,7 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                 last_token_was_ampersand = false;
             }
             TokenTree::Group(group) => {
-                if space_needed && inside_angle_brackets == 0 {
+                if space_needed && (inside_angle_brackets == 0 || inside_round_brackets == 0) {
                     formatted_string.push(' ');
                 }
                 formatted_string.push_str(&format_token_stream(group.stream()));
@@ -259,7 +288,7 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
 
 /// Helpers
 
-fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
+pub fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
     dict.iter()
         .map(format_ident_path_pair)
         .collect()

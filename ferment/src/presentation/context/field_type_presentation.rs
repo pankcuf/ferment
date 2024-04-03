@@ -5,7 +5,7 @@ use syn::token::Comma;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::interface::{ffi_from_conversion, ffi_to_conversion, package_unbox_any_expression, package_unbox_any_expression_terminated};
-use crate::naming::DictionaryFieldName;
+use crate::naming::{DictionaryExpression, DictionaryFieldName};
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
@@ -30,10 +30,11 @@ pub enum FieldTypePresentableContext {
     DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<FieldTypePresentableContext>),
+    FromConst(Box<FieldTypePresentableContext>),
     FromOffsetMap,
     FromOpt(Box<FieldTypePresentableContext>),
-    AsRef(TokenStream2),
-    AsMutRef(TokenStream2),
+    AsRef(Box<FieldTypePresentableContext>),
+    AsMutRef(Box<FieldTypePresentableContext>),
     IfThen(Box<FieldTypePresentableContext>, TokenStream2),
     Named((TokenStream2, Box<FieldTypePresentableContext>)),
     Deref(TokenStream2),
@@ -73,14 +74,14 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 quote!(#package::#interface::ffi_to_opt(#field_path))
             },
             FieldTypePresentableContext::ToVecPtr => {
-                let expr = DictionaryFieldName::BoxedExpression(quote!(o));
+                let expr = DictionaryExpression::BoxedExpression(quote!(o));
                 let package = DictionaryFieldName::Package;
                 quote!(#package::boxed_vec(obj.map(|o| #expr).collect()))
             },
             FieldTypePresentableContext::LineTermination => quote!(;),
             FieldTypePresentableContext::Empty => quote!(),
             FieldTypePresentableContext::Boxed(presentation_context) =>
-                DictionaryFieldName::BoxedExpression(presentation_context.present(source)).to_token_stream(),
+                DictionaryExpression::BoxedExpression(presentation_context.present(source)).to_token_stream(),
             FieldTypePresentableContext::UnboxAny(presentation_context) => {
                 package_unbox_any_expression(presentation_context.present(source))
             }
@@ -107,6 +108,12 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let field_path = presentation_context.present(source);
                 ffi_from_conversion(field_path)
             },
+            FieldTypePresentableContext::FromConst(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
+                quote!(#package::#interface::ffi_from_const(#field_path as *const _))
+            },
             FieldTypePresentableContext::FromOpt(presentation_context) => {
                 let package = DictionaryFieldName::Package;
                 let interface = DictionaryFieldName::Interface;
@@ -119,9 +126,11 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 quote!((0..count).map(|i| #ffi_from_conversion).collect())
             },
             FieldTypePresentableContext::AsRef(field_path) => {
+                let field_path = field_path.present(source);
                 quote!(&#field_path)
             },
             FieldTypePresentableContext::AsMutRef(field_path) => {
+                let field_path = field_path.present(source);
                 quote!(&mut #field_path)
             },
             FieldTypePresentableContext::IfThen(presentation_context, condition) => {

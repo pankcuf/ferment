@@ -10,19 +10,24 @@ pub mod types;
 extern crate ferment_macro;
 extern crate tokio;
 
-use std::time::Duration;
+// use std::time::Duration;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-#[allow(non_camel_case_types)]
-#[ferment_macro::register(Duration)]
-pub struct Duration_FFI {
-    secs: u64,
-    nanos: u32,
-}
-ferment_interfaces::impl_custom_conversion!(Duration, Duration_FFI,
-    |value: &Duration_FFI| Duration::new(value.secs, value.nanos),
-    |value: &Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
+// #[allow(non_camel_case_types)]
+// #[ferment_macro::register(Duration)]
+// pub struct Duration_FFI {
+//     secs: u64,
+//     nanos: u32,
+// }
+// ferment_interfaces::impl_custom_conversion!(Duration, Duration_FFI,
+//     |value: &Duration_FFI| Duration::new(value.secs, value.nanos),
+//     |value: &Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
+// );
+
+ferment_interfaces::impl_custom_conversion2!(std::time::Duration, Duration { secs: u64, nanos: u32 },
+    |value: &Duration| std::time::Duration::new(value.secs, value.nanos),
+    |value: &std::time::Duration| Duration { secs: value.as_secs(), nanos: value.subsec_nanos() }
 );
 
 #[allow(non_camel_case_types)]

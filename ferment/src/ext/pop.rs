@@ -1,5 +1,7 @@
-use syn::Path;
+use syn::{Path, PathSegment};
 use syn::punctuated::Punctuated;
+use syn::token::Colon2;
+use crate::ext::CrateExtension;
 use crate::holder::PathHolder;
 
 pub trait Pop {
@@ -8,16 +10,19 @@ pub trait Pop {
 
 impl Pop for PathHolder {
     fn popped(&self) -> Self {
-        let segments = self.0.segments.clone();
-        let n = segments.len() - 1;
-        PathHolder::from(Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) })
+        PathHolder::from(self.0.popped())
     }
 }
 
 impl Pop for Path {
     fn popped(&self) -> Self {
-        let segments = self.segments.clone();
-        let n = segments.len() - 1;
-        Path { leading_colon: None, segments: Punctuated::from_iter(segments.into_iter().take(n)) }
+        Path { leading_colon: None, segments: Punctuated::from_iter(self.segments.popped()) }
+    }
+}
+
+impl Pop for Punctuated<PathSegment, Colon2> {
+    fn popped(&self) -> Self {
+        self.ident_less()
+        // Punctuated::from_iter(self.into_iter().take(self.len() - 1).cloned())
     }
 }

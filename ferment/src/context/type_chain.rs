@@ -1,11 +1,13 @@
 use std::collections::hash_map::OccupiedEntry;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::{Path, Type};
+use crate::composition::GenericConversion;
 use crate::conversion::ObjectConversion;
 use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
+use crate::helper::GenericExtension;
 use crate::holder::{Holder, TypeHolder};
 
 #[derive(Copy, Clone)]
@@ -42,21 +44,6 @@ impl<K, V> MergePolicy<K, V> for ExternalModulePolicy where V: ValueReplaceScena
     }
 
 }
-
-// impl<K, V: ValueReplaceScenario> dyn MergePolicy<K, V> {
-//     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-//         if o.get().should_replace_with(&object) {
-//             o.insert(object);
-//         }
-//         //
-//         // match (o.get_mut(), &object) {
-//         //     (ObjectConversion::Type(..), ObjectConversion::Item(..)) => {
-//         //         o.insert(object);
-//         //     },
-//         //     _ => {}
-//         // }
-//     }
-// }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[allow(unused)]
@@ -109,19 +96,20 @@ impl From<HashMap<TypeHolder, ObjectConversion>> for TypeChain {
 }
 
 impl TypeChain {
-    // pub fn from
     pub fn insert(&mut self, ty: TypeHolder, obj: ObjectConversion) {
         self.inner.insert(ty, obj);
     }
-
     pub fn get(&self, ty: &TypeHolder) -> Option<&ObjectConversion> {
         self.inner.get(ty)
     }
-
-    // pub fn entry(&mut self, ty: TypeHolder) -> std::collections::hash_map::Entry<TypeHolder, ObjectConversion> {
-    //     self.inner.entry(ty)
-    // }
-
+    pub fn find(&self, holder: &TypeHolder) -> Option<&ObjectConversion> {
+        self.inner.values()
+            .find(|obj| match obj {
+                ObjectConversion::Type(ty) |
+                ObjectConversion::Item(ty, ..) => ty.to_ty().eq(&holder.0),
+                ObjectConversion::Empty => false
+            })
+    }
     pub fn selfless(&self) -> Self {
         let mut inner = HashMap::new();
         for (ty, obj) in &self.inner {
@@ -129,12 +117,11 @@ impl TypeChain {
         }
         Self { inner: self.inner.clone().into_iter().filter(|(th, _)| th.0.has_no_self()).collect() }
     }
-
-    pub fn get_by_path(&self, path: &Path) -> Option<&Type> {
+    pub fn get_by_path(&self, path: &Path) -> Option<Type> {
         self.inner.iter()
             .find_map(|(TypeHolder { 0: other}, full_type)| {
                 if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
-                    full_type.ty()
+                    full_type.to_ty()
                 } else {
                     None
                 }
@@ -146,5 +133,14 @@ impl TypeChain {
     pub fn add_many(&mut self, types: TypeChain) {
         self.inner.extend_with_policy(types.inner, EnrichScopePolicy);
     }
+
+    pub fn find_generics_fq(&self, item: &dyn GenericExtension) -> HashSet<GenericConversion> {
+        item.find_generics()
+            .iter()
+            .filter_map(|ty| self.get(ty))
+            .map(GenericConversion::from)
+            .collect()
+    }
+
 }
 

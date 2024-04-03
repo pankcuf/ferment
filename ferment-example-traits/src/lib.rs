@@ -1,4 +1,4 @@
-// pub mod from_proof;
+pub mod from_proof;
 pub mod transport;
 pub mod fermented;
 

@@ -2,10 +2,11 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
+use syn::punctuated::Punctuated;
 use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::FFIResolveExtended;
+use crate::ext::{FFIResolve, FFIResolveExtended};
 use crate::helper::path_arguments_to_types;
 use crate::holder::PathHolder;
 
@@ -19,7 +20,7 @@ impl ImportComposition {
 }
 impl TypeComposition {
     pub fn new_default(ty: Type) -> Self {
-        Self::new(ty, None)
+        Self::new(ty, None, Punctuated::new())
     }
 }
 impl TypeConversion {

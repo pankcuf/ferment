@@ -5,7 +5,7 @@ use quote::ToTokens;
 use syn::{Attribute, Item, parse_quote, Path, Type};
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::ImportConversion;
+use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::ext::extract_trait_names;
 use crate::holder::PathHolder;
 
@@ -31,9 +31,14 @@ impl std::fmt::Display for ScopeContext {
 }
 
 impl ScopeContext {
+    pub fn print_with_message(&self, message: &str) {
+        println!("\n•• {} ••\n", message);
+        println!("{}", self);
+
+    }
     pub fn is_from_current_crate(&self) -> bool {
         let context = self.context.read().unwrap();
-        context.config.current_crate.ident().eq(self.scope.crate_scope())
+        context.config.current_crate.ident().eq(self.scope.crate_ident())
     }
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
@@ -48,7 +53,7 @@ impl ScopeContext {
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         let full_ty = lock.maybe_type(ty, &self.scope)
-            .and_then(|full_type| full_type.ty().cloned())
+            .and_then(ObjectConversion::to_ty)
             .unwrap_or(ty.clone());
         full_ty
     }
@@ -102,7 +107,6 @@ impl ScopeContext {
     // }
 
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
-        // println!("find_generics_fq_in: {} in [{}]", item.ident(), format_token_stream(scope));
         let lock = self.context.read().unwrap();
         lock.scope_register.find_generics_fq_in(item, scope)
     }
@@ -112,7 +116,7 @@ impl ScopeContext {
         lock.imports.find_used_imports(item, &self.scope)
     }
 
-    pub fn populate_imports_and_generics(&self, scope: &ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, generics: &mut HashSet<GenericConversion>) {
+    pub fn populate_imports(&self, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>) {
         if let Some(scope_imports) = self.find_used_imports(item) {
             scope_imports
                 .iter()
@@ -121,7 +125,9 @@ impl ScopeContext {
                         .or_insert_with(HashSet::new)
                         .extend(imports.clone()));
         }
-        generics.extend(self.find_generics_fq_in(item, &scope));
+        // let scope_generics = self.find_generics_fq_in(item, &scope);
+        // println!("populate_imports_and_generics:\n {}", format_generic_conversions(&scope_generics));
+        // generics.extend(scope_generics);
     }
 
     // pub fn ffi_dictionary_type(&self, path: &Path) -> Type {

@@ -8,7 +8,7 @@ impl_holder!(TypeHolder, Type);
 
 impl<'a> From<&'a TypeCompositionConversion> for TypeHolder {
     fn from(value: &'a TypeCompositionConversion) -> Self {
-        TypeHolder(value.ty().clone())
+        TypeHolder(value.to_ty())
     }
 }
 impl<'a> From<&'a Box<Type>> for TypeHolder {

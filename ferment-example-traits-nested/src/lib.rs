@@ -16,8 +16,8 @@ pub mod some_package {
     }
 
 
-    #[ferment_macro::export]
-    pub struct SomeGenericStruct<Req, FP> where FP: FromProof<Req> {
-        pub obj: FP,
-    }
+    // #[ferment_macro::export]
+    // pub struct SomeGenericStruct<Req, FP> where FP: FromProof<Req> {
+    //     pub obj: FP,
+    // }
 }

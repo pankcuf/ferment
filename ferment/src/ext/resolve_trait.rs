@@ -16,7 +16,7 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
             Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, _)) => {
                 // loc
                 // check maybe it's really known
-                let trait_scope = lock.actual_scope_for_type(ty.ty(), &source.scope);
+                let trait_scope = lock.actual_scope_for_type(&ty.to_ty(), &source.scope);
                 if let Some(obj) = lock.maybe_scope_object(&parse_quote!(Self), &trait_scope) {
                     maybe_trait = Some(obj);
                 }

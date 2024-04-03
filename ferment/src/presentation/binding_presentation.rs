@@ -64,7 +64,6 @@ pub enum BindingPresentation {
 
 fn present_function<T: ToTokens>(name: TokenStream2, args: Punctuated<T, Comma>, output: ReturnType, body: TokenStream2) -> TokenStream2 {
     quote! {
-       /// # Safety
        #[no_mangle]
        pub unsafe extern "C" fn #name(#args) #output {
             #body

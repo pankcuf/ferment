@@ -7,7 +7,7 @@ use crate::composer::{Depunctuated, OwnerAspectIteratorLocalContext, VariantIter
 use crate::context::ScopeContext;
 use crate::ext::Mangle;
 use crate::interface::{create_struct, package_unboxed_root};
-use crate::naming::DictionaryFieldName;
+use crate::naming::{DictionaryExpression, DictionaryFieldName};
 use crate::opposed::Opposed;
 use crate::presentation::context::{OwnedItemPresentableContext, FieldTypePresentableContext};
 use crate::presentation::context::name::Aspect;
@@ -123,7 +123,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 quote!(let ffi_ref = #field_path; #conversions)
             }
             OwnerIteratorPresentationContext::Boxed(conversions) => {
-                DictionaryFieldName::BoxedExpression(conversions.present(source)).to_token_stream()
+                DictionaryExpression::BoxedExpression(conversions.present(source)).to_token_stream()
             }
             OwnerIteratorPresentationContext::Lambda(l_value, r_value) => {
                 Opposed::<_, _, FatArrow>::new(l_value.present(source), r_value.present(source))

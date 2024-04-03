@@ -7,7 +7,7 @@ use syn::token::Colon2;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Accessory, Mangle, ResolveTrait};
+use crate::ext::{Accessory, CrateExtension, Mangle, ResolveTrait};
 use crate::helper::path_arguments_to_paths;
 
 pub trait FFIResolve where Self: Sized + ToTokens + Parse {
@@ -108,7 +108,7 @@ impl FFIResolve for Type {
             Type::Reference(TypeReference { elem, .. }) |
             Type::Slice(TypeSlice { elem, .. }) =>
                 elem.resolve(source),
-            Type::TraitObject(TypeTraitObject { .. }) => {
+            Type::TraitObject(TypeTraitObject { bounds: _, .. }) => {
                 unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject")
             },
             Type::Tuple(type_tuple) => {
@@ -147,18 +147,18 @@ impl FFIResolveExtended for Path {
                 .and_then(|path| path.ffi_external_path_converted(source)),
             _ => {
                 let lock = source.context.read().unwrap();
-                let crate_scope = source.scope.crate_scope();
+                let crate_ident = source.scope.crate_ident();
                 let first_segment = segments.first().unwrap();
                 let first_ident = &first_segment.ident;
 
                 match first_ident.to_string().as_str() {
                     "crate" | _ if lock.config.is_current_crate(first_ident) =>
-                        Some(ffi_external_chunk(crate_scope, segments)),
+                        Some(ffi_external_chunk(crate_ident, segments)),
                     _ if lock.config.contains_fermented_crate(first_ident) =>
                         Some(ffi_external_chunk(first_ident, segments)),
                     _ => {
-                        let segments: Vec<_> = segments.iter().take(segments.len() - 1).collect();
-                        Some(if segments.is_empty() { parse_quote!(#last_ident) } else { parse_quote!(#(#segments)::*::#last_ident) })
+                        let segments = segments.ident_less();
+                        Some(if segments.is_empty() { parse_quote!(#last_ident) } else { parse_quote!(#segments::#last_ident) })
                     }
                 }
             }
@@ -179,9 +179,9 @@ impl FFIResolveExtended for Path {
                             .map(|oc| oc.type_conversion().cloned()),
                     _ => None
                 }.unwrap_or(external_type.type_conversion().cloned())
-            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None)));
+            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None, Punctuated::new())));
 
-        tyty.ty()
+        tyty.to_ty()
             .ffi_external_path_converted(source)
             .map_or(self.clone(), |ty| parse_quote!(#ty))
         // let tyty = lock.maybe_scope_type(ty, &self.scope)
@@ -244,9 +244,9 @@ impl FFIResolveExtended for Type {
                             .map(|oc| oc.type_conversion().cloned()),
                     _ => None
                 }.unwrap_or(external_type.type_conversion().cloned())
-            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None)));
+            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new())));
 
-        tyty.ty()
+        tyty.to_ty()
             .ffi_external_path_converted(source)
             .unwrap_or(self.clone())
     }
@@ -299,21 +299,21 @@ impl FFIResolveExtended for Type {
 }
 
 pub fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
-    let crate_local_segments: Vec<_> = match segments.first().unwrap().ident.to_string().as_str() {
-        "crate" => segments.iter().take(segments.len() - 1).skip(1).collect(),
-        _ => segments.iter().take(segments.len() - 1).collect()
+    let crate_local_segments = match segments.first().unwrap().ident.to_string().as_str() {
+        "crate" => segments.crate_and_ident_less(),
+        _ => segments.ident_less()
     };
     let mangled_segments_ident = segments.mangle_ident_default();
     let ffi_path_chunk = if crate_local_segments.is_empty() {
         mangled_segments_ident
             .to_token_stream()
     } else {
-        quote!(#(#crate_local_segments)::*::#mangled_segments_ident)
+        quote!(#crate_local_segments::#mangled_segments_ident)
     };
     parse_quote!(crate::fermented::types::#ffi_path_chunk)
 }
 pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: &Punctuated<PathSegment, Colon2>) -> T {
-    let crate_local_segments: Vec<_> = segments.iter().take(segments.len() - 1).skip(1).collect();
+    let crate_local_segments = segments.crate_and_ident_less();
     let last_ident = &segments.iter().last().unwrap().ident;
 
     let ffi_chunk_path = if crate_local_segments.is_empty() {
@@ -321,15 +321,15 @@ pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: 
         let mangled_ty = ty.mangle_ident_default();
         mangled_ty.to_token_stream()
     } else {
-        let no_ident_segments = segments.iter().take(segments.len() - 1).collect::<Vec<_>>();
-        let ty: Type = parse_quote!(#(#no_ident_segments)::*::#last_ident);
+        let no_ident_segments = segments.ident_less();
+        let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
         let mangled_ty = ty.mangle_ident_default();
-        quote!(#(#crate_local_segments)::*::#mangled_ty)
+        quote!(#crate_local_segments::#mangled_ty)
     };
     parse_quote!(crate::fermented::types::#crate_ident::#ffi_chunk_path)
 }
 pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
-    // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
+    // println!("ffi_dictionary_type: {}", format_token_stream(path));
     match path.segments.last().unwrap().ident.to_string().as_str() {
         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
         "isize" | "usize" | "bool" =>

@@ -1,7 +1,6 @@
 extern crate cbindgen;
 extern crate ferment;
 
-use std::path::PathBuf;
 use std::process::Command;
 use ferment::builder::Crate;
 const NAME: &str = "ferment_example_traits_nested";

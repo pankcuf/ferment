@@ -12,7 +12,7 @@ mod smart_pointer_composition;
 mod trait_vtable_composition;
 
 pub use attrs_composition::AttrsComposition;
-pub use type_composition::TypeComposition;
+pub use type_composition::{TypeComposition, NestedArgument};
 pub use function_composition::FnArgComposition;
 pub use function_composition::FnReturnTypeComposition;
 pub use function_composition::FnSignatureComposition;

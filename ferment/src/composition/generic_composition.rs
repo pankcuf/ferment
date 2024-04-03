@@ -48,7 +48,7 @@ impl GenericConversion {
     }
 
     pub fn used_imports(&self) -> HashSet<PathHolder> {
-        generic_imports(self.0.ty())
+        generic_imports(self.0.to_ty().as_ref())
     }
 }
 
@@ -56,14 +56,17 @@ impl ScopeContextPresentable for GenericConversion {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-        let Self { 0: full_type } = self;
-        match full_type {
+        let Self { 0: obj } = self;
+        println!("GenericConversion::present: {}", obj);
+        match obj {
             ObjectConversion::Type(type_conversion) |
-            ObjectConversion::Item(type_conversion, _) => match TypeConversion::from(type_conversion.ty()) {
-                TypeConversion::Generic(generic_conversion) =>
-                    generic_conversion.expand(type_conversion, source),
-                conversion =>
-                    unimplemented!("non-generic GenericConversion: {}", conversion.to_token_stream())
+            ObjectConversion::Item(type_conversion, _) => {
+                match TypeConversion::from(type_conversion.to_ty()) {
+                    TypeConversion::Generic(generic_conversion) =>
+                        generic_conversion.expand(type_conversion, source),
+                    conversion =>
+                        unimplemented!("non-generic GenericConversion: {}", conversion.to_token_stream())
+                }
             },
             ObjectConversion::Empty => {
                 unimplemented!("expand: ObjectConversion::Empty")

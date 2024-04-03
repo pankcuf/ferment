@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
+use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, Path, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Paren, RArrow};
@@ -8,7 +8,7 @@ use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Conversion, FFIResolveExtended, Mangle};
+use crate::ext::{Conversion, CrateExtension, FFIResolveExtended, Mangle};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
@@ -27,7 +27,7 @@ pub struct FnReturnTypeComposition {
 pub struct FnArgComposition {
     pub name: Option<TokenStream2>,
     pub name_type_original: OwnedItemPresentableContext,
-    pub name_type_conversion: TokenStream2,
+    pub name_type_conversion: FieldTypePresentableContext,
 }
 
 #[derive(Clone, Debug)]
@@ -59,16 +59,14 @@ impl Composition for FnSignatureComposition {
                 // println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
 
                 let mut full_fn_path = self.scope.joined(&fn_name);
-                if self.scope.has_belong_to_current_crate() {
-
-                    let crate_scope = source.scope.crate_scope();
-                    let local_path: Vec<_> = full_fn_path.0.segments.iter().skip(1).collect();
-                    full_fn_path.0 = parse_quote!(#crate_scope::#(#local_path)::*);
+                if self.scope.is_crate_based() {
+                    let crate_chunk = Path::from(PathSegment::from(source.scope.crate_ident().clone()));
+                    full_fn_path.0 = full_fn_path.0.replaced_first_with_ident(&crate_chunk);
                 }
                 let argument_conversions = self.arguments
                     .iter()
                     .map(|arg|
-                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.clone()))
+                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(source)))
                     .collect::<Punctuated<_, _>>();
                 let name = Name::ModFn(full_fn_path.0.clone());
 
@@ -230,34 +228,31 @@ fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnRetur
         },
     }
 }
-fn handle_arg_type(ty: &Type, pat: &Pat, context: &ScopeContext) -> TokenStream2 {
-    match (ty, pat) {
-        (Type::Path(type_path), Pat::Ident(PatIdent { ident, .. })) =>
-            type_path.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
-                .present(context),
-        (Type::Reference(type_reference), pat) => {
-            let arg_type = handle_arg_type(&type_reference.elem, pat, context);
-            if type_reference.mutability.is_some() {
-                FieldTypePresentableContext::AsMutRef(arg_type)
-            } else {
-                FieldTypePresentableContext::AsRef(arg_type)
-            }.present(context)
-        },
-        (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) =>
-            type_array.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
-                .present(context),
-        (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) =>
-            type_slice.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
-                .present(context),
-        (Type::Tuple(type_tuple), Pat::Ident(PatIdent { ident, .. })) =>
-            type_tuple.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))).present(context),
-        (Type::TraitObject(type_trait_object), Pat::Ident(PatIdent { ident: _, .. })) => {
-            FieldTypePresentableContext::AsRef(type_trait_object.to_token_stream()).present(context)
-        },
-        // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
-        _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
-    }
-}
+// fn handle_arg_type(ty: &Type, pat: &Pat, source: &ScopeContext) -> TokenStream2 {
+//
+//     match pat {
+//         Pat::Ident(PatIdent { ident, .. }) => ty.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//         _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
+//     }.present(source)
+//
+//     // ty.conversion_from()
+//     // match (ty, pat) {
+//     //     (Type::Path(type_path), Pat::Ident(PatIdent { ident, .. })) =>
+//     //         type_path.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//     //     (Type::Array(type_array), Pat::Ident(PatIdent { ident, .. })) =>
+//     //         type_array.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//     //     (Type::Slice(type_slice), Pat::Ident(PatIdent { ident, .. })) =>
+//     //         type_slice.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//     //     (Type::Tuple(type_tuple), Pat::Ident(PatIdent { ident, .. })) =>
+//     //         type_tuple.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//     //     (Type::TraitObject(type_trait_object), Pat::Ident(PatIdent { ident: _, .. })) =>
+//     //         type_trait_object.conversion_from(FieldTypePresentableContext::Simple(type_trait_object.to_token_stream())),
+//     //     (Type::Reference(type_reference), Pat::Ident(PatIdent { ident, .. })) =>
+//     //         type_reference.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+//     //     // (Type::Ptr(TypePtr { star_token, const_token, mutability, elem }), Pat::Ident(PatIdent { ident, .. })) =>
+//     //     _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
+//     // }.present(source)
+// }
 
 fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
     FnReturnTypeComposition {
@@ -272,33 +267,28 @@ fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> Fn
 
 fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, context: &ScopeContext) -> Vec<FnArgComposition> {
     // TODO: replace Fn arguments with crate::fermented::generics::#ident or #import
-
-
-
     inputs
         .iter()
         .map(|arg| match arg {
             FnArg::Receiver(Receiver { mutability, reference, .. }) => {
-                let reference = match reference {
-                    Some((_, _lifetime)) => quote!(&),
-                    None => quote!()
+                let full_ty = self_ty.as_ref().map_or(quote!(), |ty| context.full_type_for(ty).mangle_ident_default().to_token_stream());
+                let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
+                let name_type_original = OwnedItemPresentableContext::Named(
+                    FieldTypeConversion::Named(
+                        Name::Dictionary(DictionaryFieldName::Obj), parse_quote!(* #access #full_ty)),
+                    false);
+
+                let field_name = FieldTypePresentableContext::Obj;
+                let name_type_conversion = if self_ty.is_some() {
+                    FieldTypePresentableContext::From(field_name.into())
+                } else {
+                    FieldTypePresentableContext::FromConst(field_name.into())
                 };
-                let (ffi_type, name_type_conversion) = match (mutability, self_ty) {
-                    (Some(..), Some(ty)) => (
-                        {
-                            let full_ty = context.full_type_for(ty).mangle_ident_default();
-                            parse_quote!(*mut #full_ty)
-                        },
-                        quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
-                    (None, Some(ty)) => ({
-                                             let full_ty = context.full_type_for(ty).mangle_ident_default();
-                                             parse_quote!(*const #full_ty)
-                                         },
-                        quote!(#reference ferment_interfaces::FFIConversion::ffi_from(obj))),
-                    (Some(..), None) => (parse_quote!(*mut ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
-                    (None, None) => (parse_quote!(*const ()), quote!(#reference ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _))),
+                let name_type_conversion = if reference.is_some() {
+                    FieldTypePresentableContext::AsRef(name_type_conversion.into())
+                } else {
+                    name_type_conversion
                 };
-                let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Dictionary(DictionaryFieldName::Obj), ffi_type), false);
                 FnArgComposition {
                     name: None,
                     name_type_original,
@@ -308,8 +298,14 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat
                 let full_type = ty.ffi_full_dictionary_type_presenter(context);
-                let name_type_original = OwnedItemPresentableContext::Named(FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type), false);
-                let name_type_conversion = handle_arg_type(ty, pat, context);
+                let name_type_original = OwnedItemPresentableContext::Named(
+                    FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type),
+                    false);
+                let name_type_conversion = match &**pat {
+                    Pat::Ident(PatIdent { ident, .. }) =>
+                        ty.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+                    _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
+                };
                 FnArgComposition {
                     name: Some(pat.to_token_stream()),
                     name_type_original,
@@ -332,7 +328,7 @@ fn handle_bare_fn_args(inputs: &Punctuated<BareFnArg, Comma>, context: &ScopeCon
                         Name::Optional(name),
                         ty.ffi_full_dictionary_type_presenter(context)),
                     false),
-                name_type_conversion: quote!()
+                name_type_conversion: FieldTypePresentableContext::Empty
             }
         })
         .collect::<Vec<_>>()

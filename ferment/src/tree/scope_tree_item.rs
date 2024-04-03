@@ -1,9 +1,7 @@
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Item;
-use std::collections::HashSet;
 use crate::composer::ParentComposer;
-use crate::composition::GenericConversion;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ItemConversion;
 use crate::tree::ScopeTree;
@@ -20,14 +18,14 @@ pub enum ScopeTreeItem {
     }
 }
 
-impl ScopeTreeItem {
-    pub fn scope(&self) -> &ScopeChain {
-        match self {
-            ScopeTreeItem::Item { scope, .. } => scope,
-            ScopeTreeItem::Tree { tree } => &tree.scope,
-        }
-    }
-}
+// impl ScopeTreeItem {
+//     pub fn scope(&self) -> &ScopeChain {
+//         match self {
+//             ScopeTreeItem::Item { scope, .. } => scope,
+//             ScopeTreeItem::Tree { tree } => &tree.scope,
+//         }
+//     }
+// }
 
 impl ToTokens for ScopeTreeItem {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
@@ -42,11 +40,11 @@ impl ToTokens for ScopeTreeItem {
     }
 }
 
-impl ScopeTreeItem {
-    pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
-        match self {
-            Self::Item { .. } => HashSet::from([]),
-            Self::Tree { tree, .. } => tree.generic_conversions()
-        }
-    }
-}
+// impl ScopeTreeItem {
+//     pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
+//         match self {
+//             Self::Item { .. } => HashSet::from([]),
+//             Self::Tree { tree, .. } => tree.generic_conversions()
+//         }
+//     }
+// }

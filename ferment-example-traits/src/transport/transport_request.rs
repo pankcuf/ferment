@@ -10,7 +10,7 @@ pub enum Status {
 #[allow(dead_code)]
 #[ferment_macro::export]
 pub struct Uri {
-    pub(crate) scheme: String,
+    pub scheme: String,
 }
 #[derive(Clone, Debug)]
 #[ferment_macro::export]
@@ -30,23 +30,23 @@ pub struct CoreGrpcClient {
     pub uri: Uri
 }
 
-#[ferment_macro::export]
+// #[ferment_macro::export]
 pub trait CanRetry {
     fn can_retry(&self) -> bool;
 }
-#[ferment_macro::export]
+// #[ferment_macro::export]
 pub trait SomeOtherTrait {
     fn some_other_method(&self);
 }
-#[ferment_macro::export]
+// #[ferment_macro::export]
 pub trait TransportClient: Send + Sized {
     type Error: CanRetry + Send + SomeOtherTrait;
     fn with_uri(uri: Uri) -> Self;
 }
-#[ferment_macro::export]
+// #[ferment_macro::export]
 pub trait TransportResponse: Clone + Send + Sync {}
 
-#[ferment_macro::export]
+// #[ferment_macro::export]
 pub trait TransportRequest: Clone + Send + Sync {
     type Client: TransportClient;
     type Response: TransportResponse;
@@ -54,10 +54,10 @@ pub trait TransportRequest: Clone + Send + Sync {
 }
 
 
-#[ferment_macro::export]
-pub trait Query<T: TransportRequest>: Send + Clone {
-    fn query(self, prove: bool) -> Result<T, Status>;
-}
+// #[ferment_macro::export]
+// pub trait Query<T: TransportRequest>: Send + Clone {
+//     fn query(self, prove: bool) -> Result<T, Status>;
+// }
 //
 //
 // #[ferment_macro::export]

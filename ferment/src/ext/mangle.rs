@@ -2,7 +2,6 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -20,7 +19,7 @@ pub trait Mangle<T: Clone> {
     }
 }
 
-impl<T, CTX> Mangle<T> for Punctuated<CTX, Colon2>  where T: Clone + Copy + Default, CTX: Mangle<T> {
+impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>  where T: Clone + Copy + Default, CTX: Mangle<T> {
     fn mangle_string(&self, context: T) -> String {
         self.iter()
             .map(|item| item.mangle_string(context))
@@ -51,14 +50,14 @@ impl Mangle<MangleDefault> for Path {
 }
 
 impl Mangle<MangleDefault> for TraitBound {
-    fn mangle_string(&self, _context: MangleDefault) -> String {
-        format!("dyn_trait_{}", self.path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"))
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("dyn_trait_{}", self.path.segments.mangle_string(context))
     }
 }
 
 impl Mangle<MangleDefault> for TypeTuple {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        format!("Tuple_{}", self.elems.iter().map(|ty| ty.mangle_string(context)).collect::<Vec<String>>().join("_"))
+        format!("Tuple_{}", self.elems.mangle_string(context))
     }
 }
 

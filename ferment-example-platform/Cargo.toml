@@ -1,8 +1,8 @@
 [package]
-name = "ferment-example-traits"
+name = "ferment-example-platform"
 version = "0.1.0"
 edition = "2021"
-#build = "build.backup"
+build = "build.rs"
 authors.workspace = true
 description.workspace = true
 homepage.workspace = true
@@ -10,15 +10,17 @@ license.workspace = true
 keywords.workspace = true
 
 [dependencies]
-async-trait = "0.1.74"
 ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
-tokio = { version = "1.34", features = ["full"] }
+platform-value = { path = "../../platform/packages/rs-platform-value" }
+dpp = { path = "../../platform/packages/rs-dpp" }
+rs-sdk = { path = "../../platform/packages/rs-sdk" }
+
 
 [build-dependencies]
 cbindgen = "0.26.0"
 ferment = { path = "../ferment" }
-
+toml = "0.8.8"
 
 [lib]
-name = "ferment_example_traits"
+name = "ferment_example_platform"

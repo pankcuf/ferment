@@ -1,58 +1,72 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
+use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{ItemUse, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::token::Semi;
 use crate::composer::{Depunctuated, ParentComposer};
-use crate::composition::{create_item_use_with_tree, GenericConversion, ImportComposition};
+use crate::composition::{create_item_use_with_tree, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
+use crate::ext::{Join, RefineUnrefined};
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
 use crate::presentation::expansion::Expansion;
-use crate::tree::{ScopeTreeCompact, ScopeTreeExportID, ScopeTreeItem};
+use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[derive(Clone)]
 pub struct ScopeTree {
     pub scope: ScopeChain,
-    pub generics: HashSet<GenericConversion>,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
     pub scope_context: ParentComposer<ScopeContext>,
 }
 
 impl ScopeTree {
-    pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
-        let mut generics = self.generics.clone();
-        generics.extend(self.inner_generics());
-        generics
+    pub(crate) fn refine(&mut self) {
+        println!("\n•• CRATE TREE REFINEMENT ••\n");
+        self.scope_context
+            .borrow()
+            .context
+            .write()
+            .unwrap()
+            .refine();
+
+        self.print_scope_tree_with_message("CRATE TREE REFINED CONTEXT");
+
     }
-    fn inner_generics(&self) -> HashSet<GenericConversion> {
-        self.exported.values()
-            .flat_map(ScopeTreeItem::generic_conversions)
-            .collect()
-    }
+}
+
+impl ScopeTree {
+    // pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
+    //     let mut generics = self.generics.clone();
+    //     generics.extend(self.exported.values().flat_map(ScopeTreeItem::generic_conversions));
+    //     // TODO: there should be refined generics
+    //     println!("ScopeTree::generic_conversions: {}", format_generic_conversions(&generics));
+    //     generics
+    // }
 
     pub(crate) fn imports(&self) -> Punctuated<ItemUse, Semi> {
         self.imported.iter()
             .flat_map(|(import_type, imports)|
-                imports.iter()
-                    .map(move |import| import.present(import_type)))
+                imports.iter().map(move |import| import.present(import_type)))
             .collect()
     }
 
     pub(crate) fn exports(&self) -> Depunctuated<TokenStream2> {
         self.exported.values().map(ScopeTreeItem::to_token_stream).collect()
     }
+
+    pub fn print_scope_tree_with_message(&self, message: &str) {
+        self.scope_context.borrow().print_with_message(message)
+    }
 }
 
 impl std::fmt::Debug for ScopeTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // f.write_str(format_tree_item_dict(&self.exported).as_str())
-        f.debug_struct("ScopeTreeCompact")
+        f.debug_struct("ScopeTree")
             .field("scope", &self.scope)
-            .field("generics", &self.generics)
             .field("imported", &format_imported_dict(&self.imported))
             .field("exported", &format_tree_item_dict(&self.exported))
             .finish()
@@ -64,7 +78,7 @@ impl ToTokens for ScopeTree {
         let source = self.scope_context.borrow();
         let imports = if source.is_from_current_crate() {
             let mut imports = Punctuated::<ItemUse, Semi>::from_iter([
-                create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: source.scope.crate_scope().clone() }))
+                create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: source.scope.crate_ident().clone() }))
             ]);
             imports.extend(self.imports());
             imports
@@ -73,11 +87,10 @@ impl ToTokens for ScopeTree {
         };
 
         let name = if self.scope.is_crate_root() {
-            self.scope.crate_scope().to_token_stream()
+            self.scope.crate_ident().to_token_stream()
         } else {
             self.scope.head().to_token_stream()
         };
-        // println!("ScopeTree::to_tokens [{} ({})] {}",source.scope.crate_scope(), source.is_from_current_crate(), name);
         Expansion::Mod {
             directives: quote!(),
             name,
@@ -87,28 +100,47 @@ impl ToTokens for ScopeTree {
     }
 }
 
-
-impl From<ScopeTreeCompact> for ScopeTree {
-    fn from(value: ScopeTreeCompact) -> Self {
-        let ScopeTreeCompact {
-            scope,
-            generics,
-            imported,
-            exported,
-            scope_context
-        } = value;
-        ScopeTree {
-            exported: exported.into_iter()
-                .map(|(id, tree_item_raw)| {
-                    let scope_tree_item = tree_item_raw.into_tree_item(&scope, &id);
-                    (id, scope_tree_item)
-                })
-                .collect(),
-            scope,
-            imported,
-            generics,
-            scope_context
-        }
-    }
+pub fn create_crate_root_scope_tree(
+    crate_ident: Ident,
+    scope_context: ParentComposer<ScopeContext>,
+    imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
+    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>
+) -> ScopeTree {
+    create_scope_tree(ScopeChain::crate_root(crate_ident), scope_context, imported, exported)
 }
 
+pub fn create_scope_tree(
+    scope: ScopeChain,
+    scope_context: ParentComposer<ScopeContext>,
+    // generics: HashSet<GenericConversion>,
+    imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
+    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>
+) -> ScopeTree {
+    ScopeTree {
+        exported: exported.into_iter()
+            .map(|(scope_id, scope_tree_export_item)| {
+                let scope_tree_item = match scope_tree_export_item {
+                    ScopeTreeExportItem::Item(
+                        scope_context,
+                        item) =>
+                        ScopeTreeItem::Item {
+                            scope: scope.joined(&item),
+                            item,
+                            scope_context
+                        },
+                    ScopeTreeExportItem::Tree(
+                        scope_context,
+                        imported,
+                        exported) =>
+                        ScopeTreeItem::Tree {
+                            tree: create_scope_tree(scope_id.create_child_scope(&scope), scope_context, imported, exported)
+                        }
+                };
+                (scope_id, scope_tree_item)
+            })
+            .collect(),
+        scope,
+        imported,
+        scope_context
+    }
+}

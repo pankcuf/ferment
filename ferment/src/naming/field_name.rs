@@ -17,11 +17,22 @@ pub enum DictionaryFieldName {
     // O,
     Package,
     Interface,
+}
+
+#[derive(Clone, Debug)]
+pub enum DictionaryExpression {
     BoxedExpression(TokenStream2),
     FromPrimitiveVec(TokenStream2, TokenStream2),
     FromComplexVec(TokenStream2, TokenStream2),
 }
+
+
 impl std::fmt::Display for DictionaryFieldName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+impl std::fmt::Display for DictionaryExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
@@ -36,25 +47,28 @@ impl ToTokens for DictionaryFieldName {
             DictionaryFieldName::Values => quote!(values),
             DictionaryFieldName::Count => quote!(count),
             DictionaryFieldName::Obj => quote!(obj),
-
             DictionaryFieldName::Package => quote!(ferment_interfaces),
             DictionaryFieldName::Interface => quote!(FFIConversion),
-            DictionaryFieldName::BoxedExpression(expr) => {
+        }
+        .to_tokens(tokens)
+    }
+}
+impl ToTokens for DictionaryExpression {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            DictionaryExpression::BoxedExpression(expr) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::boxed(#expr))
             }
-
-            DictionaryFieldName::FromPrimitiveVec(values, count) => {
+            DictionaryExpression::FromPrimitiveVec(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_primitive_vec(#values, #count))
             }
-            DictionaryFieldName::FromComplexVec(values, count) => {
+            DictionaryExpression::FromComplexVec(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_vec(#values, #count))
             }
-            // DictionaryFieldName::O => quote!(o)
-        }
-        .to_tokens(tokens)
+        }.to_tokens(tokens)
     }
 }
 
