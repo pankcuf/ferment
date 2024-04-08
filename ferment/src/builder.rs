@@ -1,4 +1,4 @@
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -11,6 +11,8 @@ use crate::file::FileTreeProcessor;
 use crate::tree::ScopeTreeExportItem;
 use cargo_metadata::MetadataCommand;
 
+extern crate env_logger;
+
 #[derive(Debug, Clone)]
 pub struct Builder {
     config: Config,
@@ -22,12 +24,18 @@ pub struct Config {
     pub external_crates: Vec<Crate>,
     pub languages: Vec<Language>,
 }
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Crate {
     pub name: String,
     pub root_path: PathBuf,
 }
 
+impl Display for Crate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("Crate: {} ({:?})", self.name, self.root_path).as_str())
+    }
+}
 impl Crate {
     pub fn current_with_name(name: &str) -> Self {
         Self { name: name.to_string(), root_path: std::path::Path::new("src").to_path_buf() }
@@ -53,9 +61,9 @@ pub enum Language {
     Java
 }
 
-impl std::fmt::Display for Config {
+impl Display for Config {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(self, f)
+        f.write_fmt(format_args!("[Config]\n\tcrate: {:?}\n\texternal: {:?}", self.current_crate, self.external_crates))
     }
 }
 
@@ -79,6 +87,7 @@ impl Config {
 
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
+        env_logger::init();
         Builder { config: Config::new("fermented", current_crate) }
     }
 

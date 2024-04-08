@@ -4,7 +4,7 @@ use std::clone::Clone;
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Attribute, Field, Generics, parse_quote, Type, Visibility, VisPublic};
+use syn::{Attribute, Field, Generics, Type, Visibility, VisPublic};
 use syn::token::{Comma, Pub};
 use syn::punctuated::Punctuated;
 use crate::composer::{AttrsComposer, BindingAccessorContext, BYPASS_FIELD_CONTEXT, Composer, ComposerPresenter, constants, CtorOwnedComposer, Depunctuated, DestructorContext, FFIAspect, FFIComposer, FieldsComposer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, HasParent, ItemParentComposer, LocalConversionContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectIteratorLocalContext, OwnerIteratorPostProcessingComposer, ParentComposer, TypeContextComposer};
@@ -13,6 +13,7 @@ use crate::composer::composable::Composable;
 use crate::composer::r#type::TypeComposer;
 use crate::composition::AttrsComposition;
 use crate::context::{ScopeChain, ScopeContext};
+use crate::ext::ToPath;
 use crate::naming::Name;
 use crate::presentation::context::{FieldTypePresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
@@ -264,8 +265,8 @@ impl ItemComposer {
             getter_composer: MethodComposer::new(
                 |(root_obj_type, field_name, field_type)|
                     BindingPresentation::Getter {
-                        name: Name::Getter(parse_quote!(#root_obj_type), parse_quote!(#field_name)),
-                        field_name: field_name.to_token_stream(),
+                        name: Name::Getter(root_obj_type.to_path(), field_name.clone()),
+                        field_name,
                         obj_type: root_obj_type.to_token_stream(),
                         field_type: field_type.to_token_stream()
                     },
@@ -273,8 +274,8 @@ impl ItemComposer {
             setter_composer: MethodComposer::new(
                 |(root_obj_type, field_name, field_type)|
                     BindingPresentation::Setter {
-                        name: Name::Setter(parse_quote!(#root_obj_type), parse_quote!(#field_name)),
-                        field_name: field_name.to_token_stream(),
+                        name: Name::Setter(root_obj_type.to_path(), field_name.clone()),
+                        field_name,
                         obj_type: root_obj_type.to_token_stream(),
                         field_type: field_type.to_token_stream()
                     },

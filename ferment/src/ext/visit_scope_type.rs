@@ -5,7 +5,7 @@ use syn::token::Comma;
 use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::CrateExtension;
+use crate::ext::{CrateExtension, ToPath};
 use crate::formatter::{Emoji, format_token_stream};
 use crate::holder::PathHolder;
 use crate::nprint;
@@ -99,7 +99,6 @@ impl<'a> VisitScopeType<'a> for Path {
                         GenericArgument::Type(inner_type) => {
                             let obj_conversion = inner_type.update_nested_generics(&(scope, context));
                             let ty = obj_conversion.to_ty().unwrap();
-                            // println!("aADDD Generic: {}", obj_conversion);
                             nested_arguments.push(NestedArgument::Object(obj_conversion));
                             *arg = GenericArgument::Type(ty)
                         },
@@ -130,7 +129,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 import_path.replace_first_with(&scope.crate_ident_as_path());
             }
 
-            ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: parse_quote!(#segments) }), None, nested_arguments), import_path))
+            ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
             /*
             let last_segment = segments.pop().unwrap();
             let import_path = if import_path.is_crate_based() {
@@ -202,7 +201,7 @@ impl<'a> VisitScopeType<'a> for Path {
 
                 },
                 "Vec" | "Option" | "Result" if segments.len() == 1 => {
-                    // println!("update_nested_generics (Vec): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    //println!("update_nested_generics (Vec): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
                 },
@@ -369,8 +368,8 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
         let mut bounds = bounds.clone();
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
-                let full_path = path.update_nested_generics(&(scope, context, None));
-                *path = parse_quote!(#full_path);
+                *path = path.update_nested_generics(&(scope, context, None))
+                    .to_path();
             },
             _ => {},
         });

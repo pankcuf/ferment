@@ -3,6 +3,7 @@ use crate::nested::{HashID, ProtocolError};
 
 #[ferment_macro::export]
 pub trait IHaveChainSettings {
+    fn ty() -> &'static str;
     fn name(&self) -> String;
     fn genesis_hash(&self) -> HashID;
     fn genesis_height(&self) -> u32;
@@ -26,7 +27,8 @@ pub trait IHaveChainSettings {
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone, PartialOrd, Ord, Hash, Eq, PartialEq)]
-#[ferment_macro::export(IHaveChainSettings)]
+// #[ferment_macro::export(IHaveChainSettings)]
+#[ferment_macro::export]
 pub enum ChainType {
     MainNet,
     TestNet,
@@ -44,7 +46,12 @@ pub enum DevnetType {
     WhiteRussian = 4,
 }
 
+#[ferment_macro::export]
 impl IHaveChainSettings for ChainType {
+    fn ty() -> &'static str {
+        "ChainType"
+    }
+
     fn name(&self) -> String {
         match self {
             Self::MainNet => "mainnet".to_string(),
@@ -66,7 +73,12 @@ impl IHaveChainSettings for ChainType {
     }
 }
 
+#[ferment_macro::export]
 impl IHaveChainSettings for DevnetType {
+    fn ty() -> &'static str {
+        "DevnetType"
+    }
+
     fn name(&self) -> String {
         format!("devnet-{}", match self {
             DevnetType::JackDaniels => "jack-daniels",

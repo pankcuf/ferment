@@ -14,6 +14,7 @@ pub enum DictionaryFieldName {
     Values,
     Count,
     Obj,
+    Self_,
     // O,
     Package,
     Interface,
@@ -49,6 +50,7 @@ impl ToTokens for DictionaryFieldName {
             DictionaryFieldName::Obj => quote!(obj),
             DictionaryFieldName::Package => quote!(ferment_interfaces),
             DictionaryFieldName::Interface => quote!(FFIConversion),
+            DictionaryFieldName::Self_ => quote!(self_),
         }
         .to_tokens(tokens)
     }
@@ -82,8 +84,8 @@ pub enum Name {
     UnnamedStructFieldsComp(Type, usize),
     TraitObj(Ident),
     TraitImplVtable(Ident, Ident),
-    TraitFn(Ident, Ident),
-    TraitDestructor(Ident, Ident),
+    TraitFn(Type, Type),
+    TraitDestructor(Type, Type),
     Vtable(Ident),
     ModFn(Path),
     VTableInnerFn(Ident),
@@ -108,10 +110,10 @@ impl ToTokens for Name {
             Name::TraitObj(ident) => ident.to_token_stream(),
             Name::ModFn(path) => path.mangle_ident_default().to_token_stream(),
             Name::TraitFn(item_name, trait_name) => {
-                format_ident!("{}_as_{}", item_name, trait_name).to_token_stream()
+                format_ident!("{}_as_{}", item_name.mangle_string_default(), trait_name.mangle_string_default()).to_token_stream()
             }
             Name::TraitDestructor(item_name, trait_name) => {
-                format_ident!("{}_as_{}_destroy", item_name, trait_name).to_token_stream()
+                format_ident!("{}_as_{}_destroy", item_name.mangle_string_default(), trait_name.mangle_string_default()).to_token_stream()
             }
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
                 Type::Ptr(_) => DictionaryFieldName::Obj.to_token_stream(),
@@ -174,9 +176,9 @@ impl Mangle<MangleDefault> for Name {
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format!("{}_{}", item_name, trait_vtable_ident)
             }
-            Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name, trait_name),
+            Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name.mangle_ident_default(), trait_name.mangle_ident_default()),
             Name::TraitDestructor(item_name, trait_name) => {
-                format!("{}_as_{}_destroy", item_name, trait_name)
+                format!("{}_as_{}_destroy", item_name.mangle_ident_default(), trait_name.mangle_ident_default())
             }
             Name::Vtable(trait_name) => format!("{}_VTable", trait_name),
             Name::Getter(obj_type, field_name) => format!(

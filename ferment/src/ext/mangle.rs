@@ -1,7 +1,8 @@
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
+use crate::ext::ToPath;
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -35,10 +36,8 @@ impl Mangle<MangleDefault> for Type {
                 path.mangle_string(context),
             Type::Tuple(type_tuple) =>
                 type_tuple.mangle_string(context),
-            ty => {
-                let p: Path = parse_quote!(#ty);
-                p.get_ident().unwrap().clone().to_string()
-            }
+            ty =>
+                ty.to_path().get_ident().unwrap().clone().to_string()
         }
     }
 }

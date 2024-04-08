@@ -1,11 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Item, parse_quote, Type};
+use syn::{Item, Type};
 use syn::punctuated::Punctuated;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::ValueReplaceScenario;
+use crate::ext::{ToType, ValueReplaceScenario};
 use crate::helper::collect_bounds;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -107,7 +107,7 @@ impl TryFrom<&Item> for ObjectConversion {
                 Ok(ObjectConversion::new_item(
                     TypeCompositionConversion::Trait(
                         TypeComposition::new(
-                            parse_quote!(#ident),
+                            ident.to_type(),
                             Some(item.generics.clone()), Punctuated::new()),
                         TraitDecompositionPart1::from_trait_items(ident, &item.items), collect_bounds(&item.supertraits)),
                     ScopeItemConversion::Item(value.clone())))
@@ -115,19 +115,19 @@ impl TryFrom<&Item> for ObjectConversion {
             Item::Struct(item) => {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()), Punctuated::new()),
+                        TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Enum(item) => {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()), Punctuated::new()),
+                        TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Type(item) => {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.generics.clone()), Punctuated::new()),
+                        TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()),
                     ScopeItemConversion::Item(value.clone())))
             },
             Item::Impl(item) => {
@@ -138,7 +138,7 @@ impl TryFrom<&Item> for ObjectConversion {
             Item::Fn(item) => {
                 let ident = &item.sig.ident;
                 Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(parse_quote!(#ident), Some(item.sig.generics.clone()), Punctuated::new()),
+                        TypeComposition::new(ident.to_type(), Some(item.sig.generics.clone()), Punctuated::new()),
                     ScopeItemConversion::Item(value.clone())))
                     // ScopeItemConversion::Fn(value.clone())))
             },
@@ -146,7 +146,7 @@ impl TryFrom<&Item> for ObjectConversion {
                 let ident = &item.ident;
                 Ok(ObjectConversion::new_item(
                     TypeCompositionConversion::Unknown(
-                        TypeComposition::new(parse_quote!(#ident), None, Punctuated::new())),
+                        TypeComposition::new(ident.to_type(), None, Punctuated::new())),
                     ScopeItemConversion::Item(value.clone())))
 
             }

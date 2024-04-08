@@ -6,11 +6,12 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
-use crate::composition::{Composition, FnSignatureComposition};
+use crate::composition::{Composition, FnSignatureComposition, FnSignatureContext};
 use crate::composition::context::{FnSignatureCompositionContext, TraitDecompositionPart2Context};
 use crate::composition::generic_composition::GenericsComposition;
 use crate::context::ScopeContext;
 use crate::conversion::TypeCompositionConversion;
+use crate::ext::ToType;
 use crate::holder::PathHolder;
 use crate::presentation::BindingPresentation;
 
@@ -102,14 +103,16 @@ pub struct TraitDecompositionPart2 {
 }
 
 impl TraitDecompositionPart2 {
-    pub fn from_trait_items(items: &[TraitItem], self_ty: Option<Type>, scope: &PathHolder, context: &ScopeContext) -> Self {
+    pub fn from_item_trait(item_trait: &ItemTrait, self_ty: Type, scope: &PathHolder, source: &ScopeContext) -> Self {
+        let trait_ident = &item_trait.ident;
         let mut methods = vec![];
         let mut types = HashMap::new();
-        items
+        let impl_context = FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()));
+        item_trait.items
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Method(TraitItemMethod { sig, .. } ) => {
-                    methods.push(FnSignatureComposition::from_signature(sig, self_ty.clone(), scope.clone(), context));
+                    methods.push(FnSignatureComposition::from_signature(&impl_context, sig, scope, source));
                 },
                 TraitItem::Type(trait_item_type) => {
                     types.insert(trait_item_type.ident.clone(), TraitTypeDecomposition::from_item_type(trait_item_type));
@@ -128,12 +131,12 @@ impl Composition for TraitDecompositionPart2 {
     type Context = TraitDecompositionPart2Context;
     type Presentation = Punctuated<BindingPresentation, Comma>;
 
-    fn present(self, composition_context: Self::Context, context: &ScopeContext) -> Self::Presentation {
+    fn present(self, composition_context: Self::Context, source: &ScopeContext) -> Self::Presentation {
         match composition_context {
             TraitDecompositionPart2Context::VTableInnerFunctions => self.methods
                 .into_iter()
                 .map(|composition|
-                    context.present_composition_in_context(composition, FnSignatureCompositionContext::TraitVTableInner))
+                    source.present_composition_in_context(composition, FnSignatureCompositionContext::TraitVTableInner))
                 .collect()
         }
 

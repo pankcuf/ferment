@@ -2,10 +2,10 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Comma, FatArrow, Paren, Semi};
-use syn::{parse_quote, Path, Type};
+use syn::{Path, Type};
 use crate::composer::{Depunctuated, OwnerAspectIteratorLocalContext, VariantIteratorLocalContext};
 use crate::context::ScopeContext;
-use crate::ext::Mangle;
+use crate::ext::{Mangle, ToPath};
 use crate::interface::{create_struct, package_unboxed_root};
 use crate::naming::{DictionaryExpression, DictionaryFieldName};
 use crate::opposed::Opposed;
@@ -75,11 +75,11 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let ffi_type = aspect.present(source);
                 let wrapped = Wrapped::<_, Paren>::new(fields.present(source)).to_token_stream();
                 // println!("OwnerIteratorPresentationContext::UnnamedStruct {}", ffi_type.to_token_stream());
-                create_struct(&parse_quote!(#ffi_type), quote!(#wrapped;))
+                create_struct(&ffi_type.to_path(), quote!(#wrapped;))
             },
             OwnerIteratorPresentationContext::NamedStruct((aspect, fields)) => {
                 let ffi_type = aspect.present(source);
-                create_struct(&parse_quote!(#ffi_type), Wrapped::<_, Brace>::new(fields.present(source)).to_token_stream())
+                create_struct(&ffi_type.to_path(), Wrapped::<_, Brace>::new(fields.present(source)).to_token_stream())
             },
             OwnerIteratorPresentationContext::Enum(context) => {
                 // println!("OwnerIteratorPresentationContext::present {:?}", context);
@@ -100,10 +100,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::NoFields(aspect) => {
-                let name = aspect.present(source);
-                let path: Path = parse_quote!(#name);
-                let ident = &path.segments.last().unwrap().ident;
-                quote!(#ident)
+                aspect.present(source).to_path().segments.last().unwrap().ident.to_token_stream()
             },
             OwnerIteratorPresentationContext::NoFieldsConversion(aspect) => {
                 let name = aspect.present(source);
@@ -112,9 +109,8 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
             },
             OwnerIteratorPresentationContext::EnumUnitFields((name, fields)) => {
                 let ty = name.present(source);
-                let path: Path = parse_quote!(#ty);
-                let ident = &path.segments.last().unwrap().ident;
-                Opposed::<_, _, syn::token::Eq>::new(ident, fields.present(source))
+                // let ident = ty.to_path().segments.last().unwrap().ident;
+                Opposed::<_, _, syn::token::Eq>::new(ty.to_path().segments.last().unwrap().ident.clone(), fields.present(source))
                     .to_token_stream()
             },
             OwnerIteratorPresentationContext::FromRoot(field_context, conversions) => {
@@ -149,7 +145,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let (aspect, fields) = context;
                 // println!("OwnerIteratorPresentationContext::RoundVariantFields: {:?} ---- {:?}", aspect, fields);
                 let name = aspect.present(source);
-                let path: Path = parse_quote!(#name);
+                let path: Path = name.to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = Wrapped::<_, Paren>::new(fields.present(source));
                 // println!("OwnerIteratorPresentationContext::RoundVariantFields: {} ---- {}", ident.to_token_stream(), presentation.to_token_stream());
@@ -158,7 +154,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
             OwnerIteratorPresentationContext::CurlyVariantFields(context) => {
                 let (aspect, fields) = context;
                 let name = aspect.present(source);
-                let path: Path = parse_quote!(#name);
+                let path: Path = name.to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = Wrapped::<_, Brace>::new(fields.present(source));
                 quote!(#ident #presentation)

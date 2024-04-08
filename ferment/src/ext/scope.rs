@@ -1,7 +1,8 @@
 use std::hash::Hash;
 use quote::ToTokens;
-use syn::{parse_quote, Path, PredicateType, TraitBound, Type, TypeParamBound, WherePredicate};
+use syn::{Path, PredicateType, TraitBound, Type, TypeParamBound, WherePredicate};
 use crate::context::ScopeChain;
+use crate::ext::ToType;
 use crate::visitor::Visitor;
 
 pub trait ScopeExtension {
@@ -15,7 +16,7 @@ impl ScopeExtension for TypeParamBound {
     fn add(&self, visitor: &mut Visitor, scope: &ScopeChain) {
         match self {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
-                let ty = parse_quote!(#path);
+                let ty = path.to_type();
                 visitor.add_full_qualified_type_match(scope, &ty);
             },
             TypeParamBound::Lifetime(_lifetime) => {}
@@ -33,7 +34,7 @@ impl ScopeExtension for WherePredicate {
                 bounds.iter().for_each(|bound| {
                     match bound {
                         TypeParamBound::Trait(TraitBound { path, .. }) => {
-                            let ty = parse_quote!(#path);
+                            let ty = path.to_type();
                             de_bounds.push(path.clone());
                             visitor.add_full_qualified_type_match(scope, &ty);
                         },

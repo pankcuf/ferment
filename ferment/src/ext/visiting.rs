@@ -7,7 +7,7 @@ use syn::token::Add;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::Join;
+use crate::ext::{Join, ToType};
 use crate::helper::collect_bounds;
 use crate::holder::PathHolder;
 use crate::visitor::Visitor;
@@ -54,7 +54,7 @@ impl Visiting for Item {
             Item::Impl(item_impl) => {
                 match &item_impl.trait_ {
                     Some((_, path, _)) => {
-                        let ty = parse_quote!(#path);
+                        let ty = path.to_type();
                         visitor.add_full_qualified_type_match(scope, &ty);
                     },
                     None => {}
@@ -122,7 +122,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 let self_scope = scope.self_scope();
                 let fn_self_scope = self_scope.self_scope.joined(sig_ident);
                 add_local_type(visitor, sig_ident, scope);
-                let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(parse_quote!(#fn_self_scope), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
+                let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(fn_self_scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
                 let fn_scope = ScopeChain::Fn {
                     crate_ident: scope.crate_ident().clone(),
                     self_scope: Scope::new(fn_self_scope, object),
@@ -195,7 +195,7 @@ fn add_local_type(visitor: &mut Visitor, ident: &Ident, scope: &ScopeChain) {
 fn add_bounds(visitor: &mut Visitor, bounds: &Punctuated<TypeParamBound, Add>, scope: &ScopeChain) -> Vec<Path> {
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
-        let ty = parse_quote!(#path);
+        let ty = path.to_type();
         visitor.add_full_qualified_type_match(scope, &ty);
     });
     bounds
@@ -255,6 +255,6 @@ pub fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
 
 pub fn add_trait_names(visitor: &mut Visitor, scope: &ScopeChain, item_trait_paths: &Vec<Path>) {
     item_trait_paths.iter().for_each(|trait_name|
-        visitor.add_full_qualified_type_match(scope, &parse_quote!(#trait_name)));
+        visitor.add_full_qualified_type_match(scope, &trait_name.to_type()));
 
 }

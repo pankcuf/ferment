@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{BareFnArg, FnArg, Generics, parse_quote, Pat, Path, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
@@ -8,7 +9,7 @@ use crate::composition::Composition;
 use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Conversion, CrateExtension, FFIResolveExtended, Mangle};
+use crate::ext::{Conversion, CrateExtension, FFIResolveExtended, Mangle, ResolveTrait};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
@@ -17,17 +18,52 @@ use crate::presentation::context::name::{Aspect, Context};
 use crate::presentation::ScopeContextPresentable;
 use crate::wrapped::Wrapped;
 
+#[derive(Clone)]
+pub enum FnSignatureContext {
+    ModFn,
+    Impl(Type, Option<Type>)
+}
+
+impl Debug for FnSignatureContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            FnSignatureContext::ModFn =>
+                format!("ModFn"),
+            FnSignatureContext::Impl(self_ty, trait_ty) =>
+                format!("Impl(self: {}, trait: {}", self_ty.to_token_stream(), trait_ty.to_token_stream())
+        }.as_str())
+    }
+}
+
+impl FnSignatureContext {
+    pub fn is_trait_fn(&self) -> bool {
+        match self {
+            FnSignatureContext::Impl(_, Some(_)) => true,
+            _ => false
+        }
+    }
+}
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposition {
     pub presentation: ReturnType,
     pub conversion: FieldTypePresentableContext,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FnArgComposition {
     pub name: Option<TokenStream2>,
     pub name_type_original: OwnedItemPresentableContext,
     pub name_type_conversion: FieldTypePresentableContext,
+}
+
+impl Debug for FnArgComposition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FnArgComposition")
+            .field("name", &format!("{}", self.name.to_token_stream()))
+            .field("name_type_original", &format!("{}", self.name_type_original))
+            .field("name_type_conversion", &format!("{:?}", self.name_type_conversion))
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -38,7 +74,8 @@ pub struct FnSignatureComposition {
     pub return_type: FnReturnTypeComposition,
     pub arguments: Vec<FnArgComposition>,
     pub generics: Option<Generics>,
-    pub self_ty: Option<Type>,
+    pub impl_context: FnSignatureContext,
+    // pub self_ty: Option<Type>,
 }
 
 impl Composition for FnSignatureComposition {
@@ -51,13 +88,15 @@ impl Composition for FnSignatureComposition {
                 let arguments = self.arguments
                     .iter()
                     .map(|arg| {
+
+                        // if self.impl_context.is_trait_fn() {
+                        //     println!("FnSignatureCompositionContext::FFIObject::present (original): {}", arg.name_type_original.present(source));
+                        // }
                         arg.name_type_original.clone()
                     })
                     .collect::<Punctuated<_, Comma>>();
 
                 let fn_name = self.ident.unwrap();
-                // println!("present_ffi_object_fn.0: {}: scope: {}", fn_name, self.scope);
-
                 let mut full_fn_path = self.scope.joined(&fn_name);
                 if self.scope.is_crate_based() {
                     let crate_chunk = Path::from(PathSegment::from(source.scope.crate_ident().clone()));
@@ -65,20 +104,40 @@ impl Composition for FnSignatureComposition {
                 }
                 let argument_conversions = self.arguments
                     .iter()
-                    .map(|arg|
-                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(source)))
+                    .map(|arg| {
+                        // if self.impl_context.is_trait_fn() {
+                        //     println!("FnSignatureCompositionContext::FFIObject::present (input conversion): {}", arg.name_type_conversion.present(source));
+                        // }
+                        OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(source))
+                    })
                     .collect::<Punctuated<_, _>>();
                 let name = Name::ModFn(full_fn_path.0.clone());
-
-                // Aspect::Target()
-                let input_conversions = constants::ROUND_BRACES_FIELDS_PRESENTER((Aspect::FFI(Context::Fn { path: full_fn_path.0 }), argument_conversions)).present(source);
+                let aspect_context = match self.impl_context {
+                    FnSignatureContext::ModFn =>
+                        Context::Fn {
+                            path: full_fn_path.0,
+                            self_ty: None,
+                            trait_ty: None
+                        },
+                    FnSignatureContext::Impl(self_ty, trait_ty) =>
+                        Context::Fn {
+                            path: full_fn_path.0,
+                            self_ty: Some(source.full_type_for(&self_ty)),
+                            trait_ty : trait_ty.as_ref()
+                                .and_then(|trait_ty|
+                                    source.full_type_for(trait_ty)
+                                        .trait_ty(source)
+                                        .and_then(|full_trait_ty|
+                                            full_trait_ty.to_ty()))
+                        },
+                };
+                let aspect = Aspect::FFI(aspect_context);
+                let input_conversions = constants::ROUND_BRACES_FIELDS_PRESENTER((aspect, argument_conversions)).present(source);
                 let return_type = self.return_type.presentation;
                 let output_conversions = self.return_type.conversion.present(source);
-                // println!("present_ffi_object_fn.1: {}", name);
-                // println!("present_ffi_object_fn.2: {}", quote!(arguments));
-                // // println!("present_ffi_object_fn.22: {}", quote!(н#(#argument_conversions),*));
-                // println!("present_ffi_object_fn.3: {}", quote!(#input_conversions));
-                // println!("present_ffi_object_fn.4: {}", quote!(#output_conversions));
+                // if self.impl_context.is_trait_fn() {
+                //     println!("FnSignatureCompositionContext::FFIObject::present (input_conversions): {}", input_conversions);
+                // }
                 BindingPresentation::RegularFunction {
                     is_async: self.is_async,
                     name,
@@ -92,22 +151,27 @@ impl Composition for FnSignatureComposition {
                 let arguments = self.arguments
                     .iter()
                     .map(|arg| arg.name_type_original.present(source))
-                    .collect();
+                    .collect::<Punctuated<_, _>>();
                 let output_expression = self.return_type.presentation;
+                let name = self.ident.clone().unwrap().to_token_stream();
+                // println!("FnSignatureCompositionContext::FFIObjectCallback: {}: {}: {}", name, arguments.to_token_stream(), output_expression.to_token_stream());
                 BindingPresentation::Callback {
-                    name: self.ident.clone().unwrap().to_token_stream(),
+                    name,
                     arguments,
                     output_expression
                 }
             },
             FnSignatureCompositionContext::TraitVTableInner => {
+                // println!("FnSignatureCompositionContext::TraitVTableInner: {:#?}", self.arguments);
                 let arguments = self.arguments.iter()
-                    .map(|arg|
-                        arg.name_type_original.clone())
+                    .map(|arg| {
+                        // println!("FnSignatureCompositionContext::TraitVTableInner::ARg: {}", arg.name_type_original);
+                        arg.name_type_original.clone()
+                    })
                     .collect::<Punctuated<_, Comma>>();
-                println!("present_trait_vtable_inner_fn: {:#?}", arguments);
                 let fn_name = self.ident.unwrap();
                 let presentation = Wrapped::<_, Paren>::new(arguments.present(source));
+                // println!("FnSignatureCompositionContext::TraitVTableInner::presentation: {}", presentation.to_token_stream());
                 let name_and_args = quote!(unsafe extern "C" fn #presentation);
                 let output_expression = self.return_type.presentation;
 
@@ -189,15 +253,16 @@ impl Composition for FnSignatureComposition {
 
 
 impl FnSignatureComposition {
-    pub fn from_signature(sig: &Signature, self_ty: Option<Type>, scope: PathHolder, context: &ScopeContext) -> Self {
+    pub fn from_signature(impl_context: &FnSignatureContext, sig: &Signature, scope: &PathHolder, source: &ScopeContext) -> Self {
         let Signature { output, ident, inputs, generics, .. } = sig;
-        // TODO: make a path
-        let return_type = handle_fn_return_type(output, context);
+        let return_type = handle_fn_return_type(output, source);
         let ident = Some(ident.clone());
-        let arguments = handle_fn_args(inputs, &self_ty, context);
+        let arguments = handle_fn_args(inputs, &impl_context, source);
+        if impl_context.is_trait_fn() {
+            println!("FnSignatureComposition::from_signature: [{}]: {:?} \n{:#?}", ident.to_token_stream(), impl_context, arguments);
+        }
         let is_async = sig.asyncness.is_some();
-
-        FnSignatureComposition { is_async, ident, scope, return_type, arguments, generics: Some(generics.clone()), self_ty }
+        FnSignatureComposition { is_async, ident, scope: scope.clone(), return_type, arguments, generics: Some(generics.clone()), impl_context: impl_context.clone() }
     }
 
     pub fn from_bare_fn(bare_fn: &TypeBareFn, ident: &Ident, scope: PathHolder, context: &ScopeContext) -> Self {
@@ -210,20 +275,20 @@ impl FnSignatureComposition {
             scope,
             arguments,
             return_type,
-            self_ty: None,
+            impl_context: FnSignatureContext::ModFn,
             generics: None
         }
     }
 }
 
-fn handle_fn_return_type(output: &ReturnType, context: &ScopeContext) -> FnReturnTypeComposition {
+fn handle_fn_return_type(output: &ReturnType, source: &ScopeContext) -> FnReturnTypeComposition {
     match output {
         ReturnType::Default => FnReturnTypeComposition {
             presentation: ReturnType::Default,
             conversion: FieldTypePresentableContext::LineTermination
         },
         ReturnType::Type(_, field_type) => FnReturnTypeComposition {
-            presentation: ReturnType::Type(RArrow::default(), Box::new(field_type.ffi_full_dictionary_type_presenter(context))),
+            presentation: ReturnType::Type(RArrow::default(), Box::new(field_type.ffi_full_dictionary_type_presenter(source))),
             conversion: field_type.conversion_to(FieldTypePresentableContext::Obj)
         },
     }
@@ -265,25 +330,47 @@ fn handle_bare_fn_return_type(output: &ReturnType, context: &ScopeContext) -> Fn
     }
 }
 
-fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, context: &ScopeContext) -> Vec<FnArgComposition> {
+fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, impl_context: &FnSignatureContext, source: &ScopeContext) -> Vec<FnArgComposition> {
     // TODO: replace Fn arguments with crate::fermented::generics::#ident or #import
     inputs
         .iter()
         .map(|arg| match arg {
             FnArg::Receiver(Receiver { mutability, reference, .. }) => {
-                let full_ty = self_ty.as_ref().map_or(quote!(), |ty| context.full_type_for(ty).mangle_ident_default().to_token_stream());
+                // println!("FnArg::Receiver: {}", ty.to_token_stream());
+                let (full_ty, name_type_conversion) = match impl_context {
+                    FnSignatureContext::Impl(self_ty, trait_ty) =>
+                        ({
+                             // let full_self_ty = source.full_type_for(self_ty).mangle_ident_default();
+                             // let full_self_ty = source.full_type_for(self_ty);
+                             match trait_ty {
+                                 None =>
+                                     source.full_type_for(self_ty)
+                                         .mangle_ident_default(),
+                                 Some(trait_ty) => {
+                                     source.full_type_for(trait_ty)
+                                         .mangle_ident_default()
+                                     // quote!(<#full_self_ty as #trait_path>)
+                                 }
+                             }.to_token_stream()
+                            // full_self_ty.mangle_ident_default().to_token_stream()
+                         },
+                            //&*((*self_).object as *const ferment_example::chain::common::chain_type::DevnetType)
+                            //                            let self_ = (*self_).object as *const ferment_example::chain::common::chain_type::DevnetType;
+                         match trait_ty {
+                                None =>
+                                    FieldTypePresentableContext::From(FieldTypePresentableContext::Self_.into()),
+                                Some(_trait_ty) =>
+                                    FieldTypePresentableContext::SelfAsTrait(source.full_type_for(self_ty).to_token_stream())
+                                    // FieldTypePresentableContext::FromConst(FieldTypePresentableContext::SelfAsTrait(source.full_type_for(self_ty).ffi_external_path_converted(source).unwrap().to_token_stream()).into())
+                            }
+                         ),
+                    FnSignatureContext::ModFn => panic!("[ERROR] Receiver in ModFn")
+                };
                 let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
                 let name_type_original = OwnedItemPresentableContext::Named(
                     FieldTypeConversion::Named(
-                        Name::Dictionary(DictionaryFieldName::Obj), parse_quote!(* #access #full_ty)),
+                        Name::Dictionary(DictionaryFieldName::Self_), parse_quote!(* #access #full_ty)),
                     false);
-
-                let field_name = FieldTypePresentableContext::Obj;
-                let name_type_conversion = if self_ty.is_some() {
-                    FieldTypePresentableContext::From(field_name.into())
-                } else {
-                    FieldTypePresentableContext::FromConst(field_name.into())
-                };
                 let name_type_conversion = if reference.is_some() {
                     FieldTypePresentableContext::AsRef(name_type_conversion.into())
                 } else {
@@ -297,13 +384,16 @@ fn handle_fn_args(inputs: &Punctuated<FnArg, Comma>, self_ty: &Option<Type>, con
             },
             FnArg::Typed(PatType { ty, pat, .. }) => {
                 // TODO: handle mut/const with pat
-                let full_type = ty.ffi_full_dictionary_type_presenter(context);
+                // println!("FnArg::Typed: {}", ty.to_token_stream());
+                let full_ty = source.full_type_for(ty);
+                let full_type = full_ty.ffi_full_dictionary_type_presenter(source);
                 let name_type_original = OwnedItemPresentableContext::Named(
                     FieldTypeConversion::Named(Name::Pat(*pat.clone()), full_type),
                     false);
                 let name_type_conversion = match &**pat {
-                    Pat::Ident(PatIdent { ident, .. }) =>
-                        ty.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident))),
+                    Pat::Ident(PatIdent { ident, .. }) => {
+                        ty.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)))
+                    },
                     _ => panic!("error: Arg conversion not supported: {}", quote!(#ty)),
                 };
                 FnArgComposition {

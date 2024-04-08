@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ItemTrait, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
-use crate::composition::{GenericConversion, NestedArgument, TraitDecompositionPart1, TypeComposition};
+use syn::punctuated::Punctuated;
+use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TraitDecompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{Scope, ScopeChain, TypeChain};
 use crate::context::custom_resolver::CustomResolver;
@@ -14,7 +15,7 @@ use crate::formatter::format_global_context;
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
 use crate::context::scope_resolver::ScopeRefinement;
-use crate::ext::{CrateExtension, Pop, RefineMut, RefineUnrefined, Unrefined};
+use crate::ext::{CrateExtension, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined};
 use crate::helper::{collect_bounds, GenericExtension};
 
 #[derive(Clone)]
@@ -78,7 +79,7 @@ impl GlobalContext {
         let mut maybe_trait: Option<&ObjectConversion>  = None;
         while i < current_scope.len() && maybe_trait.is_none() {
             let (root, head) = current_scope.split_and_join_self(i);
-            let ty = parse_quote!(#head);
+            let ty = head.to_type();
             let root_scope = self.maybe_scope(&root.0);
             if let Some(scope) = root_scope {
                 maybe_trait = self.maybe_scope_object(&ty, scope);
@@ -94,7 +95,7 @@ impl GlobalContext {
                             // println!("FFI (first bound) {:?}", trait_type);
                             if let Some(first_bound) = trait_type.trait_bounds.first() {
                                 // println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
-                                let tt_type = parse_quote!(#first_bound);
+                                let tt_type = first_bound.to_type();
                                 if let Some(scope) = root_scope {
                                     maybe_trait = self.maybe_scope_object(&tt_type, scope);
                                 }
@@ -109,6 +110,25 @@ impl GlobalContext {
             i += 1;
         }
         maybe_trait
+    }
+
+    pub fn maybe_trait_scope_pair(&self, link: &Path, scope: &ScopeChain) -> Option<(TraitCompositionPart1, ScopeChain)> {
+        let parent_scope = scope.parent_scope().unwrap();
+        let trait_ty = link.to_type();
+        let trait_scope = self.actual_scope_for_type(&trait_ty, parent_scope);
+        // println!("find_item_trait_scope_pair: {} -> {}", link.to_token_stream(), trait_scope);
+        let ident = link.get_ident().unwrap();
+        self.traits
+            .item_trait_with_ident_for(ident, &trait_scope)
+            .map(|trait_composition| {
+                let mut composition = trait_composition.clone();
+                // TODO: move to full and replace nested_arguments
+                let conversion = TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(trait_composition.item.generics.clone()), Punctuated::new()));
+                // println!("AttrsComposer: {} {} {}", trait_composition.item.ident, trait_scope, conversion);
+                composition.implementors.push(conversion);
+                (composition, trait_scope)
+            })
+
     }
 
 
@@ -169,7 +189,7 @@ impl GlobalContext {
         if let Some(scope) = self.maybe_scope(path) {
             // println!("maybe_item: found scope: {}", scope);
             let last_ident = &path.segments.last().unwrap().ident;
-            let ty = parse_quote!(#last_ident);
+            let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_type(&ty, scope) {
                 // println!("maybe_item: found item in scope: {}", item);
                 return Some(item);
@@ -194,7 +214,7 @@ impl GlobalContext {
             //     ObjectConversion::Empty => {}
             // }
             let self_ty = st.to_ty().unwrap();
-            let self_path: Path = parse_quote!(#self_ty);
+            let self_path: Path = self_ty.to_path();
             self.maybe_scope(&self_path).cloned()
         } else if let Some(import_path) = self.maybe_scope_import_path(current_scope, &p) {
             self.maybe_scope(import_path).cloned()
@@ -308,15 +328,12 @@ impl GlobalContext {
 
     pub fn maybe_import(&self, scope: &ScopeChain, path: &PathHolder) -> Option<&Path> {
         let result_opt = self.imports.maybe_import(scope, path);
-        println!("maybe_import: {path} in [{}] ---> {}", scope.self_path_holder(), result_opt.map_or(quote!(None), |r| r.to_token_stream()));
+        //println!("maybe_import: {path} in [{}] ---> {}", scope.self_path_holder(), result_opt.map_or(quote!(None), |r| r.to_token_stream()));
         result_opt
     }
 
     fn maybe_known_item(&self, ty_to_replace: &TypeComposition) -> Option<TypeCompositionConversion> {
-        let ty = &ty_to_replace.ty;
-        let path_to_replace: Path = parse_quote!(#ty);
-        // println!("find_the_item: {}", path_to_replace.to_token_stream());
-        if let Some(item) = self.maybe_item(&path_to_replace) {
+        if let Some(item) = self.maybe_item(&ty_to_replace.ty.to_path()) {
             //println!("find_the_item: found: {} --- {}", ty_to_replace.ty.to_token_stream(), item);
             match item {
                 ScopeItemConversion::Item(item) => match item {
@@ -357,7 +374,7 @@ impl GlobalContext {
                         let scope = create_mod_chain(&chunks);
                         if let Some(parent_imports) = self.imports.maybe_scope_imports(&scope) {
                             for (PathHolder(_ident), alias_path) in parent_imports {
-                                if let Some(merged) = merged_import(&import_type_path.path, alias_path) {
+                                if let Some(merged) = refined_import(&import_type_path.path, alias_path) {
                                     import_type_path.path.segments = merged.segments;
                                 }
                             }
@@ -412,7 +429,7 @@ impl GlobalContext {
                     // println!("[INFO] known item for [{}] is [{}]", ty_replacement.ty.to_token_stream(), found_item.to_token_stream());
                     found_item
                 } else {
-                    println!("[WARN] Still unknown -> {}", ty_replacement.ty.to_token_stream());
+                    println!("[WARN] Unknown import: [{}]", ty_replacement.ty.to_token_stream());
                     TypeCompositionConversion::Unknown(ty_replacement)
                 };
                 return Some(ObjectConversion::Type(conversion_replacement));
@@ -593,9 +610,9 @@ pub fn create_mod_chain(path: &Path) -> ScopeChain {
             parent_scope_chain: Box::new(parent_scope_chain.clone())
         }
     }
-
 }
-pub fn merged_import(import_path: &Path, alias: &Path) -> Option<Path> {
+
+pub fn refined_import(import_path: &Path, alias: &Path) -> Option<Path> {
     let mut last_import_segments = import_path.clone();
     let mut last_alias_segments = alias.clone();
     let mut merged_path: Option<Path> = None;
@@ -607,7 +624,7 @@ pub fn merged_import(import_path: &Path, alias: &Path) -> Option<Path> {
                 let mut path = Path { leading_colon: None, segments: last_import_segments.segments };
                 path.segments.extend(last_alias_segments.segments);
                 path.segments.push(PathSegment::from(ident));
-                println!("merged_path: {}", path.to_token_stream());
+                println!("[INFO] Refined import: [{}]", path.to_token_stream());
                 merged_path = Some(path);
             }
         },

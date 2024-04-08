@@ -20,6 +20,8 @@ pub enum FieldTypePresentableContext {
     ToVec(OwnerIteratorPresentationContext),
     ToVecPtr,
     Obj,
+    Self_,
+    SelfAsTrait(TokenStream2),
     ObjFieldName(TokenStream2),
     FieldTypeConversionName(FieldTypeConversion),
     LineTermination,
@@ -30,7 +32,7 @@ pub enum FieldTypePresentableContext {
     DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<FieldTypePresentableContext>),
-    FromConst(Box<FieldTypePresentableContext>),
+    // FromConst(Box<FieldTypePresentableContext>),
     FromOffsetMap,
     FromOpt(Box<FieldTypePresentableContext>),
     AsRef(Box<FieldTypePresentableContext>),
@@ -108,12 +110,12 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let field_path = presentation_context.present(source);
                 ffi_from_conversion(field_path)
             },
-            FieldTypePresentableContext::FromConst(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
-                quote!(#package::#interface::ffi_from_const(#field_path as *const _))
-            },
+            // FieldTypePresentableContext::FromConst(presentation_context) => {
+            //     let field_path = presentation_context.present(source);
+            //     let package = DictionaryFieldName::Package;
+            //     let interface = DictionaryFieldName::Interface;
+            //     quote!(#package::#interface::ffi_from_const(#field_path as *const _))
+            // },
             FieldTypePresentableContext::FromOpt(presentation_context) => {
                 let package = DictionaryFieldName::Package;
                 let interface = DictionaryFieldName::Interface;
@@ -152,6 +154,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 FieldTypePresentableContext::Deref(presentation_context.present(source)).present(source)
             }
             FieldTypePresentableContext::Obj => DictionaryFieldName::Obj.to_token_stream(),
+            FieldTypePresentableContext::Self_ => DictionaryFieldName::Self_.to_token_stream(),
             FieldTypePresentableContext::ObjFieldName(field_name) => {
                 quote!(obj.#field_name)
             }
@@ -170,6 +173,9 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let root_path = field_path.present(source);
                 let items = items.present(source);
                 quote!({ let ffi_ref = &*#root_path; (#items) })
+            }
+            FieldTypePresentableContext::SelfAsTrait(self_ty) => {
+                quote!(*((*self_).object as *const #self_ty))
             }
         }
     }

@@ -30,7 +30,7 @@ pub struct CoreGrpcClient {
     pub uri: Uri
 }
 
-// #[ferment_macro::export]
+#[ferment_macro::export]
 pub trait CanRetry {
     fn can_retry(&self) -> bool;
 }

@@ -1,5 +1,5 @@
 use quote::{format_ident, ToTokens};
-use syn::{Ident, parse_quote, Path, PathSegment, Type};
+use syn::{Ident, parse_quote, Path, PathSegment};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use crate::ext::CrateExtension;
@@ -178,10 +178,6 @@ impl PathHolder {
         let mut segments = self.0.segments.clone();
         segments.push(PathSegment::from(name.clone()));
         PathHolder::from(Path { leading_colon: None, segments })
-    }
-
-    pub fn to_type(&self) -> Type {
-        parse_quote!(#self)
     }
 
     pub fn split(&self, head_size: usize) -> (PathHolder, PathHolder) {

@@ -57,7 +57,7 @@ impl ScopeContextPresentable for GenericConversion {
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         let Self { 0: obj } = self;
-        println!("GenericConversion::present: {}", obj);
+        // println!("GenericConversion::present: {}", obj);
         match obj {
             ObjectConversion::Type(type_conversion) |
             ObjectConversion::Item(type_conversion, _) => {

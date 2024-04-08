@@ -58,6 +58,7 @@ impl ImportResolver {
         result
     }
     pub fn maybe_path(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+        // println!("maybe_path: {} in [{}]", ident, scope);
         self.maybe_scope_imports(scope)
             .and_then(|imports| imports.get(ident))
     }
@@ -81,7 +82,7 @@ impl ImportResolver {
 
 
     fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        // println!("maybe_fn_import (fn level): {}", ident);
+        //println!("maybe_fn_import (fn level): {}", ident);
         self.maybe_path(fn_scope, ident)
             .or({
                 match parent_scope {
@@ -92,11 +93,18 @@ impl ImportResolver {
                     ScopeChain::Trait { parent_scope_chain, .. } =>
                         self.maybe_path(parent_scope, ident)
                             .or({
-                                if let ScopeChain::Fn { parent_scope_chain: inner_fn_parent_scope_chain, .. } = &**parent_scope_chain {
-                                    self.maybe_fn_import(parent_scope_chain, inner_fn_parent_scope_chain, ident)
-                                } else {
-                                    self.maybe_path(parent_scope, ident)
+                                //println!("maybe_fn_import (Trait Fn has not imports here): {}", ident);
+                                match &**parent_scope_chain {
+                                    ScopeChain::CrateRoot { .. } |
+                                    ScopeChain::Mod { .. } =>
+                                        self.maybe_path(parent_scope_chain, ident),
+                                    _ => None,
                                 }
+                                // if let ScopeChain::Fn { parent_scope_chain: inner_fn_parent_scope_chain, .. } = &**parent_scope_chain {
+                                //     self.maybe_fn_import(parent_scope_chain, inner_fn_parent_scope_chain, ident)
+                                // } else {
+                                //     self.maybe_path(parent_scope, ident)
+                                // }
                             }),
                     ScopeChain::Object { parent_scope_chain, .. } =>
                         self.maybe_path(parent_scope, ident)

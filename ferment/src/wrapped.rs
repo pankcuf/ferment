@@ -36,6 +36,7 @@ impl DelimiterTrait for Void {
     fn delimiter() -> Delimiter { Delimiter::None }
 }
 
+#[derive(Clone)]
 pub struct Wrapped<T, P>
     where
         T: ToTokens,

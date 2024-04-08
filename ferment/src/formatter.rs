@@ -45,7 +45,7 @@ pub fn format_generic_conversions(dict: &HashSet<GenericConversion>) -> String {
     dict.iter()
         .map(|item| item.0.to_token_stream().to_string())
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n\t")
 }
 
 #[allow(unused)]
@@ -124,6 +124,7 @@ pub fn format_predicates_dict(vec: &HashMap<Type, Vec<Path>>) -> String {
         .join(",")
 }
 
+#[allow(unused)]
 fn format_generic_bounds_pair(pair: (&PathHolder, &Vec<Path>)) -> String {
     format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
 }
@@ -294,6 +295,7 @@ pub fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
         .collect()
 }
 
+#[allow(unused)]
 pub fn generic_bounds_dict(dict: &HashMap<PathHolder, Vec<Path>>) -> Vec<String> {
     dict.iter()
         .map(format_generic_bounds_pair)
@@ -364,6 +366,7 @@ pub fn scope_imports_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>)
     format_scope_dict(dict, imports_dict)
 }
 
+#[allow(unused)]
 pub fn scope_generics_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Vec<Path>>>) -> Vec<String> {
     format_scope_dict(dict, generic_bounds_dict)
 }
@@ -406,7 +409,7 @@ pub fn format_global_context(context: &GlobalContext) -> String {
         vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.traits.used_traits_dictionary),
         vec!["-- custom:".to_string(), context.custom.to_string()],
         vec!["-- imports:".to_string()], scope_imports_dict(&context.imports.inner),
-        vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
+        // vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
     ])
 }
 
@@ -470,6 +473,22 @@ impl Display for Emoji {
 #[macro_export]
 macro_rules! nprint {
     ($counter:expr, $emoji:expr, $($arg:tt)*) => {
+        //println!("cargo:warning={}", format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*)))
+
+        // log::warn!("{}", ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*))))
+        //ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*)))
         println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
     };
 }
+
+#[macro_export]
+macro_rules! print_phase {
+    ($label:expr, $($arg:tt)*) => {
+        println!("\n########################################################################################################################");
+        println!("# {}", $label);
+        println!("########################################################################################################################");
+        println!("{}", format!($($arg)*));
+        println!("########################################################################################################################\n");
+    }
+}
+

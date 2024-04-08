@@ -1,10 +1,10 @@
 use proc_macro2::{TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Path, ReturnType};
+use syn::{parse_quote, ReturnType};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, RArrow};
 use crate::composer::ConstructorPresentableContext;
-use crate::ext::{Mangle, Pop};
+use crate::ext::{Mangle, Pop, ToPath};
 use crate::naming::Name;
 
 #[derive(Debug)]
@@ -78,8 +78,7 @@ impl ToTokens for BindingPresentation {
                 match context {
                     ConstructorPresentableContext::EnumVariant(ffi_type) => {
                         let ffi_variant_name = Name::Constructor(ffi_type.clone());
-                        let tt = ffi_type.to_token_stream();
-                        let variant_path: Path = parse_quote!(#tt);
+                        let variant_path = ffi_type.to_path();
                         let enum_path = variant_path.popped();
                         present_function(
                             ffi_variant_name.mangle_ident_default().to_token_stream(),

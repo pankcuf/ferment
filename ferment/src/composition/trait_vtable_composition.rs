@@ -1,13 +1,11 @@
 use proc_macro2::Ident;
 use syn::__private::TokenStream2;
 use syn::{ReturnType, Type};
+use syn::punctuated::Punctuated;
+use syn::token::{Comma, Paren};
 use crate::context::ScopeChain;
+use crate::wrapped::Wrapped;
 
-
-// #[derive(ferment_macro::CompositionContext)]
-// pub enum TraitVTableCompositionContext {
-//     Static,
-// }
 
 #[derive(Clone)]
 pub struct TraitVTableComposition {
@@ -20,28 +18,13 @@ pub struct TraitVTableComposition {
     pub method_compositions: Vec<TraitVTableMethodComposition>,
 }
 
-// impl TraitVTableComposition {
-//     pub fn new(fn_name: Ident, ffi_fn_name: Ident, implementor_ident: Ident, trait_ident: Ident, implementor_scope: ScopeChain, trait_scope: ScopeChain, method_compositions: Vec<TraitVTableMethodComposition>) -> Self {
-//         Self {
-//             fn_name,
-//             ffi_fn_name,
-//             implementor_ident,
-//             trait_ident,
-//             implementor_scope,
-//             trait_scope,
-//             method_compositions,
-//         }
-//     }
-//
-// }
-
 #[derive(Clone)]
 pub struct TraitVTableMethodComposition {
     pub fn_name: Ident,
     pub ffi_fn_name: Ident,
     pub item_type: Type,
     pub trait_type: Type,
-    pub argument_names: TokenStream2,
+    pub argument_conversions: Wrapped<Punctuated<TokenStream2, Comma>, Paren>,
     pub name_and_args: TokenStream2,
     pub output_expression: ReturnType,
     pub output_conversions: TokenStream2,

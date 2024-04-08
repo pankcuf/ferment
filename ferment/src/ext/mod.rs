@@ -19,6 +19,7 @@ mod visit_scope_type;
 mod prefix;
 mod nested_arguments;
 mod refine;
+mod to_type;
 
 pub use self::accessory::Accessory;
 pub use self::collection::ScopeCollection;
@@ -38,6 +39,7 @@ pub use self::prefix::Prefix;
 pub use self::refine::{Refine, RefineMut, RefineAtScope, RefineUnrefined, Unrefined};
 pub use self::terminated::Terminated;
 pub use self::resolve_trait::ResolveTrait;
+pub use self::to_type::{ToPath, ToType};
 pub use self::visiting::add_trait_names;
 pub use self::visiting::create_generics_chain;
 pub use self::visiting::extract_trait_names;

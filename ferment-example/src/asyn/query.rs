@@ -52,7 +52,7 @@ pub trait Query<T: TransportRequest>: Send + Clone {
 }
 
 impl<T> Query<T> for T where T: TransportRequest + Sized + Send + Sync + Clone, T::Response: Send + Sync {
-    fn query(self, prove: bool) -> Result<T, ProtocolError> {
+    fn query(self, prove: bool) -> Result<T, Box<dyn Error>> {
         if !prove {
             unimplemented!("queries without proofs are not supported yet");
         }

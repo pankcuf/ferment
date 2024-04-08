@@ -7,7 +7,7 @@ use crate::conversion::ObjectConversion;
 
 pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
     fn trait_ty(&self, source: &ScopeContext) -> Option<ObjectConversion> {
-        // println!("FFI (check...1) for: {}", format_token_stream(ty));
+        // println!("FFI (check...1) for: {}", self.to_token_stream());
         let lock = source.context.read().unwrap();
         let ty: Type = parse_quote!(#self);
         let mut maybe_trait = lock.resolve_trait_type(&ty);

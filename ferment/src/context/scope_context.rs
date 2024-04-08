@@ -1,13 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use quote::ToTokens;
-use syn::{Attribute, Item, parse_quote, Path, Type};
+use syn::{Attribute, Item, Path, Type};
+use crate::composer::Depunctuated;
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::ext::extract_trait_names;
 use crate::holder::PathHolder;
+use crate::print_phase;
 
 #[derive(Clone)]
 pub struct ScopeContext {
@@ -32,8 +33,9 @@ impl std::fmt::Display for ScopeContext {
 
 impl ScopeContext {
     pub fn print_with_message(&self, message: &str) {
-        println!("\n•• {} ••\n", message);
-        println!("{}", self);
+        print_phase!(message, "{}", self);
+        // println!("\n•• {} ••\n", message);
+        // println!("{}", self);
 
     }
     pub fn is_from_current_crate(&self) -> bool {
@@ -161,38 +163,11 @@ impl ScopeContext {
     //     }
     // }
 
-    pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Vec<(TraitCompositionPart1, ScopeChain)> {
-        let attr_traits = extract_trait_names(attrs);
-        // println!("trait_items_from_attributes: [{}]: [{}]", self.scope, format_path_vec(&attr_traits));
-        attr_traits.iter()
-            .map(|trait_name| {
-
-                // self.find_item_trait_scope_pair(trait_name)
-
-                let trait_ty = parse_quote!(#trait_name);
-                // let oc = ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(trait_ty, None)));
-                let lock = self.context.read().unwrap();
-                // let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
-                let parent_scope = self.scope.parent_scope().unwrap();
-                let trait_scope = lock.actual_scope_for_type(&trait_ty, parent_scope);
-                // let trait_scope = lock.actual_scope_for_type(&trait_ty, &self.scope);
-                // trait_scope
-                // trait_scope.se
-                // let trait_ident = parse_quote!(#trait_name);
-                // let trait_scope = full_trait_ty.as_scope();
-                println!("find_item_trait_scope_pair: {} ::: {}", trait_name.to_token_stream(), trait_scope);
-                // let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
-                // let trait_scope_chain = ScopeChain::Trait {
-                //     self_scope: trait_scope,
-                //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
-                // };
-                let ident = trait_name.get_ident().unwrap();
-                (lock.traits
-                     .item_trait_with_ident_for(ident, &trait_scope)
-                     .cloned()
-                     .unwrap(), trait_scope)
-
-            })
+    pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Depunctuated<(TraitCompositionPart1, ScopeChain)> {
+        let global = self.context.read().unwrap();
+        extract_trait_names(attrs)
+            .iter()
+            .filter_map(|link| global.maybe_trait_scope_pair(link, &self.scope))
             .collect()
     }
 

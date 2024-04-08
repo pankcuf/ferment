@@ -409,16 +409,9 @@ pub const fn enum_variant_composer_field_presenter() -> OwnedFieldTypeComposerRe
     |field_type| OwnedItemPresentableContext::DefaultField(field_type.clone())
 }
 pub const fn enum_variant_ctor_context_composer() -> SharedComposer<ItemParentComposer, (ConstructorPresentableContext, FieldTypesContext)> {
-    |composer| {
-        let ffi = Aspect::FFI(composer.name_context()).present(&composer.as_source_ref());
-        // let tt = ffi.to_token_stream();
-        // let ffi_path: Path = parse_quote!(#tt);
-        (ConstructorPresentableContext::EnumVariant(ffi
-            // Name::Constructor(ffi),
-            // ffi_path.popped().to_token_stream(),
-            // ffi_path.to_token_stream()
-        ), FIELD_TYPES_COMPOSER(composer))
-    }
+    |composer|
+        (ConstructorPresentableContext::EnumVariant(Aspect::FFI(composer.name_context()).present(&composer.as_source_ref())), FIELD_TYPES_COMPOSER(composer))
+
 }
 pub const fn enum_variant_composer_ctor_unit() -> CtorOwnedComposer<ItemParentComposer> {
     composer_ctor(

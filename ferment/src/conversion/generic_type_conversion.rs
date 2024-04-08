@@ -8,7 +8,7 @@ use syn::__private::TokenStream2;
 use crate::composer::{ConstructorPresentableContext, Depunctuated};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, FFIResolve, Mangle};
+use crate::ext::{Accessory, FFIResolve, Mangle, ToPath, ToType};
 use crate::helper::{path_arguments_to_type_conversions, usize_to_tokenstream};
 use crate::interface::{create_struct, ffi_to_conversion};
 use crate::naming::{DictionaryExpression, DictionaryFieldName, Name};
@@ -91,16 +91,16 @@ impl GenericTypeConversion {
 
 impl GenericTypeConversion {
     pub fn expand(&self, full_type: &TypeCompositionConversion, source: &ScopeContext) -> TokenStream2 {
-        println!("GenericTypeConversion::expand: {}", full_type.to_token_stream());
-        println!(" {}", full_type.ty().to_token_stream());
-        println!(" {}", full_type.to_ty().to_token_stream());
+        // println!("GenericTypeConversion::expand: {}", full_type.to_token_stream());
+        // println!(" {}", full_type.ty().to_token_stream());
+        // println!(" {}", full_type.to_ty().to_token_stream());
         let ffi_type = full_type.to_ty();
         let ffi_name = ffi_type.mangle_ident_default();
-        let ffi_as_type: Type = parse_quote!(#ffi_name);
+        let ffi_as_type = ffi_name.to_type();
 
         match self {
             GenericTypeConversion::Result(ty) => {
-                let path: Path = parse_quote!(#ty);
+                let path = ty.to_path();
                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
                 let path_conversions = path_arguments_to_type_conversions(arguments);
                 let arg_0_name = Name::Dictionary(DictionaryFieldName::Ok);
@@ -253,7 +253,7 @@ impl GenericTypeConversion {
                     },
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                let target_type: Type = parse_quote!(#path);
+                let target_type: Type = path.to_type();
                 let GenericArgPresentation { ty: ok_type, from_conversion: from_ok_conversion, to_conversion: to_ok_conversion, destructor: ok_destructor } = arg_0_presentation;
                 let GenericArgPresentation { ty: error_type, from_conversion: from_error_conversion, to_conversion: to_error_conversion, destructor: error_destructor } = arg_1_presentation;
                 compose_generic_presentation(
@@ -278,7 +278,7 @@ impl GenericTypeConversion {
                 )
             },
             GenericTypeConversion::Map(ty) => {
-                let path: Path = parse_quote!(#ty);
+                let path: Path = ty.to_path();
                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
                 let path_conversions = path_arguments_to_type_conversions(arguments);
                 let arg_0_name = Name::Dictionary(DictionaryFieldName::Keys);
@@ -431,7 +431,7 @@ impl GenericTypeConversion {
                     }
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                let target_type: Type = parse_quote!(#path);
+                let target_type: Type = path.to_type();
                 let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = arg_0_presentation;
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
@@ -457,7 +457,7 @@ impl GenericTypeConversion {
                 )
             },
             GenericTypeConversion::Vec(ty) => {
-                let path: Path = parse_quote!(#ty);
+                let path: Path = ty.to_path();
                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
                 let path_conversions = path_arguments_to_type_conversions(arguments);
                 let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
@@ -489,7 +489,7 @@ impl GenericTypeConversion {
                     }
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
-                let target_type: Type = parse_quote!(#path);
+                let target_type: Type = path.to_type();
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_0_presentation;
 
                 compose_generic_presentation(
@@ -549,7 +549,7 @@ impl GenericTypeConversion {
                             TypeConversion::Generic(root_path) => {
                                 // TODO: make sure it works
                                 let root_ffi_path = root_path.to_ffi_path();
-                                let path: Path = parse_quote!(#ty);
+                                let path = ty.to_path();
                                 let PathSegment { arguments, .. } = path.segments.last().unwrap();
                                 let arg_type_conversions = path_arguments_to_type_conversions(arguments);
                                 println!("GenericTypeConversion::Tuple.2: {}: {}", root_ffi_path.to_token_stream(), quote!(#(#arg_type_conversions),*));
@@ -620,7 +620,7 @@ fn compose_generic_presentation(
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
     source: &ScopeContext) -> FFIObjectPresentation {
-    println!("compose_generic_presentation: {}", ffi_name);
+    // println!("compose_generic_presentation: {}", ffi_name);
     let ffi_as_path: Path = parse_quote!(#ffi_name);
     let ffi_as_type: Type = parse_quote!(#ffi_name);
     let fields = Punctuated::<_, Comma>::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));

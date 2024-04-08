@@ -7,7 +7,7 @@ use syn::token::{Add, Comma};
 use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, NestedArgument, TypeComposition};
 use crate::context::TypeChain;
 use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, type_ident, type_ident_ref, TypeConversion};
-use crate::ext::{CrateExtension, NestingExtension, VisitScopeType};
+use crate::ext::{CrateExtension, NestingExtension, ToPath, ToType, VisitScopeType};
 use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::tree::ScopeTreeExportID;
@@ -93,7 +93,7 @@ pub trait ItemExtension {
 
 impl GenericExtension for Item {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
-        println!("Item::collect_compositions: {}", self.maybe_ident().to_token_stream());
+        //println!("Item::collect_compositions: {}", self.maybe_ident().to_token_stream());
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();
         let mut cache_type = |ty: &Type|
             type_and_paths.push(TypeHolder(ty.clone()));
@@ -316,9 +316,9 @@ fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypePa
 fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
     // println!("maybe_generic_type_bound.1: {} in [{} .... {}]", format_token_stream(path), format_token_stream(&generics.params), format_token_stream(&generics.where_clause));
     let result = generics.params.iter().find_map(|param| if let GenericParam::Type(type_param) = param {
-        let ty: Type = parse_quote!(#path);
+        let ty = path.to_type();
         let ident = &type_param.ident;
-        let ident_path: Path = parse_quote!(#ident);
+        let ident_path = ident.to_path();
         let has_bounds = ident_path.eq(path);
         let bounds = generic_trait_bounds(path, &ident_path, &type_param.bounds);
         // println!("maybe_generic_type_bound.2: [{}: {}] --> [{}]", has_bounds, quote!(#type_param), format_path_vec(&bounds));
@@ -335,7 +335,7 @@ fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericB
                                 WherePredicate::Type(predicate_type) => {
                                     // println!("maybe_generic_type_bound:::predicate: [{}] {} ::: {}", ty.eq(&predicate_type.bounded_ty), format_token_stream(predicate_type), format_token_stream(path));
                                     let bounded_ty = &predicate_type.bounded_ty;
-                                    let ident_path: Path = parse_quote!(#bounded_ty);
+                                    let ident_path = bounded_ty.to_path();
                                     ty.eq(&predicate_type.bounded_ty)
                                         .then(||(
                                             predicate_type.bounded_ty.clone(),
@@ -371,11 +371,8 @@ fn path_from_type(ty: &Type) -> Option<&Path> {
     match ty {
         Type::Array(TypeArray { elem, len: _, .. }) => path_from_type(elem),
         Type::Path(TypePath { path, .. }) => Some(path),
-        Type::Tuple(TypeTuple { elems, .. }) => {
-            let first = elems.first().unwrap();
-            path_from_type(first)
-            // parse_quote!(#elems)
-        }
+        Type::Tuple(TypeTuple { elems, .. }) =>
+            elems.first().and_then(path_from_type),
         _ => None,
     }
 }
@@ -449,7 +446,7 @@ fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposi
     let involved: HashSet<Type> = ty.nested_items();
     involved.iter()
         .for_each(|ty| {
-            let path: Path = parse_quote!(#ty);
+            let path = ty.to_path();
             if let Some(PathSegment { ident, .. }) = path.segments.last() {
                 let (import_type, scope) = import_pair(&path, imports);
                 container
@@ -567,7 +564,6 @@ pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<T
 
 impl GenericExtension for Signature {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
-        println!("Fn::collect_compositions: {}", self.maybe_ident().to_token_stream());
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();
         self.inputs.iter().for_each(|arg|
             if let FnArg::Typed(PatType { ty, .. }) = arg {

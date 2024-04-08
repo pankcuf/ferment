@@ -6,8 +6,6 @@ use crate::naming::DictionaryFieldName;
 
 
 pub fn create_struct(path: &Path, implementation: TokenStream2) -> TokenStream2 {
-    // println!("create_struct: {}" , path.to_token_stream());
-    // let path: Path = parse_quote!(#name);
     let ident = &path.segments.last().unwrap().ident;
     quote! {
         #[repr(C)]

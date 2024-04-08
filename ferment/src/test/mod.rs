@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::{FFIResolve, FFIResolveExtended};
+use crate::ext::{FFIResolve, FFIResolveExtended, ToPath};
 use crate::helper::path_arguments_to_types;
 use crate::holder::PathHolder;
 
@@ -64,10 +64,10 @@ impl PathHolder {
     }
 
     pub fn crate_and(path: TokenStream2) -> Self {
-        Self::crate_root().joined_path(parse_quote!(#path))
+        Self::crate_root().joined_path(path.to_path())
     }
     pub fn ffi_types_and(path: TokenStream2) -> Self {
-        Self::ffi_types_scope().joined_path(parse_quote!(#path))
+        Self::ffi_types_scope().joined_path(path.to_path())
     }
     pub fn joined_path(&self, path: Path) -> PathHolder {
         parse_quote!(#self::#path)

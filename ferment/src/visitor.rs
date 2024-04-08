@@ -56,7 +56,7 @@ impl<'ast> Visit<'ast> for Visitor {
         if node.ident.to_string().eq("fermented") {
             return;
         }
-        println!("visit_item_mod: {}", node.to_token_stream());
+        //println!("visit_item_mod: {}", node.to_token_stream());
         let item = Item::Mod(node.clone());
         let module = self.current_module_scope.clone();
         self.current_module_scope = self.current_module_scope.joined(&item);
@@ -82,7 +82,7 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_use(&mut self, node: &'ast ItemUse) {
-        println!("visit_item_use: {}", node.to_token_stream());
+        //println!("visit_item_use: {}", node.to_token_stream());
         // TODO: what to do with fn-level use statement?
         let scope = self.current_module_scope.clone();
         self.fold_import_tree(&scope, &node.tree, vec![]);

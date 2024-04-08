@@ -6,8 +6,8 @@ use syn::punctuated::Punctuated;
 use syn::token::Semi;
 use crate::builder::Crate;
 use crate::composer::Depunctuated;
-use crate::composition::{create_item_use_with_tree, create_items_use_from_path, GenericConversion};
-use crate::error;
+use crate::composition::{create_item_use_with_tree, create_items_use_from_path};
+use crate::{error, print_phase};
 use crate::formatter::format_generic_conversions;
 use crate::presentation::{Expansion, ScopeContextPresentable};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
@@ -22,25 +22,12 @@ pub struct CrateTree {
 // Main entry point for resulting expansion
 impl ToTokens for CrateTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-
-        let refined_generics = self.current_tree.scope_context.borrow().context.read().unwrap().refined_generics.clone();
-        println!("CrateTree::refined_generics: {}", format_generic_conversions(&refined_generics));
-        // let mut generics: HashSet<GenericConversion> = HashSet::from_iter(self.current_tree.generics.iter().cloned());
-        let generics: HashSet<GenericConversion> = HashSet::from_iter(refined_generics);
+        let scope_context = self.current_tree.scope_context.borrow();
+        let refined_generics = &scope_context.context.read().unwrap().refined_generics;
+        print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&refined_generics));
         let mut generic_imports = HashSet::new();
         let mut generic_conversions = Depunctuated::new();
-        let mut regular_conversions = self.external_crates
-            .iter()
-            .map(|(_crate, scope_tree)| {
-                // generics.extend(scope_tree.generic_conversions());
-                scope_tree.to_token_stream()
-            })
-            .collect::<Depunctuated<TokenStream2>>();
-
-        // generics.extend(self.current_tree.generic_conversions());
-        regular_conversions.push(self.current_tree.to_token_stream());
-
-        for generic in &generics {
+        for generic in refined_generics {
             generic_imports.extend(generic.used_imports());
             generic_conversions.push(generic.present(&self.current_tree.scope_context.borrow()));
         }
@@ -54,7 +41,7 @@ impl ToTokens for CrateTree {
             directives: directives.clone(),
             name: quote!(types),
             imports: Punctuated::new(),
-            conversions: regular_conversions
+            conversions: self.to_regular_conversions()
         }.to_tokens(tokens);
         Expansion::Mod {
             directives: directives.clone(),
@@ -75,7 +62,7 @@ impl CrateTree {
                 scope_context,
                 imported,
                 exported) => {
-                println!("\n•• CRATE TREE MORPHING ••\n");
+                print_phase!("PHASE 2: CRATE TREE MORPHING", "");
                 let current_tree = create_crate_root_scope_tree(current_crate.ident(), scope_context, imported, exported);
                 let external_crates = external_crates.into_iter()
                     .map(|(external_crate, crate_root_tree_export_item)|
@@ -91,12 +78,21 @@ impl CrateTree {
                             }
                         })
                     .collect();
-                current_tree.print_scope_tree_with_message("CRATE TREE CONTEXT");
+                current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
 
                 let mut crate_tree = Self { current_crate: current_crate.clone(), current_tree, external_crates };
                 crate_tree.current_tree.refine();
                 Ok(crate_tree)
             }
         }
+    }
+
+    pub fn to_regular_conversions(&self) -> Depunctuated<TokenStream2> {
+        let mut regular_conversions = self.external_crates
+            .values()
+            .map(ScopeTree::to_token_stream)
+            .collect::<Depunctuated<_>>();
+        regular_conversions.push(self.current_tree.to_token_stream());
+        regular_conversions
     }
 }

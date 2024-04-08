@@ -6,11 +6,11 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::composer::{Composable, ItemComposer, ParentComposer, VariantComposer};
 use crate::composer::enum_composer::EnumComposer;
-use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, TraitDecompositionPart2};
+use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, FnSignatureContext, TraitDecompositionPart2};
 use crate::composition::context::TraitDecompositionPart2Context;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Mangle, Pop};
+use crate::ext::{Mangle, Pop, ToType};
 use crate::naming::Name;
 use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation};
 use crate::presentation::context::{OwnedItemPresentableContext, OwnerIteratorPresentationContext};
@@ -267,13 +267,11 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
     }
 }
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
-    let ItemTrait { ident, items, .. } = item_trait;
+    let self_ty = item_trait.ident.to_type();
     let source = context.borrow();
-    let trait_decomposition = TraitDecompositionPart2::from_trait_items(items, Some(parse_quote!(#ident)), scope.self_path_holder(), &source);
+    let mangled_ty = source.full_type_for(&self_ty).mangle_ident_default();
+    let trait_decomposition = TraitDecompositionPart2::from_item_trait(item_trait, self_ty, scope.self_path_holder(), &source);
     let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source);
-    println!("trait_expansion: {}: {}", scope, ident);
-    let full_ty = source.full_type_for(&parse_quote!(#ident));
-    let mangled_ty = full_ty.mangle_ident_default();
     let vtable_name = Name::Vtable(mangled_ty.clone());
     Expansion::Trait {
         comment: DocPresentation::Empty,
@@ -290,7 +288,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
 
 fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let source = context.borrow();
-    let signature = FnSignatureComposition::from_signature(&item.sig, None, scope.self_path_holder().popped(), &source);
+    let signature = FnSignatureComposition::from_signature(&FnSignatureContext::ModFn, &item.sig, &scope.self_path_holder().popped(), &source);
     Expansion::Function {
         comment: DocPresentation::Safety(Name::Optional(signature.ident.clone())),
         binding: signature.present(FnSignatureCompositionContext::FFIObject, &source),
@@ -299,16 +297,18 @@ fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<Scop
 }
 
 fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
+    println!("impl_expansion: {} {}", item_impl.trait_.as_ref().map_or(format!(""), |(_, p, _)| format!("{} for", p.to_token_stream())), item_impl.self_ty.to_token_stream());
     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
     let source = scope_context.borrow();
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
+        // <ferment_example::chain::common::chain_type::DevnetType as ferment_example::chain::common::chain_type::IHaveChainSettings>
+        let impl_context = FnSignatureContext::Impl(*self_ty.clone(), match trait_ {
+            None => None,
+            Some((_, _path, _)) => Some(parse_quote!(#_path))
+        });
         match impl_item {
             ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                Some(FnSignatureComposition::from_signature(
-                    sig,
-                    Some(*self_ty.clone()),
-                    scope.self_path_holder().clone(),
-                    &source)
+                Some(FnSignatureComposition::from_signature(&impl_context, sig, scope.self_path_holder(), &source)
                     .present(FnSignatureCompositionContext::FFIObject, &source))
             },
             ImplItem::Type(ImplItemType { .. }) => None,
@@ -316,54 +316,54 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
             _ => None,
         }
     }).collect();
-    match trait_ {
-        None => {
-
-            // println!("impl_expansion.1: self_ty: {}", self_ty.to_token_stream());
-            // println!("impl_expansion.1: items: {}", quote!(#(#items)*));
-
-            // NEED:
-            // pub unsafe extern "C" fn get_balance(obj: *const ()) -> u64 {
-            //     let obj = crate::identity::identity::Identity::get_balance(
-            //         ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _),
-            //     );
-            //     obj
-            // }
-
-            // CURRENT:
-            // #[no_mangle]
-            // pub unsafe extern "C" fn get_balance(obj: *const Identity) -> u64 {
-            //     let obj = crate::identity::identity::Identity::get_balance(
-            //         &ferment_interfaces::FFIConversion::ffi_from_const(obj),
-            //     );
-            //     obj
-            // }
-
-        },
-        Some((_, _path, _)) => {
-            // let trait_type = parse_quote!(#path);
-            // let trait_full_type = source.full_type_for(&trait_type);
-
-            // let gtx = source.context.read().unwrap();
-            // let trait_scope = gtx.actual_scope_for_type(&trait_type, scope);
-
-            // println!("impl_expansion.2: trait_scope: {}", trait_scope.to_token_stream());
-
-            // let (trait_composition, trait_scope) = ctx.find_item_trait_in_scope(path);
-
-            // ctx.item_trait_with_ident_for()
-            // let item_full_type = source.full_type_for(self_ty);
-
-            // let trait_item = ctx.item_trait_with_ident_for()
-            //
-            // println!("impl_expansion.2: trait_full_type: {}", trait_full_type.to_token_stream());
-            // println!("impl_expansion.2: item_ty: {}", item_full_type.to_token_stream());
-            // // println!("impl_expansion.2: trait_composition: {:?}", trait_composition);
-            // // println!("impl_expansion.2: trait_scope: {:?}", trait_scope);
-            // println!("impl_expansion.2: items: {}", quote!(#(#items)*));
-            // println!("impl_expansion.2: trait: {}", quote!(#path));
-        }
-    }
+    // match trait_ {
+    //     None => {
+    //
+    //         // println!("impl_expansion.1: self_ty: {}", self_ty.to_token_stream());
+    //         // println!("impl_expansion.1: items: {}", quote!(#(#items)*));
+    //
+    //         // NEED:
+    //         // pub unsafe extern "C" fn get_balance(obj: *const ()) -> u64 {
+    //         //     let obj = crate::identity::identity::Identity::get_balance(
+    //         //         ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _),
+    //         //     );
+    //         //     obj
+    //         // }
+    //
+    //         // CURRENT:
+    //         // #[no_mangle]
+    //         // pub unsafe extern "C" fn get_balance(obj: *const Identity) -> u64 {
+    //         //     let obj = crate::identity::identity::Identity::get_balance(
+    //         //         &ferment_interfaces::FFIConversion::ffi_from_const(obj),
+    //         //     );
+    //         //     obj
+    //         // }
+    //
+    //     },
+    //     Some((_, _path, _)) => {
+    //         // let trait_type = parse_quote!(#path);
+    //         // let trait_full_type = source.full_type_for(&trait_type);
+    //
+    //         // let gtx = source.context.read().unwrap();
+    //         // let trait_scope = gtx.actual_scope_for_type(&trait_type, scope);
+    //
+    //         // println!("impl_expansion.2: trait_scope: {}", trait_scope.to_token_stream());
+    //
+    //         // let (trait_composition, trait_scope) = ctx.find_item_trait_in_scope(path);
+    //
+    //         // ctx.item_trait_with_ident_for()
+    //         // let item_full_type = source.full_type_for(self_ty);
+    //
+    //         // let trait_item = ctx.item_trait_with_ident_for()
+    //         //
+    //         // println!("impl_expansion.2: trait_full_type: {}", trait_full_type.to_token_stream());
+    //         // println!("impl_expansion.2: item_ty: {}", item_full_type.to_token_stream());
+    //         // // println!("impl_expansion.2: trait_composition: {:?}", trait_composition);
+    //         // // println!("impl_expansion.2: trait_scope: {:?}", trait_scope);
+    //         // println!("impl_expansion.2: items: {}", quote!(#(#items)*));
+    //         // println!("impl_expansion.2: trait: {}", quote!(#path));
+    //     }
+    // }
     Expansion::Impl { comment: DocPresentation::Empty, items: impl_item_compositions }
 }
 // V1:

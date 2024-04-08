@@ -1,7 +1,6 @@
-// mod chain;
-// mod example;
+pub mod chain;
+pub mod example;
 pub mod fermented;
-// mod traits;
 // mod asyn;
 #[allow(dead_code)]
 pub mod identity;

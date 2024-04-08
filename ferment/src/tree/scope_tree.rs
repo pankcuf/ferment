@@ -13,6 +13,7 @@ use crate::conversion::ImportConversion;
 use crate::ext::{Join, RefineUnrefined};
 use crate::formatter::{format_imported_dict, format_tree_item_dict};
 use crate::presentation::expansion::Expansion;
+use crate::print_phase;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[derive(Clone)]
@@ -25,7 +26,7 @@ pub struct ScopeTree {
 
 impl ScopeTree {
     pub(crate) fn refine(&mut self) {
-        println!("\n•• CRATE TREE REFINEMENT ••\n");
+        print_phase!("PHASE 3: CRATE TREE REFINEMENT", "");
         self.scope_context
             .borrow()
             .context
@@ -33,7 +34,7 @@ impl ScopeTree {
             .unwrap()
             .refine();
 
-        self.print_scope_tree_with_message("CRATE TREE REFINED CONTEXT");
+        self.print_scope_tree_with_message("PHASE 3: CRATE TREE REFINED CONTEXT");
 
     }
 }
