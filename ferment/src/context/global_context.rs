@@ -575,10 +575,6 @@ impl GlobalContext {
         None
     }
     fn refine_nested(&self, composition: &TypeComposition, scope: &ScopeChain) -> TypeComposition {
-        if composition.ty.eq(&parse_quote!(Option<get_identity_response_v0::Result>)) ||
-            composition.ty.eq(&parse_quote!(get_identity_response_v0::Result)) {
-            println!("refine_nested: {} --- [{}]", composition, scope.self_path_holder_ref().to_token_stream());
-        }
         let mut new_ty_composition = composition.clone();
         new_ty_composition.nested_arguments
             .iter_mut()

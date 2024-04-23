@@ -42,10 +42,6 @@ impl RefineMut for Type {
     type Refinement = Punctuated<NestedArgument, Comma>;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
-        if self == &parse_quote!(Option<get_identity_response_v0::Result>) ||
-            self == &parse_quote!(get_identity_response_v0::Result) {
-            println!("refine: {}\n\twith: {}", self.to_token_stream(), refined.to_token_stream())
-        }
         match self {
             Type::Path(TypePath { path, .. }) => {
                 path.segments.last_mut().unwrap().arguments.refine_with(refined);
