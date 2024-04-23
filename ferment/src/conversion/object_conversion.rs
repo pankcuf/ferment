@@ -7,12 +7,22 @@ use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{ToType, ValueReplaceScenario};
 use crate::helper::collect_bounds;
-
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
     Type(TypeCompositionConversion),
     Item(TypeCompositionConversion, ScopeItemConversion),
     Empty
+}
+
+impl ObjectConversion {
+    pub fn is_type(&self, ty: &Type) -> bool {
+        match self {
+            ObjectConversion::Type(conversion) |
+            ObjectConversion::Item(conversion, _) =>
+                ty.eq(conversion.ty()),
+            ObjectConversion::Empty => false
+        }
+    }
 }
 
 impl ValueReplaceScenario for ObjectConversion {

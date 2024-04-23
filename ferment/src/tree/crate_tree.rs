@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{ItemUse, UseRename, UseTree};
@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Semi;
 use crate::builder::Crate;
 use crate::composer::Depunctuated;
-use crate::composition::{create_item_use_with_tree, create_items_use_from_path};
+use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
 use crate::formatter::format_generic_conversions;
 use crate::presentation::{Expansion, ScopeContextPresentable};
@@ -25,17 +25,6 @@ impl ToTokens for CrateTree {
         let scope_context = self.current_tree.scope_context.borrow();
         let refined_generics = &scope_context.context.read().unwrap().refined_generics;
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&refined_generics));
-        let mut generic_imports = HashSet::new();
-        let mut generic_conversions = Depunctuated::new();
-        for generic in refined_generics {
-            generic_imports.extend(generic.used_imports());
-            generic_conversions.push(generic.present(&self.current_tree.scope_context.borrow()));
-        }
-        let mut imports = Punctuated::<ItemUse, Semi>::from_iter([
-            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
-        ]);
-        imports.extend(generic_imports.iter().map(create_items_use_from_path));
-
         let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
         Expansion::Mod {
             directives: directives.clone(),
@@ -44,10 +33,12 @@ impl ToTokens for CrateTree {
             conversions: self.to_regular_conversions()
         }.to_tokens(tokens);
         Expansion::Mod {
-            directives: directives.clone(),
+            directives,
             name: quote!(generics),
-            imports,
-            conversions: generic_conversions
+            imports: Punctuated::<ItemUse, Semi>::from_iter([
+                create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
+            ]),
+            conversions: refined_generics.iter().map(|generic| generic.present(&scope_context)).collect()
         }.to_tokens(tokens);
     }
 }

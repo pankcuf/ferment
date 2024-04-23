@@ -91,23 +91,33 @@ impl Conversion for Type {
 
 impl Conversion for TypeArray {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        println!("Conversion for TypeArray: {} -- {:?}", self.to_token_stream(), field_path);
         // let arg_type = handle_arg_type(&type_array.elem, pat, context);
         // let len = &type_array.len;
         match &*self.elem {
             Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
-                match segments.last().unwrap().ident.to_string().as_str() {
-                    "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
-                    _ => panic!("FieldConversion::TypeArray unsupported: unsupported segments {}", quote!(#segments))
-                },
-            _ => panic!("FieldConversion::TypeArray unsupported {}", quote!(#self)),
+                if matches!(segments.last().unwrap().ident.to_string().as_str(), "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool") {
+                    // FieldTypePresentableContext::DerefContext(field_path.into())
+                    FieldTypePresentableContext::From(field_path.into())
+                } else {
+                    panic!("<TypeArray as Conversion>::conversion_from: {}", quote!(#segments))
+                }
+            Type::Tuple(..) => {
+                // FieldTypePresentableContext::From(field_path.into())
+                FieldTypePresentableContext::From(field_path.into())
+                // FieldTypePresentableContext::DerefContext(field_path.into())
+            },
+            _ => panic!("<TypeArray as Conversion>::conversion_from: {}", quote!(#self)),
         }
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         match &*self.elem {
             Type::Path(type_path) =>
-                type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
-            _ => panic!("to_array: Unknown type {}", quote!(#self)),
+                FieldTypePresentableContext::To(field_path.into()),
+
+            // type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
+            _ => panic!("<TypeArray as Conversion>::conversion_to: Unknown type {}", quote!(#self)),
         }
     }
 
@@ -118,22 +128,38 @@ impl Conversion for TypeArray {
 
 impl Conversion for TypeSlice {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        match &*self.elem {
+        FieldTypePresentableContext::AsSlice(match &*self.elem {
             Type::Path(type_path) =>
-                type_path.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
+            FieldTypePresentableContext::CastFrom(
+                field_path.into(),
+                quote!(Vec<#type_path>),
+                quote!(crate::fermented::generics::Slice_Tuple_ferment_example_nested_HashID_ferment_example_nested_HashID)),
+                // FieldTypePresentableContext::From(FieldTypePresentableContext::DerefContext(field_path.into()).into()),
+                //
+                // type_path.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
                 // match segments.last().unwrap().ident.to_string().as_str() {
                 //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
                 //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
                 // },
+            Type::Tuple(type_tuple) =>
+                FieldTypePresentableContext::CastFrom(
+                    field_path.into(),
+                    quote!(Vec<(ferment_example::nested::HashID, ferment_example::nested::HashID)>),
+                    quote!(crate::fermented::generics::Slice_Tuple_ferment_example_nested_HashID_ferment_example_nested_HashID)),
+
+            // FieldTypePresentableContext::From(field_path.into()),
+                // type_tuple.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
             _ => panic!("from_slice: unsupported {}", quote!(#self)),
-        }
+        }.into())
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         // TODO: fix it TypeConversion::from
         match &*self.elem {
             Type::Path(type_path) =>
-                type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
+                FieldTypePresentableContext::To(field_path.into()),
+
+            // type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
             // match segments.last().unwrap().ident.to_string().as_str() {
             //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
             //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
@@ -157,16 +183,14 @@ impl Conversion for TypePtr {
                 Type::Path(_type_path) => FieldTypePresentableContext::FromOffsetMap,
                 _ => FieldTypePresentableContext::From(field_path.into()),
             },
-            Type::Path(type_path) => {
-                let field_type = type_path
+            Type::Path(type_path) =>
+                FieldTypePresentableContext::FromRawParts(type_path
                     .path
                     .segments
                     .last()
                     .unwrap()
                     .ident
-                    .to_token_stream();
-                FieldTypePresentableContext::FromRawParts(field_type)
-            },
+                    .to_token_stream()),
             _ => FieldTypePresentableContext::From(field_path.into()),
         }
 
@@ -218,6 +242,29 @@ impl Conversion for TypeReference {
                 //     FieldTypePresentableContext::AsRef(type_path.conversion_from(field_path).into())
                 // }
                 //type_path.conversion_from(field_path)
+            },
+            Type::Slice(type_slice) => {
+                println!("SLICE IN REF: {}", self.to_token_stream());
+                type_slice.conversion_from(field_path)
+                // if self.mutability.is_some() {
+                //     FieldTypePresentableContext::AsMutRef(type_slice.conversion_from(field_path).into())
+                // } else {
+                //     FieldTypePresentableContext::AsRef(type_slice.conversion_from(field_path).into())
+                // }
+            },
+            Type::Array(type_array) => {
+                if self.mutability.is_some() {
+                    FieldTypePresentableContext::AsMutRef(type_array.conversion_from(field_path).into())
+                } else {
+                    FieldTypePresentableContext::AsRef(type_array.conversion_from(field_path).into())
+                }
+            },
+            Type::Tuple(type_tuple) => {
+                if self.mutability.is_some() {
+                    FieldTypePresentableContext::AsMutRef(type_tuple.conversion_from(field_path).into())
+                } else {
+                    FieldTypePresentableContext::AsRef(type_tuple.conversion_from(field_path).into())
+                }
             },
             _ => panic!("from_reference: unsupported type: {}", quote!(#self)),
         }

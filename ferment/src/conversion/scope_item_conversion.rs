@@ -2,15 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, Path, Signature, Type};
+use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature};
 use syn::__private::TokenStream2;
-use crate::composition::{GenericConversion, ImportComposition};
-use crate::context::TypeChain;
-use crate::conversion::ImportConversion;
-use crate::ext::NestingExtension;
+use crate::composition::{ImportComposition, TraitDecompositionPart1, TypeComposition};
+use crate::conversion::{ImportConversion, TypeCompositionConversion};
 use crate::formatter::format_token_stream;
-use crate::helper::{GenericExtension, ItemExtension};
-use crate::holder::{PathHolder, TypeHolder};
+use crate::helper::{collect_bounds, ItemExtension};
+use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -44,44 +42,6 @@ impl Display for ScopeItemConversion {
     }
 }
 
-impl GenericExtension for ScopeItemConversion {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        match self {
-            ScopeItemConversion::Item(item) => item.collect_compositions(),
-            ScopeItemConversion::Fn(sig) => sig.collect_compositions(),
-        }
-    }
-    fn find_generics_fq(&self, scope_types: &TypeChain) -> HashSet<GenericConversion> {
-        match self {
-            ScopeItemConversion::Item(item) => item.find_generics_fq(scope_types),
-            ScopeItemConversion::Fn(sig) => sig.find_generics_fq(scope_types),
-        }
-    }
-}
-
-impl GenericExtension for Type {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        self.nested_items().iter().map(TypeHolder::from).collect()
-        // match self {
-        //     Type::Array(_) => {}
-        //     Type::BareFn(_) => {}
-        //     Type::Group(_) => {}
-        //     Type::ImplTrait(_) => {}
-        //     Type::Infer(_) => {}
-        //     Type::Macro(_) => {}
-        //     Type::Never(_) => {}
-        //     Type::Paren(_) => {}
-        //     Type::Path(_) => {}
-        //     Type::Ptr(_) => {}
-        //     Type::Reference(_) => {}
-        //     Type::Slice(_) => {}
-        //     Type::TraitObject(_) => {}
-        //     Type::Tuple(_) => {}
-        //     Type::Verbatim(_) => {}
-        //     Type::__NonExhaustive => {}
-        // }
-    }
-}
 impl ItemExtension for ScopeItemConversion {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID {
         match self {
@@ -117,4 +77,26 @@ impl ItemExtension for ScopeItemConversion {
             ScopeItemConversion::Fn(sig) => sig.classify_imports(imports)
         }
     }
+}
+
+impl ScopeItemConversion {
+    pub fn update_scope_item(&self, ty_to_replace: TypeComposition) -> Option<TypeCompositionConversion> {
+        match self {
+            ScopeItemConversion::Item(item) => match item {
+                Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
+                    Some(TypeCompositionConversion::Trait(
+                        ty_to_replace.clone(),
+                        TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits))),
+                Item::Enum(..) |
+                Item::Struct(..) |
+                Item::Type(..) |
+                Item::Fn(..) |
+                Item::Impl(..) =>
+                    Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
+                _ => None
+            }
+            ScopeItemConversion::Fn(_) => None
+        }
+    }
+
 }

@@ -2,7 +2,7 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{PathArguments, Type, TypeArray, TypePath, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{PathArguments, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::conversion::GenericTypeConversion;
 
 #[derive(Clone, Eq)]
@@ -80,9 +80,12 @@ impl From<Type> for TypeConversion {
             },
             Type::Tuple(type_tuple) =>
                 TypeConversion::Generic(GenericTypeConversion::Tuple(type_tuple)),
-            Type::Slice(TypeSlice { elem, .. }) |
-            Type::Array(TypeArray { elem, .. }) =>
-                TypeConversion::Generic(GenericTypeConversion::Array(*elem)),
+            Type::Array(..) =>
+                TypeConversion::Generic(GenericTypeConversion::Array(ty.clone())),
+            Type::Slice(..) =>
+                TypeConversion::Generic(GenericTypeConversion::Slice(ty.clone())),
+            // Type::Array(TypeArray { elem, .. }) =>
+            //     TypeConversion::Generic(GenericTypeConversion::Array(*elem)),
             // Type::BareFn(_) => {}
             // Type::ImplTrait(_) => {}
             // Type::Ptr(_) => {}

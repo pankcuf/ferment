@@ -1,23 +1,13 @@
+use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type, TypePath, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, PathArguments, Type, TypePath, TypeTuple};
 use crate::composition::NestedArgument;
 use crate::context::ScopeChain;
 
 pub trait RefineMut: Sized {
     type Refinement;
     fn refine_with(&mut self, refined: Self::Refinement);
-
-    // fn unrefined(&self) -> Self::Unrefined;
-    //
-    // fn refine(&mut self) {
-    //     let unrefined = self.unrefined();
-    //     self.refine_with(unrefined);
-    // }
-    // fn refined(&mut self) -> &mut Self {
-    //     self.refine();
-    //     self
-    // }
 }
 
 pub trait Unrefined: Sized {
@@ -25,12 +15,6 @@ pub trait Unrefined: Sized {
     fn unrefined(&self) -> Self::Unrefinement;
 }
 
-// pub trait RefineUnrefined: RefineMut + Unrefined {
-//     fn refine(&mut self) {
-//         let unrefined = self.unrefined();
-//         self.refine_with(unrefined);
-//     }
-// }
 pub trait RefineUnrefined: RefineMut + Unrefined<Unrefinement = Self::Refinement> {
     fn refine(&mut self) {
         let unrefined = self.unrefined();
@@ -58,6 +42,10 @@ impl RefineMut for Type {
     type Refinement = Punctuated<NestedArgument, Comma>;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
+        if self == &parse_quote!(Option<get_identity_response_v0::Result>) ||
+            self == &parse_quote!(get_identity_response_v0::Result) {
+            println!("refine: {}\n\twith: {}", self.to_token_stream(), refined.to_token_stream())
+        }
         match self {
             Type::Path(TypePath { path, .. }) => {
                 path.segments.last_mut().unwrap().arguments.refine_with(refined);

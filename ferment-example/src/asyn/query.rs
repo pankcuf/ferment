@@ -18,7 +18,7 @@ pub struct AppliedRequestSettings {
 #[derive(Clone)]
 #[ferment_macro::export]
 pub struct Uri {
-    pub(crate) scheme: String,
+    pub scheme: String,
 }
 
 #[ferment_macro::export]
@@ -36,29 +36,31 @@ pub trait TransportClient: Send + Sized {
 #[ferment_macro::export]
 pub trait TransportResponse: Clone + Send + Sync {}
 
-
 #[ferment_macro::export]
 pub trait TransportRequest: Clone + Send + Sync {
     type Client: TransportClient;
     type Response: TransportResponse;
     const SETTINGS_OVERRIDES: RequestSettings;
-    fn execute_transport(self, client: &mut Self::Client, settings: &AppliedRequestSettings)
-        -> Result<Self::Response, <Self::Client as TransportClient>::Error>;
+    fn execute_transport(
+        self,
+        client: &mut Self::Client,
+        settings: &AppliedRequestSettings
+    ) -> Result<Self::Response, <Self::Client as TransportClient>::Error>;
 }
 
-#[ferment_macro::export]
-pub trait Query<T: TransportRequest>: Send + Clone {
-    fn query(self, prove: bool) -> Result<T, Box<dyn Error>>;
-}
-
-impl<T> Query<T> for T where T: TransportRequest + Sized + Send + Sync + Clone, T::Response: Send + Sync {
-    fn query(self, prove: bool) -> Result<T, Box<dyn Error>> {
-        if !prove {
-            unimplemented!("queries without proofs are not supported yet");
-        }
-        Ok(self)
-    }
-}
+// #[ferment_macro::export]
+// pub trait Query<T: TransportRequest>: Send + Clone {
+//     fn query(self, prove: bool) -> Result<T, Box<dyn Error>>;
+// }
+//
+// impl<T> Query<T> for T where T: TransportRequest + Sized + Send + Sync + Clone, T::Response: Send + Sync {
+//     fn query(self, prove: bool) -> Result<T, Box<dyn Error>> {
+//         if !prove {
+//             unimplemented!("queries without proofs are not supported yet");
+//         }
+//         Ok(self)
+//     }
+// }
 
 
 

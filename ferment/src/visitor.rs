@@ -6,9 +6,9 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion};
-use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, Visiting, VisitScopeType};
+use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, VisitScope, VisitScopeType};
 use crate::formatter::Emoji;
-use crate::helper::ident_from_item;
+use crate::helper::ItemExtension;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
@@ -94,7 +94,7 @@ impl Visitor {
     pub fn new(scope: ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Self {
         Self {
             context: context.clone(),
-            parent: scope.self_path_holder().clone(),
+            parent: scope.self_path_holder_ref().clone(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
             tree: ScopeTreeExportItem::with_global_context(scope, context.clone())
@@ -241,7 +241,7 @@ impl Visitor {
     }
 
     pub fn add_conversion(&mut self, item: Item) {
-        let ident = ident_from_item(&item);
+        let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectConversion::try_from(&item)) {
@@ -259,7 +259,7 @@ impl Visitor {
                     });
                 }
             },
-            (_, Ok(_object)) if ident != Some(format_ident!("FFIConversion")) => if let Item::Impl(..) = item {
+            (_, Ok(_object)) if ident.eq(&Some(&format_ident!("FFIConversion"))) => if let Item::Impl(..) = item {
                 if let Some(_scope) = item.join_scope(&current_scope, self) {
                 }
             },

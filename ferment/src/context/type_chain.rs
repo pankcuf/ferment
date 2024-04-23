@@ -5,9 +5,8 @@ use quote::ToTokens;
 use syn::{Path, Type};
 use crate::composition::GenericConversion;
 use crate::conversion::ObjectConversion;
-use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
+use crate::ext::{Constraints, visitor::GenericCollector, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
-use crate::helper::GenericExtension;
 use crate::holder::{Holder, TypeHolder};
 
 #[derive(Copy, Clone)]
@@ -134,7 +133,7 @@ impl TypeChain {
         self.inner.extend_with_policy(types.inner, EnrichScopePolicy);
     }
 
-    pub fn find_generics_fq(&self, item: &dyn GenericExtension) -> HashSet<GenericConversion> {
+    pub fn find_generics_fq(&self, item: &dyn GenericCollector) -> HashSet<GenericConversion> {
         item.find_generics()
             .iter()
             .filter_map(|ty| self.get(ty))

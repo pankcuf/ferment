@@ -12,11 +12,6 @@ impl Prefix for Path {
         if self.segments.len() > path.segments.len() {
             return false;
         }
-        let test = path.segments.last().unwrap().ident.to_string().eq("LLMQSnapshot");
-        if test{
-        println!("is_prefix_of {} ---- {}", self.to_token_stream(), path.to_token_stream());
-
-        }
         self.segments.iter()
             .zip(path.segments.iter())
             .all(|(seg1, seg2)|

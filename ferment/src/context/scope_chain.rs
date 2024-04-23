@@ -8,7 +8,7 @@ use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::GlobalContext;
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{ToPath, ToType};
+use crate::ext::{CrateExtension, Pop, ToPath, ToType};
 use crate::helper::path_arguments_to_nested_objects;
 use crate::holder::PathHolder;
 
@@ -64,7 +64,7 @@ impl PartialEq<Self> for ScopeChain {
 impl Hash for ScopeChain {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.variant_code().hash(state);
-        self.self_path_holder().hash(state);
+        self.self_path_holder_ref().hash(state);
     }
 }
 
@@ -124,14 +124,14 @@ impl ScopeChain {
 
 impl ToTokens for ScopeChain {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.self_path_holder()
+        self.self_path_holder_ref()
             .to_tokens(tokens)
     }
 }
 
 impl ToType for ScopeChain {
     fn to_type(&self) -> Type {
-        self.self_path_holder().to_type()
+        self.self_path_holder_ref().to_type()
     }
 }
 
@@ -149,7 +149,7 @@ impl ScopeChain {
         ScopeChain::Mod { crate_ident, self_scope, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
     pub fn child_mod(crate_ident: Ident, name: &Ident, scope: &ScopeChain) -> Self {
-        ScopeChain::new_mod(crate_ident, Scope::new(scope.self_path_holder().joined(name), ObjectConversion::Empty), scope)
+        ScopeChain::new_mod(crate_ident, Scope::new(scope.self_path_holder_ref().joined(name), ObjectConversion::Empty), scope)
     }
     pub fn crate_ident(&self) -> &Ident {
         match self {
@@ -175,12 +175,28 @@ impl ScopeChain {
         }
     }
 
-    pub fn self_path_holder(&self) -> &PathHolder {
+    pub fn joined_path_holder(&self, ident: &Ident) -> PathHolder {
+        let scope = self.self_path_holder_ref();
+        let mut full_fn_path = scope.joined(ident);
+        if scope.is_crate_based() {
+            full_fn_path.replace_first_with(&PathHolder::from(self.crate_ident().to_path()))
+        }
+        full_fn_path
+    }
+
+    pub fn self_path_holder(&self) -> PathHolder {
+        self.self_scope().self_scope.clone()
+    }
+    pub fn self_path_holder_ref(&self) -> &PathHolder {
         &self.self_scope().self_scope
     }
 
+    pub fn parent_path_holder(&self) -> PathHolder {
+        self.self_path_holder_ref().popped()
+    }
+
     pub fn self_path(&self) -> &Path {
-        &self.self_path_holder().0
+        &self.self_path_holder_ref().0
     }
 
     pub fn parent_scope(&self) -> Option<&ScopeChain> {
@@ -223,7 +239,7 @@ impl ScopeChain {
     }
 
     pub fn head(&self) -> Ident {
-        self.self_path_holder().head()
+        self.self_path_holder_ref().head()
     }
 
     pub fn has_same_parent(&self, other: &ScopeChain) -> bool {

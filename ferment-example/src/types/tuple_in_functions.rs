@@ -29,3 +29,15 @@ pub fn get_vec_of_tuples() -> Vec<(HashID, HashID)> {
 pub fn set_vec_of_tuples(vec: Vec<(HashID, HashID)>) {
     println!("set_vec: {:?}", vec)
 }
+
+#[ferment_macro::export]
+pub fn set_slice_of_tuples(arr: &[(HashID, HashID)]) {
+    println!("set_slice_of_tuples: {:?}", arr)
+}
+
+// #[ferment_macro::export]
+// pub fn set_array_of_tuples(arr: [(HashID, HashID); 1]) {
+//     println!("set_slice_of_tuples: {:?}", arr)
+// }
+
+

@@ -2,36 +2,60 @@ use std::cell::Ref;
 use syn::Generics;
 use crate::composer::{Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
-use crate::presentation::{BindingPresentation, InterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation, TraitVTablePresentation};
+use crate::presentation::{BindingPresentation, InterfacePresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::name;
 use crate::presentation::context::name::Aspect;
 use crate::presentation::destroy_presentation::DestroyPresentation;
+use crate::shared::SharedAccess;
 
-pub trait Composable {
+
+pub trait SourceExpandable {
     fn context(&self) -> &ParentComposer<ScopeContext>;
-    fn as_source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
+    fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
+    fn expand(&self) -> Expansion { Expansion::Empty }
+}
+
+pub trait NameContext {
     fn name_context(&self) -> name::Context { self.name_context_ref().clone() }
+    fn name_context_ref(&self) -> &name::Context;
     fn ffi_name_aspect(&self) -> Aspect { Aspect::FFI(self.name_context()) }
     fn target_name_aspect(&self) -> Aspect { Aspect::Target(self.name_context()) }
-    fn name_context_ref(&self) -> &name::Context;
-    fn compose_attributes(&self) -> Depunctuated<TraitVTablePresentation>;
-    fn compose_bindings(&self) -> Depunctuated<BindingPresentation>;
+}
+pub trait BasicComposable<Parent>: SourceExpandable + NameContext where Parent: SharedAccess {
+    fn compose_attributes(&self) -> Depunctuated<Expansion>;
     fn compose_docs(&self) -> DocPresentation;
-    fn compose_object(&self) -> FFIObjectPresentation;
+    // fn base(&self) -> &BasicComposer<Parent>;
+    // fn compose_attributes(&self) -> Depunctuated<TraitVTablePresentation> {
+    //     self.base().compose_attributes()
+    // }
+    //
+    // fn compose_docs(&self) -> DocPresentation {
+    //     self.base().compose_docs()
+    // }
+}
+
+pub trait DropComposable {
     fn compose_drop(&self) -> DropInterfacePresentation;
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>);
-    fn expand(&self) -> Expansion {
+}
+
+pub trait ConversionComposable<Parent> where Parent: SharedAccess {
+    fn compose_conversion(&self) -> InterfacePresentation where Self: BasicComposable<Parent> {
         let source = self.context().borrow();
-        Expansion::Full {
-            comment: self.compose_docs(),
-            ffi_presentation: self.compose_object(),
-            conversion: InterfacePresentation::Conversion {
-                types: (self.ffi_name_aspect().present(&source), self.target_name_aspect().present(&source)),
-                conversions: self.compose_interface_aspects()
-            },
-            drop: self.compose_drop(),
-            bindings: self.compose_bindings(),
-            traits: self.compose_attributes()
+        InterfacePresentation::Conversion {
+            types: (
+                self.ffi_name_aspect().present(&source),
+                self.target_name_aspect().present(&source)
+            ),
+            conversions: self.compose_interface_aspects()
         }
     }
+    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>);
+}
+
+pub trait FFIObjectComposable {
+    fn compose_object(&self) -> FFIObjectPresentation;
+}
+
+pub trait BindingComposable {
+    fn compose_bindings(&self) -> Depunctuated<BindingPresentation>;
 }

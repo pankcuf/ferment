@@ -41,7 +41,6 @@ impl Hash for Scope {
 }
 
 impl Scope {
-
     pub fn new(self_scope: PathHolder, object: ObjectConversion) -> Self {
         Scope { self_scope, object }
     }

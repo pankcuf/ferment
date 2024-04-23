@@ -5,9 +5,8 @@ use crate::composition::GenericConversion;
 use crate::context::ScopeChain;
 use crate::context::type_chain::TypeChain;
 use crate::conversion::ObjectConversion;
-use crate::ext::RefineMut;
+use crate::ext::{visitor::GenericCollector, RefineMut};
 use crate::formatter::types_dict;
-use crate::helper::GenericExtension;
 use crate::holder::TypeHolder;
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
 
@@ -19,7 +18,9 @@ pub struct ScopeResolver {
 impl Debug for ScopeResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.inner.iter()
-            .map(|(key, value)| format!("\t{}:\n\t\t{}", key, types_dict(&value.inner).join("\n\t\t")))
+            .map(|(key, value)|
+                format!("\t{}:\n\t\t{}", key, types_dict(&value.inner)
+                    .join("\n\t\t")))
             .collect::<Vec<String>>();
         iter.sort();
         f.write_str( iter.join("\n\n").as_str())
@@ -56,13 +57,6 @@ impl ScopeResolver {
             .and_then(|chain| chain.get(&tc))
     }
 
-    // pub fn maybe_scope_type_or_parent_type(&self, ty: &Type, scope: &ScopeChain) -> Option<ObjectConversion> {
-    //     self.maybe_scope_type(ty, scope)
-    //         .or(scope.parent_scope()
-    //             .and_then(|parent_scope| self.maybe_scope_type(ty, parent_scope)))
-    //         .cloned()
-    // }
-
     pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
         self.inner
             .get(scope)
@@ -72,7 +66,7 @@ impl ScopeResolver {
     pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
         self.inner
             .get(scope)
-            .map(|chain| item.find_generics_fq(chain))
+            .map(|chain| item.find_generics_conversions(chain))
             .unwrap_or_default()
     }
 

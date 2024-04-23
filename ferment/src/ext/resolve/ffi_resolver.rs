@@ -11,9 +11,9 @@ use crate::ext::{Accessory, CrateExtension, Mangle, ResolveTrait, ToPath, ToType
 use crate::helper::path_arguments_to_paths;
 
 pub trait FFIResolve where Self: Sized + ToTokens + Parse {
-    fn resolve(&self, source: &ScopeContext) -> Option<Self>;
-    fn resolve_or_same(&self, source: &ScopeContext) -> Self {
-        self.resolve(source)
+    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self>;
+    fn ffi_resolve_or_same(&self, source: &ScopeContext) -> Self {
+        self.ffi_resolve(source)
             .unwrap_or(parse_quote!(#self))
     }
 }
@@ -30,7 +30,7 @@ pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
 }
 
 impl FFIResolve for Path {
-    fn resolve(&self, source: &ScopeContext) -> Option<Self> {
+    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
         let segments = &self.segments;
         let last_segment = segments.last().unwrap();
         let last_ident = &last_segment.ident;
@@ -51,7 +51,7 @@ impl FFIResolve for Path {
             "Option" => path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
-                .and_then(|path| path.resolve(source)),
+                .and_then(|path| path.ffi_resolve(source)),
             "Box" => path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
@@ -89,28 +89,28 @@ impl FFIResolve for Path {
 }
 
 impl FFIResolve for TypePath {
-    fn resolve(&self, source: &ScopeContext) -> Option<Self> {
-        self.path.resolve(source)
+    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
+        self.path.ffi_resolve(source)
             .map(|ffi_path| parse_quote!(#ffi_path))
     }
 }
 
 impl FFIResolve for Type {
-    fn resolve(&self, source: &ScopeContext) -> Option<Self> {
+    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
         match self {
             Type::Path(type_path) =>
-                type_path.resolve(source).map(TypePath::into),
-            Type::Array(TypeArray { elem , ..}) |
-            Type::Reference(TypeReference { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. }) =>
-                elem.resolve(source),
+                type_path.ffi_resolve(source).map(TypePath::into),
+            Type::Reference(TypeReference { elem, .. }) =>
+                elem.ffi_resolve(source),
             Type::TraitObject(TypeTraitObject { bounds: _, .. }) => {
                 unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject")
             },
-            Type::Tuple(type_tuple) => {
-                let ffi_chunk = type_tuple.mangle_ident_default();
+            Type::Array(..) |
+            Type::Slice(..) |
+            Type::Tuple(..) => {
+                let ffi_chunk = self.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
-            },
+            }
             _ => None
         }
     }
@@ -218,11 +218,11 @@ impl FFIResolveExtended for Type {
             Type::Path(TypePath { path, .. }) =>
                 path.ffi_external_path_converted(source)
                     .map(|path| path.to_type()),
-            Type::Array(TypeArray { elem , ..}) |
-            Type::Reference(TypeReference { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. }) => elem.ffi_external_path_converted(source),
-            Type::Tuple(type_tuple) => {
-                let ffi_chunk = type_tuple.mangle_ident_default();
+            Type::Reference(TypeReference { elem, .. }) => elem.ffi_external_path_converted(source),
+            Type::Array(..) |
+            Type::Slice(..) |
+            Type::Tuple(..) => {
+                let ffi_chunk = self.mangle_ident_default();
                 Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
             }
             _ => None

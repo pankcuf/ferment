@@ -1,5 +1,5 @@
 use crate::presentation::context::name::Context;
-use crate::shared::{HasParent, SharedAccess};
+use crate::shared::{ParentLinker, SharedAccess};
 
 #[allow(dead_code)]
 pub enum FFIAspect {
@@ -12,8 +12,8 @@ pub struct TypeComposer<Parent> where Parent: SharedAccess {
     pub context: Context,
 }
 
-impl<Parent> HasParent<Parent> for TypeComposer<Parent> where Parent: SharedAccess {
-    fn set_parent(&mut self, parent: &Parent) {
+impl<Parent> ParentLinker<Parent> for TypeComposer<Parent> where Parent: SharedAccess {
+    fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }
 }

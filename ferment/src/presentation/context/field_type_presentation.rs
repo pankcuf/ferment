@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
@@ -32,11 +33,13 @@ pub enum FieldTypePresentableContext {
     DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<FieldTypePresentableContext>),
+    CastFrom(Box<FieldTypePresentableContext>, TokenStream2, TokenStream2),
     // FromConst(Box<FieldTypePresentableContext>),
     FromOffsetMap,
     FromOpt(Box<FieldTypePresentableContext>),
     AsRef(Box<FieldTypePresentableContext>),
     AsMutRef(Box<FieldTypePresentableContext>),
+    AsSlice(Box<FieldTypePresentableContext>),
     IfThen(Box<FieldTypePresentableContext>, TokenStream2),
     Named((TokenStream2, Box<FieldTypePresentableContext>)),
     Deref(TokenStream2),
@@ -45,6 +48,83 @@ pub enum FieldTypePresentableContext {
     FfiRefWithConversion(FieldTypeConversion),
     Match(Box<FieldTypePresentableContext>),
     FromTuple(Box<FieldTypePresentableContext>, Punctuated<FieldTypePresentableContext, Comma>),
+}
+
+impl Display for FieldTypePresentableContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            FieldTypePresentableContext::Empty =>
+                format!("FieldTypePresentableContext::Empty"),
+            FieldTypePresentableContext::Simple(simple) =>
+                format!("FieldTypePresentableContext::Simple({})", quote!(#simple)),
+            FieldTypePresentableContext::Add(context, index) =>
+                format!("FieldTypePresentableContext::Add({}, {})", context, index),
+            FieldTypePresentableContext::To(context) =>
+                format!("FieldTypePresentableContext::To({})", context),
+            FieldTypePresentableContext::ToOpt(context) =>
+                format!("FieldTypePresentableContext::ToOpt({})", context),
+            FieldTypePresentableContext::UnwrapOr(context, or) =>
+                format!("FieldTypePresentableContext::UnwrapOr({}, {})", context, or),
+            FieldTypePresentableContext::ToVec(context) =>
+                format!("FieldTypePresentableContext::ToVec({})", context),
+            FieldTypePresentableContext::ToVecPtr =>
+                format!("FieldTypePresentableContext::ToVecPtr"),
+            FieldTypePresentableContext::Obj =>
+                format!("FieldTypePresentableContext::Obj"),
+            FieldTypePresentableContext::Self_ =>
+                format!("FieldTypePresentableContext::Self_"),
+            FieldTypePresentableContext::SelfAsTrait(trait_ty) =>
+                format!("FieldTypePresentableContext::SelfAsTrait({})", trait_ty),
+            FieldTypePresentableContext::ObjFieldName(field_name) =>
+                format!("FieldTypePresentableContext::ObjFieldName({})", field_name),
+            FieldTypePresentableContext::FieldTypeConversionName(conversion) =>
+                format!("FieldTypePresentableContext::ObjFieldName({})", conversion),
+            FieldTypePresentableContext::LineTermination =>
+                format!("FieldTypePresentableContext::LineTermination"),
+            FieldTypePresentableContext::Boxed(context) =>
+                format!("FieldTypePresentableContext::Boxed({})", context),
+            FieldTypePresentableContext::UnboxAny(context) =>
+                format!("FieldTypePresentableContext::UnboxAny({})", context),
+            FieldTypePresentableContext::UnboxAnyTerminated(context) =>
+                format!("FieldTypePresentableContext::UnboxAnyTerminated({})", context),
+            FieldTypePresentableContext::IsNull(context) =>
+                format!("FieldTypePresentableContext::IsNull({})", context),
+            FieldTypePresentableContext::DestroyConversion(context, smth) =>
+                format!("FieldTypePresentableContext::DestroyConversion({}, {})", context, smth),
+            FieldTypePresentableContext::FromRawParts(context) =>
+                format!("FieldTypePresentableContext::FromRawParts({})", context),
+            FieldTypePresentableContext::From(context) =>
+                format!("FieldTypePresentableContext::From({})", context),
+            FieldTypePresentableContext::CastFrom(context, ty, ffi_ty) =>
+                format!("FieldTypePresentableContext::CastFrom({}, {}, {})", context, ty, ffi_ty),
+            FieldTypePresentableContext::FromOffsetMap =>
+                format!("FieldTypePresentableContext::FromOffsetMap"),
+            FieldTypePresentableContext::FromOpt(context) =>
+                format!("FieldTypePresentableContext::FromOpt({})", context),
+            FieldTypePresentableContext::AsRef(context) =>
+                format!("FieldTypePresentableContext::AsRef({})", context),
+            FieldTypePresentableContext::AsMutRef(context) =>
+                format!("FieldTypePresentableContext::AsMutRef({})", context),
+            FieldTypePresentableContext::AsSlice(context) =>
+                format!("FieldTypePresentableContext::AsSlice({})", context),
+            FieldTypePresentableContext::IfThen(context, statement) =>
+                format!("FieldTypePresentableContext::IfThen({}, {})", context, statement),
+            FieldTypePresentableContext::Named((ff, context)) =>
+                format!("FieldTypePresentableContext::Named(({}, {}))", ff, context),
+            FieldTypePresentableContext::Deref(context) =>
+                format!("FieldTypePresentableContext::Deref({})", context),
+            FieldTypePresentableContext::DerefContext(context) =>
+                format!("FieldTypePresentableContext::DerefContext({})", context),
+            FieldTypePresentableContext::FfiRefWithFieldName(context) =>
+                format!("FieldTypePresentableContext::FfiRefWithFieldName({})", context),
+            FieldTypePresentableContext::FfiRefWithConversion(context) =>
+                format!("FieldTypePresentableContext::FfiRefWithConversion({})", context),
+            FieldTypePresentableContext::Match(context) =>
+                format!("FieldTypePresentableContext::Match({})", context),
+            FieldTypePresentableContext::FromTuple(context, items) =>
+                format!("FieldTypePresentableContext::FromTuple({}, [{}])", context, items.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(",")),
+        }.as_str())
+    }
 }
 
 impl ScopeContextPresentable for FieldTypePresentableContext {
@@ -110,6 +190,13 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let field_path = presentation_context.present(source);
                 ffi_from_conversion(field_path)
             },
+            FieldTypePresentableContext::CastFrom(presentation_context, ty, ffi_ty) => {
+                let field_path = presentation_context.present(source);
+                let package = DictionaryFieldName::Package;
+                let interface = DictionaryFieldName::Interface;
+                quote!(<#ffi_ty as #package::#interface<#ty>>::ffi_from(#field_path))
+
+            }
             // FieldTypePresentableContext::FromConst(presentation_context) => {
             //     let field_path = presentation_context.present(source);
             //     let package = DictionaryFieldName::Package;
@@ -176,6 +263,11 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             }
             FieldTypePresentableContext::SelfAsTrait(self_ty) => {
                 quote!(*((*self_).object as *const #self_ty))
+            }
+            FieldTypePresentableContext::AsSlice(field_path) => {
+                let conversion = field_path.present(source);
+                quote!(#conversion.as_slice())
+                // quote!(#conversion)
             }
         }
     }

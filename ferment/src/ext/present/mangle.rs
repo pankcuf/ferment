@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::ext::ToPath;
 
@@ -34,6 +34,10 @@ impl Mangle<MangleDefault> for Type {
             // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
             Type::Path(TypePath { path, .. }) =>
                 path.mangle_string(context),
+            Type::Array(type_array) =>
+                type_array.mangle_string(context),
+            Type::Slice(type_slice) =>
+                type_slice.mangle_string(context),
             Type::Tuple(type_tuple) =>
                 type_tuple.mangle_string(context),
             ty =>
@@ -57,6 +61,18 @@ impl Mangle<MangleDefault> for TraitBound {
 impl Mangle<MangleDefault> for TypeTuple {
     fn mangle_string(&self, context: MangleDefault) -> String {
         format!("Tuple_{}", self.elems.mangle_string(context))
+    }
+}
+impl Mangle<MangleDefault> for TypeArray {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("Arr_{}", self.elem.mangle_string(context))
+    }
+}
+
+impl Mangle<MangleDefault> for TypeSlice {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("Slice_{}", self.elem.mangle_string(context))
+        // format!("Vec_{}", self.elem.mangle_string(context))
     }
 }
 
@@ -133,6 +149,8 @@ impl Mangle<(bool, bool)> for AngleBracketedGenericArguments {
                     Some(type_path.mangle_string((context, i))),
                 GenericArgument::Type(Type::Array(type_array)) =>
                     Some(type_array.mangle_string((context, i))),
+                GenericArgument::Type(Type::Slice(type_slice)) =>
+                    Some(type_slice.mangle_string_default()),
                 GenericArgument::Type(Type::Tuple(type_tuple)) =>
                     Some(type_tuple.mangle_string_default()),
                 GenericArgument::Type(Type::TraitObject(type_trait_object)) =>

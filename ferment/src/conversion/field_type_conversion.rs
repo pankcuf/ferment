@@ -24,9 +24,9 @@ impl Debug for FieldTypeConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             FieldTypeConversion::Named(name, ty) =>
-                f.write_str(format!("Named({:?}, {})", name, ty.to_token_stream()).as_str()),
+                f.write_str(format!("Named({}, {})", name.to_token_stream(), ty.to_token_stream()).as_str()),
             FieldTypeConversion::Unnamed(name, ty) =>
-                f.write_str(format!("Unnamed({:?}, {})", name, ty.to_token_stream()).as_str()),
+                f.write_str(format!("Unnamed({}, {})", name.to_token_stream(), ty.to_token_stream()).as_str()),
         }
     }
 }

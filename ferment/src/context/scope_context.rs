@@ -54,6 +54,7 @@ impl ScopeContext {
     }
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
+        // println!("full_type_for: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
         let full_ty = lock.maybe_type(ty, &self.scope)
             .and_then(ObjectConversion::to_ty)
             .unwrap_or(ty.clone());

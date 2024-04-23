@@ -1,38 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use quote::{quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeReference, TypeTraitObject, TypeTuple, Variant, WherePredicate};
+use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeTuple, Variant, WherePredicate};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use syn::token::{Add, Comma};
-use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, NestedArgument, TypeComposition};
-use crate::context::TypeChain;
-use crate::conversion::{ImportConversion, ItemConversion, MacroAttributes, type_ident, type_ident_ref, TypeConversion};
+use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
+use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
 use crate::ext::{CrateExtension, NestingExtension, ToPath, ToType, VisitScopeType};
 use crate::formatter::format_token_stream;
-use crate::holder::{PathHolder, TypeHolder};
+use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 
-pub trait GenericExtension {
-    fn collect_compositions(&self) -> Vec<TypeHolder>;
-    fn find_generics(&self) -> HashSet<TypeHolder> {
-        let compositions = self.collect_compositions();
-        // collect all types with generics and ensure their uniqueness
-        // since we don't want to implement interface multiple times for same object
-        let mut generics: HashSet<TypeHolder> = HashSet::new();
-        compositions
-            .iter()
-            .for_each(|TypeHolder(field_type)|
-                collect_generic_types_in_type(field_type, &mut generics));
-        generics
-    }
-    fn find_generics_fq(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
-        self.find_generics()
-            .iter()
-            .filter_map(|ty| chain.get(ty))
-            .map(GenericConversion::from)
-            .collect()
-    }
-}
 
 pub trait ImportsExtension {
 
@@ -46,10 +24,6 @@ pub trait ItemExtension {
         self.maybe_ident().map_or(format!("(None)"), Ident::to_string)
     }
     fn maybe_generics(&self) -> Option<&Generics>;
-    // fn to_type_composition_conversion(&self) -> TypeCompositionConversion;
-
-
-    // fn collect_compositions(&self) -> Vec<TypeHolder>;
 
     fn classify_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>>;
 
@@ -66,109 +40,8 @@ pub trait ItemExtension {
                 import_type.get_imports_for(used_imports))
             .collect()
     }
-
-    // fn find_generics(&self) -> HashSet<TypeHolder> {
-    //     let compositions = self.collect_compositions();
-    //     // collect all types with generics and ensure their uniqueness
-    //     // since we don't want to implement interface multiple times for same object
-    //     let mut generics: HashSet<TypeHolder> = HashSet::new();
-    //     compositions
-    //         .iter()
-    //         .for_each(|TypeHolder(field_type)|
-    //             collect_generic_types_in_type(field_type, &mut generics));
-    //     // if !generics.is_empty() {
-    //         println!("find_generics: [{}]\n {}", self.maybe_ident().unwrap(), format_type_holders(&generics));
-    //     // }
-    //     generics
-    // }
-    // fn find_generics_fq(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
-    //     self.find_generics()
-    //         .iter()
-    //         .filter_map(|ty| chain.get(ty))
-    //         .map(GenericConversion::from)
-    //         .collect()
-    // }
-
 }
 
-impl GenericExtension for Item {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        //println!("Item::collect_compositions: {}", self.maybe_ident().to_token_stream());
-        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
-        let mut cache_type = |ty: &Type|
-            type_and_paths.push(TypeHolder(ty.clone()));
-        let mut cache_fields = |fields: &Fields, _attrs: &MacroAttributes| match fields {
-            Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
-            Fields::Named(FieldsNamed { named: fields, .. }) =>
-                fields.iter().for_each(|field| cache_type(&field.ty)),
-            Fields::Unit => {}
-        };
-        // let mut cache_sig = |ref sig: &Signature| {
-        // };
-        match self {
-            Item::Mod(ItemMod { content: Some((_, items)), .. }) =>
-                items.iter()
-                    // .flat_map(|m| m.collect_composition()))
-                    .for_each(|item|
-                        type_and_paths.extend(item.collect_compositions())),
-            Item::Struct(item_struct, ..) =>
-                handle_attributes_with_handler(&item_struct.attrs, |attrs|
-                    cache_fields(&item_struct.fields, &attrs)),
-            Item::Enum(item_enum, ..) =>
-                handle_attributes_with_handler(&item_enum.attrs, |attrs|
-                    item_enum.variants.iter().for_each(|Variant { fields, .. }|
-                        cache_fields(fields, &attrs))),
-            Item::Type(ItemType { attrs, ty, .. }, ..) =>
-                handle_attributes_with_handler(attrs, |_attrs|
-                    cache_type(ty)),
-            Item::Fn(item_fn, ..) =>
-                handle_attributes_with_handler(&item_fn.attrs, |_attrs| {
-                    type_and_paths.extend(item_fn.sig.collect_compositions());
-                }),
-            Item::Impl(item_impl) => handle_attributes_with_handler(&item_impl.attrs, |_attrs| {
-                println!("collect_compositions: (IMPL): {}", item_impl.self_ty.to_token_stream());
-                item_impl.items.iter().for_each(|impl_item| match impl_item {
-                    ImplItem::Const(ImplItemConst { ty, .. }) =>
-                        cache_type(ty),
-                    ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                        println!("collect_compositions: (IMPL::Method): {}", sig.ident);
-                        sig.inputs.iter().for_each(|arg|
-                            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                cache_type(ty);
-                            });
-                        if let ReturnType::Type(_, ty) = &sig.output {
-                            cache_type(ty);
-                        }
-                    },
-                    ImplItem::Type(ImplItemType { ty, .. }) =>
-                        cache_type(ty),
-                    _ => {}
-                });
-            }),
-            Item::Trait(item_trait, ..) => handle_attributes_with_handler(&item_trait.attrs, |_attrs| {
-                item_trait.items.iter().for_each(|trait_item| match trait_item {
-                    TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>
-                        cache_type(ty),
-                    TraitItem::Method(TraitItemMethod { sig, .. }) => {
-                        sig.inputs.iter().for_each(|arg|
-                            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                cache_type(ty);
-                            });
-                        if let ReturnType::Type(_, ty) = &sig.output {
-                            cache_type(ty);
-                        }
-                    },
-                    TraitItem::Const(TraitItemConst { ty, .. }) =>
-                        cache_type(ty),
-                    _ => {}
-                });
-            }),
-            _ => {}
-        }
-
-        type_and_paths
-    }
-}
 
 impl ItemExtension for Item {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID {
@@ -356,6 +229,16 @@ fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericB
     result
 }
 
+pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
+    match &segment.arguments {
+        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+            args.iter().filter_map(|arg| match arg {
+                GenericArgument::Type(ty) => Some(ty),
+                _ => None
+            }).collect(),
+        _ => Vec::new(),
+    }
+}
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
@@ -414,19 +297,19 @@ pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     lit.to_token_stream()
 }
 
-pub fn ident_from_item(item: &Item) -> Option<Ident> {
-    match item {
-        Item::Mod(item_mod) => Some(item_mod.ident.clone()),
-        Item::Struct(item_struct) => Some(item_struct.ident.clone()),
-        Item::Enum(item_enum) => Some(item_enum.ident.clone()),
-        Item::Type(item_type) => Some(item_type.ident.clone()),
-        Item::Fn(item_fn) => Some(item_fn.sig.ident.clone()),
-        Item::Trait(item_trait) => Some(item_trait.ident.clone()),
-        Item::Impl(item_impl) => type_ident(&item_impl.self_ty),
-        Item::Use(item_use) => ItemConversion::fold_use(&item_use.tree).first().cloned().cloned(),
-        _ => None,
-    }
-}
+// pub fn ident_from_item(item: &Item) -> Option<Ident> {
+//     match item {
+//         Item::Mod(item_mod) => Some(item_mod.ident.clone()),
+//         Item::Struct(item_struct) => Some(item_struct.ident.clone()),
+//         Item::Enum(item_enum) => Some(item_enum.ident.clone()),
+//         Item::Type(item_type) => Some(item_type.ident.clone()),
+//         Item::Fn(item_fn) => Some(item_fn.sig.ident.clone()),
+//         Item::Trait(item_trait) => Some(item_trait.ident.clone()),
+//         Item::Impl(item_impl) => type_ident(&item_impl.self_ty),
+//         Item::Use(item_use) => ItemConversion::fold_use(&item_use.tree).first().cloned().cloned(),
+//         _ => None,
+//     }
+// }
 
 fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, fields: &Fields, imports: &HashMap<PathHolder, Path>) {
     match fields {
@@ -516,12 +399,6 @@ pub fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attrib
             }
         )
 }
-pub fn collect_generic_types_in_path(path: &Path, generics: &mut HashSet<TypeHolder>) {
-    path.segments
-        .iter()
-        .flat_map(|seg| path_arguments_to_types(&seg.arguments))
-        .for_each(|t| collect_generic_types_in_type(&t, generics));
-}
 
 pub fn collect_bounds(bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
     bounds.iter().filter_map(|bound| match bound {
@@ -532,49 +409,6 @@ pub fn collect_bounds(bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
 
 
 
-pub fn collect_generic_types_in_type(field_type: &Type, generics: &mut HashSet<TypeHolder>) {
-    // println!("collect_generic_types_in_type: {}", field_type.to_token_stream());
-    match field_type {
-        Type::Path(TypePath { path, .. }) => {
-            collect_generic_types_in_path(path, generics);
-            if path.segments.iter().any(|seg| !path_arguments_to_types(&seg.arguments).is_empty() && !matches!(seg.ident.to_string().as_str(), "Option")) {
-                // println!("addd generic: {}", format_token_stream(field_type));
-                generics.insert(TypeHolder(field_type.clone()));
-            }
-        },
-        Type::Reference(TypeReference { elem, .. }) => {
-            collect_generic_types_in_type(elem, generics);
-        },
-        Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-            bounds.iter().for_each(|bound| match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => collect_generic_types_in_path(path, generics),
-                _ => {}
-            })
-        },
-        Type::Tuple(TypeTuple { elems, .. }) => {
-            //println!("collect_generic_types_in_type.t: {}", field_type.to_token_stream());
-            generics.insert(TypeHolder(field_type.clone()));
-            elems.iter()
-                .for_each(|ty| collect_generic_types_in_type(ty, generics));
-        },
-        // Type::Array ??
-        _ => {}
-    }
-}
-
-impl GenericExtension for Signature {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
-        self.inputs.iter().for_each(|arg|
-            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                type_and_paths.push(TypeHolder(*ty.clone()));
-            });
-        if let ReturnType::Type(_, ty) = &self.output {
-            type_and_paths.push(TypeHolder(*ty.clone()));
-        }
-        type_and_paths
-    }
-}
 
 impl ItemExtension for Signature {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID {

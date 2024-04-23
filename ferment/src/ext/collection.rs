@@ -14,10 +14,6 @@ impl<K, V, T, S> ScopeCollection<K, V> for Punctuated<T, S>
     where T: ScopeCollection<K, V>,
           K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
-        // let mut involved = HashMap::default();
-        // for (k, v)  in self {
-        //     involved
-        // }
         self.iter().flat_map(T::scope_items).collect()
     }
 }
@@ -37,7 +33,6 @@ impl<K, V> ScopeCollection<K, V> for BareFnArg
 }
 impl<K, V> ScopeCollection<K, V> for Binding
     where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
-
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
@@ -126,8 +121,6 @@ impl<K, V> ScopeCollection<K, V> for ReturnType
 impl<K, V> ScopeCollection<K, V> for Type
     where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
-        // let mut involved = HashSet::from([parse_quote!(Self)]);
-        println!("Type::scope_items: {:?}", self);
         let mut involved = HashMap::default();
         match self {
             Type::Array(TypeArray { elem, .. }) |
@@ -144,10 +137,6 @@ impl<K, V> ScopeCollection<K, V> for Type
                 involved.extend(bounds.scope_items());
             },
             Type::Path(TypePath { qself, path }) => {
-                // involved.insert(self.clone());
-                // let self_self = self.clone();
-                // let sss =
-                // involved.insert_with_policy(self.clone(), EnrichScopePolicy);
                 involved.extend_with_policy(path.scope_items(), EnrichScopePolicy);
                 if let Some(qself) = qself {
                     involved.extend_with_policy(qself.scope_items(), EnrichScopePolicy);

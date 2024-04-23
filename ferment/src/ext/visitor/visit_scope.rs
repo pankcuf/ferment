@@ -8,16 +8,16 @@ use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{Join, ToType};
-use crate::helper::collect_bounds;
+use crate::helper::{collect_bounds, ItemExtension};
 use crate::holder::PathHolder;
 use crate::visitor::Visitor;
 
-pub trait Visiting {
+pub trait VisitScope {
     fn join_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) -> Option<ScopeChain>;
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor);
 }
 
-impl Visiting for Item {
+impl VisitScope for Item {
     fn join_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) -> Option<ScopeChain> {
         match self {
             Item::Struct(..) |
@@ -179,8 +179,12 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
             items.into_iter().for_each(|item| match item {
                 Item::Use(node) =>
                     visitor.fold_import_tree(scope, &node.tree, vec![]),
-                Item::Trait(..) | Item::Fn(..) | Item::Struct(..) | Item::Enum(..) | Item::Type(..) | Item::Impl(..) | Item::Mod(..) =>
+                Item::Trait(..) | Item::Fn(..) | Item::Struct(..) | Item::Enum(..) | Item::Type(..) | Item::Impl(..) =>
                     item.add_to_scope(&scope.joined(item), visitor),
+                Item::Mod(..) => {
+                    println!("add_inner_module_conversion: {}" , item.ident_string());
+                    item.add_to_scope(&scope.joined(item), visitor)
+                },
                 _ => {}
             })
         }

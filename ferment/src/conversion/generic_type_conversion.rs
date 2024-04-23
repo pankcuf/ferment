@@ -3,12 +3,12 @@ use proc_macro2::Ident;
 use quote::{quote, quote_spanned, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Add, Brace, Comma};
-use syn::{parse_quote, Path, PathSegment, spanned::Spanned, Type, TypeParamBound, TypeTuple};
+use syn::{parse_quote, Path, PathSegment, spanned::Spanned, Type, TypeArray, TypeParamBound, TypeSlice, TypeTuple};
 use syn::__private::TokenStream2;
 use crate::composer::{ConstructorPresentableContext, Depunctuated};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, FFIResolve, Mangle, ToPath, ToType};
+use crate::ext::{Accessory, FFIResolve, Mangle, Resolve, ToPath, ToType};
 use crate::helper::{path_arguments_to_type_conversions, usize_to_tokenstream};
 use crate::interface::{create_struct, ffi_to_conversion};
 use crate::naming::{DictionaryExpression, DictionaryFieldName, Name};
@@ -49,6 +49,7 @@ pub enum GenericTypeConversion {
     Box(Type),
     AnyOther(Type),
     Array(Type),
+    Slice(Type),
     Tuple(TypeTuple),
     TraitBounds(Punctuated<TypeParamBound, Add>)
 
@@ -61,6 +62,7 @@ impl ToTokens for GenericTypeConversion {
             GenericTypeConversion::Result(ty) |
             GenericTypeConversion::Box(ty) |
             GenericTypeConversion::Array(ty) |
+            GenericTypeConversion::Slice(ty) |
             GenericTypeConversion::AnyOther(ty) => ty.to_tokens(tokens),
             GenericTypeConversion::Tuple(conversions) => conversions.to_tokens(tokens),
             GenericTypeConversion::TraitBounds(bounds) => bounds.to_tokens(tokens)
@@ -74,8 +76,12 @@ impl GenericTypeConversion {
             GenericTypeConversion::Vec(ty) |
             GenericTypeConversion::Result(ty) |
             GenericTypeConversion::Box(ty) |
-            GenericTypeConversion::Array(ty) |
             GenericTypeConversion::AnyOther(ty) => single_generic_ffi_path(ty),
+            GenericTypeConversion::Array(ty) |
+            GenericTypeConversion::Slice(ty) => {
+                let ffi_name = ty.mangle_ident_default();
+                parse_quote!(crate::fermented::generics::#ffi_name)
+            }
             GenericTypeConversion::Tuple(tuple) => match tuple.elems.len() {
                 0 => single_generic_ffi_path(tuple.elems.first().unwrap()),
                 _ => {
@@ -91,12 +97,13 @@ impl GenericTypeConversion {
 
 impl GenericTypeConversion {
     pub fn expand(&self, full_type: &TypeCompositionConversion, source: &ScopeContext) -> TokenStream2 {
-        // println!("GenericTypeConversion::expand: {}", full_type.to_token_stream());
-        // println!(" {}", full_type.ty().to_token_stream());
-        // println!(" {}", full_type.to_ty().to_token_stream());
+        println!("GenericTypeConversion::expand: {}", full_type.to_token_stream());
         let ffi_type = full_type.to_ty();
+        println!(" {}", ffi_type.to_token_stream());
         let ffi_name = ffi_type.mangle_ident_default();
+        println!(" {}", ffi_name.to_token_stream());
         let ffi_as_type = ffi_name.to_type();
+        println!(" {}", ffi_as_type.to_token_stream());
 
         match self {
             GenericTypeConversion::Result(ty) => {
@@ -125,7 +132,7 @@ impl GenericTypeConversion {
                     },
                     [TypeConversion::Primitive(ok), TypeConversion::Complex(error)] => {
                         let arg_0_ffi_type = parse_quote!(#ok);
-                        let arg_1_ffi_type = error.resolve_or_same(source);
+                        let arg_1_ffi_type = error.ffi_resolve_or_same(source);
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -156,7 +163,7 @@ impl GenericTypeConversion {
                         )
                     },
                     [TypeConversion::Complex(ok), TypeConversion::Primitive(error)] => {
-                        let arg_0_ffi_type = ok.resolve_or_same(source);
+                        let arg_0_ffi_type = ok.ffi_resolve_or_same(source);
                         let arg_1_ffi_type = parse_quote!(#error);
                         (
                             GenericArgPresentation::new(
@@ -172,8 +179,8 @@ impl GenericTypeConversion {
                         )
                     },
                     [TypeConversion::Complex(ok), TypeConversion::Complex(error)] => {
-                        let arg_0_ffi_type = ok.resolve_or_same(source);
-                        let arg_1_ffi_type = error.resolve_or_same(source);
+                        let arg_0_ffi_type = ok.ffi_resolve_or_same(source);
+                        let arg_1_ffi_type = error.ffi_resolve_or_same(source);
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -188,7 +195,7 @@ impl GenericTypeConversion {
                         )
                     },
                     [TypeConversion::Complex(ok), TypeConversion::Generic(generic_error)] => {
-                        let arg_0_ffi_type = ok.resolve_or_same(source);
+                        let arg_0_ffi_type = ok.ffi_resolve_or_same(source);
                         let arg_1_ffi_type = generic_error.to_ffi_path();
                         (
                             GenericArgPresentation::new(
@@ -221,7 +228,7 @@ impl GenericTypeConversion {
                     },
                     [TypeConversion::Generic(generic_ok), TypeConversion::Complex(error)] => {
                         let arg_0_ffi_type = generic_ok.to_ffi_path();
-                        let arg_1_ffi_type = error.resolve_or_same(source);
+                        let arg_1_ffi_type = error.ffi_resolve_or_same(source);
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -303,7 +310,7 @@ impl GenericTypeConversion {
                     }
                     [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
                         let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        let arg_1_ffi_type = arg_1_target_path.resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -334,7 +341,7 @@ impl GenericTypeConversion {
                         )
                     }
                     [TypeConversion::Complex(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = arg_0_target_path.resolve_or_same(source).joined_mut();
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
                         let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
                         (
                             GenericArgPresentation::new(
@@ -350,8 +357,8 @@ impl GenericTypeConversion {
                         )
                     }
                     [TypeConversion::Complex(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-                        let arg_0_ffi_type = arg_0_target_path.resolve_or_same(source).joined_mut();
-                        let arg_1_ffi_type = arg_1_target_path.resolve_or_same(source).joined_mut();
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -366,7 +373,7 @@ impl GenericTypeConversion {
                         )
                     }
                     [TypeConversion::Complex(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_0_ffi_type = arg_0_target_path.resolve_or_same(source).joined_mut();
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
                         let arg_1_ffi_type = arg_1_generic_path_conversion.to_ffi_path().joined_mut();
                         (
                             GenericArgPresentation::new(
@@ -399,7 +406,7 @@ impl GenericTypeConversion {
                     }
                     [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Complex(arg_1_target_path)] => {
                         let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_path().joined_mut();
-                        let arg_1_ffi_type = arg_1_target_path.resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
                         (
                             GenericArgPresentation::new(
                                 arg_0_ffi_type,
@@ -472,7 +479,7 @@ impl GenericTypeConversion {
                             DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) })).to_token_stream())
                     }
                     [TypeConversion::Complex(arg_0_target_ty)] => {
-                        let arg_0_ffi_type = arg_0_target_ty.resolve_or_same(source).joined_mut();
+                        let arg_0_ffi_type = arg_0_target_ty.ffi_resolve_or_same(source).joined_mut();
                         GenericArgPresentation::new(
                             arg_0_ffi_type,
                             ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
@@ -490,7 +497,7 @@ impl GenericTypeConversion {
                     _ => unimplemented!("Generic path arguments conversion error"),
                 };
                 let target_type: Type = path.to_type();
-                let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_0_presentation;
+                let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
 
                 compose_generic_presentation(
                     ffi_name,
@@ -508,93 +515,187 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion {
-                            types: (ffi_as_type.clone(), target_type.clone()),
-                            decode: from_value_conversion,
-                            encode: to_value_conversion,
-                        }
+                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
                     ]),
                     Depunctuated::from_iter([value_destructor]),
                     source
                 )
             },
-            GenericTypeConversion::Tuple(tuple) => {
-                let tuple_items = tuple.elems.iter()
+            GenericTypeConversion::Array(ty) => {
+                println!("GenericTypeConversion::Array: {}", ty.to_token_stream());
+                // It's for sure Type::Array(TypeArray { elem, len: _, .. })
+                // [u8 ; 32] (simple) or [HashID; 2] (complex/generic)
+                // so we can simply parse it as array
+                let type_array: TypeArray = parse_quote!(#ty);
+                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
+                let count_name = Name::Dictionary(DictionaryFieldName::Count);
+                let arg_0_presentation = match TypeConversion::from(&*type_array.elem) {
+                    TypeConversion::Primitive(arg_0_target_path) => {
+                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_primitive_vec(quote!(self.#arg_0_name)),
+                            DictionaryExpression::FromPrimitiveArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj.to_vec()) })).to_token_stream())
+                    }
+                    TypeConversion::Complex(arg_0_target_ty) => {
+                        let arg_0_ffi_type = arg_0_target_ty.ffi_resolve_or_same(source).joined_mut();
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                            DictionaryExpression::FromComplexArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
+                    }
+                    TypeConversion::Generic(arg_0_generic_path_conversion) => {
+                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_path().joined_mut();
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                            DictionaryExpression::FromComplexArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
+                    }
+                };
+                let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_0_presentation;
+                println!("from_value_conversion: {}", from_value_conversion);
+                compose_generic_presentation(
+                    ffi_name,
+                    Depunctuated::from_iter([
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                    ]),
+                    Depunctuated::from_iter([
+                        InterfacePresentation::Conversion {
+                            types: (ffi_as_type.clone(), ty.clone()),
+                            conversions: (
+                                FromConversionPresentation::Just(from_value_conversion),
+                                ToConversionPresentation::Struct(to_value_conversion),
+                                DestroyPresentation::Default,
+                                None
+                                // Some(parse_quote!(<'a>) )
+                            )
+                        }
+                    ]),
+                    Depunctuated::from_iter([value_destructor]),
+                    source
+                )
+
+            },
+            GenericTypeConversion::Slice(ty) => {
+                println!("GenericTypeConversion::Slice: {}", ty.to_token_stream());
+                let type_slice: TypeSlice = parse_quote!(#ty);
+                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
+                let count_name = Name::Dictionary(DictionaryFieldName::Count);
+                let elem_type = &type_slice.elem;
+                // let target_type: Type = parse_quote!(&[#elem_type; N]);
+                let target_type: Type = parse_quote!(Vec<#elem_type>);
+                let arg_0_presentation = match TypeConversion::from(&*type_slice.elem) {
+                    TypeConversion::Primitive(arg_0_target_path) => {
+                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_primitive_slice(quote!(self.#arg_0_name)),
+                            DictionaryExpression::FromPrimitiveVec(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            // DictionaryExpression::FromPrimitiveSlice(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) })).to_token_stream())
+                    }
+                    TypeConversion::Complex(arg_0_target_ty) => {
+                        let arg_0_ffi_type = arg_0_target_ty.ffi_resolve_or_same(source).joined_mut();
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_complex_slice(quote!(self.#arg_0_name)),
+                            // DictionaryExpression::FromComplexSlice(quote!(self.#arg_0_name), quote!(self.#count_name), arg_0_target_ty).to_token_stream(),
+                            DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
+                    }
+                    TypeConversion::Generic(arg_0_generic_path_conversion) => {
+                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_path().joined_mut();
+                        GenericArgPresentation::new(
+                            arg_0_ffi_type,
+                            ffi_destroy_complex_slice(quote!(self.#arg_0_name)),
+                            DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name)/*, parse_quote!(#arg_0_generic_path_conversion)*/).to_token_stream(),
+                            DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
+                    }
+                };
+                // let target_type: Type = path.to_type();
+                let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
+
+                compose_generic_presentation(
+                    ffi_name,
+                    Depunctuated::from_iter([
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                    ]),
+                    Depunctuated::from_iter([
+                        InterfacePresentation::Conversion {
+                            types: (ffi_as_type.clone(), target_type.clone()),
+                            conversions: (
+                                FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
+                                ToConversionPresentation::Struct(quote!(ferment_interfaces::FFIVecConversion::encode(obj))),
+                                DestroyPresentation::Default,
+                                None
+                            )
+                        },
+                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
+                    ]),
+                    Depunctuated::from_iter([value_destructor]),
+                    source
+                )
+                // compose_generic_presentation(
+                //     ffi_name,
+                //     Depunctuated::from_iter([
+                //         FieldTypeConversion::Named(count_name, parse_quote!(usize)),
+                //         FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                //     ]),
+                //     Depunctuated::from_iter([
+                //         InterfacePresentation::Conversion {
+                //             types: (ffi_as_type, target_type),
+                //             conversions: (
+                //                 FromConversionPresentation::Just(from_value_conversion),
+                //                 ToConversionPresentation::Struct(to_value_conversion),
+                //                 DestroyPresentation::Default,
+                //                 Some(Generics {
+                //                     lt_token: Default::default(),
+                //                     params: Punctuated::from_iter([
+                //                         GenericParam::Lifetime(LifetimeDef::new(Lifetime::new("'a",  Span::call_site()))),
+                //                         GenericParam::Const(ConstParam {
+                //                             attrs: vec![],
+                //                             const_token: Default::default(),
+                //                             ident: format_ident!("N"),
+                //                             colon_token: Default::default(),
+                //                             ty: parse_quote!(usize),
+                //                             eq_token: None,
+                //                             default: None,
+                //                         })]),
+                //                     gt_token: Default::default(),
+                //                     where_clause: None,
+                //                 })
+                //                 // Some(parse_quote!(<'a, const N: usize>) )
+                //             )
+                //         },
+                //     ]),
+                //     Depunctuated::from_iter([value_destructor]),
+                //     source
+                // )
+            },
+            GenericTypeConversion::Tuple(type_tuple) => {
+                let tuple_items = type_tuple.elems.iter()
                     .enumerate()
-                    .map(|(index, ty)| {
-                        let ty = source.full_type_for(ty);
-                        let name = Name::UnnamedArg(index);
-                        let result: (Type, Depunctuated<GenericArgPresentation>) = match TypeConversion::from(&ty) {
-                            TypeConversion::Primitive(arg_path) => {
-                                let ty: Type = parse_quote!(#arg_path);
-                                let from_conversion = FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), ty.clone())).present(source);
-                                let to_conversion = FieldTypePresentableContext::ObjFieldName(usize_to_tokenstream(index)).present(source);
-                                (arg_path, Depunctuated::from_iter([GenericArgPresentation::new(
-                                    ty,
-                                    quote!(),
-                                    from_conversion,
-                                    quote!(#name: #to_conversion)
-                                )]))
-                            },
-                            TypeConversion::Complex(arg_path) => {
-                                let ty: Type = parse_quote!(#arg_path);
-                                let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), ty.clone())).into()).present(source);
-                                let to_conversion = FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(usize_to_tokenstream(index)).into()).present(source);
-                                (arg_path, Depunctuated::from_iter([GenericArgPresentation::new(
-                                    ty,
-                                    quote!(ferment_interfaces::unbox_any(self.#name);),
-                                    from_conversion,
-                                    quote!(#name: #to_conversion))]))
-                            },
-                            TypeConversion::Generic(root_path) => {
-                                // TODO: make sure it works
-                                let root_ffi_path = root_path.to_ffi_path();
-                                let path = ty.to_path();
-                                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                                let arg_type_conversions = path_arguments_to_type_conversions(arguments);
-                                println!("GenericTypeConversion::Tuple.2: {}: {}", root_ffi_path.to_token_stream(), quote!(#(#arg_type_conversions),*));
-                                (root_ffi_path, arg_type_conversions.iter()
-                                    .map(|arg_path_conversion| {
-                                        println!("GenericTypeConversion::Tuple.3: {}", arg_path_conversion.to_token_stream());
-                                        match arg_path_conversion {
-                                            TypeConversion::Primitive(arg_path) => {
-                                                GenericArgPresentation::new(
-                                                    parse_quote!(#arg_path),
-                                                    quote!(),
-                                                    ffi_from_primitive(),
-                                                    ffi_to_primitive())
-                                            },
-                                            TypeConversion::Complex(arg_path) => {
-                                                GenericArgPresentation::new(
-                                                    parse_quote!(#arg_path),
-                                                    quote!(),
-                                                    ffi_from_primitive(),
-                                                    ffi_to_primitive())
-                                            },
-                                            TypeConversion::Generic(arg_path) => {
-                                                GenericArgPresentation::new(
-                                                    parse_quote!(#arg_path),
-                                                    quote!(),
-                                                    ffi_from_primitive(),
-                                                    ffi_to_primitive())
-                                            },
-                                        }
-                                    })
-                                    .collect::<Depunctuated<GenericArgPresentation>>())
-                            }
-                        };
-                        result
-                }).collect::<Depunctuated<(Type, Depunctuated<GenericArgPresentation>)>>();
+                    .map(|(index, ty)|
+                        dictionary_generic_arg(
+                            Name::UnnamedArg(index),
+                            usize_to_tokenstream(index),
+                            ty,
+                            source))
+                    .collect::<Depunctuated<(Type, Depunctuated<GenericArgPresentation>)>>();
                 compose_generic_presentation(
                     ffi_name,
                     Depunctuated::from_iter(
                         tuple_items.iter()
                             .enumerate()
-                            .map(|(index, (root_path, _))|
-                                FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path)))),
+                            .map(|(index, (root_path, _))| FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path)))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
-                            types: (ffi_as_type, parse_quote!(#tuple)),
+                            types: (ffi_as_type, parse_quote!(#type_tuple)),
                             conversions: (
                                 FromConversionPresentation::Tuple(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.clone())).collect()),
                                 ToConversionPresentation::Tuple(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.to_conversion.clone())).collect()),
@@ -606,10 +707,9 @@ impl GenericTypeConversion {
                     Depunctuated::from_iter(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.destructor.clone()))),
                     source
                 )
-            },
+            }
             GenericTypeConversion::Box(_) |
             GenericTypeConversion::AnyOther(_) |
-            GenericTypeConversion::Array(_) |
             GenericTypeConversion::TraitBounds(_) => FFIObjectPresentation::Empty,
         }.to_token_stream()
     }
@@ -641,6 +741,67 @@ fn compose_bindings(ffi_type: &Type, conversions: Depunctuated<FieldTypeConversi
     ])
 }
 
+fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, source: &ScopeContext) -> (Type, Depunctuated<GenericArgPresentation>) {
+    let ty = ty.resolve(source);
+    let result: (Type, Depunctuated<GenericArgPresentation>) = match TypeConversion::from(&ty) {
+        TypeConversion::Primitive(arg_path) => {
+            let ty: Type = parse_quote!(#arg_path);
+            let from_conversion = FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), ty.clone())).present(source);
+            let to_conversion = FieldTypePresentableContext::ObjFieldName(field_name).present(source);
+            (arg_path, Depunctuated::from_iter([GenericArgPresentation::new(
+                ty,
+                quote!(),
+                from_conversion,
+                quote!(#name: #to_conversion)
+            )]))
+        },
+        TypeConversion::Complex(arg_path) => {
+            let ty: Type = parse_quote!(#arg_path);
+            let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), ty.clone())).into()).present(source);
+            let to_conversion = FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(field_name).into()).present(source);
+            (arg_path, Depunctuated::from_iter([GenericArgPresentation::new(
+                ty,
+                quote!(ferment_interfaces::unbox_any(self.#name);),
+                from_conversion,
+                quote!(#name: #to_conversion))]))
+        },
+        TypeConversion::Generic(root_path) => {
+            // TODO: make sure it works
+            let root_ffi_path = root_path.to_ffi_path();
+            let path = ty.to_path();
+            let PathSegment { arguments, .. } = path.segments.last().unwrap();
+            let arg_type_conversions = path_arguments_to_type_conversions(arguments);
+            (root_ffi_path, arg_type_conversions.iter()
+                .map(|arg_path_conversion| {
+                    match arg_path_conversion {
+                        TypeConversion::Primitive(arg_path) => {
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_path),
+                                quote!(),
+                                ffi_from_primitive(),
+                                ffi_to_primitive())
+                        },
+                        TypeConversion::Complex(arg_path) => {
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_path),
+                                quote!(),
+                                ffi_from_primitive(),
+                                ffi_to_primitive())
+                        },
+                        TypeConversion::Generic(arg_path) => {
+                            GenericArgPresentation::new(
+                                parse_quote!(#arg_path),
+                                quote!(),
+                                ffi_from_primitive(),
+                                ffi_to_primitive())
+                        },
+                    }
+                })
+                .collect::<Depunctuated<GenericArgPresentation>>())
+        }
+    };
+    result
+}
 
 fn ffi_from_primitive() -> TokenStream2 {
     quote!(|o| o)
@@ -695,6 +856,16 @@ fn ffi_destroy_complex_vec(field_name: TokenStream2) -> TokenStream2 {
 fn ffi_destroy_option(field_name: TokenStream2) -> TokenStream2 {
     quote!(if !#field_name.is_null() { ferment_interfaces::unbox_any(#field_name); })
 }
+
+fn ffi_destroy_primitive_slice(field_name: TokenStream2) -> TokenStream2 {
+    let count_var = DictionaryFieldName::Count;
+    quote!(ferment_interfaces::unbox_vec_ptr(#field_name, self.#count_var);)
+}
+fn ffi_destroy_complex_slice(field_name: TokenStream2) -> TokenStream2 {
+    let count_var = DictionaryFieldName::Count;
+    quote!(ferment_interfaces::unbox_any_vec_ptr(#field_name, self.#count_var);)
+}
+
 
 pub fn single_generic_ffi_path(ty: &Type) -> Type {
     let path: Path = parse_quote!(#ty);

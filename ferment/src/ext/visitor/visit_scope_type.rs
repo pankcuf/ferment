@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::{GenericArgument, parse_quote, Path, PathArguments, QSelf, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
+use syn::{GenericArgument, parse_quote, Path, PathArguments, QSelf, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
@@ -70,6 +70,8 @@ impl<'a> VisitScopeType<'a> for Type {
             Type::Path(type_path) => type_path.update_nested_generics(source),
             Type::TraitObject(type_trait_object) => type_trait_object.update_nested_generics(source),
             Type::Tuple(type_tuple) => type_tuple.update_nested_generics(source),
+            Type::Array(type_array) => type_array.update_nested_generics(source),
+            Type::Slice(type_slice) => type_slice.update_nested_generics(source),
             ty => ty.clone().to_unknown(Punctuated::new())
         }
     }
@@ -99,6 +101,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         GenericArgument::Type(inner_type) => {
                             let obj_conversion = inner_type.update_nested_generics(&(scope, context));
                             let ty = obj_conversion.to_ty().unwrap();
+                            println!("nested object::::: {}", obj_conversion);
                             nested_arguments.push(NestedArgument::Object(obj_conversion));
                             *arg = GenericArgument::Type(ty)
                         },
@@ -200,10 +203,27 @@ impl<'a> VisitScopeType<'a> for Path {
                     }
 
                 },
-                "Vec" | "Option" | "Result" if segments.len() == 1 => {
-                    //println!("update_nested_generics (Vec): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                "Vec" | "Result" if segments.len() == 1 => {
+                    // println!("update_nested_generics (Option): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
+                },
+                "Option" => {
+                    println!("update_nested_generics (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    ObjectConversion::Type(
+                        TypeCompositionConversion::Optional(
+                            handle_type_path_composition(
+                                TypePath {
+                                    qself: new_qself,
+                                    path: Path {
+                                        leading_colon: self.leading_colon,
+                                        segments
+                                    }
+                                },
+                                nested_arguments)))
+                    // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                    //     .to_object(nested_arguments)
+
                 },
                 _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap") => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
@@ -233,7 +253,7 @@ impl<'a> VisitScopeType<'a> for Path {
                                 }
                             },
                             Some(parent) => {
-                                let scope = parent.self_path_holder();
+                                let scope = parent.self_path_holder_ref();
                                 // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
                                 parse_quote!(#scope::#self)
                             }
@@ -296,6 +316,12 @@ impl<'a> VisitScopeType<'a> for Path {
                                     converted.to_unknown(nested_arguments)
                             }
                         } else {
+                            println!("No root chain: {} --- {}", self.to_token_stream(), nested_arguments.to_token_stream());
+                            println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
+                            println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
+                            println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
+                            println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
+
                             TypePath { qself: new_qself, path: self.clone() }
                                 .to_unknown(nested_arguments)
 
@@ -345,16 +371,49 @@ impl<'a> VisitScopeType<'a> for TypePath {
     }
 }
 
+impl<'a> VisitScopeType<'a> for TypeArray {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = ObjectConversion;
+
+    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        ObjectConversion::Type(
+            TypeCompositionConversion::Slice(
+                TypeComposition::new(
+                    Type::Array(self.clone()),
+                    None,
+                    Punctuated::from_iter([NestedArgument::Object(self.elem.update_nested_generics(source))]))))
+    }
+}
+
+impl<'a> VisitScopeType<'a> for TypeSlice {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = ObjectConversion;
+
+    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        ObjectConversion::Type(
+            TypeCompositionConversion::Slice(
+                TypeComposition::new(
+                    Type::Slice(self.clone()),
+                    None,
+                    Punctuated::from_iter([NestedArgument::Object(self.elem.update_nested_generics(source))]))))
+
+    }
+}
+
 impl<'a> VisitScopeType<'a> for TypeTuple {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectConversion;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        let nested_arguments = self.elems.iter().map(|ty| NestedArgument::Object(ty.update_nested_generics(source))).collect();
         ObjectConversion::Type(
             TypeCompositionConversion::Tuple(
-                TypeComposition::new(Type::Tuple(self.clone()), None, nested_arguments)))
-        // TypeComposition::new(Type::Tuple(TypeTuple { paren_token: Default::default(), elems }), None, elems)))
+                TypeComposition::new(
+                    Type::Tuple(self.clone()),
+                    None,
+                    self.elems
+                        .iter()
+                        .map(|ty| NestedArgument::Object(ty.update_nested_generics(source)))
+                        .collect())))
     }
 }
 

@@ -1,18 +1,22 @@
 use std::fmt::Formatter;
-use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, UseGlob, UseGroup, UseName, UsePath, UseRename, UseTree, Variant};
+use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, Variant};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use crate::composer::{Composable, ItemComposer, ParentComposer, VariantComposer};
+use crate::composer::{ItemComposer, ParentComposer, VariantComposer};
+use crate::composer::composable::SourceExpandable;
 use crate::composer::enum_composer::EnumComposer;
-use crate::composition::{AttrsComposition, Composition, context::FnSignatureCompositionContext, FnSignatureComposition, FnSignatureContext, TraitDecompositionPart2};
-use crate::composition::context::TraitDecompositionPart2Context;
+use crate::composer::signature::SigComposer;
+use crate::composer::trait_composer::TraitComposer;
+use crate::composition::{AttrsComposition, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Mangle, Pop, ToType};
+use crate::ext::{CrateExtension, ToPath, ToType};
+use crate::helper::ItemExtension;
+use crate::holder::PathHolder;
 use crate::naming::Name;
-use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation};
+use crate::presentation::{DocPresentation, Expansion};
 use crate::presentation::context::{OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::context::name::{Aspect, Context};
 use crate::tree::ScopeTreeExportID;
@@ -74,27 +78,27 @@ impl<'a> TryFrom<(&'a Item, &'a ScopeChain)> for ItemConversion {
 fn path_ident_ref(path: &Path) -> Option<&Ident> {
     path.segments.last().map(|last_segment| &last_segment.ident)
 }
-fn path_ident(path: &Path) -> Option<Ident> {
-    path.segments.last().map(|last_segment| last_segment.ident.clone())
-}
-pub fn type_ident(ty: &Type) -> Option<Ident> {
-    match ty {
-        Type::Path(TypePath { path, .. }) =>
-            path_ident(path),
-        Type::Reference(TypeReference { elem, .. }) |
-        Type::Ptr(TypePtr { elem, .. }) =>
-            type_ident(elem),
-        Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-            bounds.iter().find_map(|b| match b {
-                TypeParamBound::Trait(TraitBound { path, ..}) => path_ident(path),
-                _ => None
-            })
-        },
-        Type::Array(TypeArray { elem, .. }) => type_ident(elem),
-        _ => None,
-        // _ => panic!("No ident for {}", ty.to_token_stream())
-    }
-}
+// fn path_ident(path: &Path) -> Option<Ident> {
+//     path.segments.last().map(|last_segment| last_segment.ident.clone())
+// }
+// pub fn type_ident(ty: &Type) -> Option<Ident> {
+//     match ty {
+//         Type::Path(TypePath { path, .. }) =>
+//             path_ident(path),
+//         Type::Reference(TypeReference { elem, .. }) |
+//         Type::Ptr(TypePtr { elem, .. }) =>
+//             type_ident(elem),
+//         Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+//             bounds.iter().find_map(|b| match b {
+//                 TypeParamBound::Trait(TraitBound { path, ..}) => path_ident(path),
+//                 _ => None
+//             })
+//         },
+//         Type::Array(TypeArray { elem, .. }) =>
+//             type_ident(elem),
+//         _ => None,
+//     }
+// }
 pub fn type_ident_ref(ty: &Type) -> Option<&Ident> {
     match ty {
         Type::Path(TypePath { path, .. }) =>
@@ -140,16 +144,16 @@ impl ItemConversion {
     //     }
     // }
 
-    pub fn fold_use(tree: &UseTree) -> Vec<&Ident> {
-        match tree {
-            UseTree::Path(UsePath { ident, .. }) => vec![ident],
-            UseTree::Name(UseName { ident }) => vec![ident],
-            UseTree::Rename(UseRename { rename, .. }) => vec![rename],
-            UseTree::Glob(UseGlob { .. }) => vec![],
-            UseTree::Group(UseGroup { items , .. }) =>
-                items.iter().flat_map(Self::fold_use).collect()
-        }
-    }
+    // pub fn fold_use(tree: &UseTree) -> Vec<&Ident> {
+    //     match tree {
+    //         UseTree::Path(UsePath { ident, .. }) => vec![ident],
+    //         UseTree::Name(UseName { ident }) => vec![ident],
+    //         UseTree::Rename(UseRename { rename, .. }) => vec![rename],
+    //         UseTree::Glob(UseGlob { .. }) => vec![],
+    //         UseTree::Group(UseGroup { items , .. }) =>
+    //             items.iter().flat_map(Self::fold_use).collect()
+    //     }
+    // }
 
 
     pub fn ident(&self) -> ScopeTreeExportID {
@@ -201,8 +205,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                     |local_context| OwnerIteratorPresentationContext::RoundVariantFields(local_context.clone()),
                     unnamed
                         .iter()
-                        .map(|field|
-                            OwnedItemPresentableContext::DefaultFieldType(field.ty.clone()))
+                        .map(|field_type| OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone()))
                         .collect(),
                 ),
                 Fields::Named(FieldsNamed { named, .. }) => (
@@ -222,13 +225,14 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
             variant_ident: variant_name.clone()
         };
         let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone() });
+        let attrs = AttrsComposition::from(attrs, variant_name, item_scope);
         let composer = match fields {
             Fields::Unit =>
-                ItemComposer::enum_variant_composer_unit(name_context, AttrsComposition::from(attrs, variant_name, item_scope), &Punctuated::new(), context),
+                ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context),
             Fields::Unnamed(fields) =>
-                ItemComposer::enum_variant_composer_unnamed(name_context, AttrsComposition::from(attrs, variant_name, item_scope), &fields.unnamed, context),
+                ItemComposer::enum_variant_composer_unnamed(name_context, attrs, &fields.unnamed, context),
             Fields::Named(fields) =>
-                ItemComposer::enum_variant_composer_named(name_context, AttrsComposition::from(attrs, variant_name, item_scope), &fields.named, context)
+                ItemComposer::enum_variant_composer_named(name_context, attrs, &fields.named, context)
         };
         (composer, (variant_composer, (aspect, fields_context)))
     }).unzip())
@@ -240,6 +244,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
 fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemStruct { attrs, fields: ref f, ident: target_name, generics, .. } = item_struct;
     // println!("struct_expansion: {}: [{} --- {}]", item_struct.ident, scope.crate_scope(), scope.self_path_holder());
+    println!("struct_expansion: [{}] --- [{}]", scope, scope_context.borrow().scope);
     match f {
         Fields::Unnamed(ref fields) =>
             ItemComposer::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context),
@@ -250,15 +255,32 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
 }
 
 fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
+    let source = context.borrow();
     let ItemType { ident: target_name, ty, attrs, generics, .. } = item_type;
+    println!("type_expansion: [{}] --- [{}]", scope, source.scope);
+
     match &**ty {
-        Type::BareFn(bare_fn) => {
-            let source = context.borrow();
-            Expansion::Callback {
-                comment: DocPresentation::Default(Name::Ident(target_name.clone())),
-                binding: FnSignatureComposition::from_bare_fn(bare_fn, target_name, scope.self_path_holder().clone(), &source)
-                    .present(FnSignatureCompositionContext::FFIObjectCallback, &source),
-            }
+        Type::BareFn(type_bare_fn) => {
+            let full_fn_path = scope.joined_path_holder(target_name);
+            SigComposer::with_context(
+                full_fn_path.0,
+                target_name,
+                FnSignatureContext::Bare(target_name.clone(), type_bare_fn.clone()),
+                generics,
+                attrs,
+                scope,
+                context)
+                .borrow()
+                .expand()
+            // let mut full_fn_path = scope.joined(target_name);
+            // if scope.is_crate_based() {
+            //     full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
+            // }
+            // Expansion::Function {
+            //     comment: DocPresentation::Default(Name::Ident(target_name.clone())),
+            //     binding: FnSignatureComposition::from_bare_fn(type_bare_fn, target_name, local_scope.self_path_holder_ref(), &source)
+            //         .present(FnSignatureCompositionContext::FFIObjectCallback, &source),
+            // }
         },
         _ =>
             ItemComposer::type_alias_composer(target_name, ty, generics, attrs, scope, context)
@@ -269,30 +291,46 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let self_ty = item_trait.ident.to_type();
     let source = context.borrow();
-    let mangled_ty = source.full_type_for(&self_ty).mangle_ident_default();
-    let trait_decomposition = TraitDecompositionPart2::from_item_trait(item_trait, self_ty, scope.self_path_holder(), &source);
-    let fields = trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source);
-    let vtable_name = Name::Vtable(mangled_ty.clone());
-    Expansion::Trait {
-        comment: DocPresentation::Empty,
-        vtable: FFIObjectPresentation::TraitVTable {
-            name: vtable_name.clone(),
-            fields
-        },
-        trait_object: FFIObjectPresentation::TraitObject {
-            name: Name::TraitObj(mangled_ty),
-            vtable_name
-        }
-    }
+    println!("trait_expansion: [{}] --- [{}]", scope, source.scope);
+    TraitComposer::from_item_trait(item_trait, self_ty, scope, context)
+        .borrow()
+        .expand()
+    //
+    // let mangled_ty = self_ty.resolve(&source).mangle_ident_default();
+    // let trait_decomposition = TraitDecompositionPart2::from_item_trait(item_trait, self_ty, scope.self_path_holder_ref(), context);
+    // let vtable_name = Name::Vtable(mangled_ty.clone());
+    // Expansion::Trait {
+    //     comment: DocPresentation::Empty,
+    //     vtable: FFIObjectPresentation::TraitVTable {
+    //         name: vtable_name.clone(),
+    //         fields: trait_decomposition.present(TraitDecompositionPart2Context::VTableInnerFunctions, &source)
+    //     },
+    //     trait_object: FFIObjectPresentation::TraitObject {
+    //         name: Name::TraitObj(mangled_ty),
+    //         vtable_name
+    //     }
+    // }
 }
 
 fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
+    let ItemFn { attrs, sig, .. } = item;
     let source = context.borrow();
-    let signature = FnSignatureComposition::from_signature(&FnSignatureContext::ModFn, &item.sig, &scope.self_path_holder().popped(), &source);
-    Expansion::Function {
-        comment: DocPresentation::Safety(Name::Optional(signature.ident.clone())),
-        binding: signature.present(FnSignatureCompositionContext::FFIObject, &source),
+    println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
+    let scope_path = scope.self_path_holder_ref();
+    let mut full_fn_path = scope_path.clone();
+    if scope_path.is_crate_based() {
+        full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
     }
+    SigComposer::with_context(full_fn_path.0, &sig.ident, FnSignatureContext::ModFn(item.clone()), &sig.generics, attrs, scope, context)
+        .borrow()
+        .expand()
+
+
+    // let signature = FnSignatureComposition::from_signature(&FnSignatureContext::ModFn(item.clone()), sig, &scope.parent_path_holder(), &source);
+    // Expansion::Function {
+    //     comment: DocPresentation::Safety(Name::Optional(signature.ident.clone())),
+    //     binding: signature.present(FnSignatureCompositionContext::FFIObject, &source),
+    // }
 
 }
 
@@ -300,16 +338,33 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
     println!("impl_expansion: {} {}", item_impl.trait_.as_ref().map_or(format!(""), |(_, p, _)| format!("{} for", p.to_token_stream())), item_impl.self_ty.to_token_stream());
     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
     let source = scope_context.borrow();
+    println!("impl_expansion: [{}] --- [{}]", scope, source.scope);
+    let mut full_fn_path = scope.self_path_holder();
+
+    // let mut full_fn_path = self_scope.joined(ident);
+    if full_fn_path.is_crate_based() {
+        full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident().to_path()));
+    }
+
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
         // <ferment_example::chain::common::chain_type::DevnetType as ferment_example::chain::common::chain_type::IHaveChainSettings>
-        let impl_context = FnSignatureContext::Impl(*self_ty.clone(), match trait_ {
-            None => None,
-            Some((_, _path, _)) => Some(parse_quote!(#_path))
-        });
         match impl_item {
-            ImplItem::Method(ImplItemMethod { sig, .. }) => {
-                Some(FnSignatureComposition::from_signature(&impl_context, sig, scope.self_path_holder(), &source)
-                    .present(FnSignatureCompositionContext::FFIObject, &source))
+            ImplItem::Method(ImplItemMethod { sig,  .. }) => {
+                let sig_context = FnSignatureContext::Impl(*self_ty.clone(), match trait_ {
+                    None => None,
+                    Some((_, path, _)) => Some(parse_quote!(#path))
+                }, sig.clone());
+                Some(SigComposer::with_context(
+                    scope.joined_path_holder(&sig.ident).0,
+                    &sig.ident,
+                    sig_context,
+                    &sig.generics,
+                    sig.maybe_attrs().unwrap_or(&vec![]),
+                    scope,
+                    scope_context
+                ).borrow().expand())
+                // Some(FnSignatureComposition::from_signature(&impl_context, sig, scope.self_path_holder_ref(), &source)
+                //     .present(FnSignatureCompositionContext::FFIObject, &source))
             },
             ImplItem::Type(ImplItemType { .. }) => None,
             ImplItem::Const(ImplItemConst { .. }) => None,

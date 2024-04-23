@@ -16,13 +16,18 @@ pub enum TypeCompositionConversion {
     TraitType(TypeComposition),
     // TraitAssociatedType(TypeComposition),
     Object(TypeComposition),
+    Optional(TypeComposition),
     Primitive(TypeComposition),
     Bounds(GenericBoundComposition),
     SmartPointer(TypeComposition),
     Fn(TypeComposition),
+
+    Array(TypeComposition),
+    Slice(TypeComposition),
     Tuple(TypeComposition),
 
     Unknown(TypeComposition),
+    LocalOrGlobal(TypeComposition),
     Imported(TypeComposition, Path),
 }
 
@@ -85,10 +90,14 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::TraitType(ty) |
             // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
+            TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
+            TypeCompositionConversion::LocalOrGlobal(ty, ..) |
+            TypeCompositionConversion::Array(ty) |
+            TypeCompositionConversion::Slice(ty) |
             TypeCompositionConversion::Tuple(ty) |
             TypeCompositionConversion::Imported(ty, ..) |
             TypeCompositionConversion::Fn(ty, ..) => ty.ty = with_ty,
@@ -101,10 +110,14 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::TraitType(ty) |
             // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
+            TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
+            TypeCompositionConversion::LocalOrGlobal(ty, ..) |
+            TypeCompositionConversion::Array(ty) |
+            TypeCompositionConversion::Slice(ty) |
             TypeCompositionConversion::Tuple(ty) |
             TypeCompositionConversion::Imported(ty, ..) |
             TypeCompositionConversion::Fn(ty, ..) => ty,
@@ -116,32 +129,10 @@ impl TypeCompositionConversion {
     pub fn to_ty(&self) -> Type {
         match self {
             TypeCompositionConversion::Imported(ty, import_path) => {
-                // println!("to_ty: {} import_path: {}", ty, import_path.to_token_stream());
-                // let ty = match &ty.ty {
-                //     Type::Path(type_path) => {
-                //         let path = import_path.popped();
-                //         parse_quote!(#path::#type_path)
-                //     },
-                //     Type::Tuple(type_tuple) => {
-                //         type_tuple.elems
-                //         type_tuple.elems.iter().map(|ty| )
-                //         // ty.nested_arguments.iter().map(|arg| match arg {
-                //         //     NestedArgument::Object(obj) => obj.to_ty().unwrap()
-                //         // })
-                //     },
-                //     ty => ty.clone(),
-                // };
-
-                // let nested = &ty.nested_arguments;
                 let ty = &ty.ty;
                 let path = import_path.popped();
                 parse_quote!(#path::#ty)
             },
-            // TypeCompositionConversion::Tuple(ty) => {
-            //     println!("to_ty tuple: {}", ty);
-            //     let nested = ty.nested_arguments.iter().filter_map(|d| match d { NestedArgument::Object(obj) => obj.to_ty() }).collect::<Punctuated<Type, Comma>>();
-            //     parse_quote!((#nested))
-            // }
             _ => self.ty_composition().ty.clone()
         }
     }
@@ -149,31 +140,36 @@ impl TypeCompositionConversion {
 
 impl Debug for TypeCompositionConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
+        f.write_str(match self {
             TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) =>
-                f.write_str(format!("Trait({})", ty).as_str()),
+                format!("Trait({})", ty),
             TypeCompositionConversion::Object(ty) =>
-                f.write_str(format!("Object({})", ty).as_str()),
+                format!("Object({})", ty),
+            TypeCompositionConversion::Optional(ty) =>
+                format!("Optional({})", ty),
             TypeCompositionConversion::Unknown(ty) =>
-                f.write_str(format!("Unknown({})", ty).as_str()),
+               format!("Unknown({})", ty),
             TypeCompositionConversion::Primitive(ty) =>
-                f.write_str(format!("Primitive({})", ty).as_str()),
+                format!("Primitive({})", ty),
             TypeCompositionConversion::TraitType(ty) =>
-                f.write_str(format!("TraitType({})", ty).as_str()),
+                format!("TraitType({})", ty),
             TypeCompositionConversion::Bounds(gbc) =>
-                f.write_str(format!("Bounds({})", gbc).as_str()),
+                format!("Bounds({})", gbc),
             TypeCompositionConversion::SmartPointer(ty) =>
-                f.write_str(format!("SmartPointer({})", ty).as_str()),
-            // TypeCompositionConversion::TraitAssociatedType(ty) =>
-            //     f.write_str(format!("TraitAssociatedType({})", ty).as_str()),
+                format!("SmartPointer({})", ty),
             TypeCompositionConversion::Fn(ty) =>
-                f.write_str(format!("Fn({})", ty).as_str()),
-            TypeCompositionConversion::Tuple(ty) =>
-                f.write_str(format!("Tuple({})", ty).as_str()),
+                format!("Fn({})", ty),
             TypeCompositionConversion::Imported(ty, import_path) =>
-                f.write_str(format!("Imported({}, {})", ty, import_path.to_token_stream()).as_str()),
-
-        }
+                format!("Imported({}, {})", ty, import_path.to_token_stream()),
+            TypeCompositionConversion::Array(ty) =>
+                format!("Array({})", ty),
+            TypeCompositionConversion::Slice(ty) =>
+                format!("Slice({})", ty),
+            TypeCompositionConversion::Tuple(ty) =>
+                format!("Tuple({})", ty),
+            TypeCompositionConversion::LocalOrGlobal(ty) =>
+                format!("LocalOrGlobal({})", ty),
+        }.as_str())
     }
 }
 

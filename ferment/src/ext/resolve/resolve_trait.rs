@@ -33,6 +33,11 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
         }
         maybe_trait.cloned()
     }
+
+    fn to_trait_ty(&self, source: &ScopeContext) -> Option<Type> {
+        self.trait_ty(source)
+            .and_then(|full_trait_ty| full_trait_ty.to_ty())
+    }
 }
 
 impl ResolveTrait for Path {}

@@ -25,6 +25,10 @@ pub enum DictionaryExpression {
     BoxedExpression(TokenStream2),
     FromPrimitiveVec(TokenStream2, TokenStream2),
     FromComplexVec(TokenStream2, TokenStream2),
+    FromPrimitiveSlice(TokenStream2, TokenStream2),
+    FromComplexSlice(TokenStream2, TokenStream2, Type/*arg regular type*/),
+    FromPrimitiveArray(TokenStream2, TokenStream2),
+    FromComplexArray(TokenStream2, TokenStream2),
 }
 
 
@@ -69,6 +73,41 @@ impl ToTokens for DictionaryExpression {
             DictionaryExpression::FromComplexVec(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_vec(#values, #count))
+            }
+            DictionaryExpression::FromPrimitiveSlice(values, count) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    std::slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+                }
+            }
+            DictionaryExpression::FromComplexSlice(values, count, arg_type) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    (0..ffi_ref.count)
+                        .map(|i| ferment_interfaces::FFIConversion::ffi_from(*ffi_ref.values.add(i)))
+                        .collect::<Vec<#arg_type>>()
+                        .try_into()
+                        .expect("Wrong length")
+                }
+            }
+            DictionaryExpression::FromPrimitiveArray(values, count) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    std::slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+                        .try_into()
+                        .expect("Array Length mismatch")
+                }
+            }
+            DictionaryExpression::FromComplexArray(values, count) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    (0..ffi_ref.count)
+                        .into_iter()
+                        .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
+                        .collect::<Vec<String>>()
+                        .try_into()
+                        .expect("Array Length mismatch")
+                }
             }
         }.to_tokens(tokens)
     }

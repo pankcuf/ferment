@@ -36,7 +36,8 @@ pub enum ChainType {
 }
 
 #[derive(Clone, Default, PartialOrd, Ord, Hash, Eq, PartialEq)]
-#[ferment_macro::export(IHaveChainSettings)]
+// #[ferment_macro::export(IHaveChainSettings)]
+#[ferment_macro::export]
 pub enum DevnetType {
     JackDaniels = 0,
     Devnet333 = 1,

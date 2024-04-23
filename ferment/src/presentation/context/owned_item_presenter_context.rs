@@ -40,7 +40,7 @@ impl Debug for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingFieldName(ty) =>
                 f.write_str(format!("BindingField({})", ty).as_str()),
             OwnedItemPresentableContext::FieldType(ctx) =>
-                f.write_str(format!("FieldType({:?})", ctx).as_str()),
+                f.write_str(format!("FieldType({})", ctx).as_str()),
         }
     }
 }

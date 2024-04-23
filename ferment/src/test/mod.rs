@@ -44,7 +44,7 @@ impl TypeConversion {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.resolve_or_same(context).to_token_stream(),
+                ty.ffi_resolve_or_same(context).to_token_stream(),
             TypeConversion::Generic(conversion) =>
                 conversion.to_ffi_path().to_token_stream()
         }

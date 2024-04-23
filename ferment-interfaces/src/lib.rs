@@ -3,7 +3,7 @@ pub mod fermented;
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::CString;
 use std::hash::Hash;
-use std::mem;
+use std::{mem, slice};
 use std::os::raw::c_char;
 use std::sync::Arc;
 
@@ -14,6 +14,7 @@ pub type OpaqueContext = *const std::os::raw::c_void;
 pub type OpaqueContextMut = *mut std::os::raw::c_void;
 
 // No Drop implementation for them
+
 
 pub trait FFIConversion<T> {
     /// # Safety
@@ -30,12 +31,20 @@ pub trait FFIConversion<T> {
     }
     /// # Safety
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
-        (!ffi.is_null()).then(|| <Self as FFIConversion<T>>::ffi_from(ffi))
+        (!ffi.is_null())
+            .then(|| <Self as FFIConversion<T>>::ffi_from(ffi))
     }
     /// # Safety
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
-        obj.map_or(std::ptr::null_mut(), |o| <Self as FFIConversion<T>>::ffi_to(o))
-        // obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
+        if let Some(o) = obj {
+            <Self as FFIConversion<T>>::ffi_to(o)
+        } else {
+            std::ptr::null_mut()
+        }
+        // obj.map_or(
+        //     std::ptr::null_mut(),
+        //     |o| <Self as FFIConversion<T>>::ffi_to(o))
+        // // obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
     }
     /// # Safety
     unsafe fn destroy(ffi: *mut Self) {
@@ -56,6 +65,12 @@ pub fn boxed_vec<T>(vec: Vec<T>) -> *mut T {
     mem::forget(slice);
     ptr
 }
+pub fn boxed_arr<const N: usize, T: Clone>(arr: [T; N]) -> *mut T {
+    boxed_vec(arr.to_vec())
+}
+pub fn boxed_slice<T: Clone>(slice: &[T]) -> *mut T {
+    boxed_vec(slice.to_vec())
+}
 
 /// # Safety
 pub unsafe fn unbox_any<T: ?Sized>(any: *mut T) -> Box<T> {
@@ -67,10 +82,29 @@ pub unsafe fn unbox_string(data: *mut c_char) {
     let _ = CString::from_raw(data);
 }
 
-/// # Safety
-pub unsafe fn unbox_vec<T>(vec: Vec<*mut T>) -> Vec<Box<T>> {
-    vec.iter().map(|&x| unbox_any(x)).collect()
+pub trait Unbox {
+    type Result: Sized;
+    unsafe fn unbox(ptr: *mut Self) -> Self::Result;
 }
+impl Unbox for c_char {
+    type Result = CString;
+    unsafe fn unbox(ptr: *mut Self) -> Self::Result {
+        CString::from_raw(ptr)
+    }
+}
+// impl<T> Unbox for T {
+//     type Result = Box<T>;
+//
+//     unsafe fn unbox(ptr: *mut Self) -> Self::Result {
+//         Box::from_raw(ptr)
+//     }
+// }
+
+
+// /// # Safety
+// pub unsafe fn unbox_vec<T>(vec: Vec<*mut T>) -> Vec<Box<T>> {
+//     vec.iter().map(|&x| unbox_any(x)).collect()
+// }
 
 /// # Safety
 pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
@@ -143,7 +177,6 @@ pub unsafe fn to_primitive_vec<T, U>(iter: impl Iterator<Item=T>) -> *mut U
 }
 
 
-
 /// # Safety
 pub unsafe fn fold_to_map<M, K, V, K2, V2>(
     count: usize,
@@ -168,7 +201,6 @@ pub unsafe fn fold_to_vec<M, V: Copy, V2>(count: usize, values: *mut V, value_co
     (0..count)
         .map(|i| value_converter(*values.add(i)))
         .collect()
-
 }
 
 /// # Safety
@@ -328,3 +360,236 @@ impl<T> FFIConversion<Arc<T>> for T {
 //        FFIConversion::ffi_to_const(lock.clone())
 //    }
 //}
+
+pub struct Slice_u32 {
+    pub values: *const u32,
+    pub count: usize,
+}
+impl<'a> FFIConversion<&'a [u32]> for Slice_u32 {
+    unsafe fn ffi_from_const(ffi: *const Self) -> &'a [u32] {
+        let ffi_ref = &*ffi;
+        slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+    }
+    unsafe fn ffi_to_const(obj: &'a [u32]) -> *const Self {
+        boxed(Self { values: boxed_vec(obj.to_vec()) as *const _, count: obj.len() })
+    }
+}
+
+impl Drop for Slice_u32 {
+    fn drop(&mut self) {
+        unsafe {
+            unbox_vec_ptr(self.values as *mut u32, self.count);
+        }
+    }
+}
+
+
+
+
+
+pub struct Array_u32 {
+    pub values: *mut u32,
+    pub count: usize,
+}
+impl<const N: usize> FFIConversion<[u32; N]> for Array_u32 {
+    unsafe fn ffi_from_const(ffi: *const Self) -> [u32; N] {
+        let ffi_ref = &*ffi;
+        slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+            .try_into()
+            .expect("Array_u32 Length mismatch")
+    }
+    unsafe fn ffi_to_const(obj: [u32; N]) -> *const Self {
+        boxed(Self {
+            values: boxed_vec(obj.to_vec()),
+            count: N })
+    }
+}
+
+impl Drop for Array_u32 {
+    fn drop(&mut self) {
+        unsafe {
+            unbox_vec_ptr(self.values, self.count);
+        }
+    }
+}
+// Doesn't work since returning &vec owned by fn
+pub struct Slice_String {
+    pub values: *const *const std::os::raw::c_char,
+    pub count: usize,
+}
+
+// impl<'a> FFIConversion<&'a [String]> for Slice_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> &'a [String] {
+//         let ffi_ref = &*ffi;
+//         let vec = (0..ffi_ref.count).into_iter().map(|i| FFIConversion::ffi_from_const(*ffi_ref.values.add(i))).collect::<Vec<String>>();
+//         vec.as_slice()
+//     }
+//     unsafe fn ffi_to_const(obj: &'a [String]) -> *const Self {
+//         boxed(Self {
+//             values: boxed_vec(obj.iter().map(|o| FFIConversion::ffi_to_const(o.clone())).collect()),
+//             count: obj.len() })
+//     }
+// }
+//
+// impl Drop for Slice_String {
+//     fn drop(&mut self) {
+//         unsafe {
+//             unbox_any_vec_ptr(self.values as *mut *mut std::os::raw::c_char, self.count);
+//         }
+//     }
+// }
+
+pub struct Array_String {
+    pub values: *mut *mut std::os::raw::c_char,
+    pub count: usize,
+}
+
+impl<const N: usize> FFIConversion<[String; N]> for Array_String {
+    unsafe fn ffi_from_const(ffi: *const Self) -> [String; N] {
+        let ffi_ref = &*ffi;
+        (0..ffi_ref.count)
+            .into_iter()
+            .map(|i| FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
+            .collect::<Vec<String>>()
+            .try_into()
+            .expect("Length mismatch")
+    }
+    unsafe fn ffi_to_const(obj: [String; N]) -> *const Self {
+        boxed(Self {
+            values: boxed_vec(obj.iter()
+                .map(|o| FFIConversion::ffi_to(o.clone()))
+                .collect()),
+            count: obj.len() })
+    }
+}
+
+impl Drop for Array_String {
+    fn drop(&mut self) {
+        unsafe {
+            unbox_any_vec_ptr(self.values as *mut *mut std::os::raw::c_char, self.count);
+        }
+    }
+}
+
+
+// impl<'a, const N: usize> FFIConversion<&'a [String; N]> for Slice_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> &'a [String; N] {
+//         let ffi_ref = &*ffi;
+//
+//         let arr = (0..N)
+//             .map(|i| FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
+//             .collect();
+//         &arr
+//     }
+//     unsafe fn ffi_to_const(obj: &'a [String; N]) -> *const Self {
+//         boxed_slice(obj) as *const _
+//     }
+// }
+
+
+// pub struct Array_u32 {
+//     pub values: *mut u32,
+//     pub count: usize,
+// }
+
+// impl<const N: usize> FFIConversion<[u32; N]> for u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> [u32; N] {
+//         let mut array = [0u32; N];
+//         array.copy_from_slice(slice::from_raw_parts(ffi, N));
+//         array
+//     }
+//     unsafe fn ffi_to_const(obj: [u32; N]) -> *const Self {
+//         obj.as_ptr()
+//     }
+// }
+//
+// pub struct Slice_u32 {
+//     pub values: *mut u32,
+//     pub count: usize,
+// }
+//
+// impl<'a> FFIConversion<&'a [u32]> for &'a [u32] {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> &'a [u32] {
+//         slice::from_raw_parts(ffi.values, ffi.count)
+//     }
+//     unsafe fn ffi_to_const(obj: &'a [u32]) -> *const Self {
+//         boxed_slice(obj)
+//     }
+// }
+//
+
+// impl<const N: usize, T, FFI> FFIConversion<[T; N]> for FFI where FFI: FFIConversion<T> {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> [T; N] {
+//         // (0..N).into_iter().map()
+//         let mut array = [FFI::ffi_from_const(ffi); N];
+//         array.copy_from_slice(slice::from_raw_parts(ffi, N));
+//         array
+//     }
+//     unsafe fn ffi_to_const(obj: [FFI; N]) -> *const Self {
+//         obj.as_ptr()
+//     }
+// }
+
+// impl ferment_interface/*s::FFIVecConversion for Vec_ferment_example_nested_FeatureVersion {
+//     type Value = Vec<ferment_example::nested::FeatureVersion>;
+//     unsafe fn decode(&self) -> Self::Value {
+//         ferment_interfaces::from_complex_vec(self.values, self.count)
+//     }
+//     unsafe fn encode(obj: Self::Value) -> *mut Self {
+//         ferment_interfaces::boxed(Self {
+//             count: obj.len(),
+//             values: ferment_interfaces::to_complex_vec(obj.into_iter()),
+//         })
+//     }
+// }
+// */
+
+
+
+
+
+
+
+
+// TODO: maybe refactor to this interface but not sure about nullability/optional since it'll not be a pointer anymore
+pub trait FFIConversion222<T> {
+    /// # Safety
+    unsafe fn ffi_from(ffi: Self) -> T;
+    /// # Safety
+    unsafe fn ffi_to(obj: T) -> Self;
+    // /// # Safety
+    // unsafe fn ffi_from_opt(ffi: Self) -> Option<T> where Self: Sized {
+    //     (!ffi.is_null())
+    //         .then(|| <Self as FFIConversion<T>>::ffi_from(ffi))
+    // }
+    // /// # Safety
+    // unsafe fn ffi_to_opt(obj: Option<T>) -> Self;
+    /// # Safety
+    unsafe fn destroy(_ffi: Self) where Self: Sized {}
+}
+
+impl FFIConversion222<u32> for u32 {
+    unsafe fn ffi_from(ffi: Self) -> u32 { ffi }
+    unsafe fn ffi_to(obj: u32) -> Self { obj }
+}
+
+impl FFIConversion222<String> for *mut c_char {
+    unsafe fn ffi_from(ffi: Self) -> String {
+        std::ffi::CStr::from_ptr(ffi)
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+    unsafe fn ffi_to(obj: String) -> Self {
+        CString::new(obj)
+            .unwrap()
+            .into_raw()
+    }
+
+    unsafe fn destroy(ffi: Self) {
+        if ffi.is_null() {
+            return;
+        }
+        unbox_string(ffi);
+    }
+}

@@ -2,13 +2,16 @@ mod attrs;
 mod ffi_conversions;
 mod item;
 mod method;
-mod name;
 pub mod constants;
 pub mod chain;
 pub mod enum_composer;
 pub mod composable;
 mod r#type;
 pub mod generic;
+pub mod signature;
+pub mod basic;
+pub mod trait_composer;
+
 
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
@@ -26,16 +29,19 @@ pub use constants::FIELD_TYPES_COMPOSER;
 pub use constants::struct_composer_ctor_named;
 pub use constants::struct_composer_ctor_unnamed;
 pub use enum_composer::EnumComposer;
-pub use composable::Composable;
+pub use composable::BindingComposable;
 use crate::composer::generic::GenericComposer;
+use crate::composer::signature::SigComposer;
+use crate::composer::trait_composer::TraitComposer;
+use crate::composition::{FnSignatureComposition, FnSignatureContext};
 use crate::conversion::FieldTypeConversion;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
 use crate::presentation::context::{BindingPresentableContext, FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::context::name::Aspect;
-use crate::shared::{HasParent, SharedAccess};
+use crate::shared::{ParentLinker, SharedAccess};
 use crate::wrapped::Void;
-pub use self::attrs::{AttrsComposer, implement_trait_for_item};
+pub use self::attrs::{AttrsComposer};
 pub use self::ffi_conversions::{FFIAspect, FFIComposer};
 pub use self::item::ItemComposer;
 pub use self::method::MethodComposer;
@@ -78,6 +84,8 @@ pub type ParentComposer<T> = Rc<std::cell::RefCell<T>>;
 pub type ParentComposerRef<'a, T> = std::cell::Ref<'a, T>;
 pub type ItemParentComposer = ParentComposer<ItemComposer>;
 pub type EnumParentComposer = ParentComposer<EnumComposer>;
+pub type SigParentComposer = ParentComposer<SigComposer>;
+pub type TraitParentComposer = ParentComposer<TraitComposer>;
 pub type GenericParentComposer = ParentComposer<GenericComposer>;
 pub type ItemParentComposerRef<'a> = ParentComposerRef<'a, ItemComposer>;
 pub type EnumParentComposerRef<'a> = ParentComposerRef<'a, EnumComposer>;
@@ -86,302 +94,292 @@ pub type EnumComposerPresenterRef<'a, T> = ComposerPresenterByRef<EnumParentComp
 pub type ItemComposerFieldTypesContextPresenter<'a> = ItemComposerPresenterRef<'a, FieldTypesContext>;
 pub type NameContextComposer<Parent> = ContextComposer<Name, TokenStream2, Parent>;
 pub type TypeContextComposer<Parent> = ContextComposer<Type, TokenStream2, Parent>;
-
-// pub type SimpleComposerPresenter = ComposerPresenter<TokenStream2, TokenStream2>;
 pub type OwnerIteratorConversionComposer<T> = ComposerPresenter<OwnerAspectIteratorLocalContext<T>, OwnerIteratorPresentationContext>;
 pub type OwnerIteratorPostProcessingComposer<T> = ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, T>;
-
 pub type VariantComposer = ComposerPresenterByRef<VariantIteratorLocalContext, OwnerIteratorPresentationContext>;
-pub type FieldsComposer = ComposerPresenterByRef<Punctuated<Field, Comma>, Punctuated<FieldTypeConversion, Comma>>;
-
-// Bindings
+pub type FieldsComposer = ComposerPresenterByRef<Punctuated<Field, Comma>, FieldTypesContext>;
+pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldTypePresentableContext>;
+/// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
 pub type BindingDtorComposer = BindingComposer<DestructorContext>;
-
-
+pub type BindingSigComposer = BindingComposer<FnSignatureComposition>;
 pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentableContext>;
 pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;
-
-// pub enum Owner {
-//     Aspect(Aspect),
-//     Ident(Ident)
-// }
 pub type OwnerIteratorLocalContext<A, T> = (A, Punctuated<OwnedItemPresentableContext, T>);
 pub type OwnerAspectIteratorLocalContext<T> = OwnerIteratorLocalContext<Aspect, T>;
 pub type VariantIteratorLocalContext = OwnerAspectIteratorLocalContext<Comma>;
-// pub type VariantPresenterContext = OwnerAspectIteratorLocalContext<Comma>;
-
 pub type FieldTypesContext = Punctuated<FieldTypeConversion, Comma>;
-pub type LocalConversionContext = (Aspect, FieldTypesContext);
-
+pub type OwnedStatement = Punctuated<OwnedItemPresentableContext, Semi>;
+pub type FieldsOwnerContext<T> = (T, FieldTypesContext);
+pub type LocalConversionContext = FieldsOwnerContext<Aspect>;
+pub type ConstructorFieldsContext = FieldsOwnerContext<ConstructorPresentableContext>;
 pub type BindingAccessorContext = (Type, TokenStream2, TokenStream2);
 pub type DestructorContext = Type;
-
 pub type FieldTypeLocalContext = (TokenStream2, FieldTypePresentableContext);
 
-pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldTypePresentableContext>;
-
-pub type FFIConversionComposer<Parent> = ConversionComposer<
+pub type OwnedItemPresentablePair = (OwnedItemPresentableContext, OwnedItemPresentableContext);
+pub type OwnedItemPresentationPair = (OwnerIteratorPresentationContext, OwnerIteratorPresentationContext);
+pub type FieldsSequenceMixer<Parent, Context, Statement> = SequenceMixer<
     Parent,
-    LocalConversionContext,
+    Context,
     FieldTypeLocalContext,
     FieldTypePresentableContext,
-    OwnerAspectIteratorLocalContext<Comma>,
+    Statement,
     OwnerIteratorPresentationContext,
     OwnerIteratorPresentationContext,
     OwnerIteratorPresentationContext>;
-pub type DropConversionComposer<Parent> = ConversionComposer<
-    Parent,
-    FieldTypesContext,
-    FieldTypeLocalContext,
-    FieldTypePresentableContext,
-    Punctuated<OwnedItemPresentableContext, Semi>,
-    OwnerIteratorPresentationContext,
-    OwnerIteratorPresentationContext,
-    OwnerIteratorPresentationContext>;
-pub type FieldsOwnedComposer<Parent> = OwnedComposer<
+pub type FFIConversionMixer<Parent> = FieldsSequenceMixer<Parent, LocalConversionContext, VariantIteratorLocalContext>;
+pub type DropSequenceMixer<Parent> = FieldsSequenceMixer<Parent, FieldTypesContext, OwnedStatement>;
+pub type FieldsOwnedComposer<Parent> = SequenceComposer<
     Parent,
     LocalConversionContext,
     FieldTypeConversion,
     OwnedItemPresentableContext,
-    OwnerAspectIteratorLocalContext<Comma>,
+    VariantIteratorLocalContext,
     OwnerIteratorPresentationContext
 >;
-// pub type EnumVariantComposer<Parent> = OwnedComposer<
-//     Parent,
-//     VariantLocalContext,
-//     FieldTypeConversion,
-//     OwnedItemPresentableContext,
-//     OwnerIteratorLocalContext<Comma>,
-//     OwnerIteratorPresentationContext
-// >;
-pub type CtorOwnedComposer<Parent> = OwnedComposer<
+pub type ConstructorComposer<Parent> = SequenceComposer<
     Parent,
-    (ConstructorPresentableContext, FieldTypesContext), // FieldTypesContext,
+    ConstructorFieldsContext,
     FieldTypeConversion,
-    (OwnedItemPresentableContext, OwnedItemPresentableContext),
-    (ConstructorPresentableContext, Vec<(OwnedItemPresentableContext, OwnedItemPresentableContext)>),
+    OwnedItemPresentablePair,
+    (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
+    BindingPresentableContext
+>;
+pub type FnComposer<Parent> = SequenceComposer<
+    Parent,
+    FnSignatureContext,
+    FieldTypeConversion,
+    OwnedItemPresentablePair,
+    (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
     BindingPresentableContext
 >;
 pub type Depunctuated<T> = Punctuated<T, Void>;
 
-pub trait Composer<Parent> where Self: Sized + HasParent<Parent> {
+pub trait Composer<'a> {
     type Source;
     type Result;
-    fn compose(&self, source: &Self::Source) -> Self::Result;
+    fn compose(&self, source: &'a Self::Source) -> Self::Result;
 }
+pub trait LinkedComposer<'a, Parent>: Composer<'a> + ParentLinker<Parent> + Sized {}
+// pub trait Decomposer: Composer where Self::Result: Composition {}
 
-pub struct ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
+
+pub struct ContextComposer<Context, Result, Parent: SharedAccess> {
     parent: Option<Parent>,
-    root_presenter: ComposerPresenter<Context, Result>,
-    context_composer: SharedComposer<Parent, Context>,
+    post_processor: ComposerPresenter<Context, Result>,
+    context: SharedComposer<Parent, Context>,
 }
 
-impl<Context, Result, Parent> ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
+impl<Context, Result, Parent: SharedAccess> ContextComposer<Context, Result, Parent> {
     pub const fn new(
-        root_presenter: ComposerPresenter<Context, Result>,
-        context_composer: SharedComposer<Parent, Context>) -> Self {
-        Self { parent: None, root_presenter, context_composer }
+        post_processor: ComposerPresenter<Context, Result>,
+        context: SharedComposer<Parent, Context>
+    ) -> Self {
+        Self { parent: None, post_processor, context }
     }
 }
 
-impl<Context, Result, Parent> HasParent<Parent> for ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
-    fn set_parent(&mut self, parent: &Parent) {
+impl<Context, Result, Parent: SharedAccess> ParentLinker<Parent>
+for ContextComposer<Context, Result, Parent> {
+    fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Context, Result, Parent> Composer<Parent> for ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
+impl<'a, Context, Result, Parent> Composer<'a>
+for ContextComposer<Context, Result, Parent>
+    where Parent: SharedAccess {
     type Source = ();
     type Result = Result;
-
     fn compose(&self, _source: &Self::Source) -> Self::Result {
-        let parent = self.parent.as_ref().unwrap();
-        let context = parent.access(self.context_composer);
-        (self.root_presenter)(context)
+        (self.post_processor)(
+            self.parent.as_ref()
+                .expect("no parent")
+                .access(self.context))
     }
 }
 
-pub struct IteratorComposer<IN, CTX, MAP, OUT> where IN: Clone {
-    root_composer: ComposerPresenter<(IN, ComposerPresenterByRef<CTX, MAP>), OUT>,
-    item_composer: ComposerPresenterByRef<CTX, MAP>
+impl<'a, Context, Result, Parent: SharedAccess> LinkedComposer<'a, Parent> for ContextComposer<Context, Result, Parent> {}
+
+pub struct IterativeComposer<In, Ctx, Map, Out>
+    where In: Clone {
+    post_processor: ComposerPresenter<(In, ComposerPresenterByRef<Ctx, Map>), Out>,
+    item: ComposerPresenterByRef<Ctx, Map>
 }
 
-impl<IN, CTX, MAP, OUT> IteratorComposer<IN, CTX, MAP, OUT>
-    where IN: Clone {
+impl<In, Ctx, Map, Out> IterativeComposer<In, Ctx, Map, Out>
+    where In: Clone {
     pub const fn new(
-        root_composer: ComposerPresenter<(IN, ComposerPresenterByRef<CTX, MAP>), OUT>,
-        item_composer: ComposerPresenterByRef<CTX, MAP>,
+        post_processor: ComposerPresenter<(In, ComposerPresenterByRef<Ctx, Map>), Out>,
+        item: ComposerPresenterByRef<Ctx, Map>,
     ) -> Self {
-        Self { root_composer, item_composer }
+        Self { post_processor, item }
     }
 }
-impl<Parent, IN, CTX, MAP, OUT> Composer<Parent> for IteratorComposer<IN, CTX, MAP, OUT>
-    where Parent: SharedAccess,
-          IN: Clone {
-    type Source = IN;
-    type Result = OUT;
-
+impl<'a, In, Ctx, Map, Out> Composer<'a>
+for IterativeComposer<In, Ctx, Map, Out>
+    where In: Clone {
+    type Source = In;
+    type Result = Out;
     fn compose(&self, source: &Self::Source) -> Self::Result {
         // TODO: avoid cloning
-        (self.root_composer)((source.clone(), self.item_composer))
+        (self.post_processor)((source.clone(), self.item))
     }
 }
+impl<'a, Parent, In, Ctx, Map, Out> LinkedComposer<'a, Parent>
+for IterativeComposer<In, Ctx, Map, Out>
+    where 
+        Parent: SharedAccess,
+        In: Clone {}
 
-impl<Parent, IN, CTX, MAP, OUT> HasParent<Parent> for IteratorComposer<IN, CTX, MAP, OUT>
-    where Parent: SharedAccess,
-          IN: Clone {
-    fn set_parent(&mut self, _parent: &Parent) {}
+
+impl<Parent, In, Ctx, Map, Out> ParentLinker<Parent>
+for IterativeComposer<In, Ctx, Map, Out>
+    where 
+        Parent: SharedAccess, 
+        In: Clone {
+    fn link(&mut self, _parent: &Parent) {}
 }
 
-pub struct OwnedComposer<Parent, CTX, L1CTX, L1MAP, L1OUT, OUT>
-    where Parent: SharedAccess,
-          CTX: Clone {
+pub struct SequenceComposer<
+    Parent,
+    ParentCtx,
+    SeqCtx,
+    SeqMap,
+    SeqOut,
+    Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone {
     parent: Option<Parent>,
-    root_composer: ComposerPresenter<L1OUT, OUT>,
-    context_composer: SharedComposer<Parent, CTX>,
-    local_context_composer: IteratorComposer<CTX, L1CTX, L1MAP, L1OUT>,
+    post_processor: ComposerPresenter<SeqOut, Out>,
+    context: SharedComposer<Parent, ParentCtx>,
+    iterator: IterativeComposer<ParentCtx, SeqCtx, SeqMap, SeqOut>,
 }
 
-impl<Parent, CTX, L1CTX, L1MAP, L1OUT, OUT> OwnedComposer<Parent, CTX, L1CTX, L1MAP, L1OUT, OUT>
-    where Parent: SharedAccess,
-          CTX: Clone {
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone {
     pub const fn new(
-        root_composer: ComposerPresenter<L1OUT, OUT>,
-        context_composer: SharedComposer<Parent, CTX>,
-        iterator_root_composer: ComposerPresenter<(CTX, ComposerPresenterByRef<L1CTX, L1MAP>), L1OUT>,
-        iterator_item_composer: ComposerPresenterByRef<L1CTX, L1MAP>,
+        post_processor: ComposerPresenter<SeqOut, Out>,
+        context: SharedComposer<Parent, ParentCtx>,
+        iterator_post_processor: ComposerPresenter<(ParentCtx, ComposerPresenterByRef<SeqCtx, SeqMap>), SeqOut>,
+        iterator_item: ComposerPresenterByRef<SeqCtx, SeqMap>,
     ) -> Self {
         Self {
+            post_processor,
+            context,
             parent: None,
-            root_composer,
-            context_composer,
-            local_context_composer: IteratorComposer::new(
-                iterator_root_composer,
-                iterator_item_composer
-            ),
-        }
-    }
-}
-
-impl<Parent, CTX, L1, L1MAP, L1OUT, OUT> HasParent<Parent> for OwnedComposer<Parent, CTX, L1, L1MAP, L1OUT, OUT>
-    where Parent: SharedAccess,
-          CTX: Clone {
-    fn set_parent(&mut self, parent: &Parent) {
-        self.parent = Some(parent.clone_container());
-    }
-}
-
-impl<Parent, CTX, L1, L1MAP, L1OUT, OUT> Composer<Parent> for OwnedComposer<Parent, CTX, L1, L1MAP, L1OUT, OUT>
-    where Parent: SharedAccess,
-          CTX: Clone {
-    type Source = ();
-    type Result = OUT;
-
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
-        let parent = self.parent.as_ref().unwrap();
-        let context = parent.access(self.context_composer);
-        let local_context = <IteratorComposer<CTX, L1, L1MAP, L1OUT> as Composer<Parent>>::compose(&self.local_context_composer, &context);
-        let out = (self.root_composer)(local_context);
-        out
-    }
-}
-
-pub struct ConversionComposer<Parent, L1CTX, L2CTX, L2MAP, L1OUT, LOUT, CTX, OUT>
-    where
-        Parent: SharedAccess,
-        L1CTX: Clone,
-        LOUT: ScopeContextPresentable,
-        OUT: ScopeContextPresentable {
-    parent: Option<Parent>,
-    root_composer: ComposerPresenterByRef<(CTX, LOUT), OUT>,
-    context_composer: SharedComposer<Parent, CTX>,
-    local_context_composer: OwnedComposer<Parent, L1CTX, L2CTX, L2MAP, L1OUT, LOUT>,
-}
-impl<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT> HasParent<Parent> for ConversionComposer<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT>
-    where
-        Parent: SharedAccess,
-        C0: Clone,
-        LOUT: ScopeContextPresentable,
-        OUT: ScopeContextPresentable {
-    fn set_parent(&mut self, parent: &Parent) {
-        self.local_context_composer.set_parent(parent);
-        self.parent = Some(parent.clone_container());
-    }
-}
-impl<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT> Composer<Parent> for ConversionComposer<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT>
-    where
-        Parent: SharedAccess,
-        C0: Clone,
-        LOUT: ScopeContextPresentable,
-        OUT: ScopeContextPresentable {
-    type Source = ();
-    type Result = OUT;
-
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
-        (self.root_composer)(&(
-            self.parent.as_ref().unwrap().access(self.context_composer),
-            self.local_context_composer.compose(&())))
-    }
-}
-impl<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT> ConversionComposer<Parent, C0, C1, C2, L1OUT, LOUT, CTX, OUT>
-    where
-        Parent: SharedAccess,
-        C0: Clone,
-        LOUT: ScopeContextPresentable,
-        OUT: ScopeContextPresentable {
-    pub const fn new(
-        root_composer: ComposerPresenterByRef<(CTX, LOUT), OUT>,
-        context_composer: SharedComposer<Parent, CTX>,
-        local_root_composer: ComposerPresenter<L1OUT, LOUT>,
-        local_context_composer: SharedComposer<Parent, C0>,
-        local_context_iterator_item_composer: ComposerPresenterByRef<C1, C2>,
-        local_context_iterator_root_composer: ComposerPresenter<(C0, ComposerPresenterByRef<C1, C2>), L1OUT>,
-    ) -> Self {
-        Self {
-            parent: None,
-            root_composer,
-            context_composer,
-            local_context_composer: OwnedComposer::new(
-                local_root_composer,
-                local_context_composer,
-                local_context_iterator_root_composer,
-                local_context_iterator_item_composer
+            iterator: IterativeComposer::new(
+                iterator_post_processor,
+                iterator_item
             )
         }
     }
 }
 
-// pub struct PresentableContextComposer<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result>, Parent: SharedAccess> {
-//     parent: Option<Parent>,
-//     root_composer: ComposerPresenter<Context, Presentable>,
-//     context_composer: SharedComposer<Parent, Context>,
-// }
-// impl<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result>, Parent: SharedAccess> HasParent<Parent> for PresentableContextComposer<Context, Result, Presentable, Parent>  {
-//     fn set_parent(&mut self, parent: &Parent) {
-//         self.parent = Some(parent.clone_container());
-//     }
-// }
-//
-// impl<Context, Result, Presentable: ScopeContextPresentable<Presentation = Result>, Parent: SharedAccess> Composer<Parent> for PresentableContextComposer<Context, Result, Presentable, Parent> {
-//     type Source = ScopeContext;
-//     type Result = Result;
-//
-//     fn compose(&self, source: &Self::Source) -> Self::Result {
-//         let parent = self.parent.as_ref().unwrap();
-//         let context = parent.access(self.context_composer);
-//         let presentable = (self.root_composer)(context);
-//         let result = presentable.present(source);
-//         result
-//     }
-// }
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> ParentLinker<Parent>
+for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone {
+    fn link(&mut self, parent: &Parent) {
+        self.parent = Some(parent.clone_container());
+    }
+}
 
-// pub trait ComposerAspect {
-//     type Context;
-//     type Presentation;
-//     fn compose_with_composer<Parent, C>(&self, composer: &C, context: &Self::Context) -> Self::Presentation
-//         where Parent: SharedAccess, C: Composer<Parent> {
-//         composer.compose(context)
-//     }
-// }
+impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a>
+for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone {
+    type Source = ();
+    type Result = Out;
+    fn compose(&self, _: &Self::Source) -> Self::Result {
+        (self.post_processor)(
+            self.iterator.compose(&self.parent
+                .as_ref()
+                .expect("no parent")
+                .access(self.context)))
+    }
+}
 
+pub struct SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone,
+        SeqMixOut: ScopeContextPresentable,
+        Out: ScopeContextPresentable {
+    parent: Option<Parent>,
+    post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
+    context: SharedComposer<Parent, MixCtx>,
+    sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
+}
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> ParentLinker<Parent>
+for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone,
+        SeqMixOut: ScopeContextPresentable,
+        Out: ScopeContextPresentable {
+    fn link(&mut self, parent: &Parent) {
+        self.sequence.link(parent);
+        self.parent = Some(parent.clone_container());
+    }
+}
+impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Composer<'a>
+for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone,
+        SeqMixOut: ScopeContextPresentable,
+        Out: ScopeContextPresentable {
+    type Source = ();
+    type Result = Out;
+    fn compose(&self, _source: &Self::Source) -> Self::Result {
+        (self.post_processor)(&(
+            self.parent.as_ref().expect("no parent").access(self.context),
+            self.sequence.compose(&())))
+    }
+}
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where
+        Parent: SharedAccess,
+        ParentCtx: Clone,
+        SeqMixOut: ScopeContextPresentable,
+        Out: ScopeContextPresentable {
+    pub const fn new(
+        post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
+        context: SharedComposer<Parent, MixCtx>,
+        seq_root: ComposerPresenter<SeqOut, SeqMixOut>,
+        seq_context: SharedComposer<Parent, ParentCtx>,
+        seq_iterator_item: ComposerPresenterByRef<SeqCtx, SeqMap>,
+        seq_iterator_root: ComposerPresenter<(ParentCtx, ComposerPresenterByRef<SeqCtx, SeqMap>), SeqOut>,
+    ) -> Self {
+        Self {
+            parent: None,
+            post_processor,
+            context,
+            sequence: SequenceComposer::new(
+                seq_root,
+                seq_context,
+                seq_iterator_root,
+                seq_iterator_item
+            )
+        }
+    }
+    pub const fn new_new(
+        post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
+        context: SharedComposer<Parent, MixCtx>,
+        sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
+    ) -> Self {
+        Self {
+            parent: None,
+            post_processor,
+            context,
+            sequence
+        }
+    }
+}

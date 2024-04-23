@@ -139,9 +139,12 @@ impl NestingExtension for Type {
         let mut involved = HashSet::from([]);
         match self {
             Type::Array(TypeArray { elem, .. }) |
+            Type::Slice(TypeSlice { elem, .. }) => {
+                involved.insert(self.clone());
+                involved.extend(elem.nested_items());
+            }
             Type::Ptr(TypePtr { elem, .. }) |
-            Type::Reference(TypeReference { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. }) =>
+            Type::Reference(TypeReference { elem, .. }) =>
                 involved.extend(elem.nested_items()),
             Type::BareFn(TypeBareFn { inputs, output, .. }) => {
                 involved.extend(inputs.nested_items());

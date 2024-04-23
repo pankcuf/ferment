@@ -75,11 +75,11 @@ pub mod get_identity_response {
     use crate::identity::identity_request::ResponseMetadata;
 
     #[ferment_macro::export]
+    #[derive(Clone, PartialEq)]
     pub struct GetIdentityResponseV0 {
         pub metadata: Option<ResponseMetadata>,
         pub result: Option<get_identity_response_v0::Result>,
     }
-
 
     pub mod get_identity_response_v0 {
         use crate::identity::identity_request::Proof;

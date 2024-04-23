@@ -53,7 +53,7 @@ impl ScopeTreeExportID {
         match &self {
             ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
                 crate_ident: scope.crate_ident().clone(),
-                self_scope: Scope::new(scope.self_path_holder().joined(ident), ObjectConversion::Empty),
+                self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectConversion::Empty),
                 parent_scope_chain: Box::new(scope.clone())
             },
             ScopeTreeExportID::Impl(_, _) =>
@@ -143,7 +143,7 @@ impl ScopeTreeExportItem {
                 let ident = &item_mod.ident;
                 let inner_scope = ScopeChain::new_mod(
                     scope.crate_ident().clone(),
-                    Scope::new(scope.self_path_holder().joined(ident), ObjectConversion::Empty),
+                    Scope::new(scope.self_path_holder_ref().joined(ident), ObjectConversion::Empty),
                     scope);
                 match self {
                     ScopeTreeExportItem::Item(context, _) => {

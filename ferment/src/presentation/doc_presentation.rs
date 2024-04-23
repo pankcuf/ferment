@@ -32,7 +32,7 @@ impl ToTokens for DocPresentation {
                     /// # Safety
                 }
             }
-            DocPresentation::DefaultT(target_name) => default_doc(target_name.clone()),
+            Self::DefaultT(target_name) => default_doc(target_name.clone()),
         }.to_tokens(tokens)
     }
 }
