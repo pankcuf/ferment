@@ -2,10 +2,17 @@ use quote::{quote, ToTokens};
 use syn::{Path, Type, TypeArray, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::conversion::FieldTypeConversion;
+use crate::ext::Mangle;
 use crate::helper::path_arguments_to_paths;
 use crate::interface::ffi_to_conversion;
 use crate::naming::Name;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+
+pub enum ConversionMethod {
+    From,
+    To,
+    Destroy
+}
 
 pub trait Conversion {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext;
@@ -128,29 +135,13 @@ impl Conversion for TypeArray {
 
 impl Conversion for TypeSlice {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        FieldTypePresentableContext::AsSlice(match &*self.elem {
-            Type::Path(type_path) =>
+        let ty = &*self.elem;
+        let ffi_type = self.mangle_ident_default();
+        FieldTypePresentableContext::AsSlice(
             FieldTypePresentableContext::CastFrom(
                 field_path.into(),
-                quote!(Vec<#type_path>),
-                quote!(crate::fermented::generics::Slice_Tuple_ferment_example_nested_HashID_ferment_example_nested_HashID)),
-                // FieldTypePresentableContext::From(FieldTypePresentableContext::DerefContext(field_path.into()).into()),
-                //
-                // type_path.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
-                // match segments.last().unwrap().ident.to_string().as_str() {
-                //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
-                //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
-                // },
-            Type::Tuple(type_tuple) =>
-                FieldTypePresentableContext::CastFrom(
-                    field_path.into(),
-                    quote!(Vec<(ferment_example::nested::HashID, ferment_example::nested::HashID)>),
-                    quote!(crate::fermented::generics::Slice_Tuple_ferment_example_nested_HashID_ferment_example_nested_HashID)),
-
-            // FieldTypePresentableContext::From(field_path.into()),
-                // type_tuple.conversion_from(FieldTypePresentableContext::DerefContext(field_path.into())),
-            _ => panic!("from_slice: unsupported {}", quote!(#self)),
-        }.into())
+                quote!(Vec<#ty>),
+                quote!(crate::fermented::generics::#ffi_type)).into())
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
@@ -193,7 +184,6 @@ impl Conversion for TypePtr {
                     .to_token_stream()),
             _ => FieldTypePresentableContext::From(field_path.into()),
         }
-
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {

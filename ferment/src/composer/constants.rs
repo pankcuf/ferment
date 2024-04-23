@@ -20,6 +20,10 @@ pub const FFI_FROM_ROOT_PRESENTER: ComposerPresenterByRef<OwnedItemPresentationP
     OwnerIteratorPresentationContext::FromRoot(Box::new(field_path.clone()), Box::new(conversions.clone()));
 pub const FFI_TO_ROOT_PRESENTER: ComposerPresenterByRef<OwnedItemPresentationPair, OwnerIteratorPresentationContext> = |(_, conversions)|
     OwnerIteratorPresentationContext::Boxed(conversions.clone().into());
+
+pub const FIELD_TYPE_ROOT_PRESENTER: ComposerPresenterByRef<FieldTypePresentableContext, OwnedItemPresentableContext> =
+    |context| OwnedItemPresentableContext::FieldType(context.clone());
+
 pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
     OwnerIteratorPresentationContext::CurlyBracesFields(local_context);
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|

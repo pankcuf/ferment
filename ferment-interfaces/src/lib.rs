@@ -5,7 +5,7 @@ use std::ffi::CString;
 use std::hash::Hash;
 use std::{mem, slice};
 use std::os::raw::c_char;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// We pass here main context of parent program
 
@@ -337,6 +337,17 @@ impl<T> FFIConversion<Arc<T>> for T {
         Arc::into_raw(obj) as *mut T
     }
 }
+
+// impl<T> FFIConversion<Mutex<T>> for T {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {
+//         Mutex::new()
+//     }
+//
+//     unsafe fn ffi_to_const(obj: Arc<T>) -> *const Self {
+//         Arc::into_raw(obj) as *mut T
+//     }
+// }
+
 
 // impl<T, U> FFIConversion<Mutex<U>> for T where T: Clone,  {
 //     unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {

@@ -9,7 +9,7 @@ use crate::composer::{AttrsComposer, BindingComposer, Composer, constants, Depun
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
 use crate::composer::r#type::TypeComposer;
-use crate::composition::{AttrsComposition, FnArgComposition, FnSignatureContext};
+use crate::composition::{AttrsComposition, FnArgComposer, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::FieldTypeConversion;
 use crate::ext::{Mangle, Resolve};
@@ -107,25 +107,15 @@ impl SourceExpandable for SigComposer {
                 println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => {
-                        // println!("FnSignatureContext::ModFn: {}")
-                        let Signature { output, ident, inputs, generics, .. } = sig;
+                        let Signature { output, inputs, .. } = sig;
                         let return_type = output.compose(&(false, &source));
                         let argument_comps = inputs
                             .iter()
-                            .map(|arg| match arg {
-                                FnArg::Receiver(Receiver { mutability, reference, .. }) => {
-                                    panic!("receiver in mod fn")
-                                },
-                                FnArg::Typed(pat_ty) =>
-                                    pat_ty.compose(&source),
-                            })
-                            .collect::<Vec<_>>();
-                        let arguments = argument_comps
-                            .iter()
+                            .map(|arg| arg.compose(&(sig_context, &source)));
+                        let arguments = argument_comps.clone()
                             .map(|arg| arg.name_type_original.clone())
-                            .collect::<Punctuated<_, Comma>>();
+                            .collect::<Punctuated<_, _>>();
                         let argument_conversions = argument_comps
-                            .iter()
                             .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source)))
                             .collect::<Punctuated<_, _>>();
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((target_name_context.clone(), argument_conversions));
@@ -137,52 +127,17 @@ impl SourceExpandable for SigComposer {
                             return_type: return_type.presentation.clone(),
                             output_conversions: return_type.conversion.present(&source)
                         }
-
                     },
-                    FnSignatureContext::Impl(self_ty, maybe_trait_ty, sig) => {
-                        let Signature { output, ident, inputs, generics, .. } = sig;
+                    FnSignatureContext::Impl(_, _, sig) => {
+                        let Signature { output, inputs, .. } = sig;
                         let return_type = output.compose(&(false, &source));
                         let argument_comps = inputs
                             .iter()
-                            .map(|arg| match arg {
-                                FnArg::Receiver(Receiver { mutability, reference, .. }) => {
-                                    let (mangled_ident, name_type_conversion) = match maybe_trait_ty {
-                                        Some(trait_ty) => (
-                                            trait_ty.resolve(&source).mangle_ident_default(),
-                                            FieldTypePresentableContext::SelfAsTrait(self_ty.resolve(&source).to_token_stream())
-                                        ),
-                                        None => (
-                                            self_ty.resolve(&source).mangle_ident_default(),
-                                            FieldTypePresentableContext::From(FieldTypePresentableContext::Self_.into())
-                                        )
-                                    };
-                                    let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
-                                    let name_type_original = OwnedItemPresentableContext::Named(
-                                        FieldTypeConversion::Named(
-                                            Name::Dictionary(DictionaryFieldName::Self_),
-                                            parse_quote!(* #access #mangled_ident)),
-                                        false);
-                                    let name_type_conversion = if reference.is_some() {
-                                        FieldTypePresentableContext::AsRef(name_type_conversion.into())
-                                    } else {
-                                        name_type_conversion
-                                    };
-                                    FnArgComposition {
-                                        name: None,
-                                        name_type_original,
-                                        name_type_conversion
-                                    }
-                                },
-                                FnArg::Typed(pat_ty) =>
-                                    pat_ty.compose(&source),
-                            })
-                            .collect::<Vec<_>>();
-                        let arguments = argument_comps
-                            .iter()
+                            .map(|arg| arg.compose(&(sig_context, &source)));
+                        let arguments = argument_comps.clone()
                             .map(|arg| arg.name_type_original.clone())
-                            .collect::<Punctuated<_, Comma>>();
+                            .collect::<Punctuated<_, _>>();
                         let argument_conversions = argument_comps
-                            .iter()
                             .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source)))
                             .collect::<Punctuated<_, _>>();
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((ffi_name_context.clone(), argument_conversions));
@@ -195,46 +150,14 @@ impl SourceExpandable for SigComposer {
                             output_conversions: return_type.conversion.present(&source)
                         }
                     },
-                    FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, sig) => {
-                        let Signature { output, ident, inputs, generics, .. } = sig;
+                    FnSignatureContext::TraitInner(_, _, sig) => {
+                        let Signature { output, inputs, .. } = sig;
                         let return_type = output.compose(&(false, &source));
                         let argument_comps = inputs
                             .iter()
-                            .map(|arg| match arg {
-                                FnArg::Receiver(Receiver { mutability, reference, .. }) => {
-                                    let (mangled_ident, name_type_conversion) = match maybe_trait_ty {
-                                        Some(trait_ty) => (
-                                            trait_ty.resolve(&source).mangle_ident_default(),
-                                            FieldTypePresentableContext::SelfAsTrait(self_ty.resolve(&source).to_token_stream())
-                                        ),
-                                        None => (
-                                            self_ty.resolve(&source).mangle_ident_default(),
-                                            FieldTypePresentableContext::From(FieldTypePresentableContext::Self_.into())
-                                        )
-                                    };
-                                    let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
-                                    let name_type_original = OwnedItemPresentableContext::Named(
-                                        FieldTypeConversion::Named(
-                                            Name::Dictionary(DictionaryFieldName::Self_),
-                                            parse_quote!(* #access #mangled_ident)),
-                                        false);
-                                    let name_type_conversion = if reference.is_some() {
-                                        FieldTypePresentableContext::AsRef(name_type_conversion.into())
-                                    } else {
-                                        name_type_conversion
-                                    };
-                                    FnArgComposition {
-                                        name: None,
-                                        name_type_original,
-                                        name_type_conversion
-                                    }
-                                },
-                                FnArg::Typed(pat_ty) =>
-                                    pat_ty.compose(&source),
-                            })
-                            .collect::<Vec<_>>();
+                            .map(|arg| arg.compose(&(sig_context, &source)));
 
-                        let arguments = argument_comps.iter()
+                        let arguments = argument_comps
                             .map(|arg| arg.name_type_original.clone())
                             .collect::<Punctuated<_, Comma>>();
                         let presentation = Wrapped::<_, Paren>::new(arguments.present(&source));
@@ -246,39 +169,21 @@ impl SourceExpandable for SigComposer {
                             name_and_args,
                             output_expression
                         }
-
-                        // FnSignatureComposition::from_signature(sig_context, sig, scope, &source)
-                        //     .present(FnSignatureCompositionContext::TraitVTableInner, &source)
                     },
                     FnSignatureContext::Bare(target_name, type_bare_fn) => {
                         let TypeBareFn { inputs, output, .. } = type_bare_fn;
                         let argument_comps = inputs.compose(&source);
                         let return_type = output.compose(&(true, &source));
-                        // FnSignatureComposition {
-                        //     is_async: false,
-                        //     ident: Some(ident.clone()),
-                        //     scope: scope.clone(),
-                        //     arguments,
-                        //     return_type,
-                        //     impl_context: FnSignatureContext::Bare(ident.clone(), bare_fn.clone()),
-                        //     generics: None
-                        // }
-
                         let arguments = argument_comps
                             .iter()
                             .map(|arg| arg.name_type_original.present(&source))
                             .collect::<Punctuated<_, _>>();
                         let output_expression = return_type.presentation;
-                        // let name = self.ident.clone().unwrap().to_token_stream();
                         BindingPresentation::Callback {
                             name: target_name.to_token_stream(),
                             arguments,
                             output_expression
                         }
-
-
-                        // FnSignatureComposition::from_bare_fn(type_bare_fn, target_name, scope, &source)
-                        //     .present(FnSignatureCompositionContext::FFIObjectCallback, &source)
                     }
                 }
 

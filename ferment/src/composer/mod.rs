@@ -33,7 +33,7 @@ pub use composable::BindingComposable;
 use crate::composer::generic::GenericComposer;
 use crate::composer::signature::SigComposer;
 use crate::composer::trait_composer::TraitComposer;
-use crate::composition::{FnSignatureComposition, FnSignatureContext};
+use crate::composition::FnSignatureContext;
 use crate::conversion::FieldTypeConversion;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
@@ -102,7 +102,7 @@ pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeL
 /// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
 pub type BindingDtorComposer = BindingComposer<DestructorContext>;
-pub type BindingSigComposer = BindingComposer<FnSignatureComposition>;
+// pub type BindingSigComposer = BindingComposer<FnSignatureComposition>;
 pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentableContext>;
 pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;
 pub type OwnerIteratorLocalContext<A, T> = (A, Punctuated<OwnedItemPresentableContext, T>);

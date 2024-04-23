@@ -13,7 +13,7 @@ mod trait_vtable_composition;
 
 pub use attrs_composition::AttrsComposition;
 pub use type_composition::{TypeComposition, NestedArgument};
-pub use function_composition::FnArgComposition;
+pub use function_composition::FnArgComposer;
 pub use function_composition::FnReturnTypeComposer;
 pub use function_composition::FnSignatureComposition;
 pub use function_composition::FnSignatureContext;
