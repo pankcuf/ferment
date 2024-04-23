@@ -424,7 +424,7 @@ impl<'a> Composer<'a> for PatType {
             _ =>
                 panic!("error: Arg conversion not supported: {}", quote!(#ty)),
         };
-        println!("PatType: {}", name_type_conversion);
+        // println!("PatType: {}", name_type_conversion);
         FnArgComposer {
             name: Some(pat.to_token_stream()),
             name_type_original,

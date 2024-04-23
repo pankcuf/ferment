@@ -18,7 +18,8 @@ pub enum FieldTypePresentableContext {
     To(Box<FieldTypePresentableContext>),
     ToOpt(Box<FieldTypePresentableContext>),
     UnwrapOr(Box<FieldTypePresentableContext>, TokenStream2),
-    ToVec(OwnerIteratorPresentationContext),
+    OwnerIteratorPresentation(OwnerIteratorPresentationContext),
+    ToVec(Box<FieldTypePresentableContext>),
     ToVecPtr,
     Obj,
     Self_,
@@ -61,12 +62,14 @@ impl Display for FieldTypePresentableContext {
                 format!("FieldTypePresentableContext::Add({}, {})", context, index),
             FieldTypePresentableContext::To(context) =>
                 format!("FieldTypePresentableContext::To({})", context),
+            FieldTypePresentableContext::ToVec(context) =>
+                format!("FieldTypePresentableContext::ToVec({})", context),
             FieldTypePresentableContext::ToOpt(context) =>
                 format!("FieldTypePresentableContext::ToOpt({})", context),
             FieldTypePresentableContext::UnwrapOr(context, or) =>
                 format!("FieldTypePresentableContext::UnwrapOr({}, {})", context, or),
-            FieldTypePresentableContext::ToVec(context) =>
-                format!("FieldTypePresentableContext::ToVec({})", context),
+            FieldTypePresentableContext::OwnerIteratorPresentation(context) =>
+                format!("FieldTypePresentableContext::OwnerIteratorPresentation({})", context),
             FieldTypePresentableContext::ToVecPtr =>
                 format!("FieldTypePresentableContext::ToVecPtr"),
             FieldTypePresentableContext::Obj =>
@@ -146,7 +149,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let field_path = presentation_context.present(source);
                 quote!(#field_path.unwrap_or(#default))
             },
-            FieldTypePresentableContext::ToVec(presentation_context) => {
+            FieldTypePresentableContext::OwnerIteratorPresentation(presentation_context) => {
                 presentation_context.present(source)
             }
             FieldTypePresentableContext::ToOpt(presentation_context) => {
@@ -154,6 +157,10 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
                 let interface = DictionaryFieldName::Interface;
                 let field_path = presentation_context.present(source);
                 quote!(#package::#interface::ffi_to_opt(#field_path))
+            },
+            FieldTypePresentableContext::ToVec(presentation_context) => {
+                let field_path = presentation_context.present(source);
+                quote!(#field_path.to_vec())
             },
             FieldTypePresentableContext::ToVecPtr => {
                 let expr = DictionaryExpression::BoxedExpression(quote!(o));

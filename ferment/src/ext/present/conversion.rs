@@ -148,7 +148,7 @@ impl Conversion for TypeSlice {
         // TODO: fix it TypeConversion::from
         match &*self.elem {
             Type::Path(type_path) =>
-                FieldTypePresentableContext::To(field_path.into()),
+                FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
 
             // type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
             // match segments.last().unwrap().ident.to_string().as_str() {
@@ -308,7 +308,7 @@ impl Conversion for TypePath {
                 "bool" =>
                     FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false)),
                 "Vec" =>
-                    FieldTypePresentableContext::ToVec(
+                    FieldTypePresentableContext::OwnerIteratorPresentation(
                         OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
                             OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
                             OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()))

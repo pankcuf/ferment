@@ -65,7 +65,7 @@ impl Mangle<MangleDefault> for TypeTuple {
 }
 impl Mangle<MangleDefault> for TypeArray {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        format!("Arr_{}", self.elem.mangle_string(context))
+        format!("Arr_{}_{}", self.elem.mangle_string(context), self.len.to_token_stream())
     }
 }
 

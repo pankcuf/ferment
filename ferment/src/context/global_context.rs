@@ -195,7 +195,7 @@ impl GlobalContext {
                 // println!("maybe_item: found item in scope: {}", item);
                 return Some(item);
             } else {
-                println!("[WARN] Scope found [{}] but no item: {}", scope, path.to_token_stream());
+                // println!("[WARN] Scope found [{}] but no item: {}", scope, path.to_token_stream());
             }
         } else {
             // println!("[WARN] No scope found [{}]", path.to_token_stream());
