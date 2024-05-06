@@ -3,20 +3,15 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{BareFnArg, FnArg, Generics, ItemFn, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, Paren, RArrow};
-use crate::composer::{Composer, constants, Depunctuated};
+use syn::token::{Comma, RArrow};
+use crate::composer::{Composer, Depunctuated};
 use crate::composition::Composition;
-use crate::composition::context::FnSignatureCompositionContext;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::{Conversion, CrateExtension, FFIResolveExtended, Mangle, Resolve, ToPath};
+use crate::ext::{Conversion, FFIResolveExtended, Mangle, Resolve};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryFieldName, Name};
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
-use crate::presentation::BindingPresentation;
-use crate::presentation::context::name::{Aspect, Context};
-use crate::presentation::ScopeContextPresentable;
-use crate::wrapped::Wrapped;
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -385,6 +380,7 @@ impl<'a> Composer<'a> for BareFnArg {
     fn compose(&self, source: &Self::Source) -> Self::Result {
         let BareFnArg { ty, name, .. } = self;
         let name = name.clone().map(|(ident, _)| ident);
+        println!("BareFnArg::compose: {}", ty.to_token_stream());
         FnArgComposer {
             name: name.clone().map(|g| g.to_token_stream()),
             name_type_original: OwnedItemPresentableContext::Named(
@@ -404,10 +400,11 @@ impl<'a> Composer<'a> for PatType {
         let (ctx, source) = source;
         let PatType { ty, pat, .. } = self;
         // TODO: handle mut/const with pat
+        // println!("PatType::compose: {}", ty.to_token_stream());
         let name_type_original = OwnedItemPresentableContext::Named(
             FieldTypeConversion::Named(
                 Name::Pat(*pat.clone()),
-                ty.resolve(source).ffi_full_dictionary_type_presenter(source)),
+                ty.ffi_full_dictionary_type_presenter(source)),
             false);
         let name_type_conversion = match &**pat {
             Pat::Ident(PatIdent { ident, .. }) => {

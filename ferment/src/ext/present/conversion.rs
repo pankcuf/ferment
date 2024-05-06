@@ -1,5 +1,5 @@
 use quote::{quote, ToTokens};
-use syn::{Path, Type, TypeArray, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{Path, Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::Mangle;
@@ -51,6 +51,8 @@ impl Conversion for Type {
                 ty.conversion_from(field_path),
             Type::TraitObject(ty) =>
                 ty.conversion_from(field_path),
+            Type::ImplTrait(ty) =>
+                ty.conversion_from(field_path),
             _ => unimplemented!("No conversions for {}", self.to_token_stream())
         }
     }
@@ -70,6 +72,8 @@ impl Conversion for Type {
             Type::TraitObject(ty) =>
                 ty.conversion_to(field_path),
             Type::Tuple(ty) =>
+                ty.conversion_to(field_path),
+            Type::ImplTrait(ty) =>
                 ty.conversion_to(field_path),
             _ => unimplemented!("No conversions for {}", self.to_token_stream())
         }
@@ -91,6 +95,8 @@ impl Conversion for Type {
                 ty.conversion_destroy(field_path),
             Type::Tuple(ty) =>
                 ty.conversion_destroy(field_path),
+            Type::ImplTrait(ty) =>
+                ty.conversion_destroy(field_path),
             _ => unimplemented!("No conversions for {}", self.to_token_stream())
         }
     }
@@ -98,7 +104,7 @@ impl Conversion for Type {
 
 impl Conversion for TypeArray {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
-        println!("Conversion for TypeArray: {} -- {:?}", self.to_token_stream(), field_path);
+        //println!("Conversion for TypeArray: {} -- {:?}", self.to_token_stream(), field_path);
         // let arg_type = handle_arg_type(&type_array.elem, pat, context);
         // let len = &type_array.len;
         match &*self.elem {
@@ -155,7 +161,15 @@ impl Conversion for TypeSlice {
             //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
             //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
             // },
-            _ => panic!("from_slice: unsupported {}", quote!(#self)),
+            Type::Tuple(type_tuple) =>
+                FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
+            Type::Array(type_array) =>
+                FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
+            Type::Slice(type_slice) =>
+                FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
+            Type::Reference(type_reference) =>
+                FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
+            _ => panic!("<TypeSlice as Conversion>::conversion_to: Unknown type {} === {:?}", quote!(#self), self),
         }
     }
 
@@ -272,6 +286,7 @@ impl Conversion for TypeReference {
     fn conversion_destroy(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         match &*self.elem {
             Type::Path(type_path) => type_path.conversion_destroy(field_path),
+            Type::Slice(type_slice) => type_slice.conversion_destroy(field_path),
             _ => panic!("destroy_reference: unsupported type: {}", quote!(#self)),
         }
     }
@@ -357,6 +372,20 @@ impl Conversion for TypeTuple {
 }
 
 impl Conversion for TypeTraitObject {
+    fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        FieldTypePresentableContext::AsRef(field_path.into())
+    }
+
+    fn conversion_to(&self, _field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        todo!()
+    }
+
+    fn conversion_destroy(&self, _field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
+        todo!()
+    }
+}
+
+impl Conversion for TypeImplTrait {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         FieldTypePresentableContext::AsRef(field_path.into())
     }

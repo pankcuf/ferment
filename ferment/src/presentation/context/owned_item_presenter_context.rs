@@ -60,9 +60,10 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::DefaultField(field_type) => {
                 field_type.name()
             },
-            OwnedItemPresentableContext::DefaultFieldType(field_type) =>
+            OwnedItemPresentableContext::DefaultFieldType(field_type) => {
                 field_type.ffi_full_dictionary_type_presenter(source)
-                    .to_token_stream(),
+                    .to_token_stream()
+            },
             OwnedItemPresentableContext::Named(field_type, is_public) => {
                 let name = field_type.name();
                 let ty = field_type.ty().ffi_full_dictionary_type_presenter(source);

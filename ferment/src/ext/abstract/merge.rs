@@ -63,7 +63,7 @@ pub trait MergeInto {
 
 impl ValueReplaceScenario for ScopeTreeExportItem {
     fn should_replace_with(&self, other: &Self) -> bool {
-        // println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
+        println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
             (ScopeTreeExportItem::Tree(..), ScopeTreeExportItem::Tree(..)) => true,
@@ -78,16 +78,20 @@ impl MergeInto for ScopeTreeExportItem {
         if let (ScopeTreeExportItem::Tree(_, _, ref mut dest_exports),
             ScopeTreeExportItem::Tree(_, _, source_exports), ) = (destination, &self) {
             // println!("•• merge_trees: source: {}", format_tree_exported_dict(dest_exports));
-            // println!("•• merge_trees: destination: {:?}", format_tree_exported_dict(dest_exports));
+            // println!("•• merge_trees: destination: {}", format_tree_exported_dict(dest_exports));
             // dest_exports.extend_with_policy(source_exports, DefaultScopePolicy);
 
             for (name, source_tree) in source_exports {
+                //println!("ScopeTreeExportItem::merge_into: {} --- {}", name, source_tree);
                 //DefaultScopePolicy::apply();
                 //destination.insert_with_policy(name.clone(), source_tree.clone(), DefaultScopePolicy);
                 match dest_exports.entry(name.clone()) {
-                    std::collections::hash_map::Entry::Occupied(mut o) =>
-                        source_tree.merge_into(o.get_mut()),
+                    std::collections::hash_map::Entry::Occupied(mut o) => {
+                        // println!("")
+                        source_tree.merge_into(o.get_mut())
+                    },
                     std::collections::hash_map::Entry::Vacant(v) => {
+
                         v.insert(source_tree.clone());
                     }
                 }

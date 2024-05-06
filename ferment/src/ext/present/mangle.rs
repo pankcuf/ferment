@@ -1,13 +1,14 @@
+use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::ext::ToPath;
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
 
-pub trait Mangle<T: Clone> {
+pub trait Mangle<T: Clone> where Self: Debug {
     fn mangle_string(&self, context: T) -> String;
     fn mangle_ident(&self, context: T) -> Ident {
         format_ident!("{}", self.mangle_string(context))
@@ -16,11 +17,16 @@ pub trait Mangle<T: Clone> {
         self.mangle_string(T::default())
     }
     fn mangle_ident_default(&self) -> Ident where T: Default {
+        // println!("mangle_ident_default: {:?}", self);
         format_ident!("{}", self.mangle_string(T::default()))
     }
 }
 
-impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>  where T: Clone + Copy + Default, CTX: Mangle<T> {
+impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>
+    where
+        T: Clone + Copy + Default,
+        CTX: Mangle<T>,
+        SEP: Debug {
     fn mangle_string(&self, context: T) -> String {
         self.iter()
             .map(|item| item.mangle_string(context))
@@ -40,6 +46,8 @@ impl Mangle<MangleDefault> for Type {
                 type_slice.mangle_string(context),
             Type::Tuple(type_tuple) =>
                 type_tuple.mangle_string(context),
+            Type::Reference(type_reference) =>
+                type_reference.mangle_string(context),
             ty =>
                 ty.to_path().get_ident().unwrap().clone().to_string()
         }
@@ -83,6 +91,22 @@ impl Mangle<MangleDefault> for TypeTraitObject {
             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
             TypeParamBound::Lifetime(_) => None,
         }).unwrap_or(format!("Any"))
+    }
+}
+
+impl Mangle<MangleDefault> for TypeImplTrait {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        // TODO: need mixins impl to process multiple bounds
+        self.bounds.iter().find_map(|b| match b {
+            TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
+            TypeParamBound::Lifetime(_) => None,
+        }).unwrap_or(format!("Any"))
+    }
+}
+
+impl Mangle<MangleDefault> for TypeReference {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.elem.mangle_string(context)
     }
 }
 

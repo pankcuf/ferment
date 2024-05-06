@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use quote::format_ident;
+use quote::{format_ident, ToTokens};
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain};
-use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
+use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{Join, ToType};
-use crate::helper::{collect_bounds, ItemExtension};
-use crate::holder::PathHolder;
+use crate::helper::collect_bounds;
+use crate::holder::TypePathHolder;
 use crate::visitor::Visitor;
 
 pub trait VisitScope {
@@ -19,26 +19,34 @@ pub trait VisitScope {
 
 impl VisitScope for Item {
     fn join_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) -> Option<ScopeChain> {
+        //println!("join_scope: {}", scope.self_path_holder_ref());
         match self {
             Item::Struct(..) |
             Item::Enum(..) |
             Item::Fn(..) |
             Item::Trait(..) |
             Item::Type(..) |
-            Item::Impl(..) |
-            Item::Mod(..) => {
+            Item::Impl(..) => {
                 let scope = scope.joined(self);
                 self.add_to_scope(&scope, visitor);
                 Some(scope)
+            },
+            |
+            Item::Mod(..) => {
+                self.add_to_scope(&scope, visitor);
+                Some(scope.clone())
             },
             _ => None
         }
     }
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) {
+        //println!("add_to_scope: {}", scope.self_path_holder_ref());
         match self {
             Item::Const(_) => {}
             Item::Enum(item_enum) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone()))));
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone())));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
+                add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
                 visitor.add_generic_chain(scope, &item_enum.generics);
                 item_enum.variants.iter().for_each(|Variant { fields, .. }|
@@ -46,9 +54,20 @@ impl VisitScope for Item {
                         visitor.add_full_qualified_type_match(scope, ty)));
 
             }
+            Item::Struct(item_struct) => {
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Struct(item_struct.clone())));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, self_object.clone());
+                add_itself_conversion(visitor, scope, &item_struct.ident, self_object);
+                visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
+                visitor.add_generic_chain(scope, &item_struct.generics);
+                item_struct.fields.iter().for_each(|Field { ty, .. }|
+                    visitor.add_full_qualified_type_match(scope, ty));
+            }
             Item::Fn(ItemFn { sig, .. }) => {
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
                 let sig_ident = &sig.ident;
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone())));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, self_object.clone());
+                add_itself_conversion(visitor, scope, sig_ident, self_object);
                 add_full_qualified_signature(visitor, sig, scope);
             }
             Item::Impl(item_impl) => {
@@ -82,16 +101,11 @@ impl VisitScope for Item {
             Item::Mod(item_mod) => {
                 add_inner_module_conversion(visitor, item_mod, scope);
             }
-            Item::Struct(item_struct) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Struct(item_struct.clone()))));
-                visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
-                visitor.add_generic_chain(scope, &item_struct.generics);
-                item_struct.fields.iter().for_each(|Field { ty, .. }|
-                    visitor.add_full_qualified_type_match(scope, ty));
-            }
             Item::Trait(item_trait) => add_full_qualified_trait(visitor, item_trait, scope),
             Item::Type(item_type) => {
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()))));
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone())));
+                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, self_object.clone());
+                add_itself_conversion(visitor, scope, &item_type.ident, self_object);
                 visitor.add_generic_chain(scope, &item_type.generics);
                 visitor.add_full_qualified_type_match(scope, &item_type.ty);
             }
@@ -173,19 +187,33 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
 }
 
 fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope: &ScopeChain) {
+    //println!("add_inner_module_conversion: {}" , item_mod.ident);
     match &item_mod.content {
         None => {},
         Some((_, items)) => {
-            items.into_iter().for_each(|item| match item {
-                Item::Use(node) =>
-                    visitor.fold_import_tree(scope, &node.tree, vec![]),
-                Item::Trait(..) | Item::Fn(..) | Item::Struct(..) | Item::Enum(..) | Item::Type(..) | Item::Impl(..) =>
-                    item.add_to_scope(&scope.joined(item), visitor),
-                Item::Mod(..) => {
-                    println!("add_inner_module_conversion: {}" , item.ident_string());
-                    item.add_to_scope(&scope.joined(item), visitor)
-                },
-                _ => {}
+            items.into_iter().for_each(|item| {
+                match item {
+                    Item::Use(node) =>
+                        visitor.fold_import_tree(scope, &node.tree, vec![]),
+                    Item::Mod(..) =>
+                        item.add_to_scope(&scope.joined(item), visitor),
+                    Item::Trait(..) |
+                    Item::Fn(..) |
+                    Item::Struct(..) |
+                    Item::Enum(..) |
+                    Item::Type(..) |
+                    Item::Impl(..) => {
+                        match MacroType::try_from(item) {
+                            Ok(MacroType::Export) | Ok(MacroType::Register(_)) => {
+                                //println!("add_inner_module_conversion.item: {}", item.ident_string());
+                                item.add_to_scope(&scope.joined(item), visitor)
+                            }
+                            Err(_) => {}
+                        }
+                    },
+                    _ => {}
+                }
+
             })
         }
     }
@@ -205,8 +233,8 @@ fn add_bounds(visitor: &mut Visitor, bounds: &Punctuated<TypeParamBound, Add>, s
     bounds
 }
 
-pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain) -> HashMap<PathHolder, Vec<Path>> {
-    let mut generics_chain: HashMap<PathHolder, Vec<Path>> = HashMap::new();
+pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain) -> HashMap<TypePathHolder, Vec<Path>> {
+    let mut generics_chain: HashMap<TypePathHolder, Vec<Path>> = HashMap::new();
     generics.params.iter().for_each(|generic_param| {
         match generic_param { // T: Debug + Clone
             GenericParam::Type(TypeParam { ident: generic_ident, bounds, .. }) => {
@@ -223,6 +251,7 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
             predicates.iter().for_each(|predicate| match predicate {
                 WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
                     // where T: Debug + Clone, T::Item: XX,
+                    println!("WherePredicate: {}", bounded_ty.to_token_stream());
                     generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope));
                     visitor.add_full_qualified_type_match(scope, bounded_ty);
                 },

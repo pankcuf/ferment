@@ -18,7 +18,7 @@ pub struct ExternalModulePolicy;
 
 impl<K, V> MergePolicy<K, V> for DefaultScopePolicy where K: Display, V: Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        println!("DefaultScopePolicy::apply: {} --> {}", o.get(), object);
+        // println!("DefaultScopePolicy::apply: {} --> {}", o.get(), object);
         o.insert(object);
     }
 }
@@ -133,7 +133,7 @@ impl TypeChain {
         self.inner.extend_with_policy(types.inner, EnrichScopePolicy);
     }
 
-    pub fn find_generics_fq(&self, item: &dyn GenericCollector) -> HashSet<GenericConversion> {
+    pub fn find_generics_fq<G: GenericCollector>(&self, item: &G) -> HashSet<GenericConversion> {
         item.find_generics()
             .iter()
             .filter_map(|ty| self.get(ty))

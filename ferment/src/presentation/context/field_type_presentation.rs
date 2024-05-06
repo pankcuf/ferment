@@ -181,7 +181,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::IsNull(presentation_context) => {
                 let field_path = presentation_context.present(source);
                 let conversion = package_unbox_any_expression_terminated(field_path.clone());
-                quote!(if !#field_path.is_null() { #conversion })
+                quote!(if !(#field_path).is_null() { #conversion })
             },
             FieldTypePresentableContext::DestroyConversion(presentation_context, path) => {
                 let package = DictionaryFieldName::Package;

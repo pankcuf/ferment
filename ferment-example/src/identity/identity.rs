@@ -66,8 +66,8 @@ pub enum KeyType {
     EDDSA_25519_HASH160 = 4,
 }
 
-#[ferment_macro::export]
 #[derive(Clone)]
+#[ferment_macro::export]
 pub struct IdentityPublicKeyV0 {
     pub id: KeyID,
     pub purpose: Purpose,

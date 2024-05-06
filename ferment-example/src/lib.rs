@@ -1,10 +1,14 @@
-pub mod chain;
+// pub mod chain;
 // pub mod example;
 pub mod fermented;
+pub mod example;
+pub mod data_contract;
+pub mod state_transition;
+pub mod errors;
 // pub mod asyn;
-#[allow(dead_code)]
-pub mod identity;
-pub mod types;
+// #[allow(dead_code)]
+// pub mod identity;
+// pub mod types;
 
 extern crate ferment_macro;
 extern crate tokio;
@@ -13,21 +17,21 @@ extern crate tokio;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-// #[allow(non_camel_case_types)]
-// #[ferment_macro::register(Duration)]
-// pub struct Duration_FFI {
-//     secs: u64,
-//     nanos: u32,
-// }
-// ferment_interfaces::impl_custom_conversion!(Duration, Duration_FFI,
-//     |value: &Duration_FFI| Duration::new(value.secs, value.nanos),
-//     |value: &Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
-// );
-
-ferment_interfaces::impl_custom_conversion2!(std::time::Duration, Duration { secs: u64, nanos: u32 },
-    |value: &Duration| std::time::Duration::new(value.secs, value.nanos),
-    |value: &std::time::Duration| Duration { secs: value.as_secs(), nanos: value.subsec_nanos() }
+#[allow(non_camel_case_types)]
+#[ferment_macro::register(std::time::Duration)]
+pub struct std_time_Duration {
+    secs: u64,
+    nanos: u32,
+}
+ferment_interfaces::impl_custom_conversion!(std::time::Duration, std_time_Duration,
+    |value: &std_time_Duration| std::time::Duration::new(value.secs, value.nanos),
+    |value: &std::time::Duration| Self { secs: value.as_secs(), nanos: value.subsec_nanos() }
 );
+
+// ferment_interfaces::impl_custom_conversion2!(std::time::Duration, Duration { secs: u64, nanos: u32 },
+//     |value: &Duration| std::time::Duration::new(value.secs, value.nanos),
+//     |value: &std::time::Duration| Duration { secs: value.as_secs(), nanos: value.subsec_nanos() }
+// );
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(Error)]
@@ -91,6 +95,15 @@ pub mod nested {
         pub root: RootStruct
     }
 
+    pub mod double_nested {
+        use crate::RootStruct;
+
+        #[ferment_macro::export]
+        pub fn get_root_struct_3() -> RootStruct {
+            RootStruct { name: format!("Root") }
+        }
+    }
+
     // use crate::asyn::query::{AppliedRequestSettings, Query, RequestSettings, TransportClient, TransportRequest};
 
     //     use std::collections::BTreeMap;
@@ -120,23 +133,23 @@ pub mod nested {
 //     #[ferment_macro::export]
 //     pub type MapOfVecHashes = BTreeMap<HashID, Vec<HashID>>;
 //
-    #[ferment_macro::export]
-    #[derive(Clone)]
-    pub struct BinaryData(pub Vec<u8>);
+//     #[ferment_macro::export]
+//     #[derive(Clone)]
+//     pub struct BinaryData(pub Vec<u8>);
 //
 //     #[ferment_macro::export]
 //     pub struct SimpleData(pub Vec<u32>);
 //
-    #[derive(Clone)]
-    #[ferment_macro::export]
-    pub struct IdentifierBytes32(pub [u8; 32]);
+//     #[derive(Clone)]
+//     #[ferment_macro::export]
+//     pub struct IdentifierBytes32(pub [u8; 32]);
 //
 //     #[ferment_macro::export]
 //     pub struct UnnamedPair(pub [u8; 32], pub u32);
 //
-    #[derive(Clone)]
-    #[ferment_macro::export]
-    pub struct Identifier(pub IdentifierBytes32);
+//     #[derive(Clone)]
+//     #[ferment_macro::export]
+//     pub struct Identifier(pub IdentifierBytes32);
 //
 //     #[ferment_macro::export]
 //     pub enum TestEnum {
@@ -146,51 +159,51 @@ pub mod nested {
 //         Variant4(HashID, u32, String),
 //         Variant5(BTreeMap<String, HashID>, u32, String),
 //     }
-//
-    #[ferment_macro::export]
-    pub struct DataContractNotPresentError {
-        pub data_contract_id: Identifier,
-    }
-    #[ferment_macro::export]
-    pub type FeatureVersion = u16;
-    #[ferment_macro::export]
-    pub type OptionalFeatureVersion = Option<u16>; //This is a feature that didn't always exist
-
-    #[derive(Clone, Debug, Default)]
-    #[ferment_macro::export]
-    pub struct FeatureVersionBounds {
-        pub min_version: FeatureVersion,
-        pub max_version: FeatureVersion,
-        pub default_current_version: FeatureVersion,
-    }
-
-    #[derive(Clone, Debug)]
-    #[ferment_macro::export]
-    pub struct PlatformVersion {
-        pub protocol_version: u32,
-        pub identity: FeatureVersionBounds,
-        pub proofs: FeatureVersionBounds,
-    }
-
-    #[ferment_macro::export]
-    pub enum ProtocolError {
-        IdentifierError(String),
-        StringDecodeError(String),
-        StringDecodeError2(String, u32),
-        EmptyPublicKeyDataError,
-        MaxEncodedBytesReachedError {
-            max_size_kbytes: usize,
-            size_hit: usize,
-        },
-        EncodingError(String),
-        EncodingError2(&'static str),
-        DataContractNotPresentError(DataContractNotPresentError),
-        UnknownVersionMismatch {
-            method: String,
-            known_versions: Vec<FeatureVersion>,
-            received: FeatureVersion,
-        },
-    }
+// //
+//     #[ferment_macro::export]
+//     pub struct DataContractNotPresentError {
+//         pub data_contract_id: Identifier,
+//     }
+    // #[ferment_macro::export]
+    // pub type FeatureVersion = u16;
+    // #[ferment_macro::export]
+    // pub type OptionalFeatureVersion = Option<u16>; //This is a feature that didn't always exist
+    //
+    // #[derive(Clone, Debug, Default)]
+    // #[ferment_macro::export]
+    // pub struct FeatureVersionBounds {
+    //     pub min_version: FeatureVersion,
+    //     pub max_version: FeatureVersion,
+    //     pub default_current_version: FeatureVersion,
+    // }
+    //
+    // #[derive(Clone, Debug)]
+    // #[ferment_macro::export]
+    // pub struct PlatformVersion {
+    //     pub protocol_version: u32,
+    //     pub identity: FeatureVersionBounds,
+    //     pub proofs: FeatureVersionBounds,
+    // }
+    //
+    // #[ferment_macro::export]
+    // pub enum ProtocolError {
+    //     IdentifierError(String),
+    //     StringDecodeError(String),
+    //     StringDecodeError2(String, u32),
+    //     EmptyPublicKeyDataError,
+    //     MaxEncodedBytesReachedError {
+    //         max_size_kbytes: usize,
+    //         size_hit: usize,
+    //     },
+    //     EncodingError(String),
+    //     EncodingError2(&'static str),
+    //     DataContractNotPresentError(DataContractNotPresentError),
+    //     UnknownVersionMismatch {
+    //         method: String,
+    //         known_versions: Vec<FeatureVersion>,
+    //         received: FeatureVersion,
+    //     },
+    // }
 //
 //     #[ferment_macro::export]
 //     pub type AddInsightCallback = fn(block_hash: HashID, context: OpaqueContext);

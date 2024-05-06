@@ -1,7 +1,6 @@
-use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, PathArguments, Type, TypePath, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type, TypePath, TypeTuple};
 use crate::composition::NestedArgument;
 use crate::context::ScopeChain;
 

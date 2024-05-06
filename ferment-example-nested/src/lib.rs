@@ -9,12 +9,46 @@ pub struct SomeStruct {
     pub name: String,
 }
 
+pub mod some_inner {
+    use crate::model::{Quorum, QuorumType};
+    #[ferment_macro::export]
+    pub fn get_normal_quorum() -> Quorum {
+        Quorum { llmq_type: QuorumType::Normal }
+    }
+}
+pub mod some_inner_2 {
+    use std::collections::BTreeSet;
+    use crate::model::quorum::QuorumType;
+    use crate::model::Quorum;
+    #[ferment_macro::export]
+    pub fn get_normal_quorum() -> Quorum {
+        Quorum { llmq_type: QuorumType::Normal }
+    }
 
-pub mod some_package {
+    #[ferment_macro::export]
+    pub fn get_btree_set() -> BTreeSet<String> {
+        BTreeSet::new()
+    }
+
+    #[ferment_macro::export]
+    pub fn set_btree_set(set: BTreeSet<String>) {
+        println!("BTreeSet: {:?}", set);
+    }
+
+    #[ferment_macro::export]
+    pub struct DocumentTypeV0 {
+        pub name: String,
+        pub identifier_paths: BTreeSet<String>,
+        pub binary_paths: BTreeSet<String>
+    }
+}
+
+
+// pub mod some_package {
     // use platform_value::BinaryData;
-    use ferment_example::nested::BinaryData;
+    // use ferment_example::nested::BinaryData;
     // use ferment_example::nested::HashID;
-    use crate::model::LLMQSnapshot;
+    // use crate::model::LLMQSnapshot;
     // use platform_value::types::binary_data::BinaryData;
 
     // #[ferment_macro::export]
@@ -46,10 +80,10 @@ pub mod some_package {
     // pub fn get_tuple_complex_complex(tuple: (u32, HashID)) -> u32 {
     //     tuple.0
     // }
-
-    #[ferment_macro::export]
-    pub fn get_tuple_generic() -> Vec<(BinaryData, LLMQSnapshot)> {
-        vec![(BinaryData(vec![]), LLMQSnapshot::default())]
-    }
-
-}
+    //
+    // #[ferment_macro::export]
+    // pub fn get_tuple_generic() -> Vec<(BinaryData, LLMQSnapshot)> {
+    //     vec![(BinaryData(vec![]), LLMQSnapshot::default())]
+    // }
+    //
+// }

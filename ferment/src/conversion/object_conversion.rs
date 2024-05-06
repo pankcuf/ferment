@@ -140,6 +140,12 @@ impl TryFrom<&Item> for ObjectConversion {
                         TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()),
                     ScopeItemConversion::Item(value.clone())))
             },
+            Item::Const(item) => {
+                let ident = &item.ident;
+                Ok(ObjectConversion::new_obj_item(
+                    TypeComposition::new(ident.to_type(), None, Punctuated::new()),
+                    ScopeItemConversion::Item(value.clone())))
+            },
             Item::Impl(item) => {
                 Ok(ObjectConversion::new_obj_item(
                         TypeComposition::new(*(&item.self_ty).clone(), Some(item.generics.clone()), Punctuated::new()),

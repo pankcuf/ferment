@@ -13,9 +13,20 @@ keywords.workspace = true
 ferment-interfaces = { path = "../ferment-interfaces" }
 ferment-macro = { path = "../ferment-macro" }
 platform-value = { path = "../../platform/packages/rs-platform-value" }
+platform-version = { path = "../../platform/packages/rs-platform-version" }
 dpp = { path = "../../platform/packages/rs-dpp" }
 rs-sdk = { path = "../../platform/packages/rs-sdk" }
-
+serde_json = { version = "1.0", features = ["preserve_order"] }
+anyhow = { version = "1.0.75" }
+jsonschema = "0.17.1"
+dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
+    "std",
+    "secp-recovery",
+    "rand",
+    "signer",
+    "serde",
+], default-features = false, branch = "master" }
+indexmap = { version = "2.0.2", features = ["serde"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"

@@ -1,4 +1,4 @@
-use syn::{Item, Meta, NestedMeta, parse_quote, Path};
+use syn::{Attribute, Item, Meta, NestedMeta, parse_quote, Path};
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 
@@ -16,6 +16,31 @@ pub enum MacroType {
 //     }
 // }
 //
+
+
+
+pub fn non_cfg_test(attrs: &Vec<Attribute>) -> bool {
+    !cfg_test(attrs)
+}
+pub fn cfg_test(attrs: &Vec<Attribute>) -> bool {
+    let result = attrs.iter().any(|attr| {
+        // Check if the attribute's path matches "cfg"
+        if attr.path.is_ident("cfg") {
+            // Try to parse the attribute into Meta
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                // Look for any nested meta item named "test" within a "cfg(test)" structure
+                meta_list.nested.iter().any(|nested| {
+                    matches!(nested, NestedMeta::Meta(Meta::Path(path)) if path.is_ident("test"))
+                })
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    });
+    result
+}
 
 impl TryFrom<&Item> for MacroType {
     type Error = ();
@@ -49,7 +74,9 @@ impl TryFrom<&Item> for MacroType {
     }
 }
 
+
 pub struct MacroAttributes {
     pub path: Path,
     pub arguments: Vec<Path>,
 }
+

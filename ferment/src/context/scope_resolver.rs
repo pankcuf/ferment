@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
+use quote::ToTokens;
 use syn::{Item, Path, Type, TypeReference};
 use crate::composition::GenericConversion;
 use crate::context::ScopeChain;
@@ -38,8 +39,11 @@ impl ScopeResolver {
         self.inner
             .keys()
             .find_map(|scope_chain|
-                path.eq(scope_chain.self_path())
-                    .then(|| scope_chain))
+                          {
+                              // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
+                              path.eq(scope_chain.self_path())
+                                  .then(|| scope_chain)
+                          })
     }
     pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.inner

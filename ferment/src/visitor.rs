@@ -6,8 +6,7 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion};
-use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, Join, MergeInto, NestingExtension, VisitScope, VisitScopeType};
-use crate::formatter::Emoji;
+use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemHelper, Join, MergeInto, NestingExtension, Pop, VisitScope, VisitScopeType};
 use crate::helper::ItemExtension;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::nprint;
@@ -56,16 +55,16 @@ impl<'ast> Visit<'ast> for Visitor {
         if node.ident.to_string().eq("fermented") {
             return;
         }
-        //println!("visit_item_mod: {}", node.to_token_stream());
+        // println!("visit_item_mod: {}", node.to_token_stream());
         let item = Item::Mod(node.clone());
         let module = self.current_module_scope.clone();
         self.current_module_scope = self.current_module_scope.joined(&item);
         self.add_conversion(Item::Mod(node.clone()));
-        if let Some(ref content) = node.content {
-            for item in &content.1 {
-                syn::visit::visit_item(self, item);
-            }
-        }
+        // if let Some((_, ref items)) = node.content {
+        //     for node in items {
+        //         syn::visit::visit_item(self, node);
+        //     }
+        // }
         self.current_module_scope = self.current_module_scope.parent_scope().cloned().unwrap_or(module);
     }
 
@@ -92,6 +91,7 @@ impl<'ast> Visit<'ast> for Visitor {
 impl Visitor {
     /// path: full-qualified Path for file
     pub fn new(scope: ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Self {
+        //println!("Visitor::new({})", scope.self_path_holder_ref());
         Self {
             context: context.clone(),
             parent: scope.self_path_holder_ref().clone(),
@@ -110,9 +110,11 @@ impl Visitor {
         for Visitor { tree, .. } in &self.inner_visitors {
             tree.merge_into(&mut self.tree);
         }
+        // print_phase!("PHASE 1: MERGE VISITORS", "{}", self.tree);
     }
     pub fn into_code_tree(mut self) -> ScopeTreeExportItem {
         self.merge_visitor_trees();
+        // println!("into_code_tree: \n{}", self.tree);
         self.tree
     }
 }
@@ -139,11 +141,13 @@ impl Visitor {
     }
 
     fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
+        // println!("scope_add_many: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_many(types);
     }
     pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
+        // println!("scope_add_one: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
@@ -179,7 +183,7 @@ impl Visitor {
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
         nprint!(0, Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
-        // println!("::: scope_items: {}: {}", ty.to_token_stream(), format_types_dict(&ff));
+        // println!("::: scope_items: {}: {}", ty.to_token_stream(), scope.self_path_holder_ref());
         let self_obj = &scope.self_scope().object;
         let type_chain = self.create_type_chain(ty, scope);
         match scope {
@@ -224,12 +228,14 @@ impl Visitor {
     }
 
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
+        // println!("find_scope_tree: {}", scope);
         let mut current_tree = &mut self.tree;
         for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
             match current_tree {
                 ScopeTreeExportItem::Item(..) =>
                     panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
                 ScopeTreeExportItem::Tree(scope_context, _, exported) => {
+                    // println!("find_scope_tree.1: {}: {}: {}", ident, exported.contains_key(&ident), scope_context.borrow().scope.self_path_holder_ref());
                     if !exported.contains_key(&ident) {
                         exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_export(scope_context.clone(), HashMap::default()));
                     }
@@ -241,17 +247,27 @@ impl Visitor {
     }
 
     pub fn add_conversion(&mut self, item: Item) {
+        // TODO: filter #[cfg(test)]
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectConversion::try_from(&item)) {
             (Ok(MacroType::Export), Ok(_object)) => {
+                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);
                 }
             },
+            (_, Ok(_object)) if item.is_mod() => {
+                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+
+                item.add_to_scope(&current_scope, self);
+                self.find_scope_tree(&self_scope.popped())
+                    .add_item(item, current_scope);
+            },
             (Ok(MacroType::Register(path)), Ok(_object)) => {
+                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
                     ident.map(|ident| {
                         scope_context.borrow()
@@ -265,6 +281,8 @@ impl Visitor {
             },
             _ => {}
         }
+        // println!("add_conversion.2: {}: {}", item.ident_string(), self_scope);
+
     }
 }
 

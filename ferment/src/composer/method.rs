@@ -47,12 +47,18 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
             .expect("no parent")
             .access(self.context);
         context.iter()
-            .map(|field_type| (self.seq_iterator_item)((
-                aspect.present(source),
-                field_type.name(),
-                field_type.ty()
-                    .ffi_full_dictionary_type_presenter(source)
-                    .to_token_stream())))
+            .map(|field_type| {
+
+                // println!("MethodComposer::compose: {}", field_type.ty().to_token_stream());
+
+                (self.seq_iterator_item)((
+                    aspect.present(source),
+                    field_type.name(),
+                    // field_type.ty().resolve(source).ffi_full_dictionary_type_presenter(source)
+                        field_type.ty()
+                            .ffi_full_dictionary_type_presenter(source)
+                        .to_token_stream()))
+            })
             .collect()
     }
 }

@@ -6,16 +6,13 @@ use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, ToPath};
-use crate::formatter::{Emoji, format_token_stream};
-use crate::holder::PathHolder;
+use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
 pub trait ToObjectConversion {
     fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
     fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
     fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
-
-    // fn to_import(self) -> ObjectConversion;
 }
 
 impl ToObjectConversion for Type {
@@ -101,7 +98,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         GenericArgument::Type(inner_type) => {
                             let obj_conversion = inner_type.update_nested_generics(&(scope, context));
                             let ty = obj_conversion.to_ty().unwrap();
-                            println!("nested object::::: {}", obj_conversion);
+                            //println!("nested object::::: {}", obj_conversion);
                             nested_arguments.push(NestedArgument::Object(obj_conversion));
                             *arg = GenericArgument::Type(ty)
                         },
@@ -116,6 +113,7 @@ impl<'a> VisitScopeType<'a> for Path {
         let last_ident = &last_segment.ident;
         // let last_ident_str = last_ident.to_string().as_str();
         let import_seg: PathHolder = parse_quote!(#first_ident);
+        let import_type_path: TypePathHolder = parse_quote!(#first_ident);
 
         if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0, context) {
             nprint!(1, Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
@@ -150,7 +148,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 .to_unknown()
             */
 
-        } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_seg) {
+        } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_type_path) {
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
                 let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope).cloned() {
@@ -209,7 +207,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         .to_object(nested_arguments)
                 },
                 "Option" => {
-                    println!("update_nested_generics (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    //println!("update_nested_generics (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
                     ObjectConversion::Type(
                         TypeCompositionConversion::Optional(
                             handle_type_path_composition(
@@ -225,7 +223,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     //     .to_object(nested_arguments)
 
                 },
-                _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap") => {
+                _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap" | "IndexMap" | "BTreeSet" | "HashSet") => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
                 },

@@ -4,6 +4,7 @@ use std::io;
 pub enum Error {
     FileError(io::Error),
     ExpansionError(&'static str),
+    MorphingError(&'static str),
     ParseSyntaxTree(syn::Error)
 }
 
@@ -12,7 +13,8 @@ impl std::fmt::Display for Error {
         match self {
             Error::FileError(ref err) => err.fmt(f),
             Error::ExpansionError(msg) => write!(f, "{}", msg),
-            Error::ParseSyntaxTree(ref err) => err.fmt(f)
+            Error::ParseSyntaxTree(ref err) => err.fmt(f),
+            Error::MorphingError(ref err) => err.fmt(f),
         }
     }
 }

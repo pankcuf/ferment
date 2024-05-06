@@ -9,7 +9,7 @@ use syn::__private::TokenStream2;
 use crate::builder::Crate;
 use crate::composer::ParentComposer;
 use crate::Config;
-use crate::composition::{GenericConversion, ImportComposition, TypeComposition};
+use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, TypeChain};
 use crate::conversion::{ImportConversion, ObjectConversion, TypeCompositionConversion};
 use crate::holder::{PathHolder, TypeHolder};
@@ -64,7 +64,6 @@ fn root_scope_tree() -> ScopeTree {
     create_crate_root_scope_tree(
         format_ident!("crate"),
         scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
-        HashSet::from([]),
         HashMap::from([]),
         HashMap::from([
             (ScopeTreeExportID::Ident(parse_quote!(RootStruct)), ScopeTreeExportItem::Item(
@@ -72,12 +71,12 @@ fn root_scope_tree() -> ScopeTree {
                 parse_quote!(pub struct RootStruct { pub name: String }))),
             (ScopeTreeExportID::Ident(parse_quote!(ffi)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::ffi), global_context_ptr.clone()),
-                HashSet::from([
-                    GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<bool>))))),
-                    GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
-                    GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
-                    GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>)))))
-                ]),
+                // HashSet::from([
+                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<bool>))))),
+                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
+                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
+                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>)))))
+                // ]),
                 HashMap::from([
                     (ImportConversion::External, HashSet::from([
                         ImportComposition::new(parse_quote!(BTreeMap), PathHolder(parse_quote!(std::collections)))]))
@@ -112,15 +111,15 @@ fn root_scope_tree() -> ScopeTree {
             ),
             (ScopeTreeExportID::Ident(parse_quote!(example)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::example), global_context_ptr.clone()),
-                HashSet::from([]),
+                // HashSet::from([]),
                 HashMap::from([]),
                 HashMap::from([
                     (ScopeTreeExportID::Ident(parse_quote!(address)), ScopeTreeExportItem::Tree(
                         scope_ctx(parse_quote!(crate::example::address), global_context_ptr.clone()),
-                        HashSet::from([
-                            GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
-                            GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
-                        ]),
+                        // HashSet::from([
+                        //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
+                        //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
+                        // ]),
                         HashMap::from([
                             (ImportConversion::External, HashSet::from([
                                 ImportComposition::new(parse_quote!(BTreeMap), PathHolder(parse_quote!(std::collections)))])),

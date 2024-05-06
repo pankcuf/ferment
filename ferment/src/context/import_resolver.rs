@@ -8,6 +8,11 @@ use crate::conversion::ImportConversion;
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 
+// pub trait Maybe<T> {
+//     type Context;
+//     fn maybe(&self, context: &Self::Context) -> Option<T>;
+// }
+
 #[derive(Clone, Default)]
 pub struct ImportResolver {
     pub inner: HashMap<ScopeChain, HashMap<PathHolder, Path>>,
@@ -57,25 +62,25 @@ impl ImportResolver {
         // }
         result
     }
-    pub fn maybe_path(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+    pub fn maybe_path(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
         // println!("maybe_path: {} in [{}]", ident, scope);
         self.maybe_scope_imports(scope)
-            .and_then(|imports| imports.get(ident))
+            .and_then(|imports| imports.get(chunk))
     }
-    pub fn maybe_import(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+    pub fn maybe_import(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
         // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
         // so smth like can_have_more_than_one_grandfather,
         // println!("maybe_import: {} in {}", ident, scope);
         match scope {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
-                self.maybe_path(&scope, ident),
+                self.maybe_path(&scope, chunk),
             ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_import(scope, parent_scope_chain, ident),
+                self.maybe_fn_import(scope, parent_scope_chain, chunk),
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } |
             ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_obj_or_parent(scope, parent_scope_chain, ident),
+                self.maybe_obj_or_parent(scope, parent_scope_chain, chunk),
         }
     }
 

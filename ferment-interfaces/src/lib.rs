@@ -1,6 +1,6 @@
 pub mod fermented;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ffi::CString;
 use std::hash::Hash;
 use std::{mem, slice};
@@ -154,11 +154,27 @@ impl<K: Hash + Eq, V> FFIMapConversion for HashMap<K, V> {
 
 /// # Safety
 pub unsafe fn from_primitive_vec<T: Clone>(vec: *mut T, count: usize) -> Vec<T> {
-    std::slice::from_raw_parts(vec, count).to_vec()
+    slice::from_raw_parts(vec, count).to_vec()
+}
+pub unsafe fn from_primitive_btree_set<T: Clone + Ord>(vec: *mut T, count: usize) -> BTreeSet<T> {
+    BTreeSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
+}
+pub unsafe fn from_primitive_hash_set<T: Clone + Eq + Hash>(vec: *mut T, count: usize) -> HashSet<T> {
+    HashSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
 }
 
 /// # Safety
 pub unsafe fn from_complex_vec<V, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> Vec<V> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
+        .collect()
+}
+pub unsafe fn from_complex_btree_set<V: Ord, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> BTreeSet<V> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
+        .collect()
+}
+pub unsafe fn from_complex_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> HashSet<V> {
     (0..count)
         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
         .collect()
@@ -245,6 +261,7 @@ macro_rules! impl_custom_conversion {
 macro_rules! impl_custom_conversion2 {
     ($RustType:ty, $FFIType:ident { $($field_name:ident: $field_type:ty),* $(,)? }, $from:expr, $to:expr) => {
         #[allow(non_camel_case_types)]
+        #[ferment_macro::register($RustType)]
         pub struct $FFIType {
             $(pub $field_name: $field_type),*
         }

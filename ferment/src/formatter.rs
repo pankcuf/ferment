@@ -58,7 +58,7 @@ pub fn format_imports(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> 
 #[allow(unused)]
 pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> String {
     dict.iter()
-        .map(|(ident, tree_item)| format!("{}:\n{}", ident, tree_item))
+        .map(|(ident, tree_item)| format!("{}: {}", ident, tree_item))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -66,7 +66,7 @@ pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExpo
 #[allow(unused)]
 pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeItem>) -> String {
     dict.iter()
-        .map(|(ident, tree_item)| format!("\t{}: {}", ident, quote!(#tree_item)))
+        .map(|(ident, tree_item)| format!("\t{}: {:?}", ident, tree_item))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -477,7 +477,7 @@ macro_rules! nprint {
 
         // log::warn!("{}", ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*))))
         //ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*)))
-        println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
+        // println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
     };
 }
 

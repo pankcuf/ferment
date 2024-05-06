@@ -7,7 +7,6 @@ mod resolve;
 pub mod visitor;
 mod present;
 mod r#abstract;
-
 pub use self::collection::ScopeCollection;
 pub use self::constraints::Constraints;
 pub use self::r#abstract::{Accessory, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};

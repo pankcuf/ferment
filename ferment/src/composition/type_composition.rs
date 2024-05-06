@@ -52,7 +52,7 @@ impl TypeComposition {
 impl Debug for TypeComposition {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(
-            format!("TypeComposition({}, [{}])",
+            format!("$Ty({}, [{}])",
                     self.ty.to_token_stream(),
                     self.nested_arguments.to_token_stream(),
                     // self.generics.as_ref().map_or(format!("None"), format_token_stream)

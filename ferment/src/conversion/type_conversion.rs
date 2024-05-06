@@ -51,6 +51,9 @@ impl From<Type> for TypeConversion {
                             "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
                             "Arc" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
                             "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
+                            "IndexMap" => TypeConversion::Generic(GenericTypeConversion::IndexMap(ty)),
+                            "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
+                            "HashSet" => TypeConversion::Generic(GenericTypeConversion::HashSet(ty)),
                             "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
                             "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
@@ -66,6 +69,9 @@ impl From<Type> for TypeConversion {
                         | "isize" | "usize" | "bool" => TypeConversion::Primitive(ty),
                         "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
                         "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
+                        "IndexMap" => TypeConversion::Generic(GenericTypeConversion::IndexMap(ty)),
+                        "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
+                        "HashSet" => TypeConversion::Generic(GenericTypeConversion::HashSet(ty)),
                         "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
                         "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                         _ => {

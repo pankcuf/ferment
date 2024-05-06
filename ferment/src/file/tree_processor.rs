@@ -23,7 +23,7 @@ impl FileTreeProcessor {
         print_phase!("PHASE 0: PROCESS CRATES", "{}", config);
         process_crates(external_crates, &context)
             .and_then(|external_crates|
-                Self::process_crate_tree(crate_config, &context)
+                crate_config.process(&context)
                     .and_then(|current_tree| CrateTree::new(crate_config, current_tree, external_crates))
                     .map(|tree| Expansion::Root { tree }))
     }
@@ -38,7 +38,7 @@ impl FileTreeProcessor {
         Self { path, scope, context: context.clone() }
     }
     fn process(self) -> Result<Visitor, error::Error> {
-        print_phase!("PHASE 1: PROCESS FILE", "{:?}", self.path);
+        //print_phase!("PHASE 1: PROCESS FILE", "{:?}", self.path);
         self.read_syntax_tree()
             .map(|syntax_tree| self.setup_visitor(syntax_tree))
     }
@@ -93,9 +93,12 @@ impl FileTreeProcessor {
 }
 
 fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> Result<HashMap<Crate, ScopeTreeExportItem>, error::Error> {
-    crates.iter()
+    let result = crates.iter()
         .try_fold(HashMap::new(), |mut acc, crate_config| {
             acc.insert(crate_config.clone(), crate_config.process(context)?);
             Ok(acc)
-        })
+        });
+
+    //println!("processed_crates:\n {:?}", result);
+    result
 }

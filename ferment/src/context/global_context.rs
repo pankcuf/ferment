@@ -2,22 +2,21 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ItemTrait, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::composer::Depunctuated;
-use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TraitDecompositionPart1, TypeComposition};
+use syn::token::Colon2;
+use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{Scope, ScopeChain, TypeChain};
 use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::formatter::format_global_context;
+use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
 use crate::context::scope_resolver::ScopeRefinement;
 use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined};
-use crate::helper::collect_bounds;
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -188,24 +187,24 @@ impl GlobalContext {
     pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
-            // println!("maybe_item: found scope: {}", scope);
+            // println!("[INFO] Found scope: {}", scope);
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_type(&ty, scope) {
-                // println!("maybe_item: found item in scope: {}", item);
+                // println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
             } else {
-                // println!("[WARN] Scope found [{}] but no item: {}", scope, path.to_token_stream());
+                // println!("[INFO] Scope found [{}] but no item: {}", scope, path.to_token_stream());
             }
         } else {
-            // println!("[WARN] No scope found [{}]", path.to_token_stream());
+            // println!("[INFO] No scope found [{}]", path.to_token_stream());
         }
         None
     }
 
-    pub fn find_scopes_for_path(&self, path: &Path) -> Option<&ScopeChain> {
-        self.scope_register.resolve(path)
-    }
+    // pub fn find_scopes_for_path(&self, path: &Path) -> Option<&ScopeChain> {
+    //     self.scope_register.resolve(path)
+    // }
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> ScopeChain {
         // println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
@@ -325,32 +324,84 @@ impl GlobalContext {
 
 /// Imports
 impl GlobalContext {
-    pub fn maybe_scope_import_path(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        self.imports.maybe_path(scope, ident)
+    pub fn maybe_scope_import_path(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+        self.imports.maybe_path(scope, chunk)
+    }
+
+    pub fn maybe_imports_scope(&self, path: &Path) -> Option<&ScopeChain> {
+        self.imports
+            .inner
+            .keys()
+            .find_map(|scope_chain|
+                {
+                    // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
+                    path.eq(scope_chain.self_path())
+                        .then(|| scope_chain)
+                })
+
     }
 
     pub fn maybe_import(&self, scope: &ScopeChain, path: &PathHolder) -> Option<&Path> {
         let result_opt = self.imports.maybe_import(scope, path);
-        //println!("maybe_import: {path} in [{}] ---> {}", scope.self_path_holder(), result_opt.map_or(quote!(None), |r| r.to_token_stream()));
+        // println!("maybe_import: {path} in [{}] ---> {}", scope.self_path_holder_ref(), result_opt.to_token_stream());
         result_opt
     }
 
     fn traverse_scopes(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
         let mut new_ty_to_replace = ty_to_replace.clone();
         let ty = &ty_to_replace.ty;
+        let ty_path = match ty {
+            Type::Reference(type_reference) => type_reference.elem.to_path(),
+            _ => ty.to_path()
+        };
+        // println!("traverse_scope: {} \n--- [{}]", ty_to_replace, scope);
         match scope {
             ScopeChain::CrateRoot { self_scope, .. } |
             ScopeChain::Mod { self_scope, .. } => {
                 // self -> neighbour mod
                 let self_path = &self_scope.self_scope.0;
-                self.maybe_item(self_path).or({
-                    let child_scope: Path = parse_quote!(#self_path::#ty);
-                    self.maybe_item(&child_scope)
-                        .map(|item| {
-                            new_ty_to_replace.ty = child_scope.to_type();
-                            item
-                        })
+                let child_scope: Path = parse_quote!(#self_path::#ty_path);
+                // println!("check local scope item (mod)?: {} + {}",
+                //          format_token_stream(&self_path),
+                //          format_token_stream(&ty_path));
+                // child -> self
+                // If it's nested mod?
+                self.maybe_item(&child_scope)
+                    .map(|item| {
+                        new_ty_to_replace.ty = child_scope.to_type();
+                        item
+                    })
+                    .or({
+                        // println!("check child re-export (mod)?:\n\t[{}]", format_token_stream(&child_scope));
+                        // it also can be re-exported in child tree so we should check it
+
+                        match self.maybe_child_reexport(&child_scope) {
+                            Some(child_reexport) => {
+                                // println!("child re-export found (mod)?:\n\t[{}]", format_token_stream(&child_reexport));
+                                self.maybe_item(&child_reexport)
+                                    .map(|item| {
+                                        new_ty_to_replace.ty = child_reexport.to_type();
+                                        item
+                                    })
+                                    .or(self.maybe_item(self_path))
+                            },
+                            None => {
+                                // println!("child re-export not found -> check self_scope: (mod):\n\t[{}]", format_token_stream(self_path));
+                                self.maybe_item(self_path)
+                            }
+                        }
                 })
+                // self -> child
+                // self.maybe_item(self_path).or({
+                //     // let child_scope: Path = parse_quote!(#self_path::#ty_path);
+                //     // println!("traverse_scopes::mod::child: {}", child_scope.to_token_stream());
+                //     self.maybe_item(&child_scope)
+                //         .map(|item| {
+                //             // println!("traverse_scopes::mod::child::ass: {}", child_scope.to_token_stream());
+                //             new_ty_to_replace.ty = child_scope.to_type();
+                //             item
+                //         })
+                // })
             }
             ScopeChain::Impl { self_scope, parent_scope_chain, .. } |
             ScopeChain::Trait { self_scope, parent_scope_chain, .. } |
@@ -358,28 +409,111 @@ impl GlobalContext {
                 // self -> parent mod -> neighbour mod
                 let self_path = &self_scope.self_scope.0;
                 let parent_path = parent_scope_chain.self_path();
-                self.maybe_item(self_path).or({
-                    let child_scope: Path = parse_quote!(#self_path::#ty);
-                    self.maybe_item(&child_scope)
-                        .map(|item| {
-                            new_ty_to_replace.ty = child_scope.to_type();
-                            item
-                        })
-                        .or({
-                            self.maybe_item(parent_path).map(|item| {
-                                new_ty_to_replace.ty = parent_path.to_type();
-                                item
-                            })
-                        })
-                        .or({
-                            let neighbour_scope: Path = parse_quote!(#parent_path::#ty);
-                            self.maybe_item(&neighbour_scope).map(|item| {
-                                new_ty_to_replace.ty = neighbour_scope.to_type();
-                                item
-                            })
+                // println!("check local first (obj)?: {} + {}",
+                //          format_token_stream(&parent_path),
+                //          format_token_stream(&ty_path));
 
-                        })
-                })
+                // check parent + local
+                let child_scope = parse_quote!(#parent_path::#ty_path);
+                self.maybe_item(&child_scope)
+                    .map(|item| {
+                        new_ty_to_replace.ty = child_scope.to_type();
+                        item
+                    })
+                    .or({
+                        // println!("check child re-export (obj)?:\n\t[{}]", format_token_stream(&child_scope));
+                        // it also can be re-exported in child tree so we should check it
+                        match self.maybe_child_reexport(&child_scope) {
+                            Some(child_reexport) => {
+                                // println!("child re-export found (obj)?:\n\t[{}]", format_token_stream(&child_reexport));
+                                self.maybe_item(&child_reexport)
+                                    .map(|item| {
+                                        new_ty_to_replace.ty = child_reexport.to_type();
+                                        item
+                                    })
+                                    .or(self.maybe_item(self_path))
+                                    .or({
+                                        self.maybe_item(parent_path).map(|item| {
+                                            new_ty_to_replace.ty = parent_path.to_type();
+                                            item
+                                        })
+                                    })
+                                    .or({
+                                        let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
+                                        self.maybe_item(&neighbour_scope).map(|item| {
+                                            new_ty_to_replace.ty = neighbour_scope.to_type();
+                                            item
+                                        })
+
+                                    })
+                            },
+                            None => {
+                                // println!("child re-export not found -> check self_scope: (obj):\n\t[{}]", format_token_stream(self_path));
+                                self.maybe_item(self_path).or({
+                                    self.maybe_item(parent_path).map(|item| {
+                                        new_ty_to_replace.ty = parent_path.to_type();
+                                        item
+                                    })
+                                })
+                                    .or({
+                                        let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
+                                        self.maybe_item(&neighbour_scope).map(|item| {
+                                            new_ty_to_replace.ty = neighbour_scope.to_type();
+                                            item
+                                        })
+
+                                    })
+                            }
+                        }
+                    })
+
+
+                // self.maybe_item(self_path).or({
+                //     let child_scope: Path = parse_quote!(#self_path::#ty_path);
+                //     self.maybe_item(&child_scope)
+                //         .map(|item| {
+                //             new_ty_to_replace.ty = child_scope.to_type();
+                //             item
+                //         })
+                //         .or({
+                //             self.maybe_item(parent_path).map(|item| {
+                //                 new_ty_to_replace.ty = parent_path.to_type();
+                //                 item
+                //             })
+                //         })
+                //         .or({
+                //             let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
+                //             self.maybe_item(&neighbour_scope).map(|item| {
+                //                 new_ty_to_replace.ty = neighbour_scope.to_type();
+                //                 item
+                //             })
+                //
+                //         })
+                // })
+
+                // old logic:
+                // self.maybe_item(self_path).or({
+                //     let child_scope: Path = parse_quote!(#self_path::#ty_path);
+                //     self.maybe_item(&child_scope)
+                //         .map(|item| {
+                //             new_ty_to_replace.ty = child_scope.to_type();
+                //             item
+                //         })
+                //         .or({
+                //             self.maybe_item(parent_path).map(|item| {
+                //                 new_ty_to_replace.ty = parent_path.to_type();
+                //                 item
+                //             })
+                //         })
+                //         .or({
+                //             let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
+                //             self.maybe_item(&neighbour_scope).map(|item| {
+                //                 new_ty_to_replace.ty = neighbour_scope.to_type();
+                //                 item
+                //             })
+                //
+                //         })
+                // })
 
             }
             ScopeChain::Fn { self_scope, parent_scope_chain, .. } => {
@@ -393,7 +527,7 @@ impl GlobalContext {
                             ScopeChain::CrateRoot { self_scope, .. } |
                             ScopeChain::Mod { self_scope, .. } => {
                                 let self_path = &self_scope.self_scope.0;
-                                let child_scope: Path = parse_quote!(#self_path::#ty);
+                                let child_scope: Path = parse_quote!(#self_path::#ty_path);
                                 self.maybe_item(&child_scope)
                                     .map(|item| {
                                         new_ty_to_replace.ty = child_scope.to_type();
@@ -404,7 +538,7 @@ impl GlobalContext {
                             ScopeChain::Object { parent_scope_chain, .. } |
                             ScopeChain::Impl { parent_scope_chain, .. } => {
                                 let parent_path = parent_scope_chain.self_path();
-                                let neighbour_scope: Path = parse_quote!(#parent_path::#ty);
+                                let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
                                 self.maybe_item(&neighbour_scope)
                                     .map(|item| {
                                         new_ty_to_replace.ty = neighbour_scope.to_type();
@@ -431,44 +565,54 @@ impl GlobalContext {
         // TODO: Support "extern crate", "super::", "self::" (paths kinda Self::AA may also require additional search routes)
         let new_ty_to_replace = ty_to_replace.clone();
         let ty = &ty_to_replace.ty;
-        self.maybe_item(&ty.to_path())
+        let path = match ty {
+            Type::Reference(type_reference) => type_reference.elem.to_path(),
+            _ => ty.to_path()
+        };
+        // println!("maybe_known_item: {} in [{}]", ty_to_replace, scope.self_path_holder_ref());
+        // Local scopes are prioritized so we should check relative paths first
+        // Then we should check crate-level scopes
+        // let scope_path = scope.self_path_holder_ref();
+        // let local_path = parse_quote!(#scope_path::#path);
+
+        self.maybe_item(&path)
             .and_then(|scope_item| scope_item.update_scope_item(new_ty_to_replace))
             .or(self.traverse_scopes(ty_to_replace, scope))
     }
 
     fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
-        if object.is_type(&parse_quote!(Option<get_identity_response_v0::Result>)) || object.is_type(&parse_quote!(get_identity_response_v0::Result)) {
-            println!("maybe_refined_object: {} --- [{}]", object, scope.self_path_holder_ref().to_token_stream());
-        }
         match object {
             ObjectConversion::Type(TypeCompositionConversion::Imported(ty_composition, import_path)) => {
                 let mut ty_replacement = ty_composition.clone();
                 let mut import_type_path: TypePath = parse_quote!(#import_path);
                 let last_segment_pair = import_type_path.path.segments.pop().unwrap();
-                if import_path.is_crate_based() {
-                    import_type_path.path = import_path.replaced_first_with_ident(&scope.crate_ident_as_path());
+                import_type_path.path = if import_path.is_crate_based() {
+                    import_path.replaced_first_with_ident(&scope.crate_ident_as_path())
                 } else {
-                    import_type_path.path = import_path.clone();
+                    import_path.clone()
                 };
                 let mut chunks = import_type_path.path.clone();
                 while !chunks.segments.is_empty() {
                     chunks.segments = chunks.segments.popped();
                     if !chunks.segments.is_empty() {
-                        let scope = create_mod_chain(&chunks);
-                        if let Some(parent_imports) = self.imports.maybe_scope_imports(&scope) {
+                        let mod_chain = create_mod_chain(&chunks);
+                        if let Some(parent_imports) = self.imports.maybe_scope_imports(&mod_chain) {
                             for (PathHolder(_ident), alias_path) in parent_imports {
-                                if let Some(merged) = refined_import(&import_type_path.path, alias_path) {
+                                let alias = if alias_path.is_crate_based() {
+                                    alias_path.replaced_first_with_ident(&scope.crate_ident_as_path())
+                                } else {
+                                    alias_path.clone()
+                                };
+                                if let Some(merged) = self.refined_import(&import_type_path.path, &alias, scope) {
                                     import_type_path.path.segments = merged.segments;
                                 }
                             }
                         }
                     }
                 }
-                let mut last_segment2 = last_segment_pair.into_value();
-                if object.is_type(&parse_quote!(Option<get_identity_response_v0::Result>)) || object.is_type(&parse_quote!(get_identity_response_v0::Result)) {
-                    println!("last_segment2: {}", last_segment2.to_token_stream());
-                }
-                match &mut last_segment2.arguments {
+                //println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
+                let mut last_segment = last_segment_pair.into_value();
+                match &mut last_segment.arguments {
                     PathArguments::None => {}
                     PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
                         panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
@@ -495,32 +639,23 @@ impl GlobalContext {
                             });
                     }
                 };
-                import_type_path.path.segments.last_mut().unwrap().arguments = last_segment2.arguments;
+                import_type_path.path.segments.last_mut().unwrap().arguments = last_segment.arguments;
                 let dict_path = import_type_path.path.clone();
                 ty_replacement.ty = Type::Path(import_type_path);
                 let conversion_replacement = if let Some(dictionary_type) = scope.maybe_dictionary_type(&dict_path, self) {
                     dictionary_type
-                    // } else if let Some(custom) = self.custom.maybe_conversion(&ty_replacement.ty) {
-                    //
                 } else if let Some(found_item) = self.maybe_known_item(&ty_replacement, scope) {
-                    if object.is_type(&parse_quote!(Option<get_identity_response_v0::Result>)) || object.is_type(&parse_quote!(get_identity_response_v0::Result)) {
-                        println!("[INFO] known item for [{}] is [{}]", ty_replacement.ty.to_token_stream(), found_item.to_token_stream());
-                    }
+                    // println!("[INFO] Known item found: [{}]", found_item.to_token_stream());
                     found_item
                 } else {
-                    println!("[WARN] Unknown import: [{}]", ty_replacement.ty.to_token_stream());
+                    println!("[WARN] Unknown import: [{}]", format_token_stream(&ty_replacement.ty));
                     TypeCompositionConversion::Unknown(ty_replacement)
                 };
                 return Some(ObjectConversion::Type(conversion_replacement));
             },
             ObjectConversion::Type(TypeCompositionConversion::Unknown(ty_to_replace)) => {
-                if object.is_type(&parse_quote!(Option<get_identity_response_v0::Result>)) || object.is_type(&parse_quote!(get_identity_response_v0::Result)) {
-                    println!("[INFO] refine [Unknown]: {}", ty_to_replace);
-                }
-
-                //println!("REFINE UNKNOWN: {}", ty_to_replace);
                 if let Some(refined) = self.maybe_known_item(ty_to_replace, scope) {
-                    // println!("REFINED: {}", refined);
+                    // println!("[INFO] Refined item found: [{}]", refined.to_token_stream());
                     return Some(ObjectConversion::Type(refined));
                 }
             },
@@ -642,26 +777,68 @@ impl GlobalContext {
 
 impl RefineMut for GlobalContext {
     type Refinement = ScopeRefinement;
+    // fn refine_with(&mut self, refined: Self::Refinement) {
+    //     self.scope_register.refine_with(refined);
+    //     let mut refined_generics = HashSet::<GenericConversion>::new();
+    //     self.scope_register.inner.values()
+    //         .for_each(|type_chain| {
+    //             type_chain.inner.values().for_each(|conversion| {
+    //                 // println!("Generic::Refine: {}", conversion);
+    //                 match conversion {
+    //                     ObjectConversion::Type(ty) => {
+    //                         println!("REFINE:: ObjectConversion::Type:: {}", ty);
+    //                         refined_generics.extend(ty
+    //                             .to_ty()
+    //                             .find_generics()
+    //                             .iter()
+    //                             .filter_map(|ty| {
+    //                                 println!("--------------- {}", type_chain);
+    //                                 if self.custom.maybe_conversion(&ty.0).is_some() {
+    //                                     None
+    //                                 } else {
+    //                                     type_chain.get(ty)
+    //                                 }
+    //                             })
+    //                             .map(GenericConversion::from));
+    //                     },
+    //                     ObjectConversion::Item(_, conversion) => {
+    //                         println!("REFINE:: ObjectConversion::Item:: {}", conversion);
+    //                         refined_generics.extend(conversion.find_generics()
+    //                             .iter()
+    //                             .filter_map(|ty| {
+    //                                 if self.custom.maybe_conversion(&ty.0).is_some() {
+    //                                     None
+    //                                 } else {
+    //                                     type_chain.get(ty)
+    //                                 }
+    //                             })
+    //                             .map(GenericConversion::from));
+    //                     }
+    //                     ObjectConversion::Empty => {}
+    //                 }
+    //             })
+    //         });
+    //     self.refined_generics = refined_generics;
+    // }
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.scope_register.refine_with(refined);
-        let mut refined_generics = HashSet::new();
+        let mut refined_generics = HashSet::<GenericConversion>::new();
         self.scope_register.inner.values()
             .for_each(|type_chain| {
-                type_chain.inner.values().for_each(|conversion| {
-                    match conversion {
-                        ObjectConversion::Type(ty) => {
-                            refined_generics.extend(ty
-                                .to_ty()
-                                .find_generics()
-                                .iter()
-                                .filter_map(|holder| type_chain.find(holder))
-                                .map(GenericConversion::from));
-                        },
-                        ObjectConversion::Item(_, conversion) => {
-                            refined_generics.extend(conversion.find_generics_conversions(type_chain));
-                        }
-                        ObjectConversion::Empty => {}
-                    }
+                type_chain.inner.keys().for_each(|conversion| {
+                    // println!("Generic::Refine: {}", conversion);
+                    refined_generics.extend(conversion.0
+                        .find_generics()
+                        .iter()
+                        .filter_map(|ty| {
+                            //println!("refine_with: maybe custom?: {}", ty.to_token_stream());
+                            if self.custom.maybe_conversion(&ty.0).is_some() {
+                                None
+                            } else {
+                                type_chain.get(ty)
+                            }
+                        })
+                        .map(GenericConversion::from));
                 })
             });
         self.refined_generics = refined_generics;
@@ -718,8 +895,290 @@ impl GlobalContext {
     }
     pub fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         let x = self.scope_register.resolve(path);
-        // println!("maybe_scope: {} --> {}", path.to_token_stream(), x.map_or(format!("None"), |x| x.to_string()));
+        //println!("maybe_scope: {} --> {}", path.to_token_stream(), x.map(ScopeChain::self_path_holder_ref).to_token_stream());
         x
+    }
+
+    // traverses import scope for re-exports (doesn't include re-exports in neighbour scopes)
+    fn maybe_child_reexport(&self, child_scope_candidate: &Path) -> Option<Path> {
+        let mut scope_path_candidate = child_scope_candidate.clone();
+        let mut result: Option<Path> = None;
+        let mut chunk: Option<Path> = None;
+        while let Some(scope_path_last_segment) = child_scope_candidate.segments.last() {
+            scope_path_candidate = scope_path_candidate.popped();
+            match self.maybe_imports_scope(&scope_path_candidate) {
+                Some(reexport_scope) => {
+                    // println!("[INFO: {index}:{}] Child reexport_scope found: \n\t[{}]",
+                    //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
+                    //          format_token_stream(reexport_scope.self_path_holder_ref()));
+                    let path: PathHolder = parse_quote!(#scope_path_last_segment);
+                    match self.maybe_import(reexport_scope, &path) {
+                        Some(reexport_import) => {
+                            let reexport_scope_path = reexport_scope.self_path_holder_ref();
+                            let result_chunk: Path = if chunk.is_some() {
+                                let reexport_chunk = reexport_import.popped();
+                                parse_quote!(#reexport_chunk::#chunk)
+                            } else {
+                                parse_quote!(#reexport_import)
+                            };
+                            // println!("[INFO: {index}:{}] Child Re-export found: \n\t[{}] +\n\t[{}]\n\tsegments: [{}]",
+                            //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
+                            //          format_token_stream(reexport_scope_path),
+                            //          format_token_stream(reexport_import),
+                            //          format_token_stream(&chunk));
+                            result = Some(parse_quote!(#reexport_scope_path::#result_chunk));
+                            chunk = Some(result_chunk);
+                        },
+                        None => {
+                            // println!("[INFO: {index}:{}] Child re-export not found: [{}]",
+                            //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
+                            //          format_token_stream(&path));
+                            if scope_path_candidate.segments.is_empty() {
+                                return result;
+                            } else if let Some(reexport) = self.maybe_child_reexport(&scope_path_candidate) {
+                                result = Some(reexport);
+                            }
+                        }
+                    }
+                },
+                None => {
+                    // println!("[INFO: {index}:{}] Child reexport_scope not found: [{}]",
+                    //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
+                    //          format_token_stream(&scope_path_candidate));
+                    if scope_path_candidate.segments.is_empty() {
+                        return result;
+                    } else if let Some(reexport) = self.maybe_child_reexport(&scope_path_candidate) {
+                        result = Some(reexport);
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    fn lookup_reexport(&self, import_path: &Path) -> Option<Path> {
+        let mut scope_path_candidate = import_path.clone();
+        let mut result: Option<Path> = None;
+        let mut chunk: Option<Path> = None;
+        while let Some(scope_path_last_segment) = import_path.segments.last() {
+            scope_path_candidate = scope_path_candidate.popped();
+            match self.maybe_imports_scope(&scope_path_candidate) {
+                Some(reexport_scope) => {
+                    let path: PathHolder = parse_quote!(#scope_path_last_segment);
+                    match self.maybe_import(reexport_scope, &path) {
+                        Some(reexport_import) => {
+                            let reexport_scope_path = reexport_scope.self_path_holder_ref();
+                            println!("[INFO] Re-export found: \n\t[{}] +\n\t[{}]\n\t[{}]",
+                                     format_token_stream(reexport_scope_path),
+                                     format_token_stream(reexport_import),
+                                     format_token_stream(&chunk));
+
+                            let segments: Punctuated<PathSegment, Colon2> = if chunk.is_some() {
+                                let reexport_chunk = reexport_import.popped();
+                                match reexport_import.segments.first().unwrap().ident.to_string().as_str() {
+                                    "crate" => {
+                                        let crate_name_chunk = reexport_scope.crate_ident().to_path();
+                                        let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
+                                        let new_segments_iter = result.segments.iter().skip(reexport_scope_path.len());
+                                        let new_path: Path = parse_quote!(#(#new_segments_iter)::*);
+
+
+                                        println!("----- {} + {}", new_path.to_token_stream(), chunk.to_token_stream());
+                                        let re_result = merge_reexport_chunks(&new_path, &chunk.as_ref().unwrap());
+                                        println!("----- {}", re_result.to_token_stream());
+
+                                        parse_quote!(#re_result)
+                                        // result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
+                                    },
+                                    "self" => {
+                                        reexport_import.segments.iter().skip(1).cloned().collect()
+                                    },
+                                    "super" => {
+                                        let super_path = reexport_scope_path.popped();
+                                        parse_quote!(#super_path::#reexport_import)
+                                    },
+                                    _ => parse_quote!(#reexport_chunk::#chunk)
+                                }
+                            } else {
+                                match reexport_import.segments.first().unwrap().ident.to_string().as_str() {
+                                    "crate" => {
+                                        let crate_name_chunk = reexport_scope.crate_ident().to_path();
+                                        let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
+                                        result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
+                                    },
+                                    "self" => {
+                                        reexport_import.segments.iter().skip(1).cloned().collect()
+                                    },
+                                    "super" => {
+                                        let super_path = reexport_scope_path.popped();
+                                        parse_quote!(#super_path::#reexport_import)
+                                    },
+                                    _ => parse_quote!(#reexport_import)
+                                }
+                            };
+
+
+
+                            // if reexport_import is current-crate-based then (crate::xx::)
+                            //      replace 'crate' with actual crate name and use it as is
+                            // else
+                            //      if reexport_import is external-crate-based (external_crate_name::xx::)
+                            //          use it as is
+                            //      else
+                            //          join as #reexport_chunk::#chunk
+
+                            //
+                            // let result_chunk: Path = if chunk.is_some() {
+                            //     let reexport_chunk = reexport_import.popped();
+                            //     parse_quote!(#reexport_chunk::#chunk)
+                            // } else {
+                            //     parse_quote!(#reexport_import)
+                            // };
+                            // if reexport_import.is_crate_based() {
+                            //
+                            // }
+                            println!("REFINED: [{}] + [{}]", reexport_scope_path.to_token_stream(), segments.to_token_stream());
+                            result = Some(parse_quote!(#reexport_scope_path::#segments));
+                            chunk = Some(Path { segments, leading_colon: None });
+                        },
+                        None => {
+                            if scope_path_candidate.segments.is_empty() {
+                                return result;
+                            } else if let Some(reexport) = self.lookup_reexport(&scope_path_candidate) {
+                                result = Some(reexport);
+                            }
+                        }
+                    }
+                },
+                None => {
+                    if scope_path_candidate.segments.is_empty() {
+                        return result;
+                    } else if let Some(reexport) = self.lookup_reexport(&scope_path_candidate) {
+                        result = Some(reexport);
+                    }
+                }
+            }
+        }
+        result
+    }
+    // fn lookup_reexport(&self, import_path: &Path) -> Option<Path> {
+    //     let mut scope_path_candidate = import_path.clone();
+    //     let mut result: Option<Path> = None;
+    //
+    //     // Iterate through the path segments to deduce re-exports
+    //     while let Some(scope_path_last_segment) = import_path.segments.last() {
+    //         scope_path_candidate = scope_path_candidate.popped();  // Adjust the candidate path by popping the last segment
+    //         if let Some(reexport_scope) = self.maybe_imports_scope(&scope_path_candidate) {
+    //             let path_holder: PathHolder = parse_quote!(#scope_path_last_segment);
+    //
+    //             if let Some(reexport_import) = self.maybe_import(reexport_scope, &path_holder) {
+    //
+    //                 let reexport_scope_path = reexport_scope.self_path_holder_ref();
+    //                 println!("[INFO] Re-export found: \n\t[{}] +\n\t[{}]", reexport_scope_path.to_token_stream(), reexport_import.to_token_stream());
+    //
+    //                 // Construct the full re-export path
+    //                 let mut full_path = reexport_scope_path.clone();
+    //                 full_path.0.segments.extend(reexport_import.segments.clone());
+    //                 result = Some(full_path.0);
+    //
+    //                 break; // Found a valid re-export, no need to continue
+    //             }
+    //         }
+    //         // If no segment left or no re-exports found, try to check recursively on the adjusted path
+    //         if scope_path_candidate.segments.is_empty() {
+    //             break; // No more segments to process
+    //         }
+    //     }
+    //
+    //     result.or_else(|| {
+    //         // If result is still None and there are segments to process, try recursively
+    //         scope_path_candidate = scope_path_candidate.popped();  // Adjust for recursion
+    //         if !scope_path_candidate.segments.is_empty() {
+    //             self.lookup_reexport(&scope_path_candidate)
+    //         } else {
+    //             None
+    //         }
+    //     })
+    // }
+    fn refined_import(&self, import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
+        // let mut merged_path: Option<Path> = None;
+        // let mut import_segments = import_path.segments.clone();
+        // let mut alias_segments = alias.segments.clone();
+        // let import_path_holder = PathHolder::from(import_path);
+        // println!("REEXPORT: {}", reexport.to_token_stream());
+        let last_import_segment = import_path.segments.last();
+        let last_alias_segment = alias.segments.last();
+        // if let Some(last_import_segment) =
+        if last_import_segment.is_some() &&
+            last_alias_segment.is_some() &&
+            last_import_segment.unwrap().ident == last_alias_segment.unwrap().ident {
+            println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
+                     format_token_stream(import_path),
+                     format_token_stream(alias),
+            scope.self_path_holder_ref());
+            // println!("[INFO] Try refine import: [{}]\n\talias: [{}]\n\tscope: [{}]",
+            //          format_token_stream(import_path),
+            //          format_token_stream(alias),
+            //          scope.self_path_holder_ref());
+            let reexport = self.lookup_reexport(import_path);
+            if reexport.is_some() {
+                println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
+            }
+            return reexport;
+        }
+        None
+        // if let (Some(last_import_segment), Some(last_alias_segment)) = (import_segments.pop(), alias_segments.pop()) {
+        //     let import_ident = &last_import_segment.value().ident;
+        //     let alias_ident = &last_alias_segment.value().ident;
+        //     if import_ident == alias_ident {
+        //         println!("[INFO] Try refine import: [{}]\n\talias: [{}]\n\tscope: [{}]",
+        //                  format_token_stream(import_path),
+        //                  format_token_stream(alias),
+        //                  scope.self_path_holder_ref());
+        //         // let scope_path_candidate: Path = parse_quote!(#import_segments);
+        //
+        //         // match self.maybe_scope(&path.0) {
+        //         //     Some(reexport_scope_candidate) => match self.maybe_import(reexport_scope_candidate, ) {
+        //         //         Some() => {},
+        //         //         None => {}
+        //         //     },
+        //         //     None => self.maybe_scope()
+        //         // }
+        //         //
+        //         // if let Some(scope) = self.maybe_scope(&path.0) {
+        //         //     self.maybe_import(scope, )
+        //         // } else if let Some() = self.maybe_scope() {  }
+        //         //
+        //         // if let Some(refined_path) = self.maybe_import(scope, &path) {
+        //         //     println!("[INFO] Re-exported in: [{}]\n\tas: [{}]",
+        //         //              format_token_stream(path),
+        //         //              format_token_stream(refined_path));
+        //         //     return Some(refined_path.clone());
+        //         // }
+        //         let remaining_import_path = Path { leading_colon: import_path.leading_colon, segments: import_segments.clone() };
+        //         let remaining_alias_path = Path { leading_colon: alias.leading_colon, segments: alias_segments.clone() };
+        //         if remaining_import_path == remaining_alias_path {
+        //             merged_path = Some(alias.clone());
+        //         } else if let Some(refined_path) = self.refined_import(&remaining_import_path, &remaining_alias_path, scope) {
+        //             let mut segments = refined_path.segments;
+        //             segments.push(PathSegment::from(import_ident.clone()));
+        //             merged_path = Some(Path { leading_colon: None, segments });
+        //         }
+        //     }
+        // }
+        // if merged_path.is_none() {
+        //     if let Some(parent_scope) = scope.parent_scope() {
+        //         merged_path = self.refined_import(import_path, alias, parent_scope);
+        //     }
+        // }
+        // if merged_path.is_some() {
+        //     println!("[INFO] Import refined (alias): [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}]",
+        //              format_token_stream(import_path),
+        //              format_token_stream(alias),
+        //              scope.self_path_holder_ref(),
+        //              format_token_stream(&alias));
+        // }
+        // merged_path
     }
 
 }
@@ -753,23 +1212,154 @@ pub fn create_mod_chain(path: &Path) -> ScopeChain {
     }
 }
 
-pub fn refined_import(import_path: &Path, alias: &Path) -> Option<Path> {
-    let mut last_import_segments = import_path.clone();
-    let mut last_alias_segments = alias.clone();
-    let mut merged_path: Option<Path> = None;
-    // println!("merged_import: {} <===> {}", import_path.to_token_stream(), alias.to_token_stream());
-    match (last_import_segments.segments.pop(), last_alias_segments.segments.pop()) {
+// fn refined_import(import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
+//     // TODO:: it should be more complex actually
+//     // Because:
+//     // - items can be aliased by multiple items
+//     // - items can be aliased at the different layers
+//     // - items can be re-exported across multiple crates
+//     let mut last_import_segments = import_path.clone();
+//     let mut last_alias_segments = alias.clone();
+//     let mut merged_path: Option<Path> = None;
+//     //println!("merged_import: {} <===> {}", import_path.to_token_stream(), alias.to_token_stream());
+//     match (last_import_segments.segments.pop(), last_alias_segments.segments.pop()) {
+//         (Some(last_import_pair), Some(last_alias_pair)) => {
+//             let ident = last_import_pair.value().ident.clone();
+//             let full_match = last_import_segments.eq(&last_alias_segments);
+//             if !full_match && ident.eq(&last_alias_pair.value().ident) {
+//                 println!("[INFO] Refine import: [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}] + [{}] + [{}]",
+//                          format_token_stream(import_path),
+//                          format_token_stream(alias),
+//                     scope.self_path_holder_ref(),
+//                     format_token_stream(&last_import_segments.segments),
+//                     format_token_stream(&last_alias_segments.segments),
+//                          ident);
+//                 let mut path = Path { leading_colon: None, segments: last_import_segments.segments };
+//                 if !full_match {
+//                     path.segments.extend(last_alias_segments.segments);
+//                 }
+//                 path.segments.push(PathSegment::from(ident));
+//                 merged_path = Some(path);
+//             }
+//         },
+//         _ => {}
+//     }
+//     merged_path
+// }
+
+
+
+// fn refined_import(import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
+//     let mut merged_path: Option<Path> = None;
+//     let mut import_segments = import_path.segments.clone();
+//     let mut alias_segments = alias.segments.clone();
+//     if let (Some(last_import_segment), Some(last_alias_segment)) = (import_segments.pop(), alias_segments.pop()) {
+//         let import_ident = &last_import_segment.value().ident;
+//         let alias_ident = &last_alias_segment.value().ident;
+//         if import_ident == alias_ident {
+//             println!("[INFO] Try refine import: [{}]\n\talias: [{}]\n\tscope: [{}]",
+//                      format_token_stream(import_path),
+//                      format_token_stream(alias),
+//                      scope.self_path_holder_ref());
+//             let remaining_import_path = Path { leading_colon: import_path.leading_colon, segments: import_segments.clone() };
+//             let remaining_alias_path = Path { leading_colon: alias.leading_colon, segments: alias_segments.clone() };
+//             if remaining_import_path == remaining_alias_path {
+//                 println!("[INFO] Import refined (alias): [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}]",
+//                          format_token_stream(import_path),
+//                          format_token_stream(alias),
+//                          scope.self_path_holder_ref(),
+//                          format_token_stream(&alias));
+//                 merged_path = Some(alias.clone());
+//
+//             } else {
+//                 if let Some(refined_path) = refined_import(&remaining_import_path, &remaining_alias_path, scope) {
+//                     let mut segments = refined_path.segments;
+//                     segments.push(PathSegment::from(import_ident.clone()));
+//                     println!("[INFO] Import refined (recursive): [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}]",
+//                              format_token_stream(import_path),
+//                              format_token_stream(alias),
+//                              scope.self_path_holder_ref(),
+//                              format_token_stream(&segments));
+//                     merged_path = Some(Path { leading_colon: None, segments });
+//                 }
+//             }
+//         }
+//     }
+//
+//     merged_path
+// }
+
+
+fn probe_chunks<'a>(
+    import_chunk: &'a mut Path,
+    alias_chunk: &'a mut Path,
+    merged_chunk: &'a mut Punctuated<PathSegment, Colon2>) -> Option<(&'a mut Path, &'a mut Path, &'a mut Punctuated<PathSegment, Colon2>)> {
+    match (import_chunk.segments.pop(), alias_chunk.segments.pop()) {
         (Some(last_import_pair), Some(last_alias_pair)) => {
             let ident = last_import_pair.value().ident.clone();
             if ident.eq(&last_alias_pair.value().ident) {
-                let mut path = Path { leading_colon: None, segments: last_import_segments.segments };
-                path.segments.extend(last_alias_segments.segments);
-                path.segments.push(PathSegment::from(ident));
-                println!("[INFO] Refined import: [{}]", path.to_token_stream());
-                merged_path = Some(path);
+                merged_chunk.insert(0, PathSegment::from(ident));
+                return Some((import_chunk, alias_chunk, merged_chunk))
             }
         },
         _ => {}
     }
+    None
+}
+fn refined_import2(import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
+    // TODO:: it should be more complex actually
+    // Because:
+    // - items can be aliased by multiple items
+    // - items can be aliased at the different layers
+    // - items can be re-exported across multiple crates
+    let mut import_chunk = import_path.clone();
+    let mut alias_chunk = alias.clone();
+    let mut merged_path: Option<Path> = None;
+    let mut merged_chunk = Punctuated::new();
+    while let Some((import_chunk, alias_chunk, merged_chunk)) = probe_chunks(&mut import_chunk, &mut alias_chunk, &mut merged_chunk) {
+        println!("[INFO] Refine import: [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}] + [{}] + [{}]",
+                 format_token_stream(import_path),
+                 format_token_stream(alias),
+                 scope.self_path_holder_ref(),
+                 format_token_stream(&import_chunk.segments),
+                 format_token_stream(&alias_chunk.segments),
+                 format_token_stream(&merged_chunk));
+        merged_path = Some(merge_import_chunks(merged_chunk.clone(), import_chunk.clone(), alias_chunk.clone()));
+
+    }
     merged_path
+}
+
+fn merge_import_chunks(ident: Punctuated<PathSegment, Colon2>, import_chunk: Path, alias_chunk: Path) -> Path {
+    let full_match = import_chunk.eq(&alias_chunk);
+    let mut path = Path { leading_colon: None, segments: import_chunk.segments };
+    if !full_match {
+        path.segments.extend(alias_chunk.segments);
+    }
+    path.segments.extend(ident);
+    path
+}
+
+fn merge_reexport_chunks(base: &Path, extension: &Path) -> Path {
+    let mut base_segments: Vec<_> = base.segments.iter().collect();
+    let mut ext_segments: Vec<_> = extension.segments.iter().collect();
+    base_segments.reverse();
+    ext_segments.reverse();
+    let mut result_segments = vec![];
+    let mut skip = 0;
+    for (base_segment, ext_segment) in base_segments.iter().zip(ext_segments.iter()) {
+        if base_segment.ident == ext_segment.ident {
+            skip += 1;
+        } else {
+            break;
+        }
+    }
+    base_segments.reverse();
+    ext_segments.reverse();
+    result_segments.extend(base_segments.iter().take(base_segments.len() - skip).cloned());
+    result_segments.extend(ext_segments.into_iter());
+    Path {
+        leading_colon: base.leading_colon,
+        segments: result_segments.into_iter().cloned().collect(),
+    }
 }

@@ -12,6 +12,7 @@ use crate::composer::trait_composer::TraitComposer;
 use crate::composition::{AttrsComposition, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::FieldTypeConversion;
+use crate::conversion::macro_conversion::non_cfg_test;
 use crate::ext::{CrateExtension, ToPath, ToType};
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
@@ -191,7 +192,8 @@ impl ItemConversion {
 
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
-    EnumComposer::new(target_name, generics, attrs, item_scope, context, variants.iter().map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
+    // println!("enum_expansion: {:?}", item_enum);
+    EnumComposer::new(target_name, generics, attrs, item_scope, context, variants.iter().filter(|variant| non_cfg_test(&variant.attrs)).map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
         let (variant_composer, fields_context): (VariantComposer, Punctuated<OwnedItemPresentableContext, Comma>) = match discriminant {
             Some((_, Expr::Lit(lit, ..))) => (
                 |local_context| OwnerIteratorPresentationContext::EnumUnitFields(local_context.clone()),
@@ -205,6 +207,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                     |local_context| OwnerIteratorPresentationContext::RoundVariantFields(local_context.clone()),
                     unnamed
                         .iter()
+                        // .filter(|field_type| non_cfg_test(&field_type.attrs))
                         .map(|field_type| OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone()))
                         .collect(),
                 ),
@@ -212,6 +215,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                     |local_context| OwnerIteratorPresentationContext::CurlyVariantFields(local_context.clone()),
                     named
                         .iter()
+                        // .filter(|field_type| non_cfg_test(&field_type.attrs))
                         .map(|Field { ident, ty, .. }|
                             OwnedItemPresentableContext::Named(
                                 FieldTypeConversion::Named(Name::Optional(ident.clone()), ty.clone()), false))
@@ -244,20 +248,22 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
 fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemStruct { attrs, fields: ref f, ident: target_name, generics, .. } = item_struct;
     // println!("struct_expansion: {}: [{} --- {}]", item_struct.ident, scope.crate_scope(), scope.self_path_holder());
-    println!("struct_expansion: [{}] --- [{}]", scope, scope_context.borrow().scope);
+    // println!("struct_expansion: [{}] --- [{}]", scope, scope_context.borrow().scope);
     match f {
         Fields::Unnamed(ref fields) =>
             ItemComposer::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context),
         Fields::Named(ref fields) =>
             ItemComposer::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context),
-        Fields::Unit => panic!("Fields::Unit is not supported yet"),
+        Fields::Unit =>
+            ItemComposer::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context),
+        // panic!("Fields::Unit is not supported yet"),
     }.borrow().expand()
 }
 
 fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let source = context.borrow();
     let ItemType { ident: target_name, ty, attrs, generics, .. } = item_type;
-    println!("type_expansion: [{}] --- [{}]", scope, source.scope);
+    // println!("type_expansion: [{}] --- [{}]", scope, source.scope);
 
     match &**ty {
         Type::BareFn(type_bare_fn) => {
@@ -291,7 +297,7 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let self_ty = item_trait.ident.to_type();
     let source = context.borrow();
-    println!("trait_expansion: [{}] --- [{}]", scope, source.scope);
+    // println!("trait_expansion: [{}] --- [{}]", scope, source.scope);
     TraitComposer::from_item_trait(item_trait, self_ty, scope, context)
         .borrow()
         .expand()
@@ -315,7 +321,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
 fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemFn { attrs, sig, .. } = item;
     let source = context.borrow();
-    println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
+    // println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
     let scope_path = scope.self_path_holder_ref();
     let mut full_fn_path = scope_path.clone();
     if scope_path.is_crate_based() {
@@ -335,10 +341,10 @@ fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<Scop
 }
 
 fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
-    println!("impl_expansion: {} {}", item_impl.trait_.as_ref().map_or(format!(""), |(_, p, _)| format!("{} for", p.to_token_stream())), item_impl.self_ty.to_token_stream());
+    // println!("impl_expansion: {} {}", item_impl.trait_.as_ref().map_or(format!(""), |(_, p, _)| format!("{} for", p.to_token_stream())), item_impl.self_ty.to_token_stream());
     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
     let source = scope_context.borrow();
-    println!("impl_expansion: [{}] --- [{}]", scope, source.scope);
+    // println!("impl_expansion: [{}] --- [{}]", scope, source.scope);
     let mut full_fn_path = scope.self_path_holder();
 
     // let mut full_fn_path = self_scope.joined(ident);

@@ -15,7 +15,7 @@ mod type_conversion;
 pub use self::field_type_conversion::FieldTypeConversion;
 // pub use self::generic_path_conversion::GenericArgPresentation;
 // pub use self::generic_path_conversion::GenericPathConversion;
-pub use self::generic_type_conversion::{GenericTypeConversion, single_generic_ffi_path};
+pub use self::generic_type_conversion::{GenericTypeConversion, single_generic_ffi_type};
 pub use self::import_conversion::ImportConversion;
 pub use self::item_conversion::{ItemConversion, type_ident_ref};
 pub use self::local_type_conversion::LocalTypeConversion;

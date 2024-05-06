@@ -8,7 +8,7 @@ use crate::builder::Crate;
 use crate::composer::Depunctuated;
 use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
-use crate::formatter::format_generic_conversions;
+use crate::formatter::{format_generic_conversions, format_tree_exported_dict};
 use crate::presentation::{Expansion, ScopeContextPresentable};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
 
@@ -46,6 +46,10 @@ impl ToTokens for CrateTree {
 
 impl CrateTree {
     pub fn new(current_crate: &Crate, current_tree: ScopeTreeExportItem, external_crates: HashMap<Crate, ScopeTreeExportItem>) -> Result<Self, error::Error> {
+        // println!("••• CrateTree::new({})", current_crate.ident());
+        // println!("••• current_tree: {}", current_tree);
+        // println!("••• external_crates: {}", external_crates);
+
         match current_tree {
             ScopeTreeExportItem::Item(..) =>
                 Err(error::Error::ExpansionError("Bad tree root")),
@@ -53,7 +57,7 @@ impl CrateTree {
                 scope_context,
                 imported,
                 exported) => {
-                print_phase!("PHASE 2: CRATE TREE MORPHING", "");
+                // print_phase!("PHASE 2: CRATE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
                 let current_tree = create_crate_root_scope_tree(current_crate.ident(), scope_context, imported, exported);
                 let external_crates = external_crates.into_iter()
                     .map(|(external_crate, crate_root_tree_export_item)|
@@ -69,7 +73,10 @@ impl CrateTree {
                             }
                         })
                     .collect();
+                // print_phase!("PHASE 2: CURRENT CRATE TREE", "\n{:?}", current_tree);
+                // print_phase!("PHASE 2: EXTERNAL CRATES TREE", "\n{:?}", external_crates);
                 current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
+                // Everything is correct here with nested mods
 
                 let mut crate_tree = Self { current_crate: current_crate.clone(), current_tree, external_crates };
                 crate_tree.current_tree.refine();

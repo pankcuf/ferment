@@ -45,6 +45,7 @@ impl Scope {
         Scope { self_scope, object }
     }
     pub fn joined(&self, item: &Item) -> Self {
+        //println!("Scope::joined: {} + {}", self, item.ident_string());
         let child_self_scope = item.maybe_ident()
             .map(|ident| self.self_scope.joined(ident))
             .unwrap_or(self.self_scope.clone());

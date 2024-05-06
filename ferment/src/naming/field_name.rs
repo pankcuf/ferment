@@ -24,7 +24,11 @@ pub enum DictionaryFieldName {
 pub enum DictionaryExpression {
     BoxedExpression(TokenStream2),
     FromPrimitiveVec(TokenStream2, TokenStream2),
+    FromPrimitiveBTreeSet(TokenStream2, TokenStream2),
+    FromPrimitiveHashSet(TokenStream2, TokenStream2),
     FromComplexVec(TokenStream2, TokenStream2),
+    FromComplexBTreeSet(TokenStream2, TokenStream2),
+    FromComplexHashSet(TokenStream2, TokenStream2),
     FromPrimitiveSlice(TokenStream2, TokenStream2),
     FromComplexSlice(TokenStream2, TokenStream2, Type/*arg regular type*/),
     FromPrimitiveArray(TokenStream2, TokenStream2),
@@ -70,9 +74,25 @@ impl ToTokens for DictionaryExpression {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_primitive_vec(#values, #count))
             }
+            DictionaryExpression::FromPrimitiveBTreeSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_primitive_btree_set(#values, #count))
+            }
+            DictionaryExpression::FromPrimitiveHashSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_primitive_hash_set(#values, #count))
+            }
             DictionaryExpression::FromComplexVec(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_vec(#values, #count))
+            }
+            DictionaryExpression::FromComplexBTreeSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_complex_btree_set(#values, #count))
+            }
+            DictionaryExpression::FromComplexHashSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_complex_hash_set(#values, #count))
             }
             DictionaryExpression::FromPrimitiveSlice(values, count) => {
                 quote! {

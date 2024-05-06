@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, GenericParam, Generics, Lifetime, LifetimeDef, parse_macro_input, parse_quote, WhereClause};
+use syn::{DeriveInput, Generics, parse_macro_input, parse_quote};
 
 
 /// The `export` procedural macro facilitates FFI (Foreign Function Interface) conversion

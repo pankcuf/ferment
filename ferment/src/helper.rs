@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::{Add, Comma};
 use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
-use crate::ext::{CrateExtension, NestingExtension, ToPath, ToType, VisitScopeType};
+use crate::ext::{CrateExtension, NestingExtension, VisitScopeType};
 use crate::formatter::format_token_stream;
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
@@ -51,7 +51,8 @@ impl ItemExtension for Item {
             Item::Enum(ItemEnum { ident, .. }, ..) |
             Item::Type(ItemType { ident, .. }, ..) |
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }, ..) |
-            Item::Trait(ItemTrait { ident, .. }, ..) => ScopeTreeExportID::Ident(ident.clone()),
+            Item::Trait(ItemTrait { ident, .. }, ..) |
+            Item::Const(ItemConst { ident, .. }, ..) => ScopeTreeExportID::Ident(ident.clone()),
             Item::Use(ItemUse { .. }, ..) =>
                 panic!("Not  supported"),
             Item::Impl(ItemImpl { self_ty, trait_, .. }, ..) => ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path)),
@@ -162,7 +163,7 @@ impl ItemExtension for Item {
 }
 
 
-fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
+fn generic_trait_bounds(ty: &Path, ident_path: &TypePath, bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
     // println!("generic_trait_bounds.1: {} :: {} :: {}", format_token_stream(ty), format_token_stream(ident_path), format_token_stream(bounds));
     let mut has_bound = false;
     let involved = bounds.iter().filter_map(|b| {
@@ -170,7 +171,7 @@ fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypePa
         match b {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
                 //println!("generic_trait_bounds: [{}] {} == {} {}", ident_path.eq(ty), format_token_stream(ty), format_token_stream(path), format_token_stream(bounds));
-                let has = ident_path.eq(ty);
+                let has = ident_path.path.eq(ty);
                 if !has_bound && has {
                     has_bound = true;
                 }
@@ -187,44 +188,52 @@ fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &Punctuated<TypePa
 }
 
 fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
-    // println!("maybe_generic_type_bound.1: {} in [{} .... {}]", format_token_stream(path), format_token_stream(&generics.params), format_token_stream(&generics.where_clause));
-    let result = generics.params.iter().find_map(|param| if let GenericParam::Type(type_param) = param {
-        let ty = path.to_type();
-        let ident = &type_param.ident;
-        let ident_path = ident.to_path();
-        let has_bounds = ident_path.eq(path);
-        let bounds = generic_trait_bounds(path, &ident_path, &type_param.bounds);
-        // println!("maybe_generic_type_bound.2: [{}: {}] --> [{}]", has_bounds, quote!(#type_param), format_path_vec(&bounds));
-        // println!("maybe_generic_type_bound: (bounds) {} ", format_path_vec(&bounds));
-        has_bounds
-            .then(|| GenericBoundComposition {
-                bounds,
-                predicates: generics.where_clause
-                    .as_ref()
-                    .map(|where_clause|
-                        where_clause.predicates
-                            .iter()
-                            .filter_map(|predicate| match predicate {
-                                WherePredicate::Type(predicate_type) => {
-                                    // println!("maybe_generic_type_bound:::predicate: [{}] {} ::: {}", ty.eq(&predicate_type.bounded_ty), format_token_stream(predicate_type), format_token_stream(path));
-                                    let bounded_ty = &predicate_type.bounded_ty;
-                                    let ident_path = bounded_ty.to_path();
-                                    ty.eq(&predicate_type.bounded_ty)
-                                        .then(||(
-                                            predicate_type.bounded_ty.clone(),
-                                            {
-                                                let bounds = generic_trait_bounds(&path, &ident_path, &predicate_type.bounds);
-                                                // println!("maybe_generic_type_bound.3.... {}: {}: [{}]", format_token_stream(&ident_path), format_token_stream(&predicate_type.bounded_ty), format_path_vec(&bounds));
-                                                bounds
-                                            }))
-                                },
-                                _ => None })
-                            .collect())
-                    .unwrap_or_default(),
-                // TODO: it can have NestedArguments
-                type_composition: TypeComposition::new_non_gen(ty, Some(generics.clone())),
-            })
-    } else { None });
+    // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
+    let result = generics.params.iter().find_map(|param| {
+        if let GenericParam::Type(type_param) = param {
+            let ty: Type = parse_quote!(#path);
+            // let ty = path.to_type();
+            let ident = &type_param.ident;
+            // println!("maybe_generic_type_bound.2: {}", ident.to_token_stream());
+            let segment = PathSegment::from(ident.clone());
+            // let ident_path = ;
+            let ident_type_path = TypePath { qself: None, path: Path::from(segment) };
+            // let ident_path = seg.to_path();
+            let has_bounds = ident_type_path.path.eq(path);
+            let bounds = generic_trait_bounds(path, &ident_type_path, &type_param.bounds);
+            // println!("maybe_generic_type_bound.2: [{}: {}] --> [{}]", has_bounds, quote!(#type_param), format_path_vec(&bounds));
+            // println!("maybe_generic_type_bound: (bounds) {} ", format_path_vec(&bounds));
+            has_bounds
+                .then(|| GenericBoundComposition {
+                    bounds,
+                    predicates: generics.where_clause
+                        .as_ref()
+                        .map(|where_clause|
+                            where_clause.predicates
+                                .iter()
+                                .filter_map(|predicate| match predicate {
+                                    WherePredicate::Type(predicate_type) => {
+                                        // println!("maybe_generic_type_bound:::predicate: [{}] {} ::: {}", ty.eq(&predicate_type.bounded_ty), format_token_stream(predicate_type), format_token_stream(path));
+                                        let bounded_ty = &predicate_type.bounded_ty;
+                                        // println!("---- {:?}" , bounded_ty);
+                                        let ident_path = parse_quote!(#bounded_ty);
+                                        ty.eq(&predicate_type.bounded_ty)
+                                            .then(||(
+                                                predicate_type.bounded_ty.clone(),
+                                                {
+                                                    let bounds = generic_trait_bounds(&path, &ident_path, &predicate_type.bounds);
+                                                    // println!("maybe_generic_type_bound.3.... {}: {}: [{}]", format_token_stream(&ident_path), format_token_stream(&predicate_type.bounded_ty), format_path_vec(&bounds));
+                                                    bounds
+                                                }))
+                                    },
+                                    _ => None })
+                                .collect())
+                        .unwrap_or_default(),
+                    // TODO: it can have NestedArguments
+                    type_composition: TypeComposition::new_non_gen(ty, Some(generics.clone())),
+                })
+        } else { None }
+    });
     // println!("maybe_generic_type_bound (result): {}", result.as_ref().map_or(format!("None"), |r| r.to_string()));
     result
 }
@@ -240,6 +249,7 @@ pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
     }
 }
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
+    // println!("path_arguments_to_types: {}", arguments.to_token_stream());
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
             args.iter().filter_map(|arg| match arg {
@@ -323,21 +333,47 @@ fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportCompo
 
 fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, ty: &Type, imports: &HashMap<PathHolder, Path>) {
     // Types which are used as a part of types (for generics and composite types)
-    // let type_conversion = TypeHolder::from(ty);
-    // let involved = <TypePathHolder as Conversion>::nested_items(ty, &VisitorContext::Unknown);
-    // let involved = <TypeHolder as Conversion>::nested_items(ty);
     let involved: HashSet<Type> = ty.nested_items();
     involved.iter()
         .for_each(|ty| {
-            let path = ty.to_path();
-            if let Some(PathSegment { ident, .. }) = path.segments.last() {
-                let (import_type, scope) = import_pair(&path, imports);
-                container
-                    .entry(import_type)
-                    .or_default()
-                    .insert(ImportComposition::from((ident, &scope)));
-            }
+            // println!("involved: {}", ty.to_token_stream());
+            // match ty {
+            //     Type::Array(type_array) => {
+            //         let path = type_array.elem.to_path();
+            //         cache_path_in(container, &path, imports);
+            //     },
+            //     Type::Slice(type_slice) => {
+            //         let path = type_slice.elem.to_path();
+            //         cache_path_in(container, &path, imports);
+            //     },
+            //     Type::Path(type_path) => {
+            //         cache_path_in(container, &type_path.path, imports);
+            //     }
+            //     Type::Reference(type_reference) => {
+            //         let path = type_reference.elem.to_path();
+            //         cache_path_in(container, &path, imports);
+            //     },
+            //     // Type::Ptr(_) => {}
+            //     // Type::TraitObject(_) => {}
+            //     // Type::Tuple(TypeTuple { elems }) => {
+            //     //
+            //     // }
+            //     _ => {
+            //         let path = ty.to_path();
+            //         cache_path_in(container, &path, imports);
+            //     }
+            // }
         });
+}
+fn cache_path_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, path: &Path, imports: &HashMap<PathHolder, Path>) {
+    if let Some(PathSegment { ident, .. }) = path.segments.last() {
+        let (import_type, scope) = import_pair(&path, imports);
+        container
+            .entry(import_type)
+            .or_default()
+            .insert(ImportComposition::from((ident, &scope)));
+    }
+
 }
 fn import_pair(path: &Path, imports: &HashMap<PathHolder, Path>) -> (ImportConversion, PathHolder) {
     let original_or_external_pair = |value| {

@@ -145,11 +145,11 @@ impl ScopeChain {
         let self_scope = Scope::new(PathHolder::crate_root(), ObjectConversion::Empty);
         ScopeChain::CrateRoot { crate_ident, self_scope }
     }
-    pub fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain) -> Self {
-        ScopeChain::Mod { crate_ident, self_scope, parent_scope_chain: Box::new(parent_scope.clone()) }
-    }
     pub fn child_mod(crate_ident: Ident, name: &Ident, scope: &ScopeChain) -> Self {
         ScopeChain::new_mod(crate_ident, Scope::new(scope.self_path_holder_ref().joined(name), ObjectConversion::Empty), scope)
+    }
+    fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain) -> Self {
+        ScopeChain::Mod { crate_ident, self_scope, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
     pub fn crate_ident(&self) -> &Ident {
         match self {

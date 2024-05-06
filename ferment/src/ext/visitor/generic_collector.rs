@@ -20,6 +20,7 @@ pub trait GenericCollector where Self: TypeCollector {
                 field_type.collect_to(&mut generics));
         generics
     }
+
     fn find_generics_conversions(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
         self.find_generics()
             .iter()

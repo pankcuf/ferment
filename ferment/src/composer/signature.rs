@@ -2,21 +2,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
-use syn::{Attribute, FnArg, Generics, ItemFn, parse_quote, Path, Receiver, Signature, TypeBareFn};
+use syn::{Attribute, Generics, ItemFn, Path, Signature, TypeBareFn};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Paren};
 use crate::composer::{AttrsComposer, BindingComposer, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
 use crate::composer::r#type::TypeComposer;
-use crate::composition::{AttrsComposition, FnArgComposer, FnSignatureContext};
+use crate::composition::{AttrsComposition, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::conversion::FieldTypeConversion;
-use crate::ext::{Mangle, Resolve};
-use crate::naming::{DictionaryFieldName, Name};
+use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DocPresentation, Expansion, ScopeContextPresentable};
-use crate::presentation::context::{FieldTypePresentableContext, name, OwnedItemPresentableContext};
-use crate::presentation::context::name::Context;
+use crate::presentation::context::{name::Context, OwnedItemPresentableContext};
 use crate::shared::ParentLinker;
 use crate::wrapped::Wrapped;
 
@@ -87,7 +84,7 @@ impl BasicComposable<SigParentComposer> for SigComposer {
 
 
 impl NameContext for SigComposer {
-    fn name_context_ref(&self) -> &name::Context {
+    fn name_context_ref(&self) -> &Context {
         self.base.name_context_ref()
     }
 }
@@ -101,10 +98,10 @@ impl SourceExpandable for SigComposer {
         let ffi_name_context = self.ffi_name_aspect();
         let target_name_context = self.target_name_aspect();
         // TODO: source.scope or local_scope?
-        let scope = source.scope.self_path_holder_ref();
+        // let scope = source.scope.self_path_holder_ref();
         let binding = match self.name_context_ref() {
             Context::Fn { path: full_fn_path, sig_context } => {
-                println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
+                // println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => {
                         let Signature { output, inputs, .. } = sig;

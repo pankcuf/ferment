@@ -17,7 +17,7 @@ pub use self::crate_type::Crate;
 pub use self::context::Context;
 pub use self::generic_resolver::GenericResolver;
 
-pub use self::global_context::{create_mod_chain, GlobalContext, refined_import};
+pub use self::global_context::{create_mod_chain, GlobalContext};
 pub use self::scope::Scope;
 pub use self::scope_context::ScopeContext;
 pub use self::scope_chain::ScopeChain;

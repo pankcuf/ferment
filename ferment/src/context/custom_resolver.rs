@@ -36,19 +36,23 @@ impl CustomResolver {
             .insert(parse_quote!(#path), ffi_type.to_unknown(Punctuated::new()));
     }
     pub fn maybe_conversion(&self, ty: &Type) -> Option<Type> {
-        //println!("maybe_custom_conversion: {}", format_token_stream(ty));
+        // println!("maybe_conversion: {}", ty.to_token_stream());
         self.inner.keys()
             .find_map(|scope| self.replace_conversion(scope, ty))
     }
 
     fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a ScopeChain) -> Option<&'a ObjectConversion> {
+        // println!("replacement_for: {} in [{}]", ty.to_token_stream(), scope.self_path_holder_ref());
         let tc = TypeHolder::from(ty);
         self.inner
             .get(scope)
-            .and_then(|conversion_pairs| conversion_pairs.get(&tc))
+            .and_then(|conversion_pairs| {
+                conversion_pairs.get(&tc)
+            })
     }
 
     fn replace_conversion(&self, scope: &ScopeChain, ty: &Type) -> Option<Type> {
+        // println!("replace_conversion.1: {}", ty.to_token_stream());
         let mut custom_type = ty.clone();
         let mut replaced = false;
         if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = &mut custom_type {
@@ -71,6 +75,9 @@ impl CustomResolver {
                 }
             }
         }
+        // if replaced {
+        //     println!("replace_conversion.2: {}: {}", replaced, custom_type.to_token_stream());
+        // }
         replaced.then(|| custom_type)
     }
 
