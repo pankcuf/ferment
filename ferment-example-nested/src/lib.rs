@@ -17,7 +17,6 @@ pub mod some_inner {
     }
 }
 pub mod some_inner_2 {
-    use std::collections::BTreeSet;
     use crate::model::quorum::QuorumType;
     use crate::model::Quorum;
     #[ferment_macro::export]
@@ -25,22 +24,22 @@ pub mod some_inner_2 {
         Quorum { llmq_type: QuorumType::Normal }
     }
 
-    #[ferment_macro::export]
-    pub fn get_btree_set() -> BTreeSet<String> {
-        BTreeSet::new()
-    }
-
-    #[ferment_macro::export]
-    pub fn set_btree_set(set: BTreeSet<String>) {
-        println!("BTreeSet: {:?}", set);
-    }
-
-    #[ferment_macro::export]
-    pub struct DocumentTypeV0 {
-        pub name: String,
-        pub identifier_paths: BTreeSet<String>,
-        pub binary_paths: BTreeSet<String>
-    }
+    // #[ferment_macro::export]
+    // pub fn get_btree_set() -> BTreeSet<String> {
+    //     BTreeSet::new()
+    // }
+    //
+    // #[ferment_macro::export]
+    // pub fn set_btree_set(set: BTreeSet<String>) {
+    //     println!("BTreeSet: {:?}", set);
+    // }
+    //
+    // #[ferment_macro::export]
+    // pub struct DocumentTypeV0 {
+    //     pub name: String,
+    //     pub identifier_paths: BTreeSet<String>,
+    //     pub binary_paths: BTreeSet<String>
+    // }
 }
 
 

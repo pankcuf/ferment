@@ -657,7 +657,6 @@ impl GenericTypeConversion {
                 let path_conversions = path_arguments_to_type_conversions(arguments);
                 let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
                 let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                println!("BTreeSet:::: {:?}", path_conversions);
                 let arg_0_presentation = match &path_conversions[..] {
                     [TypeConversion::Primitive(arg_0_target_path)] => {
                         let arg_0_ffi_type = parse_quote!(#arg_0_target_path);

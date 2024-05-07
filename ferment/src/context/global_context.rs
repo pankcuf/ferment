@@ -4,7 +4,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
+use syn::token::{Colon2, Comma};
 use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{Scope, ScopeChain, TypeChain};
@@ -580,12 +580,56 @@ impl GlobalContext {
             .or(self.traverse_scopes(ty_to_replace, scope))
     }
 
+    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut Punctuated<NestedArgument, Comma>) {
+        // println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
+        match &mut segment.arguments {
+            PathArguments::None => {
+                if !nested_arguments.is_empty() {
+                    segment.arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                        colon2_token: None,
+                        lt_token: Default::default(),
+                        args: nested_arguments.into_iter().map(|nested_arg| match nested_arg {
+                            NestedArgument::Object(obj) => GenericArgument::Type(obj.to_ty().unwrap())
+                        }).collect(),
+                        gt_token: Default::default(),
+                    });
+                }
+            }
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+                // panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
+            },
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
+                // println!("GENERIC::Args:: {}", args.to_token_stream());
+                args.iter_mut()
+                    .for_each(|arg| match arg {
+                        GenericArgument::Type(inner_ty) => {
+                            // println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
+                            match nested_arguments.pop() {
+                                None => {}
+                                Some(nested_arg) => match nested_arg.into_value() {
+                                    NestedArgument::Object(obj) => {
+                                        *inner_ty = obj.to_ty().unwrap();
+                                    }
+                                }
+                            }
+                        }
+                        GenericArgument::Lifetime(_) => {}
+                        GenericArgument::Const(_) => {}
+                        GenericArgument::Binding(_) => {}
+                        GenericArgument::Constraint(_) => {}
+                    });
+            }
+        };
+
+    }
+
     fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
         match object {
             ObjectConversion::Type(TypeCompositionConversion::Imported(ty_composition, import_path)) => {
                 let mut ty_replacement = ty_composition.clone();
                 let mut import_type_path: TypePath = parse_quote!(#import_path);
-                let last_segment_pair = import_type_path.path.segments.pop().unwrap();
+
+                // let last_segment_pair = import_type_path.path.segments.pop().unwrap();
                 import_type_path.path = if import_path.is_crate_based() {
                     import_path.replaced_first_with_ident(&scope.crate_ident_as_path())
                 } else {
@@ -596,7 +640,9 @@ impl GlobalContext {
                     chunks.segments = chunks.segments.popped();
                     if !chunks.segments.is_empty() {
                         let mod_chain = create_mod_chain(&chunks);
+                        // println!("chchchc: {}",)
                         if let Some(parent_imports) = self.imports.maybe_scope_imports(&mod_chain) {
+                            // println!("chchchc: {}", parent_imports)
                             for (PathHolder(_ident), alias_path) in parent_imports {
                                 let alias = if alias_path.is_crate_based() {
                                     alias_path.replaced_first_with_ident(&scope.crate_ident_as_path())
@@ -604,42 +650,49 @@ impl GlobalContext {
                                     alias_path.clone()
                                 };
                                 if let Some(merged) = self.refined_import(&import_type_path.path, &alias, scope) {
+                                    let last = import_type_path.path.segments.last().cloned();
                                     import_type_path.path.segments = merged.segments;
+                                    if let Some(last) = last {
+                                       // import_type_path.path.segments.last_mut().unwrap().arguments = last.arguments;
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                //println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
-                let mut last_segment = last_segment_pair.into_value();
-                match &mut last_segment.arguments {
-                    PathArguments::None => {}
-                    PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                        panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
-                    },
-                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-                        println!("GENERIC::Args:: {}", args.to_token_stream());
-                        args.iter_mut()
-                            .for_each(|arg| match arg {
-                                GenericArgument::Type(inner_ty) => {
-                                    println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
-                                    match ty_replacement.nested_arguments.pop() {
-                                        None => {}
-                                        Some(nested_arg) => match nested_arg.into_value() {
-                                            NestedArgument::Object(obj) => {
-                                                *inner_ty = obj.to_ty().unwrap();
-                                            }
-                                        }
-                                    }
-                                }
-                                GenericArgument::Lifetime(_) => {}
-                                GenericArgument::Const(_) => {}
-                                GenericArgument::Binding(_) => {}
-                                GenericArgument::Constraint(_) => {}
-                            });
-                    }
-                };
-                import_type_path.path.segments.last_mut().unwrap().arguments = last_segment.arguments;
+                // println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
+                // let mut last_segment = last_segment_pair.into_value();
+
+                // match &mut last_segment.arguments {
+                //     PathArguments::None => {}
+                //     PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+                //         panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
+                //     },
+                //     PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                //         println!("GENERIC::Args:: {}", args.to_token_stream());
+                //         args.iter_mut()
+                //             .for_each(|arg| match arg {
+                //                 GenericArgument::Type(inner_ty) => {
+                //                     println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
+                //                     match ty_replacement.nested_arguments.pop() {
+                //                         None => {}
+                //                         Some(nested_arg) => match nested_arg.into_value() {
+                //                             NestedArgument::Object(obj) => {
+                //                                 *inner_ty = obj.to_ty().unwrap();
+                //                             }
+                //                         }
+                //                     }
+                //                 }
+                //                 GenericArgument::Lifetime(_) => {}
+                //                 GenericArgument::Const(_) => {}
+                //                 GenericArgument::Binding(_) => {}
+                //                 GenericArgument::Constraint(_) => {}
+                //             });
+                //     }
+                // };
+                //
+                // import_type_path.path.segments.last_mut().unwrap().arguments = last_segment.arguments;
+                self.maybe_refine_args(import_type_path.path.segments.last_mut().unwrap(), &mut ty_replacement.nested_arguments);
                 let dict_path = import_type_path.path.clone();
                 ty_replacement.ty = Type::Path(import_type_path);
                 let conversion_replacement = if let Some(dictionary_type) = scope.maybe_dictionary_type(&dict_path, self) {
@@ -825,17 +878,16 @@ impl RefineMut for GlobalContext {
         let mut refined_generics = HashSet::<GenericConversion>::new();
         self.scope_register.inner.values()
             .for_each(|type_chain| {
-                type_chain.inner.keys().for_each(|conversion| {
-                    // println!("Generic::Refine: {}", conversion);
+                type_chain.inner.iter().for_each(|(conversion, value)| {
                     refined_generics.extend(conversion.0
                         .find_generics()
                         .iter()
                         .filter_map(|ty| {
-                            //println!("refine_with: maybe custom?: {}", ty.to_token_stream());
+                            println!("refine_with: maybe custom?: {} --- {}", ty.to_token_stream(), value.to_token_stream());
                             if self.custom.maybe_conversion(&ty.0).is_some() {
                                 None
                             } else {
-                                type_chain.get(ty)
+                                Some(value)
                             }
                         })
                         .map(GenericConversion::from));
@@ -855,6 +907,7 @@ impl Unrefined for GlobalContext {
                 let scope_types_to_refine = type_chain.inner.iter()
                     .filter_map(|(holder, object)|
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, object) {
+                            // println!("unrefined: {}: {} --> {}", holder, object, object_to_refine);
                             Some((holder.clone(), object_to_refine))
                         } else {
                             None
@@ -983,9 +1036,9 @@ impl GlobalContext {
                                         let new_path: Path = parse_quote!(#(#new_segments_iter)::*);
 
 
-                                        println!("----- {} + {}", new_path.to_token_stream(), chunk.to_token_stream());
+                                        // println!("----- {} + {}", new_path.to_token_stream(), chunk.to_token_stream());
                                         let re_result = merge_reexport_chunks(&new_path, &chunk.as_ref().unwrap());
-                                        println!("----- {}", re_result.to_token_stream());
+                                        // println!("----- {}", re_result.to_token_stream());
 
                                         parse_quote!(#re_result)
                                         // result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
@@ -1037,7 +1090,7 @@ impl GlobalContext {
                             // if reexport_import.is_crate_based() {
                             //
                             // }
-                            println!("REFINED: [{}] + [{}]", reexport_scope_path.to_token_stream(), segments.to_token_stream());
+                            // println!("REFINED: [{}] + [{}]", reexport_scope_path.to_token_stream(), segments.to_token_stream());
                             result = Some(parse_quote!(#reexport_scope_path::#segments));
                             chunk = Some(Path { segments, leading_colon: None });
                         },

@@ -1,5 +1,6 @@
 pub mod v0;
 pub mod v1;
+pub mod document_type;
 
 use crate::data_contract::v0::data_contract::DataContractV0;
 pub use v1::DataContractV1;
