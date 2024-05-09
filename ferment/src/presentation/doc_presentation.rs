@@ -4,6 +4,7 @@ use syn::parse_quote;
 use crate::formatter::format_token_stream;
 use crate::naming::Name;
 
+#[derive(Clone, Debug)]
 pub enum DocPresentation {
     Empty,
     Default(Name),

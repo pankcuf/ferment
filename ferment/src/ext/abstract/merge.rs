@@ -2,6 +2,9 @@ use std::collections::hash_map::OccupiedEntry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use proc_macro2::TokenStream;
+use quote::ToTokens;
+use crate::composer::Depunctuated;
 use crate::context::TypeChain;
 use crate::conversion::ObjectConversion;
 use crate::tree::ScopeTreeExportItem;
@@ -75,23 +78,16 @@ impl ValueReplaceScenario for ScopeTreeExportItem {
 
 impl MergeInto for ScopeTreeExportItem {
     fn merge_into(&self, destination: &mut Self) {
-        if let (ScopeTreeExportItem::Tree(_, _, ref mut dest_exports),
-            ScopeTreeExportItem::Tree(_, _, source_exports), ) = (destination, &self) {
-            // println!("•• merge_trees: source: {}", format_tree_exported_dict(dest_exports));
-            // println!("•• merge_trees: destination: {}", format_tree_exported_dict(dest_exports));
-            // dest_exports.extend_with_policy(source_exports, DefaultScopePolicy);
-
+        if let (ScopeTreeExportItem::Tree(dest_ctx, _, ref mut dest_exports, dest_attrs),
+            ScopeTreeExportItem::Tree(src_ctx, _, source_exports, source_attrs), ) = (destination, &self) {
+            // println!("•• merge_trees: source: {}: {}", src_ctx.borrow().scope.self_path_holder_ref(), source_attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<TokenStream>>().to_token_stream());
+            // println!("•• merge_trees: destination: {}: {}", dest_ctx.borrow().scope.self_path_holder_ref(), dest_attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<TokenStream>>().to_token_stream());
             for (name, source_tree) in source_exports {
-                //println!("ScopeTreeExportItem::merge_into: {} --- {}", name, source_tree);
-                //DefaultScopePolicy::apply();
-                //destination.insert_with_policy(name.clone(), source_tree.clone(), DefaultScopePolicy);
                 match dest_exports.entry(name.clone()) {
                     std::collections::hash_map::Entry::Occupied(mut o) => {
-                        // println!("")
                         source_tree.merge_into(o.get_mut())
                     },
                     std::collections::hash_map::Entry::Vacant(v) => {
-
                         v.insert(source_tree.clone());
                     }
                 }
@@ -105,16 +101,13 @@ impl MergeInto for ScopeTreeExportItem {
 impl<T> MergeInto for HashMap<T, ObjectConversion> where T: Hash + Eq + Clone + Display {
     fn merge_into(&self, destination: &mut Self) {
         for (holder, object) in self {
-            // println!("merge_into: {}", holder, object);
             match destination.entry(holder.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut o) => match (o.get_mut(), &object) {
                     (ObjectConversion::Type(..), ObjectConversion::Item(..)) => {
                         o.insert(object.clone());
                     },
                     (ObjectConversion::Type(occupied_ty), ObjectConversion::Type(candidate_ty)) => {
-                        println!("Try to merge: {} --> {}", occupied_ty, candidate_ty);
                         if !occupied_ty.is_refined() && candidate_ty.is_refined() {
-                        // if !occupied_ty.is_refined() && candidate_ty.is_refined() || candidate_ty.is_tuple() {
                             o.insert(object.clone());
                         }
                     }
@@ -141,9 +134,7 @@ impl MergeInto for ObjectConversion {
                 *destination = self.clone();
             },
             (ObjectConversion::Type(candidate_ty), ObjectConversion::Type(occupied_ty)) => {
-                println!("Try to merge2: {} --> {}", occupied_ty, candidate_ty);
                 if !occupied_ty.is_refined() && candidate_ty.is_refined() {
-                // if !occupied_ty.is_refined() && candidate_ty.is_refined() || candidate_ty.is_tuple() {
                     *destination = self.clone()
                 }
             }

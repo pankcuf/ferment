@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::naming::DictionaryExpression;
-
+#[derive(Clone, Debug)]
 pub enum ToConversionPresentation {
     Enum(Punctuated<TokenStream2, Comma>),
     Struct(TokenStream2),

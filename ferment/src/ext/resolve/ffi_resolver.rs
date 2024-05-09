@@ -7,7 +7,7 @@ use syn::token::Colon2;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Accessory, CrateExtension, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
 use crate::helper::path_arguments_to_paths;
 
 pub trait FFIResolve where Self: Sized + ToTokens + Parse {
@@ -32,28 +32,29 @@ pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
 
 impl FFIResolve for Path {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
+        // println!("Path::ffi_resolve.1: {}", self.to_token_stream());
         let segments = &self.segments;
+        let first_segment = segments.first().unwrap();
         let last_segment = segments.last().unwrap();
+        let first_ident = &first_segment.ident;
         let last_ident = &last_segment.ident;
-        let result = match last_ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
-            | "isize" | "usize" | "bool" => None,
-            "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
-            "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
-            "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
-            "Vec" | "BTreeMap" | "HashMap" | "IndexMap" | "BTreeSet" | "HashSet" => {
-                let ffi_name = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_name))
-            },
-            "Result" if segments.len() == 1 => {
-                let ffi_name = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_name))
-            },
-            "Option" => path_arguments_to_paths(&last_segment.arguments)
+        let result = if last_ident.is_primitive() {
+            None
+        } else if last_ident.is_any_string() {
+            Some(parse_quote!(std::os::raw::c_char))
+        } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
+            let ffi_name = self.mangle_ident_default();
+            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+        } else if last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") {
+            let ffi_name = self.mangle_ident_default();
+            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+        } else if last_ident.is_optional() {
+            path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
-                .and_then(|path| path.ffi_resolve(source)),
-            "Box" => path_arguments_to_paths(&last_segment.arguments)
+                .and_then(|path| path.ffi_resolve(source))
+        } else if last_ident.is_box() {
+            path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
                 .and_then(|item| {
@@ -70,22 +71,23 @@ impl FFIResolve for Path {
                     //     _ => parse_quote!(#item)
                     // };
                     Some(item.ffi_custom_or_internal_type(source))
-                }),
-            _ => {
-                let ffi_type = if let Some(
-                    ObjectConversion::Type(TypeCompositionConversion::Trait(tc, ..)) |
-                    ObjectConversion::Type(TypeCompositionConversion::TraitType(tc))
-                ) = self.trait_ty(source) {
-                    ffi_chunk_converted(&tc.ty.to_path().segments)
-                } else {
-                    ffi_chunk_converted(segments)
-                };
-                // println!("[{}] [{}] resolve_ffi_path: {} ----> {}", self.scope.crate_scope(), self.scope.self_path_holder(), ty.to_token_stream(), ffi_type.to_token_stream());
-                Some(ffi_type.to_path())
-            }
+                })
+        } else {
+            let ffi_type = if let Some(
+                ObjectConversion::Type(TypeCompositionConversion::Trait(tc, ..)) |
+                ObjectConversion::Type(TypeCompositionConversion::TraitType(tc))
+            ) = self.trait_ty(source) {
+                ffi_chunk_converted(&tc.ty.to_path().segments)
+            } else {
+                ffi_chunk_converted(segments)
+            };
+            // println!("[{}] [{}] resolve_ffi_path: {} ----> {}", self.scope.crate_scope(), self.scope.self_path_holder(), ty.to_token_stream(), ffi_type.to_token_stream());
+            Some(ffi_type.to_path())
         };
-        // println!("[{}] [{}] FFIResolver::resolve (Path): {} ----> {}", source.scope.crate_scope(), source.scope.self_path_holder(), self.to_token_stream(), result.to_token_stream());
+        // println!("Path::ffi_resolve.2: {} --> {}", self.to_token_stream(), result.to_token_stream());
         result
+        // "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
+        // "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
     }
 }
 
@@ -121,49 +123,48 @@ impl FFIResolve for Type {
 impl FFIResolveExtended for Path {
 
     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Path::ffi_external_path_converted: {}", self.to_token_stream());
+        // println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
         let segments = &self.segments;
+        let first_segment = segments.first().unwrap();
+        let first_ident = &first_segment.ident;
         let last_segment = segments.last().unwrap();
         let last_ident = &last_segment.ident;
-        let result = match last_ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
-            "isize" | "usize" | "bool" => None,
-            "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
-            "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
-            "str" | "String" => Some(parse_quote!(std::os::raw::c_char)),
-            "Vec" | "BTreeMap" | "HashMap" | "IndexMap" | "BTreeSet" | "HashSet" => {
-                let ffi_name = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_name))
-            },
-            "Result" if segments.len() == 1 => {
-                let ffi_name = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_name))
-            },
-            "Option" => path_arguments_to_paths(&last_segment.arguments)
+        let result = if last_ident.is_primitive() {
+            None
+        } else if last_ident.is_any_string() {
+            Some(parse_quote!(std::os::raw::c_char))
+        } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
+            let ffi_name = self.mangle_ident_default();
+            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+        } else if last_ident.to_string().eq("Map") || first_ident.to_string().eq("serde_json") {
+            let ffi_name = self.mangle_ident_default();
+            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+        } else if last_ident.is_optional() || last_ident.is_box() {
+            path_arguments_to_paths(&last_segment.arguments)
                 .first()
                 .cloned()
-                .and_then(|path| path.ffi_external_path_converted(source)),
-            _ => {
-                let lock = source.context.read().unwrap();
-                let crate_ident = source.scope.crate_ident();
-                let first_segment = segments.first().unwrap();
-                let first_ident = &first_segment.ident;
+                .and_then(|path| path.ffi_external_path_converted(source))
+        } else {
+            let lock = source.context.read().unwrap();
+            let crate_ident = source.scope.crate_ident();
+            let first_segment = segments.first().unwrap();
+            let first_ident = &first_segment.ident;
 
-                match first_ident.to_string().as_str() {
-                    "crate" | _ if lock.config.is_current_crate(first_ident) =>
-                        Some(ffi_external_chunk(crate_ident, segments)),
-                    _ if lock.config.contains_fermented_crate(first_ident) =>
-                        Some(ffi_external_chunk(first_ident, segments)),
-                    _ => {
-                        let segments = segments.ident_less();
-                        Some(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) })
-                    }
+            match first_ident.to_string().as_str() {
+                "crate" | _ if lock.config.is_current_crate(first_ident) =>
+                    Some(ffi_external_chunk(crate_ident, segments)),
+                _ if lock.config.contains_fermented_crate(first_ident) =>
+                    Some(ffi_external_chunk(first_ident, segments)),
+                _ => {
+                    let segments = segments.ident_less();
+                    Some(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) })
                 }
             }
         };
-        // println!("[{}] [{}] FFIResolver::ffi_external_path_converted (Path): {} ----> {}", source.scope.crate_scope(), source.scope.self_path_holder(), self.to_token_stream(), result.to_token_stream());
-
+        // println!("Path::ffi_external_path_converted.2: {}", self.to_token_stream());
         result
+        // "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
+        // "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
     }
 
     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
@@ -336,31 +337,21 @@ pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: 
     parse_quote!(crate::fermented::types::#crate_ident::#ffi_chunk_path)
 }
 pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
-    // println!("ffi_dictionary_type: {}", format_token_stream(path));
-    match path.segments.last().unwrap().ident.to_string().as_str() {
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
-        "isize" | "usize" | "bool" =>
-            path.to_type(),
-        "OpaqueContext" =>
-            parse_quote!(ferment_interfaces::OpaqueContext_FFI),
-        "OpaqueContextMut" =>
-            parse_quote!(ferment_interfaces::OpaqueContextMut_FFI),
-        "Option" =>
-            ffi_dictionary_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap(), source),
-        "Vec" | "BTreeMap" | "HashMap" | "IndexMap" | "BTreeSet" | "HashSet" => {
-            source.scope_type_for_path(path)
-                .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-                .joined_mut()
-                .to_type()
-        },
-        "Result" /*if path.segments.len() == 1*/ => {
-            source.scope_type_for_path(path)
-                .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-                .joined_mut()
-                .to_type()
-        },
-        _ =>
-            path.to_type()
-                .joined_mut()
+    let first_segment = path.segments.first().unwrap();
+    let first_ident = &first_segment.ident;
+    let last_segment = path.segments.last().unwrap();
+    let last_ident = &last_segment.ident;
+    if last_ident.is_primitive() {
+        path.to_type()
+    } else if last_ident.is_optional() {
+        ffi_dictionary_type(path_arguments_to_paths(&last_segment.arguments).first().unwrap(), source)
+    } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+        source.scope_type_for_path(path)
+            .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
+            .joined_mut()
+            .to_type()
+    } else {
+        path.to_type()
+            .joined_mut()
     }
 }

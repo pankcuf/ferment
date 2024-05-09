@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::{Ref, RefCell};
 use std::clone::Clone;
 use proc_macro2::Ident;
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Field, Generics, Type, Visibility, VisPublic};
 use syn::token::{Comma, Pub};
@@ -12,7 +12,7 @@ use crate::composer::basic::BasicComposer;
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER, FFI_ASPECT_SEQ_CONTEXT};
 use crate::composer::composable::{BasicComposable, BindingComposable, ConversionComposable, DropComposable, SourceExpandable, FFIObjectComposable, NameContext};
 use crate::composer::r#type::TypeComposer;
-use crate::composition::AttrsComposition;
+use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
 use crate::naming::Name;
@@ -153,7 +153,7 @@ impl ItemComposer {
         context: &ParentComposer<ScopeContext>,
     ) -> ItemParentComposer {
         Self::new::<ItemParentComposer>(
-            Context::Struct { ident: target_name.clone() },
+            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes() },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
             &Punctuated::from_iter([Field {
@@ -189,7 +189,7 @@ impl ItemComposer {
         ctor_composer: ConstructorComposer<ItemParentComposer>,
         fields_composer: FieldsComposer) -> ItemParentComposer {
         Self::new::<ItemParentComposer>(
-            Context::Struct { ident: target_name.clone() },
+            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes() },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
             fields,
@@ -265,6 +265,7 @@ impl ItemComposer {
             getter_composer: MethodComposer::new(
                 |(root_obj_type, field_name, field_type)|
                     BindingPresentation::Getter {
+                        attrs: quote! {},
                         name: Name::Getter(root_obj_type.to_path(), field_name.clone()),
                         field_name,
                         obj_type: root_obj_type.to_token_stream(),
@@ -274,13 +275,20 @@ impl ItemComposer {
             setter_composer: MethodComposer::new(
                 |(root_obj_type, field_name, field_type)|
                     BindingPresentation::Setter {
+                        attrs: quote! {},
                         name: Name::Setter(root_obj_type.to_path(), field_name.clone()),
                         field_name,
                         obj_type: root_obj_type.to_token_stream(),
                         field_type: field_type.to_token_stream()
                     },
                 FFI_ASPECT_SEQ_CONTEXT),
-            dtor_composer: MethodComposer::new(BINDING_DTOR_COMPOSER, |composer: &Ref<ItemComposer>| Aspect::FFI(composer.base.name_context()).present(&composer.source_ref())),
+            dtor_composer: MethodComposer::new(
+                BINDING_DTOR_COMPOSER,
+                |composer: &Ref<ItemComposer>| (
+                    Aspect::FFI(composer.base.name_context()).present(&composer.source_ref()),
+                    composer.compose_attributes().to_token_stream()
+                )
+            ),
             ctor_composer,
             ffi_conversions_composer,
             ffi_object_composer,
@@ -316,13 +324,16 @@ impl SourceExpandable for ItemComposer {
     }
 
     fn expand(&self) -> Expansion {
+        // println!("ItemComposer::expand: {}", self.compose_object().to_token_stream());
         Expansion::Full {
+            attrs: self.compose_attributes(),
             comment: self.base.compose_docs(),
             ffi_presentation: self.compose_object(),
             conversion: ConversionComposable::<ItemParentComposer>::compose_conversion(self),
             drop: self.compose_drop(),
             bindings: self.compose_bindings(),
-            traits: BasicComposable::<ItemParentComposer>::compose_attributes(self)
+            // traits: BasicComposable::<ItemParentComposer>::compose_attributes(self)
+            traits: Depunctuated::new()
         }
     }
 }
@@ -330,6 +341,7 @@ impl SourceExpandable for ItemComposer {
 impl DropComposable for ItemComposer {
     fn compose_drop(&self) -> DropInterfacePresentation {
         DropInterfacePresentation::Full {
+            attrs: self.compose_attributes(),
             ty: self.base.ffi_name_aspect().present(&self.source_ref()),
             body: self.compose_aspect(FFIAspect::Drop)
         }

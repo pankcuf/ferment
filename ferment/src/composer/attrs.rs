@@ -4,7 +4,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::composer::{Composer, LinkedComposer, Depunctuated, ParentComposer};
 use crate::composer::trait_composer::TraitComposer;
-use crate::composition::{AttrsComposition, FnReturnTypeComposer, TraitDecompositionPart2};
+use crate::composition::{AttrsComposition, CfgAttributes, FnReturnTypeComposer, TraitDecompositionPart2};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{FFIResolveExtended, Mangle, Resolve, ToPath, ToType};
 use crate::holder::EMPTY;
@@ -34,7 +34,7 @@ impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
     type Source = ParentComposer<ScopeContext>;
     type Result = Depunctuated<Expansion>;
     fn compose(&self, context: &Self::Source) -> Self::Result {
-        Depunctuated::new()
+        self.attrs.cfg_attributes()
         // TODO: currently disable trait expansion via attributes,
         // TODO: migrate onto composable RefinedTree version
         // let attrs_composition = &self.attrs;

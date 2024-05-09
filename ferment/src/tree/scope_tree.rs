@@ -3,11 +3,11 @@ use std::fmt::{Debug, Formatter};
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{ItemUse, UseRename, UseTree};
+use syn::{Attribute, ItemUse, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use syn::token::Semi;
 use crate::composer::{Depunctuated, ParentComposer};
-use crate::composition::{create_item_use_with_tree, ImportComposition};
+use crate::composition::{CfgAttributes, create_item_use_with_tree, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
 use crate::ext::{Join, RefineUnrefined};
@@ -21,6 +21,7 @@ pub struct ScopeTree {
     pub scope: ScopeChain,
     pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
+    pub attrs: Vec<Attribute>,
     pub scope_context: ParentComposer<ScopeContext>,
 }
 impl Debug for ScopeTree {
@@ -108,6 +109,7 @@ impl ToTokens for ScopeTree {
         let conversions = self.exports();
         if !conversions.is_empty() {
             Expansion::Mod {
+                attrs: self.attrs.cfg_attributes(),
                 directives: quote!(),
                 name,
                 imports,
@@ -121,17 +123,19 @@ pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ParentComposer<ScopeContext>,
     imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
-    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>
+    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
+    attrs: Vec<Attribute>
 ) -> ScopeTree {
     // print_phase!("PHASE 2: SCOPE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
-    create_scope_tree(ScopeChain::crate_root(crate_ident), scope_context, imported, exported)
+    create_scope_tree(ScopeChain::crate_root(crate_ident), scope_context, imported, exported, attrs)
 }
 
 pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ParentComposer<ScopeContext>,
     imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
-    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>
+    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
+    attrs: Vec<Attribute>
 ) -> ScopeTree {
     let exported = exported.into_iter()
         .map(|(scope_id, scope_tree_export_item)| {
@@ -139,23 +143,20 @@ pub fn create_scope_tree(
                 ScopeTreeExportItem::Item(
                     scope_context,
                     item) =>
-                    {
-                        //println!("ADD (item): {}: [{}]", scope_id, scope.joined(&item).self_path_holder_ref());
-                        ScopeTreeItem::Item {
-                            scope: scope.joined(&item),
-                            item,
-                            scope_context
-                        }
+                    ScopeTreeItem::Item {
+                        scope: scope.joined(&item),
+                        item,
+                        scope_context
                     },
                 ScopeTreeExportItem::Tree(
                     scope_context,
                     imported,
-                    exported) =>
+                    exported,
+                    attrs) =>
                     {
-                        //println!("ADD (tree): {}: [{}]", scope_id, scope_id.create_child_scope(&scope).self_path_holder_ref());
-
+                        println!("add (TREE): {}: {}", scope_context.borrow().scope.self_path_holder_ref(), attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<_>>().to_token_stream());
                         ScopeTreeItem::Tree {
-                            tree: create_scope_tree(scope_id.create_child_scope(&scope), scope_context, imported, exported)
+                            tree: create_scope_tree(scope_id.create_child_scope(&scope), scope_context, imported, exported, attrs)
                         }
                     }
             };
@@ -167,6 +168,7 @@ pub fn create_scope_tree(
         exported,
         scope,
         imported,
-        scope_context
+        attrs,
+        scope_context,
     }
 }

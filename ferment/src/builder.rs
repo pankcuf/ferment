@@ -10,6 +10,7 @@ use crate::error;
 use crate::file::FileTreeProcessor;
 use crate::tree::ScopeTreeExportItem;
 use cargo_metadata::MetadataCommand;
+use syn::Attribute;
 
 extern crate env_logger;
 
@@ -50,8 +51,8 @@ impl Crate {
         self.root_path.join("lib.rs")
     }
 
-    pub fn process(&self, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
-        FileTreeProcessor::process_crate_tree(self, context)
+    pub fn process(&self, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
+        FileTreeProcessor::process_crate_tree(self, attrs, context)
     }
 }
 

@@ -3,12 +3,12 @@ use proc_macro2::Ident;
 use syn::punctuated::Punctuated;
 use std::rc::Rc;
 use std::cell::RefCell;
-use quote::quote;
+use quote::{quote, ToTokens};
 use crate::composer::{AttrsComposer, Composer, constants, Depunctuated, EnumParentComposer, FFIAspect, ItemParentComposer, OwnerIteratorPostProcessingComposer, ParentComposer, VariantComposer, VariantIteratorLocalContext};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, BindingComposable, ConversionComposable, DropComposable, SourceExpandable, FFIObjectComposable, NameContext};
 use crate::composer::r#type::TypeComposer;
-use crate::composition::AttrsComposition;
+use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::presentation::context::{FieldTypePresentableContext, name, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
@@ -49,12 +49,15 @@ impl SourceExpandable for EnumComposer {
 
     fn expand(&self) -> Expansion {
         Expansion::Full {
-            comment: self.base.compose_docs(),
+            attrs: self.compose_attributes(),
+            comment: self.compose_docs(),
             ffi_presentation: self.compose_object(),
             conversion: ConversionComposable::<EnumParentComposer>::compose_conversion(self),
             drop: self.compose_drop(),
             bindings: self.compose_bindings(),
-            traits: self.base.compose_attributes()
+            // traits: self.base.compose_attributes()
+            // TODO: migrate to specific composer chain
+            traits: Depunctuated::new()
         }
     }
 }
@@ -63,13 +66,16 @@ impl DropComposable for EnumComposer {
     fn compose_drop(&self) -> DropInterfacePresentation {
         let source = self.source_ref();
         DropInterfacePresentation::Full {
+            attrs: self.compose_attributes(),
             ty: self.base.ffi_name_aspect().present(&source),
             body: OwnerIteratorPresentationContext::MatchFields((
                 FieldTypePresentableContext::Simple(quote!(self)).into(),
                 self.variant_composers
                     .iter()
-                    .map(|composer|
-                        OwnedItemPresentableContext::Conversion(composer.borrow().compose_aspect(FFIAspect::Drop)))
+                    .map(|composer| {
+                        let comp = composer.borrow();
+                        OwnedItemPresentableContext::Conversion(comp.compose_aspect(FFIAspect::Drop), comp.compose_attributes().to_token_stream())
+                    })
                     .collect()))
                 .present(&source)
         }
@@ -100,8 +106,16 @@ impl<Parent> ConversionComposable<Parent> for EnumComposer where Parent: SharedA
     fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
         let (conversions_from_ffi, conversions_to_ffi) = self.variant_composers.iter().map(|composer| {
             let composer_owned = composer.borrow();
-            (composer_owned.compose_aspect(FFIAspect::From),
-             composer_owned.compose_aspect(FFIAspect::To))
+            let attrs = composer_owned.compose_attributes();
+            let from = composer_owned.compose_aspect(FFIAspect::From);
+            let to = composer_owned.compose_aspect(FFIAspect::To);
+            (quote! {
+                #attrs
+                #from
+            }, quote! {
+                #attrs
+                #to
+            })
         }).unzip();
         (FromConversionPresentation::Enum(conversions_from_ffi),
          ToConversionPresentation::Enum(conversions_to_ffi),
@@ -123,7 +137,7 @@ impl EnumComposer {
             base: BasicComposer::new(
                 AttrsComposer::new(AttrsComposition::from(attrs, target_name, scope)),
                 constants::enum_composer_doc(),
-                TypeComposer::new(Context::Enum { ident: target_name.clone() }),
+                TypeComposer::new(Context::Enum { ident: target_name.clone(), attrs: attrs.cfg_attributes() }),
                 Some(generics.clone()),
                 Rc::clone(context)
             ),

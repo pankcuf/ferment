@@ -9,7 +9,7 @@ use crate::composer::{AttrsComposer, BindingComposer, Composer, constants, Depun
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
 use crate::composer::r#type::TypeComposer;
-use crate::composition::{AttrsComposition, FnSignatureContext};
+use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DocPresentation, Expansion, ScopeContextPresentable};
@@ -32,11 +32,12 @@ impl SigComposer {
         doc_composer: TypeContextComposer<SigParentComposer>,
         binding_composer: BindingComposer<SigParentComposer>,
         context: &ParentComposer<ScopeContext>) -> SigParentComposer {
+        let cfg_attrs = attrs.cfg_attributes();
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::new(
                 AttrsComposer::new(attrs),
                 doc_composer,
-                TypeComposer::new(Context::Fn { path, sig_context, }),
+                TypeComposer::new(Context::Fn { path, sig_context, attrs: cfg_attrs }),
                 generics,
                 Rc::clone(context)
             ),
@@ -100,7 +101,7 @@ impl SourceExpandable for SigComposer {
         // TODO: source.scope or local_scope?
         // let scope = source.scope.self_path_holder_ref();
         let binding = match self.name_context_ref() {
-            Context::Fn { path: full_fn_path, sig_context } => {
+            Context::Fn { path: full_fn_path, sig_context, attrs } => {
                 // println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => {
@@ -113,10 +114,11 @@ impl SourceExpandable for SigComposer {
                             .map(|arg| arg.name_type_original.clone())
                             .collect::<Punctuated<_, _>>();
                         let argument_conversions = argument_comps
-                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source)))
+                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote! {}))
                             .collect::<Punctuated<_, _>>();
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((target_name_context.clone(), argument_conversions));
                         BindingPresentation::RegularFunction {
+                            attrs: attrs.to_token_stream(),
                             is_async: sig.asyncness.is_some(),
                             arguments: arguments.present(&source),
                             name: Name::ModFn(full_fn_path.clone()),
@@ -135,10 +137,11 @@ impl SourceExpandable for SigComposer {
                             .map(|arg| arg.name_type_original.clone())
                             .collect::<Punctuated<_, _>>();
                         let argument_conversions = argument_comps
-                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source)))
+                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote! {}))
                             .collect::<Punctuated<_, _>>();
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((ffi_name_context.clone(), argument_conversions));
                         BindingPresentation::RegularFunction {
+                            attrs: attrs.to_token_stream(),
                             is_async: sig.asyncness.is_some(),
                             arguments: arguments.present(&source),
                             name: Name::ModFn(full_fn_path.clone()),

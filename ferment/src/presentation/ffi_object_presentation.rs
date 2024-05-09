@@ -9,6 +9,7 @@ use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, Expansion};
 use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 
+#[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {
     Empty,
     // StaticVTable {
@@ -24,6 +25,7 @@ pub enum FFIObjectPresentation {
     // },
     TraitVTable {
         name: Name,
+        attrs: Depunctuated<Expansion>,
         fields: Punctuated<Expansion, Comma>
     },
     // TraitVTableInnerFn {
@@ -33,6 +35,7 @@ pub enum FFIObjectPresentation {
     // },
     TraitObject {
         name: Name,
+        attrs: Depunctuated<Expansion>,
         vtable_name: Name,
     },
     Full(TokenStream2),
@@ -49,13 +52,11 @@ impl ToTokens for FFIObjectPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Self::Full(presentation) => quote!(#presentation),
-            Self::TraitVTable { name, fields } => {
-                println!("FFIObjectPresentation::TraitVTable:: {:?} [{}]", name, fields.to_token_stream());
-                create_struct(&name.to_path(), quote!({ #fields }))
+            Self::TraitVTable { name, attrs, fields } => {
+                create_struct(&name.to_path(), attrs.clone(), quote!({ #fields }))
             },
-            Self::TraitObject { name, vtable_name } => {
-                println!("FFIObjectPresentation::TraitObject:: {:?} [{}]", name, vtable_name.to_token_stream());
-                create_struct(&name.to_path(), quote!({ pub object: *const (), pub vtable: *const #vtable_name }))
+            Self::TraitObject { name, attrs, vtable_name } => {
+                create_struct(&name.to_path(), attrs.clone(), quote!({ pub object: *const (), pub vtable: *const #vtable_name }))
             },
             Self::Generic {
                 object_presentation,

@@ -4,6 +4,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{PathArguments, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::conversion::GenericTypeConversion;
+use crate::ext::DictionaryType;
 
 #[derive(Clone, Eq)]
 pub enum TypeConversion {
@@ -44,10 +45,19 @@ impl From<Type> for TypeConversion {
     fn from(ty: Type) -> Self {
         match ty {
             Type::Path(TypePath { ref path , ..}) => {
+                let first_segment = path.segments.first().unwrap();
                 let last_segment = path.segments.last().unwrap();
+                let first_ident = &first_segment.ident;
+                let last_ident = &last_segment.ident;
                 match &last_segment.arguments {
                     PathArguments::AngleBracketed(..) => {
-                        match last_segment.ident.to_string().as_str() {
+                        // if last_ident.is_box() {
+                        //     TypeConversion::Generic(GenericTypeConversion::Box(ty))
+                        // } else if last_ident.is_smart_ptr() {
+                        //     TypeConversion::Generic(GenericTypeConversion::AnyOther(ty))
+                        // }
+
+                        match last_ident.to_string().as_str() {
                             "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
                             "Arc" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
                             "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
@@ -56,6 +66,7 @@ impl From<Type> for TypeConversion {
                             "HashSet" => TypeConversion::Generic(GenericTypeConversion::HashSet(ty)),
                             "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
                             "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
+                            "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
                                     Some(TypeConversion::Generic(GenericTypeConversion::AnyOther(ty.clone()))),
@@ -63,7 +74,7 @@ impl From<Type> for TypeConversion {
                             }).unwrap_or(TypeConversion::Complex(ty))
                         }
                     },
-                    _ => match last_segment.ident.to_string().as_str() {
+                    _ => match last_ident.to_string().as_str() {
                         // std convertible
                         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
                         | "isize" | "usize" | "bool" => TypeConversion::Primitive(ty),
@@ -73,6 +84,7 @@ impl From<Type> for TypeConversion {
                         "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
                         "HashSet" => TypeConversion::Generic(GenericTypeConversion::HashSet(ty)),
                         "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
+                        "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
                         "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                         _ => {
                             path.segments.iter().find_map(|ff| match &ff.arguments {

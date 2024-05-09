@@ -34,6 +34,7 @@ impl ScopeContextPresentable for BindingPresentableContext {
             BindingPresentableContext::Destructor(ty) => {
                 let ffi_name = ty.to_token_stream();
                 BindingPresentation::Destructor {
+                    attrs: Default::default(),
                     name: Name::Destructor(ty.clone()),
                     ffi_name
                 }

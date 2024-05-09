@@ -35,7 +35,7 @@ impl TraitsResolver {
     }
 
     pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<&TraitCompositionPart1> {
-        println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
+        // println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
         self.inner
             .get(scope)
             .and_then(|dict| dict.get(ident))

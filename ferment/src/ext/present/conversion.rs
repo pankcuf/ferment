@@ -1,8 +1,9 @@
 use quote::{quote, ToTokens};
 use syn::{Path, Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
+use crate::composer::Depunctuated;
 use crate::conversion::FieldTypeConversion;
-use crate::ext::Mangle;
+use crate::ext::{DictionaryType, Mangle};
 use crate::helper::path_arguments_to_paths;
 use crate::interface::ffi_to_conversion;
 use crate::naming::Name;
@@ -109,7 +110,7 @@ impl Conversion for TypeArray {
         // let len = &type_array.len;
         match &*self.elem {
             Type::Path(TypePath { path: Path { segments, .. }, .. }) =>
-                if matches!(segments.last().unwrap().ident.to_string().as_str(), "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool") {
+                if segments.last().unwrap().ident.is_primitive() {
                     // FieldTypePresentableContext::DerefContext(field_path.into())
                     FieldTypePresentableContext::From(field_path.into())
                 } else {
@@ -248,7 +249,7 @@ impl Conversion for TypeReference {
                 //type_path.conversion_from(field_path)
             },
             Type::Slice(type_slice) => {
-                println!("SLICE IN REF: {}", self.to_token_stream());
+                // println!("SLICE IN REF: {}", self.to_token_stream());
                 type_slice.conversion_from(field_path)
                 // if self.mutability.is_some() {
                 //     FieldTypePresentableContext::AsMutRef(type_slice.conversion_from(field_path).into())
@@ -295,59 +296,71 @@ impl Conversion for TypeReference {
 impl Conversion for TypePath {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         let last_segment = self.path.segments.last().unwrap();
-        match last_segment.ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool" => field_path,
+        let last_ident = &last_segment.ident;
+        if last_ident.is_primitive() {
+            field_path
+        } else if last_ident.is_optional() {
+            let opt_ident = &path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident;
             // TODO: redo this
-            "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
-                // std convertible
-                // TODO: what to use? 0 or ::MAX
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
-                | "isize" | "usize" => FieldTypePresentableContext::IfThen(field_path.into(), quote!(> 0)),
+            // TODO: what to use? 0 or ::MAX
+            if opt_ident.is_digit() {
+                FieldTypePresentableContext::IfThen(field_path.into(), quote!(> 0))
+            } else if opt_ident.is_bool() {
                 // TODO: mmm shit that's incorrect
-                "bool" => FieldTypePresentableContext::IfThen(field_path.into(), quote!()),
-                _ => FieldTypePresentableContext::FromOpt(field_path.into()),
-            },
-            _ => FieldTypePresentableContext::From(field_path.into()),
+                FieldTypePresentableContext::IfThen(field_path.into(), quote!())
+            } else {
+                FieldTypePresentableContext::FromOpt(field_path.into())
+            }
+        } else if last_ident.is_box() {
+            FieldTypePresentableContext::Into(FieldTypePresentableContext::From(field_path.into()).into())
+        } else {
+            FieldTypePresentableContext::From(field_path.into())
         }
     }
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         let last_segment = self.path.segments.last().unwrap();
-        match last_segment.ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
-            | "usize" | "bool" => field_path,
-            "Option" => match path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
-                // TODO: MAX/MIN? use optional primitive?
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" =>
-                    FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0)),
-                "bool" =>
-                    FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false)),
-                "Vec" =>
-                    FieldTypePresentableContext::OwnerIteratorPresentation(
-                        OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
-                            OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec))),
-                            OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()))
-                        ])))),
-                _ => FieldTypePresentableContext::ToOpt(field_path.into()),
-            },
-            _ => FieldTypePresentableContext::To(field_path.into()),
+        let last_ident = &last_segment.ident;
+        if last_ident.is_primitive() {
+            field_path
+        } else if last_ident.is_optional() {
+            let opt_ident = &path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident;
+            if opt_ident.is_digit() {
+                FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0))
+            } else if opt_ident.is_bool() {
+                FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false))
+            } else if opt_ident.is_vec() {
+                FieldTypePresentableContext::OwnerIteratorPresentation(
+                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
+                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec)), quote! {}),
+                        OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()), quote! {})
+                    ]))))
+            } else {
+                FieldTypePresentableContext::ToOpt(field_path.into())
+            }
+        } else {
+            FieldTypePresentableContext::To(field_path.into())
         }
     }
 
     fn conversion_destroy(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         let last_segment = self.path.segments.last().unwrap();
-        match last_segment.ident.to_string().as_str() {
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
-            | "usize" | "bool" => FieldTypePresentableContext::Empty,
-            "Option" => match path_arguments_to_paths(&self.path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident.to_string().as_str() {
-                "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool" =>
-                    FieldTypePresentableContext::Empty,
-                _ =>
-                    FieldTypePresentableContext::IsNull(field_path.into())
-            },
-            "String" => FieldTypePresentableContext::DestroyConversion(field_path.into(), self.path.to_token_stream()),
-            "str" => FieldTypePresentableContext::DestroyConversion(field_path.into(), quote!(&#self)),
-            _ => FieldTypePresentableContext::UnboxAnyTerminated(field_path.into()),
+        let last_ident = &last_segment.ident;
+        if last_ident.is_primitive() {
+            FieldTypePresentableContext::Empty    
+        } else if last_ident.is_optional() {
+            let opt_ident = &path_arguments_to_paths(&self.path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident;
+            if opt_ident.is_primitive() {
+                FieldTypePresentableContext::Empty
+            } else {
+                FieldTypePresentableContext::IsNull(field_path.into())
+            }
+        } else if last_ident.is_string() {
+            FieldTypePresentableContext::DestroyConversion(field_path.into(), self.path.to_token_stream())
+        } else if last_ident.is_str() {
+            FieldTypePresentableContext::DestroyConversion(field_path.into(), quote!(&#self))
+        } else {
+            FieldTypePresentableContext::UnboxAnyTerminated(field_path.into())
         }
     }
 }
@@ -358,7 +371,12 @@ impl Conversion for TypeTuple {
             .enumerate()
             .map(|(index, elem)|
                 elem.conversion_from(
-                        FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(Name::UnnamedArg(index), elem.clone())).into()))
+                    FieldTypePresentableContext::FfiRefWithConversion(
+                        FieldTypeConversion::Unnamed(
+                            Name::UnnamedArg(index),
+                            elem.clone(),
+                            Depunctuated::new()))
+                        .into()))
             .collect())
     }
 

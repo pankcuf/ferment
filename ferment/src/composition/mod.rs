@@ -11,7 +11,7 @@ mod generic_bound_composition;
 mod smart_pointer_composition;
 mod trait_vtable_composition;
 
-pub use attrs_composition::AttrsComposition;
+pub use attrs_composition::{AttrsComposition, CfgAttributes};
 pub use type_composition::{TypeComposition, NestedArgument};
 pub use function_composition::FnArgComposer;
 pub use function_composition::FnReturnTypeComposer;

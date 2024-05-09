@@ -2,13 +2,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use proc_macro2::Ident;
+use quote::ToTokens;
 use syn::{Generics, ItemTrait, Path, TraitItem, TraitItemMethod, Type};
 use crate::composer::{AttrsComposer, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
 use crate::composer::r#type::TypeComposer;
 use crate::composer::signature::SigComposer;
-use crate::composition::{AttrsComposition, FnSignatureContext, TraitTypeDecomposition};
+use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext, TraitTypeDecomposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{Mangle, ToPath, ToType};
 use crate::naming::Name;
@@ -85,11 +86,12 @@ impl TraitComposer {
         doc_composer: TypeContextComposer<TraitParentComposer>,
         context: &ParentComposer<ScopeContext>
     ) -> TraitParentComposer {
+        let cfg_attrs = attrs.cfg_attributes();
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::new(
                 AttrsComposer::new(attrs),
                 doc_composer,
-                TypeComposer::new(Context::Trait { path: self_path, }),
+                TypeComposer::new(Context::Trait { path: self_path, attrs: cfg_attrs }),
                 generics,
                 Rc::clone(context)
             ),
@@ -155,13 +157,16 @@ impl SourceExpandable for TraitComposer {
             .iter()
             .map(|sig_composer| sig_composer.borrow().expand())
             .collect();
+        let attrs = self.compose_attributes();
         Expansion::Trait {
             comment: DocPresentation::Empty,
             vtable: FFIObjectPresentation::TraitVTable {
+                attrs: attrs.clone(),
                 name: vtable_name.clone(),
                 fields
             },
             trait_object: FFIObjectPresentation::TraitObject {
+                attrs,
                 name: Name::TraitObj(mangled_ty),
                 vtable_name
             }

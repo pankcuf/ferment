@@ -34,6 +34,7 @@ pub enum FieldTypePresentableContext {
     DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<FieldTypePresentableContext>),
+    Into(Box<FieldTypePresentableContext>),
     CastFrom(Box<FieldTypePresentableContext>, TokenStream2, TokenStream2),
     // FromConst(Box<FieldTypePresentableContext>),
     FromOffsetMap,
@@ -98,6 +99,8 @@ impl Display for FieldTypePresentableContext {
                 format!("FieldTypePresentableContext::FromRawParts({})", context),
             FieldTypePresentableContext::From(context) =>
                 format!("FieldTypePresentableContext::From({})", context),
+            FieldTypePresentableContext::Into(context) =>
+                format!("FieldTypePresentableContext::Into({})", context),
             FieldTypePresentableContext::CastFrom(context, ty, ffi_ty) =>
                 format!("FieldTypePresentableContext::CastFrom({}, {}, {})", context, ty, ffi_ty),
             FieldTypePresentableContext::FromOffsetMap =>
@@ -274,7 +277,10 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             FieldTypePresentableContext::AsSlice(field_path) => {
                 let conversion = field_path.present(source);
                 quote!(#conversion.as_slice())
-                // quote!(#conversion)
+            }
+            FieldTypePresentableContext::Into(field_path) => {
+                let conversion = field_path.present(source);
+                quote!(Box::new(#conversion))
             }
         }
     }

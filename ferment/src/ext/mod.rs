@@ -9,7 +9,7 @@ mod present;
 mod r#abstract;
 pub use self::collection::ScopeCollection;
 pub use self::constraints::Constraints;
-pub use self::r#abstract::{Accessory, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};
+pub use self::r#abstract::{Accessory, DictionaryType, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};
 pub use self::present::{Conversion, Mangle, MangleDefault, Terminated};
 pub use self::refine::{Refine, RefineMut, RefineAtScope, RefineUnrefined, Unrefined};
 pub use self::resolve::{FFIResolveExtended, ffi_chunk_converted, ffi_external_chunk, FFIResolve, Resolve, ResolveTrait};

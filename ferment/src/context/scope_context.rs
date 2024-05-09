@@ -45,6 +45,11 @@ impl ScopeContext {
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
     }
+    pub fn populated(scope: ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, context: Arc<RwLock<GlobalContext>>) -> Self {
+        let mut s = Self { scope, context };
+        s.populate_imports(item, imported);
+        s
+    }
     pub fn add_custom_conversion(&self, scope: ScopeChain, path: PathHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
         let mut lock = self.context.write().unwrap();

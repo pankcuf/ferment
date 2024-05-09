@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::{Add, Comma};
 use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
-use crate::ext::{CrateExtension, NestingExtension, VisitScopeType};
+use crate::ext::{CrateExtension, DictionaryType, NestingExtension, VisitScopeType};
 use crate::formatter::format_token_stream;
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
@@ -377,30 +377,32 @@ fn cache_path_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposi
 }
 fn import_pair(path: &Path, imports: &HashMap<PathHolder, Path>) -> (ImportConversion, PathHolder) {
     let original_or_external_pair = |value| {
-        println!("import_pair:::value: {}", format_token_stream(value));
         let scope = PathHolder::from(value);
         (if scope.is_crate_based() { ImportConversion::Original } else { ImportConversion::External }, scope)
     };
     let path_scope= PathHolder::from(path);
-    println!("import_pair: {}", format_token_stream(path));
+    // println!("import_pair: {}", format_token_stream(path));
     match path.get_ident() {
-        Some(ident) => match ident.to_string().as_str() {
-            // accessible without specifying scope
-            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize"
-            | "usize" | "bool" | "str" | "String" | "Vec" | "Option" | "Box" =>
-                (ImportConversion::None, parse_quote!(#ident)),
-            // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)
-            _ =>
+        Some(ident) => {
+            if ident.is_primitive() || ident.is_any_string() || ident.is_vec() || ident.is_optional() || ident.is_box() {
+                // accessible without specifying scope
+                (ImportConversion::None, parse_quote!(#ident))
+            } else {
+                // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)
                 imports.get(&path_scope)
                     .map_or((ImportConversion::Inner, parse_quote!(#ident)), original_or_external_pair)
+            }
         },
         // partial chunk
         None => {
             imports.get(&path_scope)
-                .map_or(match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "Vec" | "Option" | "Box" => (ImportConversion::None, path_scope),
-                    _ => (ImportConversion::ExternalChunk, path_scope),
-                }, original_or_external_pair)
+                .map_or({
+                    let last_ident = &path.segments.last().unwrap().ident;
+                    if last_ident.is_vec() || last_ident.is_optional() || last_ident.is_box() {
+                        (ImportConversion::None, path_scope)
+                    } else {
+                        (ImportConversion::ExternalChunk, path_scope)
+                    }}, original_or_external_pair)
         }
     }
 }

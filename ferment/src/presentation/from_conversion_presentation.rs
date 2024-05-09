@@ -3,6 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
+#[derive(Clone, Debug)]
 pub enum FromConversionPresentation {
     Just(TokenStream2),
     Tuple(Punctuated<TokenStream2, Comma>),

@@ -8,12 +8,12 @@ use syn::__private::TokenStream2;
 use crate::composer::{ConstructorPresentableContext, Depunctuated};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, FFIResolve, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{Accessory, DictionaryType, FFIResolve, Mangle, Resolve, ToPath, ToType};
 use crate::helper::{path_arguments_to_type_conversions, usize_to_tokenstream};
 use crate::interface::{create_struct, ffi_to_conversion};
 use crate::naming::{DictionaryExpression, DictionaryFieldName, Name};
 use crate::presentation::context::{BindingPresentableContext, FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext};
-use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
+use crate::presentation::{DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 use crate::wrapped::Wrapped;
 
@@ -45,6 +45,7 @@ impl GenericArgPresentation {
 pub enum GenericTypeConversion {
     Map(Type),
     IndexMap(Type),
+    SerdeJsonMap(Type),
     Vec(Type),
     BTreeSet(Type),
     HashSet(Type),
@@ -62,6 +63,7 @@ impl ToTokens for GenericTypeConversion {
         match self {
             GenericTypeConversion::Map(ty) |
             GenericTypeConversion::IndexMap(ty) |
+            GenericTypeConversion::SerdeJsonMap(ty) |
             GenericTypeConversion::Vec(ty) |
             GenericTypeConversion::BTreeSet(ty) |
             GenericTypeConversion::HashSet(ty) |
@@ -80,6 +82,7 @@ impl GenericTypeConversion {
         match self {
             GenericTypeConversion::Map(ty) |
             GenericTypeConversion::IndexMap(ty) |
+            GenericTypeConversion::SerdeJsonMap(ty) |
             GenericTypeConversion::Vec(ty) |
             GenericTypeConversion::BTreeSet(ty) |
             GenericTypeConversion::HashSet(ty) |
@@ -274,9 +277,10 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: error_type, from_conversion: from_error_conversion, to_conversion: to_error_conversion, destructor: error_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(arg_0_name, ok_type.joined_mut()),
-                        FieldTypeConversion::Named(arg_1_name, error_type.joined_mut()),
+                        FieldTypeConversion::Named(arg_0_name, ok_type.joined_mut(), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_1_name, error_type.joined_mut(),  Depunctuated::new()),
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -452,10 +456,11 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name,key.joined_mut()),
-                        FieldTypeConversion::Named(arg_1_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -631,10 +636,191 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name,key.joined_mut()),
-                        FieldTypeConversion::Named(arg_1_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
+                    ]),
+                    Depunctuated::from_iter([
+                        InterfacePresentation::Conversion {
+                            types: (ffi_as_type.clone(), target_type.clone()),
+                            conversions: (
+                                FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
+                                ToConversionPresentation::Map(quote!(#to_key_conversion), quote!(#to_value_conversion)),
+                                DestroyPresentation::Default,
+                                None
+                            )
+                        }
+                    ]),
+                    Depunctuated::from_iter([key_destructor, value_destructor]),
+                    source
+                )
+            },
+            GenericTypeConversion::SerdeJsonMap(ty) => {
+                let path: Path = ty.to_path();
+                let PathSegment { arguments, .. } = path.segments.last().unwrap();
+                let path_conversions = path_arguments_to_type_conversions(arguments);
+                let arg_0_name = Name::Dictionary(DictionaryFieldName::Keys);
+                let arg_1_name = Name::Dictionary(DictionaryFieldName::Values);
+                let count_name = Name::Dictionary(DictionaryFieldName::Count);
+                let (arg_0_presentation, arg_1_presentation) = match &path_conversions[..] {
+                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
+                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
+                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_primitive_vec(quote!(self.#arg_0_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_primitive_vec(quote!(self.#arg_1_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_values()),
+                        )
+                    }
+                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
+                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_primitive_vec(quote!(self.#arg_0_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values())
+                        )
+                    }
+                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
+                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_ffi_type().joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_primitive_vec(quote!(self.#arg_0_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values()),
+                        )
+                    }
+                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_values()),
+                        )
+                    }
+                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values()),
+                        )
+                    }
+                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_0_ffi_type = arg_0_target_path.ffi_resolve_or_same(source).joined_mut();
+                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_ffi_type().joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values()),
+                        )
+                    }
+                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Primitive(arg_1_target_path)] => {
+                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_type().joined_mut();
+                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_primitive_vec(quote!(self.#arg_1_name)),
+                                ffi_from_primitive(),
+                                ffi_to_primitive_values()),
+                        )
+                    }
+                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Complex(arg_1_target_path)] => {
+                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_type().joined_mut();
+                        let arg_1_ffi_type = arg_1_target_path.ffi_resolve_or_same(source).joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values()),
+                        )
+                    }
+                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
+                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_ffi_type().joined_mut();
+                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_ffi_type().joined_mut();
+                        (
+                            GenericArgPresentation::new(
+                                arg_0_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_keys()),
+                            GenericArgPresentation::new(
+                                arg_1_ffi_type,
+                                ffi_destroy_complex_vec(quote!(self.#arg_1_name)),
+                                ffi_from_complex(),
+                                ffi_to_complex_values()),
+                        )
+                    }
+                    _ => unimplemented!("Generic path arguments conversion error"),
+                };
+                let target_type: Type = path.to_type();
+                let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = arg_0_presentation;
+                let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
+                compose_generic_presentation(
+                    ffi_name,
+                    Depunctuated::new(),
+                    Depunctuated::from_iter([
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -692,9 +878,10 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -754,9 +941,10 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -812,9 +1000,10 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -867,12 +1056,13 @@ impl GenericTypeConversion {
                     }
                 };
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_0_presentation;
-                println!("from_value_conversion: {}", from_value_conversion);
+                // println!("from_value_conversion: {}", from_value_conversion);
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -932,9 +1122,10 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize)),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut())
+                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
+                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -1001,10 +1192,11 @@ impl GenericTypeConversion {
                     .collect::<Depunctuated<(Type, Depunctuated<GenericArgPresentation>)>>();
                 compose_generic_presentation(
                     ffi_name,
+                    Depunctuated::new(),
                     Depunctuated::from_iter(
                         tuple_items.iter()
                             .enumerate()
-                            .map(|(index, (root_path, _))| FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path)))),
+                            .map(|(index, (root_path, _))| FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path), Depunctuated::new()))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             types: (ffi_as_type, parse_quote!(#type_tuple)),
@@ -1028,6 +1220,7 @@ impl GenericTypeConversion {
 }
 fn compose_generic_presentation(
     ffi_name: Ident,
+    attrs: Depunctuated<Expansion>,
     field_conversions: Depunctuated<FieldTypeConversion>,
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
@@ -1037,8 +1230,8 @@ fn compose_generic_presentation(
     let ffi_as_type: Type = parse_quote!(#ffi_name);
     let fields = Punctuated::<_, Comma>::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
     let body = Wrapped::<_, Brace>::new(fields.present(&source));
-    let object_presentation = create_struct(&ffi_as_path, body.to_token_stream());
-    let drop_presentation = DropInterfacePresentation::Full { ty: ffi_as_type.clone(), body: drop_body.to_token_stream() };
+    let object_presentation = create_struct(&ffi_as_path, attrs.clone(), body.to_token_stream());
+    let drop_presentation = DropInterfacePresentation::Full { attrs, ty: ffi_as_type.clone(), body: drop_body.to_token_stream() };
     let bindings = compose_bindings(&ffi_as_type, field_conversions).present(&source);
     FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
 }
@@ -1046,7 +1239,7 @@ fn compose_generic_presentation(
 fn compose_bindings(ffi_type: &Type, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
     Depunctuated::from_iter([
         BindingPresentableContext::Constructor(
-            ConstructorPresentableContext::Default(ffi_type.clone()),
+            ConstructorPresentableContext::Default(ffi_type.clone(), quote! {}),
             conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), false)).collect(),
             IteratorPresentationContext::Curly(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect())),
         BindingPresentableContext::Destructor(ffi_type.clone())
@@ -1057,7 +1250,7 @@ fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, sourc
     let ty = ty.resolve(source);
     match TypeConversion::from(&ty) {
         TypeConversion::Primitive(arg_ty) => {
-            let from_conversion = FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_ty.clone())).present(source);
+            let from_conversion = FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_ty.clone(), Depunctuated::new())).present(source);
             let to_conversion = FieldTypePresentableContext::ObjFieldName(field_name).present(source);
             (arg_ty.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_ty,
@@ -1067,7 +1260,7 @@ fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, sourc
             )]))
         }
         TypeConversion::Complex(arg_type) => {
-            let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type.clone())).into()).present(source);
+            let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type.clone(), Depunctuated::new())).into()).present(source);
             let to_conversion = FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(field_name).into()).present(source);
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type,
@@ -1078,7 +1271,7 @@ fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, sourc
         TypeConversion::Generic(root_path) => {
             // TODO: make sure it does work (actually it doesn't)
             let arg_type: Type = parse_quote!(#root_path);
-            let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type.clone())).into()).present(source);
+            let from_conversion = FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type.clone(), Depunctuated::new())).into()).present(source);
             let to_conversion = FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(field_name).into()).present(source);
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type,
@@ -1202,30 +1395,23 @@ fn ffi_destroy_complex_slice(field_name: TokenStream2) -> TokenStream2 {
 
 pub fn single_generic_ffi_type(ty: &Type) -> Type {
     let path: Path = parse_quote!(#ty);
+    let first_segment = path.segments.first().unwrap();
     let mut cloned_segments = path.segments.clone();
+    let first_ident = &first_segment.ident;
     let last_segment = cloned_segments.iter_mut().last().unwrap();
     let last_ident = &last_segment.ident;
-    match last_ident.to_string().as_str() {
-        // simple primitive type
-        "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "f64" | "u64" | "i128" | "u128" |
-        "isize" | "usize" | "bool" => parse_quote!(#last_ident),
-        // complex special type
-        "str" | "String" => parse_quote!(std::os::raw::c_char),
-        "Vec" | "BTreeMap" | "HashMap" | "BTreeSet" | "HashSet" | "IndexMap" => {
-            let ffi_name = path.mangle_ident_default();
-            parse_quote!(crate::fermented::generics::#ffi_name)
-        },
-        "Result" if cloned_segments.len() == 1 => {
-            let ffi_name = path.mangle_ident_default();
-            parse_quote!(crate::fermented::generics::#ffi_name)
-
-        },
-        _ => {
-            let new_segments = cloned_segments
-                .into_iter()
-                .map(|segment| quote_spanned! { segment.span() => #segment })
-                .collect::<Vec<_>>();
-            parse_quote!(#(#new_segments)::*)
-        }
+    if last_ident.is_primitive() {
+        parse_quote!(#last_ident)
+    } else if last_ident.is_any_string() {
+        parse_quote!(std::os::raw::c_char)
+    } else if last_ident.is_special_generic() || (last_ident.is_result() && path.segments.len() == 1) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+        let ffi_name = path.mangle_ident_default();
+        parse_quote!(crate::fermented::generics::#ffi_name)
+    } else {
+        let new_segments = cloned_segments
+            .into_iter()
+            .map(|segment| quote_spanned! { segment.span() => #segment })
+            .collect::<Vec<_>>();
+        parse_quote!(#(#new_segments)::*)
     }
 }

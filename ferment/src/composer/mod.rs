@@ -48,16 +48,16 @@ pub use self::method::MethodComposer;
 
 #[derive(Clone)]
 pub enum ConstructorPresentableContext {
-    EnumVariant(Type),
-    Default(Type)
+    EnumVariant(Type, TokenStream2),
+    Default(Type, TokenStream2)
 }
 impl Debug for ConstructorPresentableContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EnumVariant(ty) =>
-                f.write_str(format!("EnumVariant({})", ty.to_token_stream()).as_str()),
-            Self::Default(ty) =>
-                f.write_str(format!("Default({})", ty.to_token_stream()).as_str()),
+            Self::EnumVariant(ty, attrs) =>
+                f.write_str(format!("EnumVariant({}, {})", ty.to_token_stream(), attrs).as_str()),
+            Self::Default(ty, attrs) =>
+                f.write_str(format!("Default({}, {})", ty.to_token_stream(), attrs).as_str()),
         }
     }
 }
@@ -114,7 +114,7 @@ pub type FieldsOwnerContext<T> = (T, FieldTypesContext);
 pub type LocalConversionContext = FieldsOwnerContext<Aspect>;
 pub type ConstructorFieldsContext = FieldsOwnerContext<ConstructorPresentableContext>;
 pub type BindingAccessorContext = (Type, TokenStream2, TokenStream2);
-pub type DestructorContext = Type;
+pub type DestructorContext = (Type, TokenStream2);
 pub type FieldTypeLocalContext = (TokenStream2, FieldTypePresentableContext);
 
 pub type OwnedItemPresentablePair = (OwnedItemPresentableContext, OwnedItemPresentableContext);

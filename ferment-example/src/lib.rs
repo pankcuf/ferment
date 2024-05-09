@@ -5,6 +5,7 @@ pub mod example;
 pub mod data_contract;
 pub mod state_transition;
 pub mod errors;
+pub mod document;
 // pub mod asyn;
 // #[allow(dead_code)]
 // pub mod identity;

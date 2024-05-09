@@ -8,7 +8,7 @@ use crate::composition::{GenericBoundComposition, TypeComposition};
 use crate::context::GlobalContext;
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, Pop, ToPath, ToType};
+use crate::ext::{CrateExtension, DictionaryType, Pop, ToPath, ToType};
 use crate::helper::path_arguments_to_nested_objects;
 use crate::holder::PathHolder;
 
@@ -253,29 +253,20 @@ impl ScopeChain {
         }
     }
 
-
-
     pub fn maybe_dictionary_type(&self, path: &Path, source: &GlobalContext) -> Option<TypeCompositionConversion> {
-        let nested_arguments = path_arguments_to_nested_objects(&path.segments.last().unwrap().arguments, &(self, source));
-        path.get_ident().and_then(|ident| {
-            let ident = ident.to_string();
-            let ident = ident.as_str();
-            if matches!(ident, "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize" | "bool") {
-                // println!("maybe_dictionary_type (found primitive):  {}", quote!(#path));
+        path.segments.last().and_then(|last_segment| {
+            let nested_arguments = path_arguments_to_nested_objects(&last_segment.arguments, &(self, source));
+            let ident = &last_segment.ident;
+            if ident.is_primitive() {
                 Some(TypeCompositionConversion::Primitive(TypeComposition::new_non_gen(path.to_type(), None)))
-            } else if matches!(ident, "String" | "str" ) {
+            } else if ident.is_any_string() {
                 Some(TypeCompositionConversion::Object(TypeComposition::new_non_gen(path.to_type(), None)))
-            } else if matches!(ident, "Box" | "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")  {
-                // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
+            } else if ident.is_smart_ptr() {
                 Some(TypeCompositionConversion::SmartPointer(TypeComposition::new(path.to_type(), None, nested_arguments)))
-            } else if matches!(ident, "Send" | "Sync" | "Clone" | "Sized")  {
-                // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
+            } else if ident.is_special_std_trait()  {
                 Some(TypeCompositionConversion::TraitType(TypeComposition::new_non_gen(path.to_type(), None)))
-            } else if matches!(ident, "FromIterator") {
-                // println!("maybe_dictionary_type (found smart pointer):  {}", quote!(#path));
+            } else if matches!(ident.to_string().as_str(), "FromIterator") {
                 Some(TypeCompositionConversion::TraitType(TypeComposition::new(path.to_type(), None, nested_arguments)))
-            // } else if matches!(ident, "Vec") {
-            //     Some(TypeCompositionConversion::Object(TypeComposition::new(path.to_type(), None, nested_arguments)))
             } else {
                 None
             }

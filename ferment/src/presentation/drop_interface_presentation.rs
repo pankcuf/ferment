@@ -1,9 +1,13 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Type;
+use crate::composer::Depunctuated;
+use crate::presentation::Expansion;
 
+#[derive(Clone, Debug)]
 pub enum DropInterfacePresentation {
     Full {
+        attrs: Depunctuated<Expansion>,
         ty: Type,
         body: TokenStream2
     }
@@ -12,8 +16,11 @@ pub enum DropInterfacePresentation {
 impl ToTokens for DropInterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Full { ty, body} =>
-                quote!(impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } })
+            Self::Full { attrs, ty, body} =>
+                quote! {
+                    #attrs
+                    impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } }
+                }
         }.to_tokens(tokens)
     }
 }

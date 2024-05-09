@@ -1021,76 +1021,46 @@ impl GlobalContext {
                     match self.maybe_import(reexport_scope, &path) {
                         Some(reexport_import) => {
                             let reexport_scope_path = reexport_scope.self_path_holder_ref();
-                            println!("[INFO] Re-export found: \n\t[{}] +\n\t[{}]\n\t[{}]",
-                                     format_token_stream(reexport_scope_path),
-                                     format_token_stream(reexport_import),
-                                     format_token_stream(&chunk));
-
-                            let segments: Punctuated<PathSegment, Colon2> = if chunk.is_some() {
-                                let reexport_chunk = reexport_import.popped();
-                                match reexport_import.segments.first().unwrap().ident.to_string().as_str() {
-                                    "crate" => {
-                                        let crate_name_chunk = reexport_scope.crate_ident().to_path();
-                                        let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
-                                        let new_segments_iter = result.segments.iter().skip(reexport_scope_path.len());
-                                        let new_path: Path = parse_quote!(#(#new_segments_iter)::*);
-
-
-                                        // println!("----- {} + {}", new_path.to_token_stream(), chunk.to_token_stream());
-                                        let re_result = merge_reexport_chunks(&new_path, &chunk.as_ref().unwrap());
-                                        // println!("----- {}", re_result.to_token_stream());
-
-                                        parse_quote!(#re_result)
-                                        // result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
-                                    },
-                                    "self" => {
-                                        reexport_import.segments.iter().skip(1).cloned().collect()
-                                    },
-                                    "super" => {
-                                        let super_path = reexport_scope_path.popped();
-                                        parse_quote!(#super_path::#reexport_import)
-                                    },
-                                    _ => parse_quote!(#reexport_chunk::#chunk)
+                            // println!("[INFO] Re-export found: \n\t[{}] +\n\t[{}]\n\t[{}]",
+                            //          format_token_stream(reexport_scope_path),
+                            //          format_token_stream(reexport_import),
+                            //          format_token_stream(&chunk));
+                            let segments: Punctuated<PathSegment, Colon2> = match (reexport_import.segments.first().unwrap().ident.to_string().as_str(), chunk.as_ref()) {
+                                ("crate", Some(chunk_ref)) => {
+                                    let crate_name_chunk = reexport_scope.crate_ident().to_path();
+                                    let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
+                                    let new_segments_iter = result.segments.iter().skip(reexport_scope_path.len());
+                                    let new_path: Path = parse_quote!(#(#new_segments_iter)::*);
+                                    let re_result = merge_reexport_chunks(&new_path, chunk_ref);
+                                    parse_quote!(#re_result)
+                                },
+                                ("crate", None) => {
+                                    let crate_name_chunk = reexport_scope.crate_ident().to_path();
+                                    let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
+                                    result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
+                                },
+                                ("self", Some(chunk_ref)) => {
+                                    reexport_import.segments.iter().skip(1).cloned().collect()
+                                },
+                                ("self", None) => {
+                                    reexport_import.segments.iter().skip(1).cloned().collect()
+                                },
+                                ("super", Some(chunk_ref)) => {
+                                    let super_path = reexport_scope_path.popped();
+                                    parse_quote!(#super_path::#reexport_import)
+                                },
+                                ("super", None) => {
+                                    let super_path = reexport_scope_path.popped();
+                                    parse_quote!(#super_path::#reexport_import)
+                                },
+                                (_, Some(chunk_ref)) => {
+                                    let reexport_chunk = reexport_import.popped();
+                                    parse_quote!(#reexport_chunk::#chunk_ref)
                                 }
-                            } else {
-                                match reexport_import.segments.first().unwrap().ident.to_string().as_str() {
-                                    "crate" => {
-                                        let crate_name_chunk = reexport_scope.crate_ident().to_path();
-                                        let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
-                                        result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
-                                    },
-                                    "self" => {
-                                        reexport_import.segments.iter().skip(1).cloned().collect()
-                                    },
-                                    "super" => {
-                                        let super_path = reexport_scope_path.popped();
-                                        parse_quote!(#super_path::#reexport_import)
-                                    },
-                                    _ => parse_quote!(#reexport_import)
+                                (_, None) => {
+                                    parse_quote!(#reexport_import)
                                 }
                             };
-
-
-
-                            // if reexport_import is current-crate-based then (crate::xx::)
-                            //      replace 'crate' with actual crate name and use it as is
-                            // else
-                            //      if reexport_import is external-crate-based (external_crate_name::xx::)
-                            //          use it as is
-                            //      else
-                            //          join as #reexport_chunk::#chunk
-
-                            //
-                            // let result_chunk: Path = if chunk.is_some() {
-                            //     let reexport_chunk = reexport_import.popped();
-                            //     parse_quote!(#reexport_chunk::#chunk)
-                            // } else {
-                            //     parse_quote!(#reexport_import)
-                            // };
-                            // if reexport_import.is_crate_based() {
-                            //
-                            // }
-                            // println!("REFINED: [{}] + [{}]", reexport_scope_path.to_token_stream(), segments.to_token_stream());
                             result = Some(parse_quote!(#reexport_scope_path::#segments));
                             chunk = Some(Path { segments, leading_colon: None });
                         },
@@ -1165,18 +1135,14 @@ impl GlobalContext {
         if last_import_segment.is_some() &&
             last_alias_segment.is_some() &&
             last_import_segment.unwrap().ident == last_alias_segment.unwrap().ident {
-            println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
-                     format_token_stream(import_path),
-                     format_token_stream(alias),
-            scope.self_path_holder_ref());
-            // println!("[INFO] Try refine import: [{}]\n\talias: [{}]\n\tscope: [{}]",
+            // println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
             //          format_token_stream(import_path),
             //          format_token_stream(alias),
-            //          scope.self_path_holder_ref());
+            // scope.self_path_holder_ref());
             let reexport = self.lookup_reexport(import_path);
-            if reexport.is_some() {
-                println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
-            }
+            // if reexport.is_some() {
+            //     println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
+            // }
             return reexport;
         }
         None

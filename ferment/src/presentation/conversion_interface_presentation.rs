@@ -5,6 +5,7 @@ use crate::naming::DictionaryFieldName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
+#[derive(Clone, Debug)]
 pub enum InterfacePresentation {
     Conversion {
         types: (

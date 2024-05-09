@@ -1,15 +1,18 @@
 use syn::Path;
 use quote::quote;
 use syn::__private::TokenStream2;
+use crate::composer::Depunctuated;
 use crate::ext::Terminated;
 use crate::naming::DictionaryFieldName;
+use crate::presentation::Expansion;
 
 
-pub fn create_struct(path: &Path, implementation: TokenStream2) -> TokenStream2 {
+pub fn create_struct(path: &Path, attrs: Depunctuated<Expansion>, implementation: TokenStream2) -> TokenStream2 {
     let ident = &path.segments.last().unwrap().ident;
     quote! {
         #[repr(C)]
         #[derive(Clone)]
+        #attrs
         pub struct #ident #implementation
     }
 }

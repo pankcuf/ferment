@@ -5,7 +5,8 @@ use syn::token::Comma;
 use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, ToPath};
+use crate::ext::{CrateExtension, DictionaryType, ToPath};
+use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
@@ -62,7 +63,7 @@ impl<'a> VisitScopeType<'a> for Type {
     type Result = ObjectConversion;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        nprint!(1, Emoji::Node, "=== {} [{:?}]", self.to_token_stream(), self);
+        nprint!(1, crate::formatter::Emoji::Node, "=== {}", self.to_token_stream());
         match self {
             Type::Path(type_path) => type_path.update_nested_generics(source),
             Type::TraitObject(type_trait_object) => type_trait_object.update_nested_generics(source),
@@ -111,21 +112,22 @@ impl<'a> VisitScopeType<'a> for Path {
         let first_ident = &first_segment.ident;
         let last_segment = segments.last().unwrap();
         let last_ident = &last_segment.ident;
-        // let last_ident_str = last_ident.to_string().as_str();
         let import_seg: PathHolder = parse_quote!(#first_ident);
         let import_type_path: TypePathHolder = parse_quote!(#first_ident);
 
-        if let Some(dict_type_composition) = scope.maybe_dictionary_type(&import_seg.0, context) {
-            nprint!(1, Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
+        let mut nested_import_seg: Path = parse_quote!(#last_ident);
+        nested_import_seg.segments.last_mut().unwrap().arguments = last_segment.arguments.clone();
+        if let Some(dict_type_composition) = scope.maybe_dictionary_type(&nested_import_seg, context) {
+            nprint!(1, crate::formatter::Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
             ObjectConversion::Type(dict_type_composition)
         } else if let Some(bounds_composition) = scope.maybe_generic_bound_for_path(&import_seg.0) {
-            nprint!(1, Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
+            nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
             ObjectConversion::Type(TypeCompositionConversion::Bounds(bounds_composition))
         } else if let Some(mut import_path) = context.maybe_import(scope, &import_seg).cloned() {
             // Can be reevaluated after processing entire scope tree:
             // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
             // We can also determine the type after processing entire scope (if one in fermented crate)
-            nprint!(1, Emoji::Local, "(ScopeImport) {}", format_token_stream(&import_path));
+            nprint!(1, crate::formatter::Emoji::Local, "(ScopeImport) {}", import_path.to_token_stream());
             if import_path.is_crate_based() {
                 import_path.replace_first_with(&scope.crate_ident_as_path());
             }
@@ -152,10 +154,10 @@ impl<'a> VisitScopeType<'a> for Path {
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
                 let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope).cloned() {
-                    nprint!(1, Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
+                    nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
                     segments
                 } else {
-                    nprint!(1, Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
+                    nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
                     let first_bound_ident = &first_bound.segments.first().unwrap().ident;
                     let bounds = if matches!(first_bound_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") {
                         first_bound_ident.to_token_stream()
@@ -169,13 +171,13 @@ impl<'a> VisitScopeType<'a> for Path {
             TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                 .to_trait(nested_arguments)
         } else {
-            nprint!(1, Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
+            nprint!(1, crate::formatter::Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
             let obj_scope = scope.obj_root_chain().unwrap_or(scope);
             let object_self_scope = obj_scope.self_scope();
             let self_scope_path = &object_self_scope.self_scope;
             match first_ident.to_string().as_str() {
                 "Self" if segments.len() <= 1 => {
-                    nprint!(1, Emoji::Local, "(Self) {}", format_token_stream(first_ident));
+                    nprint!(1, crate::formatter::Emoji::Local, "(Self) {}", format_token_stream(first_ident));
                     segments.replace_last_with(&self_scope_path.0.segments);
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_unknown(nested_arguments)
@@ -184,7 +186,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     let tail = segments.crate_less();
                     let last_segment = segments.pop().unwrap();
                     let new_path: Path = parse_quote!(#self_scope_path::#tail);
-                    nprint!(1, Emoji::Local, "(SELF::->) {}: {}", format_token_stream(&last_segment), format_token_stream(&last_segment.clone().into_value().arguments));
+                    nprint!(1, crate::formatter::Emoji::Local, "(SELF::->) {}: {}", format_token_stream(&last_segment), format_token_stream(&last_segment.clone().into_value().arguments));
                     segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                     // TODO: why clear ????
                     segments.clear();
@@ -223,11 +225,15 @@ impl<'a> VisitScopeType<'a> for Path {
                     //     .to_object(nested_arguments)
 
                 },
-                _ if matches!(last_ident.to_string().as_str(), "BTreeMap" | "HashMap" | "IndexMap" | "BTreeSet" | "HashSet") => {
+                _ if last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
                 },
-                _ if matches!(first_ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") => {
+                _ if last_ident.is_special_generic() => {
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_object(nested_arguments)
+                },
+                _ if first_ident.is_lambda_fn() => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_trait(nested_arguments)
                 },
@@ -235,7 +241,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     let obj_parent_scope = obj_scope.parent_scope();
                     let len = segments.len();
                     if len == 1 {
-                        nprint!(1, Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}",
+                        nprint!(1, crate::formatter::Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}",
                             if obj_parent_scope.is_some() { "some" } else { "no" },
                             first_ident,
                             scope,
@@ -282,12 +288,12 @@ impl<'a> VisitScopeType<'a> for Path {
                     } else {
                         let tail = segments.crate_less();
                         if let Some(QSelfComposition { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
-                            nprint!(1, Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
+                            nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
 
-                            println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
-                            println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
-                            println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
-                            println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
+                            // println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
+                            // println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
+                            // println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
+                            // println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
 
                             let maybe_import = context.maybe_scope_import_path(scope, &import_seg)
                                 .or(context.maybe_scope_import_path(obj_scope, &import_seg))
@@ -314,11 +320,11 @@ impl<'a> VisitScopeType<'a> for Path {
                                     converted.to_unknown(nested_arguments)
                             }
                         } else {
-                            println!("No root chain: {} --- {}", self.to_token_stream(), nested_arguments.to_token_stream());
-                            println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
-                            println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
-                            println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
-                            println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
+                            // println!("No root chain: {} --- {}", self.to_token_stream(), nested_arguments.to_token_stream());
+                            // println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
+                            // println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
+                            // println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
+                            // println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
 
                             TypePath { qself: new_qself, path: self.clone() }
                                 .to_unknown(nested_arguments)

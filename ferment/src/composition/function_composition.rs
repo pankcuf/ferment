@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, RArrow};
 use crate::composer::{Composer, Depunctuated};
-use crate::composition::Composition;
+use crate::composition::{CfgAttributes, Composition};
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::{Conversion, FFIResolveExtended, Mangle, Resolve};
@@ -378,15 +378,16 @@ impl<'a> Composer<'a> for BareFnArg {
     type Source = ScopeContext;
     type Result = FnArgComposer;
     fn compose(&self, source: &Self::Source) -> Self::Result {
-        let BareFnArg { ty, name, .. } = self;
+        let BareFnArg { ty, attrs, name, .. } = self;
         let name = name.clone().map(|(ident, _)| ident);
-        println!("BareFnArg::compose: {}", ty.to_token_stream());
+        // println!("BareFnArg::compose: {}", ty.to_token_stream());
         FnArgComposer {
             name: name.clone().map(|g| g.to_token_stream()),
             name_type_original: OwnedItemPresentableContext::Named(
                 FieldTypeConversion::Named(
                     Name::Optional(name),
-                    ty.ffi_full_dictionary_type_presenter(source)),
+                    ty.ffi_full_dictionary_type_presenter(source),
+                    attrs.cfg_attributes()),
                 false),
             name_type_conversion: FieldTypePresentableContext::Empty
         }
@@ -398,13 +399,14 @@ impl<'a> Composer<'a> for PatType {
     type Result = FnArgComposer;
     fn compose(&self, source: &Self::Source) -> Self::Result {
         let (ctx, source) = source;
-        let PatType { ty, pat, .. } = self;
+        let PatType { ty, attrs, pat, .. } = self;
         // TODO: handle mut/const with pat
         // println!("PatType::compose: {}", ty.to_token_stream());
         let name_type_original = OwnedItemPresentableContext::Named(
             FieldTypeConversion::Named(
                 Name::Pat(*pat.clone()),
-                ty.ffi_full_dictionary_type_presenter(source)),
+                ty.ffi_full_dictionary_type_presenter(source),
+                attrs.cfg_attributes()),
             false);
         let name_type_conversion = match &**pat {
             Pat::Ident(PatIdent { ident, .. }) => {
@@ -450,7 +452,7 @@ impl<'a> Composer<'a> for Receiver {
 
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
         let (ctx, source) = source;
-        let Receiver { mutability, reference, .. } = self;
+        let Receiver { mutability, reference, attrs, .. } = self;
         match ctx {
             FnSignatureContext::ModFn(_) => panic!("receiver in mod fn"),
             FnSignatureContext::Bare(_, _) => panic!("receiver in bare fn"),
@@ -470,7 +472,8 @@ impl<'a> Composer<'a> for Receiver {
                 let name_type_original = OwnedItemPresentableContext::Named(
                     FieldTypeConversion::Named(
                         Name::Dictionary(DictionaryFieldName::Self_),
-                        parse_quote!(* #access #mangled_ident)),
+                        parse_quote!(* #access #mangled_ident),
+                        attrs.cfg_attributes()),
                     false);
                 let name_type_conversion = if reference.is_some() {
                     FieldTypePresentableContext::AsRef(name_type_conversion.into())

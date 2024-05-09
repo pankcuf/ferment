@@ -3,6 +3,7 @@ use syn::__private::TokenStream2;
 use crate::ext::Terminated;
 use crate::interface::package_unboxed_root;
 
+#[derive(Clone, Debug)]
 pub enum DestroyPresentation {
     Default,
     Custom(TokenStream2)

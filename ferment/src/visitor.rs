@@ -11,7 +11,7 @@ use crate::helper::ItemExtension;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
-
+use crate::formatter::Emoji;
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
     pub parent: PathHolder,
@@ -52,19 +52,15 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
+        // let context = self.context.read().unwrap();
+        // // let fermented_mod_name = &context.config.mod_name;
         if node.ident.to_string().eq("fermented") {
             return;
         }
-        // println!("visit_item_mod: {}", node.to_token_stream());
         let item = Item::Mod(node.clone());
         let module = self.current_module_scope.clone();
         self.current_module_scope = self.current_module_scope.joined(&item);
         self.add_conversion(Item::Mod(node.clone()));
-        // if let Some((_, ref items)) = node.content {
-        //     for node in items {
-        //         syn::visit::visit_item(self, node);
-        //     }
-        // }
         self.current_module_scope = self.current_module_scope.parent_scope().cloned().unwrap_or(module);
     }
 
@@ -81,7 +77,6 @@ impl<'ast> Visit<'ast> for Visitor {
     }
 
     fn visit_item_use(&mut self, node: &'ast ItemUse) {
-        //println!("visit_item_use: {}", node.to_token_stream());
         // TODO: what to do with fn-level use statement?
         let scope = self.current_module_scope.clone();
         self.fold_import_tree(&scope, &node.tree, vec![]);
@@ -90,14 +85,14 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub fn new(scope: ScopeChain, context: &Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn new(scope: ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
         //println!("Visitor::new({})", scope.self_path_holder_ref());
         Self {
             context: context.clone(),
             parent: scope.self_path_holder_ref().clone(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
-            tree: ScopeTreeExportItem::with_global_context(scope, context.clone())
+            tree: ScopeTreeExportItem::with_global_context(scope, context.clone(), attrs)
         }
     }
 
@@ -114,7 +109,6 @@ impl Visitor {
     }
     pub fn into_code_tree(mut self) -> ScopeTreeExportItem {
         self.merge_visitor_trees();
-        // println!("into_code_tree: \n{}", self.tree);
         self.tree
     }
 }
@@ -228,16 +222,14 @@ impl Visitor {
     }
 
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
-        // println!("find_scope_tree: {}", scope);
         let mut current_tree = &mut self.tree;
         for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
             match current_tree {
                 ScopeTreeExportItem::Item(..) =>
                     panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(scope_context, _, exported) => {
-                    // println!("find_scope_tree.1: {}: {}: {}", ident, exported.contains_key(&ident), scope_context.borrow().scope.self_path_holder_ref());
+                ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) => {
                     if !exported.contains_key(&ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_export(scope_context.clone(), HashMap::default()));
+                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_export(scope_context.clone(), HashMap::default(), attrs.clone()));
                     }
                     current_tree = exported.get_mut(&ident).unwrap();
                 }
@@ -261,7 +253,6 @@ impl Visitor {
             },
             (_, Ok(_object)) if item.is_mod() => {
                 //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
-
                 item.add_to_scope(&current_scope, self);
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
