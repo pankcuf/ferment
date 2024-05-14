@@ -22,8 +22,8 @@ pub enum ScopeTreeItem {
 impl Debug for ScopeTreeItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ScopeTreeItem::Item { item, scope, scope_context} =>
-                f.write_str(format!("Item({})", item.ident_string()).as_str()),
+            ScopeTreeItem::Item { item, scope, scope_context: _} =>
+                f.write_str(format!("Item({}, {})", item.ident_string(), scope.self_path_holder_ref()).as_str()),
             ScopeTreeItem::Tree { tree } =>
                 f.write_str(format!("Tree({:?})", tree).as_str()),
         }

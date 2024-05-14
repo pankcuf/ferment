@@ -4,7 +4,6 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{PathArguments, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::conversion::GenericTypeConversion;
-use crate::ext::DictionaryType;
 
 #[derive(Clone, Eq)]
 pub enum TypeConversion {
@@ -96,8 +95,8 @@ impl From<Type> for TypeConversion {
                     }
                 }
             },
-            Type::Tuple(type_tuple) =>
-                TypeConversion::Generic(GenericTypeConversion::Tuple(type_tuple)),
+            Type::Tuple(..) =>
+                TypeConversion::Generic(GenericTypeConversion::Tuple(ty.clone())),
             Type::Array(..) =>
                 TypeConversion::Generic(GenericTypeConversion::Array(ty.clone())),
             Type::Slice(..) =>

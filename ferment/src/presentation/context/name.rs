@@ -1,5 +1,4 @@
 use proc_macro2::Ident;
-use quote::ToTokens;
 use syn::{parse_quote, Path, Type};
 use crate::composer::Depunctuated;
 use crate::composition::FnSignatureContext;
@@ -69,39 +68,39 @@ impl ScopeContextPresentable for Aspect {
         match self {
             Aspect::Target(context) => {
                 match context {
-                    Context::Enum { ident, attrs } |
-                    Context::Struct { ident , attrs} =>
+                    Context::Enum { ident, .. } |
+                    Context::Struct { ident , .. } =>
                         ident.to_type()
                             .resolve(source),
-                    Context::EnumVariant { ident, variant_ident, attrs } => {
+                    Context::EnumVariant { ident, variant_ident, attrs: _ } => {
                         let full_ty = ident.to_type().resolve(source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
-                    Context::Fn { path, attrs, .. } => {
+                    Context::Fn { path, .. } => {
                         path.to_type()
                     }
-                    Context::Trait { path , attrs } => path.to_type().resolve(source)
+                    Context::Trait { path , ..} => path.to_type().resolve(source)
                 }
             },
             Aspect::FFI(context) => {
                 match context {
-                    Context::Enum { ident , attrs } |
-                    Context::Struct { ident , attrs } => {
+                    Context::Enum { ident , .. } |
+                    Context::Struct { ident , .. } => {
                         ident.to_type()
                             .resolve(source)
                             .mangle_ident_default()
                             .to_type()
                     }
-                    Context::Trait { path , attrs } =>
+                    Context::Trait { path , .. } =>
                         path.to_type()
                             .resolve(source)
                             .mangle_ident_default()
                             .to_type(),
-                    Context::EnumVariant { ident, variant_ident, attrs } => {
+                    Context::EnumVariant { ident, variant_ident, attrs: _ } => {
                         let mangled_ty = ident.to_type().resolve(source).mangle_ident_default();
                         parse_quote!(#mangled_ty::#variant_ident)
                     },
-                    Context::Fn { path, sig_context, attrs } => {
+                    Context::Fn { path, sig_context, .. } => {
                         match sig_context {
                             FnSignatureContext::ModFn(item_fn) => {
                                 item_fn
@@ -112,10 +111,10 @@ impl ScopeContextPresentable for Aspect {
                                     .mangle_ident_default()
                                     .to_type()
                             }
-                            FnSignatureContext::TraitInner(self_ty, trait_ty, sig) => {
+                            FnSignatureContext::TraitInner(self_ty, _trait_ty, _sig) => {
                                 self_ty.resolve(source).mangle_ident_default().to_type()
                             },
-                            FnSignatureContext::Impl(self_ty, trait_ty, sig) => {
+                            FnSignatureContext::Impl(self_ty, trait_ty, _sig) => {
                                 let self_ty = self_ty.resolve(source);
                                 let trait_ty = trait_ty.as_ref()
                                     .and_then(|trait_ty|
@@ -130,7 +129,7 @@ impl ScopeContextPresentable for Aspect {
                                     None => path.to_type()
                                 }
                             }
-                            FnSignatureContext::Bare(ident, type_bare_fn) => {
+                            FnSignatureContext::Bare(ident, _type_bare_fn) => {
                                 ident.to_type().resolve(source).mangle_ident_default().to_type()
                             }
                         }
@@ -139,15 +138,15 @@ impl ScopeContextPresentable for Aspect {
             },
             Aspect::RawTarget(context) => {
                 match context {
-                    Context::Enum { ident , attrs} |
-                    Context::Struct { ident , attrs} =>
+                    Context::Enum { ident , attrs: _} |
+                    Context::Struct { ident , attrs: _} =>
                         ident.to_type(),
-                    Context::EnumVariant { ident, variant_ident, attrs } => {
+                    Context::EnumVariant { ident, variant_ident, attrs: _ } => {
                         let full_ty = ident.to_type().resolve(source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
                     Context::Fn { path, .. } => path.to_type(),
-                    Context::Trait { path , attrs } => path.to_type()
+                    Context::Trait { path , attrs: _ } => path.to_type()
                 }
             }
         }

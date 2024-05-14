@@ -4,7 +4,6 @@ use syn::{ItemTrait, Path};
 use crate::composition::TraitCompositionPart1;
 use crate::context::ScopeChain;
 use crate::conversion::ObjectConversion;
-use crate::formatter::format_token_stream;
 use crate::holder::PathHolder;
 
 #[derive(Clone, Default)]

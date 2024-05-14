@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use syn::{GenericArgument, parse_quote, Path, PathArguments, Type, TypePath};
-use syn::punctuated::Punctuated;
+use syn::{GenericArgument, Path, PathArguments, Type, TypePath};
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
-use crate::ext::ToObjectConversion;
 use crate::formatter::types_dict;
 use crate::holder::TypeHolder;
 
@@ -29,11 +27,11 @@ impl Display for CustomResolver {
 }
 
 impl CustomResolver {
-    pub fn add_conversion(&mut self, path: Path, ffi_type: Type, scope: ScopeChain) {
+    pub fn add_conversion(&mut self, regular_ty: TypeHolder, ffi_object: ObjectConversion, scope: ScopeChain) {
         self.inner
             .entry(scope.clone())
             .or_default()
-            .insert(parse_quote!(#path), ffi_type.to_unknown(Punctuated::new()));
+            .insert(regular_ty, ffi_object);
     }
     pub fn maybe_conversion(&self, ty: &Type) -> Option<Type> {
         // println!("maybe_conversion: {}", ty.to_token_stream());

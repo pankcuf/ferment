@@ -5,7 +5,7 @@ use std::ffi::CString;
 use std::hash::Hash;
 use std::{mem, slice};
 use std::os::raw::c_char;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// We pass here main context of parent program
 
@@ -389,62 +389,62 @@ impl<T> FFIConversion<Arc<T>> for T {
 //    }
 //}
 
-pub struct Slice_u32 {
-    pub values: *const u32,
-    pub count: usize,
-}
-impl<'a> FFIConversion<&'a [u32]> for Slice_u32 {
-    unsafe fn ffi_from_const(ffi: *const Self) -> &'a [u32] {
-        let ffi_ref = &*ffi;
-        slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
-    }
-    unsafe fn ffi_to_const(obj: &'a [u32]) -> *const Self {
-        boxed(Self { values: boxed_vec(obj.to_vec()) as *const _, count: obj.len() })
-    }
-}
-
-impl Drop for Slice_u32 {
-    fn drop(&mut self) {
-        unsafe {
-            unbox_vec_ptr(self.values as *mut u32, self.count);
-        }
-    }
-}
-
-
-
-
-
-pub struct Array_u32 {
-    pub values: *mut u32,
-    pub count: usize,
-}
-impl<const N: usize> FFIConversion<[u32; N]> for Array_u32 {
-    unsafe fn ffi_from_const(ffi: *const Self) -> [u32; N] {
-        let ffi_ref = &*ffi;
-        slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
-            .try_into()
-            .expect("Array_u32 Length mismatch")
-    }
-    unsafe fn ffi_to_const(obj: [u32; N]) -> *const Self {
-        boxed(Self {
-            values: boxed_vec(obj.to_vec()),
-            count: N })
-    }
-}
-
-impl Drop for Array_u32 {
-    fn drop(&mut self) {
-        unsafe {
-            unbox_vec_ptr(self.values, self.count);
-        }
-    }
-}
-// Doesn't work since returning &vec owned by fn
-pub struct Slice_String {
-    pub values: *const *const std::os::raw::c_char,
-    pub count: usize,
-}
+// pub struct Slice_u32 {
+//     pub values: *const u32,
+//     pub count: usize,
+// }
+// impl<'a> FFIConversion<&'a [u32]> for Slice_u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> &'a [u32] {
+//         let ffi_ref = &*ffi;
+//         slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+//     }
+//     unsafe fn ffi_to_const(obj: &'a [u32]) -> *const Self {
+//         boxed(Self { values: boxed_vec(obj.to_vec()) as *const _, count: obj.len() })
+//     }
+// }
+//
+// impl Drop for Slice_u32 {
+//     fn drop(&mut self) {
+//         unsafe {
+//             unbox_vec_ptr(self.values as *mut u32, self.count);
+//         }
+//     }
+// }
+//
+//
+//
+//
+//
+// pub struct Array_u32 {
+//     pub values: *mut u32,
+//     pub count: usize,
+// }
+// impl<const N: usize> FFIConversion<[u32; N]> for Array_u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> [u32; N] {
+//         let ffi_ref = &*ffi;
+//         slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+//             .try_into()
+//             .expect("Array_u32 Length mismatch")
+//     }
+//     unsafe fn ffi_to_const(obj: [u32; N]) -> *const Self {
+//         boxed(Self {
+//             values: boxed_vec(obj.to_vec()),
+//             count: N })
+//     }
+// }
+//
+// impl Drop for Array_u32 {
+//     fn drop(&mut self) {
+//         unsafe {
+//             unbox_vec_ptr(self.values, self.count);
+//         }
+//     }
+// }
+// // Doesn't work since returning &vec owned by fn
+// pub struct Slice_String {
+//     pub values: *const *const std::os::raw::c_char,
+//     pub count: usize,
+// }
 
 // impl<'a> FFIConversion<&'a [String]> for Slice_String {
 //     unsafe fn ffi_from_const(ffi: *const Self) -> &'a [String] {
@@ -467,37 +467,37 @@ pub struct Slice_String {
 //     }
 // }
 
-pub struct Array_String {
-    pub values: *mut *mut std::os::raw::c_char,
-    pub count: usize,
-}
-
-impl<const N: usize> FFIConversion<[String; N]> for Array_String {
-    unsafe fn ffi_from_const(ffi: *const Self) -> [String; N] {
-        let ffi_ref = &*ffi;
-        (0..ffi_ref.count)
-            .into_iter()
-            .map(|i| FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
-            .collect::<Vec<String>>()
-            .try_into()
-            .expect("Length mismatch")
-    }
-    unsafe fn ffi_to_const(obj: [String; N]) -> *const Self {
-        boxed(Self {
-            values: boxed_vec(obj.iter()
-                .map(|o| FFIConversion::ffi_to(o.clone()))
-                .collect()),
-            count: obj.len() })
-    }
-}
-
-impl Drop for Array_String {
-    fn drop(&mut self) {
-        unsafe {
-            unbox_any_vec_ptr(self.values as *mut *mut std::os::raw::c_char, self.count);
-        }
-    }
-}
+// pub struct Array_String {
+//     pub values: *mut *mut std::os::raw::c_char,
+//     pub count: usize,
+// }
+//
+// impl<const N: usize> FFIConversion<[String; N]> for Array_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> [String; N] {
+//         let ffi_ref = &*ffi;
+//         (0..ffi_ref.count)
+//             .into_iter()
+//             .map(|i| FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
+//             .collect::<Vec<String>>()
+//             .try_into()
+//             .expect("Length mismatch")
+//     }
+//     unsafe fn ffi_to_const(obj: [String; N]) -> *const Self {
+//         boxed(Self {
+//             values: boxed_vec(obj.iter()
+//                 .map(|o| FFIConversion::ffi_to(o.clone()))
+//                 .collect()),
+//             count: obj.len() })
+//     }
+// }
+//
+// impl Drop for Array_String {
+//     fn drop(&mut self) {
+//         unsafe {
+//             unbox_any_vec_ptr(self.values as *mut *mut std::os::raw::c_char, self.count);
+//         }
+//     }
+// }
 
 
 // impl<'a, const N: usize> FFIConversion<&'a [String; N]> for Slice_String {

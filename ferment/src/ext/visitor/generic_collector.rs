@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use syn::{Item, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{Item, Path, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::composition::GenericConversion;
 use crate::context::TypeChain;
 use crate::conversion::ScopeItemConversion;
@@ -16,8 +16,7 @@ pub trait GenericCollector where Self: TypeCollector {
         let mut generics: HashSet<TypeHolder> = HashSet::new();
         compositions
             .iter()
-            .for_each(|TypeHolder(field_type)|
-                field_type.collect_to(&mut generics));
+            .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
         generics
     }
 
@@ -64,6 +63,7 @@ impl GenericCollector for Type {
             },
             Type::Reference(TypeReference { elem, .. }) =>
                 elem.collect_to(generics),
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
                 bounds.iter().for_each(|bound| match bound {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>

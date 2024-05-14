@@ -24,6 +24,18 @@ pub fn format_imported_dict(dict: &HashMap<ImportConversion, HashSet<ImportCompo
 }
 
 #[allow(unused)]
+pub fn format_scope_refinement(dict: &Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>) -> String {
+    let mut iter = dict.iter()
+        .map(|(scope, types)|
+            format!("\t{}: \n\t\t{}", scope.self_path_holder_ref(), types.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
+                .join("\n\t")))
+        .collect::<Vec<String>>();
+    iter.sort();
+    iter.join("\n")
+
+}
+
+#[allow(unused)]
 pub fn format_type_holders(dict: &HashSet<TypeHolder>) -> String {
     dict.iter()
         // .map(|item| format_token_stream(&item.0))
@@ -83,6 +95,12 @@ pub fn refinement_pair(dict: (&TypeHolder, &Vec<ObjectConversion>)) -> String {
         .join("\n\t"))
     // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
 }
+// #[allow(unused)]
+// pub fn scope_refinement_pair(dict: &(&ScopeChain, HashMap<TypeHolder, ObjectConversion>)) -> String {
+//     format!("\t{}: \n\t\t{}", dict.0.to_token_stream(), dict.1.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
+//         .join("\n\t"))
+//     // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
+// }
 
 #[allow(unused)]
 pub fn ident_type_conversion_pair(dict: (&Ident, &Type)) -> String {

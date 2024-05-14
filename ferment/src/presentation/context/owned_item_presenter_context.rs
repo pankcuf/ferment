@@ -2,12 +2,11 @@ use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
 use syn::Type;
-use crate::composer::Depunctuated;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::FFIResolveExtended;
 use crate::presentation::context::FieldTypePresentableContext;
-use crate::presentation::{Expansion, ScopeContextPresentable};
+use crate::presentation::ScopeContextPresentable;
 
 
 #[derive(Clone)]

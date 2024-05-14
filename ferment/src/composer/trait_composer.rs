@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use proc_macro2::Ident;
-use quote::ToTokens;
 use syn::{Generics, ItemTrait, Path, TraitItem, TraitItemMethod, Type};
 use crate::composer::{AttrsComposer, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;

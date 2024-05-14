@@ -146,6 +146,7 @@ pub type ConstructorComposer<Parent> = SequenceComposer<
     (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
     BindingPresentableContext
 >;
+#[allow(unused)]
 pub type FnComposer<Parent> = SequenceComposer<
     Parent,
     FnSignatureContext,

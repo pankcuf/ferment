@@ -2,9 +2,6 @@ use std::collections::hash_map::OccupiedEntry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use proc_macro2::TokenStream;
-use quote::ToTokens;
-use crate::composer::Depunctuated;
 use crate::context::TypeChain;
 use crate::conversion::ObjectConversion;
 use crate::tree::ScopeTreeExportItem;
@@ -78,8 +75,8 @@ impl ValueReplaceScenario for ScopeTreeExportItem {
 
 impl MergeInto for ScopeTreeExportItem {
     fn merge_into(&self, destination: &mut Self) {
-        if let (ScopeTreeExportItem::Tree(dest_ctx, _, ref mut dest_exports, dest_attrs),
-            ScopeTreeExportItem::Tree(src_ctx, _, source_exports, source_attrs), ) = (destination, &self) {
+        if let (ScopeTreeExportItem::Tree(_dest_ctx, _, ref mut dest_exports, _dest_attrs),
+            ScopeTreeExportItem::Tree(_src_ctx, _, source_exports, _source_attrs), ) = (destination, &self) {
             // println!("•• merge_trees: source: {}: {}", src_ctx.borrow().scope.self_path_holder_ref(), source_attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<TokenStream>>().to_token_stream());
             // println!("•• merge_trees: destination: {}: {}", dest_ctx.borrow().scope.self_path_holder_ref(), dest_attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<TokenStream>>().to_token_stream());
             for (name, source_tree) in source_exports {

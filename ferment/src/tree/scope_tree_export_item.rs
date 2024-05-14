@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::fmt::{Formatter, Write};
+use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -78,6 +78,22 @@ impl ScopeTreeExportItem {
         }
     }
 
+    fn add_items(&mut self, items: &Vec<Item>, scope: &ScopeChain) {
+        items.iter().for_each(|item|
+            match item {
+                Item::Mod(item_mod) =>
+                    self.add_mod_item(item_mod, scope),
+                Item::Const(_) |
+                Item::Enum(_) |
+                Item::Fn(_) |
+                Item::Impl(_) |
+                Item::Struct(_) |
+                Item::Trait(_) |
+                Item::Type(_) => self.add_non_mod_item(item, scope),
+                _ => {}
+            }
+        );
+    }
     fn add_non_mod_item(&mut self, item: &Item, scope: &ScopeChain) {
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
@@ -97,23 +113,6 @@ impl ScopeTreeExportItem {
                         item.clone()));
             }
         }
-    }
-
-    fn add_items(&mut self, items: &Vec<Item>, scope: &ScopeChain) {
-        items.iter().for_each(|item|
-            match item {
-                Item::Mod(item_mod) =>
-                    self.add_mod_item(item_mod, scope),
-                Item::Const(_) |
-                Item::Enum(_) |
-                Item::Fn(_) |
-                Item::Impl(_) |
-                Item::Struct(_) |
-                Item::Trait(_) |
-                Item::Type(_) => self.add_non_mod_item(item, scope),
-                _ => {}
-            }
-        );
     }
 
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {

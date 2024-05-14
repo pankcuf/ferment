@@ -23,6 +23,12 @@ impl ObjectConversion {
             ObjectConversion::Empty => false
         }
     }
+    pub fn is_refined(&self) -> bool {
+        match self {
+            ObjectConversion::Type(conversion) => conversion.is_refined(),
+            _ => true
+        }
+    }
 }
 
 impl ValueReplaceScenario for ObjectConversion {
@@ -31,9 +37,10 @@ impl ValueReplaceScenario for ObjectConversion {
         match (self, other) {
             (_, ObjectConversion::Item(..)) => true,
             (ObjectConversion::Type(self_ty), ObjectConversion::Type(candidate_ty)) => {
-                let should = !self_ty.is_refined() && candidate_ty.is_refined();
+                // let should = !self_ty.is_refined() && candidate_ty.is_refined();
+                let should = !self_ty.is_refined();
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined() || self_ty.is_tuple();
-                //println!("MERGE? {} [{}]: {} [{}]: {}", should, self_ty.is_refined(), self_ty, candidate_ty.is_refined(), candidate_ty);
+                // println!("MERGE? {} [{}]:\n\t {} [{}]: {}", should, self_ty.is_refined(), self_ty, candidate_ty.is_refined(), candidate_ty);
                 should
             }
             _ => false

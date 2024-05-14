@@ -5,6 +5,7 @@ use crate::formatter::format_token_stream;
 use crate::naming::Name;
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum DocPresentation {
     Empty,
     Default(Name),

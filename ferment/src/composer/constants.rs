@@ -397,7 +397,7 @@ pub const fn enum_variant_drop_sequence_mixer(
         enum_variant_composer_drop_sequence_iterator_root())
 }
 pub const fn enum_variant_composer_object() -> OwnerIteratorPostProcessingComposer<ItemParentComposer> {
-    ContextComposer::new(|obj| OwnerIteratorPresentationContext::Empty, EMPTY_CONTEXT_PRESENTER)
+    ContextComposer::new(|_owner_iter| OwnerIteratorPresentationContext::Empty, EMPTY_CONTEXT_PRESENTER)
 }
 
 pub const fn enum_variant_composer_field_presenter() -> OwnedFieldTypeComposerRef {
@@ -507,11 +507,11 @@ pub const VARIANTS_FROM_PRESENTER: EnumComposerPresenterRef<OwnerIteratorPresent
     |composer| {
         let source = composer.source_ref();
         OwnerIteratorPresentationContext::Variants((
-            ((composer.base.target_name_aspect().present(&source), composer.compose_attributes().to_token_stream()),
+            (composer.base.target_name_aspect().present(&source), composer.compose_attributes().to_token_stream()),
             composer.variant_presenters.iter()
                 .map(|(variant_composer, variant_context)|
                     variant_composer(variant_context))
-                .collect())))
+                .collect()))
     };
 pub const fn enum_composer_object() -> OwnerIteratorPostProcessingComposer<EnumParentComposer> {
     ContextComposer::new(

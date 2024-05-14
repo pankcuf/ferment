@@ -2,12 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, Path, Type};
+use syn::punctuated::Punctuated;
 use crate::composer::Depunctuated;
 use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
-use crate::ext::extract_trait_names;
-use crate::holder::PathHolder;
+use crate::ext::{extract_trait_names, ToObjectConversion};
+use crate::holder::TypeHolder;
 use crate::print_phase;
 
 #[derive(Clone)]
@@ -46,17 +47,28 @@ impl ScopeContext {
         Self { scope, context }
     }
     pub fn populated(scope: ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, context: Arc<RwLock<GlobalContext>>) -> Self {
-        let mut s = Self { scope, context };
+        let s = Self { scope, context };
         s.populate_imports(item, imported);
         s
     }
-    pub fn add_custom_conversion(&self, scope: ScopeChain, path: PathHolder, ffi_type: Type) {
+    pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
+        // let path = PathHolder::from(custom_type.0.to_path());
         let mut lock = self.context.write().unwrap();
-        let regular_type = lock.maybe_import(&scope, &path)
-            .unwrap_or(&path.0).clone();
-        lock.custom.add_conversion(regular_type, ffi_type, scope);
+
+        // let regular_type = lock.maybe_import(&scope, &path)
+        //     .unwrap_or(&path.0).clone();
+        lock.custom.add_conversion(
+            custom_type,
+            ffi_type.to_unknown(Punctuated::new()),
+            scope);
     }
+
+    pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
+        let lock = self.context.read().unwrap();
+        lock.custom.maybe_conversion(ty)
+    }
+
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         // println!("full_type_for: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());

@@ -57,13 +57,13 @@ impl ScopeContextPresentable for GenericConversion {
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         let Self { 0: obj } = self;
-        // println!("GenericConversion::present: {}", obj);
         match obj {
             ObjectConversion::Type(type_conversion) |
             ObjectConversion::Item(type_conversion, _) => {
                 match TypeConversion::from(type_conversion.to_ty()) {
-                    TypeConversion::Generic(generic_conversion) =>
-                        generic_conversion.expand(type_conversion, source),
+                    TypeConversion::Generic(generic_conversion) => {
+                        generic_conversion.expand(source)
+                    },
                     conversion =>
                         unimplemented!("non-generic GenericConversion: {}", conversion.to_token_stream())
                 }

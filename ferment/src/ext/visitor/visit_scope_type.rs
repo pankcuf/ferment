@@ -6,7 +6,6 @@ use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};
-use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 

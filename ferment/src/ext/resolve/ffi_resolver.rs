@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
-use crate::conversion::{ObjectConversion, TypeCompositionConversion};
+use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion};
 use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
 use crate::helper::path_arguments_to_paths;
 
@@ -18,6 +18,30 @@ pub trait FFIResolve where Self: Sized + ToTokens + Parse {
     }
 }
 
+pub trait FFITypeResolve {
+    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type;
+    fn to_custom_or_ffi_type_mut_ptr(&self, source: &ScopeContext) -> Type {
+        self.to_custom_or_ffi_type(source).joined_mut()
+    }
+}
+
+impl FFITypeResolve for Type where Self: FFIResolve {
+    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Self {
+        source.maybe_custom_conversion(self)
+            .unwrap_or(self.ffi_resolve_or_same(source))
+    }
+}
+
+impl FFITypeResolve for GenericTypeConversion {
+    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type {
+        self.ty()
+            .and_then(|ty| source.maybe_custom_conversion(ty)
+                .map(|ty| ty.clone()))
+            .unwrap_or(self.to_ffi_type())
+    }
+}
+
+
 pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self>;
     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self;
@@ -28,6 +52,7 @@ pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
         self.ffi_custom_or_internal_type(source)
             .ffi_dictionary_type_presenter(source)
     }
+
 }
 
 impl FFIResolve for Path {

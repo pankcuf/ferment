@@ -3,7 +3,7 @@ mod custom;
 
 extern crate ferment_macro;
 extern crate serde_json;
-// use serde_json::Error;
+
 #[ferment_macro::export]
 pub struct SPV {
     pub version: u32

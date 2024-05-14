@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::Attribute;
 use crate::composer::Depunctuated;

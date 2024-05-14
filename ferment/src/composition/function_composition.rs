@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, RArrow};
 use crate::composer::{Composer, Depunctuated};
-use crate::composition::{CfgAttributes, Composition};
+use crate::composition::CfgAttributes;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::{Conversion, FFIResolveExtended, Mangle, Resolve};
@@ -37,6 +37,7 @@ impl Debug for FnSignatureContext {
 }
 
 impl FnSignatureContext {
+    #[allow(unused)]
     pub fn is_trait_fn(&self) -> bool {
         match self {
             FnSignatureContext::Impl(_, Some(_), _) => true,

@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
-use quote::ToTokens;
 use syn::{Item, Path, Type, TypeReference};
 use crate::composition::GenericConversion;
 use crate::context::ScopeChain;

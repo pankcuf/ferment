@@ -11,7 +11,7 @@ use crate::helper::ItemExtension;
 use crate::holder::{PathHolder, TypeHolder};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
-use crate::formatter::Emoji;
+
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
     pub parent: PathHolder,
@@ -257,15 +257,28 @@ impl Visitor {
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroType::Register(path)), Ok(_object)) => {
+            (Ok(MacroType::Register(custom_type)), Ok(_object)) => {
                 //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
-                if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
-                    ident.map(|ident| {
-                        scope_context.borrow()
-                            .add_custom_conversion(current_scope, path, parse_quote!(#self_scope::#ident));
-                    });
-                }
+                // if let Some(scope) = item.join_scope(&current_scope, self) {
+                    if let ScopeTreeExportItem::Tree(scope_context, _, exported, _) = self.find_scope_tree(&self_scope) {
+                        let scope_context_borrowed = scope_context.borrow();
+                        scope_context_borrowed.add_custom_conversion(current_scope.clone(), custom_type, parse_quote!(#self_scope::#ident));
+                        // let composer = Rc::new(RefCell::new(ScopeContext::populated(
+                        //     scope,
+                        //     &item,
+                        //     &mut HashMap::new(),
+                        //     scope_context_borrowed.context.clone())));
+                        // exported.insert(item.scope_tree_export_id(), ScopeTreeExportItem::Item(composer, item));
+                    }
+                // }
             },
+            // (_, Ok(_object)) => {
+            //     if let Some(scope) = item.join_scope(&current_scope, self) {
+            //         self.find_scope_tree(&self_scope)
+            //             .add_item(item, scope);
+            //     }
+            // },
+
             (_, Ok(_object)) if ident.eq(&Some(&format_ident!("FFIConversion"))) => if let Item::Impl(..) = item {
                 if let Some(_scope) = item.join_scope(&current_scope, self) {
                 }

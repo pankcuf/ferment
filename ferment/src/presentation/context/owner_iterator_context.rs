@@ -106,7 +106,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
         match self {
             OwnerIteratorPresentationContext::Empty =>
                 quote!(),
-            OwnerIteratorPresentationContext::Variants(((name, attrs), fields)) => {
+            OwnerIteratorPresentationContext::Variants(((name, _attrs), fields)) => {
                 let name = name.mangle_ident_default();
                 let presentation = Wrapped::<_, Brace>::new(fields.present(source));
                 quote!(#name #presentation)

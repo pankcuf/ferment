@@ -7,7 +7,6 @@ use syn::token::{Add, Comma};
 use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
 use crate::ext::{CrateExtension, DictionaryType, NestingExtension, VisitScopeType};
-use crate::formatter::format_token_stream;
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 

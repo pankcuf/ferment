@@ -66,7 +66,7 @@ impl SigComposer {
             constants::composer_doc_default(),
             |composer| {
                 let composer = composer.borrow();
-                let source= composer.base.context.borrow();
+                let _source = composer.base.context.borrow();
                 BindingPresentation::Empty
             },
             context)

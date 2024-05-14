@@ -12,6 +12,7 @@ use crate::tree::CrateTree;
 
 /// Root-level composer chain
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum Expansion {
     Empty,
     TokenStream(TokenStream2),

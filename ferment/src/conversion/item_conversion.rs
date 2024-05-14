@@ -327,12 +327,14 @@ fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<Scop
     let ItemFn { attrs, sig, .. } = item;
     let source = context.borrow();
     // println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
-    let scope_path = scope.self_path_holder_ref();
-    let mut full_fn_path = scope_path.clone();
-    if scope_path.is_crate_based() {
-        full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
-    }
-    SigComposer::with_context(full_fn_path.0, &sig.ident, FnSignatureContext::ModFn(item.clone()), &sig.generics, attrs, scope, context)
+    SigComposer::with_context(
+        scope.self_path().crate_named(&source.scope.crate_ident().to_path()),
+        &sig.ident,
+        FnSignatureContext::ModFn(item.clone()),
+        &sig.generics,
+        attrs,
+        scope,
+        context)
         .borrow()
         .expand()
 

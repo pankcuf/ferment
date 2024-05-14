@@ -1,7 +1,6 @@
 use std::time::Duration;
 
-
 #[ferment_macro::export]
-pub struct StructUsesDuration {
-    pub time: Duration
+pub struct StructUsesDurationTuple {
+    pub time: (Duration, Duration)
 }

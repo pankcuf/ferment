@@ -8,6 +8,7 @@ use crate::ext::{Mangle, Pop, ToPath};
 use crate::naming::Name;
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum BindingPresentation {
     Empty,
     Constructor {

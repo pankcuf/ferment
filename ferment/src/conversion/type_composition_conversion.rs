@@ -70,12 +70,9 @@ impl TypeCompositionConversion {
                     .iter()
                     .find(|arg|
                         match arg {
-                            NestedArgument::Object(obj) => {
-                                match obj {
-                                    ObjectConversion::Type(ty) => !ty.is_refined(),
-                                    ObjectConversion::Item(_, _) => false,
-                                    ObjectConversion::Empty => false
-                                }
+                            NestedArgument::Object(obj) => match obj {
+                                ObjectConversion::Type(ty) => !ty.is_refined(),
+                                _ => false
                             }
                         }).is_some()
             },

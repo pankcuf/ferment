@@ -8,7 +8,7 @@ use crate::builder::Crate;
 use crate::composer::Depunctuated;
 use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
-use crate::formatter::{format_generic_conversions, format_tree_exported_dict};
+use crate::formatter::format_generic_conversions;
 use crate::presentation::{Expansion, ScopeContextPresentable};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
 

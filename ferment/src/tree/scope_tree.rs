@@ -154,7 +154,7 @@ pub fn create_scope_tree(
                     exported,
                     attrs) =>
                     {
-                        println!("add (TREE): {}: {}", scope_context.borrow().scope.self_path_holder_ref(), attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<_>>().to_token_stream());
+                        // println!("add (TREE): {}: {}", scope_context.borrow().scope.self_path_holder_ref(), attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<_>>().to_token_stream());
                         ScopeTreeItem::Tree {
                             tree: create_scope_tree(scope_id.create_child_scope(&scope), scope_context, imported, exported, attrs)
                         }
