@@ -12,11 +12,11 @@ use crate::context::custom_resolver::CustomResolver;
 use crate::context::generic_resolver::GenericResolver;
 use crate::context::import_resolver::ImportResolver;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::formatter::{format_global_context, format_scope_refinement, format_token_stream, format_types_dict};
+use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::PathHolder;
 use crate::context::{ScopeResolver, TraitsResolver};
 use crate::context::scope_resolver::ScopeRefinement;
-use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined};
+use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined, ResolveAttrs};
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -202,19 +202,10 @@ impl GlobalContext {
         None
     }
 
-    // pub fn find_scopes_for_path(&self, path: &Path) -> Option<&ScopeChain> {
-    //     self.scope_register.resolve(path)
-    // }
-
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> ScopeChain {
         // println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
         let p = parse_quote!(#ty);
         let scope = if let Some(st) = self.maybe_scope_object(ty, current_scope) {
-            // match st {
-            //     ObjectConversion::Type(_) => {}
-            //     ObjectConversion::Item(_, _) => {}
-            //     ObjectConversion::Empty => {}
-            // }
             let self_ty = st.to_ty().unwrap();
             let self_path: Path = self_ty.to_path();
             self.maybe_scope(&self_path).cloned()
@@ -224,7 +215,7 @@ impl GlobalContext {
             None
         };
         // println!("actual_scope_for_type: [{:?}]", scope);
-        scope.unwrap_or(ScopeChain::crate_root(current_scope.crate_ident().clone()))
+        scope.unwrap_or(ScopeChain::crate_root(current_scope.crate_ident().clone(), vec![]))
     }
     // pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {
     //     let full_scope: PathHolder = parse_quote!(#full_ty);
@@ -333,11 +324,8 @@ impl GlobalContext {
             .inner
             .keys()
             .find_map(|scope_chain|
-                {
-                    // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
-                    path.eq(scope_chain.self_path())
-                        .then(|| scope_chain)
-                })
+                path.eq(scope_chain.self_path())
+                    .then(|| scope_chain))
 
     }
 
@@ -520,7 +508,7 @@ impl GlobalContext {
     }
 
     fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut Punctuated<NestedArgument, Comma>, scope: &ScopeChain) {
-        println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
+        // println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
         // self.refin
         match &mut segment.arguments {
             PathArguments::None => {
@@ -534,11 +522,11 @@ impl GlobalContext {
                             NestedArgument::Object(obj) => {
                                 if let Some(refined) = self.maybe_refined_object(scope, obj) {
                                     let refined_ty = refined.to_ty();
-                                    println!("NESTED REFINED: {} ({})", refined, refined_ty.to_token_stream());
+                                    // println!("NESTED REFINED: {} ({})", refined, refined_ty.to_token_stream());
                                     *obj = refined;
                                     GenericArgument::Type(refined_ty.unwrap())
                                 } else {
-                                    println!("NESTED NON_REFINED: {}", obj);
+                                    // println!("NESTED NON_REFINED: {}", obj);
                                     GenericArgument::Type(obj.to_ty().unwrap())
                                 }
                             }
@@ -555,7 +543,7 @@ impl GlobalContext {
                 args.iter_mut()
                     .for_each(|arg| match arg {
                         GenericArgument::Type(inner_ty) => {
-                            println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
+                            // println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
                             match nested_arguments.pop() {
                                 None => {}
                                 Some(nested_arg) => match nested_arg.into_value() {
@@ -579,7 +567,7 @@ impl GlobalContext {
     fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
         match object {
             ObjectConversion::Type(TypeCompositionConversion::Imported(ty_composition, import_path)) => {
-                println!("maybe_refined_object (Imported)::: {} ---- {}", ty_composition, import_path.to_token_stream());
+                // println!("maybe_refined_object (Imported)::: {} ---- {}", ty_composition, import_path.to_token_stream());
                 let mut ty_replacement = ty_composition.clone();
                 let mut import_type_path: TypePath = parse_quote!(#import_path);
                 let crate_name = scope.crate_ident_as_path();
@@ -596,19 +584,19 @@ impl GlobalContext {
                                 // println!("parent_import_refine: {}", alias_path.to_token_stream());
                                 let alias = alias_path.crate_named(&crate_name);
                                 if let Some(merged) = self.refined_import(&import_type_path.path, &alias, scope) {
-                                    println!("merged import: {}", merged.to_token_stream());
+                                    // println!("merged import: {}", merged.to_token_stream());
                                     import_type_path.path.segments = merged.segments;
                                     refined = true;
                                 }
                             }
-                        } else if let Some(local_ty) = self.maybe_known_item(&ty_replacement, scope) {
+                        } /*else if let Some(local_ty) = self.maybe_known_item(&ty_replacement, scope) {
                             println!("[INFO] No imports in scope: [{}]", mod_chain.self_path_holder_ref());
                         } else {
                             println!("[INFO] No imports No locals in scope: [{}]", mod_chain.self_path_holder_ref());
-                        }
+                        }*/
                     }
                 }
-                println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
+                // println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
                 if !refined {
                     self.maybe_refine_args(import_type_path.path.segments.last_mut().unwrap(), &mut ty_replacement.nested_arguments, scope);
                     // println!("refined_args: result {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
@@ -628,9 +616,9 @@ impl GlobalContext {
                 return Some(ObjectConversion::Type(conversion_replacement));
             },
             ObjectConversion::Type(TypeCompositionConversion::Unknown(ty_to_replace)) => {
-                println!("[INFO] Unknown item found: [{}]", ty_to_replace.ty.to_token_stream());
+                // println!("[INFO] Unknown item found: [{}]", ty_to_replace.ty.to_token_stream());
                 if let Some(refined) = self.maybe_known_item(ty_to_replace, scope) {
-                    println!("[INFO] Refined item found: [{}]", refined.to_token_stream());
+                    // println!("[INFO] Refined item found: [{}]", refined.to_token_stream());
                     return Some(ObjectConversion::Type(refined));
                 } else {
                     println!("[INFO] Unknown item not refined: [{}]", format_token_stream(&ty_to_replace.ty));
@@ -648,10 +636,10 @@ impl GlobalContext {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Slice(new_ty_composition)));
             }
             ObjectConversion::Type(TypeCompositionConversion::Tuple(ty_composition)) => {
-                println!("Refine Tuple.1: {}", ty_composition);
+                // println!("Refine Tuple.1: {}", ty_composition);
                 let mut new_ty_composition = ty_composition.clone();
                 self.refine_nested_ty(&mut new_ty_composition, scope);
-                println!("Refine Tuple.2: {}", new_ty_composition);
+                // println!("Refine Tuple.2: {}", new_ty_composition);
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Tuple(new_ty_composition)));
             },
             ObjectConversion::Type(TypeCompositionConversion::Object(ty_composition)) => {
@@ -753,26 +741,23 @@ impl RefineMut for GlobalContext {
         // println!("GlobalContext::refine_with:\n{}", format_scope_refinement(&refined));
         self.scope_register.refine_with(refined);
         let mut refined_generics = HashSet::<GenericConversion>::new();
-        self.scope_register.inner.values()
-            .for_each(|type_chain| {
-                type_chain.inner.iter().for_each(|(conversion, value)| {
-                    if let Some(ty) = value.to_ty() {
+        self.scope_register.inner.iter()
+            .for_each(|(scope, type_chain)| {
+                let scope_level_attrs = scope.resolve_attrs();
+
+                type_chain.inner.iter().for_each(|(conversion, object)| {
+                    if let Some(ty) = object.to_ty() {
                         refined_generics.extend(ty.find_generics()
                             .iter()
-                            .filter_map(|ty| {
-                                println!("refine_with: maybe custom?: {} --- {}", ty.to_token_stream(), value.to_token_stream());
-                                if self.custom.maybe_conversion(&ty.0).is_some() {
-                                    None
-                                } else {
-                                    Some(GenericConversion::from(value))
-                                }
-                            }));
+                            .filter_map(|ty|
+                                self.custom.maybe_conversion(&ty.0)
+                                    .is_none()
+                                    .then(|| {
+                                        let mut all_attrs = object.resolve_attrs();
+                                        all_attrs.extend(scope_level_attrs.clone());
+                                        GenericConversion::new(object.clone(), all_attrs)
+                                    })));
                     }
-
-
-
-
-                   ;
                 })
             });
         self.refined_generics = refined_generics;
@@ -788,25 +773,18 @@ impl Unrefined for GlobalContext {
                 let scope_types_to_refine = type_chain.inner.iter()
                     .filter_map(|(holder, object)|
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, object) {
-                            println!("to_refine: {}: {} --> {}", holder, object, object_to_refine);
+                            // println!("to_refine: {}: {} --> {}", holder, object, object_to_refine);
                             Some((holder.clone(), object_to_refine))
                         } else {
-                            println!("non-refined: {}: {}", holder, object);
+                            // println!("non-refined: {}: {}", holder, object);
                             None
                         })
                     .collect::<HashMap<_, _>>();
                 if !scope_types_to_refine.is_empty() {
-                    println!("scope_to_refine: {} ---- \n\t{}", scope.self_path_holder_ref(), format_types_dict(&scope_types_to_refine));
+                    // println!("scope_to_refine: {} ---- \n\t{}", scope.self_path_holder_ref(), format_types_dict(&scope_types_to_refine));
                     scope_updates.push((scope.clone(), scope_types_to_refine));
                 }
             });
-
-        // let mut iter = scope_updates.iter()
-        //     .map(|(key, value)| format!("\t{}:\n\t\t{}", key, format_types_dict(&value)))
-        //     .collect::<Vec<String>>();
-        // iter.sort();
-        //
-        // println!("scope_updates: \n{}", iter.join("\n\n"));
         scope_updates
     }
 }
@@ -967,14 +945,14 @@ impl GlobalContext {
         if last_import_segment.is_some() &&
             last_alias_segment.is_some() &&
             last_import_segment.unwrap().ident == last_alias_segment.unwrap().ident {
-            println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
-                     format_token_stream(import_path),
-                     format_token_stream(alias),
-            scope.self_path_holder_ref());
+            // println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
+            //          format_token_stream(import_path),
+            //          format_token_stream(alias),
+            // scope.self_path_holder_ref());
             let reexport = self.lookup_reexport(import_path);
-            if reexport.is_some() {
-                println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
-            }
+            // if reexport.is_some() {
+            //     println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
+            // }
             return reexport;
         }
         None
@@ -993,17 +971,20 @@ pub fn create_mod_chain(path: &Path) -> ScopeChain {
         create_mod_chain(&parent_chunks)
     } else {
         ScopeChain::CrateRoot {
+            attrs: vec![],
             crate_ident: crate_ident.clone(),
             self_scope: Scope { self_scope: PathHolder(parent_chunks), object: ObjectConversion::Empty }
         }
     };
     if segments.len() == 1 {
         ScopeChain::CrateRoot {
+            attrs: vec![],
             crate_ident: crate_ident.clone(),
             self_scope
         }
     } else {
         ScopeChain::Mod {
+            attrs: vec![],
             crate_ident: crate_ident.clone(),
             self_scope,
             parent_scope_chain: Box::new(parent_scope_chain.clone())

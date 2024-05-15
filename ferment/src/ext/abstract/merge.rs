@@ -63,7 +63,7 @@ pub trait MergeInto {
 
 impl ValueReplaceScenario for ScopeTreeExportItem {
     fn should_replace_with(&self, other: &Self) -> bool {
-        println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
+        // println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
             (ScopeTreeExportItem::Tree(..), ScopeTreeExportItem::Tree(..)) => true,
@@ -140,22 +140,3 @@ impl MergeInto for ObjectConversion {
     }
 }
 
-// impl MergeInto for Path {
-//     fn merge_into(&self, destination: &mut Self) {
-//         let full_segments = destination.segments.clone();
-//         let alias_segments = &self.segments;
-//         full_segments.iter().enumerate().for_each(|(index, segment)| {
-//             if let Some(alias_segment) = alias_segments.first() {
-//                 if segment.ident == alias_segment.ident {
-//                     let mut new_segments = Punctuated::new();
-//                     new_segments.extend(full_segments.iter().take(index + 1).cloned());
-//                     if alias_segments.len() > 1 {
-//                         new_segments.extend(alias_segments.iter().skip(1).cloned());
-//                     }
-//                     println!("MERGED: {}", new_segments.to_token_stream());
-//                     destination.segments = new_segments;
-//                 }
-//             }
-//         })
-//     }
-// }

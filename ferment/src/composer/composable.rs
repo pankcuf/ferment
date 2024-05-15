@@ -42,6 +42,7 @@ pub trait ConversionComposable<Parent> where Parent: SharedAccess {
     fn compose_conversion(&self) -> InterfacePresentation where Self: BasicComposable<Parent> {
         let source = self.context().borrow();
         InterfacePresentation::Conversion {
+            attrs: self.compose_attributes(),
             types: (
                 self.ffi_name_aspect().present(&source),
                 self.target_name_aspect().present(&source)

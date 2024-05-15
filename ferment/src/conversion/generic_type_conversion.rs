@@ -142,8 +142,8 @@ impl GenericTypeConversion {
 }
 
 impl GenericTypeConversion {
-    pub fn expand(&self, source: &ScopeContext) -> TokenStream2 {
-        println!("GenericTypeConversion::expand: {}", self);
+    pub fn expand(&self, attrs: &Depunctuated<Expansion>, source: &ScopeContext) -> TokenStream2 {
+        println!("GenericTypeConversion::expand: {} ----\n\t {}", self, attrs.to_token_stream());
         // println!("\t{}\n\t{}", ffi_type.to_token_stream(), ffi_name.to_token_stream());
 
         match self {
@@ -308,13 +308,14 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: error_type, from_conversion: from_error_conversion, to_conversion: to_error_conversion, destructor: error_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(arg_0_name, ok_type.joined_mut(), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_1_name, error_type.joined_mut(),  Depunctuated::new()),
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Result(quote!(#from_ok_conversion), quote!(#from_error_conversion)),
@@ -489,7 +490,7 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
@@ -497,6 +498,7 @@ impl GenericTypeConversion {
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
@@ -671,7 +673,7 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
@@ -679,6 +681,7 @@ impl GenericTypeConversion {
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
@@ -853,7 +856,7 @@ impl GenericTypeConversion {
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
@@ -861,6 +864,7 @@ impl GenericTypeConversion {
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Map(quote!(#from_key_conversion), quote!(#from_value_conversion)),
@@ -917,13 +921,14 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
@@ -932,7 +937,7 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
+                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode, encode }
                     ]),
                     Depunctuated::from_iter([value_destructor]),
                     source
@@ -946,7 +951,7 @@ impl GenericTypeConversion {
                 let path_conversions = path_arguments_to_type_conversions(arguments);
                 let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
                 let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                println!("HashSet:::: {:?}", path_conversions);
+                // println!("HashSet:::: {:?}", path_conversions);
                 let arg_0_presentation = match &path_conversions[..] {
                     [TypeConversion::Primitive(arg_0_target_path)] => {
                         let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
@@ -982,13 +987,14 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
@@ -997,7 +1003,7 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
+                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode, encode }
                     ]),
                     Depunctuated::from_iter([value_destructor]),
                     source
@@ -1043,13 +1049,14 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
@@ -1058,7 +1065,7 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
+                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode, encode }
                     ]),
                     Depunctuated::from_iter([value_destructor]),
                     source
@@ -1103,13 +1110,14 @@ impl GenericTypeConversion {
                 // println!("from_value_conversion: {}", from_value_conversion);
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), ty.clone()),
                             conversions: (
                                 FromConversionPresentation::Just(from_value_conversion),
@@ -1167,13 +1175,14 @@ impl GenericTypeConversion {
 
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter([
                         FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
                         FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
                                 FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
@@ -1182,7 +1191,7 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion { types: (ffi_as_type, target_type), decode, encode }
+                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode, encode }
                     ]),
                     Depunctuated::from_iter([value_destructor]),
                     source
@@ -1203,13 +1212,14 @@ impl GenericTypeConversion {
                     .collect::<Depunctuated<(Type, Depunctuated<GenericArgPresentation>)>>();
                 compose_generic_presentation(
                     ffi_name,
-                    Depunctuated::new(),
+                    attrs.clone(),
                     Depunctuated::from_iter(
                         tuple_items.iter()
                             .enumerate()
                             .map(|(index, (root_path, _))| FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path), Depunctuated::new()))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
                             types: (ffi_as_type, parse_quote!(#ty)),
                             conversions: (
                                 FromConversionPresentation::Tuple(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.clone())).collect()),
@@ -1242,18 +1252,18 @@ fn compose_generic_presentation(
     let fields = Punctuated::<_, Comma>::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
     let body = Wrapped::<_, Brace>::new(fields.present(&source));
     let object_presentation = create_struct(&ffi_as_path, attrs.clone(), body.to_token_stream());
-    let drop_presentation = DropInterfacePresentation::Full { attrs, ty: ffi_as_type.clone(), body: drop_body.to_token_stream() };
-    let bindings = compose_bindings(&ffi_as_type, field_conversions).present(&source);
+    let drop_presentation = DropInterfacePresentation::Full { attrs: attrs.clone(), ty: ffi_as_type.clone(), body: drop_body.to_token_stream() };
+    let bindings = compose_bindings(&ffi_as_type, attrs.clone(), field_conversions).present(&source);
     FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
 }
 
-fn compose_bindings(ffi_type: &Type, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
+fn compose_bindings(ffi_type: &Type, attrs: Depunctuated<Expansion>, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
     Depunctuated::from_iter([
         BindingPresentableContext::Constructor(
-            ConstructorPresentableContext::Default(ffi_type.clone(), quote! {}),
+            ConstructorPresentableContext::Default(ffi_type.clone(), attrs.to_token_stream()),
             conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), false)).collect(),
             IteratorPresentationContext::Curly(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect())),
-        BindingPresentableContext::Destructor(ffi_type.clone())
+        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.clone())
     ])
 }
 

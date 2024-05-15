@@ -97,7 +97,7 @@ impl BindingComposable for EnumComposer {
         bindings.extend(self.variant_composers
             .iter()
             .map(|composer| composer.borrow().ctor_composer.compose(&()).present(&source)));
-        bindings.push(BindingPresentableContext::Destructor(Aspect::FFI(self.base.name_context()).present(&source)).present(&source));
+        bindings.push(BindingPresentableContext::Destructor(Aspect::FFI(self.base.name_context()).present(&source), self.compose_attributes()).present(&source));
         bindings
     }
 }

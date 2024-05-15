@@ -30,7 +30,7 @@ impl FileTreeProcessor {
     }
     pub fn process_crate_tree(crate_config: &Crate, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
         let path = crate_config.root_path();
-        let scope = ScopeChain::crate_root_with_ident(crate_config.ident());
+        let scope = ScopeChain::crate_root_with_ident(crate_config.ident(), attrs.clone());
         Self::new(path, scope, attrs, context)
             .process()
             .map(Visitor::into_code_tree)
@@ -70,7 +70,7 @@ impl FileTreeProcessor {
         visitor
     }
     fn process_module(&self, mod_name: &Ident, attrs: Vec<Attribute>) -> Result<Visitor, error::Error> {
-        let scope = ScopeChain::child_mod(self.scope.crate_ident().clone(), mod_name, &self.scope);
+        let scope = ScopeChain::child_mod(self.scope.crate_ident().clone(), mod_name, &self.scope, attrs.clone());
         let file_path = self.path.parent().unwrap().join(mod_name.to_string());
         if file_path.is_file() {
             return FileTreeProcessor::new(file_path, scope, attrs, &self.context).process();

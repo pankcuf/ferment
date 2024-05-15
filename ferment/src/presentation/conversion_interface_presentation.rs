@@ -1,13 +1,15 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Type};
+use crate::composer::Depunctuated;
 use crate::naming::DictionaryFieldName;
-use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::{Expansion, FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
     Conversion {
+        attrs: Depunctuated<Expansion>,
         types: (
             Type, // FFI
             Type // Original
@@ -20,6 +22,7 @@ pub enum InterfacePresentation {
         ),
     },
     VecConversion {
+        attrs: Depunctuated<Expansion>,
         types: (
             Type, // FFI
             Type // Original
@@ -34,6 +37,7 @@ impl ToTokens for InterfacePresentation {
         match self {
             // Self::Empty => quote!(),
             Self::Conversion {
+                attrs,
                 types: (
                     ffi_type,
                     target_type),
@@ -65,6 +69,7 @@ impl ToTokens for InterfacePresentation {
                 let interface = DictionaryFieldName::Interface;
                 let obj = DictionaryFieldName::Obj;
                 quote! {
+                    #attrs
                     impl #generic_bounds #package::#interface<#target_type> for #ffi_type #where_clause {
                         unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type {
                             #from_presentation
@@ -78,7 +83,8 @@ impl ToTokens for InterfacePresentation {
                     }
                 }
             },
-            InterfacePresentation::VecConversion { types: (ffi_type, target_type), decode, encode } => quote! {
+            InterfacePresentation::VecConversion { attrs, types: (ffi_type, target_type), decode, encode } => quote! {
+                #attrs
                 impl ferment_interfaces::FFIVecConversion for #ffi_type {
                     type Value = #target_type;
                     unsafe fn decode(&self) -> Self::Value { #decode }

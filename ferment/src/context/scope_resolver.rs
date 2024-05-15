@@ -66,12 +66,12 @@ impl ScopeResolver {
             .and_then(|chain| chain.get_by_path(path))
     }
 
-    pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
-        self.inner
-            .get(scope)
-            .map(|chain| item.find_generics_conversions(chain))
-            .unwrap_or_default()
-    }
+    // pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
+    //     self.inner
+    //         .get(scope)
+    //         .map(|chain| item.find_generics_conversions(chain))
+    //         .unwrap_or_default()
+    // }
 
 }
 

@@ -2,17 +2,17 @@ use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use syn::Type;
-use crate::composer::ConstructorPresentableContext;
+use crate::composer::{ConstructorPresentableContext, Depunctuated};
 use crate::context::ScopeContext;
 use crate::naming::Name;
-use crate::presentation::{BindingPresentation, ScopeContextPresentable};
+use crate::presentation::{BindingPresentation, Expansion, ScopeContextPresentable};
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
 
 pub enum BindingPresentableContext {
     // Empty,
     // Constructor(ConstructorPresentableContext, Punctuated<OwnedItemPresentableContext, Comma>, Wrapped<, >),
     Constructor(ConstructorPresentableContext, Punctuated<OwnedItemPresentableContext, Comma>, IteratorPresentationContext),
-    Destructor(Type),
+    Destructor(Type, Depunctuated<Expansion>),
     // Accessor(LocalConversionContext)
     // Accessor(),
     // Getter(),
@@ -31,10 +31,10 @@ impl ScopeContextPresentable for BindingPresentableContext {
                     body_presentation: field_names.present(&source),
                 }
             },
-            BindingPresentableContext::Destructor(ty) => {
+            BindingPresentableContext::Destructor(ty, attrs) => {
                 let ffi_name = ty.to_token_stream();
                 BindingPresentation::Destructor {
-                    attrs: Default::default(),
+                    attrs: attrs.to_token_stream(),
                     name: Name::Destructor(ty.clone()),
                     ffi_name
                 }

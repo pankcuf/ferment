@@ -3,6 +3,7 @@ use syn::{Item, Path, Signature, TraitBound, Type, TypeArray, TypeImplTrait, Typ
 use crate::composition::GenericConversion;
 use crate::context::TypeChain;
 use crate::conversion::ScopeItemConversion;
+use crate::ext::ResolveAttrs;
 use crate::ext::visitor::TypeCollector;
 use crate::helper::{path_arguments_to_types, segment_arguments_to_types};
 use crate::holder::TypeHolder;
@@ -20,25 +21,25 @@ pub trait GenericCollector where Self: TypeCollector {
         generics
     }
 
-    fn find_generics_conversions(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
-        self.find_generics()
-            .iter()
-            .filter_map(|ty| chain.get(ty))
-            .map(GenericConversion::from)
-            .collect()
-    }
+    // fn find_generics_conversions(&self, chain: &TypeChain) -> HashSet<GenericConversion> {
+    //     self.find_generics()
+    //         .iter()
+    //         .filter_map(|ty| chain.get(ty))
+    //         .map(|object| GenericConversion::new(object.clone(), object.resolve_attrs()))
+    //         .collect()
+    // }
 
     fn collect_to(&self, generics: &mut HashSet<TypeHolder>);
 }
 impl GenericCollector for ScopeItemConversion {
+    // fn find_generics_conversions(&self, scope_types: &TypeChain) -> HashSet<GenericConversion> {
+    //     match self {
+    //         ScopeItemConversion::Item(item) => item.find_generics_conversions(scope_types),
+    //         ScopeItemConversion::Fn(sig) => sig.find_generics_conversions(scope_types),
+    //     }
+    // }
     fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
         generics.extend(self.find_generics());
-    }
-    fn find_generics_conversions(&self, scope_types: &TypeChain) -> HashSet<GenericConversion> {
-        match self {
-            ScopeItemConversion::Item(item) => item.find_generics_conversions(scope_types),
-            ScopeItemConversion::Fn(sig) => sig.find_generics_conversions(scope_types),
-        }
     }
 }
 impl GenericCollector for Item {

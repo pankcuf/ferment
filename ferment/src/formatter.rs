@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
-use syn::{Ident, Path, Signature, Type};
+use syn::{Attribute, Ident, Path, Signature, Type};
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 use crate::chunk::InitialType;
@@ -55,7 +55,14 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 #[allow(unused)]
 pub fn format_generic_conversions(dict: &HashSet<GenericConversion>) -> String {
     dict.iter()
-        .map(|item| item.0.to_token_stream().to_string())
+        .map(|item| item.object.to_token_stream().to_string())
+        .collect::<Vec<_>>()
+        .join("\n\t")
+}
+
+pub fn format_attrs(dict: &Vec<Attribute>) -> String {
+    dict.iter()
+        .map(|item| item.to_token_stream().to_string())
         .collect::<Vec<_>>()
         .join("\n\t")
 }

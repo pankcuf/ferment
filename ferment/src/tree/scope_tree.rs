@@ -127,7 +127,7 @@ pub fn create_crate_root_scope_tree(
     attrs: Vec<Attribute>
 ) -> ScopeTree {
     // print_phase!("PHASE 2: SCOPE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
-    create_scope_tree(ScopeChain::crate_root(crate_ident), scope_context, imported, exported, attrs)
+    create_scope_tree(ScopeChain::crate_root(crate_ident, attrs.clone()), scope_context, imported, exported, attrs)
 }
 
 pub fn create_scope_tree(
@@ -156,7 +156,7 @@ pub fn create_scope_tree(
                     {
                         // println!("add (TREE): {}: {}", scope_context.borrow().scope.self_path_holder_ref(), attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<_>>().to_token_stream());
                         ScopeTreeItem::Tree {
-                            tree: create_scope_tree(scope_id.create_child_scope(&scope), scope_context, imported, exported, attrs)
+                            tree: create_scope_tree(scope_id.create_child_scope(&scope, attrs.clone()), scope_context, imported, exported, attrs)
                         }
                     }
             };

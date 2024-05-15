@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, Path, Type};
 use syn::punctuated::Punctuated;
 use crate::composer::Depunctuated;
-use crate::composition::{Composition, GenericConversion, ImportComposition, TraitCompositionPart1};
+use crate::composition::{Composition, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::ext::{extract_trait_names, ToObjectConversion};
@@ -126,10 +126,10 @@ impl ScopeContext {
     //     lock.traits.item_trait_with_ident_for(ident, scope).cloned()
     // }
 
-    pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
-        let lock = self.context.read().unwrap();
-        lock.scope_register.find_generics_fq_in(item, scope)
-    }
+    // pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
+    //     let lock = self.context.read().unwrap();
+    //     lock.scope_register.find_generics_fq_in(item, scope)
+    // }
 
     pub fn find_used_imports(&self, item: &Item) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
         let lock = self.context.read().unwrap();

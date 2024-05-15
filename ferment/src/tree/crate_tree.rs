@@ -22,8 +22,8 @@ pub struct CrateTree {
 // Main entry point for resulting expansion
 impl ToTokens for CrateTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let scope_context = self.current_tree.scope_context.borrow();
-        let refined_generics = &scope_context.context.read().unwrap().refined_generics;
+        let source = self.current_tree.scope_context.borrow();
+        let refined_generics = &source.context.read().unwrap().refined_generics;
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&refined_generics));
         let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
         Expansion::Mod {
@@ -40,7 +40,7 @@ impl ToTokens for CrateTree {
             imports: Punctuated::<ItemUse, Semi>::from_iter([
                 create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
             ]),
-            conversions: refined_generics.iter().map(|generic| generic.present(&scope_context)).collect()
+            conversions: refined_generics.iter().map(|generic| generic.present(&source)).collect()
         }.to_tokens(tokens);
     }
 }

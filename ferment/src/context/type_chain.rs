@@ -5,7 +5,7 @@ use quote::ToTokens;
 use syn::{Path, Type};
 use crate::composition::GenericConversion;
 use crate::conversion::ObjectConversion;
-use crate::ext::{Constraints, visitor::GenericCollector, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
+use crate::ext::{Constraints, visitor::GenericCollector, HashMapMergePolicy, MergePolicy, ValueReplaceScenario, ResolveAttrs};
 use crate::formatter::format_types_dict;
 use crate::holder::{Holder, TypeHolder};
 
@@ -133,13 +133,13 @@ impl TypeChain {
         self.inner.extend_with_policy(types.inner, EnrichScopePolicy);
     }
 
-    pub fn find_generics_fq<G: GenericCollector>(&self, item: &G) -> HashSet<GenericConversion> {
-        item.find_generics()
-            .iter()
-            .filter_map(|ty| self.get(ty))
-            .map(GenericConversion::from)
-            .collect()
-    }
+    // pub fn find_generics_fq<G: GenericCollector>(&self, item: &G) -> HashSet<GenericConversion> {
+    //     item.find_generics()
+    //         .iter()
+    //         .filter_map(|ty| self.get(ty))
+    //         .map(|object| GenericConversion::new(object.clone(), object.resolve_attrs()))
+    //         .collect()
+    // }
 
 }
 

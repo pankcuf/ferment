@@ -131,13 +131,14 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
     visitor.add_full_qualified_trait_match(&scope, item_trait, &itself);
     item_trait.items.iter().for_each(|trait_item|
         match trait_item {
-            TraitItem::Method(TraitItemMethod { sig, .. }) => {
+            TraitItem::Method(TraitItemMethod { attrs, sig, .. }) => {
                 let sig_ident = &sig.ident;
                 let self_scope = scope.self_scope();
                 let fn_self_scope = self_scope.self_scope.joined(sig_ident);
                 add_local_type(visitor, sig_ident, scope);
                 let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(fn_self_scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
                 let fn_scope = ScopeChain::Fn {
+                    attrs: attrs.clone(),
                     crate_ident: scope.crate_ident().clone(),
                     self_scope: Scope::new(fn_self_scope, object),
                     parent_scope_chain: Box::new(scope.clone())

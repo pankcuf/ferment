@@ -1,12 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Item, Type};
 use syn::punctuated::Punctuated;
+use crate::composer::Depunctuated;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{ToType, ValueReplaceScenario};
+use crate::ext::{ResolveAttrs, ToType, ValueReplaceScenario};
 use crate::helper::collect_bounds;
+use crate::presentation::Expansion;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
     Type(TypeCompositionConversion),
@@ -174,6 +177,17 @@ impl TryFrom<&Item> for ObjectConversion {
 
             }
             _ => Err(()),
+        }
+    }
+}
+
+impl ResolveAttrs for ObjectConversion {
+    fn resolve_attrs(&self) -> Depunctuated<Expansion> {
+        match self {
+            ObjectConversion::Type(ty) => Depunctuated::new(),
+            ObjectConversion::Item(ty, item) =>
+                item.resolve_attrs(),
+            ObjectConversion::Empty => Depunctuated::new(),
         }
     }
 }

@@ -3,46 +3,67 @@ use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{parse_quote, Path, Type};
-use crate::composition::{GenericBoundComposition, TypeComposition};
+use syn::{Attribute, parse_quote, Path, Type};
+use crate::composer::Depunctuated;
+use crate::composition::{CfgAttributes, GenericBoundComposition, TypeComposition};
 use crate::context::GlobalContext;
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, Pop, ToPath, ToType};
+use crate::ext::{CrateExtension, DictionaryType, Pop, ResolveAttrs, ToPath, ToType};
+use crate::formatter::format_attrs;
 use crate::helper::path_arguments_to_nested_objects;
 use crate::holder::PathHolder;
+use crate::presentation::Expansion;
+
+#[derive(Clone, Eq)]
+pub struct ScopeInfo {
+    attrs: Vec<Attribute>,
+    crate_ident: Ident,
+    self_scope: Scope
+}
+impl PartialEq<Self> for ScopeInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.self_scope.eq(&other.self_scope) &&
+            self.crate_ident.eq(&other.crate_ident)
+    }
+}
 
 #[derive(Clone, Eq)]
 #[repr(u8)]
 pub enum ScopeChain {
     CrateRoot {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope
     },
     Mod {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope,
         parent_scope_chain: Box<ScopeChain>,
     },
     Trait {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope,
         parent_scope_chain: Box<ScopeChain>,
     },
     Fn {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope,
         parent_scope_chain: Box<ScopeChain>,
     },
     Object {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope,
         parent_scope_chain: Box<ScopeChain>,
     },
     Impl {
+        attrs: Vec<Attribute>,
         crate_ident: Ident,
         self_scope: Scope,
-        trait_scopes: Vec<ScopeChain>,
         parent_scope_chain: Box<ScopeChain>,
     },
 }
@@ -51,7 +72,7 @@ impl PartialEq<Self> for ScopeChain {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (ScopeChain::Impl { crate_ident, self_scope, .. }, ScopeChain::Impl { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }) |
-            (ScopeChain::CrateRoot { crate_ident, self_scope }, ScopeChain::CrateRoot { crate_ident: other_crate_ident, self_scope: other_self_scope }) |
+            (ScopeChain::CrateRoot { crate_ident, self_scope, .. }, ScopeChain::CrateRoot { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }) |
             (ScopeChain::Mod { crate_ident, self_scope, .. }, ScopeChain::Mod { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }) |
             (ScopeChain::Trait { crate_ident, self_scope, .. }, ScopeChain::Trait { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }) |
             (ScopeChain::Fn { crate_ident, self_scope, .. }, ScopeChain::Fn { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }) |
@@ -106,18 +127,18 @@ impl ScopeChain {
     #[allow(unused)]
     fn fmt_long(&self) -> String {
         match self {
-            ScopeChain::CrateRoot { crate_ident, self_scope } =>
-                format!("[{}] :: {} (CrateRoot)", crate_ident, self_scope),
-            ScopeChain::Mod { crate_ident, self_scope, parent_scope_chain } =>
-                format!("[{}] :: {} (Mod) (parent: {:?})", crate_ident, self_scope, parent_scope_chain),
-            ScopeChain::Trait { crate_ident, self_scope, parent_scope_chain } =>
-                format!("[{}] :: {} (Trait) (parent: {:?})", crate_ident, self_scope, parent_scope_chain),
-            ScopeChain::Fn { crate_ident, self_scope, parent_scope_chain } =>
-                format!("[{}] :: {} (Fn) (parent: {:?})", crate_ident, self_scope, parent_scope_chain),
-            ScopeChain::Object { crate_ident, self_scope, parent_scope_chain } =>
-                format!("[{}] :: {} (Object) (parent: {:?})", crate_ident, self_scope, parent_scope_chain),
-            ScopeChain::Impl { crate_ident, self_scope, trait_scopes, parent_scope_chain } =>
-                format!("[{}] :: {} (Impl) (parent: {:?}, traits: {:?})", crate_ident, self_scope, parent_scope_chain, trait_scopes),
+            ScopeChain::CrateRoot { attrs, crate_ident, self_scope } =>
+                format!("[{}] :: {} + {} (CrateRoot)", format_attrs(attrs), crate_ident, self_scope),
+            ScopeChain::Mod { attrs, crate_ident, self_scope, parent_scope_chain } =>
+                format!("[{}] :: {} + {} (Mod) (parent: {:?})", format_attrs(attrs), crate_ident, self_scope, parent_scope_chain),
+            ScopeChain::Trait { attrs, crate_ident, self_scope, parent_scope_chain } =>
+                format!("[{}] :: {} + {} (Trait) (parent: {:?})", format_attrs(attrs), crate_ident, self_scope, parent_scope_chain),
+            ScopeChain::Fn { attrs, crate_ident, self_scope, parent_scope_chain } =>
+                format!("[{}] :: {} + {} (Fn) (parent: {:?})", format_attrs(attrs), crate_ident, self_scope, parent_scope_chain),
+            ScopeChain::Object { attrs, crate_ident, self_scope, parent_scope_chain } =>
+                format!("[{}] :: {} + {} (Object) (parent: {:?})", format_attrs(attrs), crate_ident, self_scope, parent_scope_chain),
+            ScopeChain::Impl { attrs, crate_ident, self_scope, parent_scope_chain } =>
+                format!("[{}] :: {} + {} (Impl) (parent: {:?})", format_attrs(attrs), crate_ident, self_scope, parent_scope_chain),
         }
     }
 }
@@ -137,19 +158,19 @@ impl ToType for ScopeChain {
 
 impl ScopeChain {
 
-    pub fn crate_root_with_ident(crate_ident: Ident) -> Self {
+    pub fn crate_root_with_ident(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
         let self_scope = Scope::new(parse_quote!(#crate_ident), ObjectConversion::Empty);
-        ScopeChain::CrateRoot { crate_ident, self_scope }
+        ScopeChain::CrateRoot { attrs, crate_ident, self_scope }
     }
-    pub fn crate_root(crate_ident: Ident) -> Self {
+    pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
         let self_scope = Scope::new(PathHolder::crate_root(), ObjectConversion::Empty);
-        ScopeChain::CrateRoot { crate_ident, self_scope }
+        ScopeChain::CrateRoot { attrs, crate_ident, self_scope }
     }
-    pub fn child_mod(crate_ident: Ident, name: &Ident, scope: &ScopeChain) -> Self {
-        ScopeChain::new_mod(crate_ident, Scope::new(scope.self_path_holder_ref().joined(name), ObjectConversion::Empty), scope)
+    pub fn child_mod(crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
+        ScopeChain::new_mod(crate_ident, Scope::new(parent_scope.self_path_holder_ref().joined(name), ObjectConversion::Empty), parent_scope, attrs)
     }
-    fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain) -> Self {
-        ScopeChain::Mod { crate_ident, self_scope, parent_scope_chain: Box::new(parent_scope.clone()) }
+    fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
+        ScopeChain::Mod { attrs, crate_ident, self_scope, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
     pub fn crate_ident(&self) -> &Ident {
         match self {
@@ -209,16 +230,6 @@ impl ScopeChain {
             ScopeChain::Impl { parent_scope_chain, .. } => Some(parent_scope_chain),
         }
     }
-    // pub fn parent_scope2(&self) -> Option<&ScopeChain> {
-    //     match self {
-    //         ScopeChain::CrateRoot { .. } => None,
-    //         ScopeChain::Mod { parent_scope_chain, .. } |
-    //         ScopeChain::Trait { parent_scope_chain, .. } |
-    //         ScopeChain::Fn { parent_scope_chain, .. } |
-    //         ScopeChain::Object { parent_scope_chain, .. } |
-    //         ScopeChain::Impl { parent_scope_chain, .. } => Some(parent_scope_chain),
-    //     }
-    // }
 
     pub fn obj_root_chain(&self) -> Option<&Self> {
         match self {
@@ -231,7 +242,7 @@ impl ScopeChain {
     }
 
     pub(crate) fn is_crate_root(&self) -> bool {
-        if let ScopeChain::CrateRoot { crate_ident: _, self_scope } = self {
+        if let ScopeChain::CrateRoot { self_scope, .. } = self {
             self_scope.self_scope.0.segments.last().unwrap().ident == format_ident!("crate")
         } else {
             false
@@ -244,7 +255,7 @@ impl ScopeChain {
 
     pub fn has_same_parent(&self, other: &ScopeChain) -> bool {
         match self {
-            ScopeChain::CrateRoot { crate_ident, self_scope } |
+            ScopeChain::CrateRoot { crate_ident, self_scope, .. } |
             ScopeChain::Mod { crate_ident, self_scope, .. } => crate_ident.eq(other.crate_ident()) && self_scope.eq(other.self_scope()),
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Fn { parent_scope_chain, .. } |
@@ -274,7 +285,6 @@ impl ScopeChain {
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
-        // println!("maybe_generic_bound_for_path: {}: {}", format_token_stream(path), self);
         match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
@@ -282,30 +292,26 @@ impl ScopeChain {
             ScopeChain::Object { self_scope, .. } |
             ScopeChain::Impl { self_scope, .. } =>
                 self_scope.maybe_generic_bound_for_path(path),
-            ScopeChain::Fn { self_scope, parent_scope_chain, .. } => {
-                let maybe_generic_bound = self_scope.maybe_generic_bound_for_path(path);
-                if maybe_generic_bound.is_some() {
-                    // println!("Fn:::: {}", maybe_bound.to_string());
-                    maybe_generic_bound
-                } else {
-                    // println!("Fn (or parent?) [{}]", parent_scope_chain);
-                    let maybe_parent_bound = parent_scope_chain.maybe_generic_bound_for_path(path);
-                    // println!("Fn (or parent?):::: {}", maybe_parent_bound.as_ref().map_or(format!("None"), |f| f.to_string()));
-                    maybe_parent_bound
-
-                }
-            },
+            ScopeChain::Fn { self_scope, parent_scope_chain, .. } =>
+                self_scope.maybe_generic_bound_for_path(path)
+                    .or(parent_scope_chain.maybe_generic_bound_for_path(path)),
         }
     }
 }
 
-// pub fn can_fn_in_parent_scope_have_self(parent_scope: &ScopeChain) -> bool {
-//     match parent_scope {
-//         ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => false,
-//         ScopeChain::Fn { parent_scope_chain, .. } =>
-//             can_fn_in_parent_scope_have_self(parent_scope_chain),
-//         ScopeChain::Trait { .. } |
-//         ScopeChain::Object { .. } |
-//         ScopeChain::Impl { .. } => true
-//     }
-// }
+impl ResolveAttrs for ScopeChain {
+    fn resolve_attrs(&self) -> Depunctuated<Expansion> {
+        match self {
+            ScopeChain::CrateRoot { attrs, .. } => attrs.cfg_attributes(),
+            ScopeChain::Mod { attrs, parent_scope_chain, .. } |
+            ScopeChain::Trait { attrs, parent_scope_chain, .. } |
+            ScopeChain::Fn { attrs, parent_scope_chain, .. } |
+            ScopeChain::Object { attrs, parent_scope_chain, .. } |
+            ScopeChain::Impl { attrs, parent_scope_chain, .. } => {
+                let mut inherited_attrs = parent_scope_chain.resolve_attrs();
+                inherited_attrs.extend(attrs.cfg_attributes());
+                inherited_attrs
+            }
+        }
+    }
+}
