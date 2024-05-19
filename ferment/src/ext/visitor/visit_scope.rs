@@ -5,7 +5,7 @@ use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem,
 use syn::punctuated::Punctuated;
 use syn::token::Add;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
-use crate::context::{Scope, ScopeChain};
+use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{Join, ToType};
 use crate::helper::collect_bounds;
@@ -138,9 +138,11 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 add_local_type(visitor, sig_ident, scope);
                 let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(fn_self_scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
                 let fn_scope = ScopeChain::Fn {
-                    attrs: attrs.clone(),
-                    crate_ident: scope.crate_ident().clone(),
-                    self_scope: Scope::new(fn_self_scope, object),
+                    info: ScopeInfo {
+                        attrs: attrs.clone(),
+                        crate_ident: scope.crate_ident().clone(),
+                        self_scope: Scope::new(fn_self_scope, object),
+                    },
                     parent_scope_chain: Box::new(scope.clone())
                 };
                 add_full_qualified_signature(visitor, sig, &fn_scope);

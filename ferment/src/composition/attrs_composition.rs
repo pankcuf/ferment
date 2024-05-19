@@ -22,23 +22,44 @@ impl AttrsComposition {
 }
 
 pub trait CfgAttributes {
-    fn cfg_attributes(&self) -> Depunctuated<Expansion>;
+    fn cfg_attributes(&self) -> Vec<Attribute>;
+    fn cfg_attributes_or_none(&self) -> Vec<Option<Attribute>> {
+        let cfg_attrs = self.cfg_attributes();
+        // if cfg_attrs.is_empty() {
+        //     vec![None]
+        // } else {
+            cfg_attrs.iter().map(|attr| Some(attr.clone())).collect()
+        // }
+    }
+    fn cfg_attributes_expanded(&self) -> Depunctuated<Expansion> {
+        self.cfg_attributes()
+            .iter()
+            .map(|a| Expansion::TokenStream(a.to_token_stream()))
+            .collect()
+    }
 }
 
 impl CfgAttributes for AttrsComposition {
-    fn cfg_attributes(&self) -> Depunctuated<Expansion> {
+    fn cfg_attributes(&self) -> Vec<Attribute> {
         self.attrs.cfg_attributes()
     }
 }
 
 impl CfgAttributes for Vec<Attribute> {
-    fn cfg_attributes(&self) -> Depunctuated<Expansion> {
-        // println!("cfg_attributes: {:?}", self);
-        let result: Depunctuated<Expansion> = self.iter()
-            .filter_map(|attr| attr.path.is_ident("cfg")
-                .then(|| Expansion::TokenStream(attr.to_token_stream())))
-            .collect();
-        // println!("cfg_attributes.2: {}", result.to_token_stream());
-        result
+    fn cfg_attributes(&self) -> Vec<Attribute> {
+        self.iter()
+            .filter(|attr| attr.path.is_ident("cfg"))
+            .cloned()
+            .collect()
+    }
+}
+impl CfgAttributes for Vec<Option<Attribute>> {
+    fn cfg_attributes(&self) -> Vec<Attribute> {
+        self.iter()
+            .filter_map(|attr| match attr {
+                Some(attr) if attr.path.is_ident("cfg") => Some(attr.clone()),
+                _ => None
+            })
+            .collect()
     }
 }

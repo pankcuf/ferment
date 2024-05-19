@@ -109,7 +109,7 @@ impl ToTokens for ScopeTree {
         let conversions = self.exports();
         if !conversions.is_empty() {
             Expansion::Mod {
-                attrs: self.attrs.cfg_attributes(),
+                attrs: self.attrs.cfg_attributes_expanded(),
                 directives: quote!(),
                 name,
                 imports,

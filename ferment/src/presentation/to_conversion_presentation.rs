@@ -16,7 +16,11 @@ impl ToTokens for ToConversionPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             ToConversionPresentation::Enum(conversions) => {
-                DictionaryExpression::BoxedExpression(quote!(match obj { #conversions }))
+                DictionaryExpression::BoxedExpression(quote!(match obj {
+                    #conversions,
+                    _ => unreachable!("Enum Variant unreachable")
+
+                }))
                     .to_token_stream()
             },
             ToConversionPresentation::Struct(conversion) => {

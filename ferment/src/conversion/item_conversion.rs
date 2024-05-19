@@ -203,7 +203,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                 let (variant_composer, fields_context): (VariantComposer, Punctuated<OwnedItemPresentableContext, Comma>) = match discriminant {
                     Some((_, Expr::Lit(lit, ..))) => (
                         |local_context| OwnerIteratorPresentationContext::EnumUnitFields(local_context.clone()),
-                        Punctuated::from_iter([OwnedItemPresentableContext::Conversion(quote!(#lit), attrs.cfg_attributes().to_token_stream())])),
+                        Punctuated::from_iter([OwnedItemPresentableContext::Conversion(quote!(#lit), attrs.cfg_attributes_expanded().to_token_stream())])),
                     None => match fields {
                         Fields::Unit => (
                             |(aspect, _)| OwnerIteratorPresentationContext::NoFields(aspect.clone()),
@@ -213,7 +213,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                             |local_context| OwnerIteratorPresentationContext::RoundVariantFields(local_context.clone()),
                             unnamed
                                 .iter()
-                                .map(|field_type| OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone(), field_type.attrs.cfg_attributes().to_token_stream()))
+                                .map(|field_type| OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone(), field_type.attrs.cfg_attributes_expanded().to_token_stream()))
                                 .collect(),
                         ),
                         Fields::Named(FieldsNamed { named, .. }) => (
@@ -222,7 +222,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
                                     OwnedItemPresentableContext::Named(
-                                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ty.clone(), attrs.cfg_attributes()), false))
+                                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ty.clone(), attrs.cfg_attributes_expanded()), false))
                                 .collect(),
                         ),
                     },
@@ -231,9 +231,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                 let name_context = Context::EnumVariant {
                     ident: target_name.clone(),
                     variant_ident: variant_name.clone(),
-                    attrs: attrs.cfg_attributes()
+                    attrs: attrs.cfg_attributes_expanded()
                 };
-                let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes() });
+                let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes_expanded() });
                 let attrs = AttrsComposition::from(attrs, variant_name, item_scope);
                 let composer = match fields {
                     Fields::Unit =>
@@ -266,15 +266,22 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
 }
 
 fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
-    let source = context.borrow();
+    // let source = context.borrow();
     let ItemType { ident: target_name, ty, attrs, generics, .. } = item_type;
     // println!("type_expansion: [{}] --- [{}]", scope, source.scope);
 
     match &**ty {
         Type::BareFn(type_bare_fn) => {
-            let full_fn_path = scope.joined_path_holder(target_name);
+            let full_path = scope.self_path().clone();
+            // let full_fn_path = scope.joined_path_holder(target_name);
+            let path = if full_path.is_crate_based() {
+                full_path.replaced_first_with_ident(&scope.crate_ident().to_path())
+            } else {
+                full_path
+            };
+
             SigComposer::with_context(
-                full_fn_path.0,
+                path,
                 target_name,
                 FnSignatureContext::Bare(target_name.clone(), type_bare_fn.clone()),
                 generics,
@@ -301,7 +308,7 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
 }
 fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let self_ty = item_trait.ident.to_type();
-    let source = context.borrow();
+    // let source = context.borrow();
     // println!("trait_expansion: [{}] --- [{}]", scope, source.scope);
     TraitComposer::from_item_trait(item_trait, self_ty, scope, context)
         .borrow()
@@ -350,7 +357,7 @@ fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<Scop
 fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
     // println!("impl_expansion: {} {}", item_impl.trait_.as_ref().map_or(format!(""), |(_, p, _)| format!("{} for", p.to_token_stream())), item_impl.self_ty.to_token_stream());
     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
-    let source = scope_context.borrow();
+    // let source = scope_context.borrow();
     // println!("impl_expansion: [{}] --- [{}]", scope, source.scope);
     let mut full_fn_path = scope.self_path_holder();
 

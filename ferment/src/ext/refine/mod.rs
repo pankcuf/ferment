@@ -21,6 +21,7 @@ pub trait RefineUnrefined: RefineMut + Unrefined<Unrefinement = Self::Refinement
     }
 }
 
+#[allow(unused)]
 pub trait Refine: Sized {
     type Unrefined;
     fn refine_with(&self, refined: Self::Unrefined) -> Self;
@@ -33,6 +34,7 @@ pub trait Refine: Sized {
     }
 }
 
+#[allow(unused)]
 pub trait RefineAtScope: Sized {
     fn refine_at_scope(&self, scope: &ScopeChain) -> Self;
 }

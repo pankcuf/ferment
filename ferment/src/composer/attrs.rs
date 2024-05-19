@@ -25,7 +25,7 @@ impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
     type Source = ParentComposer<ScopeContext>;
     type Result = Depunctuated<Expansion>;
     fn compose(&self, _context: &Self::Source) -> Self::Result {
-        self.attrs.cfg_attributes()
+        self.attrs.cfg_attributes_expanded()
         // TODO: currently disable trait expansion via attributes,
         // TODO: migrate onto composable RefinedTree version
         // let attrs_composition = &self.attrs;

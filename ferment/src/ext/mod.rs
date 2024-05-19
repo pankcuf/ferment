@@ -8,13 +8,12 @@ pub mod visitor;
 mod present;
 mod r#abstract;
 
-pub use self::collection::ScopeCollection;
 pub use self::constraints::Constraints;
 pub use self::r#abstract::{Accessory, DictionaryType, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};
 pub use self::present::{Conversion, Mangle, MangleDefault, Terminated};
-pub use self::refine::{Refine, RefineMut, RefineAtScope, RefineUnrefined, Unrefined};
-pub use self::resolve::{FFIResolveExtended, ffi_chunk_converted, ffi_external_chunk, FFIResolve, FFITypeResolve, Resolve, ResolveAttrs, ResolveTrait};
-pub use self::visitor::nesting::NestingExtension;
+pub use self::refine::{RefineMut, RefineUnrefined, Unrefined};
+pub use self::resolve::{FFIResolveExtended, FFIResolve, FFITypeResolve, Resolve, ResolveAttrs, ResolveTrait};
+pub use self::visitor::NestingExtension;
 pub use self::visitor::visit_scope::{add_trait_names, create_generics_chain, extract_trait_names, VisitScope};
 pub use self::visitor::visit_scope_type::{ToObjectConversion, VisitScopeType};
 

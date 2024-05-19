@@ -2,6 +2,7 @@ use syn::Item;
 
 pub trait ItemHelper {
     fn is_mod(&self) -> bool;
+    #[allow(unused)]
     fn is_use(&self) -> bool;
 }
 

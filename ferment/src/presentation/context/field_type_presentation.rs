@@ -27,7 +27,7 @@ pub enum FieldTypePresentableContext {
     ObjFieldName(TokenStream2),
     FieldTypeConversionName(FieldTypeConversion),
     LineTermination,
-    Boxed(Box<FieldTypePresentableContext>),
+    // Boxed(Box<FieldTypePresentableContext>),
     UnboxAny(Box<FieldTypePresentableContext>),
     UnboxAnyTerminated(Box<FieldTypePresentableContext>),
     IsNull(Box<FieldTypePresentableContext>),
@@ -85,8 +85,8 @@ impl Display for FieldTypePresentableContext {
                 format!("FieldTypePresentableContext::ObjFieldName({})", conversion),
             FieldTypePresentableContext::LineTermination =>
                 format!("FieldTypePresentableContext::LineTermination"),
-            FieldTypePresentableContext::Boxed(context) =>
-                format!("FieldTypePresentableContext::Boxed({})", context),
+            // FieldTypePresentableContext::Boxed(context) =>
+            //     format!("FieldTypePresentableContext::Boxed({})", context),
             FieldTypePresentableContext::UnboxAny(context) =>
                 format!("FieldTypePresentableContext::UnboxAny({})", context),
             FieldTypePresentableContext::UnboxAnyTerminated(context) =>
@@ -172,8 +172,8 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             },
             FieldTypePresentableContext::LineTermination => quote!(;),
             FieldTypePresentableContext::Empty => quote!(),
-            FieldTypePresentableContext::Boxed(presentation_context) =>
-                DictionaryExpression::BoxedExpression(presentation_context.present(source)).to_token_stream(),
+            // FieldTypePresentableContext::Boxed(presentation_context) =>
+            //     DictionaryExpression::BoxedExpression(presentation_context.present(source)).to_token_stream(),
             FieldTypePresentableContext::UnboxAny(presentation_context) => {
                 package_unbox_any_expression(presentation_context.present(source))
             }

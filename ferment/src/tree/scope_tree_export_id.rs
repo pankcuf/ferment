@@ -2,7 +2,7 @@ use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Path, PathSegment, Type};
-use crate::context::{Scope, ScopeChain};
+use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::ObjectConversion;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -43,9 +43,11 @@ impl ScopeTreeExportID {
     pub fn create_child_scope(&self, scope: &ScopeChain, attrs: Vec<Attribute>) -> ScopeChain {
         match &self {
             ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
-                attrs,
-                crate_ident: scope.crate_ident().clone(),
-                self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectConversion::Empty),
+                info: ScopeInfo {
+                    attrs,
+                    crate_ident: scope.crate_ident().clone(),
+                    self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectConversion::Empty),
+                },
                 parent_scope_chain: Box::new(scope.clone())
             },
             ScopeTreeExportID::Impl(_, _) =>

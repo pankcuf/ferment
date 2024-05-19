@@ -6,6 +6,7 @@ use crate::ext::CrateExtension;
 use crate::holder::Holder;
 use crate::impl_holder;
 
+#[allow(unused)]
 pub const EMPTY: PathHolder = PathHolder(Path { leading_colon: None, segments: Punctuated::new() });
 
 

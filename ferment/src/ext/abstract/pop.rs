@@ -7,9 +7,9 @@ use crate::holder::PathHolder;
 pub trait Pop {
     fn popped(&self) -> Self;
 }
-pub trait Pull {
-    fn pulled(&self) -> Self;
-}
+// pub trait Pull {
+//     fn pulled(&self) -> Self;
+// }
 
 impl Pop for PathHolder {
     fn popped(&self) -> Self {

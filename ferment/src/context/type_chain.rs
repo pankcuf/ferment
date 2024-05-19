@@ -1,11 +1,10 @@
 use std::collections::hash_map::OccupiedEntry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::{Path, Type};
-use crate::composition::GenericConversion;
 use crate::conversion::ObjectConversion;
-use crate::ext::{Constraints, visitor::GenericCollector, HashMapMergePolicy, MergePolicy, ValueReplaceScenario, ResolveAttrs};
+use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
 use crate::holder::{Holder, TypeHolder};
 

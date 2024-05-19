@@ -1,6 +1,6 @@
+#[repr(C)]
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(platform_value::Value)]
-#[derive(Clone)]
 pub struct platform_value_Value {
     raw_err: *mut platform_value::Value,
 }
@@ -39,10 +39,10 @@ impl ferment_interfaces::FFIConversion<platform_value::Value> for platform_value
     }
 }
 
-impl Drop for platform_value_Value {
-    fn drop(&mut self) {
-        unsafe {
-            ferment_interfaces::unbox_any(self.raw_err);
-        }
-    }
-}
+// impl Drop for platform_value_Value {
+//     fn drop(&mut self) {
+//         unsafe {
+//             ferment_interfaces::unbox_any(self.raw_err);
+//         }
+//     }
+// }

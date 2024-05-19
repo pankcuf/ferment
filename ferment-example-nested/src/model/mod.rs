@@ -1,5 +1,6 @@
 pub mod snapshot;
 pub mod quorum;
+pub mod callback;
 
 pub use snapshot::LLMQSnapshot;
 pub use snapshot::LLMQSnapshotSkipMode;

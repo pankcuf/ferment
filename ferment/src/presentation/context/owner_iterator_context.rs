@@ -161,14 +161,14 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let wrapped = Wrapped::<_, Paren>::new(fields.present(source)).to_token_stream();
                 create_struct(
                     &ffi_type.to_path(),
-                    aspect.attrs().clone(),
+                    aspect.attrs().to_token_stream(),
                     quote!(#wrapped;))
             },
             OwnerIteratorPresentationContext::NamedStruct((aspect, fields)) => {
                 let ffi_type = aspect.present(source);
                 create_struct(
                     &ffi_type.to_path(),
-                    Depunctuated::new(),
+                    TokenStream2::default(),
                     Wrapped::<_, Brace>::new(fields.present(source)).to_token_stream())
             },
             OwnerIteratorPresentationContext::Enum(context) => {
@@ -176,6 +176,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 quote! {
                     #[repr(C)]
                     #[derive(Clone)]
+                    #[non_exhaustive]
                     pub enum #enum_presentation
                 }
             },

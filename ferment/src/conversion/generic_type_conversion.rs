@@ -1,19 +1,22 @@
+use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::{quote, quote_spanned, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::token::{Add, Brace, Comma};
-use syn::{parse_quote, Path, PathSegment, spanned::Spanned, Type, TypeArray, TypeParamBound, TypeSlice, TypeTuple};
+use syn::{Attribute, parse_quote, Path, PathSegment, spanned::Spanned, Type, TypeArray, TypeParamBound, TypeSlice, TypeTuple};
 use syn::__private::TokenStream2;
 use crate::composer::{ConstructorPresentableContext, Depunctuated};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, TypeConversion};
+use crate::conversion::macro_conversion::merge_attributes;
 use crate::ext::{Accessory, DictionaryType, FFIResolve, FFITypeResolve, Mangle, Resolve, ToPath, ToType};
+use crate::formatter::format_unique_attrs;
 use crate::helper::{path_arguments_to_type_conversions, usize_to_tokenstream};
 use crate::interface::{create_struct, ffi_to_conversion};
 use crate::naming::{DictionaryExpression, DictionaryFieldName, Name};
 use crate::presentation::context::{BindingPresentableContext, FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext};
-use crate::presentation::{DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
+use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 use crate::wrapped::Wrapped;
 
@@ -142,9 +145,11 @@ impl GenericTypeConversion {
 }
 
 impl GenericTypeConversion {
-    pub fn expand(&self, attrs: &Depunctuated<Expansion>, source: &ScopeContext) -> TokenStream2 {
-        println!("GenericTypeConversion::expand: {} ----\n\t {}", self, attrs.to_token_stream());
-        // println!("\t{}\n\t{}", ffi_type.to_token_stream(), ffi_name.to_token_stream());
+    pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, source: &ScopeContext) -> TokenStream2 {
+        println!("GenericTypeConversion::expand.1: {} ----\n\t {}", self, format_unique_attrs(attrs));
+        let attrs = merge_attributes(attrs);
+        let attrs = (!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default();
+        println!("GenericTypeConversion::expand.2: {} ----\n\t {:?}", self, attrs);
 
         match self {
             GenericTypeConversion::Result(ty) => {
@@ -1086,7 +1091,7 @@ impl GenericTypeConversion {
                         GenericArgPresentation::new(
                             arg_0_ffi_type,
                             ffi_destroy_primitive_vec(quote!(self.#arg_0_name)),
-                            DictionaryExpression::FromPrimitiveArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::FromPrimitiveArray(quote!(#arg_0_name), quote!(#count_name)).to_token_stream(),
                             DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj.to_vec()) })).to_token_stream())
                     }
                     TypeConversion::Complex(arg_0_target_ty) => {
@@ -1094,15 +1099,17 @@ impl GenericTypeConversion {
                         GenericArgPresentation::new(
                             arg_0_ffi_type,
                             ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
-                            DictionaryExpression::FromComplexArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::FromComplexArray(quote!(#arg_0_name), quote!(#count_name)).to_token_stream(),
                             DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
                     }
+                    TypeConversion::Callback(arg_0_target_ty) =>
+                        unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
                     TypeConversion::Generic(arg_0_generic_path_conversion) => {
                         let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
                         GenericArgPresentation::new(
                             arg_0_ffi_type,
                             ffi_destroy_complex_vec(quote!(self.#arg_0_name)),
-                            DictionaryExpression::FromComplexArray(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
+                            DictionaryExpression::FromComplexArray(quote!(#arg_0_name), quote!(#count_name)).to_token_stream(),
                             DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
                     }
                 };
@@ -1161,6 +1168,9 @@ impl GenericTypeConversion {
                             DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name)).to_token_stream(),
                             DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })).to_token_stream())
                     }
+                    TypeConversion::Callback(arg_0_target_ty) =>
+                        unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
+
                     TypeConversion::Generic(arg_0_generic_path_conversion) => {
                         let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
                         GenericArgPresentation::new(
@@ -1241,7 +1251,7 @@ impl GenericTypeConversion {
 }
 fn compose_generic_presentation(
     ffi_name: Ident,
-    attrs: Depunctuated<Expansion>,
+    attrs: TokenStream2,
     field_conversions: Depunctuated<FieldTypeConversion>,
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
@@ -1257,13 +1267,13 @@ fn compose_generic_presentation(
     FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
 }
 
-fn compose_bindings(ffi_type: &Type, attrs: Depunctuated<Expansion>, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
+fn compose_bindings(ffi_type: &Type, attrs: TokenStream2, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
     Depunctuated::from_iter([
         BindingPresentableContext::Constructor(
             ConstructorPresentableContext::Default(ffi_type.clone(), attrs.to_token_stream()),
             conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), false)).collect(),
             IteratorPresentationContext::Curly(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect())),
-        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.clone())
+        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.to_token_stream())
     ])
 }
 
@@ -1289,6 +1299,9 @@ fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, sourc
                 from_conversion,
                 quote!(#name: #to_conversion))]))
         }
+        TypeConversion::Callback(arg_0_target_ty) =>
+            unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
+
         TypeConversion::Generic(root_path) => {
             // TODO: make sure it does work (actually it doesn't)
             let arg_type: Type = parse_quote!(#root_path);
@@ -1349,9 +1362,9 @@ fn ffi_to_complex() -> TokenStream2 {
     ffi_to_conversion(quote!(o))
 }
 
-fn ffi_to_primitive() -> TokenStream2 {
-    quote!(o)
-}
+// fn ffi_to_primitive() -> TokenStream2 {
+//     quote!(o)
+// }
 
 fn ffi_to_primitive_enum() -> TokenStream2 {
     quote!(o as *mut _)

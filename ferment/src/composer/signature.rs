@@ -11,6 +11,7 @@ use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext
 use crate::composer::r#type::TypeComposer;
 use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
+use crate::ext::Mangle;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DocPresentation, Expansion, ScopeContextPresentable};
 use crate::presentation::context::{name::Context, OwnedItemPresentableContext};
@@ -32,12 +33,12 @@ impl SigComposer {
         doc_composer: TypeContextComposer<SigParentComposer>,
         binding_composer: BindingComposer<SigParentComposer>,
         context: &ParentComposer<ScopeContext>) -> SigParentComposer {
-        let cfg_attrs = attrs.cfg_attributes();
+        let ty_context = Context::Fn { path, sig_context, attrs: attrs.cfg_attributes_expanded() };
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::new(
                 AttrsComposer::new(attrs),
                 doc_composer,
-                TypeComposer::new(Context::Fn { path, sig_context, attrs: cfg_attrs }),
+                TypeComposer::new(ty_context),
                 generics,
                 Rc::clone(context)
             ),
@@ -102,7 +103,7 @@ impl SourceExpandable for SigComposer {
         // let scope = source.scope.self_path_holder_ref();
         let binding = match self.name_context_ref() {
             Context::Fn { path: full_fn_path, sig_context, attrs } => {
-                // println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
+                println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => {
                         let Signature { output, inputs, .. } = sig;
@@ -170,7 +171,7 @@ impl SourceExpandable for SigComposer {
                             output_expression
                         }
                     },
-                    FnSignatureContext::Bare(target_name, type_bare_fn) => {
+                    FnSignatureContext::Bare(_target_name, type_bare_fn) => {
                         let TypeBareFn { inputs, output, .. } = type_bare_fn;
                         let argument_comps = inputs.compose(&source);
                         let return_type = output.compose(&(true, &source));
@@ -180,7 +181,7 @@ impl SourceExpandable for SigComposer {
                             .collect::<Punctuated<_, _>>();
                         let output_expression = return_type.presentation;
                         BindingPresentation::Callback {
-                            name: target_name.to_token_stream(),
+                            name: full_fn_path.mangle_ident_default().to_token_stream(),
                             arguments,
                             output_expression
                         }

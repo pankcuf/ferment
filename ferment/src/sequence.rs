@@ -3,6 +3,7 @@ use syn::punctuated::Punctuated;
 use crate::opposed::{Opposed, SeparatorTrait};
 use crate::wrapped::{DelimiterTrait, Wrapped};
 
+#[allow(unused)]
 pub trait Sequence: ToTokens {}
 
 impl<T, P> Sequence for Wrapped<T, P>

@@ -8,8 +8,9 @@ use crate::builder::Crate;
 use crate::composer::Depunctuated;
 use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
+use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::format_generic_conversions;
-use crate::presentation::{Expansion, ScopeContextPresentable};
+use crate::presentation::Expansion;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
 
 #[derive(Clone, Debug)]
@@ -24,8 +25,8 @@ impl ToTokens for CrateTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let source = self.current_tree.scope_context.borrow();
         let refined_generics = &source.context.read().unwrap().refined_generics;
-        print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&refined_generics));
-        let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+        print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(refined_generics));
+        let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
         Expansion::Mod {
             attrs: Depunctuated::new(),
             directives: directives.clone(),
@@ -40,7 +41,16 @@ impl ToTokens for CrateTree {
             imports: Punctuated::<ItemUse, Semi>::from_iter([
                 create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
             ]),
-            conversions: refined_generics.iter().map(|generic| generic.present(&source)).collect()
+            conversions: refined_generics.iter().map(|(generic, attrs)| {
+                match &generic.object {
+                    ObjectConversion::Type(type_cc) |
+                    ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
+                        TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &source),
+                        otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
+                    },
+                    ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
+                }
+            }).collect()
         }.to_tokens(tokens);
     }
 }

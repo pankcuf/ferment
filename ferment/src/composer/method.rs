@@ -57,7 +57,9 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
                     // field_type.ty().resolve(source).ffi_full_dictionary_type_presenter(source)
                         field_type.ty()
                             .ffi_full_dictionary_type_presenter(source)
-                        .to_token_stream()))
+                        .to_token_stream(),
+                    field_type.attrs()
+                ))
             })
             .collect()
     }

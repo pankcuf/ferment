@@ -46,7 +46,9 @@ impl TypeConversion {
             TypeConversion::Complex(ty) =>
                 ty.ffi_resolve_or_same(context).to_token_stream(),
             TypeConversion::Generic(conversion) =>
-                conversion.to_ffi_type().to_token_stream()
+                conversion.to_ffi_type().to_token_stream(),
+            TypeConversion::Callback(ty) =>
+                unimplemented!("Callbacks are not implemented in generics: {}", ty.to_token_stream()),
         }
     }
 

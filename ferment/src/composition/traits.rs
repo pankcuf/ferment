@@ -100,6 +100,7 @@ impl TraitDecompositionPart1 {
 
 // For use in Full Context Tree
 #[derive(Clone)]
+#[allow(unused)]
 pub struct TraitDecompositionPart2 {
     // pub methods: Vec<FnSignatureComposition>,
     pub method_composers: Depunctuated<SigParentComposer>,
@@ -107,7 +108,8 @@ pub struct TraitDecompositionPart2 {
 }
 
 impl TraitDecompositionPart2 {
-    pub fn from_item_trait(item_trait: &ItemTrait, self_ty: Type, scope: &PathHolder, context: &ParentComposer<ScopeContext>) -> Self {
+    #[allow(unused)]
+    pub fn from_item_trait(item_trait: &ItemTrait, self_ty: Type, _scope: &PathHolder, context: &ParentComposer<ScopeContext>) -> Self {
         let trait_ident = &item_trait.ident;
         let source = context.borrow();
         let mut method_composers = Depunctuated::new();
@@ -151,7 +153,7 @@ impl Composition for TraitDecompositionPart2 {
     type Context = TraitDecompositionPart2Context;
     type Presentation = Punctuated<Expansion, Comma>;
 
-    fn present(self, composition_context: Self::Context, source: &ScopeContext) -> Self::Presentation {
+    fn present(self, composition_context: Self::Context, _source: &ScopeContext) -> Self::Presentation {
         match composition_context {
             TraitDecompositionPart2Context::VTableInnerFunctions => self.method_composers
                 .into_iter()

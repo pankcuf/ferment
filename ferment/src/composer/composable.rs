@@ -1,4 +1,5 @@
 use std::cell::Ref;
+use quote::ToTokens;
 use syn::Generics;
 use crate::composer::{Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
@@ -42,7 +43,7 @@ pub trait ConversionComposable<Parent> where Parent: SharedAccess {
     fn compose_conversion(&self) -> InterfacePresentation where Self: BasicComposable<Parent> {
         let source = self.context().borrow();
         InterfacePresentation::Conversion {
-            attrs: self.compose_attributes(),
+            attrs: self.compose_attributes().to_token_stream(),
             types: (
                 self.ffi_name_aspect().present(&source),
                 self.target_name_aspect().present(&source)

@@ -4,6 +4,7 @@ use syn::__private::TokenStream2;
 
 pub trait Accessory: ToTokens {
     fn joined_mut(&self) -> Self;
+    #[allow(unused)]
     fn joined_const(&self) -> Self;
 }
 #[macro_export]

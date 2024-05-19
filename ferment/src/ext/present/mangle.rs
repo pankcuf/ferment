@@ -10,9 +10,9 @@ pub struct MangleDefault; // "::" -> "_"
 
 pub trait Mangle<T: Clone> where Self: Debug {
     fn mangle_string(&self, context: T) -> String;
-    fn mangle_ident(&self, context: T) -> Ident {
-        format_ident!("{}", self.mangle_string(context))
-    }
+    // fn mangle_ident(&self, context: T) -> Ident {
+    //     format_ident!("{}", self.mangle_string(context))
+    // }
     fn mangle_string_default(&self) -> String where T: Default {
         self.mangle_string(T::default())
     }

@@ -66,17 +66,23 @@ impl DropComposable for EnumComposer {
     fn compose_drop(&self) -> DropInterfacePresentation {
         let source = self.source_ref();
         DropInterfacePresentation::Full {
-            attrs: self.compose_attributes(),
+            attrs: self.compose_attributes().to_token_stream(),
             ty: self.base.ffi_name_aspect().present(&source),
             body: OwnerIteratorPresentationContext::MatchFields((
                 FieldTypePresentableContext::Simple(quote!(self)).into(),
-                self.variant_composers
-                    .iter()
-                    .map(|composer| {
-                        let comp = composer.borrow();
-                        OwnedItemPresentableContext::Conversion(comp.compose_aspect(FFIAspect::Drop), comp.compose_attributes().to_token_stream())
-                    })
-                    .collect()))
+                {
+                    let mut result =
+                    self.variant_composers
+                        .iter()
+                        .map(|composer| {
+                            let comp = composer.borrow();
+                            OwnedItemPresentableContext::Conversion(comp.compose_aspect(FFIAspect::Drop), comp.compose_attributes().to_token_stream())
+                        })
+                        .collect::<Punctuated<_, _>>();
+                    // TODO: make only if fields contain any conditional compilation flags
+                    result.push(OwnedItemPresentableContext::Exhaustive(quote!()));
+                    result
+                }))
                 .present(&source)
         }
     }
@@ -97,7 +103,7 @@ impl BindingComposable for EnumComposer {
         bindings.extend(self.variant_composers
             .iter()
             .map(|composer| composer.borrow().ctor_composer.compose(&()).present(&source)));
-        bindings.push(BindingPresentableContext::Destructor(Aspect::FFI(self.base.name_context()).present(&source), self.compose_attributes()).present(&source));
+        bindings.push(BindingPresentableContext::Destructor(Aspect::FFI(self.base.name_context()).present(&source), self.compose_attributes().to_token_stream()).present(&source));
         bindings
     }
 }
@@ -137,7 +143,7 @@ impl EnumComposer {
             base: BasicComposer::new(
                 AttrsComposer::new(AttrsComposition::from(attrs, target_name, scope)),
                 constants::enum_composer_doc(),
-                TypeComposer::new(Context::Enum { ident: target_name.clone(), attrs: attrs.cfg_attributes() }),
+                TypeComposer::new(Context::Enum { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() }),
                 Some(generics.clone()),
                 Rc::clone(context)
             ),

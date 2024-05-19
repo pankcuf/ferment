@@ -1,15 +1,14 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Type};
-use crate::composer::Depunctuated;
 use crate::naming::DictionaryFieldName;
-use crate::presentation::{Expansion, FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
     Conversion {
-        attrs: Depunctuated<Expansion>,
+        attrs: TokenStream2,
         types: (
             Type, // FFI
             Type // Original
@@ -22,7 +21,7 @@ pub enum InterfacePresentation {
         ),
     },
     VecConversion {
-        attrs: Depunctuated<Expansion>,
+        attrs: TokenStream2,
         types: (
             Type, // FFI
             Type // Original

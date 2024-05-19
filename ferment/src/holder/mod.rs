@@ -7,11 +7,11 @@ mod generics_holder;
 use std::hash::Hash;
 use quote::ToTokens;
 pub use self::path_holder::PathHolder;
-pub use self::path_holder::EMPTY;
+// pub use self::path_holder::EMPTY;
 pub use self::type_holder::TypeHolder;
 // pub use self::qself_holder::TypeHolder;
 pub use self::typepath_holder::TypePathHolder;
-pub use self::type_and_path_holder::TypeAndPathHolder;
+// pub use self::type_and_path_holder::TypeAndPathHolder;
 
 
 

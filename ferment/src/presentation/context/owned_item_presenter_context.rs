@@ -20,6 +20,7 @@ pub enum OwnedItemPresentableContext {
     BindingFieldName(FieldTypeConversion),
     FieldType(FieldTypePresentableContext, TokenStream2),
 
+    Exhaustive(TokenStream2),
 }
 
 impl Debug for OwnedItemPresentableContext {
@@ -28,7 +29,7 @@ impl Debug for OwnedItemPresentableContext {
             OwnedItemPresentableContext::DefaultField(ty) =>
                 f.write_str(format!("DefaultField({})", ty).as_str()),
             OwnedItemPresentableContext::DefaultFieldType(ty, attrs) =>
-                f.write_str(format!("DefaultFieldType({}, {})", quote!(#ty), attrs.to_token_stream()).as_str()),
+                f.write_str(format!("DefaultFieldType({}, {})", quote!(#ty), attrs).as_str()),
             OwnedItemPresentableContext::Named(ty, is_pub) =>
                 f.write_str(format!("Named({}, {})", ty, is_pub).as_str()),
             OwnedItemPresentableContext::Lambda(lv, rv, attrs) =>
@@ -40,7 +41,9 @@ impl Debug for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingFieldName(ty) =>
                 f.write_str(format!("BindingField({})", ty).as_str()),
             OwnedItemPresentableContext::FieldType(ctx, attrs) =>
-                f.write_str(format!("FieldType({}, {})", ctx, attrs.to_token_stream()).as_str()),
+                f.write_str(format!("FieldType({}, {})", ctx, attrs).as_str()),
+            OwnedItemPresentableContext::Exhaustive(attrs) =>
+                f.write_str(format!("Exhaustive({})", attrs).as_str()),
         }
     }
 }
@@ -132,6 +135,12 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 quote! {
                     #attrs
                     #field
+                }
+            }
+            OwnedItemPresentableContext::Exhaustive(attrs) => {
+                quote! {
+                    #attrs
+                    _ => unreachable!("This is unreachable")
                 }
             }
         }

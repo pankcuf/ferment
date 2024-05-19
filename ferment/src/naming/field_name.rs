@@ -29,8 +29,7 @@ pub enum DictionaryExpression {
     FromComplexVec(TokenStream2, TokenStream2),
     FromComplexBTreeSet(TokenStream2, TokenStream2),
     FromComplexHashSet(TokenStream2, TokenStream2),
-    FromPrimitiveSlice(TokenStream2, TokenStream2),
-    FromComplexSlice(TokenStream2, TokenStream2, Type/*arg regular type*/),
+    // FromComplexSlice(TokenStream2, TokenStream2, Type/*arg regular type*/),
     FromPrimitiveArray(TokenStream2, TokenStream2),
     FromComplexArray(TokenStream2, TokenStream2),
 }
@@ -94,26 +93,26 @@ impl ToTokens for DictionaryExpression {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_hash_set(#values, #count))
             }
-            DictionaryExpression::FromPrimitiveSlice(values, count) => {
-                quote! {
-                    let ffi_ref = &*ffi;
-                    std::slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
-                }
-            }
-            DictionaryExpression::FromComplexSlice(values, count, arg_type) => {
-                quote! {
-                    let ffi_ref = &*ffi;
-                    (0..ffi_ref.count)
-                        .map(|i| ferment_interfaces::FFIConversion::ffi_from(*ffi_ref.values.add(i)))
-                        .collect::<Vec<#arg_type>>()
-                        .try_into()
-                        .expect("Wrong length")
-                }
-            }
+            // DictionaryExpression::FromPrimitiveSlice(values, count) => {
+            //     quote! {
+            //         let ffi_ref = &*ffi;
+            //         std::slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+            //     }
+            // }
+            // DictionaryExpression::FromComplexSlice(values, count, arg_type) => {
+            //     quote! {
+            //         let ffi_ref = &*ffi;
+            //         (0..ffi_ref.count)
+            //             .map(|i| ferment_interfaces::FFIConversion::ffi_from(*ffi_ref.values.add(i)))
+            //             .collect::<Vec<#arg_type>>()
+            //             .try_into()
+            //             .expect("Wrong length")
+            //     }
+            // }
             DictionaryExpression::FromPrimitiveArray(values, count) => {
                 quote! {
                     let ffi_ref = &*ffi;
-                    std::slice::from_raw_parts(ffi_ref.values, ffi_ref.count)
+                    std::slice::from_raw_parts(ffi_ref.#values, ffi_ref.#count)
                         .try_into()
                         .expect("Array Length mismatch")
                 }
@@ -121,9 +120,9 @@ impl ToTokens for DictionaryExpression {
             DictionaryExpression::FromComplexArray(values, count) => {
                 quote! {
                     let ffi_ref = &*ffi;
-                    (0..ffi_ref.count)
+                    (0..ffi_ref.#count)
                         .into_iter()
-                        .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*ffi_ref.values.add(i)))
+                        .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*ffi_ref.#values.add(i)))
                         .collect::<Vec<String>>()
                         .try_into()
                         .expect("Array Length mismatch")
@@ -134,6 +133,7 @@ impl ToTokens for DictionaryExpression {
 }
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub enum Name {
     UnnamedArg(usize),
     Constructor(Type),
@@ -152,6 +152,7 @@ pub enum Name {
     Setter(Path, TokenStream2),
     Ident(Ident),
     Pat(Pat),
+    Underscore,
 }
 
 impl ToTokens for Name {
@@ -207,6 +208,7 @@ impl ToTokens for Name {
             Name::Ident(variant) => quote!(#variant),
             Name::Optional(ident) => quote!(#ident),
             Name::Pat(pat) => pat.to_token_stream(),
+            Name::Underscore => quote!(_),
         }
         .to_tokens(tokens)
     }
@@ -255,6 +257,7 @@ impl Mangle<MangleDefault> for Name {
             Name::Pat(pat) => pat.to_token_stream().to_string(),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
 
+            Name::Underscore => quote!(_).to_string()
         }
     }
 }

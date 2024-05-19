@@ -53,10 +53,10 @@ impl ToTokens for FFIObjectPresentation {
         match self {
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, attrs, fields } => {
-                create_struct(&name.to_path(), attrs.clone(), quote!({ #fields }))
+                create_struct(&name.to_path(), attrs.to_token_stream(), quote!({ #fields }))
             },
             Self::TraitObject { name, attrs, vtable_name } => {
-                create_struct(&name.to_path(), attrs.clone(), quote!({ pub object: *const (), pub vtable: *const #vtable_name }))
+                create_struct(&name.to_path(), attrs.to_token_stream(), quote!({ pub object: *const (), pub vtable: *const #vtable_name }))
             },
             Self::Generic {
                 object_presentation,

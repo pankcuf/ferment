@@ -258,9 +258,9 @@ impl Visitor {
                     .add_item(item, current_scope);
             },
             (Ok(MacroType::Register(custom_type)), Ok(_object)) => {
-                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+                println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 // if let Some(scope) = item.join_scope(&current_scope, self) {
-                    if let ScopeTreeExportItem::Tree(scope_context, _, exported, _) = self.find_scope_tree(&self_scope) {
+                    if let ScopeTreeExportItem::Tree(scope_context, _, _exported, _) = self.find_scope_tree(&self_scope) {
                         let scope_context_borrowed = scope_context.borrow();
                         scope_context_borrowed.add_custom_conversion(current_scope.clone(), custom_type, parse_quote!(#self_scope::#ident));
                         // let composer = Rc::new(RefCell::new(ScopeContext::populated(

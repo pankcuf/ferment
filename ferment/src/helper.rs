@@ -6,14 +6,9 @@ use syn::punctuated::Punctuated;
 use syn::token::{Add, Comma};
 use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
-use crate::ext::{CrateExtension, DictionaryType, NestingExtension, VisitScopeType};
+use crate::ext::VisitScopeType;
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
-
-
-pub trait ImportsExtension {
-
-}
 
 pub trait ItemExtension {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID;
@@ -330,11 +325,11 @@ fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportCompo
     }
 }
 
-fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, ty: &Type, imports: &HashMap<PathHolder, Path>) {
+fn cache_type_in(_container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, _ty: &Type, _imports: &HashMap<PathHolder, Path>) {
     // Types which are used as a part of types (for generics and composite types)
-    let involved: HashSet<Type> = ty.nested_items();
-    involved.iter()
-        .for_each(|ty| {
+    // let involved: HashSet<Type> = ty.nested_items();
+    // involved.iter()
+    //     .for_each(|ty| {
             // println!("involved: {}", ty.to_token_stream());
             // match ty {
             //     Type::Array(type_array) => {
@@ -362,49 +357,49 @@ fn cache_type_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposi
             //         cache_path_in(container, &path, imports);
             //     }
             // }
-        });
+        // });
 }
-fn cache_path_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, path: &Path, imports: &HashMap<PathHolder, Path>) {
-    if let Some(PathSegment { ident, .. }) = path.segments.last() {
-        let (import_type, scope) = import_pair(&path, imports);
-        container
-            .entry(import_type)
-            .or_default()
-            .insert(ImportComposition::from((ident, &scope)));
-    }
-
-}
-fn import_pair(path: &Path, imports: &HashMap<PathHolder, Path>) -> (ImportConversion, PathHolder) {
-    let original_or_external_pair = |value| {
-        let scope = PathHolder::from(value);
-        (if scope.is_crate_based() { ImportConversion::Original } else { ImportConversion::External }, scope)
-    };
-    let path_scope= PathHolder::from(path);
-    // println!("import_pair: {}", format_token_stream(path));
-    match path.get_ident() {
-        Some(ident) => {
-            if ident.is_primitive() || ident.is_any_string() || ident.is_vec() || ident.is_optional() || ident.is_box() {
-                // accessible without specifying scope
-                (ImportConversion::None, parse_quote!(#ident))
-            } else {
-                // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)
-                imports.get(&path_scope)
-                    .map_or((ImportConversion::Inner, parse_quote!(#ident)), original_or_external_pair)
-            }
-        },
-        // partial chunk
-        None => {
-            imports.get(&path_scope)
-                .map_or({
-                    let last_ident = &path.segments.last().unwrap().ident;
-                    if last_ident.is_vec() || last_ident.is_optional() || last_ident.is_box() {
-                        (ImportConversion::None, path_scope)
-                    } else {
-                        (ImportConversion::ExternalChunk, path_scope)
-                    }}, original_or_external_pair)
-        }
-    }
-}
+// fn cache_path_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, path: &Path, imports: &HashMap<PathHolder, Path>) {
+//     if let Some(PathSegment { ident, .. }) = path.segments.last() {
+//         let (import_type, scope) = import_pair(&path, imports);
+//         container
+//             .entry(import_type)
+//             .or_default()
+//             .insert(ImportComposition::from((ident, &scope)));
+//     }
+//
+// }
+// fn import_pair(path: &Path, imports: &HashMap<PathHolder, Path>) -> (ImportConversion, PathHolder) {
+//     let original_or_external_pair = |value| {
+//         let scope = PathHolder::from(value);
+//         (if scope.is_crate_based() { ImportConversion::Original } else { ImportConversion::External }, scope)
+//     };
+//     let path_scope= PathHolder::from(path);
+//     // println!("import_pair: {}", format_token_stream(path));
+//     match path.get_ident() {
+//         Some(ident) => {
+//             if ident.is_primitive() || ident.is_any_string() || ident.is_vec() || ident.is_optional() || ident.is_box() {
+//                 // accessible without specifying scope
+//                 (ImportConversion::None, parse_quote!(#ident))
+//             } else {
+//                 // they are defined in the same scope, so it should be imported sometimes outside this scope (export-only)
+//                 imports.get(&path_scope)
+//                     .map_or((ImportConversion::Inner, parse_quote!(#ident)), original_or_external_pair)
+//             }
+//         },
+//         // partial chunk
+//         None => {
+//             imports.get(&path_scope)
+//                 .map_or({
+//                     let last_ident = &path.segments.last().unwrap().ident;
+//                     if last_ident.is_vec() || last_ident.is_optional() || last_ident.is_box() {
+//                         (ImportConversion::None, path_scope)
+//                     } else {
+//                         (ImportConversion::ExternalChunk, path_scope)
+//                     }}, original_or_external_pair)
+//         }
+//     }
+// }
 pub fn is_labeled_with_macro_type(path: &Path, macro_type: &str) -> bool {
     path.segments
         .iter()

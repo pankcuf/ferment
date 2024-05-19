@@ -53,9 +53,17 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_generic_conversions(dict: &HashSet<GenericConversion>) -> String {
+pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
-        .map(|item| item.object.to_token_stream().to_string())
+        .map(|(item, attrs)| format!("{}:\n\t {}", item.object.to_token_stream(), format_unique_attrs(attrs)))
+        .collect::<Vec<_>>()
+        .join("\n\t")
+}
+
+#[allow(unused)]
+pub fn format_unique_attrs(dict: &HashSet<Option<Attribute>>) -> String {
+    dict.iter()
+        .map(|item| item.as_ref().map_or(format!("None"), |a| a.to_token_stream().to_string()))
         .collect::<Vec<_>>()
         .join("\n\t")
 }

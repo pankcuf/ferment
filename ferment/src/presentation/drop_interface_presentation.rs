@@ -1,13 +1,11 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Type;
-use crate::composer::Depunctuated;
-use crate::presentation::Expansion;
 
 #[derive(Clone, Debug)]
 pub enum DropInterfacePresentation {
     Full {
-        attrs: Depunctuated<Expansion>,
+        attrs: TokenStream2,
         ty: Type,
         body: TokenStream2
     }

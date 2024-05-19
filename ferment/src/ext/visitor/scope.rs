@@ -7,6 +7,7 @@ use crate::visitor::Visitor;
 
 pub trait ScopeExtension {
     type Item: ToTokens + Eq + Hash;
+    #[allow(unused)]
     fn add(&self, visitor: &mut Visitor, scope: &ScopeChain);
 }
 

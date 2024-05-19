@@ -4,16 +4,13 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
-use crate::composer::Depunctuated;
-use crate::context::ScopeContext;
-use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::conversion::ObjectConversion;
 use crate::holder::PathHolder;
-use crate::presentation::{Expansion, ScopeContextPresentable};
 
 #[derive(Clone, Debug)]
 pub struct GenericConversion {
     pub object: ObjectConversion,
-    pub attrs: Depunctuated<Expansion>,
+    // pub attrs: Depunctuated<Expansion>,
 }
 
  impl std::fmt::Display for GenericConversion {
@@ -43,8 +40,8 @@ impl Hash for GenericConversion {
 }
 
 impl GenericConversion {
-    pub fn new(object: ObjectConversion, attrs: Depunctuated<Expansion>) -> Self {
-        Self { object, attrs }
+    pub fn new(object: ObjectConversion/*, attrs: Depunctuated<Expansion>*/) -> Self {
+        Self { object/*, attrs*/ }
     }
 
     pub fn used_imports(&self) -> HashSet<PathHolder> {
@@ -52,23 +49,19 @@ impl GenericConversion {
     }
 }
 
-impl ScopeContextPresentable for GenericConversion {
-    type Presentation = TokenStream2;
-    fn present(&self, source: &ScopeContext) -> Self::Presentation {
-        let Self { object, attrs } = self;
-        match object {
-            ObjectConversion::Type(type_cc) |
-            ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
-                TypeConversion::Generic(generic_c) =>
-                    generic_c.expand(attrs, source),
-                conversion =>
-                    unimplemented!("non-generic GenericConversion: {}", conversion.to_token_stream())
-            },
-            ObjectConversion::Empty =>
-                unimplemented!("expand: ObjectConversion::Empty")
-        }
-    }
-}
+// impl ScopeContextPresentable for GenericConversion {
+//     type Presentation = TokenStream2;
+//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
+//         match &self.object {
+//             ObjectConversion::Type(type_cc) |
+//             ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
+//                 TypeConversion::Generic(generic_c) => generic_c.expand(&self.attrs, source),
+//                 otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
+//             },
+//             ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
+//         }
+//     }
+// }
 
 fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
     match ty {

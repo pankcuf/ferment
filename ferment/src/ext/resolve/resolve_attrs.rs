@@ -1,6 +1,5 @@
-use crate::composer::Depunctuated;
-use crate::presentation::Expansion;
+use syn::Attribute;
 
 pub trait ResolveAttrs where Self: Sized {
-    fn resolve_attrs(&self) -> Depunctuated<Expansion>;
+    fn resolve_attrs(&self) -> Vec<Option<Attribute>>;
 }

@@ -60,7 +60,7 @@ impl CustomResolver {
                         if let GenericArgument::Type(inner_type) = arg {
                             if let Some(replaced_type) = self.replace_conversion(scope, inner_type) {
                                 *arg = GenericArgument::Type(replaced_type);
-                                replaced = true;
+                                // replaced = true;
                             }
                         }
                     }

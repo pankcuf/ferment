@@ -2,20 +2,16 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
 use syn::token::{Colon2, Comma};
 use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
-use crate::context::{Scope, ScopeChain, TypeChain};
-use crate::context::custom_resolver::CustomResolver;
-use crate::context::generic_resolver::GenericResolver;
-use crate::context::import_resolver::ImportResolver;
+use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
+use crate::context::scope_chain::ScopeInfo;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::PathHolder;
-use crate::context::{ScopeResolver, TraitsResolver};
-use crate::context::scope_resolver::ScopeRefinement;
 use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined, ResolveAttrs};
 
 #[derive(Clone)]
@@ -27,8 +23,7 @@ pub struct GlobalContext {
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
     pub imports: ImportResolver,
-
-    pub refined_generics: HashSet<GenericConversion>
+    pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>
 }
 
 impl std::fmt::Debug for GlobalContext {
@@ -50,7 +45,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashSet::new() }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::new() }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -344,10 +339,10 @@ impl GlobalContext {
         };
         // println!("traverse_scope: {} \n--- [{}]", ty_to_replace, scope);
         match scope {
-            ScopeChain::CrateRoot { self_scope, .. } |
-            ScopeChain::Mod { self_scope, .. } => {
+            ScopeChain::CrateRoot { info, .. } |
+            ScopeChain::Mod { info, .. } => {
                 // self -> neighbour mod
-                let self_path = &self_scope.self_scope.0;
+                let self_path = &info.self_scope.self_scope.0;
                 let child_scope: Path = parse_quote!(#self_path::#ty_path);
                 // println!("check local scope item (mod)?: {} + {}",
                 //          format_token_stream(&self_path),
@@ -380,11 +375,11 @@ impl GlobalContext {
                         }
                 })
             }
-            ScopeChain::Impl { self_scope, parent_scope_chain, .. } |
-            ScopeChain::Trait { self_scope, parent_scope_chain, .. } |
-            ScopeChain::Object { self_scope, parent_scope_chain, .. } => {
+            ScopeChain::Impl { info, parent_scope_chain, .. } |
+            ScopeChain::Trait { info, parent_scope_chain, .. } |
+            ScopeChain::Object { info, parent_scope_chain, .. } => {
                 // self -> parent mod -> neighbour mod
-                let self_path = &self_scope.self_scope.0;
+                let self_path = &info.self_scope.self_scope.0;
                 let parent_path = parent_scope_chain.self_path();
                 // println!("check local first (obj)?: {} + {}",
                 //          format_token_stream(&parent_path),
@@ -442,17 +437,17 @@ impl GlobalContext {
                         }
                     })
             }
-            ScopeChain::Fn { self_scope, parent_scope_chain, .. } => {
+            ScopeChain::Fn { info, parent_scope_chain, .. } => {
                 // - Check fn scope
                 // - if scope.parent is [mod | crate | impl] then lookup their child mods
                 // - if scope.parent is [object | trait] then check scope.parent.parent
-                let self_path = &self_scope.self_scope.0;
+                let self_path = &info.self_scope.self_scope.0;
                 self.maybe_item(self_path)
                     .or({
                         match &**parent_scope_chain {
-                            ScopeChain::CrateRoot { self_scope, .. } |
-                            ScopeChain::Mod { self_scope, .. } => {
-                                let self_path = &self_scope.self_scope.0;
+                            ScopeChain::CrateRoot { info, .. } |
+                            ScopeChain::Mod { info, .. } => {
+                                let self_path = &info.self_scope.self_scope.0;
                                 let child_scope: Path = parse_quote!(#self_path::#ty_path);
                                 self.maybe_item(&child_scope)
                                     .map(|item| {
@@ -471,9 +466,9 @@ impl GlobalContext {
                                         item
                                     })
                             }
-                            ScopeChain::Fn { self_scope, parent_scope_chain, .. } => {
+                            ScopeChain::Fn { info, parent_scope_chain, .. } => {
                                 // TODO: support nested function when necessary
-                                println!("nested function::: {} --- [{}]", self_scope, parent_scope_chain);
+                                println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
                                 None
                             }
                         }
@@ -535,7 +530,7 @@ impl GlobalContext {
                     });
                 }
             }
-            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs: _, output: _, .. }) => {
                 // panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
@@ -583,7 +578,7 @@ impl GlobalContext {
                             for (PathHolder(_ident), alias_path) in parent_imports {
                                 // println!("parent_import_refine: {}", alias_path.to_token_stream());
                                 let alias = alias_path.crate_named(&crate_name);
-                                if let Some(merged) = self.refined_import(&import_type_path.path, &alias, scope) {
+                                if let Some(merged) = self.refined_import(&import_type_path.path, &alias) {
                                     // println!("merged import: {}", merged.to_token_stream());
                                     import_type_path.path.segments = merged.segments;
                                     refined = true;
@@ -738,25 +733,27 @@ impl GlobalContext {
 impl RefineMut for GlobalContext {
     type Refinement = ScopeRefinement;
     fn refine_with(&mut self, refined: Self::Refinement) {
-        // println!("GlobalContext::refine_with:\n{}", format_scope_refinement(&refined));
         self.scope_register.refine_with(refined);
-        let mut refined_generics = HashSet::<GenericConversion>::new();
+        let mut refined_generics = HashMap::<GenericConversion, HashSet<Option<Attribute>>>::new();
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
-
-                type_chain.inner.iter().for_each(|(conversion, object)| {
+                type_chain.inner.iter().for_each(|(_conversion, object)| {
                     if let Some(ty) = object.to_ty() {
-                        refined_generics.extend(ty.find_generics()
+                        ty.find_generics()
                             .iter()
-                            .filter_map(|ty|
-                                self.custom.maybe_conversion(&ty.0)
-                                    .is_none()
-                                    .then(|| {
-                                        let mut all_attrs = object.resolve_attrs();
-                                        all_attrs.extend(scope_level_attrs.clone());
-                                        GenericConversion::new(object.clone(), all_attrs)
-                                    })));
+                            .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
+                            .for_each(|_ty| {
+                                let mut all_attrs = object.resolve_attrs();
+                                all_attrs.extend(scope_level_attrs.clone());
+                                if all_attrs.is_empty() {
+                                    all_attrs.push(None);
+                                }
+                                let conversion = GenericConversion::new(object.clone());
+                                refined_generics.entry(conversion)
+                                    .or_insert_with(HashSet::new)
+                                    .extend(all_attrs.into_iter());
+                            });
                     }
                 })
             });
@@ -773,15 +770,12 @@ impl Unrefined for GlobalContext {
                 let scope_types_to_refine = type_chain.inner.iter()
                     .filter_map(|(holder, object)|
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, object) {
-                            // println!("to_refine: {}: {} --> {}", holder, object, object_to_refine);
                             Some((holder.clone(), object_to_refine))
                         } else {
-                            // println!("non-refined: {}: {}", holder, object);
                             None
                         })
                     .collect::<HashMap<_, _>>();
                 if !scope_types_to_refine.is_empty() {
-                    // println!("scope_to_refine: {} ---- \n\t{}", scope.self_path_holder_ref(), format_types_dict(&scope_types_to_refine));
                     scope_updates.push((scope.clone(), scope_types_to_refine));
                 }
             });
@@ -894,13 +888,13 @@ impl GlobalContext {
                                     let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
                                     result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
                                 },
-                                ("self", Some(chunk_ref)) => {
+                                ("self", Some(_chunk_ref)) => {
                                     reexport_import.segments.iter().skip(1).cloned().collect()
                                 },
                                 ("self", None) => {
                                     reexport_import.segments.iter().skip(1).cloned().collect()
                                 },
-                                ("super", Some(chunk_ref)) => {
+                                ("super", Some(_chunk_ref)) => {
                                     let super_path = reexport_scope_path.popped();
                                     parse_quote!(#super_path::#reexport_import)
                                 },
@@ -939,7 +933,7 @@ impl GlobalContext {
         }
         result
     }
-    fn refined_import(&self, import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
+    fn refined_import(&self, import_path: &Path, alias: &Path) -> Option<Path> {
         let last_import_segment = import_path.segments.last();
         let last_alias_segment = alias.segments.last();
         if last_import_segment.is_some() &&
@@ -971,76 +965,32 @@ pub fn create_mod_chain(path: &Path) -> ScopeChain {
         create_mod_chain(&parent_chunks)
     } else {
         ScopeChain::CrateRoot {
-            attrs: vec![],
-            crate_ident: crate_ident.clone(),
-            self_scope: Scope { self_scope: PathHolder(parent_chunks), object: ObjectConversion::Empty }
+            info: ScopeInfo {
+                attrs: vec![],
+                crate_ident: crate_ident.clone(),
+                self_scope: Scope { self_scope: PathHolder(parent_chunks), object: ObjectConversion::Empty }
+            }
         }
     };
     if segments.len() == 1 {
         ScopeChain::CrateRoot {
-            attrs: vec![],
-            crate_ident: crate_ident.clone(),
-            self_scope
+            info: ScopeInfo {
+                attrs: vec![],
+                crate_ident: crate_ident.clone(),
+                self_scope
+            }
         }
     } else {
         ScopeChain::Mod {
-            attrs: vec![],
-            crate_ident: crate_ident.clone(),
-            self_scope,
+            info: ScopeInfo {
+                attrs: vec![],
+                crate_ident: crate_ident.clone(),
+                self_scope,
+            },
             parent_scope_chain: Box::new(parent_scope_chain.clone())
         }
     }
 }
-
-// fn probe_chunks<'a>(
-//     import_chunk: &'a mut Path,
-//     alias_chunk: &'a mut Path,
-//     merged_chunk: &'a mut Punctuated<PathSegment, Colon2>) -> Option<(&'a mut Path, &'a mut Path, &'a mut Punctuated<PathSegment, Colon2>)> {
-//     match (import_chunk.segments.pop(), alias_chunk.segments.pop()) {
-//         (Some(last_import_pair), Some(last_alias_pair)) => {
-//             let ident = last_import_pair.value().ident.clone();
-//             if ident.eq(&last_alias_pair.value().ident) {
-//                 merged_chunk.insert(0, PathSegment::from(ident));
-//                 return Some((import_chunk, alias_chunk, merged_chunk))
-//             }
-//         },
-//         _ => {}
-//     }
-//     None
-// }
-// fn refined_import2(import_path: &Path, alias: &Path, scope: &ScopeChain) -> Option<Path> {
-//     // TODO:: it should be more complex actually
-//     // Because:
-//     // - items can be aliased by multiple items
-//     // - items can be aliased at the different layers
-//     // - items can be re-exported across multiple crates
-//     let mut import_chunk = import_path.clone();
-//     let mut alias_chunk = alias.clone();
-//     let mut merged_path: Option<Path> = None;
-//     let mut merged_chunk = Punctuated::new();
-//     while let Some((import_chunk, alias_chunk, merged_chunk)) = probe_chunks(&mut import_chunk, &mut alias_chunk, &mut merged_chunk) {
-//         println!("[INFO] Refine import: [{}]\n\talias: [{}]\n\tscope: [{}]\n\t=====: [{}] + [{}] + [{}]",
-//                  format_token_stream(import_path),
-//                  format_token_stream(alias),
-//                  scope.self_path_holder_ref(),
-//                  format_token_stream(&import_chunk.segments),
-//                  format_token_stream(&alias_chunk.segments),
-//                  format_token_stream(&merged_chunk));
-//         merged_path = Some(merge_import_chunks(merged_chunk.clone(), import_chunk.clone(), alias_chunk.clone()));
-//
-//     }
-//     merged_path
-// }
-//
-// fn merge_import_chunks(ident: Punctuated<PathSegment, Colon2>, import_chunk: Path, alias_chunk: Path) -> Path {
-//     let full_match = import_chunk.eq(&alias_chunk);
-//     let mut path = Path { leading_colon: None, segments: import_chunk.segments };
-//     if !full_match {
-//         path.segments.extend(alias_chunk.segments);
-//     }
-//     path.segments.extend(ident);
-//     path
-// }
 
 fn merge_reexport_chunks(base: &Path, extension: &Path) -> Path {
     let mut base_segments: Vec<_> = base.segments.iter().collect();

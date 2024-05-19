@@ -1,14 +1,12 @@
 use std::fmt::{Debug, Display, Formatter};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Item, Type};
+use syn::{Attribute, Item, Type};
 use syn::punctuated::Punctuated;
-use crate::composer::Depunctuated;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{ResolveAttrs, ToType, ValueReplaceScenario};
 use crate::helper::collect_bounds;
-use crate::presentation::Expansion;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
@@ -39,7 +37,7 @@ impl ValueReplaceScenario for ObjectConversion {
         // println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             (_, ObjectConversion::Item(..)) => true,
-            (ObjectConversion::Type(self_ty), ObjectConversion::Type(candidate_ty)) => {
+            (ObjectConversion::Type(self_ty), ObjectConversion::Type(_candidate_ty)) => {
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined();
                 let should = !self_ty.is_refined();
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined() || self_ty.is_tuple();
@@ -182,12 +180,11 @@ impl TryFrom<&Item> for ObjectConversion {
 }
 
 impl ResolveAttrs for ObjectConversion {
-    fn resolve_attrs(&self) -> Depunctuated<Expansion> {
+    fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
         match self {
-            ObjectConversion::Type(ty) => Depunctuated::new(),
-            ObjectConversion::Item(ty, item) =>
+            ObjectConversion::Item(_, item) =>
                 item.resolve_attrs(),
-            ObjectConversion::Empty => Depunctuated::new(),
+            _ => vec![],
         }
     }
 }

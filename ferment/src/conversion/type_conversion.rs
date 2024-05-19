@@ -2,13 +2,14 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{PathArguments, Type, TypePath, TypeReference, TypeTraitObject};
+use syn::{PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use crate::conversion::GenericTypeConversion;
 
 #[derive(Clone, Eq)]
 pub enum TypeConversion {
     Primitive(Type),
     Complex(Type),
+    Callback(Type),
     Generic(GenericTypeConversion),
 }
 
@@ -30,7 +31,8 @@ impl ToTokens for TypeConversion {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             TypeConversion::Primitive(ty) |
-            TypeConversion::Complex(ty) => ty.to_tokens(tokens),
+            TypeConversion::Complex(ty) |
+            TypeConversion::Callback(ty) => ty.to_tokens(tokens),
             TypeConversion::Generic(generic) => generic.to_tokens(tokens),
         }
     }
@@ -42,7 +44,8 @@ impl From<&Type> for TypeConversion {
 }
 impl From<Type> for TypeConversion {
     fn from(ty: Type) -> Self {
-        match ty {
+        // let dbg = ty.to_token_stream();
+        let result = match ty {
             Type::Path(TypePath { ref path , ..}) => {
                 let first_segment = path.segments.first().unwrap();
                 let last_segment = path.segments.last().unwrap();
@@ -101,15 +104,16 @@ impl From<Type> for TypeConversion {
                 TypeConversion::Generic(GenericTypeConversion::Array(ty.clone())),
             Type::Slice(..) =>
                 TypeConversion::Generic(GenericTypeConversion::Slice(ty.clone())),
-            // Type::Array(TypeArray { elem, .. }) =>
-            //     TypeConversion::Generic(GenericTypeConversion::Array(*elem)),
-            // Type::BareFn(_) => {}
-            // Type::ImplTrait(_) => {}
+            Type::BareFn(..) => TypeConversion::Callback(ty.clone()),
             // Type::Ptr(_) => {}
             Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(*elem),
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) =>
                 TypeConversion::Generic(GenericTypeConversion::TraitBounds(bounds)),
             ty => unimplemented!("TypeConversion: Unknown type: {}", ty.to_token_stream())
-        }
+        };
+        // println!("TypeConversion::from({}) --- {:?}", dbg, result);
+
+        result
     }
 }

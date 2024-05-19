@@ -9,12 +9,6 @@ use crate::interface::ffi_to_conversion;
 use crate::naming::Name;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 
-pub enum ConversionMethod {
-    From,
-    To,
-    Destroy
-}
-
 pub trait Conversion {
     fn conversion_from(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext;
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext;
@@ -127,7 +121,7 @@ impl Conversion for TypeArray {
 
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         match &*self.elem {
-            Type::Path(type_path) =>
+            Type::Path(..) =>
                 FieldTypePresentableContext::To(field_path.into()),
 
             // type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
@@ -154,7 +148,7 @@ impl Conversion for TypeSlice {
     fn conversion_to(&self, field_path: FieldTypePresentableContext) -> FieldTypePresentableContext {
         // TODO: fix it TypeConversion::from
         match &*self.elem {
-            Type::Path(type_path) =>
+            Type::Path(..) =>
                 FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
 
             // type_path.conversion_to(FieldTypePresentableContext::Boxed(field_path.into())),
@@ -162,13 +156,13 @@ impl Conversion for TypeSlice {
             //     "u8" => FieldTypePresentableContext::DerefContext(field_path.into()),
             //     _ => panic!("from_slice: unsupported segments {}", quote!(#segments))
             // },
-            Type::Tuple(type_tuple) =>
+            Type::Tuple(..) =>
                 FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
-            Type::Array(type_array) =>
+            Type::Array(..) =>
                 FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
-            Type::Slice(type_slice) =>
+            Type::Slice(..) =>
                 FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
-            Type::Reference(type_reference) =>
+            Type::Reference(..) =>
                 FieldTypePresentableContext::To(FieldTypePresentableContext::ToVec(field_path.into()).into()),
             _ => panic!("<TypeSlice as Conversion>::conversion_to: Unknown type {} === {:?}", quote!(#self), self),
         }

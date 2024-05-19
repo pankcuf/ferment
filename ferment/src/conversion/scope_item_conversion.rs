@@ -4,15 +4,12 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature};
 use syn::__private::TokenStream2;
-use crate::composer::Depunctuated;
 use crate::composition::{CfgAttributes, ImportComposition, TraitDecompositionPart1, TypeComposition};
-use crate::context::ScopeContext;
 use crate::conversion::{ImportConversion, TypeCompositionConversion};
 use crate::ext::ResolveAttrs;
 use crate::formatter::format_token_stream;
 use crate::helper::{collect_bounds, ItemExtension};
 use crate::holder::PathHolder;
-use crate::presentation::Expansion;
 use crate::tree::ScopeTreeExportID;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -47,15 +44,15 @@ impl Display for ScopeItemConversion {
 }
 
 impl ResolveAttrs for ScopeItemConversion {
-    fn resolve_attrs(&self) -> Depunctuated<Expansion> {
+    fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
         match self {
             ScopeItemConversion::Item(item) =>
                 item.maybe_attrs()
-                    .map(|attrs| attrs.cfg_attributes())
+                    .map(|attrs| attrs.cfg_attributes_or_none())
                     .unwrap_or_default(),
             ScopeItemConversion::Fn(sig) =>
                 sig.maybe_attrs()
-                    .map(|attrs| attrs.cfg_attributes())
+                    .map(|attrs| attrs.cfg_attributes_or_none())
                     .unwrap_or_default()
         }
     }

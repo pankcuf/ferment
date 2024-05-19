@@ -152,6 +152,12 @@ impl<K: Hash + Eq, V> FFIMapConversion for HashMap<K, V> {
     fn insert(&mut self, key: K, value: V) { HashMap::insert(self, key, value); }
 }
 
+impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
+    type Key = K;
+    type Value = V;
+    fn new() -> Self { indexmap::IndexMap::new() }
+    fn insert(&mut self, key: K, value: V) { indexmap::IndexMap::insert(self, key, value); }
+}
 /// # Safety
 pub unsafe fn from_primitive_vec<T: Clone>(vec: *mut T, count: usize) -> Vec<T> {
     slice::from_raw_parts(vec, count).to_vec()
