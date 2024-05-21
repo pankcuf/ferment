@@ -6,9 +6,9 @@ use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion};
+use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
 use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
-use crate::helper::path_arguments_to_paths;
+use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
 
 pub trait FFIResolve where Self: Sized + ToTokens + Parse {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self>;
@@ -148,7 +148,7 @@ impl FFIResolve for Type {
 impl FFIResolveExtended for Path {
 
     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
+        println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
         let segments = &self.segments;
         let first_segment = segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -369,7 +369,21 @@ pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
     if last_ident.is_primitive() {
         path.to_type()
     } else if last_ident.is_optional() {
-        ffi_dictionary_type(path_arguments_to_paths(&last_segment.arguments).first().unwrap(), source)
+        match path_arguments_to_type_conversions(&last_segment.arguments).first() {
+            Some(conversion) => match conversion {
+                TypeConversion::Primitive(ty) => ffi_dictionary_type(&ty.to_path(), source),
+                TypeConversion::Complex(ty) => match ty {
+                    Type::Path(TypePath { path, .. }) => ffi_dictionary_type(path, source),
+                    _ => unimplemented!("ffi_dictionary_type:: Non-Path Complex Type")
+                },
+                TypeConversion::Generic(ty) => ty.to_ffi_type().joined_mut(),
+                TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback")
+            },
+            _ => unimplemented!("ffi_dictionary_type:: Empty Optional")
+        }
+        // let first_segment = path_arguments_to_paths(&last_segment.arguments).first().unwrap();
+
+        // ffi_dictionary_type(path_arguments_to_paths(&last_segment.arguments).first().unwrap(), source)
     } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
         source.scope_type_for_path(path)
             .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())

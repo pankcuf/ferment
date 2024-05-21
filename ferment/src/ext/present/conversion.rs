@@ -2,9 +2,9 @@ use quote::{quote, ToTokens};
 use syn::{Path, Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::composer::Depunctuated;
-use crate::conversion::FieldTypeConversion;
-use crate::ext::{DictionaryType, Mangle};
-use crate::helper::path_arguments_to_paths;
+use crate::conversion::{FieldTypeConversion, TypeConversion};
+use crate::ext::{DictionaryType, Mangle, ToPath};
+use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
 use crate::interface::ffi_to_conversion;
 use crate::naming::Name;
 use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
@@ -294,16 +294,22 @@ impl Conversion for TypePath {
         if last_ident.is_primitive() {
             field_path
         } else if last_ident.is_optional() {
-            let opt_ident = &path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident;
-            // TODO: redo this
-            // TODO: what to use? 0 or ::MAX
-            if opt_ident.is_digit() {
-                FieldTypePresentableContext::IfThen(field_path.into(), quote!(> 0))
-            } else if opt_ident.is_bool() {
-                // TODO: mmm shit that's incorrect
-                FieldTypePresentableContext::IfThen(field_path.into(), quote!())
-            } else {
-                FieldTypePresentableContext::FromOpt(field_path.into())
+            match path_arguments_to_type_conversions(&last_segment.arguments).first() {
+                None => unimplemented!("Empty Optional"),
+                Some(conversion) => match conversion {
+                    TypeConversion::Callback(ty) => unimplemented!("Optional Callback"),
+                    TypeConversion::Primitive(ty) => {
+                        let ty_path = ty.to_path();
+                        let last_segment = ty_path.segments.last().unwrap();
+                        let opt_ident = &last_segment.ident;
+                        if opt_ident.is_bool() {
+                            FieldTypePresentableContext::IfThen(field_path.into(), quote!())
+                        } else {
+                            FieldTypePresentableContext::IfThen(field_path.into(), quote!(> 0))
+                        }
+                    }
+                    _ => FieldTypePresentableContext::FromOpt(field_path.into()),
+                }
             }
         } else if last_ident.is_box() {
             FieldTypePresentableContext::Into(FieldTypePresentableContext::From(field_path.into()).into())
@@ -318,20 +324,43 @@ impl Conversion for TypePath {
         if last_ident.is_primitive() {
             field_path
         } else if last_ident.is_optional() {
-            let opt_ident = &path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident;
-            if opt_ident.is_digit() {
-                FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0))
-            } else if opt_ident.is_bool() {
-                FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false))
-            } else if opt_ident.is_vec() {
-                FieldTypePresentableContext::OwnerIteratorPresentation(
-                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
-                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec)), quote! {}),
-                        OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()), quote! {})
-                    ]))))
-            } else {
-                FieldTypePresentableContext::ToOpt(field_path.into())
+            match path_arguments_to_type_conversions(&last_segment.arguments).first() {
+                None => unimplemented!("Empty Optional"),
+                Some(conversion) => match conversion {
+                    TypeConversion::Callback(ty) => unimplemented!("Optional Callback"),
+                    TypeConversion::Primitive(ty) => {
+                        let ty_path = ty.to_path();
+                        let last_segment = ty_path.segments.last().unwrap();
+                        let opt_ident = &last_segment.ident;
+                        if opt_ident.is_bool() {
+                            FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false))
+                        } else {
+                            FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0))
+                        }
+                    },
+                    TypeConversion::Generic(ty) => FieldTypePresentableContext::OwnerIteratorPresentation(
+                        OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
+                            OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec)), quote! {}),
+                            OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()), quote! {})
+                        ])))),
+                    _ => FieldTypePresentableContext::ToOpt(field_path.into())
+                }
             }
+
+            // let opt_ident = &path_arguments_to_paths(&last_segment.arguments).first().unwrap().segments.last().unwrap().ident;
+            // if opt_ident.is_digit() {
+            //     FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(0))
+            // } else if opt_ident.is_bool() {
+            //     FieldTypePresentableContext::UnwrapOr(field_path.into(), quote!(false))
+            // } else if opt_ident.is_vec() {
+            //     FieldTypePresentableContext::OwnerIteratorPresentation(
+            //         OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
+            //             OwnedItemPresentableContext::Lambda(quote!(Some(vec)), ffi_to_conversion(quote!(vec)), quote! {}),
+            //             OwnedItemPresentableContext::Lambda(quote!(None), quote!(std::ptr::null_mut()), quote! {})
+            //         ]))))
+            // } else {
+            //     FieldTypePresentableContext::ToOpt(field_path.into())
+            // }
         } else {
             FieldTypePresentableContext::To(field_path.into())
         }
@@ -343,12 +372,21 @@ impl Conversion for TypePath {
         if last_ident.is_primitive() {
             FieldTypePresentableContext::Empty    
         } else if last_ident.is_optional() {
-            let opt_ident = &path_arguments_to_paths(&self.path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident;
-            if opt_ident.is_primitive() {
-                FieldTypePresentableContext::Empty
-            } else {
-                FieldTypePresentableContext::DestroyOpt(field_path.into())
+            match path_arguments_to_type_conversions(&last_segment.arguments).first() {
+                None => unimplemented!("Empty Optional"),
+                Some(conversion) => match conversion {
+                    TypeConversion::Callback(ty) => unimplemented!("Optional Callback"),
+                    TypeConversion::Primitive(ty) => FieldTypePresentableContext::Empty,
+                    _ => FieldTypePresentableContext::DestroyOpt(field_path.into())
+                }
             }
+            //
+            // let opt_ident = &path_arguments_to_paths(&self.path.segments.last().unwrap().arguments).first().unwrap().segments.last().unwrap().ident;
+            // if opt_ident.is_primitive() {
+            //     FieldTypePresentableContext::Empty
+            // } else {
+            //     FieldTypePresentableContext::DestroyOpt(field_path.into())
+            // }
         } else if last_ident.is_string() {
             FieldTypePresentableContext::DestroyConversion(field_path.into(), self.path.to_token_stream())
         } else if last_ident.is_str() {

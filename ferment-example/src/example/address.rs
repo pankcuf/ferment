@@ -44,6 +44,4 @@ pub fn address_simple_result(script: Vec<u32>) -> Result<u32, u32> {
 // }
 
 #[allow(unused)]
-pub enum TestChainType {
-
-}
+pub enum TestChainType {}

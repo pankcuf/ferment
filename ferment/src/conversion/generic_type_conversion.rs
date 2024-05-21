@@ -114,21 +114,27 @@ impl GenericTypeConversion {
                 None => unimplemented!("Mixin inside generic"),
                 Some(ty) => match TypeConversion::from(ty) {
                     TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                    TypeConversion::Primitive(_) => (FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()), FieldTypePresentableContext::ToOptPrimitive(FieldTypePresentableContext::O.into())),
-                    _ => (FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()), FieldTypePresentableContext::ToOpt(FieldTypePresentableContext::O.into())),
+                    TypeConversion::Primitive(_) => (
+                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
+                        FieldTypePresentableContext::ToOptPrimitive(FieldTypePresentableContext::O.into())
+                    ),
+                    _ => (
+                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
+                        FieldTypePresentableContext::ToOpt(FieldTypePresentableContext::O.into())
+                    ),
                 }
             }
         } else {
-            (FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()))
+            (
+                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
+                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())
+            )
         };
         (
             FieldTypePresentableContext::MapExpression(
                 FieldTypePresentableContext::O.into(),
                 from.into()),
             to,
-            // FieldTypePresentableContext::MapExpression(
-            //     FieldTypePresentableContext::O.into(),
-            //     to.into())
         )
     }
     pub fn ty(&self) -> Option<&Type> {

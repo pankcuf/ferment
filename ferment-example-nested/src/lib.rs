@@ -25,76 +25,25 @@ pub mod some_inner_2 {
         Quorum { llmq_type: QuorumType::Normal }
     }
 
-    // #[ferment_macro::export]
-    // pub fn get_btree_set() -> BTreeSet<String> {
-    //     BTreeSet::new()
-    // }
-    //
-    // #[ferment_macro::export]
-    // pub fn set_btree_set(set: BTreeSet<String>) {
-    //     println!("BTreeSet: {:?}", set);
-    // }
-    //
     #[ferment_macro::export]
-    pub struct DocumentType_P_P {
+    pub struct AllExamples {
         pub name: String,
-        pub indexes: BTreeMap<u32, u32>,
+        pub map_k_simple_v_simple: BTreeMap<u32, u32>,
+        pub map_k_simple_v_opt_simple: BTreeMap<u32, Option<u32>>,
+        pub map_k_simple_v_opt_complex: BTreeMap<u32, Option<String>>,
+        pub map_k_simple_v_opt_generic_simple: BTreeMap<u32, Option<Vec<u32>>>,
+        pub map_k_simple_v_opt_generic_complex: BTreeMap<u32, Option<Vec<String>>>,
+        pub btreeset_opt_simple: BTreeSet<Option<u32>>,
+        pub result_ok_complex_err_complex: Result<String, String>,
+        pub result_ok_complex_err_opt_simple: Result<String, Option<u32>>,
+        pub result_ok_complex_err_opt_complex: Result<String, Option<String>>,
+        pub arr: [u8; 32],
+        pub opt_complex: Option<String>,
+        pub opt_map_k_simple_v_simple: Option<BTreeMap<u32, u32>>,
+        pub tuple_string: (String, String),
+        pub opt_arr: Option<[u8; 32]>,
+        // pub indexes: Option<[u8; 32]>,
     }
-    #[ferment_macro::export]
-    pub struct DocumentType_P_OP {
-        pub name: String,
-        pub indexes: BTreeMap<u32, Option<u32>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_P_OC {
-        pub name: String,
-        pub indexes: BTreeMap<u32, Option<String>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_P_OGP {
-        pub name: String,
-        pub indexes: BTreeMap<u32, Option<Vec<u32>>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_P_OGC {
-        pub name: String,
-        pub indexes: BTreeMap<u32, Option<Vec<String>>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_P_OGG {
-        pub name: String,
-        pub indexes: BTreeMap<u32, Option<Vec<Vec<u32>>>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_OP {
-        pub name: String,
-        pub indexes: BTreeSet<Option<u32>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_ArrP {
-        pub name: String,
-        pub indexes: [u8; 32],
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_Res {
-        pub name: String,
-        pub indexes: Result<String, String>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_Res2 {
-        pub name: String,
-        pub indexes: Result<String, Option<String>>,
-    }
-    #[ferment_macro::export]
-    pub struct DocumentType_Res3 {
-        pub name: String,
-        pub indexes: Result<String, Option<u32>>,
-    }
-    // #[ferment_macro::export]
-    // pub struct DocumentType_ArrOP {
-    //     pub name: String,
-    //     pub indexes: Option<[u8; 32]>,
-    // }
     // #[ferment_macro::export]
     // pub struct DocumentTypeV2 {
     //     pub name: String,
