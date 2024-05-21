@@ -354,7 +354,7 @@ impl ScopeContextPresentable for FieldTypePresentableContext {
             }
             FieldTypePresentableContext::ToOptPrimitive(field_name) => {
                 let field_name = field_name.present(source);
-                quote!((#field_name).map_or(std::ptr::null_mut(), |o| o))
+                quote!((#field_name).map_or(std::ptr::null_mut(), |o| ferment_interfaces::boxed(o)))
                 // quote!((!#field_name.is_null()).then(|| Some(*#field_name)))
             }
             FieldTypePresentableContext::AsMut_(context) => {

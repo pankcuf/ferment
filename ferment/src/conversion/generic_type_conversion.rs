@@ -125,9 +125,10 @@ impl GenericTypeConversion {
             FieldTypePresentableContext::MapExpression(
                 FieldTypePresentableContext::O.into(),
                 from.into()),
-            FieldTypePresentableContext::MapExpression(
-                FieldTypePresentableContext::O.into(),
-                to.into())
+            to,
+            // FieldTypePresentableContext::MapExpression(
+            //     FieldTypePresentableContext::O.into(),
+            //     to.into())
         )
     }
     pub fn ty(&self) -> Option<&Type> {
@@ -273,7 +274,7 @@ impl GenericTypeConversion {
                                 arg_1_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())
                             )
                         )
                     },
@@ -302,7 +303,7 @@ impl GenericTypeConversion {
                                 arg_0_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
                             GenericArgPresentation::new(
                                 arg_1_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
@@ -318,12 +319,14 @@ impl GenericTypeConversion {
                                 arg_0_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                // FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
                             GenericArgPresentation::new(
                                 arg_1_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
+                                // FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
                         )
                     },
                     [TypeConversion::Complex(ok), TypeConversion::Generic(generic_error)] => {
@@ -335,7 +338,7 @@ impl GenericTypeConversion {
                                 arg_0_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
                             GenericArgPresentation::new(
                                 arg_1_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
@@ -374,7 +377,7 @@ impl GenericTypeConversion {
                                 arg_1_ffi_type,
                                 FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
                                 FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
+                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
                         )
                     },
                     [TypeConversion::Generic(generic_ok), TypeConversion::Generic(generic_error)] => {

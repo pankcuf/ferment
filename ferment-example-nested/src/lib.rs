@@ -75,6 +75,21 @@ pub mod some_inner_2 {
         pub name: String,
         pub indexes: [u8; 32],
     }
+    #[ferment_macro::export]
+    pub struct DocumentType_Res {
+        pub name: String,
+        pub indexes: Result<String, String>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_Res2 {
+        pub name: String,
+        pub indexes: Result<String, Option<String>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_Res3 {
+        pub name: String,
+        pub indexes: Result<String, Option<u32>>,
+    }
     // #[ferment_macro::export]
     // pub struct DocumentType_ArrOP {
     //     pub name: String,
