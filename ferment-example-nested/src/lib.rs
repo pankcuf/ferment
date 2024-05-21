@@ -17,6 +17,7 @@ pub mod some_inner {
     }
 }
 pub mod some_inner_2 {
+    use std::collections::{BTreeMap, BTreeSet};
     use crate::model::quorum::QuorumType;
     use crate::model::Quorum;
     #[ferment_macro::export]
@@ -34,11 +35,60 @@ pub mod some_inner_2 {
     //     println!("BTreeSet: {:?}", set);
     // }
     //
+    #[ferment_macro::export]
+    pub struct DocumentType_P_P {
+        pub name: String,
+        pub indexes: BTreeMap<u32, u32>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_P_OP {
+        pub name: String,
+        pub indexes: BTreeMap<u32, Option<u32>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_P_OC {
+        pub name: String,
+        pub indexes: BTreeMap<u32, Option<String>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_P_OGP {
+        pub name: String,
+        pub indexes: BTreeMap<u32, Option<Vec<u32>>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_P_OGC {
+        pub name: String,
+        pub indexes: BTreeMap<u32, Option<Vec<String>>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_P_OGG {
+        pub name: String,
+        pub indexes: BTreeMap<u32, Option<Vec<Vec<u32>>>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_OP {
+        pub name: String,
+        pub indexes: BTreeSet<Option<u32>>,
+    }
+    #[ferment_macro::export]
+    pub struct DocumentType_ArrP {
+        pub name: String,
+        pub indexes: [u8; 32],
+    }
     // #[ferment_macro::export]
-    // pub struct DocumentTypeV0 {
+    // pub struct DocumentType_ArrOP {
     //     pub name: String,
-    //     pub identifier_paths: BTreeSet<String>,
-    //     pub binary_paths: BTreeSet<String>
+    //     pub indexes: Option<[u8; 32]>,
+    // }
+    // #[ferment_macro::export]
+    // pub struct DocumentTypeV2 {
+    //     pub name: String,
+    //     pub indexes: BTreeMap<String, Option<Vec<u8>>>,
+    // }
+    // #[ferment_macro::export]
+    // pub struct DocumentTypeV3 {
+    //     pub name: String,
+    //     pub indexes: BTreeMap<String, Option<Vec<String>>>,
     // }
 }
 

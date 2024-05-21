@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{ItemUse, UseRename, UseTree};
@@ -8,6 +10,7 @@ use crate::builder::Crate;
 use crate::composer::Depunctuated;
 use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
+use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::format_generic_conversions;
 use crate::presentation::Expansion;
@@ -24,6 +27,13 @@ pub struct CrateTree {
 impl ToTokens for CrateTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let source = self.current_tree.scope_context.borrow();
+        let generics_source = Rc::new(RefCell::new(ScopeContext::with(
+            ScopeChain::Mod {
+                info: ScopeInfo {
+                    attrs: vec![],
+                    crate_ident: source.scope.crate_ident().clone(),
+                    self_scope: Scope::new(self.current_tree.scope.self_path_holder_ref().joined(&format_ident!("generics")), ObjectConversion::Empty) },
+                parent_scope_chain: self.current_tree.scope.clone().into() }, source.context.clone())));
         let refined_generics = &source.context.read().unwrap().refined_generics;
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(refined_generics));
         let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
@@ -45,7 +55,7 @@ impl ToTokens for CrateTree {
                 match &generic.object {
                     ObjectConversion::Type(type_cc) |
                     ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
-                        TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &source),
+                        TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &generics_source),
                         otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
                     },
                     ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")

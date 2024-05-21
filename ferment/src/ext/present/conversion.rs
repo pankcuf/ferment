@@ -347,7 +347,7 @@ impl Conversion for TypePath {
             if opt_ident.is_primitive() {
                 FieldTypePresentableContext::Empty
             } else {
-                FieldTypePresentableContext::IsNull(field_path.into())
+                FieldTypePresentableContext::DestroyOpt(field_path.into())
             }
         } else if last_ident.is_string() {
             FieldTypePresentableContext::DestroyConversion(field_path.into(), self.path.to_token_stream())

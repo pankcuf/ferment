@@ -10,9 +10,11 @@ mod scope_item_conversion;
 mod local_type_conversion;
 mod generic_type_conversion;
 mod type_conversion;
+// mod generic_type_conversion2;
 
 pub use self::field_type_conversion::FieldTypeConversion;
 pub use self::generic_type_conversion::GenericTypeConversion;
+// pub use self::generic_type_conversion2::GenericTypeConversion;
 pub use self::import_conversion::ImportConversion;
 pub use self::item_conversion::{ItemConversion, type_ident_ref};
 // pub use self::local_type_conversion::LocalTypeConversion;

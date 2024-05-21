@@ -162,11 +162,36 @@ impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
 pub unsafe fn from_primitive_vec<T: Clone>(vec: *mut T, count: usize) -> Vec<T> {
     slice::from_raw_parts(vec, count).to_vec()
 }
+pub unsafe fn from_primitive_opt_vec<T: Copy>(vec: *mut *mut T, count: usize) -> Vec<Option<T>> {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (!v.is_null()).then(|| *v)
+        })
+        .collect()
+
+}
 pub unsafe fn from_primitive_btree_set<T: Clone + Ord>(vec: *mut T, count: usize) -> BTreeSet<T> {
     BTreeSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
 }
+pub unsafe fn from_primitive_opt_btree_set<T: Copy + Ord>(vec: *mut *mut T, count: usize) -> BTreeSet<Option<T>> {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (!v.is_null()).then(|| *v)
+        })
+        .collect()
+}
 pub unsafe fn from_primitive_hash_set<T: Clone + Eq + Hash>(vec: *mut T, count: usize) -> HashSet<T> {
     HashSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
+}
+pub unsafe fn from_primitive_opt_hash_set<T: Copy + Eq + Hash>(vec: *mut *mut T, count: usize) -> HashSet<Option<T>> {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (!v.is_null()).then(|| *v)
+        })
+        .collect()
 }
 
 /// # Safety
@@ -175,9 +200,19 @@ pub unsafe fn from_complex_vec<V, V2: FFIConversion<V>>(vec: *mut *mut V2, count
         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
         .collect()
 }
+pub unsafe fn from_complex_opt_vec<V, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> Vec<Option<V>> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
+        .collect()
+}
 pub unsafe fn from_complex_btree_set<V: Ord, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> BTreeSet<V> {
     (0..count)
         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
+        .collect()
+}
+pub unsafe fn from_complex_opt_btree_set<V: Ord, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> BTreeSet<Option<V>> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
         .collect()
 }
 pub unsafe fn from_complex_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> HashSet<V> {
@@ -185,17 +220,42 @@ pub unsafe fn from_complex_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mu
         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
         .collect()
 }
+pub unsafe fn from_complex_opt_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> HashSet<Option<V>> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
+        .collect()
+}
+
+// pub unsafe fn from_complex_iterator<I: FromIterator<V>, V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> I {
+//     (0..count)
+//         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
+//         .collect()
+// }
+// pub unsafe fn from_complex_opt_iterator<I: FromIterator<Option<V>>, V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> I {
+//     (0..count)
+//         .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
+//         .collect()
+// }
+// <B: FromIterator<Self::Item>>
 
 /// # Safety
 pub unsafe fn to_complex_vec<T, U>(iter: impl Iterator<Item=T>) -> *mut *mut U
     where U: FFIConversion<T> {
     boxed_vec(iter.map(|o| <U as FFIConversion<T>>::ffi_to(o)).collect())
 }
+pub unsafe fn to_complex_opt_vec<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
+    where U: FFIConversion<T> {
+    boxed_vec(iter.map(|o| <U as FFIConversion<T>>::ffi_to_opt(o)).collect())
+}
 
 /// # Safety
 pub unsafe fn to_primitive_vec<T, U>(iter: impl Iterator<Item=T>) -> *mut U
     where Vec<U>: FromIterator<T> {
     boxed_vec(iter.collect())
+}
+pub unsafe fn to_primitive_opt_vec<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
+    where Vec<*mut U>: FromIterator<*mut T> {
+    boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
 }
 
 

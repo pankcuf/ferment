@@ -15,23 +15,35 @@ pub enum DictionaryFieldName {
     Count,
     Obj,
     Self_,
-    // O,
+    O,
     Package,
     Interface,
 }
+
+
 
 #[derive(Clone, Debug)]
 pub enum DictionaryExpression {
     BoxedExpression(TokenStream2),
     FromPrimitiveVec(TokenStream2, TokenStream2),
+    FromPrimitiveOptVec(TokenStream2, TokenStream2),
     FromPrimitiveBTreeSet(TokenStream2, TokenStream2),
+    FromPrimitiveOptBTreeSet(TokenStream2, TokenStream2),
     FromPrimitiveHashSet(TokenStream2, TokenStream2),
+    FromPrimitiveOptHashSet(TokenStream2, TokenStream2),
     FromComplexVec(TokenStream2, TokenStream2),
+    FromComplexOptVec(TokenStream2, TokenStream2),
     FromComplexBTreeSet(TokenStream2, TokenStream2),
+    FromComplexOptBTreeSet(TokenStream2, TokenStream2),
     FromComplexHashSet(TokenStream2, TokenStream2),
+    FromComplexOptHashSet(TokenStream2, TokenStream2),
     // FromComplexSlice(TokenStream2, TokenStream2, Type/*arg regular type*/),
     FromPrimitiveArray(TokenStream2, TokenStream2),
+    FromPrimitiveOptArray(TokenStream2, TokenStream2),
     FromComplexArray(TokenStream2, TokenStream2),
+    FromComplexOptArray(TokenStream2, TokenStream2),
+    MapKeysCloned(TokenStream2),
+    MapValuesCloned(TokenStream2),
 }
 
 
@@ -58,10 +70,20 @@ impl ToTokens for DictionaryFieldName {
             DictionaryFieldName::Package => quote!(ferment_interfaces),
             DictionaryFieldName::Interface => quote!(FFIConversion),
             DictionaryFieldName::Self_ => quote!(self_),
+            DictionaryFieldName::O => quote!(o)
         }
         .to_tokens(tokens)
     }
 }
+
+
+impl DictionaryFieldName {
+    pub fn to_ident(&self) -> Ident {
+        format_ident!("{}", self.to_token_stream().to_string())
+    }
+}
+
+
 impl ToTokens for DictionaryExpression {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
@@ -73,25 +95,49 @@ impl ToTokens for DictionaryExpression {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_primitive_vec(#values, #count))
             }
+            DictionaryExpression::FromPrimitiveOptVec(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_primitive_opt_vec(#values, #count))
+            }
             DictionaryExpression::FromPrimitiveBTreeSet(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_primitive_btree_set(#values, #count))
+            }
+            DictionaryExpression::FromPrimitiveOptBTreeSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_primitive_opt_btree_set(#values, #count))
             }
             DictionaryExpression::FromPrimitiveHashSet(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_primitive_hash_set(#values, #count))
             }
+            DictionaryExpression::FromPrimitiveOptHashSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_primitive_opt_hash_set(#values, #count))
+            }
             DictionaryExpression::FromComplexVec(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_vec(#values, #count))
+            }
+            DictionaryExpression::FromComplexOptVec(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_complex_opt_vec(#values, #count))
             }
             DictionaryExpression::FromComplexBTreeSet(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_btree_set(#values, #count))
             }
+            DictionaryExpression::FromComplexOptBTreeSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_complex_opt_btree_set(#values, #count))
+            }
             DictionaryExpression::FromComplexHashSet(values, count) => {
                 let package = DictionaryFieldName::Package;
                 quote!(#package::from_complex_hash_set(#values, #count))
+            }
+            DictionaryExpression::FromComplexOptHashSet(values, count) => {
+                let package = DictionaryFieldName::Package;
+                quote!(#package::from_complex_opt_hash_set(#values, #count))
             }
             // DictionaryExpression::FromPrimitiveSlice(values, count) => {
             //     quote! {
@@ -117,17 +163,48 @@ impl ToTokens for DictionaryExpression {
                         .expect("Array Length mismatch")
                 }
             }
+            DictionaryExpression::FromPrimitiveOptArray(values, count) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    let count = ffi_ref.#count;
+                    let values = ffi_ref.#values;
+                    (0..count)
+                        .map(|i| {
+                            let v = *values.add(i);
+                            (!v.is_null()).then(|| *v)
+                        })
+                        .collect()
+                    //
+                    // let ffi_ref = &*ffi;
+                    // std::slice::from_raw_parts(ffi_ref.#values, ffi_ref.#count)
+                    //     .try_into()
+                    //     .expect("Array Length mismatch")
+                }
+            }
             DictionaryExpression::FromComplexArray(values, count) => {
                 quote! {
                     let ffi_ref = &*ffi;
                     (0..ffi_ref.#count)
                         .into_iter()
                         .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*ffi_ref.#values.add(i)))
-                        .collect::<Vec<String>>()
+                        .collect::<Vec<_>>()
                         .try_into()
                         .expect("Array Length mismatch")
                 }
             }
+            DictionaryExpression::FromComplexOptArray(values, count) => {
+                quote! {
+                    let ffi_ref = &*ffi;
+                    (0..ffi_ref.#count)
+                        .into_iter()
+                        .map(|i| ferment_interfaces::FFIConversion::ffi_from_opt(*ffi_ref.#values.add(i)))
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .expect("Array Length mismatch")
+                }
+            }
+            DictionaryExpression::MapKeysCloned(field_name) => quote!(#field_name.keys().cloned()),
+            DictionaryExpression::MapValuesCloned(field_name) => quote!(#field_name.values().cloned()),
         }.to_tokens(tokens)
     }
 }

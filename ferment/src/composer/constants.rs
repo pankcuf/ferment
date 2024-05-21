@@ -328,36 +328,27 @@ const fn enum_variant_composer_from_sequence_iterator_root<T: Default + ToTokens
     (LocalConversionContext, FieldTypePresentationContextPassRef),
     OwnerAspectIteratorLocalContext<T>> {
     |((name, fields), presenter)|
-        (name, {
-            let mut f =
-            fields.iter().map(|field_type|
-                OwnedItemPresentableContext::FieldType(
-                    presenter(&(field_type.name(), DEREF_FIELD_PATH_FROM_PRESENTER(field_type))), field_type.attrs())).collect::<Punctuated<_, _>>();
-            f
-        })
+        (name, fields.iter().map(|field_type|
+            OwnedItemPresentableContext::FieldType(
+                presenter(&(field_type.name(), DEREF_FIELD_PATH_FROM_PRESENTER(field_type))),
+                field_type.attrs())).collect()
+        )
 }
 const fn enum_variant_composer_to_sequence_iterator_root<T: Default + ToTokens>() -> ComposerPresenter<(LocalConversionContext, FieldTypePresentationContextPassRef), OwnerAspectIteratorLocalContext<T>> {
     |((name, fields), presenter)| {
-        (name, {
-            let mut f = fields.iter().map(|field_type|
-                OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER(field_type))), field_type.attrs())).collect::<Punctuated<_, _>>();
-            // f.push(OwnedItemPresentableContext::Exhaustive(quote!()));
-            // f.push(OwnedItemPresentableContext::Lambda(quote! {_}, quote! {unimplemented!("Enum Variant Exhaustive")}, quote! {}));
-            f
-        })
+        (name, fields.iter().map(|field_type|
+            OwnedItemPresentableContext::FieldType(
+                presenter(&(field_type.name(), ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER(field_type))),
+                field_type.attrs())).collect())
     }
 }
 const fn enum_variant_composer_drop_sequence_iterator_root<'a, SEP: Default + ToTokens>() -> ComposerPresenter<(FieldTypesContext, FieldTypePresentationContextPassRef), Punctuated<OwnedItemPresentableContext, SEP>> {
-    |(fields, presenter)| {
-        let mut f =
+    |(fields, presenter)|
         fields.iter()
             .map(|field_type|
                 OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER(field_type))), field_type.attrs())
             )
-            .collect::<Punctuated<_, _>>();
-        // f.push(OwnedItemPresentableContext::Lambda(quote! {_}, quote! {unimplemented!("Enum Variant Exhaustive")}, quote! {}));
-        f
-    }
+            .collect()
 }
 pub const fn enum_variant_from_ffi_conversion_mixer(
     seq_root: OwnerIteratorConversionComposer<Comma>,

@@ -53,12 +53,6 @@ impl From<Type> for TypeConversion {
                 let last_ident = &last_segment.ident;
                 match &last_segment.arguments {
                     PathArguments::AngleBracketed(..) => {
-                        // if last_ident.is_box() {
-                        //     TypeConversion::Generic(GenericTypeConversion::Box(ty))
-                        // } else if last_ident.is_smart_ptr() {
-                        //     TypeConversion::Generic(GenericTypeConversion::AnyOther(ty))
-                        // }
-
                         match last_ident.to_string().as_str() {
                             "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
                             "Arc" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
@@ -69,6 +63,7 @@ impl From<Type> for TypeConversion {
                             "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
                             "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                             "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
+                            "Option" => TypeConversion::Generic(GenericTypeConversion::Optional(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
                                     Some(TypeConversion::Generic(GenericTypeConversion::AnyOther(ty.clone()))),
@@ -86,8 +81,9 @@ impl From<Type> for TypeConversion {
                         "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
                         "HashSet" => TypeConversion::Generic(GenericTypeConversion::HashSet(ty)),
                         "Vec" => TypeConversion::Generic(GenericTypeConversion::Vec(ty)),
-                        "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
                         "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
+                        "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
+                        "Option" => TypeConversion::Generic(GenericTypeConversion::Optional(ty)),
                         _ => {
                             path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
