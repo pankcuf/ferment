@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{ItemUse, UseRename, UseTree};
+use syn::{UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use syn::token::Semi;
 use crate::builder::Crate;
-use crate::composer::Depunctuated;
+use crate::composer::{Depunctuated, SemiPunctuated};
 use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
@@ -36,7 +35,7 @@ impl ToTokens for CrateTree {
                 parent_scope_chain: self.current_tree.scope.clone().into() }, source.context.clone())));
         let refined_generics = &source.context.read().unwrap().refined_generics;
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(refined_generics));
-        let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_unsafe, unused_variables, unused_qualifications)]);
+        let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_parens, unused_qualifications, unused_unsafe, unused_variables)]);
         Expansion::Mod {
             attrs: Depunctuated::new(),
             directives: directives.clone(),
@@ -48,7 +47,7 @@ impl ToTokens for CrateTree {
             attrs: Depunctuated::new(),
             directives,
             name: quote!(generics),
-            imports: Punctuated::<ItemUse, Semi>::from_iter([
+            imports: SemiPunctuated::from_iter([
                 create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
             ]),
             conversions: refined_generics.iter().map(|(generic, attrs)| {

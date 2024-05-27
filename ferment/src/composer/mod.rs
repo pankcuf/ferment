@@ -19,7 +19,7 @@ use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::{Field, Type};
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, Semi};
+use syn::token::{Add, Brace, Colon2, Comma, Dot, FatArrow, Paren, Semi};
 pub use constants::BYPASS_FIELD_CONTEXT;
 pub use enum_composer::EnumComposer;
 use crate::composer::generic::GenericComposer;
@@ -28,11 +28,12 @@ use crate::composer::trait_composer::TraitComposer;
 use crate::composition::FnSignatureContext;
 use crate::conversion::FieldTypeConversion;
 use crate::naming::Name;
+use crate::opposed::Opposed;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::presentation::context::{BindingPresentableContext, FieldTypePresentableContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{BindingPresentableContext, FieldContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::context::name::Aspect;
 use crate::shared::{ParentLinker, SharedAccess};
-use crate::wrapped::Void;
+use crate::wrapped::{Void, Wrapped};
 pub use self::attrs::{AttrsComposer};
 pub use self::ffi_conversions::{FFIAspect, FFIComposer};
 pub use self::item::ItemComposer;
@@ -89,25 +90,26 @@ pub type TypeContextComposer<Parent> = ContextComposer<Type, TokenStream2, Paren
 pub type OwnerIteratorConversionComposer<T> = ComposerPresenter<OwnerAspectIteratorLocalContext<T>, OwnerIteratorPresentationContext>;
 pub type OwnerIteratorPostProcessingComposer<T> = ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, T>;
 pub type VariantComposer = ComposerPresenterByRef<VariantIteratorLocalContext, OwnerIteratorPresentationContext>;
-pub type FieldsComposer = ComposerPresenterByRef<Punctuated<Field, Comma>, FieldTypesContext>;
-pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldTypePresentableContext>;
+pub type FieldsComposer = ComposerPresenterByRef<CommaPunctuated<Field>, FieldTypesContext>;
+pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldContext>;
 /// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
 pub type BindingDtorComposer = BindingComposer<DestructorContext>;
 // pub type BindingSigComposer = BindingComposer<FnSignatureComposition>;
-pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldTypePresentableContext>;
+#[allow(unused)]
+pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldContext>;
 pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;
 pub type OwnerIteratorLocalContext<A, T> = (A, Punctuated<OwnedItemPresentableContext, T>);
 pub type OwnerAspectIteratorLocalContext<T> = OwnerIteratorLocalContext<Aspect, T>;
 pub type VariantIteratorLocalContext = OwnerAspectIteratorLocalContext<Comma>;
-pub type FieldTypesContext = Punctuated<FieldTypeConversion, Comma>;
-pub type OwnedStatement = Punctuated<OwnedItemPresentableContext, Semi>;
+pub type FieldTypesContext = CommaPunctuated<FieldTypeConversion>;
+pub type OwnedStatement = SemiPunctuated<OwnedItemPresentableContext>;
 pub type FieldsOwnerContext<T> = (T, FieldTypesContext);
 pub type LocalConversionContext = FieldsOwnerContext<Aspect>;
 pub type ConstructorFieldsContext = FieldsOwnerContext<ConstructorPresentableContext>;
-pub type BindingAccessorContext = (Type, TokenStream2, TokenStream2, TokenStream2);
+pub type BindingAccessorContext = (Type, TokenStream2, Type, TokenStream2);
 pub type DestructorContext = (Type, TokenStream2);
-pub type FieldTypeLocalContext = (TokenStream2, FieldTypePresentableContext);
+pub type FieldTypeLocalContext = (TokenStream2, FieldContext);
 
 pub type OwnedItemPresentablePair = (OwnedItemPresentableContext, OwnedItemPresentableContext);
 pub type OwnedItemPresentationPair = (OwnerIteratorPresentationContext, OwnerIteratorPresentationContext);
@@ -115,7 +117,7 @@ pub type FieldsSequenceMixer<Parent, Context, Statement> = SequenceMixer<
     Parent,
     Context,
     FieldTypeLocalContext,
-    FieldTypePresentableContext,
+    FieldContext,
     Statement,
     OwnerIteratorPresentationContext,
     OwnerIteratorPresentationContext,
@@ -147,7 +149,28 @@ pub type FnComposer<Parent> = SequenceComposer<
     (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
     BindingPresentableContext
 >;
+
+#[allow(unused)]
 pub type Depunctuated<T> = Punctuated<T, Void>;
+#[allow(unused)]
+pub type CommaPunctuated<T> = Punctuated<T, Comma>;
+#[allow(unused)]
+pub type SemiPunctuated<T> = Punctuated<T, Semi>;
+#[allow(unused)]
+pub type Colon2Punctuated<T> = Punctuated<T, Colon2>;
+#[allow(unused)]
+pub type AddPunctuated<T> = Punctuated<T, Add>;
+#[allow(unused)]
+pub type DotPunctuated<T> = Punctuated<T, Dot>;
+#[allow(unused)]
+pub type BraceWrapped<T> = Wrapped<T, Brace>;
+#[allow(unused)]
+pub type ParenWrapped<T> = Wrapped<T, Paren>;
+
+#[allow(unused)]
+pub type Assignment<T1, T2> = Opposed<T1, T2, syn::token::Eq>;
+#[allow(unused)]
+pub type Lambda<T1, T2> = Opposed<T1, T2, FatArrow>;
 
 pub trait Composer<'a> {
     type Source;

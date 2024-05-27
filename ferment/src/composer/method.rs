@@ -1,4 +1,3 @@
-use quote::ToTokens;
 use crate::composer::{Composer, BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
 use crate::context::ScopeContext;
 use crate::ext::FFIResolveExtended;
@@ -48,16 +47,10 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
             .access(self.context);
         context.iter()
             .map(|field_type| {
-
-                // println!("MethodComposer::compose: {}", field_type.ty().to_token_stream());
-
                 (self.seq_iterator_item)((
                     aspect.present(source),
                     field_type.name(),
-                    // field_type.ty().resolve(source).ffi_full_dictionary_type_presenter(source)
-                        field_type.ty()
-                            .ffi_full_dictionary_type_presenter(source)
-                        .to_token_stream(),
+                    field_type.ty().ffi_full_dictionary_type_presenter(source),
                     field_type.attrs()
                 ))
             })

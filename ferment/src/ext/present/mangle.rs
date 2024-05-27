@@ -90,7 +90,7 @@ impl Mangle<MangleDefault> for TypeTraitObject {
         self.bounds.iter().find_map(|b| match b {
             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
             TypeParamBound::Lifetime(_) => None,
-        }).unwrap_or(format!("Any"))
+        }).unwrap_or("Any".to_string())
     }
 }
 
@@ -100,7 +100,7 @@ impl Mangle<MangleDefault> for TypeImplTrait {
         self.bounds.iter().find_map(|b| match b {
             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
             TypeParamBound::Lifetime(_) => None,
-        }).unwrap_or(format!("Any"))
+        }).unwrap_or("Any".to_string())
     }
 }
 
@@ -144,6 +144,7 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
 
 impl Mangle<String> for PathArguments {
     fn mangle_string(&self, context: String) -> String {
+        // println!("PathArguments::mangle_string: {}: {}", self.to_token_stream(), context);
         let mut segment_str = context.clone();
         let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
         if is_map {

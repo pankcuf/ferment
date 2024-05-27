@@ -3,9 +3,7 @@ use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use crate::composer::{Depunctuated, ParentComposer, SigParentComposer};
+use crate::composer::{CommaPunctuated, Depunctuated, ParentComposer, SigParentComposer};
 use crate::composer::composable::SourceExpandable;
 use crate::composer::signature::SigComposer;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
@@ -151,7 +149,7 @@ impl TraitDecompositionPart2 {
 
 impl Composition for TraitDecompositionPart2 {
     type Context = TraitDecompositionPart2Context;
-    type Presentation = Punctuated<Expansion, Comma>;
+    type Presentation = CommaPunctuated<Expansion>;
 
     fn present(self, composition_context: Self::Context, _source: &ScopeContext) -> Self::Presentation {
         match composition_context {

@@ -1,6 +1,6 @@
 pub mod fermented;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::CString;
 use std::hash::Hash;
 use std::{mem, slice};
@@ -123,6 +123,24 @@ pub unsafe fn unbox_vec_ptr<T>(ptr: *mut T, count: usize) -> Vec<T> {
     Vec::from_raw_parts(ptr, count, count)
 }
 
+/// # Safety
+pub unsafe fn from_opt_primitive<T: Copy>(ptr: *mut T) -> Option<T> {
+    (!ptr.is_null()).then(|| *ptr)
+}
+
+/// # Safety
+pub unsafe fn to_opt_primitive<T: Copy>(obj: Option<T>) -> *mut T {
+    obj.map_or(std::ptr::null_mut(), |o| boxed(o))
+}
+
+/// # Safety
+pub unsafe fn destroy_opt_primitive<T: Copy>(ptr: *mut T) {
+    if !ptr.is_null() {
+        unbox_any(ptr);
+    }
+}
+
+
 pub trait FFIVecConversion {
     type Value: IntoIterator;
     /// # Safety
@@ -158,106 +176,78 @@ impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
     fn new() -> Self { indexmap::IndexMap::new() }
     fn insert(&mut self, key: K, value: V) { indexmap::IndexMap::insert(self, key, value); }
 }
-/// # Safety
-pub unsafe fn from_primitive_vec<T: Clone>(vec: *mut T, count: usize) -> Vec<T> {
-    slice::from_raw_parts(vec, count).to_vec()
-}
-pub unsafe fn from_primitive_opt_vec<T: Copy>(vec: *mut *mut T, count: usize) -> Vec<Option<T>> {
-    (0..count)
-        .map(|i| {
-            let v = *vec.add(i);
-            (!v.is_null()).then(|| *v)
-        })
-        .collect()
 
-}
-pub unsafe fn from_primitive_btree_set<T: Clone + Ord>(vec: *mut T, count: usize) -> BTreeSet<T> {
-    BTreeSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
-}
-pub unsafe fn from_primitive_opt_btree_set<T: Copy + Ord>(vec: *mut *mut T, count: usize) -> BTreeSet<Option<T>> {
-    (0..count)
-        .map(|i| {
-            let v = *vec.add(i);
-            (!v.is_null()).then(|| *v)
-        })
-        .collect()
-}
-pub unsafe fn from_primitive_hash_set<T: Clone + Eq + Hash>(vec: *mut T, count: usize) -> HashSet<T> {
-    HashSet::from_iter(slice::from_raw_parts(vec, count).to_vec())
-}
-pub unsafe fn from_primitive_opt_hash_set<T: Copy + Eq + Hash>(vec: *mut *mut T, count: usize) -> HashSet<Option<T>> {
-    (0..count)
-        .map(|i| {
-            let v = *vec.add(i);
-            (!v.is_null()).then(|| *v)
-        })
-        .collect()
-}
-
-/// # Safety
-pub unsafe fn from_complex_vec<V, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> Vec<V> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
-        .collect()
-}
-pub unsafe fn from_complex_opt_vec<V, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> Vec<Option<V>> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
-        .collect()
-}
-pub unsafe fn from_complex_btree_set<V: Ord, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> BTreeSet<V> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
-        .collect()
-}
-pub unsafe fn from_complex_opt_btree_set<V: Ord, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> BTreeSet<Option<V>> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
-        .collect()
-}
-pub unsafe fn from_complex_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> HashSet<V> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
-        .collect()
-}
-pub unsafe fn from_complex_opt_hash_set<V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> HashSet<Option<V>> {
-    (0..count)
-        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
-        .collect()
-}
-
-// pub unsafe fn from_complex_iterator<I: FromIterator<V>, V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> I {
-//     (0..count)
-//         .map(|i| FFIConversion::ffi_from(*vec.add(i)))
-//         .collect()
+// /// # Safety
+// pub unsafe fn from_primitive_array<const U: usize, T: Copy>(vec: *mut T, count: usize) -> [T; U] {
+//     *vec
 // }
-// pub unsafe fn from_complex_opt_iterator<I: FromIterator<Option<V>>, V: Eq + Hash, V2: FFIConversion<V>>(vec: *mut *mut V2, count: usize) -> I {
-//     (0..count)
-//         .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
-//         .collect()
+// /// # Safety
+// pub unsafe fn from_opt_primitive_array<const U: usize, T: Copy>(vec: *mut T, count: usize) -> [Option<T>; U] {
+//     *vec
 // }
-// <B: FromIterator<Self::Item>>
 
 /// # Safety
-pub unsafe fn to_complex_vec<T, U>(iter: impl Iterator<Item=T>) -> *mut *mut U
+pub unsafe fn from_primitive_group<C, T: Copy>(vec: *mut T, count: usize) -> C
+    where
+        C: FromIterator<T>,
+        T: Clone {
+    slice::from_raw_parts(vec, count).iter().cloned().collect()
+}
+
+/// # Safety
+pub unsafe fn from_opt_primitive_group<C, T>(vec: *mut *mut T, count: usize) -> C
+    where
+        C: FromIterator<Option<T>>,
+        T: Copy {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (!v.is_null()).then(|| *v)
+        })
+        .collect()
+}
+
+/// # Safety
+pub unsafe fn from_complex_group<C, V, V2>(vec: *mut *mut V2, count: usize) -> C
+    where
+        C: FromIterator<V>,
+        V2: FFIConversion<V> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from(*vec.add(i)))
+        .collect()
+}
+
+/// # Safety
+pub unsafe fn from_opt_complex_group<C, V, V2>(vec: *mut *mut V2, count: usize) -> C
+    where
+        C: FromIterator<Option<V>>,
+        V2: FFIConversion<V> {
+    (0..count)
+        .map(|i| FFIConversion::ffi_from_opt(*vec.add(i)))
+        .collect()
+}
+
+/// # Safety
+pub unsafe fn to_complex_group<T, U>(iter: impl Iterator<Item=T>) -> *mut *mut U
     where U: FFIConversion<T> {
     boxed_vec(iter.map(|o| <U as FFIConversion<T>>::ffi_to(o)).collect())
 }
-pub unsafe fn to_complex_opt_vec<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
+/// # Safety
+pub unsafe fn to_opt_complex_group<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
     where U: FFIConversion<T> {
     boxed_vec(iter.map(|o| <U as FFIConversion<T>>::ffi_to_opt(o)).collect())
 }
 
 /// # Safety
-pub unsafe fn to_primitive_vec<T, U>(iter: impl Iterator<Item=T>) -> *mut U
+pub unsafe fn to_primitive_group<T, U>(iter: impl Iterator<Item=T>) -> *mut U
     where Vec<U>: FromIterator<T> {
     boxed_vec(iter.collect())
 }
-pub unsafe fn to_primitive_opt_vec<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
+/// # Safety
+pub unsafe fn to_opt_primitive_group<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
     where Vec<*mut U>: FromIterator<*mut T> {
     boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
 }
-
 
 /// # Safety
 pub unsafe fn fold_to_map<M, K, V, K2, V2>(
@@ -352,85 +342,110 @@ macro_rules! impl_custom_conversion2 {
     };
 }
 
-
-// pub trait ResultFrom<T, E, TF, EF> {
-//     fn result_from<RT>(from: &RT) -> Result<T, E> where RT: ResultTo<T, E>;
-// }
-// pub trait ResultTo<T, E> {
-//     fn result_to(o: (T, E)) -> Self;
-//     fn ok(&self) -> *mut T;
-//     fn error(&self) -> *mut E;
-// }
-
-// impl<T, E, FFI> ResultTo<T, E> for FFI {
-//    fn result_to(o: (T, E)) -> Self {
-//        Self { ok: o.0, error: o.1 }
-//    }
-//
-//     fn ok(&self) -> *mut T {
-//         todo!()
+// impl<T> FFIConversion<std::sync::Arc<T>> for T {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<T> {
+//         std::sync::Arc::from_raw(ffi)
 //     }
 //
-//     fn error(&self) -> *mut E {
-//         todo!()
+//     unsafe fn ffi_to_const(obj: std::sync::Arc<T>) -> *const Self {
+//         std::sync::Arc::into_raw(obj)
 //     }
 // }
 
-// impl<T, E, FT, FE, FFI> ResultFrom<T, E, FT, FE> for FFI
-//    where
-//        FT: FFIConversion<T>,
-//        FE: FFIConversion<E> {
-//
-//    fn result_from<RT>(result: &RT) -> Result<T, E> where RT: ResultTo<T, E> {
-//        unsafe {
-//            if result.error().is_null() {
-//                Ok(<FT as FFIConversion<T>>::ffi_from(result.ok()))
-//            } else {
-//                Err(<FE as FFIConversion<E>>::ffi_from(result.error()))
-//            }
-//        }
-//    }
-// }
-//
-// impl<T, E, FT, FE, FFIResult> FFIConversion<Result<T, E>> for FFIResult
-//    where
-//        FT: FFIConversion<T>,
-//        FE: FFIConversion<E>,
-//        FFIResult: ResultFrom<T, E, FT, FE> + ResultTo<T, E> {
-//
-//    unsafe fn ffi_from_const(ffi: *const Self) -> Result<T, E> {
-//        FFIResult::result_from(&*ffi)
-//    }
-//
-//    unsafe fn ffi_to_const(obj: Result<T, E>) -> *const Self {
-//        boxed(FFIResult::result_to(match obj {
-//            Ok(o) => (FFIConversion::ffi_to(o), std::ptr::null_mut()),
-//            Err(o) => (std::ptr::null_mut(), FFIConversion::ffi_to(o)),
-//        }))
-//    }
-// }
-
-
-impl<T> FFIConversion<Arc<T>> for T {
-    unsafe fn ffi_from_const(ffi: *const Self) -> Arc<T> {
-        Arc::from_raw(ffi)
+pub struct Arc_u32 {
+    pub obj: u32
+}
+impl FFIConversion<std::sync::Arc<u32>> for Arc_u32 {
+    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<u32> {
+        let ffi_ref = &*ffi;
+        Arc::new(ffi_ref.obj)
     }
 
-    unsafe fn ffi_to_const(obj: Arc<T>) -> *const Self {
-        Arc::into_raw(obj) as *mut T
+    unsafe fn ffi_to_const(obj: std::sync::Arc<u32>) -> *const Self {
+        boxed(Self { obj: *obj } )
     }
 }
 
-// impl<T> FFIConversion<Mutex<T>> for T {
-//     unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {
-//         Mutex::new()
-//     }
-//
-//     unsafe fn ffi_to_const(obj: Arc<T>) -> *const Self {
-//         Arc::into_raw(obj) as *mut T
-//     }
+// pub trait FFIPtrConversion<T> {
+//     /// # Safety
+//     unsafe fn decode(&self) -> T;
+//     /// # Safety
+//     unsafe fn encode(obj: T) -> *mut Self;
 // }
 
+#[derive(Clone)]
+pub struct Arc_String {
+    pub value: *mut std::os::raw::c_char,
+}
+impl FFIConversion<std::sync::Arc<String>> for crate::Arc_String {
+    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<String> {
+        let ffi_ref = &*ffi;
+        Arc::new(FFIConversion::ffi_from(ffi_ref.value))
+    }
+
+    unsafe fn ffi_to_const(obj: std::sync::Arc<String>) -> *const Self {
+        boxed(Self { value: FFIConversion::ffi_to((*obj).clone()) })
+    }
+}
+
+#[derive(Clone)]
+pub struct Mutex_u32 {
+    pub obj: u32,
+}
+
+impl FFIConversion<std::sync::Mutex<u32>> for crate::Mutex_u32 {
+    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<u32> {
+        let ffi_ref = &*ffi;
+        std::sync::Mutex::new(ffi_ref.obj)
+    }
+
+    unsafe fn ffi_to_const(obj: std::sync::Mutex<u32>) -> *const Self {
+        boxed(Self { obj: obj.into_inner().expect("Err") })
+    }
+}
+#[derive(Clone)]
+pub struct Mutex_String {
+    pub value: *mut std::os::raw::c_char,
+}
+
+impl FFIConversion<std::sync::Mutex<String>> for crate::Mutex_String {
+    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<String> {
+        let ffi_ref = &*ffi;
+        std::sync::Mutex::new(FFIConversion::ffi_from_const(ffi_ref.value))
+    }
+
+    unsafe fn ffi_to_const(obj: std::sync::Mutex<String>) -> *const Self {
+        boxed(Self { value: FFIConversion::ffi_to(obj.into_inner().expect("Err")) })
+    }
+}
+
+#[derive(Clone)]
+pub struct RefCell_String {
+    pub value: *mut std::os::raw::c_char,
+}
+
+impl FFIConversion<std::cell::RefCell<String>> for crate::RefCell_String {
+    unsafe fn ffi_from_const(ffi: *const Self) -> std::cell::RefCell<String> {
+        let ffi_ref = &*ffi;
+        std::cell::RefCell::new(FFIConversion::ffi_from_const(ffi_ref.value))
+    }
+
+    unsafe fn ffi_to_const(obj: std::cell::RefCell<String>) -> *const Self {
+        boxed(Self { value: FFIConversion::ffi_to(obj.into_inner()) })
+    }
+}
+
+
+// impl FFIConversion<std::sync::RwLock<u32>> for crate::RwLock_u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::RwLock<u32> {
+//         let ffi_ref = &*ffi;
+//         std::sync::RwLock::new(ffi_ref.obj)
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::sync::RwLock<u32>) -> *const Self {
+//         boxed(Self { obj: obj.into_inner().expect("Err") })
+//     }
+// }
 
 // impl<T, U> FFIConversion<Mutex<U>> for T where T: Clone,  {
 //     unsafe fn ffi_from_const(ffi: *const Self) -> Mutex<T> {

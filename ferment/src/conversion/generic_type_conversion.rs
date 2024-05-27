@@ -2,29 +2,85 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::punctuated::Punctuated;
-use syn::token::{Add, Brace, Comma};
 use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, parse_quote, Path, PathArguments, PathSegment, spanned::Spanned, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTuple};
 use syn::__private::TokenStream2;
-use crate::composer::{ConstructorPresentableContext, Depunctuated, ParentComposer};
+use crate::composer::{AddPunctuated, BraceWrapped, CommaPunctuated, ComposerPresenter, ConstructorPresentableContext, Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{FieldTypeConversion, TypeConversion};
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, TypeConversion};
 use crate::conversion::macro_conversion::merge_attributes;
-use crate::ext::{Accessory, DictionaryType, FFIResolve, FFITypeResolve, Mangle, Resolve, ToPath, ToType};
-use crate::formatter::format_unique_attrs;
-use crate::helper::{path_arguments_to_type_conversions, usize_to_tokenstream};
+use crate::ext::{Accessory, DictionaryType, FFITypeResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
+use crate::helper::usize_to_tokenstream;
 use crate::interface::create_struct;
-use crate::naming::{DictionaryExpression, DictionaryFieldName, Name};
-use crate::presentation::context::{BindingPresentableContext, FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext};
+use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethod, FFIVecConversionMethodExpr, InterfacesMethodExpr, Name};
+use crate::presentation::context::{BindingPresentableContext, FieldContext, IteratorPresentationContext, OwnedItemPresentableContext};
 use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
-use crate::wrapped::Wrapped;
+
+pub type InterfacesMethodComposer = ComposerPresenter<TokenStream2, InterfacesMethodExpr>;
+pub const FROM_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromOptPrimitive(expr);
+pub const TO_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::ToOptPrimitive(expr);
+pub const FROM_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFrom, expr);
+pub const FROM_OPT_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFromOpt, expr);
+
+pub const TO_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiTo, expr);
+pub const TO_OPT_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiToOpt, expr);
+
+pub const FROM_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromPrimitiveGroup(expr);
+pub const FROM_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromComplexGroup(expr);
+pub const FROM_OPT_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromOptPrimitiveGroup(expr);
+pub const FROM_OPT_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromOptComplexGroup(expr);
+
+pub const TO_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::ToPrimitiveGroup(expr);
+pub const TO_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::ToComplexGroup(expr);
+pub const TO_OPT_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::ToOptPrimitiveGroup(expr);
+pub const TO_OPT_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::ToOptComplexGroup(expr);
+
+pub const DESTROY_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxVecPtr(expr);
+pub const DESTROY_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAnyVecPtr(expr);
+pub const DESTROY_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAny(expr);
+
+// pub const BOXED_VEC: InterfacesMethodComposer = |expr| InterfacesMethodExpr::BoxedVec(expr);
+pub const DESTROY_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::DestroyOptPrimitive(expr);
+
+pub struct ArgComposer {
+    // pub ty: Type,
+    pub from_composer: InterfacesMethodComposer,
+    pub to_composer: InterfacesMethodComposer,
+    pub destroy_composer: InterfacesMethodComposer,
+}
+impl ArgComposer {
+    pub fn new(from_composer: InterfacesMethodComposer, to_composer: InterfacesMethodComposer, destroy_composer: InterfacesMethodComposer) -> Self {
+        Self { from_composer, to_composer, destroy_composer }
+    }
+    pub fn from(&self, expr: TokenStream2) -> InterfacesMethodExpr {
+        (self.from_composer)(expr)
+    }
+    pub fn to(&self, expr: TokenStream2) -> InterfacesMethodExpr {
+        (self.to_composer)(expr)
+    }
+    pub fn destroy(&self, expr: TokenStream2) -> InterfacesMethodExpr {
+        (self.destroy_composer)(expr)
+    }
+}
+
+pub type GenericNestedArgComposer = fn(arg_name: &Name, arg_ty: &Type) -> GenericArgPresentation;
+
+#[allow(unused)]
+pub trait GenericNamedArgComposer {
+    fn compose_with(&self, name: &Name, composer: GenericNestedArgComposer) -> GenericArgPresentation;
+}
+
+impl GenericNamedArgComposer for Type {
+    fn compose_with(&self, name: &Name, composer: GenericNestedArgComposer) -> GenericArgPresentation {
+        composer(name, self)
+    }
+}
 
 pub struct GenericArgPresentation {
     pub ty: Type,
-    pub destructor: FieldTypePresentableContext,
-    pub from_conversion: FieldTypePresentableContext,
-    pub to_conversion: FieldTypePresentableContext,
+    pub destructor: FieldContext,
+    pub from_conversion: FieldContext,
+    pub to_conversion: FieldContext,
 }
 
 impl Debug for GenericArgPresentation {
@@ -39,9 +95,17 @@ impl Display for GenericArgPresentation {
 }
 
 impl GenericArgPresentation {
-    pub fn new(ty: Type, destructor: FieldTypePresentableContext, from_conversion: FieldTypePresentableContext, to_conversion: FieldTypePresentableContext) -> Self {
+    pub fn new(ty: Type, destructor: FieldContext, from_conversion: FieldContext, to_conversion: FieldContext) -> Self {
         Self { ty, destructor, from_conversion, to_conversion }
     }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum SmartPtr {
+    Arc,
+    Rc,
+    Mutex,
+    RwLock,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -59,7 +123,7 @@ pub enum GenericTypeConversion {
     Slice(Type),
     Tuple(Type),
     Optional(Type),
-    TraitBounds(Punctuated<TypeParamBound, Add>)
+    TraitBounds(AddPunctuated<TypeParamBound>)
 }
 impl Debug for GenericTypeConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -108,35 +172,6 @@ impl ToTokens for GenericTypeConversion {
     }
 }
 impl GenericTypeConversion {
-    pub fn arg_conversions(&self) -> (FieldTypePresentableContext, FieldTypePresentableContext) {
-        let (from, to) = if let GenericTypeConversion::Optional(..) = self {
-            match self.ty() {
-                None => unimplemented!("Mixin inside generic"),
-                Some(ty) => match TypeConversion::from(ty) {
-                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                    TypeConversion::Primitive(_) => (
-                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                        FieldTypePresentableContext::ToOptPrimitive(FieldTypePresentableContext::O.into())
-                    ),
-                    _ => (
-                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                        FieldTypePresentableContext::ToOpt(FieldTypePresentableContext::O.into())
-                    ),
-                }
-            }
-        } else {
-            (
-                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())
-            )
-        };
-        (
-            FieldTypePresentableContext::MapExpression(
-                FieldTypePresentableContext::O.into(),
-                from.into()),
-            to,
-        )
-    }
     pub fn ty(&self) -> Option<&Type> {
         match self {
             GenericTypeConversion::Map(ty) |
@@ -228,509 +263,168 @@ impl GenericTypeConversion {
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", ty.to_token_stream()),
         }
     }
+
 }
 
 impl GenericTypeConversion {
 
     pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, scope_context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         let source = scope_context.borrow();
-        let scope = source.scope.clone();
-        println!("GenericTypeConversion::expand.1: {} ---- {} \n\t {}", self, scope, format_unique_attrs(attrs));
         let attrs = merge_attributes(attrs);
         let attrs = (!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default();
-        println!("GenericTypeConversion::expand.2: {} ----\n\t {:?}", self, attrs);
+        println!("GenericTypeConversion::expand.1: {} ---- {}", self, attrs.to_token_stream());
 
         match self {
             GenericTypeConversion::Result(ty) => {
                 let ffi_name = ty.mangle_ident_default();
                 let ffi_as_type = ffi_name.to_type();
-                let path = ty.to_path();
-                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                let path_conversions = path_arguments_to_type_conversions(arguments);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Ok);
-                let arg_1_name = Name::Dictionary(DictionaryFieldName::Error);
-
-                let (arg_0_presentation, arg_1_presentation) = match &path_conversions[..] {
-                    [TypeConversion::Primitive(ok), TypeConversion::Primitive(error)] => {
-                        let arg_0_ffi_type = parse_quote!(#ok);
-                        let arg_1_ffi_type = parse_quote!(#error);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                        )
-                    },
-                    [TypeConversion::Primitive(ok), TypeConversion::Complex(error)] => {
-                        let arg_0_ffi_type = parse_quote!(#ok);
-                        let arg_1_ffi_type = error.to_custom_or_ffi_type(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())
-                            )
-                        )
-                    },
-                    [TypeConversion::Primitive(ok), TypeConversion::Generic(generic_error)] => {
-                        let arg_0_ffi_type = parse_quote!(#ok);
-                        let arg_1_ffi_type = generic_error.to_custom_or_ffi_type(&source);
-                        let (arg_1_from, arg_1_to) = generic_error.arg_conversions();
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                arg_1_from,
-                                arg_1_to),
-                        )
-                    },
-                    [TypeConversion::Complex(ok), TypeConversion::Primitive(error)] => {
-                        let arg_0_ffi_type = ok.to_custom_or_ffi_type(&source);
-                        let arg_1_ffi_type = parse_quote!(#error);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                        )
-                    },
-                    [TypeConversion::Complex(ok), TypeConversion::Complex(error)] => {
-                        let arg_0_ffi_type = ok.ffi_resolve_or_same(&source);
-                        let arg_1_ffi_type = error.ffi_resolve_or_same(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                // FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
-                                // FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
-                        )
-                    },
-                    [TypeConversion::Complex(ok), TypeConversion::Generic(generic_error)] => {
-                        let arg_0_ffi_type = ok.to_custom_or_ffi_type(&source);
-                        let arg_1_ffi_type = generic_error.to_custom_or_ffi_type(&source);
-                        let (arg_1_from, arg_1_to) = generic_error.arg_conversions();
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                arg_1_from,
-                                arg_1_to),
-                        )
-                    },
-                    [TypeConversion::Generic(generic_ok), TypeConversion::Primitive(error)] => {
-                        let arg_0_ffi_type = generic_ok.to_custom_or_ffi_type(&source);
-                        let (arg_0_from, arg_0_to) = generic_ok.arg_conversions();
-                        let arg_1_ffi_type = parse_quote!(#error);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                arg_0_from,
-                                arg_0_to),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::DerefContext(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::AsMut_(FieldTypePresentableContext::O.into())),
-                        )
-                    },
-                    [TypeConversion::Generic(generic_ok), TypeConversion::Complex(error)] => {
-                        let arg_0_ffi_type = generic_ok.to_custom_or_ffi_type(&source);
-                        let (arg_0_from, arg_0_to) = generic_ok.arg_conversions();
-                        let arg_1_ffi_type = error.to_custom_or_ffi_type(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                arg_0_from,
-                                arg_0_to),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::To(FieldTypePresentableContext::O.into())),
-                        )
-                    },
-                    [TypeConversion::Generic(generic_ok), TypeConversion::Generic(generic_error)] => {
-                        let arg_0_ffi_type = generic_ok.to_custom_or_ffi_type(&source);
-                        let (arg_0_from, arg_0_to) = generic_ok.arg_conversions();
-                        let arg_1_ffi_type = generic_error.to_custom_or_ffi_type(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                arg_0_from,
-                                arg_0_to),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyOpt(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::To(FieldTypePresentableContext::O.into()).into())),
-                        )
-                    },
-                    _ => unimplemented!("Generic path arguments conversion error"),
+                let arg_0_name = Name::Dictionary(DictionaryName::Ok);
+                let arg_1_name = Name::Dictionary(DictionaryName::Error);
+                let compose_arg = |arg_ty: Type, from_expr: FieldContext, to_expr: FieldContext, destroy_expr: FieldContext|
+                    GenericArgPresentation::new(
+                        arg_ty,
+                        destroy_expr,
+                        FieldContext::MapExpression(FieldContext::O.into(), from_expr.into()),
+                        to_expr);
+                let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
+                    TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream()),
+                    TypeConversion::Primitive(arg_ty) => {
+                        compose_arg(
+                            arg_ty.clone(),
+                            FieldContext::Deref(DictionaryName::O.to_token_stream()),
+                            FieldContext::AsMut_(FieldContext::O.into()),
+                            FieldContext::Empty)
+                    }
+                    TypeConversion::Complex(arg_ty) => {
+                        let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX);
+                        compose_arg(
+                            arg_ty.to_custom_or_ffi_type(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.to(DictionaryName::O.to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+                    }
+                    TypeConversion::Generic(generic_arg_ty) => {
+                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                            match generic_arg_ty.ty() {
+                                None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                Some(ty) => match TypeConversion::from(ty) {
+                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
+                                    TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE),
+                                    _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX),
+                                }
+                            }
+                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX) };
+                        compose_arg(
+                            generic_arg_ty.to_custom_or_ffi_type(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.to(DictionaryName::O.to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+                    }
                 };
-                let target_type: Type = path.to_type();
-                let GenericArgPresentation { ty: ok_type, from_conversion: from_ok_conversion, to_conversion: to_ok_conversion, destructor: ok_destructor } = arg_0_presentation;
-                let GenericArgPresentation { ty: error_type, from_conversion: from_error_conversion, to_conversion: to_error_conversion, destructor: error_destructor } = arg_1_presentation;
+
+                let nested_types = ty.nested_types();
+                let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
+                let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
                 compose_generic_presentation(
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(arg_0_name, ok_type.joined_mut(), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_1_name, error_type.joined_mut(),  Depunctuated::new()),
+                        FieldTypeConversion::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut())),
+                        FieldTypeConversion::named(arg_1_name, FieldTypeConversionKind::Type(arg_1_presentation.ty.joined_mut())),
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             attrs,
-                            types: (ffi_as_type.clone(), target_type.clone()),
+                            types: (ffi_as_type.clone(), ty.clone()),
                             conversions: (
-                                FromConversionPresentation::Result(from_ok_conversion.present(&source), from_error_conversion.present(&source)),
-                                ToConversionPresentation::Result(to_ok_conversion.present(&source), to_error_conversion.present(&source)),
+                                FromConversionPresentation::Result(arg_0_presentation.from_conversion.present(&source), arg_1_presentation.from_conversion.present(&source)),
+                                ToConversionPresentation::Result(arg_0_presentation.to_conversion.present(&source), arg_1_presentation.to_conversion.present(&source)),
                                 DestroyPresentation::Default,
                                 None
                             )
                         }
                     ]),
-                    Depunctuated::from_iter([ok_destructor.present(&source), error_destructor.present(&source)]),
+                    Depunctuated::from_iter([arg_0_presentation.destructor.present(&source).terminated(), arg_1_presentation.destructor.present(&source).terminated()]),
                     &source
                 )
             },
-            GenericTypeConversion::Map(ty) | GenericTypeConversion::IndexMap(ty) | GenericTypeConversion::SerdeJsonMap(ty)=> {
+            GenericTypeConversion::Map(ty) |
+            GenericTypeConversion::IndexMap(ty) |
+            GenericTypeConversion::SerdeJsonMap(ty)=> {
                 let ffi_name = ty.mangle_ident_default();
                 let ffi_as_type = ffi_name.to_type();
-                let path: Path = ty.to_path();
-                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                let path_conversions = path_arguments_to_type_conversions(arguments);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Keys);
-                let arg_1_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                let (arg_0_presentation, arg_1_presentation) = match &path_conversions[..] {
-                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type, 
-                                FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()), 
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                        )
-                    }
-                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into()))
-                        )
-                    }
-                    [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
 
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_1_generic_path_conversion {
-                            match arg_1_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
+
+                let arg_0_name = Name::Dictionary(DictionaryName::Keys);
+                let arg_1_name = Name::Dictionary(DictionaryName::Values);
+                let count_name = Name::Dictionary(DictionaryName::Count);
+
+                let arg_context = |arg_name: &Name| quote!(obj.#arg_name().cloned());
+                let arg_args = |arg_name: &Name| CommaPunctuated::from_iter([
+                    DictionaryExpr::SelfProp(arg_name.to_token_stream()),
+                    DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+
+                let compose_arg = |arg_ty: Type, from_expr: FieldContext, to_expr: InterfacesMethodExpr, destroy_expr: InterfacesMethodExpr|
+                    GenericArgPresentation::new(
+                        arg_ty,
+                        FieldContext::InterfacesExpr(destroy_expr),
+                        FieldContext::MapExpression(FieldContext::O.into(), from_expr.into()),
+                        FieldContext::InterfacesExpr(to_expr));
+                let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
+                    TypeConversion::Primitive(arg_ty) => {
+                        compose_arg(
+                            arg_ty.clone(),
+                            FieldContext::O,
+                            TO_PRIMITIVE_GROUP(arg_context(arg_name)),
+                            DESTROY_PRIMITIVE_GROUP(arg_args(arg_name).to_token_stream()))
+                    },
+                    TypeConversion::Complex(arg_ty) => {
+                        let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP);
+                        compose_arg(
+                            arg_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())).into(),
+                            arg_composer.to(arg_context(arg_name)),
+                            arg_composer.destroy(arg_args(arg_name).to_token_stream())
+                        )
+                    },
+                    TypeConversion::Generic(generic_arg_ty) => {
+                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                            match generic_arg_ty.ty() {
+                                None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
+                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
+                                    TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP),
+                                    _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP),
                                 }
                             }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from.into()),
-                                to)
+                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP) };
+                        compose_arg(
+                            generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
+                            arg_composer.to(arg_context(arg_name)),
+                            arg_composer.destroy(arg_args(arg_name).to_token_stream())
                         )
-                    }
-                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                        )
-                    }
-                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-                        println!("Map: Complex x Complex: {} x {}", arg_0_target_path.to_token_stream(), arg_1_target_path.to_token_stream());
-                        let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                        )
-                    }
-                    [TypeConversion::Complex(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-                        // println!("Map: Complex x Generic: {} x {}", arg_0_target_path.to_token_stream(), arg_1_generic_path_conversion);
-                        let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_1_generic_path_conversion {
-                            match arg_1_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from.into()),
-                                to),
-                        )
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Primitive(arg_1_target_path)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from.into()),
-                                to),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                        )
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Complex(arg_1_target_path)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from.into()),
-                                to),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-                        )
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from_keys, to_keys) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        let (from_values, to_values) = if let GenericTypeConversion::Optional(..) = arg_1_generic_path_conversion {
-                            match arg_1_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::FromOptPrimitive(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToPrimitiveOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::FromOpt(FieldTypePresentableContext::O.into()),
-                                        FieldTypePresentableContext::ToComplexOptVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()),
-                                FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())
-                            )
-                        };
-                        (
-                            GenericArgPresentation::new(
-                                arg_0_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from_keys.into()),
-                                to_keys),
-                            GenericArgPresentation::new(
-                                arg_1_ffi_type,
-                                FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-                                FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), from_values.into()),
-                                to_values),
-                        )
-                    }
-                    _ => unimplemented!("Generic path arguments conversion error"),
+                    },
+                    TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream())
                 };
-                let target_type: Type = path.to_type();
+
+                let nested_types = ty.nested_types();
+                let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
+                let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
                 let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = arg_0_presentation;
                 let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
                 compose_generic_presentation(
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
+                        FieldTypeConversion::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+                        FieldTypeConversion::named(arg_0_name,FieldTypeConversionKind::Type(key.joined_mut())),
+                        FieldTypeConversion::named(arg_1_name, FieldTypeConversionKind::Type(value.joined_mut()))
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             attrs: attrs.clone(),
-                            types: (ffi_as_type.clone(), target_type.clone()),
+                            types: (ffi_as_type.clone(), ty.clone()),
                             conversions: (
                                 FromConversionPresentation::Map(from_key_conversion.present(&source), from_value_conversion.present(&source)),
                                 ToConversionPresentation::Map(to_key_conversion.present(&source), to_value_conversion.present(&source)),
@@ -739,753 +433,79 @@ impl GenericTypeConversion {
                             )
                         }
                     ]),
-                    Depunctuated::from_iter([key_destructor.present(&source), value_destructor.present(&source)]),
+                    Depunctuated::from_iter([key_destructor.present(&source).terminated(), value_destructor.present(&source).terminated()]),
                     &source
                 )
             },
-            // GenericTypeConversion::IndexMap(ty) => {
-            //     let ffi_name = ty.mangle_ident_default();
-            //     let ffi_as_type = ffi_name.to_type();
-            //     let path: Path = ty.to_path();
-            //     let PathSegment { arguments, .. } = path.segments.last().unwrap();
-            //     let path_conversions = path_arguments_to_type_conversions(arguments);
-            //     let arg_0_name = Name::Dictionary(DictionaryFieldName::Keys);
-            //     let arg_1_name = Name::Dictionary(DictionaryFieldName::Values);
-            //     let count_name = Name::Dictionary(DictionaryFieldName::Count);
-            //     let (arg_0_presentation, arg_1_presentation) = match &path_conversions[..] {
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into()))
-            //             )
-            //         }
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         _ => unimplemented!("Generic path arguments conversion error"),
-            //     };
-            //     let target_type: Type = path.to_type();
-            //     let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = arg_0_presentation;
-            //     let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
-            //     compose_generic_presentation(
-            //         ffi_name,
-            //         attrs.clone(),
-            //         Depunctuated::from_iter([
-            //             FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-            //             FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
-            //             FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
-            //         ]),
-            //         Depunctuated::from_iter([
-            //             InterfacePresentation::Conversion {
-            //                 attrs: attrs.clone(),
-            //                 types: (ffi_as_type.clone(), target_type.clone()),
-            //                 conversions: (
-            //                     FromConversionPresentation::Map(from_key_conversion.present(&source), from_value_conversion.present(&source)),
-            //                     ToConversionPresentation::Map(to_key_conversion.present(&source), to_value_conversion.present(&source)),
-            //                     DestroyPresentation::Default,
-            //                     None
-            //                 )
-            //             }
-            //         ]),
-            //         Depunctuated::from_iter([key_destructor.present(&source), value_destructor.present(&source)]),
-            //         &source
-            //     )
-            // },
-            // GenericTypeConversion::SerdeJsonMap(ty) => {
-            //     let ffi_name = ty.mangle_ident_default();
-            //     let ffi_as_type = ffi_name.to_type();
-            //     let path: Path = ty.to_path();
-            //     let PathSegment { arguments, .. } = path.segments.last().unwrap();
-            //     let path_conversions = path_arguments_to_type_conversions(arguments);
-            //     let arg_0_name = Name::Dictionary(DictionaryFieldName::Keys);
-            //     let arg_1_name = Name::Dictionary(DictionaryFieldName::Values);
-            //     let count_name = Name::Dictionary(DictionaryFieldName::Count);
-            //     let (arg_0_presentation, arg_1_presentation) = match &path_conversions[..] {
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into()))
-            //             )
-            //         }
-            //         [TypeConversion::Primitive(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Complex(arg_0_target_path), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = arg_0_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Primitive(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = parse_quote!(#arg_1_target_path);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     FieldTypePresentableContext::ToPrimitiveVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Complex(arg_1_target_path)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_target_path.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         [TypeConversion::Generic(arg_0_generic_path_conversion), TypeConversion::Generic(arg_1_generic_path_conversion)] => {
-            //             let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             let arg_1_ffi_type = arg_1_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-            //             (
-            //                 GenericArgPresentation::new(
-            //                     arg_0_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapKeysCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //                 GenericArgPresentation::new(
-            //                     arg_1_ffi_type,
-            //                     FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_1_name)).into()),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::From(FieldTypePresentableContext::O.into()).into()),
-            //                     FieldTypePresentableContext::ToComplexVec(FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::MapValuesCloned(DictionaryFieldName::Obj.to_token_stream())).into())),
-            //             )
-            //         }
-            //         _ => unimplemented!("Generic path arguments conversion error"),
-            //     };
-            //     let target_type: Type = path.to_type();
-            //     let GenericArgPresentation { ty: key, from_conversion: from_key_conversion, to_conversion: to_key_conversion, destructor: key_destructor } = arg_0_presentation;
-            //     let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_1_presentation;
-            //     compose_generic_presentation(
-            //         ffi_name,
-            //         attrs.clone(),
-            //         Depunctuated::from_iter([
-            //             FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-            //             FieldTypeConversion::Named(arg_0_name,key.joined_mut(), Depunctuated::new()),
-            //             FieldTypeConversion::Named(arg_1_name, value.joined_mut(), Depunctuated::new())
-            //         ]),
-            //         Depunctuated::from_iter([
-            //             InterfacePresentation::Conversion {
-            //                 attrs: attrs.clone(),
-            //                 types: (ffi_as_type.clone(), target_type.clone()),
-            //                 conversions: (
-            //                     FromConversionPresentation::Map(from_key_conversion.present(&source), from_value_conversion.present(&source)),
-            //                     ToConversionPresentation::Map(to_key_conversion.present(&source), to_value_conversion.present(&source)),
-            //                     DestroyPresentation::Default,
-            //                     None
-            //                 )
-            //             }
-            //         ]),
-            //         Depunctuated::from_iter([key_destructor.present(&source), value_destructor.present(&source)]),
-            //         &source
-            //     )
-            // },
-            GenericTypeConversion::BTreeSet(ty) => {
-                let ffi_name = ty.mangle_ident_default();
-                let ffi_as_type = ffi_name.to_type();
-                let path: Path = ty.to_path();
-                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                let path_conversions = path_arguments_to_type_conversions(arguments);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                let arg_0_presentation = match &path_conversions[..] {
-                    [TypeConversion::Primitive(arg_0_target_path)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveBTreeSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) }))))
-                    }
-                    [TypeConversion::Complex(arg_0_target_ty)] => {
-                        let arg_0_ffi_type = arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexBTreeSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveOptBTreeSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_primitive_opt_vec(obj.into_iter()) })))
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexOptBTreeSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_opt_vec(obj.into_iter()) })))
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexBTreeSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
-                            )
-                        };
-
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            from,
-                            to)
-                    }
-                    _ => {
-                        return quote!();
-                    },
-                };
-                let target_type: Type = path.to_type();
-                let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
-
-                compose_generic_presentation(
-                    ffi_name,
-                    attrs.clone(),
-                    Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
-                    ]),
-                    Depunctuated::from_iter([
-                        InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
-                            types: (ffi_as_type.clone(), target_type.clone()),
-                            conversions: (
-                                FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
-                                ToConversionPresentation::Struct(quote!(ferment_interfaces::FFIVecConversion::encode(obj))),
-                                DestroyPresentation::Default,
-                                None
-                            )
-                        },
-                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
-                    ]),
-                    Depunctuated::from_iter([value_destructor.present(&source)]),
-                    &source
-                )
-            },
-            GenericTypeConversion::HashSet(ty) => {
-                let ffi_name = ty.mangle_ident_default();
-                let ffi_as_type = ffi_name.to_type();
-                let path: Path = ty.to_path();
-                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                let path_conversions = path_arguments_to_type_conversions(arguments);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                let arg_0_presentation = match &path_conversions[..] {
-                    [TypeConversion::Primitive(arg_0_target_path)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveHashSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) }))))
-                    }
-                    [TypeConversion::Complex(arg_0_target_ty)] => {
-                        let arg_0_ffi_type = arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexHashSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveOptHashSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_primitive_opt_vec(obj.into_iter()) })))
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexOptHashSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_opt_vec(obj.into_iter()) })))
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexHashSet(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
-                            )
-                        };
-
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            from,
-                            to)
-                    }
-                    _ => {
-                        return quote!();
-                        // unimplemented!("Generic path arguments conversion error")
-                    },
-                };
-                let target_type: Type = path.to_type();
-                let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
-
-                compose_generic_presentation(
-                    ffi_name,
-                    attrs.clone(),
-                    Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
-                    ]),
-                    Depunctuated::from_iter([
-                        InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
-                            types: (ffi_as_type.clone(), target_type.clone()),
-                            conversions: (
-                                FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
-                                ToConversionPresentation::Struct(quote!(ferment_interfaces::FFIVecConversion::encode(obj))),
-                                DestroyPresentation::Default,
-                                None
-                            )
-                        },
-                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
-                    ]),
-                    Depunctuated::from_iter([value_destructor.present(&source)]),
-                    &source
-                )
-            },
+            GenericTypeConversion::BTreeSet(ty) |
+            GenericTypeConversion::HashSet(ty) |
             GenericTypeConversion::Vec(ty) => {
-                let ffi_name = ty.mangle_ident_default();
-                let ffi_as_type = ffi_name.to_type();
-                let path: Path = ty.to_path();
-                let PathSegment { arguments, .. } = path.segments.last().unwrap();
-                let path_conversions = path_arguments_to_type_conversions(arguments);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                let arg_0_presentation = match &path_conversions[..] {
-                    [TypeConversion::Primitive(arg_0_target_path)] => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) }))))
-                    }
-                    [TypeConversion::Complex(arg_0_target_ty)] => {
-                        let arg_0_ffi_type = arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
-                    }
-                    [TypeConversion::Generic(arg_0_generic_path_conversion)] => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveOptVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_primitive_opt_vec(obj.into_iter()) })))
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexOptVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_opt_vec(obj.into_iter()) })))
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
-                            )
-                        };
-
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            from,
-                            to)
-                    }
-                    _ => unimplemented!("Generic path arguments conversion error"),
-                };
-                let target_type: Type = path.to_type();
-                let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
-
-                compose_generic_presentation(
-                    ffi_name,
-                    attrs.clone(),
-                    Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
-                    ]),
-                    Depunctuated::from_iter([
-                        InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
-                            types: (ffi_as_type.clone(), target_type.clone()),
-                            conversions: (
-                                FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
-                                ToConversionPresentation::Struct(quote!(ferment_interfaces::FFIVecConversion::encode(obj))),
-                                DestroyPresentation::Default,
-                                None
-                            )
-                        },
-                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
-                    ]),
-                    Depunctuated::from_iter([value_destructor.present(&source)]),
-                    &source
-                )
+                let nested_ty = ty.first_nested_type().unwrap();
+                compose_generic_group(
+                    ty,
+                    ty.clone(),
+                    TypeConversion::from(nested_ty),
+                    FromConversionPresentation::Just(FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()).to_token_stream()),
+                    ToConversionPresentation::Simple(FFIVecConversionMethodExpr::Encode(DictionaryName::Obj.to_token_stream()).to_token_stream()),
+                    attrs,
+                    &source)
             },
             GenericTypeConversion::Array(ty) => {
-                let ffi_name = ty.mangle_ident_default();
-                let ffi_as_type = ffi_name.to_type();
-                // It's for sure Type::Array(TypeArray { elem, len: _, .. })
-                // [u8 ; 32] (simple) or [HashID; 2] (complex/generic)
-                // so we can simply parse it as array
-                let type_array: TypeArray = parse_quote!(#ty);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
-                let arg_0_presentation = match TypeConversion::from(&*type_array.elem) {
-                    TypeConversion::Callback(arg_0_target_ty) =>
-                        unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
-                    TypeConversion::Primitive(arg_0_target_path) => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveArray(quote!(#arg_0_name), quote!(#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj.to_vec()) }))))
-                    }
-                    TypeConversion::Complex(arg_0_target_ty) => {
-                        let arg_0_ffi_type = arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexArray(quote!(#arg_0_name), quote!(#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
-                    }
-                    TypeConversion::Generic(arg_0_generic_path_conversion) => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
-                        let (from, to) = if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
-                            match arg_0_generic_path_conversion.ty() {
-                                None => unimplemented!("Mixin inside generic"),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic"),
-                                    TypeConversion::Primitive(_) => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveOptArray(quote!(#arg_0_name), quote!(#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_primitive_opt_vec(obj.into_iter()) })))
-                                    ),
-                                    _ => (
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexOptArray(quote!(#arg_0_name), quote!(#count_name))),
-                                        FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_opt_vec(obj.into_iter()) })))
-                                    ),
-                                }
-                            }
-                        } else {
-                            (
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexArray(quote!(#arg_0_name), quote!(#count_name))),
-                                FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) })))
-                            )
-                        };
-
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            from,
-                            to)
-                    }
-                };
-                let GenericArgPresentation { ty: value, from_conversion: from_value_conversion, to_conversion: to_value_conversion, destructor: value_destructor } = arg_0_presentation;
-                compose_generic_presentation(
-                    ffi_name,
-                    attrs.clone(),
-                    Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
-                    ]),
-                    Depunctuated::from_iter([
-                        InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
-                            types: (ffi_as_type.clone(), ty.clone()),
-                            conversions: (
-                                FromConversionPresentation::Just(from_value_conversion.present(&source)),
-                                ToConversionPresentation::Struct(to_value_conversion.present(&source)),
-                                DestroyPresentation::Default,
-                                None
-                                // Some(parse_quote!(<'a>) )
-                            )
-                        }
-                    ]),
-                    Depunctuated::from_iter([value_destructor.present(&source)]),
-                    &source
-                )
-
+                let nested_ty = ty.first_nested_type().unwrap();
+                compose_generic_group(
+                    ty,
+                    parse_quote!(Vec<#nested_ty>),
+                    TypeConversion::from(nested_ty),
+                    FromConversionPresentation::TryInto(FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()).to_token_stream()),
+                    ToConversionPresentation::Simple(FFIVecConversionMethodExpr::Encode(DictionaryExpr::ObjToVec.to_token_stream()).to_token_stream()),
+                    attrs,
+                    &source)
             },
             GenericTypeConversion::Slice(ty) => {
                 let ffi_name = ty.mangle_ident_default();
                 let ffi_as_type = ffi_name.to_type();
                 let type_slice: TypeSlice = parse_quote!(#ty);
-                let arg_0_name = Name::Dictionary(DictionaryFieldName::Values);
-                let count_name = Name::Dictionary(DictionaryFieldName::Count);
                 let elem_type = &type_slice.elem;
                 let target_type: Type = parse_quote!(Vec<#elem_type>);
-                let arg_0_presentation = match TypeConversion::from(&*type_slice.elem) {
-                    TypeConversion::Primitive(arg_0_target_path) => {
-                        let arg_0_ffi_type = parse_quote!(#arg_0_target_path);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyPrimitiveContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromPrimitiveVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::boxed_vec(obj) }))))
-                    }
-                    TypeConversion::Complex(arg_0_target_ty) => {
-                        let arg_0_ffi_type = arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source);
-                        GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name))),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
-                    }
+                let arg_0_name = Name::Dictionary(DictionaryName::Values);
+                let count_name = Name::Dictionary(DictionaryName::Count);
+                let self_props = CommaPunctuated::from_iter([
+                    DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
+                    DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+                let arg_0_destroy = |composer: InterfacesMethodComposer| FieldContext::InterfacesExpr(composer(self_props.to_token_stream()));
+                let arg_0_from = |composer: InterfacesMethodComposer| FieldContext::InterfacesExpr(composer(self_props.to_token_stream()));
+                let arg_0_to = |composer: InterfacesMethodComposer|
+                    FieldContext::InterfacesExpr(
+                        InterfacesMethodExpr::Boxed(
+                            DictionaryExpr::NamedStructInit(
+                                CommaPunctuated::from_iter([
+                                    FieldTypeConversion::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                                    FieldTypeConversion::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
+                                .to_token_stream()));
+
+                let arg_0_presentation = match TypeConversion::from(&type_slice.elem) {
                     TypeConversion::Callback(arg_0_target_ty) =>
                         unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
-
-                    TypeConversion::Generic(arg_0_generic_path_conversion) => {
-                        let arg_0_ffi_type = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source);
+                    TypeConversion::Primitive(arg_0_target_path) => {
                         GenericArgPresentation::new(
-                            arg_0_ffi_type,
-                            FieldTypePresentableContext::DestroyComplexContainer(FieldTypePresentableContext::Simple(quote!(self.#arg_0_name)).into()),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::FromComplexVec(quote!(self.#arg_0_name), quote!(self.#count_name)/*, parse_quote!(#arg_0_generic_path_conversion)*/)),
-                            FieldTypePresentableContext::DictionaryExpr(DictionaryExpression::BoxedExpression(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment_interfaces::to_complex_vec(obj.into_iter()) }))))
+                            arg_0_target_path.clone(),
+                            arg_0_destroy(DESTROY_PRIMITIVE_GROUP),
+                            arg_0_from(FROM_PRIMITIVE_GROUP),
+                            arg_0_to(TO_PRIMITIVE_GROUP))
+                    }
+                    TypeConversion::Complex(arg_0_target_ty) => {
+                        GenericArgPresentation::new(
+                            arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_0_destroy(DESTROY_COMPLEX_GROUP),
+                            arg_0_from(FROM_COMPLEX_GROUP),
+                            arg_0_to(TO_COMPLEX_GROUP))
+                    }
+                    TypeConversion::Generic(arg_0_generic_path_conversion) => {
+                        GenericArgPresentation::new(
+                            arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_0_destroy(DESTROY_COMPLEX_GROUP),
+                            arg_0_from(FROM_COMPLEX_GROUP),
+                            arg_0_to(TO_COMPLEX_GROUP))
                     }
                 };
                 let GenericArgPresentation { ty: value, from_conversion: decode, to_conversion: encode, destructor: value_destructor } = arg_0_presentation;
@@ -1494,23 +514,23 @@ impl GenericTypeConversion {
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeConversion::Named(count_name, parse_quote!(usize), Depunctuated::new()),
-                        FieldTypeConversion::Named(arg_0_name, value.joined_mut(), Depunctuated::new())
+                        FieldTypeConversion::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+                        FieldTypeConversion::named(arg_0_name, FieldTypeConversionKind::Type(value.joined_mut()))
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             attrs: attrs.clone(),
                             types: (ffi_as_type.clone(), target_type.clone()),
                             conversions: (
-                                FromConversionPresentation::Just(quote!(ferment_interfaces::FFIVecConversion::decode(&*ffi))),
-                                ToConversionPresentation::Struct(quote!(ferment_interfaces::FFIVecConversion::encode(obj))),
+                                FromConversionPresentation::Just(FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()).to_token_stream()),
+                                ToConversionPresentation::Simple(FFIVecConversionMethodExpr::Encode(DictionaryName::Obj.to_token_stream()).to_token_stream()),
                                 DestroyPresentation::Default,
                                 None
                             )
                         },
                         InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
                     ]),
-                    Depunctuated::from_iter([value_destructor.present(&source)]),
+                    Depunctuated::from_iter([value_destructor.present(&source).terminated()]),
                     &source
                 )
             },
@@ -1533,7 +553,7 @@ impl GenericTypeConversion {
                     Depunctuated::from_iter(
                         tuple_items.iter()
                             .enumerate()
-                            .map(|(index, (root_path, _))| FieldTypeConversion::Unnamed(Name::UnnamedArg(index), parse_quote!(#root_path), Depunctuated::new()))),
+                            .map(|(index, (root_path, _))| FieldTypeConversion::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             attrs: attrs.clone(),
@@ -1546,16 +566,237 @@ impl GenericTypeConversion {
                             )
                         }
                     ]),
-                    Depunctuated::from_iter(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.destructor.present(&source)))),
+                    Depunctuated::from_iter(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.destructor.present(&source).terminated()))),
                     &source
                 )
-            }
+            },
+            GenericTypeConversion::AnyOther(ty) => {
+                let ffi_name = ty.mangle_ident_default();
+                let ffi_type = ffi_name.to_type();
+                let arg_0_name = Name::Dictionary(DictionaryName::Obj);
+
+                // Arc: simple arg: to: "*obj"
+                // Arc: complex arg: to: "(*obj).clone()"
+                // Mutex: simple arg: to: "obj.into_inner().expect("Err")"
+                // Mutex: complex arg: to: "obj.into_inner().expect("Err")"
+
+                let mut path = ty.to_path();
+                path.segments.last_mut().unwrap().arguments = PathArguments::None;
+
+                // let field_name = DictionaryName::Obj;
+                // match self {
+                //     SmartPtr::Arc | SmartPtr::Rc => match TypeConversion::from(ty) {
+                //         TypeConversion::Primitive(_) => DictionaryExpr::Deref(field_name.to_token_stream()).to_token_stream(),
+                //         TypeConversion::Complex(_) => quote!((*#field_name).clone()),
+                //         TypeConversion::Generic(_) => quote!((*#field_name).clone()),
+                //         TypeConversion::Callback(_) => panic!("Errror")
+                //     },
+                //     SmartPtr::Mutex | SmartPtr::RwLock => quote!(#field_name.into_inner().expect("Err")),
+                // }
+
+                // Arc/Rc: primitive arg: to: "*obj"
+                // Arc/Rc: complex arg: to: "(*obj).clone()"
+                // Mutex/RwLock: primitive/complex arg: to: "obj.into_inner().expect("Err")"
+
+                let arg_to_conversion = match &path.segments.last() {
+                    Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+                        "Arc" | "Rc" => match TypeConversion::from(ty) {
+                            TypeConversion::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
+                            TypeConversion::Complex(_) => quote!((*#arg_0_name).clone()),
+                            TypeConversion::Generic(_) => quote!((*#arg_0_name).clone()),
+                            TypeConversion::Callback(_) => panic!("Errror")
+                        },
+                        "Mutex" | "RwLock" => quote!(#arg_0_name.into_inner().expect("Err")),
+                        "RefCell" => quote!(#arg_0_name.into_inner()),
+                        "Pin" => quote!(&**#arg_0_name),
+                        _ => panic!("Error Generic Expansion (Non Supported AnyOther): {}", ty.to_token_stream())
+
+                        // matches!(self.to_string().as_str(), "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")
+                    }
+                    None => {
+                        panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
+                    }
+                };
+
+                let compose_arg = |arg_ty: Type, from_expr: FieldContext, to_expr: FieldContext, destroy_expr: FieldContext|
+                    GenericArgPresentation::new(
+                        arg_ty,
+                        destroy_expr,
+                        from_expr,
+                        to_expr);
+                let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
+                    TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream()),
+                    TypeConversion::Primitive(arg_ty) => {
+                        compose_arg(
+                            arg_ty.clone(),
+                            FieldContext::FfiRefWithFieldName(FieldContext::DictionaryName(DictionaryName::Obj).into()),
+                            FieldContext::InterfacesExpr(
+                                InterfacesMethodExpr::Boxed(
+                                    DictionaryExpr::NamedStructInit(
+                                        CommaPunctuated::from_iter([
+                                            FieldTypeConversion::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_to_conversion.to_token_stream()))
+                                        ])).to_token_stream())),
+                            FieldContext::Empty)
+                    }
+                    TypeConversion::Complex(arg_ty) => {
+                        let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX);
+                        compose_arg(
+                            arg_ty.to_custom_or_ffi_type(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(quote!(ffi_ref.#arg_0_name))),
+                            FieldContext::InterfacesExpr(
+                                InterfacesMethodExpr::Boxed(
+                                    DictionaryExpr::NamedStructInit(
+                                        CommaPunctuated::from_iter([
+                                            FieldTypeConversion::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).to_token_stream()))
+                                        ])).to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+                    }
+                    TypeConversion::Generic(generic_arg_ty) => {
+                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                            match generic_arg_ty.ty() {
+                                None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                Some(ty) => match TypeConversion::from(ty) {
+                                    TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
+                                    TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE),
+                                    _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX),
+                                }
+                            }
+                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX) };
+                        compose_arg(
+                            generic_arg_ty.to_custom_or_ffi_type(&source),
+                            FieldContext::InterfacesExpr(arg_composer.from(quote!(ffi_ref.#arg_0_name))),
+                            FieldContext::InterfacesExpr(
+                                InterfacesMethodExpr::Boxed(
+                                    DictionaryExpr::NamedStructInit(
+                                        CommaPunctuated::from_iter([
+                                            FieldTypeConversion::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).to_token_stream()))
+                                        ])).to_token_stream())),
+                            FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+                    }
+                };
+
+                let nested_ty = ty.first_nested_type().unwrap();
+                let arg_0_presentation = compose(&arg_0_name, nested_ty);
+
+                compose_generic_presentation(
+                    ffi_name,
+                    attrs.clone(),
+                    Depunctuated::from_iter([
+                        FieldTypeConversion::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty))
+                    ]),
+                    Depunctuated::from_iter([
+                        InterfacePresentation::Conversion {
+                            attrs: attrs.clone(),
+                            types: (ffi_type.clone(), ty.clone()),
+                            conversions: (
+                                FromConversionPresentation::SmartPointer(path.to_token_stream(), arg_0_presentation.from_conversion.present(&source)),
+                                ToConversionPresentation::Simple(arg_0_presentation.to_conversion.present(&source)),
+                                DestroyPresentation::Default,
+                                None
+                            )
+                        },
+                    ]),
+                    Depunctuated::from_iter([arg_0_presentation.destructor.present(&source).terminated()]),
+                    &source
+                )
+
+            },
             GenericTypeConversion::Optional(_) |
             GenericTypeConversion::Box(_) |
-            GenericTypeConversion::AnyOther(_) |
             GenericTypeConversion::TraitBounds(_) => FFIObjectPresentation::Empty,
         }.to_token_stream()
     }
+}
+fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: TypeConversion, from_conversion_presentation: FromConversionPresentation, to_conversion_presentation: ToConversionPresentation, attrs: TokenStream2, source: &ScopeContext) -> FFIObjectPresentation {
+    let ffi_name = ty.mangle_ident_default();
+    let ffi_type = ffi_name.to_type();
+    let arg_0_name = Name::Dictionary(DictionaryName::Values);
+    let count_name = Name::Dictionary(DictionaryName::Count);
+    let from_args = CommaPunctuated::from_iter([
+        DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
+        DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+    let arg_0_from = |composer: InterfacesMethodComposer|
+        FieldContext::InterfacesExpr(composer(from_args.to_token_stream()));
+
+    let arg_0_to = |composer: InterfacesMethodComposer|
+        FieldContext::InterfacesExpr(
+            InterfacesMethodExpr::Boxed(
+                DictionaryExpr::NamedStructInit(
+                    CommaPunctuated::from_iter([
+                        FieldTypeConversion::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                        FieldTypeConversion::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
+                    .to_token_stream()));
+
+    let arg_0_destroy = |composer: InterfacesMethodComposer|
+        FieldContext::InterfacesExpr(composer(from_args.to_token_stream()));
+
+    let arg_0_presentation = match arg_conversion {
+        TypeConversion::Primitive(arg_0_target_path) => {
+            GenericArgPresentation::new(
+                arg_0_target_path.clone(),
+                arg_0_destroy(DESTROY_PRIMITIVE_GROUP),
+                arg_0_from(FROM_PRIMITIVE_GROUP),
+                arg_0_to(TO_PRIMITIVE_GROUP)
+            )
+        }
+        TypeConversion::Complex(arg_0_target_ty) => {
+            GenericArgPresentation::new(
+                arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(source),
+                arg_0_destroy(DESTROY_COMPLEX_GROUP),
+                arg_0_from(FROM_COMPLEX_GROUP),
+                arg_0_to(TO_COMPLEX_GROUP)
+            )
+        }
+        TypeConversion::Generic(arg_0_generic_path_conversion) => {
+            let arg_ty = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
+            let arg_0_composer = {
+                if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
+                    match arg_0_generic_path_conversion.ty() {
+                        None => unimplemented!("Mixin inside generic: {}", arg_0_generic_path_conversion),
+                        Some(ty) => match TypeConversion::from(ty) {
+                            TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
+                            TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE_GROUP, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP),
+                            _ => ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP),
+                        }
+                    }
+                } else {
+                    ArgComposer::new(FROM_COMPLEX_GROUP, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP)
+                }
+            };
+            GenericArgPresentation::new(
+                arg_ty,
+                arg_0_destroy(arg_0_composer.destroy_composer),
+                arg_0_from(arg_0_composer.from_composer),
+                arg_0_to(arg_0_composer.to_composer)
+            )
+        }
+        _ => {
+            return FFIObjectPresentation::Empty;
+        },
+    };
+    compose_generic_presentation(
+        ffi_name,
+        attrs.clone(),
+        Depunctuated::from_iter([
+            FieldTypeConversion::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+            FieldTypeConversion::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut()))
+        ]),
+        Depunctuated::from_iter([
+            InterfacePresentation::Conversion {
+                attrs: attrs.clone(),
+                types: (ffi_type.clone(), ty.clone()),
+                conversions: (
+                    from_conversion_presentation,
+                    to_conversion_presentation,
+                    DestroyPresentation::Default,
+                    None
+                )
+            },
+            InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_type, vec_conversion_type), decode: arg_0_presentation.from_conversion.present(source), encode: arg_0_presentation.to_conversion.present(source) }
+        ]),
+        Depunctuated::from_iter([arg_0_presentation.destructor.present(source).terminated()]),
+        source
+    )
 }
 fn compose_generic_presentation(
     ffi_name: Ident,
@@ -1566,11 +807,11 @@ fn compose_generic_presentation(
     source: &ScopeContext) -> FFIObjectPresentation {
     let ffi_as_path: Path = parse_quote!(#ffi_name);
     let ffi_as_type: Type = parse_quote!(#ffi_name);
-    let fields = Punctuated::<_, Comma>::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
-    let body = Wrapped::<_, Brace>::new(fields.present(source));
-    let object_presentation = create_struct(&ffi_as_path, attrs.clone(), body.to_token_stream());
-    let drop_presentation = DropInterfacePresentation::Full { attrs: attrs.clone(), ty: ffi_as_type.clone(), body: drop_body.to_token_stream() };
+    let fields = CommaPunctuated::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
+    let body = BraceWrapped::new(fields.present(source));
+    let object_presentation = create_struct(&ffi_as_path.segments.last().unwrap().ident, attrs.clone(), body);
     let bindings = compose_bindings(&ffi_as_type, attrs.clone(), field_conversions).present(source);
+    let drop_presentation = DropInterfacePresentation::Full { attrs, ty: ffi_as_type, body: drop_body.to_token_stream() };
     FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
 }
 
@@ -1587,62 +828,30 @@ fn compose_bindings(ffi_type: &Type, attrs: TokenStream2, conversions: Depunctua
 fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, source: &ScopeContext) -> (Type, Depunctuated<GenericArgPresentation>) {
     let ty = ty.resolve(source);
     match TypeConversion::from(&ty) {
+        TypeConversion::Callback(arg_0_target_ty) =>
+            unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
         TypeConversion::Primitive(arg_ty) => {
             (arg_ty.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_ty.clone(),
-                FieldTypePresentableContext::Empty,
-                FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_ty, Depunctuated::new())),
-                FieldTypePresentableContext::Named((name.to_token_stream(), FieldTypePresentableContext::ObjFieldName(field_name).into())))]))
+                FieldContext::Empty,
+                FieldContext::FfiRefWithConversion(FieldTypeConversion::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_ty))),
+                FieldContext::Named((name.to_token_stream(), FieldContext::ObjFieldName(field_name).into())))]))
         }
         TypeConversion::Complex(arg_type) => {
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type.clone(),
-                FieldTypePresentableContext::UnboxAnyTerminated(FieldTypePresentableContext::Simple(quote!(self.#name)).into()),
-                FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type, Depunctuated::new())).into()),
-                FieldTypePresentableContext::Named((name.to_token_stream(), FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(field_name).into()).into())))]))
+                FieldContext::InterfacesExpr(DESTROY_COMPLEX(DictionaryExpr::SelfProp(name.to_token_stream()).to_token_stream())),
+                FieldContext::From(FieldContext::FfiRefWithConversion(FieldTypeConversion::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
+                FieldContext::Named((name.to_token_stream(), FieldContext::To(FieldContext::ObjFieldName(field_name).into()).into())))]))
         }
-        TypeConversion::Callback(arg_0_target_ty) =>
-            unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
 
         TypeConversion::Generic(root_path) => {
-            // TODO: make sure it does work (actually it doesn't)
             let arg_type: Type = parse_quote!(#root_path);
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type.clone(),
-                FieldTypePresentableContext::UnboxAnyTerminated(FieldTypePresentableContext::Simple(quote!(self.#name)).into()),
-                FieldTypePresentableContext::From(FieldTypePresentableContext::FfiRefWithConversion(FieldTypeConversion::Unnamed(name.clone(), arg_type, Depunctuated::new())).into()),
-                FieldTypePresentableContext::Named((name.to_token_stream(), FieldTypePresentableContext::To(FieldTypePresentableContext::ObjFieldName(field_name).into()).into())))]))
-            // println!("dictionary_generic_arg::Generic: {}", root_path.to_token_stream());
-            // let path = ty.to_path();
-            // let PathSegment { arguments, .. } = path.segments.last().unwrap();
-            // let arg_type_conversions = path_arguments_to_type_conversions(arguments);
-            // (root_path.to_ffi_type(), arg_type_conversions.iter()
-            //     .map(|arg_path_conversion| {
-            //         match arg_path_conversion {
-            //             TypeConversion::Primitive(arg_type) => {
-            //                 GenericArgPresentation::new(
-            //                     parse_quote!(#arg_type),
-            //                     quote!(),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     ffi_to_primitive())
-            //             }
-            //             TypeConversion::Complex(arg_type) => {
-            //                 GenericArgPresentation::new(
-            //                     parse_quote!(#arg_type),
-            //                     quote!(),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     ffi_to_primitive())
-            //             }
-            //             TypeConversion::Generic(arg_type) => {
-            //                 GenericArgPresentation::new(
-            //                     parse_quote!(#arg_type),
-            //                     quote!(),
-            //                     FieldTypePresentableContext::MapExpression(FieldTypePresentableContext::O.into(), FieldTypePresentableContext::O.into()),
-            //                     ffi_to_primitive())
-            //             }
-            //         }
-            //     })
-            //     .collect::<Depunctuated<GenericArgPresentation>>())
+                FieldContext::InterfacesExpr(DESTROY_COMPLEX(DictionaryExpr::SelfProp(name.to_token_stream()).to_token_stream())),
+                FieldContext::From(FieldContext::FfiRefWithConversion(FieldTypeConversion::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
+                FieldContext::Named((name.to_token_stream(), FieldContext::To(FieldContext::ObjFieldName(field_name).into()).into())))]))
         }
     }
 }
@@ -1657,7 +866,7 @@ pub fn single_generic_ffi_type(ty: &Type) -> Type {
     if last_ident.is_primitive() {
         parse_quote!(#last_ident)
     } else if last_ident.is_any_string() {
-        parse_quote!(std::os::raw::c_char)
+        DictionaryExpr::CChar.to_token_stream().to_type()
     } else if last_ident.is_special_generic() || (last_ident.is_result() && path.segments.len() == 1) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
         let ffi_name = path.mangle_ident_default();
         parse_quote!(crate::fermented::generics::#ffi_name)
@@ -1669,3 +878,4 @@ pub fn single_generic_ffi_type(ty: &Type) -> Type {
         parse_quote!(#(#new_segments)::*)
     }
 }
+

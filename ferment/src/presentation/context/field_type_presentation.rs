@@ -1,375 +1,331 @@
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use crate::composer::CommaPunctuated;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
-use crate::interface::{ffi_from_conversion, ffi_to_conversion, package_unbox_any_expression, package_unbox_any_expression_terminated};
-use crate::naming::{DictionaryExpression, DictionaryFieldName};
+use crate::ext::Terminated;
+use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
-pub enum FieldTypePresentableContext {
+#[allow(unused)]
+pub enum FieldContext {
     Empty,
-    Simple(TokenStream2),
-    DictionaryName(DictionaryFieldName),
-    DictionaryExpr(DictionaryExpression),
-    Add(Box<FieldTypePresentableContext>, TokenStream2),
-    To(Box<FieldTypePresentableContext>),
-    ToOpt(Box<FieldTypePresentableContext>),
-    UnwrapOr(Box<FieldTypePresentableContext>, TokenStream2),
-    OwnerIteratorPresentation(OwnerIteratorPresentationContext),
-    ToVec(Box<FieldTypePresentableContext>),
-    ToPrimitiveVec(Box<FieldTypePresentableContext>),
-    ToPrimitiveOptVec(Box<FieldTypePresentableContext>),
-    ToComplexVec(Box<FieldTypePresentableContext>),
-    ToComplexOptVec(Box<FieldTypePresentableContext>),
-    ToVecPtr,
     O,
     Obj,
     Self_,
+    Simple(TokenStream2),
+    DictionaryName(DictionaryName),
+    DictionaryExpr(DictionaryExpr),
+    FFIConversionExpr(FFIConversionMethodExpr),
+    InterfacesExpr(InterfacesMethodExpr),
+    Add(Box<FieldContext>, TokenStream2),
+    To(Box<FieldContext>),
+    ToOpt(Box<FieldContext>),
+    UnwrapOr(Box<FieldContext>, TokenStream2),
+    OwnerIteratorPresentation(OwnerIteratorPresentationContext),
+    ToVec(Box<FieldContext>),
+    ToPrimitiveGroup(Box<FieldContext>),
+    ToOptPrimitiveGroup(Box<FieldContext>),
+    ToComplexGroup(Box<FieldContext>),
+    ToOptComplexGroup(Box<FieldContext>),
+    ToVecPtr,
     SelfAsTrait(TokenStream2),
     ObjFieldName(TokenStream2),
     FieldTypeConversionName(FieldTypeConversion),
     LineTermination,
-    // Boxed(Box<FieldTypePresentableContext>),
-    UnboxAny(Box<FieldTypePresentableContext>),
-    UnboxAnyTerminated(Box<FieldTypePresentableContext>),
-    DestroyOpt(Box<FieldTypePresentableContext>),
-    DestroyPrimitiveContainer(Box<FieldTypePresentableContext>),
-    DestroyComplexContainer(Box<FieldTypePresentableContext>),
-    DestroyConversion(Box<FieldTypePresentableContext>, TokenStream2),
+    UnboxAny(Box<FieldContext>),
+    UnboxAnyTerminated(Box<FieldContext>),
+    DestroyOpt(Box<FieldContext>),
+    // DestroyPrimitiveGroup(TokenStream2),
+    // DestroyComplexGroup(Box<FieldContext>),
+    DestroyString(Box<FieldContext>, TokenStream2),
     FromRawParts(TokenStream2),
-    From(Box<FieldTypePresentableContext>),
-    Into(Box<FieldTypePresentableContext>),
-    CastFrom(Box<FieldTypePresentableContext>, TokenStream2, TokenStream2),
-    // FromConst(Box<FieldTypePresentableContext>),
+    From(Box<FieldContext>),
+    IntoBox(Box<FieldContext>),
+    CastFrom(Box<FieldContext>, TokenStream2, TokenStream2),
     FromOffsetMap,
-    FromOpt(Box<FieldTypePresentableContext>),
-    AsRef(Box<FieldTypePresentableContext>),
-    AsMutRef(Box<FieldTypePresentableContext>),
-    AsSlice(Box<FieldTypePresentableContext>),
-    IfThen(Box<FieldTypePresentableContext>, TokenStream2),
-    Named((TokenStream2, Box<FieldTypePresentableContext>)),
+    FromOpt(Box<FieldContext>),
+    AsRef(Box<FieldContext>),
+    AsMutRef(Box<FieldContext>),
+    AsSlice(Box<FieldContext>),
+    IfThen(Box<FieldContext>, TokenStream2),
+    Named((TokenStream2, Box<FieldContext>)),
     Deref(TokenStream2),
-    DerefContext(Box<FieldTypePresentableContext>),
-    FfiRefWithFieldName(Box<FieldTypePresentableContext>),
+    DerefContext(Box<FieldContext>),
+    FfiRefWithFieldName(Box<FieldContext>),
     FfiRefWithConversion(FieldTypeConversion),
-    Match(Box<FieldTypePresentableContext>),
-    FromTuple(Box<FieldTypePresentableContext>, Punctuated<FieldTypePresentableContext, Comma>),
-    MapExpression(Box<FieldTypePresentableContext>, Box<FieldTypePresentableContext>),
-    FromOptPrimitive(Box<FieldTypePresentableContext>),
-    ToOptPrimitive(Box<FieldTypePresentableContext>),
-    AsMut_(Box<FieldTypePresentableContext>)
+    Match(Box<FieldContext>),
+    FromTuple(Box<FieldContext>, CommaPunctuated<FieldContext>),
+    MapExpression(Box<FieldContext>, Box<FieldContext>),
+    AsMut_(Box<FieldContext>)
 }
 
-impl Display for FieldTypePresentableContext {
+impl Display for FieldContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            FieldTypePresentableContext::Empty =>
-                format!("FieldTypePresentableContext::Empty"),
-            FieldTypePresentableContext::DictionaryName(name) =>
+            FieldContext::Empty =>
+                "FieldTypePresentableContext::Empty".to_string(),
+            FieldContext::DictionaryName(name) =>
                 format!("FieldTypePresentableContext::DictionaryName({})", name),
-            FieldTypePresentableContext::DictionaryExpr(expr) =>
+            FieldContext::DictionaryExpr(expr) =>
                 format!("FieldTypePresentableContext::DictionaryExpr({})", expr),
-            FieldTypePresentableContext::Simple(simple) =>
+            FieldContext::InterfacesExpr(expr) =>
+                format!("FieldTypePresentableContext::InterfacesExpr({})", expr.to_token_stream()),
+            FieldContext::FFIConversionExpr(expr) =>
+                format!("FieldTypePresentableContext::FFIConversionExpr({})", expr.to_token_stream()),
+            FieldContext::Simple(simple) =>
                 format!("FieldTypePresentableContext::Simple({})", quote!(#simple)),
-            FieldTypePresentableContext::Add(context, index) =>
+            FieldContext::Add(context, index) =>
                 format!("FieldTypePresentableContext::Add({}, {})", context, index),
-            FieldTypePresentableContext::To(context) =>
+            FieldContext::To(context) =>
                 format!("FieldTypePresentableContext::To({})", context),
-            FieldTypePresentableContext::ToVec(context) =>
+            FieldContext::ToVec(context) =>
                 format!("FieldTypePresentableContext::ToVec({})", context),
-            FieldTypePresentableContext::ToPrimitiveVec(context) =>
-                format!("FieldTypePresentableContext::ToPrimitiveVec({})", context),
-            FieldTypePresentableContext::ToPrimitiveOptVec(context) =>
-                format!("FieldTypePresentableContext::ToPrimitiveOptVec({})", context),
-            FieldTypePresentableContext::ToComplexVec(context) =>
-                format!("FieldTypePresentableContext::ToComplexVec({})", context),
-            FieldTypePresentableContext::ToComplexOptVec(context) =>
-                format!("FieldTypePresentableContext::ToComplexOptVec({})", context),
-            FieldTypePresentableContext::ToOpt(context) =>
+            FieldContext::ToPrimitiveGroup(context) =>
+                format!("FieldTypePresentableContext::ToPrimitiveGroup({})", context),
+            FieldContext::ToOptPrimitiveGroup(context) =>
+                format!("FieldTypePresentableContext::ToOptPrimitiveGroup({})", context),
+            FieldContext::ToComplexGroup(context) =>
+                format!("FieldTypePresentableContext::ToComplexGroup({})", context),
+            FieldContext::ToOptComplexGroup(context) =>
+                format!("FieldTypePresentableContext::ToOptComplexGroup({})", context),
+            FieldContext::ToOpt(context) =>
                 format!("FieldTypePresentableContext::ToOpt({})", context),
-            FieldTypePresentableContext::UnwrapOr(context, or) =>
+            FieldContext::UnwrapOr(context, or) =>
                 format!("FieldTypePresentableContext::UnwrapOr({}, {})", context, or),
-            FieldTypePresentableContext::OwnerIteratorPresentation(context) =>
+            FieldContext::OwnerIteratorPresentation(context) =>
                 format!("FieldTypePresentableContext::OwnerIteratorPresentation({})", context),
-            FieldTypePresentableContext::ToVecPtr =>
-                format!("FieldTypePresentableContext::ToVecPtr"),
-            FieldTypePresentableContext::Obj =>
-                format!("FieldTypePresentableContext::Obj"),
-            FieldTypePresentableContext::Self_ =>
-                format!("FieldTypePresentableContext::Self_"),
-            FieldTypePresentableContext::SelfAsTrait(trait_ty) =>
+            FieldContext::ToVecPtr =>
+                "FieldTypePresentableContext::ToVecPtr".to_string(),
+            FieldContext::Obj =>
+                "FieldTypePresentableContext::Obj".to_string(),
+            FieldContext::Self_ =>
+                "FieldTypePresentableContext::Self_".to_string(),
+            FieldContext::SelfAsTrait(trait_ty) =>
                 format!("FieldTypePresentableContext::SelfAsTrait({})", trait_ty),
-            FieldTypePresentableContext::ObjFieldName(field_name) =>
+            FieldContext::ObjFieldName(field_name) =>
                 format!("FieldTypePresentableContext::ObjFieldName({})", field_name),
-            FieldTypePresentableContext::FieldTypeConversionName(conversion) =>
+            FieldContext::FieldTypeConversionName(conversion) =>
                 format!("FieldTypePresentableContext::ObjFieldName({})", conversion),
-            FieldTypePresentableContext::LineTermination =>
-                format!("FieldTypePresentableContext::LineTermination"),
-            // FieldTypePresentableContext::Boxed(context) =>
-            //     format!("FieldTypePresentableContext::Boxed({})", context),
-            FieldTypePresentableContext::UnboxAny(context) =>
+            FieldContext::LineTermination =>
+                "FieldTypePresentableContext::LineTermination".to_string(),
+            FieldContext::UnboxAny(context) =>
                 format!("FieldTypePresentableContext::UnboxAny({})", context),
-            FieldTypePresentableContext::UnboxAnyTerminated(context) =>
+            FieldContext::UnboxAnyTerminated(context) =>
                 format!("FieldTypePresentableContext::UnboxAnyTerminated({})", context),
-            FieldTypePresentableContext::DestroyOpt(context) =>
-                format!("FieldTypePresentableContext::IsNull({})", context),
-            FieldTypePresentableContext::DestroyConversion(context, smth) =>
-                format!("FieldTypePresentableContext::DestroyConversion({}, {})", context, smth),
-            FieldTypePresentableContext::DestroyPrimitiveContainer(context) =>
-                format!("FieldTypePresentableContext::DestroyPrimitiveContainer({})", context),
-            FieldTypePresentableContext::DestroyComplexContainer(context) =>
-                format!("FieldTypePresentableContext::DestroyComplexContainer({})", context),
-            FieldTypePresentableContext::FromRawParts(context) =>
+            FieldContext::DestroyOpt(context) =>
+                format!("FieldTypePresentableContext::DestroyOpt({})", context),
+            FieldContext::DestroyString(context, smth) =>
+                format!("FieldTypePresentableContext::DestroyString({}, {})", context, smth),
+            FieldContext::FromRawParts(context) =>
                 format!("FieldTypePresentableContext::FromRawParts({})", context),
-            FieldTypePresentableContext::From(context) =>
+            FieldContext::From(context) =>
                 format!("FieldTypePresentableContext::From({})", context),
-            FieldTypePresentableContext::Into(context) =>
-                format!("FieldTypePresentableContext::Into({})", context),
-            FieldTypePresentableContext::CastFrom(context, ty, ffi_ty) =>
+            FieldContext::IntoBox(context) =>
+                format!("FieldTypePresentableContext::IntoBox({})", context),
+            FieldContext::CastFrom(context, ty, ffi_ty) =>
                 format!("FieldTypePresentableContext::CastFrom({}, {}, {})", context, ty, ffi_ty),
-            FieldTypePresentableContext::FromOffsetMap =>
-                format!("FieldTypePresentableContext::FromOffsetMap"),
-            FieldTypePresentableContext::FromOpt(context) =>
+            FieldContext::FromOffsetMap =>
+                "FieldTypePresentableContext::FromOffsetMap".to_string(),
+            FieldContext::FromOpt(context) =>
                 format!("FieldTypePresentableContext::FromOpt({})", context),
-            FieldTypePresentableContext::AsRef(context) =>
+            FieldContext::AsRef(context) =>
                 format!("FieldTypePresentableContext::AsRef({})", context),
-            FieldTypePresentableContext::AsMutRef(context) =>
+            FieldContext::AsMutRef(context) =>
                 format!("FieldTypePresentableContext::AsMutRef({})", context),
-            FieldTypePresentableContext::AsSlice(context) =>
+            FieldContext::AsSlice(context) =>
                 format!("FieldTypePresentableContext::AsSlice({})", context),
-            FieldTypePresentableContext::IfThen(context, statement) =>
+            FieldContext::IfThen(context, statement) =>
                 format!("FieldTypePresentableContext::IfThen({}, {})", context, statement),
-            FieldTypePresentableContext::Named((ff, context)) =>
+            FieldContext::Named((ff, context)) =>
                 format!("FieldTypePresentableContext::Named(({}, {}))", ff, context),
-            FieldTypePresentableContext::Deref(context) =>
+            FieldContext::Deref(context) =>
                 format!("FieldTypePresentableContext::Deref({})", context),
-            FieldTypePresentableContext::DerefContext(context) =>
+            FieldContext::DerefContext(context) =>
                 format!("FieldTypePresentableContext::DerefContext({})", context),
-            FieldTypePresentableContext::FfiRefWithFieldName(context) =>
+            FieldContext::FfiRefWithFieldName(context) =>
                 format!("FieldTypePresentableContext::FfiRefWithFieldName({})", context),
-            FieldTypePresentableContext::FfiRefWithConversion(context) =>
+            FieldContext::FfiRefWithConversion(context) =>
                 format!("FieldTypePresentableContext::FfiRefWithConversion({})", context),
-            FieldTypePresentableContext::Match(context) =>
+            FieldContext::Match(context) =>
                 format!("FieldTypePresentableContext::Match({})", context),
-            FieldTypePresentableContext::FromTuple(context, items) =>
+            FieldContext::FromTuple(context, items) =>
                 format!("FieldTypePresentableContext::FromTuple({}, [{}])", context, items.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(",")),
-            FieldTypePresentableContext::MapExpression(context, mapper) =>
+            FieldContext::MapExpression(context, mapper) =>
                 format!("FieldTypePresentableContext::MapExpression({}, {})", context, mapper),
-            FieldTypePresentableContext::FromOptPrimitive(field_name) =>
-                format!("FieldTypePresentableContext::FromOptPrimitive({})", field_name),
-            FieldTypePresentableContext::ToOptPrimitive(field_name) =>
-                format!("FieldTypePresentableContext::ToOptPrimitive({})", field_name),
-            FieldTypePresentableContext::O =>
-                format!("FieldTypePresentableContext::O"),
-            FieldTypePresentableContext::AsMut_(context) =>
+            FieldContext::O =>
+                "FieldTypePresentableContext::O".to_string(),
+            FieldContext::AsMut_(context) =>
                 format!("FieldTypePresentableContext::AsMut_({})", context),
         }.as_str())
     }
 }
 
-impl ScopeContextPresentable for FieldTypePresentableContext {
+impl ScopeContextPresentable for FieldContext {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
-            FieldTypePresentableContext::Simple(field_path) =>
-                field_path.to_token_stream(),
-            FieldTypePresentableContext::DictionaryName(field_path) =>
-                field_path.to_token_stream(),
-            FieldTypePresentableContext::DictionaryExpr(field_path) =>
-                field_path.to_token_stream(),
-            FieldTypePresentableContext::To(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                ffi_to_conversion(field_path)
+            Self::Empty => quote!(),
+            Self::O =>
+                DictionaryName::O.to_token_stream(),
+            Self::Obj =>
+                DictionaryName::Obj.to_token_stream(),
+            Self::Self_ =>
+                DictionaryName::Self_.to_token_stream(),
+            Self::LineTermination => quote!(;),
+            Self::Simple(expr) =>
+                expr.to_token_stream(),
+            Self::DictionaryName(expr) =>
+                expr.to_token_stream(),
+            Self::DictionaryExpr(expr) =>
+                expr.to_token_stream(),
+            Self::InterfacesExpr(expr) =>
+                expr.to_token_stream(),
+            Self::FFIConversionExpr(expr) =>
+                expr.to_token_stream(),
+            Self::OwnerIteratorPresentation(presentable) =>
+                presentable.present(source),
+            Self::MapExpression(presentable, mapper) =>
+                DictionaryExpr::Mapper(
+                    presentable.present(source),
+                    mapper.present(source))
+                    .to_token_stream(),
+            Self::From(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFrom, presentable.present(source)))
+                    .present(source),
+            Self::FromOpt(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFromOpt, presentable.present(source)))
+                    .present(source),
+            Self::To(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiTo, presentable.present(source)))
+                    .present(source),
+            Self::ToOpt(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiToOpt, presentable.present(source)))
+                    .present(source),
+            Self::ToPrimitiveGroup(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(presentable.present(source)))
+                    .present(source),
+            Self::ToOptPrimitiveGroup(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitiveGroup(presentable.present(source)))
+                    .present(source),
+            Self::ToComplexGroup(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToComplexGroup(presentable.present(source)))
+                    .present(source),
+            Self::ToOptComplexGroup(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOptComplexGroup(presentable.present(source)))
+                    .present(source),
+            Self::ToVecPtr =>
+                Self::InterfacesExpr(InterfacesMethodExpr::BoxedVec(
+                    DictionaryExpr::MapCollect(
+                        DictionaryName::Obj.to_token_stream(),
+                        Self::MapExpression(
+                            Self::DictionaryName(DictionaryName::O).into(),
+                            Self::InterfacesExpr(InterfacesMethodExpr::Boxed(DictionaryName::O.to_token_stream())).into())
+                            .present(source))
+                        .to_token_stream()))
+                    .present(source),
+            Self::UnboxAny(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxAny(presentable.present(source)))
+                    .present(source),
+            Self::UnboxAnyTerminated(presentable) =>
+                Self::UnboxAny(presentable.clone())
+                    .present(source).terminated(),
+            Self::Add(presentable, index) =>
+                DictionaryExpr::Add(presentable.present(source), index.clone())
+                    .to_token_stream(),
+            Self::UnwrapOr(presentable, default) =>
+                DictionaryExpr::UnwrapOr(presentable.present(source), default.clone())
+                    .to_token_stream(),
+            Self::ToVec(presentable) =>
+                DictionaryExpr::ToVec(presentable.present(source))
+                    .to_token_stream(),
+            Self::FromRawParts(field_type) =>
+                DictionaryExpr::ToVec(
+                    DictionaryExpr::FromRawParts(
+                        quote!(values as *const #field_type),
+                        DictionaryName::Count.to_token_stream())
+                        .to_token_stream())
+                    .to_token_stream(),
+            Self::DestroyOpt(presentable) =>
+                DictionaryExpr::IfNotNull(
+                    presentable.present(source),
+                    Self::UnboxAnyTerminated(presentable.clone())
+                        .present(source))
+                    .to_token_stream(),
+            Self::DestroyString(presentable, path) => {
+                let package = DictionaryName::Package;
+                let interface = DictionaryName::Interface;
+                let field_path = presentable.present(source);
+                let cchar = DictionaryExpr::CChar;
+                quote!(<#cchar as #package::#interface<#path>>::destroy(#field_path))
             },
-            FieldTypePresentableContext::Add(presentation_context, index) => {
-                let field_path = presentation_context.present(source);
-                quote!(#field_path.add(#index))
-            },
-            FieldTypePresentableContext::UnwrapOr(presentation_context, default) => {
-                let field_path = presentation_context.present(source);
-                quote!(#field_path.unwrap_or(#default))
-            },
-            FieldTypePresentableContext::OwnerIteratorPresentation(presentation_context) => {
-                presentation_context.present(source)
-            }
-            FieldTypePresentableContext::ToOpt(presentation_context) => {
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
-                let field_path = presentation_context.present(source);
-                quote!(#package::#interface::ffi_to_opt(#field_path))
-            },
-            FieldTypePresentableContext::ToVec(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(#field_path.to_vec())
-            },
-            FieldTypePresentableContext::ToPrimitiveVec(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(ferment_interfaces::to_primitive_vec(#field_path))
-            },
-            FieldTypePresentableContext::ToPrimitiveOptVec(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(ferment_interfaces::to_primitive_opt_vec(#field_path))
-            },
-            FieldTypePresentableContext::ToComplexVec(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(ferment_interfaces::to_complex_vec(#field_path))
-            },
-            FieldTypePresentableContext::ToComplexOptVec(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(ferment_interfaces::to_complex_opt_vec(#field_path))
-            },
-            FieldTypePresentableContext::ToVecPtr => {
-                let expr = DictionaryExpression::BoxedExpression(quote!(o));
-                let package = DictionaryFieldName::Package;
-                quote!(#package::boxed_vec(obj.map(|o| #expr).collect()))
-            },
-            FieldTypePresentableContext::LineTermination => quote!(;),
-            FieldTypePresentableContext::Empty => quote!(),
-            // FieldTypePresentableContext::Boxed(presentation_context) =>
-            //     DictionaryExpression::BoxedExpression(presentation_context.present(source)).to_token_stream(),
-            FieldTypePresentableContext::UnboxAny(presentation_context) => {
-                package_unbox_any_expression(presentation_context.present(source))
-            }
-            FieldTypePresentableContext::UnboxAnyTerminated(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                package_unbox_any_expression_terminated(field_path)
-            },
-            FieldTypePresentableContext::DestroyOpt(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                let conversion = package_unbox_any_expression_terminated(field_path.clone());
-                quote!(if !(#field_path).is_null() { #conversion })
-            },
-            FieldTypePresentableContext::DestroyConversion(presentation_context, path) => {
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
-                let field_path = presentation_context.present(source);
-                quote!(<std::os::raw::c_char as #package::#interface<#path>>::destroy(#field_path))
-            },
-
-            FieldTypePresentableContext::FromRawParts(field_type) => {
-                quote!(std::slice::from_raw_parts(values as *const #field_type, count).to_vec())
-            },
-            FieldTypePresentableContext::From(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                ffi_from_conversion(field_path)
-            },
-            FieldTypePresentableContext::CastFrom(presentation_context, ty, ffi_ty) => {
-                let field_path = presentation_context.present(source);
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
+            Self::CastFrom(presentable, ty, ffi_ty) => {
+                let field_path = presentable.present(source);
+                let package = DictionaryName::Package;
+                let interface = DictionaryName::Interface;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::ffi_from(#field_path))
-
             }
-            // FieldTypePresentableContext::FromConst(presentation_context) => {
-            //     let field_path = presentation_context.present(source);
-            //     let package = DictionaryFieldName::Package;
-            //     let interface = DictionaryFieldName::Interface;
-            //     quote!(#package::#interface::ffi_from_const(#field_path as *const _))
-            // },
-            FieldTypePresentableContext::FromOpt(presentation_context) => {
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
-                let field_path = presentation_context.present(source);
-                quote!(#package::#interface::ffi_from_opt(#field_path))
-            },
-            FieldTypePresentableContext::FromOffsetMap => {
-                let ffi_from_conversion =
-                    ffi_from_conversion(quote!(*values.add(i)));
-                quote!((0..count).map(|i| #ffi_from_conversion).collect())
-            },
-            FieldTypePresentableContext::AsRef(field_path) => {
-                let field_path = field_path.present(source);
-                quote!(&#field_path)
-            },
-            FieldTypePresentableContext::AsMutRef(field_path) => {
-                let field_path = field_path.present(source);
-                quote!(&mut #field_path)
-            },
-            FieldTypePresentableContext::IfThen(presentation_context, condition) => {
-                let field_path = presentation_context.present(source);
-                quote!((#field_path #condition).then(|| #field_path))
-            }
-
-            FieldTypePresentableContext::Named((l_value, presentation_context)) => {
-                let ty = presentation_context.present(source);
-                quote!(#l_value: #ty)
-            }
-            FieldTypePresentableContext::FfiRefWithFieldName(presentation_context) => {
-                let field_name = presentation_context.present(source);
-                quote!(ffi_ref.#field_name)
-            }
-            FieldTypePresentableContext::Deref(field_name) => {
-                quote!(*#field_name)
-            }
-            FieldTypePresentableContext::DerefContext(presentation_context) => {
-                FieldTypePresentableContext::Deref(presentation_context.present(source)).present(source)
-            }
-            FieldTypePresentableContext::O => DictionaryFieldName::O.to_token_stream(),
-            FieldTypePresentableContext::Obj => DictionaryFieldName::Obj.to_token_stream(),
-            FieldTypePresentableContext::Self_ => DictionaryFieldName::Self_.to_token_stream(),
-            FieldTypePresentableContext::ObjFieldName(field_name) => {
-                quote!(obj.#field_name)
-            }
-            FieldTypePresentableContext::FieldTypeConversionName(field_type) => {
-                field_type.name()
-            }
-            FieldTypePresentableContext::Match(presentation_context) => {
-                let field_path = presentation_context.present(source);
-                quote!(match #field_path)
-            }
-            FieldTypePresentableContext::FfiRefWithConversion(field_type) => {
-                FieldTypePresentableContext::FfiRefWithFieldName(FieldTypePresentableContext::FieldTypeConversionName(field_type.clone()).into())
+            Self::FromOffsetMap =>
+                DictionaryExpr::MapCollect(
+                    DictionaryExpr::CountRange.to_token_stream(),
+                    DictionaryExpr::Mapper(
+                        DictionaryName::I.to_token_stream(),
+                        FFIConversionMethodExpr::FfiFrom(DictionaryExpr::Add(quote!(*values), DictionaryName::I.to_token_stream()).to_token_stream()).to_token_stream())
+                        .to_token_stream())
+                    .to_token_stream(),
+            Self::AsRef(field_path) =>
+                DictionaryExpr::AsRef(field_path.present(source))
+                    .to_token_stream(),
+            Self::AsMutRef(field_path) =>
+                Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
+                    .present(source),
+            Self::IfThen(presentable, condition) => {
+                let field_path = presentable.present(source);
+                Self::DictionaryExpr(DictionaryExpr::IfThen(quote!((#field_path #condition)), field_path))
                     .present(source)
             }
-            FieldTypePresentableContext::FromTuple(field_path, items) => {
-                let root_path = field_path.present(source);
+            Self::Named((l_value, presentable)) => {
+                let ty = presentable.present(source);
+                quote!(#l_value: #ty)
+            }
+            Self::FfiRefWithFieldName(presentable) => {
+                let field_name = presentable.present(source);
+                quote!(ffi_ref.#field_name)
+            }
+            Self::Match(presentable) =>
+                Self::DictionaryExpr(DictionaryExpr::Match(presentable.present(source)))
+                    .present(source),
+            Self::SelfAsTrait(self_ty) =>
+                quote!(*((*self_).object as *const #self_ty)),
+            Self::AsSlice(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::AsSlice(expr.present(source)))
+                    .present(source),
+            Self::IntoBox(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
+                    .present(source),
+            Self::AsMut_(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::AsMut_(expr.present(source)))
+                    .present(source),
+            Self::Deref(field_name) =>
+                Self::DictionaryExpr(DictionaryExpr::Deref(field_name.clone()))
+                    .present(source),
+            Self::DerefContext(presentable) =>
+                Self::Deref(presentable.present(source)).present(source),
+            Self::ObjFieldName(field_name) =>
+                quote!(obj.#field_name),
+            Self::FieldTypeConversionName(field_type) =>
+                field_type.name(),
+            Self::FfiRefWithConversion(field_type) =>
+                Self::FfiRefWithFieldName(Self::FieldTypeConversionName(field_type.clone()).into())
+                    .present(source),
+            Self::FromTuple(presentable, items) => {
+                let root_path = presentable.present(source);
                 let items = items.present(source);
                 quote!({ let ffi_ref = &*#root_path; (#items) })
-            }
-            FieldTypePresentableContext::SelfAsTrait(self_ty) => {
-                quote!(*((*self_).object as *const #self_ty))
-            }
-            FieldTypePresentableContext::AsSlice(field_path) => {
-                let conversion = field_path.present(source);
-                quote!(#conversion.as_slice())
-            }
-            FieldTypePresentableContext::Into(field_path) => {
-                let conversion = field_path.present(source);
-                quote!(Box::new(#conversion))
-            }
-            FieldTypePresentableContext::MapExpression(context, mapper) => {
-                let context = context.present(source);
-                let mapper = mapper.present(source);
-                quote!(|#context| #mapper)
-            }
-            FieldTypePresentableContext::FromOptPrimitive(field_name) => {
-                let field_name = field_name.present(source);
-                quote!((!#field_name.is_null()).then(|| *#field_name))
-            }
-            FieldTypePresentableContext::ToOptPrimitive(field_name) => {
-                let field_name = field_name.present(source);
-                quote!((#field_name).map_or(std::ptr::null_mut(), |o| ferment_interfaces::boxed(o)))
-                // quote!((!#field_name.is_null()).then(|| Some(*#field_name)))
-            }
-            FieldTypePresentableContext::AsMut_(context) => {
-                let context = context.present(source);
-                quote!(#context as *mut _)
-            }
-            FieldTypePresentableContext::DestroyPrimitiveContainer(context) => {
-                let field_name = context.present(source);
-                let count_var = DictionaryFieldName::Count;
-                quote!(ferment_interfaces::unbox_vec_ptr(#field_name, self.#count_var);)
-            }
-            FieldTypePresentableContext::DestroyComplexContainer(context) => {
-                let field_name = context.present(source);
-                let count_var = DictionaryFieldName::Count;
-                quote!(ferment_interfaces::unbox_any_vec_ptr(#field_name, self.#count_var);)
             }
         }
     }

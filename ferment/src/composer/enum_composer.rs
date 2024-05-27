@@ -10,7 +10,7 @@ use crate::composer::composable::{BasicComposable, BindingComposable, Conversion
 use crate::composer::r#type::TypeComposer;
 use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::presentation::context::{FieldTypePresentableContext, name, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{FieldContext, name, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::binding::BindingPresentableContext;
 use crate::presentation::context::name::{Aspect, Context};
@@ -69,16 +69,15 @@ impl DropComposable for EnumComposer {
             attrs: self.compose_attributes().to_token_stream(),
             ty: self.base.ffi_name_aspect().present(&source),
             body: OwnerIteratorPresentationContext::MatchFields((
-                FieldTypePresentableContext::Simple(quote!(self)).into(),
+                FieldContext::Simple(quote!(self)).into(),
                 {
                     let mut result =
-                    self.variant_composers
+                    Punctuated::from_iter(self.variant_composers
                         .iter()
                         .map(|composer| {
                             let comp = composer.borrow();
                             OwnedItemPresentableContext::Conversion(comp.compose_aspect(FFIAspect::Drop), comp.compose_attributes().to_token_stream())
-                        })
-                        .collect::<Punctuated<_, _>>();
+                        }));
                     // TODO: make only if fields contain any conditional compilation flags
                     result.push(OwnedItemPresentableContext::Exhaustive(quote!()));
                     result
@@ -99,7 +98,7 @@ impl FFIObjectComposable for EnumComposer {
 impl BindingComposable for EnumComposer {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentation> {
         let source = self.context().borrow();
-        let mut bindings = Punctuated::new();
+        let mut bindings = Depunctuated::new();
         bindings.extend(self.variant_composers
             .iter()
             .map(|composer| composer.borrow().ctor_composer.compose(&()).present(&source)));
@@ -143,7 +142,10 @@ impl EnumComposer {
             base: BasicComposer::new(
                 AttrsComposer::new(AttrsComposition::from(attrs, target_name, scope)),
                 constants::enum_composer_doc(),
-                TypeComposer::new(Context::Enum { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() }),
+                TypeComposer::new(Context::Enum {
+                    ident: target_name.clone(),
+                    attrs: attrs.cfg_attributes_expanded(),
+                }),
                 Some(generics.clone()),
                 Rc::clone(context)
             ),

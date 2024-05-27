@@ -2,8 +2,7 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use syn::{ItemUse, PathSegment, UseName, UsePath, UseTree};
-use syn::punctuated::Punctuated;
-use syn::token::Colon2;
+use crate::composer::Colon2Punctuated;
 use crate::conversion::ImportConversion;
 use crate::ext::{CrateExtension, Pop};
 use crate::holder::PathHolder;
@@ -75,7 +74,7 @@ pub fn create_items_use_from_path(path: &PathHolder) -> ItemUse {
         tree: Box::new(build_nested_use_tree(path.0.segments.crate_less())),
     }))
 }
-fn build_nested_use_tree(segments: Punctuated<PathSegment, Colon2>) -> UseTree {
+fn build_nested_use_tree(segments: Colon2Punctuated<PathSegment>) -> UseTree {
     if segments.len() == 1 {
         UseTree::Name(UseName { ident: segments[0].ident.clone() })
     } else {

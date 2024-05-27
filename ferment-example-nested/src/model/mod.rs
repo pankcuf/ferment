@@ -21,6 +21,7 @@ pub enum TestModLevelOptSnapshot {
 }
 
 #[ferment_macro::export]
+#[derive(Clone, Debug)]
 pub struct Quorum {
     pub llmq_type: QuorumType
 }
@@ -28,10 +29,12 @@ pub struct Quorum {
 pub mod ferment_example {
     use crate::model::{Quorum, QuorumType};
 
+    #[ferment_macro::export]
     pub fn get_rotated_quorum() -> Quorum {
         Quorum { llmq_type: QuorumType::Rotated }
     }
 
+    #[ferment_macro::export]
     pub fn get_crazy_case() -> Quorum {
         Quorum { llmq_type: QuorumType::Rotated }
     }

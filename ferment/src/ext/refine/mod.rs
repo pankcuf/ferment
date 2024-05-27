@@ -1,6 +1,5 @@
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
 use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type, TypePath, TypeTuple};
+use crate::composer::CommaPunctuated;
 use crate::composition::NestedArgument;
 use crate::context::ScopeChain;
 
@@ -40,7 +39,7 @@ pub trait RefineAtScope: Sized {
 }
 
 impl RefineMut for Type {
-    type Refinement = Punctuated<NestedArgument, Comma>;
+    type Refinement = CommaPunctuated<NestedArgument>;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         match self {
@@ -68,7 +67,7 @@ impl RefineMut for Type {
 }
 
 impl RefineMut for PathArguments {
-    type Refinement = Punctuated<NestedArgument, Comma>;
+    type Refinement = CommaPunctuated<NestedArgument>;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         let mut refinement = refined.clone();

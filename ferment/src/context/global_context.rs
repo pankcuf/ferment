@@ -4,7 +4,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
-use syn::token::{Colon2, Comma};
+use crate::composer::{Colon2Punctuated, CommaPunctuated};
 use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
@@ -502,7 +502,7 @@ impl GlobalContext {
             .or(self.traverse_scopes(ty_to_replace, scope))
     }
 
-    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut Punctuated<NestedArgument, Comma>, scope: &ScopeChain) {
+    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut CommaPunctuated<NestedArgument>, scope: &ScopeChain) {
         // println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
         // self.refin
         match &mut segment.arguments {
@@ -576,26 +576,17 @@ impl GlobalContext {
                         let mod_chain = create_mod_chain(&chunks);
                         if let Some(parent_imports) = self.imports.maybe_scope_imports(&mod_chain) {
                             for (PathHolder(_ident), alias_path) in parent_imports {
-                                // println!("parent_import_refine: {}", alias_path.to_token_stream());
                                 let alias = alias_path.crate_named(&crate_name);
                                 if let Some(merged) = self.refined_import(&import_type_path.path, &alias) {
-                                    // println!("merged import: {}", merged.to_token_stream());
                                     import_type_path.path.segments = merged.segments;
                                     refined = true;
                                 }
                             }
-                        } /*else if let Some(local_ty) = self.maybe_known_item(&ty_replacement, scope) {
-                            println!("[INFO] No imports in scope: [{}]", mod_chain.self_path_holder_ref());
-                        } else {
-                            println!("[INFO] No imports No locals in scope: [{}]", mod_chain.self_path_holder_ref());
-                        }*/
+                        }
                     }
                 }
-                // println!("maybe_refined_object::: {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
                 if !refined {
                     self.maybe_refine_args(import_type_path.path.segments.last_mut().unwrap(), &mut ty_replacement.nested_arguments, scope);
-                    // println!("refined_args: result {} ---- {} ----> {}", ty_composition, import_path.to_token_stream(), import_type_path.to_token_stream());
-
                 }
                 let dict_path = import_type_path.path.clone();
                 ty_replacement.ty = Type::Path(import_type_path);
@@ -643,9 +634,11 @@ impl GlobalContext {
             ObjectConversion::Type(TypeCompositionConversion::TraitType(composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::TraitType(self.refine_nested(composition, scope))));
             },
-            ObjectConversion::Type(TypeCompositionConversion::SmartPointer(composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::SmartPointer(self.refine_nested(composition, scope))));
-            },
+            // ObjectConversion::Type(TypeCompositionConversion::SmartPointer(ty_composition)) => {
+            //     let refined = self.refine_nested(ty_composition, scope);
+            //     println!("maybe_refined_object (SmartPointer)::: {} ---- {}", ty_composition, refined);
+            //     return Some(ObjectConversion::Type(TypeCompositionConversion::SmartPointer(refined)));
+            // }
             ObjectConversion::Type(TypeCompositionConversion::Trait(composition, dec, paths)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Trait(self.refine_nested(composition, scope), dec.clone(), paths.clone())));
             },
@@ -874,7 +867,7 @@ impl GlobalContext {
                             //          format_token_stream(reexport_scope_path),
                             //          format_token_stream(reexport_import),
                             //          format_token_stream(&chunk));
-                            let segments: Punctuated<PathSegment, Colon2> = match (reexport_import.segments.first().unwrap().ident.to_string().as_str(), chunk.as_ref()) {
+                            let segments: Colon2Punctuated<PathSegment> = match (reexport_import.segments.first().unwrap().ident.to_string().as_str(), chunk.as_ref()) {
                                 ("crate", Some(chunk_ref)) => {
                                     let crate_name_chunk = reexport_scope.crate_ident().to_path();
                                     let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);

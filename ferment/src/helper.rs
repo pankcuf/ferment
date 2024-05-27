@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeTuple, Variant, WherePredicate};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
-use syn::token::{Add, Comma};
+use crate::composer::{AddPunctuated, CommaPunctuated};
 use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
 use crate::ext::VisitScopeType;
@@ -157,7 +157,7 @@ impl ItemExtension for Item {
 }
 
 
-fn generic_trait_bounds(ty: &Path, ident_path: &TypePath, bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
+fn generic_trait_bounds(ty: &Path, ident_path: &TypePath, bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     // println!("generic_trait_bounds.1: {} :: {} :: {}", format_token_stream(ty), format_token_stream(ident_path), format_token_stream(bounds));
     let mut has_bound = false;
     let involved = bounds.iter().filter_map(|b| {
@@ -275,7 +275,7 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
         _ => Vec::new(),
     }
 }
-pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> Punctuated<NestedArgument, Comma> {
+pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuated<NestedArgument> {
     match arguments {
         PathArguments::Parenthesized(_) |
         PathArguments::None => Punctuated::new(),
@@ -432,7 +432,7 @@ pub fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attrib
         )
 }
 
-pub fn collect_bounds(bounds: &Punctuated<TypeParamBound, Add>) -> Vec<Path> {
+pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     bounds.iter().filter_map(|bound| match bound {
         TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
         TypeParamBound::Lifetime(_lifetime) => None

@@ -1,23 +1,15 @@
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
 use syn::Type;
-use crate::composer::ConstructorPresentableContext;
+use crate::composer::{CommaPunctuated, ConstructorPresentableContext};
 use crate::context::ScopeContext;
 use crate::naming::Name;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
 use crate::presentation::context::{IteratorPresentationContext, OwnedItemPresentableContext};
 
 pub enum BindingPresentableContext {
-    // Empty,
-    // Constructor(ConstructorPresentableContext, Punctuated<OwnedItemPresentableContext, Comma>, Wrapped<, >),
-    Constructor(ConstructorPresentableContext, Punctuated<OwnedItemPresentableContext, Comma>, IteratorPresentationContext),
+    Constructor(ConstructorPresentableContext, CommaPunctuated<OwnedItemPresentableContext>, IteratorPresentationContext),
     Destructor(Type, TokenStream2),
-    // Accessor(LocalConversionContext)
-    // Accessor(),
-    // Getter(),
-    // Setter()
 }
 
 impl ScopeContextPresentable for BindingPresentableContext {
@@ -36,20 +28,9 @@ impl ScopeContextPresentable for BindingPresentableContext {
                 BindingPresentation::Destructor {
                     attrs: attrs.to_token_stream(),
                     name: Name::Destructor(ty.clone()),
-                    ffi_name: ty.to_token_stream()
+                    ffi_name: ty.clone()
                 }
             },
-            // BindingPresentableContext::Getter() => {
-            //     BindingPresentation::Getter {
-            //         name: Name::Getter(parse_quote!(#root_obj_type), parse_quote!(#field_name)),
-            //         field_name: field_name.to_token_stream(),
-            //         obj_type: root_obj_type.to_token_stream(),
-            //         field_type: field_type.to_token_stream()
-            //     }
-            // },
-            // BindingPresentableContext::Setter() => {
-            //
-            // }
         }
     }
 }

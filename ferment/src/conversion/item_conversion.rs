@@ -3,15 +3,14 @@ use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, Impl
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use crate::composer::{ItemComposer, ParentComposer, VariantComposer};
+use crate::composer::{CommaPunctuated, ItemComposer, ParentComposer, VariantComposer};
 use crate::composer::composable::SourceExpandable;
 use crate::composer::enum_composer::EnumComposer;
 use crate::composer::signature::SigComposer;
 use crate::composer::trait_composer::TraitComposer;
 use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::conversion::FieldTypeConversion;
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::{CrateExtension, ToPath, ToType};
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
@@ -200,7 +199,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
         context,
         variants.iter()
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
-                let (variant_composer, fields_context): (VariantComposer, Punctuated<OwnedItemPresentableContext, Comma>) = match discriminant {
+                let (variant_composer, fields_context): (VariantComposer, CommaPunctuated<OwnedItemPresentableContext>) = match discriminant {
                     Some((_, Expr::Lit(lit, ..))) => (
                         |local_context| OwnerIteratorPresentationContext::EnumUnitFields(local_context.clone()),
                         Punctuated::from_iter([OwnedItemPresentableContext::Conversion(quote!(#lit), attrs.cfg_attributes_expanded().to_token_stream())])),
@@ -222,7 +221,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
                                     OwnedItemPresentableContext::Named(
-                                        FieldTypeConversion::Named(Name::Optional(ident.clone()), ty.clone(), attrs.cfg_attributes_expanded()), false))
+                                        FieldTypeConversion::Named(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), attrs.cfg_attributes_expanded()), false))
                                 .collect(),
                         ),
                     },

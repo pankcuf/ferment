@@ -3,7 +3,7 @@ use quote::ToTokens;
 use syn::{Generics, Type};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use crate::composer::CommaPunctuated;
 use crate::conversion::ObjectConversion;
 
 #[derive(Clone)]
@@ -34,14 +34,14 @@ impl Display for NestedArgument {
 pub struct TypeComposition {
     pub ty: Type,
     pub generics: Option<Generics>,
-    pub nested_arguments: Punctuated<NestedArgument, Comma>,
+    pub nested_arguments: CommaPunctuated<NestedArgument>,
 }
 
 impl TypeComposition {
     pub fn new_non_gen(ty: Type, generics: Option<Generics>) -> Self {
         Self { ty, generics, nested_arguments: Punctuated::new() }
     }
-    pub fn new(ty: Type, generics: Option<Generics>, nested_arguments: Punctuated<NestedArgument, Comma>) -> Self {
+    pub fn new(ty: Type, generics: Option<Generics>, nested_arguments: CommaPunctuated<NestedArgument>) -> Self {
         Self { ty, generics, nested_arguments }
     }
     pub fn nested_argument_at_index(&self, index: usize) -> &NestedArgument {

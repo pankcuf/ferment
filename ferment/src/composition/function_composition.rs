@@ -2,16 +2,15 @@ use std::fmt::{Debug, Formatter};
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::{BareFnArg, FnArg, Generics, ItemFn, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
-use syn::punctuated::Punctuated;
-use syn::token::{Comma, RArrow};
-use crate::composer::{Composer, Depunctuated};
+use syn::token::RArrow;
+use crate::composer::{CommaPunctuated, Composer, Depunctuated};
 use crate::composition::CfgAttributes;
 use crate::context::ScopeContext;
-use crate::conversion::FieldTypeConversion;
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::{Conversion, FFIResolveExtended, Mangle, Resolve};
 use crate::holder::PathHolder;
-use crate::naming::{DictionaryFieldName, Name};
-use crate::presentation::context::{FieldTypePresentableContext, OwnedItemPresentableContext};
+use crate::naming::{DictionaryName, Name};
+use crate::presentation::context::{FieldContext, OwnedItemPresentableContext};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -48,7 +47,7 @@ impl FnSignatureContext {
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposer {
     pub presentation: ReturnType,
-    pub conversion: FieldTypePresentableContext,
+    pub conversion: FieldContext,
 }
 
 // impl<'a> Composer<'a> for FnReturnTypeComposer {
@@ -72,7 +71,7 @@ pub struct FnReturnTypeComposer {
 pub struct FnArgComposer {
     pub name: Option<TokenStream2>,
     pub name_type_original: OwnedItemPresentableContext,
-    pub name_type_conversion: FieldTypePresentableContext,
+    pub name_type_conversion: FieldContext,
 }
 
 impl Debug for FnArgComposer {
@@ -254,19 +253,19 @@ impl<'a> Composer<'a> for ReturnType {
         match (bare, self) {
             (false, ReturnType::Default) => FnReturnTypeComposer {
                 presentation: ReturnType::Default,
-                conversion: FieldTypePresentableContext::LineTermination
+                conversion: FieldContext::LineTermination
             },
             (false, ReturnType::Type(_, ty)) => FnReturnTypeComposer {
                 presentation: ReturnType::Type(RArrow::default(), Box::new(ty.ffi_full_dictionary_type_presenter(source))),
-                conversion: ty.conversion_to(FieldTypePresentableContext::Obj)
+                conversion: ty.conversion_to(FieldContext::Obj)
             },
             (true, ReturnType::Type(token, field_type)) => FnReturnTypeComposer {
                 presentation: ReturnType::Type(token.clone(), Box::new(field_type.ffi_full_dictionary_type_presenter(source))),
-                conversion: FieldTypePresentableContext::Empty
+                conversion: FieldContext::Empty
             },
             (true, ReturnType::Default) => FnReturnTypeComposer {
                 presentation: ReturnType::Default,
-                conversion: FieldTypePresentableContext::Empty,
+                conversion: FieldContext::Empty,
             }
         }
     }
@@ -274,7 +273,7 @@ impl<'a> Composer<'a> for ReturnType {
 
 
 // impl FnSignatureComposition {
-//     pub fn to_original_args(&self) -> Punctuated<OwnedItemPresentableContext, Comma> {
+//     pub fn to_original_args(&self) -> CommaPunctuated<OwnedItemPresentableContext> {
 //         Punctuated::from_iter(self.arguments.iter().map(|arg| arg.name_type_original.clone()))
 //     }
 //     pub fn from_signature(impl_context: &FnSignatureContext, sig: &Signature, scope: &PathHolder, source: &ScopeContext) -> Self {
@@ -299,7 +298,7 @@ impl<'a> Composer<'a> for ReturnType {
 //                     let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
 //                     let name_type_original = OwnedItemPresentableContext::Named(
 //                         FieldTypeConversion::Named(
-//                             Name::Dictionary(DictionaryFieldName::Self_),
+//                             Name::Dictionary(DictionaryName::Self_),
 //                             parse_quote!(* #access #mangled_ident)),
 //                         false);
 //                     let name_type_conversion = if reference.is_some() {
@@ -355,7 +354,7 @@ impl<'a> Composer<'a> for ReturnType {
 //         conversion: FieldTypePresentableContext::Empty
 //     }
 // }
-impl<'a> Composer<'a> for Punctuated<BareFnArg, Comma> {
+impl<'a> Composer<'a> for CommaPunctuated<BareFnArg> {
     type Source = ScopeContext;
     type Result = Depunctuated<FnArgComposer>;
     fn compose(&self, source: &Self::Source) -> Self::Result {
@@ -365,7 +364,7 @@ impl<'a> Composer<'a> for Punctuated<BareFnArg, Comma> {
     }
 }
 
-// impl<'a> Composer<'a> for Punctuated<FnArg, Comma> {
+// impl<'a> Composer<'a> for CommaPunctuated<FnArg> {
 //     type Source = ScopeContext;
 //     type Result = Depunctuated<FnArgComposition>;
 //     fn compose(&self, source: &Self::Source) -> Self::Result {
@@ -387,10 +386,10 @@ impl<'a> Composer<'a> for BareFnArg {
             name_type_original: OwnedItemPresentableContext::Named(
                 FieldTypeConversion::Named(
                     Name::Optional(name),
-                    ty.ffi_full_dictionary_type_presenter(source),
+                    FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
                     attrs.cfg_attributes_expanded()),
                 false),
-            name_type_conversion: FieldTypePresentableContext::Empty
+            name_type_conversion: FieldContext::Empty
         }
     }
 }
@@ -406,17 +405,17 @@ impl<'a> Composer<'a> for PatType {
         let name_type_original = OwnedItemPresentableContext::Named(
             FieldTypeConversion::Named(
                 Name::Pat(*pat.clone()),
-                ty.ffi_full_dictionary_type_presenter(source),
+                FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
                 attrs.cfg_attributes_expanded()),
             false);
         let name_type_conversion = match &**pat {
             Pat::Ident(PatIdent { ident, .. }) => {
                 //println!("Compose PatType: {} --> {}", ty.to_token_stream(), ty.resolve(source).to_token_stream());
                 let full_ty = ty.resolve(source);
-                let conversion = full_ty.conversion_from(FieldTypePresentableContext::Simple(quote!(#ident)));
+                let conversion = full_ty.conversion_from(FieldContext::Simple(quote!(#ident)));
                 match &**ty {
                     Type::Reference(..) =>
-                        FieldTypePresentableContext::AsRef(conversion.into()),
+                        FieldContext::AsRef(conversion.into()),
                     _ => conversion
 
                 }
@@ -462,22 +461,22 @@ impl<'a> Composer<'a> for Receiver {
                 let (mangled_ident, name_type_conversion) = match maybe_trait_ty {
                     Some(trait_ty) => (
                         trait_ty.resolve(&source).mangle_ident_default(),
-                        FieldTypePresentableContext::SelfAsTrait(self_ty.resolve(&source).to_token_stream())
+                        FieldContext::SelfAsTrait(self_ty.resolve(&source).to_token_stream())
                     ),
                     None => (
                         self_ty.resolve(&source).mangle_ident_default(),
-                        FieldTypePresentableContext::From(FieldTypePresentableContext::Self_.into())
+                        FieldContext::From(FieldContext::Self_.into())
                     )
                 };
                 let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
                 let name_type_original = OwnedItemPresentableContext::Named(
                     FieldTypeConversion::Named(
-                        Name::Dictionary(DictionaryFieldName::Self_),
-                        parse_quote!(* #access #mangled_ident),
+                        Name::Dictionary(DictionaryName::Self_),
+                        FieldTypeConversionKind::Type(parse_quote!(* #access #mangled_ident)),
                         attrs.cfg_attributes_expanded()),
                     false);
                 let name_type_conversion = if reference.is_some() {
-                    FieldTypePresentableContext::AsRef(name_type_conversion.into())
+                    FieldContext::AsRef(name_type_conversion.into())
                 } else {
                     name_type_conversion
                 };

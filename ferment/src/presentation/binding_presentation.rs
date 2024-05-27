@@ -1,11 +1,12 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
-use syn::{parse_quote, ReturnType};
+use syn::{ReturnType, Type};
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, RArrow};
-use crate::composer::{ConstructorPresentableContext, Depunctuated};
-use crate::ext::{Mangle, Pop, ToPath};
-use crate::naming::Name;
+use syn::token::RArrow;
+use crate::composer::{CommaPunctuated, ConstructorPresentableContext, Depunctuated};
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
+use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
+use crate::naming::{DictionaryName, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -13,32 +14,32 @@ pub enum BindingPresentation {
     Empty,
     Constructor {
         context: ConstructorPresentableContext,
-        ctor_arguments: Punctuated<TokenStream2, Comma>,
+        ctor_arguments: CommaPunctuated<TokenStream2>,
         body_presentation: TokenStream2,
     },
     Destructor {
         attrs: TokenStream2,
         name: Name,
-        ffi_name: TokenStream2,
+        ffi_name: Type,
     },
     Getter {
         attrs: TokenStream2,
         name: Name,
         field_name: TokenStream2,
-        obj_type: TokenStream2,
-        field_type: TokenStream2
+        obj_type: Type,
+        field_type: Type
     },
     Setter {
         attrs: TokenStream2,
         name: Name,
         field_name: TokenStream2,
-        obj_type: TokenStream2,
-        field_type: TokenStream2
+        obj_type: Type,
+        field_type: Type
     },
     ObjAsTrait {
         attrs: TokenStream2,
         name: Name,
-        item_type: TokenStream2,
+        item_type: Type,
         trait_type: TokenStream2,
         vtable_name: Name,
     },
@@ -52,14 +53,14 @@ pub enum BindingPresentation {
         attrs: TokenStream2,
         name: Name,
         is_async: bool,
-        arguments: Punctuated<TokenStream2, Comma>,
+        arguments: CommaPunctuated<TokenStream2>,
         input_conversions: TokenStream2,
         return_type: ReturnType,
         output_conversions: TokenStream2,
     },
     Callback {
         name: TokenStream2,
-        arguments: Punctuated<TokenStream2, Comma>,
+        arguments: CommaPunctuated<TokenStream2>,
         output_expression: ReturnType,
     },
     TraitVTableInnerFn {
@@ -73,13 +74,13 @@ pub enum BindingPresentation {
     },
     StaticVTableInnerFn {
         name: Name,
-        args: Punctuated<TokenStream2, Comma>,
+        args: CommaPunctuated<TokenStream2>,
         output: ReturnType,
         body: TokenStream2,
     },
     StaticVTable {
         name: Name,
-        methods_declarations: Punctuated<BindingPresentation, Comma>,
+        methods_declarations: CommaPunctuated<BindingPresentation>,
         methods_implementations: Depunctuated<BindingPresentation>,
         fq_trait_vtable: TokenStream2,
     },
@@ -88,7 +89,7 @@ pub enum BindingPresentation {
 fn present_pub_function<T: ToTokens>(
     attrs: TokenStream2,
     name: TokenStream2,
-    args: Punctuated<T, Comma>,
+    args: CommaPunctuated<T>,
     output: ReturnType,
     body: TokenStream2) -> TokenStream2 {
     present_function(attrs, quote!(pub), name, args, output, body)
@@ -97,7 +98,7 @@ pub fn present_function<T: ToTokens>(
     attrs: TokenStream2,
     acc: TokenStream2,
     name: TokenStream2,
-    args: Punctuated<T, Comma>,
+    args: CommaPunctuated<T>,
     output: ReturnType,
     body: TokenStream2) -> TokenStream2 {
     quote! {
@@ -117,24 +118,21 @@ impl ToTokens for BindingPresentation {
             Self::Constructor { context, ctor_arguments, body_presentation} => {
                 match context {
                     ConstructorPresentableContext::EnumVariant(ffi_type, attrs) => {
-                        let ffi_variant_name = Name::Constructor(ffi_type.clone());
                         let variant_path = ffi_type.to_path();
-                        let enum_path = variant_path.popped();
                         present_pub_function(
                             attrs.to_token_stream(),
-                            ffi_variant_name.mangle_ident_default().to_token_stream(),
+                            Name::Constructor(ffi_type.clone()).mangle_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
-                            ReturnType::Type(RArrow::default(), parse_quote!(*mut #enum_path)),
-                            quote!(ferment_interfaces::boxed(#variant_path #body_presentation)))
+                            ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
+                            InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
                     }
                     ConstructorPresentableContext::Default(ffi_type, attrs) => {
-                        let name = Name::Constructor(ffi_type.clone());
                         present_pub_function(
                             attrs.to_token_stream(),
-                            name.mangle_ident_default().to_token_stream(),
+                            Name::Constructor(ffi_type.clone()).mangle_ident_default().to_token_stream(),
                             ctor_arguments.clone(),
-                            ReturnType::Type(RArrow::default(), parse_quote!(*mut #ffi_type)),
-                            quote!(ferment_interfaces::boxed(#ffi_type #body_presentation)))
+                            ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
+                            InterfacesMethodExpr::Boxed(quote!(#ffi_type #body_presentation)).to_token_stream())
                     }
                 }
             },
@@ -142,34 +140,44 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
-                    Punctuated::from_iter([quote!(ffi: *mut #ffi_name)]),
+                    Punctuated::from_iter([
+                        FieldTypeConversion::Named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ffi_name.joined_mut()), Depunctuated::new())
+                    ]),
                     ReturnType::Default,
-                    quote!(ferment_interfaces::unbox_any(ffi);)
+                    InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
                 )
             },
             Self::ObjAsTrait { name, item_type, trait_type, vtable_name, attrs } => {
+                let fields = CommaPunctuated::from_iter([
+                    FieldTypeConversion::named(Name::Dictionary(DictionaryName::Object), FieldTypeConversionKind::Conversion(quote!(obj as *const ()))),
+                    FieldTypeConversion::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
+                ]);
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
-                    Punctuated::from_iter([quote!(obj: *const #item_type)]),
-                    ReturnType::Type(RArrow::default(), parse_quote!(#trait_type)),
-                    quote!(#trait_type { object: obj as *const (), vtable: &#vtable_name })
+                    Punctuated::from_iter([
+                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
+                    ]),
+                    ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
+                    quote!(#trait_type { #fields })
                 )
             },
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs } => {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
-                    Punctuated::from_iter([quote!(obj: #trait_type)]),
+                    Punctuated::from_iter([FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
-                    quote!(ferment_interfaces::unbox_any(obj.object as *mut #item_type);))
+                    InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
+                )
             },
             BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs } => {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
-                    Punctuated::from_iter([quote!(obj: *const #obj_type)]),
-                    ReturnType::Type(RArrow::default(), parse_quote!(#field_type)),
+                    Punctuated::from_iter([
+                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
+                    ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     quote!((*obj).#field_name)
                 )
             },
@@ -177,7 +185,10 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
-                    Punctuated::from_iter([quote!(obj: *mut #obj_type), quote!(value: #field_type)]),
+                    CommaPunctuated::from_iter([
+                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
+                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
+                    ]),
                     ReturnType::Default,
                     quote!((*obj).#field_name = value;))
             },

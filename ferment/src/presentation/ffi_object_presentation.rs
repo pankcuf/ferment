@@ -1,11 +1,11 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
-use crate::composer::Depunctuated;
+use syn::parse_quote;
+use crate::composer::{BraceWrapped, CommaPunctuated, Depunctuated};
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::ToPath;
 use crate::interface::create_struct;
-use crate::naming::Name;
+use crate::naming::{DictionaryName, Name};
 use crate::presentation::{BindingPresentation, DropInterfacePresentation, Expansion};
 use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 
@@ -26,7 +26,7 @@ pub enum FFIObjectPresentation {
     TraitVTable {
         name: Name,
         attrs: Depunctuated<Expansion>,
-        fields: Punctuated<Expansion, Comma>
+        fields: CommaPunctuated<Expansion>
     },
     // TraitVTableInnerFn {
     //     name: Name,
@@ -53,10 +53,20 @@ impl ToTokens for FFIObjectPresentation {
         match self {
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, attrs, fields } => {
-                create_struct(&name.to_path(), attrs.to_token_stream(), quote!({ #fields }))
+                create_struct(&name.to_path().segments.last().unwrap().ident, attrs.to_token_stream(), BraceWrapped::new(fields))
             },
             Self::TraitObject { name, attrs, vtable_name } => {
-                create_struct(&name.to_path(), attrs.to_token_stream(), quote!({ pub object: *const (), pub vtable: *const #vtable_name }))
+                create_struct(
+                    &name.to_path().segments.last().unwrap().ident,
+                    attrs.to_token_stream(),
+                    BraceWrapped::new(CommaPunctuated::from_iter([
+                        FieldTypeConversion::named(
+                            Name::Dictionary(DictionaryName::Object),
+                            FieldTypeConversionKind::Type(parse_quote!(*const ()))),
+                        FieldTypeConversion::named(
+                            Name::Dictionary(DictionaryName::Vtable),
+                            FieldTypeConversionKind::Type(parse_quote!(*const #vtable_name))),
+                    ])))
             },
             Self::Generic {
                 object_presentation,

@@ -1,10 +1,8 @@
 use proc_macro2::Ident;
 use syn::__private::TokenStream2;
 use syn::{ReturnType, Type};
-use syn::punctuated::Punctuated;
-use syn::token::{Comma, Paren};
+use crate::composer::{CommaPunctuated, ParenWrapped};
 use crate::context::ScopeChain;
-use crate::wrapped::Wrapped;
 
 
 #[derive(Clone)]
@@ -24,7 +22,7 @@ pub struct TraitVTableMethodComposition {
     pub ffi_fn_name: Ident,
     pub item_type: Type,
     pub trait_type: Type,
-    pub argument_conversions: Wrapped<Punctuated<TokenStream2, Comma>, Paren>,
+    pub argument_conversions: ParenWrapped<CommaPunctuated<TokenStream2>>,
     pub name_and_args: TokenStream2,
     pub output_expression: ReturnType,
     pub output_conversions: TokenStream2,

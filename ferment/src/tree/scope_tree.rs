@@ -4,9 +4,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
-use syn::punctuated::Punctuated;
-use syn::token::Semi;
-use crate::composer::{Depunctuated, ParentComposer};
+use crate::composer::{Depunctuated, ParentComposer, SemiPunctuated};
 use crate::composition::{CfgAttributes, create_item_use_with_tree, ImportComposition};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
@@ -54,7 +52,7 @@ impl ScopeTree {
     //     generics
     // }
 
-    pub(crate) fn imports(&self) -> Punctuated<ItemUse, Semi> {
+    pub(crate) fn imports(&self) -> SemiPunctuated<ItemUse> {
         self.imported.iter()
             .flat_map(|(import_type, imports)|
                 imports.iter().map(move |import| import.present(import_type)))
@@ -86,13 +84,13 @@ impl ToTokens for ScopeTree {
         let ctx = source.context.read().unwrap();
         let rename = ctx.config.current_crate.ident();
 
-        let mut imports = Punctuated::<ItemUse, Semi>::from_iter([
+        let mut imports = SemiPunctuated::from_iter([
             create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename }))
         ]);
         imports.extend(self.imports());
         // imports
         // let imports = if source.is_from_current_crate() {
-        //     let mut imports = Punctuated::<ItemUse, Semi>::from_iter([
+        //     let mut imports = SemiPunctuated::from_iter([
         //         create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: source.scope.crate_ident().clone() }))
         //     ]);
         //     imports.extend(self.imports());

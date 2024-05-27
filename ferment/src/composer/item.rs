@@ -7,7 +7,7 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Field, Generics, Type, Visibility, VisPublic};
 use syn::token::{Comma, Pub};
 use syn::punctuated::Punctuated;
-use crate::composer::{AttrsComposer, Composer, BindingAccessorContext, BYPASS_FIELD_CONTEXT, ComposerPresenter, constants, ConstructorComposer, Depunctuated, DestructorContext, FFIAspect, FFIComposer, FieldsComposer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ParentLinker, ItemParentComposer, LocalConversionContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, TypeContextComposer, VariantIteratorLocalContext};
+use crate::composer::{AttrsComposer, Composer, BindingAccessorContext, BYPASS_FIELD_CONTEXT, ComposerPresenter, constants, ConstructorComposer, Depunctuated, DestructorContext, FFIAspect, FFIComposer, FieldsComposer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ParentLinker, ItemParentComposer, LocalConversionContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, TypeContextComposer, VariantIteratorLocalContext, CommaPunctuated};
 use crate::composer::basic::BasicComposer;
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER, FFI_ASPECT_SEQ_CONTEXT};
 use crate::composer::composable::{BasicComposable, BindingComposable, ConversionComposable, DropComposable, SourceExpandable, FFIObjectComposable, NameContext};
@@ -16,7 +16,7 @@ use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
 use crate::naming::Name;
-use crate::presentation::context::{FieldTypePresentableContext, name, OwnerIteratorPresentationContext};
+use crate::presentation::context::{FieldContext, name, OwnerIteratorPresentationContext};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::name::{Aspect, Context};
 use crate::presentation::destroy_presentation::DestroyPresentation;
@@ -42,7 +42,7 @@ impl ItemComposer {
         target_name: &Ident,
         attrs: &Vec<Attribute>,
         generics: &Generics,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>
     ) -> ItemParentComposer {
@@ -65,7 +65,7 @@ impl ItemComposer {
         target_name: &Ident,
         attrs: &Vec<Attribute>,
         generics: &Generics,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>
     ) -> ItemParentComposer {
@@ -87,7 +87,7 @@ impl ItemComposer {
     pub fn enum_variant_composer_unit(
         name_context: Context,
         attrs: AttrsComposition,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         context: &ParentComposer<ScopeContext>
     ) -> ItemParentComposer {
         Self::enum_variant_composer(
@@ -99,7 +99,7 @@ impl ItemComposer {
             constants::enum_variant_composer_conversion_unit(),
             BYPASS_FIELD_CONTEXT,
             constants::ROOT_DESTROY_CONTEXT_COMPOSER,
-            |_| FieldTypePresentableContext::Empty,
+            |_| FieldContext::Empty,
             constants::enum_variant_composer_ctor_unit(),
             EMPTY_FIELDS_COMPOSER
         )
@@ -107,7 +107,7 @@ impl ItemComposer {
     pub fn enum_variant_composer_unnamed(
         name_context: Context,
         attrs: AttrsComposition,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         context: &ParentComposer<ScopeContext>
     ) -> ItemParentComposer {
         Self::enum_variant_composer(
@@ -127,7 +127,7 @@ impl ItemComposer {
     pub fn enum_variant_composer_named(
         name_context: Context,
         attrs: AttrsComposition,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         context: &ParentComposer<ScopeContext>
     ) -> ItemParentComposer {
         Self::enum_variant_composer(
@@ -153,7 +153,10 @@ impl ItemComposer {
         context: &ParentComposer<ScopeContext>,
     ) -> ItemParentComposer {
         Self::new::<ItemParentComposer>(
-            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() },
+            Context::Struct {
+                ident: target_name.clone(),
+                attrs: attrs.cfg_attributes_expanded(),
+            },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
             &Punctuated::from_iter([Field {
@@ -179,7 +182,7 @@ impl ItemComposer {
         target_name: &Ident,
         generics: &Generics,
         attrs: &Vec<Attribute>,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>,
         root_presenter: OwnerIteratorConversionComposer<Comma>,
@@ -189,7 +192,10 @@ impl ItemComposer {
         ctor_composer: ConstructorComposer<ItemParentComposer>,
         fields_composer: FieldsComposer) -> ItemParentComposer {
         Self::new::<ItemParentComposer>(
-            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() },
+            Context::Struct {
+                ident: target_name.clone(),
+                attrs: attrs.cfg_attributes_expanded(),
+            },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
             fields,
@@ -208,7 +214,7 @@ impl ItemComposer {
     fn enum_variant_composer(
         name_context: Context,
         attrs: AttrsComposition,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         context: &ParentComposer<ScopeContext>,
         root_presenter: OwnerIteratorConversionComposer<Comma>,
         root_conversion_presenter: OwnerIteratorConversionComposer<Comma>,
@@ -237,7 +243,7 @@ impl ItemComposer {
         name_context: Context,
         generics: Option<Generics>,
         attrs: AttrsComposition,
-        fields: &Punctuated<Field, Comma>,
+        fields: &CommaPunctuated<Field>,
         context: &ParentComposer<ScopeContext>,
         root_presenter: ComposerPresenter<VariantIteratorLocalContext, OwnerIteratorPresentationContext>,
         doc_composer: TypeContextComposer<ItemParentComposer>,
@@ -268,8 +274,8 @@ impl ItemComposer {
                         attrs,
                         name: Name::Getter(root_obj_type.to_path(), field_name.clone()),
                         field_name,
-                        obj_type: root_obj_type.to_token_stream(),
-                        field_type: field_type.to_token_stream()
+                        obj_type: root_obj_type,
+                        field_type
                     },
                 FFI_ASPECT_SEQ_CONTEXT),
             setter_composer: MethodComposer::new(
@@ -278,8 +284,8 @@ impl ItemComposer {
                         attrs,
                         name: Name::Setter(root_obj_type.to_path(), field_name.clone()),
                         field_name,
-                        obj_type: root_obj_type.to_token_stream(),
-                        field_type: field_type.to_token_stream()
+                        obj_type: root_obj_type,
+                        field_type
                     },
                 FFI_ASPECT_SEQ_CONTEXT),
             dtor_composer: MethodComposer::new(
@@ -367,7 +373,7 @@ impl<Parent> ConversionComposable<Parent> for ItemComposer where Parent: SharedA
     fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
         (
             FromConversionPresentation::Just(self.compose_aspect(FFIAspect::From)),
-            ToConversionPresentation::Struct(self.compose_aspect(FFIAspect::To)),
+            ToConversionPresentation::Simple(self.compose_aspect(FFIAspect::To)),
             DestroyPresentation::Custom(self.compose_aspect(FFIAspect::Destroy)),
             self.base.generics.clone()
         )

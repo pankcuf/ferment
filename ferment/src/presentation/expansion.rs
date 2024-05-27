@@ -1,9 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::punctuated::Punctuated;
-use syn::token::Semi;
 use syn::ItemUse;
-use crate::composer::Depunctuated;
+use crate::composer::{Depunctuated, SemiPunctuated};
 use crate::presentation::{BindingPresentation, DropInterfacePresentation};
 use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 use crate::presentation::doc_presentation::DocPresentation;
@@ -36,7 +34,7 @@ pub enum Expansion {
         attrs: Depunctuated<Expansion>,
         directives: TokenStream2,
         name: TokenStream2,
-        imports: Punctuated<ItemUse, Semi>,
+        imports: SemiPunctuated<ItemUse>,
         conversions: Depunctuated<TokenStream2>
     },
     Impl {

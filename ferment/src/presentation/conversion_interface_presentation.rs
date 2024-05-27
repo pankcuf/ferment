@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Type};
-use crate::naming::DictionaryFieldName;
+use crate::naming::DictionaryName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
@@ -64,16 +64,16 @@ impl ToTokens for InterfacePresentation {
                     None => (quote!(), quote!())
                 };
 
-                let package = DictionaryFieldName::Package;
-                let interface = DictionaryFieldName::Interface;
-                let obj = DictionaryFieldName::Obj;
+                let package = DictionaryName::Package;
+                let interface = DictionaryName::Interface;
+                let obj = DictionaryName::Obj;
                 quote! {
                     #attrs
-                    impl #generic_bounds #package::#interface<#target_type> for #ffi_type #where_clause {
-                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type {
+                    impl #generic_bounds #package::#interface<#target_type #generic_bounds> for #ffi_type #where_clause {
+                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type #generic_bounds {
                             #from_presentation
                         }
-                        unsafe fn ffi_to_const(#obj: #target_type) -> *const #ffi_type {
+                        unsafe fn ffi_to_const(#obj: #target_type #generic_bounds) -> *const #ffi_type {
                             #to_presentation
                         }
                         unsafe fn destroy(ffi: *mut #ffi_type) {

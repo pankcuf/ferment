@@ -5,15 +5,15 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::{Field, parse_quote, Type};
-use crate::composer::{Composer, BindingDtorComposer, ComposerPresenter, ComposerPresenterByRef, ConstructorPresentableContext, ContextComposer, SequenceMixer, ConstructorComposer, Depunctuated, DropSequenceMixer, EnumComposerPresenterRef, EnumParentComposer, FFIComposer, FFIConversionMixer, FieldsOwnedComposer, FieldTypeComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemComposerFieldTypesContextPresenter, ItemComposerPresenterRef, ItemParentComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectIteratorLocalContext, OwnerIteratorPostProcessingComposer, SharedComposer, ItemComposer, EnumComposer, LocalConversionContext, VariantIteratorLocalContext, ConstructorFieldsContext, OwnedItemPresentablePair, SequenceComposer, ParentComposer, OwnedItemPresentationPair};
+use crate::composer::{Composer, BindingDtorComposer, ComposerPresenter, ComposerPresenterByRef, ConstructorPresentableContext, ContextComposer, SequenceMixer, ConstructorComposer, Depunctuated, DropSequenceMixer, EnumComposerPresenterRef, EnumParentComposer, FFIComposer, FFIConversionMixer, FieldsOwnedComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemComposerFieldTypesContextPresenter, ItemComposerPresenterRef, ItemParentComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectIteratorLocalContext, OwnerIteratorPostProcessingComposer, SharedComposer, ItemComposer, EnumComposer, LocalConversionContext, VariantIteratorLocalContext, ConstructorFieldsContext, OwnedItemPresentablePair, SequenceComposer, ParentComposer, OwnedItemPresentationPair, CommaPunctuated};
 use crate::composer::composable::{SourceExpandable, NameContext, BasicComposable};
 use crate::composition::CfgAttributes;
-use crate::conversion::FieldTypeConversion;
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::Conversion;
 use crate::formatter::format_token_stream;
-use crate::naming::Name;
+use crate::naming::{DictionaryName, Name};
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::presentation::context::{FieldTypePresentableContext, IteratorPresentationContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{FieldContext, IteratorPresentationContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
 use crate::presentation::context::binding::BindingPresentableContext;
 use crate::presentation::context::name::Aspect;
 
@@ -21,10 +21,6 @@ pub const FFI_FROM_ROOT_PRESENTER: ComposerPresenterByRef<OwnedItemPresentationP
     OwnerIteratorPresentationContext::FromRoot(Box::new(field_path.clone()), Box::new(conversions.clone()));
 pub const FFI_TO_ROOT_PRESENTER: ComposerPresenterByRef<OwnedItemPresentationPair, OwnerIteratorPresentationContext> = |(_, conversions)|
     OwnerIteratorPresentationContext::Boxed(conversions.clone().into());
-
-// pub const FIELD_TYPE_ROOT_PRESENTER: ComposerPresenterByRef<FieldTypePresentableContext, OwnedItemPresentableContext> =
-//     |context| OwnedItemPresentableContext::FieldType(context.clone());
-
 pub const CURLY_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
     OwnerIteratorPresentationContext::CurlyBracesFields(local_context);
 pub const ROUND_BRACES_FIELDS_PRESENTER: OwnerIteratorConversionComposer<Comma> = |local_context|
@@ -45,21 +41,6 @@ pub const EMPTY_CONTEXT_PRESENTER: ItemComposerPresenterRef<OwnerIteratorPresent
 
 
 /// FieldTypeComposers
-pub const FIELD_PATH_FROM_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_from(FieldTypePresentableContext::FfiRefWithFieldName(FieldTypePresentableContext::Simple(field_type.name()).into()));
-pub const DEREF_FIELD_PATH_FROM_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_from(FieldTypePresentableContext::Deref(field_type.name()));
-pub const TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_to(FieldTypePresentableContext::Obj);
-pub const STRUCT_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_to(FieldTypePresentableContext::ObjFieldName(field_type.name()));
-pub const ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_to(FieldTypePresentableContext::FieldTypeConversionName(field_type.clone()));
-pub const ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_destroy(FieldTypePresentableContext::Deref(field_type.name()));
-pub const STRUCT_FIELD_TYPE_DESTROY_PRESENTER: FieldTypeComposer =
-    |field_type| field_type.conversion_destroy(FieldTypePresentableContext::FfiRefWithConversion(field_type.clone()));
-
 pub const FIELD_TYPES_COMPOSER: ItemComposerFieldTypesContextPresenter =
     |composer| composer.field_types.clone();
 
@@ -77,7 +58,7 @@ pub const BINDING_DTOR_COMPOSER: BindingDtorComposer =
     |context|
         BindingPresentation::Destructor {
             attrs: context.1.to_token_stream(),
-            ffi_name: context.0.to_token_stream(),
+            ffi_name: context.0.clone(),
             name: Name::Destructor(context.0)
         };
 
@@ -137,32 +118,25 @@ pub const fn type_alias_composer_ffi_conversions() -> FFIComposer<ItemParentComp
 pub const fn type_alias_composer_from() -> FFIConversionMixer<ItemParentComposer> {
     SequenceMixer::new_new(
         FFI_FROM_ROOT_PRESENTER,
-        |_| OwnerIteratorPresentationContext::AddrDeref(quote!(ffi)),
+        |_| OwnerIteratorPresentationContext::AddrDeref(DictionaryName::Ffi.to_token_stream()),
         SequenceComposer::new(
             |(_, fields)|
                 OwnerIteratorPresentationContext::TypeAliasFromConversion(Depunctuated::from_iter(fields.into_iter())),
             TARGET_ASPECT_SEQ_CONTEXT,
             |((aspect, field_types), presenter)| {
-                (aspect, field_types.iter().map(|field_type| OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), FIELD_PATH_FROM_PRESENTER(field_type))), field_type.attrs())).collect())
+                (aspect, field_types.iter()
+                    .map(|field_type|
+                        OwnedItemPresentableContext::FieldType(
+                            presenter(&(
+                                field_type.name(),
+                                field_type.conversion_from(FieldContext::FfiRefWithFieldName(FieldContext::Simple(field_type.name()).into())))),
+                            field_type.attrs()))
+                    .collect())
             },
             BYPASS_FIELD_CONTEXT
         )
     )
 }
-
-// pub const fn type_alias_to_seq_composer(
-//     context: SharedComposer<ItemParentComposer, LocalConversionContext>
-// ) -> SequenceComposer<ItemParentComposer, LocalConversionContext, FieldTypeLocalContext, FieldTypePresentableContext, VariantIteratorLocalContext, OwnerIteratorPresentationContext> {
-//     SequenceComposer::new(
-//         |(aspect, context)|
-//             OwnerIteratorPresentationContext::TypeAliasToConversion((aspect, context)),
-//         context,
-//         |((aspect, field_types), presenter)|
-//             (aspect, field_types.iter().map(|field_type|
-//                 OwnedItemPresentableContext::FieldType(presenter(&(quote!(), TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER(field_type))))).collect()),
-//         BYPASS_FIELD_CONTEXT
-//     )
-// }
 
 pub const fn type_alias_composer_to() -> FFIConversionMixer<ItemParentComposer>  {
     SequenceMixer::new_new(
@@ -173,8 +147,14 @@ pub const fn type_alias_composer_to() -> FFIConversionMixer<ItemParentComposer> 
                 OwnerIteratorPresentationContext::TypeAliasToConversion((aspect, context)),
             FFI_ASPECT_SEQ_CONTEXT,
             |((aspect, field_types), presenter)|
-                (aspect, field_types.iter().map(|field_type|
-                    OwnedItemPresentableContext::FieldType(presenter(&(quote!(), TYPE_ALIAS_FIELD_TYPE_TO_PRESENTER(field_type))), field_type.attrs())).collect()),
+                (aspect, field_types.iter()
+                    .map(|field_type|
+                        OwnedItemPresentableContext::FieldType(
+                            presenter(&(
+                                quote!(),
+                                field_type.conversion_to(FieldContext::Obj))),
+                            field_type.attrs()))
+                    .collect()),
             BYPASS_FIELD_CONTEXT
         )
     )
@@ -202,13 +182,17 @@ pub const fn struct_from_ffi_conversion_mixer(
 ) -> FFIConversionMixer<ItemParentComposer> {
     SequenceMixer::new_new(
         FFI_FROM_ROOT_PRESENTER,
-        |_| OwnerIteratorPresentationContext::AddrDeref(quote!(ffi)),
+        |_| OwnerIteratorPresentationContext::AddrDeref(DictionaryName::Ffi.to_token_stream()),
         SequenceComposer::new(
             seq_root,
         TARGET_ASPECT_SEQ_CONTEXT,
         |((aspect, fields), presenter)|
             (aspect, fields.iter().map(|field_type|
-                OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), FIELD_PATH_FROM_PRESENTER(field_type))), field_type.attrs()))
+                OwnedItemPresentableContext::FieldType(
+                    presenter(&(
+                        field_type.name(),
+                        field_type.conversion_from(FieldContext::FfiRefWithFieldName(FieldContext::Simple(field_type.name()).into())))),
+                    field_type.attrs()))
                 .collect()),
             seq_iterator_item
         ))
@@ -225,7 +209,11 @@ pub const fn struct_to_ffi_conversion_mixer(
             FFI_ASPECT_SEQ_CONTEXT,
             |((name, fields), presenter)|
                 (name.clone(), fields.iter().map(|field_type|
-                    OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), STRUCT_FIELD_TYPE_TO_PRESENTER(field_type))), field_type.attrs()))
+                    OwnedItemPresentableContext::FieldType(
+                        presenter(&(
+                            field_type.name(),
+                            field_type.conversion_to(FieldContext::ObjFieldName(field_type.name())))),
+                        field_type.attrs()))
                     .collect()),
             seq_iterator_item
         ))
@@ -245,14 +233,18 @@ pub const fn struct_drop_sequence_mixer() -> DropSequenceMixer<ItemParentCompose
         |(fields, presenter)|
             fields.iter()
                 .map(|field_type|
-                    OwnedItemPresentableContext::FieldType(presenter(&(quote!(), STRUCT_FIELD_TYPE_DESTROY_PRESENTER(field_type))), field_type.attrs()))
+                    OwnedItemPresentableContext::FieldType(
+                        presenter(&(
+                            quote!(),
+                            field_type.conversion_destroy(FieldContext::FfiRefWithConversion(field_type.clone())))),
+                        field_type.attrs()))
                 .collect())
 }
 pub const fn struct_composer_ctor_named() -> ConstructorComposer<ItemParentComposer> {
     composer_ctor(
         default_ctor_context_composer(),
         |(context, field_pairs)| {
-            let (args, names): (Punctuated<OwnedItemPresentableContext, _>, Punctuated<OwnedItemPresentableContext, _>) = field_pairs.into_iter().unzip();
+            let (args, names): (CommaPunctuated<OwnedItemPresentableContext>, CommaPunctuated<OwnedItemPresentableContext>) = field_pairs.into_iter().unzip();
             BindingPresentableContext::Constructor(
                 context,
                 args,
@@ -264,7 +256,7 @@ pub const fn struct_composer_ctor_unnamed() -> ConstructorComposer<ItemParentCom
     composer_ctor(
         default_ctor_context_composer(),
         |(context, field_pairs)| {
-            let (args, names): (Punctuated<OwnedItemPresentableContext, _>, Punctuated<OwnedItemPresentableContext, _>) = field_pairs.into_iter().unzip();
+            let (args, names): (CommaPunctuated<OwnedItemPresentableContext>, CommaPunctuated<OwnedItemPresentableContext>) = field_pairs.into_iter().unzip();
             BindingPresentableContext::Constructor(
                 context,
                 args,
@@ -289,7 +281,7 @@ pub const fn struct_composer_object() -> OwnerIteratorPostProcessingComposer<Ite
 }
 pub const fn struct_composer_conversion_named() -> FieldTypePresentationContextPassRef {
     |(field_path, field_context)|
-        FieldTypePresentableContext::Named((field_path.clone(), Box::new(field_context.clone())))
+        FieldContext::Named((field_path.clone(), Box::new(field_context.clone())))
 }
 
 pub const fn struct_composer_root_presenter_unnamed() -> OwnerIteratorConversionComposer<Comma> {
@@ -330,7 +322,9 @@ const fn enum_variant_composer_from_sequence_iterator_root<T: Default + ToTokens
     |((name, fields), presenter)|
         (name, fields.iter().map(|field_type|
             OwnedItemPresentableContext::FieldType(
-                presenter(&(field_type.name(), DEREF_FIELD_PATH_FROM_PRESENTER(field_type))),
+                presenter(&(
+                    field_type.name(),
+                    field_type.conversion_from(FieldContext::Deref(field_type.name())))),
                 field_type.attrs())).collect()
         )
 }
@@ -338,7 +332,9 @@ const fn enum_variant_composer_to_sequence_iterator_root<T: Default + ToTokens>(
     |((name, fields), presenter)| {
         (name, fields.iter().map(|field_type|
             OwnedItemPresentableContext::FieldType(
-                presenter(&(field_type.name(), ENUM_VARIANT_FIELD_TYPE_TO_PRESENTER(field_type))),
+                presenter(&(
+                    field_type.name(),
+                    field_type.conversion_to(FieldContext::FieldTypeConversionName(field_type.clone())))),
                 field_type.attrs())).collect())
     }
 }
@@ -346,7 +342,11 @@ const fn enum_variant_composer_drop_sequence_iterator_root<'a, SEP: Default + To
     |(fields, presenter)|
         fields.iter()
             .map(|field_type|
-                OwnedItemPresentableContext::FieldType(presenter(&(field_type.name(), ENUM_VARIANT_FIELD_TYPE_DESTROY_PRESENTER(field_type))), field_type.attrs())
+                OwnedItemPresentableContext::FieldType(
+                    presenter(&(
+                        field_type.name(),
+                        field_type.conversion_destroy(FieldContext::Deref(field_type.name())))),
+                    field_type.attrs())
             )
             .collect()
 }
@@ -409,7 +409,7 @@ pub const fn enum_variant_composer_ctor_unit() -> ConstructorComposer<ItemParent
     composer_ctor(
         enum_variant_ctor_context_composer(),
         |(context, field_pairs)| {
-            let (args, _): (Punctuated<OwnedItemPresentableContext, Comma>, Punctuated<OwnedItemPresentableContext, Comma>) = field_pairs.into_iter().unzip();
+            let (args, _): (CommaPunctuated<OwnedItemPresentableContext>, CommaPunctuated<OwnedItemPresentableContext>) = field_pairs.into_iter().unzip();
             BindingPresentableContext::Constructor(context, args, IteratorPresentationContext::Empty)
         },
         struct_composer_ctor_named_item())
@@ -419,7 +419,7 @@ pub const fn enum_variant_composer_ctor_unnamed() -> ConstructorComposer<ItemPar
     composer_ctor(
         enum_variant_ctor_context_composer(),
         |(context, field_pairs)| {
-            let (args, names): (Punctuated<OwnedItemPresentableContext, _>, Punctuated<OwnedItemPresentableContext, _>) = field_pairs.into_iter().unzip();
+            let (args, names): (CommaPunctuated<OwnedItemPresentableContext>, CommaPunctuated<OwnedItemPresentableContext>) = field_pairs.into_iter().unzip();
             BindingPresentableContext::Constructor(
                 context,
                 args,
@@ -432,7 +432,7 @@ pub const fn enum_variant_composer_ctor_named() -> ConstructorComposer<ItemParen
     composer_ctor(
         enum_variant_ctor_context_composer(),
         |(context, field_pairs)| {
-            let (args, names): (Punctuated<OwnedItemPresentableContext, _>, Punctuated<OwnedItemPresentableContext, _>) = field_pairs.into_iter().unzip();
+            let (args, names): (CommaPunctuated<OwnedItemPresentableContext>, CommaPunctuated<OwnedItemPresentableContext>) = field_pairs.into_iter().unzip();
             BindingPresentableContext::Constructor(
                 context,
                 args,
@@ -468,34 +468,34 @@ pub const fn item_composer_doc() -> ContextComposer<Type, TokenStream2, ItemPare
 
 
 pub const ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
-    Punctuated<Field, Comma>,
+    CommaPunctuated<Field>,
     FieldTypesContext> = |fields|
     fields.iter()
         .enumerate()
         .map(|(index, Field { ty, attrs, .. })|
-            FieldTypeConversion::Unnamed(Name::UnnamedArg(index), ty.clone(), attrs.cfg_attributes_expanded()))
+            FieldTypeConversion::Unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(ty.clone()), attrs.cfg_attributes_expanded()))
         .collect();
 
 pub const STRUCT_UNNAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
-    Punctuated<Field, Comma>,
+    CommaPunctuated<Field>,
     FieldTypesContext> = |fields|
     fields
         .iter()
         .enumerate()
         .map(|(index, Field { ty, attrs, .. })|
-            FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(ty.clone(), index), ty.clone(), attrs.cfg_attributes_expanded()))
+            FieldTypeConversion::Unnamed(Name::UnnamedStructFieldsComp(ty.clone(), index), FieldTypeConversionKind::Type(ty.clone()), attrs.cfg_attributes_expanded()))
         .collect();
 
 pub const STRUCT_NAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
-    Punctuated<Field, Comma>,
+    CommaPunctuated<Field>,
     FieldTypesContext> = |fields|
     fields
         .iter()
         .map(|Field { ident, ty, attrs, .. }| {
-            FieldTypeConversion::Named(Name::Optional(ident.clone()), ty.clone(), attrs.cfg_attributes_expanded())
+            FieldTypeConversion::Named(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), attrs.cfg_attributes_expanded())
         })
         .collect();
-pub const EMPTY_FIELDS_COMPOSER: ComposerPresenterByRef<Punctuated<Field, Comma>,
+pub const EMPTY_FIELDS_COMPOSER: ComposerPresenterByRef<CommaPunctuated<Field>,
     FieldTypesContext> = |_| Punctuated::new();
 
 /// Enum composers

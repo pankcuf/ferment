@@ -7,9 +7,24 @@ use crate::naming::Name;
 use crate::presentation::Expansion;
 
 #[derive(Clone)]
+pub enum FieldTypeConversionKind {
+    Type(Type),
+    Conversion(TokenStream2)
+}
+impl ToTokens for FieldTypeConversionKind {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            FieldTypeConversionKind::Type(ty) => quote!(#ty),
+            FieldTypeConversionKind::Conversion(conversion) => quote!(#conversion),
+        }.to_tokens(tokens)
+    }
+}
+
+
+#[derive(Clone)]
 pub enum FieldTypeConversion {
-    Named(Name, Type, Depunctuated<Expansion>),
-    Unnamed(Name, Type, Depunctuated<Expansion>),
+    Named(Name, FieldTypeConversionKind, Depunctuated<Expansion>),
+    Unnamed(Name, FieldTypeConversionKind, Depunctuated<Expansion>),
 }
 
 impl ToTokens for FieldTypeConversion {
@@ -44,10 +59,18 @@ impl Display for FieldTypeConversion {
 }
 
 impl FieldTypeConversion {
+    pub fn named(name: Name, kind: FieldTypeConversionKind) -> Self {
+        Self::Named(name, kind, Depunctuated::new())
+    }
+    pub fn unnamed(name: Name, kind: FieldTypeConversionKind) -> Self {
+        Self::Unnamed(name, kind, Depunctuated::new())
+    }
+
     pub fn ty(&self) -> &Type {
         match self {
-            FieldTypeConversion::Named(_, ty, _) => ty,
-            FieldTypeConversion::Unnamed(_, ty, _) => ty,
+            FieldTypeConversion::Named(_, FieldTypeConversionKind::Type(ty), _) => ty,
+            FieldTypeConversion::Unnamed(_, FieldTypeConversionKind::Type(ty), _) => ty,
+            _ => panic!("It's a conversion")
         }
     }
     pub fn name(&self) -> TokenStream2 {

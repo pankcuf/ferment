@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::{GenericArgument, parse_quote, Path, PathArguments, QSelf, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use crate::composer::CommaPunctuated;
 use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
@@ -10,21 +10,21 @@ use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
 pub trait ToObjectConversion {
-    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
-    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
-    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion;
+    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
+    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
+    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
 }
 
 impl ToObjectConversion for Type {
-    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
     }
 
@@ -34,15 +34,15 @@ impl ToObjectConversion for Type {
 }
 
 impl ToObjectConversion for TypePath {
-    fn to_unknown(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_path_composition(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: Punctuated<NestedArgument, Comma>) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
     }
 
@@ -73,10 +73,10 @@ impl<'a> VisitScopeType<'a> for Type {
         }
     }
 }
-fn handle_type_composition(ty: Type, nested_arguments: Punctuated<NestedArgument, Comma>) -> TypeComposition {
+fn handle_type_composition(ty: Type, nested_arguments: CommaPunctuated<NestedArgument>) -> TypeComposition {
     TypeComposition::new(ty, None, nested_arguments)
 }
-fn handle_type_path_composition(type_path: TypePath, nested_arguments: Punctuated<NestedArgument, Comma>) -> TypeComposition {
+fn handle_type_path_composition(type_path: TypePath, nested_arguments: CommaPunctuated<NestedArgument>) -> TypeComposition {
     TypeComposition::new(Type::Path(type_path), None, nested_arguments)
 }
 

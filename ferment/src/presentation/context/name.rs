@@ -27,7 +27,7 @@ impl Aspect {
 pub enum Context {
     Enum {
         ident: Ident,
-        attrs: Depunctuated<Expansion>
+        attrs: Depunctuated<Expansion>,
     },
     EnumVariant {
         ident: Ident,
@@ -36,7 +36,7 @@ pub enum Context {
     },
     Struct {
         ident: Ident,
-        attrs: Depunctuated<Expansion>
+        attrs: Depunctuated<Expansion>,
     },
     Fn {
         path: Path,
@@ -138,8 +138,8 @@ impl ScopeContextPresentable for Aspect {
             },
             Aspect::RawTarget(context) => {
                 match context {
-                    Context::Enum { ident , attrs: _} |
-                    Context::Struct { ident , attrs: _} =>
+                    Context::Enum { ident , attrs: _, } |
+                    Context::Struct { ident , attrs: _, } =>
                         ident.to_type(),
                     Context::EnumVariant { ident, variant_ident, attrs: _ } => {
                         let full_ty = ident.to_type().resolve(source);

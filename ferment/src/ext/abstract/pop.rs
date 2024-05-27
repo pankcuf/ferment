@@ -1,6 +1,6 @@
 use syn::{Path, PathSegment};
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
+use crate::composer::Colon2Punctuated;
 use crate::ext::CrateExtension;
 use crate::holder::PathHolder;
 
@@ -23,7 +23,7 @@ impl Pop for Path {
     }
 }
 
-impl Pop for Punctuated<PathSegment, Colon2> {
+impl Pop for Colon2Punctuated<PathSegment> {
     fn popped(&self) -> Self {
         self.ident_less()
         // Punctuated::from_iter(self.into_iter().take(self.len() - 1).cloned())

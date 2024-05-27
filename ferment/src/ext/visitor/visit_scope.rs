@@ -3,7 +3,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
-use syn::token::Add;
+use crate::composer::AddPunctuated;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
@@ -227,7 +227,7 @@ fn add_local_type(visitor: &mut Visitor, ident: &Ident, scope: &ScopeChain) {
     visitor.add_full_qualified_type_match(scope, &local_type);
 }
 
-fn add_bounds(visitor: &mut Visitor, bounds: &Punctuated<TypeParamBound, Add>, scope: &ScopeChain) -> Vec<Path> {
+fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain) -> Vec<Path> {
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
         let ty = path.to_type();

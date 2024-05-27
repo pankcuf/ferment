@@ -3,12 +3,13 @@ use quote::{quote, ToTokens};
 use syn::{parse_quote, Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
+use crate::composer::Colon2Punctuated;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
 use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
 use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
+use crate::naming::DictionaryExpr;
 
 pub trait FFIResolve where Self: Sized + ToTokens + Parse {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self>;
@@ -27,6 +28,7 @@ pub trait FFITypeResolve {
 
 impl FFITypeResolve for Type where Self: FFIResolve {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Self {
+        // println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
         source.maybe_custom_conversion(self)
             .unwrap_or(self.ffi_resolve_or_same(source))
     }
@@ -34,6 +36,7 @@ impl FFITypeResolve for Type where Self: FFIResolve {
 
 impl FFITypeResolve for GenericTypeConversion {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type {
+        // println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
         self.ty()
             .and_then(|ty| source.maybe_custom_conversion(ty)
                 .map(|ty| ty.clone()))
@@ -66,7 +69,7 @@ impl FFIResolve for Path {
         let result = if last_ident.is_primitive() {
             None
         } else if last_ident.is_any_string() {
-            Some(parse_quote!(std::os::raw::c_char))
+            Some(DictionaryExpr::CChar.to_token_stream().to_path())
         } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
             let ffi_name = self.mangle_ident_default();
             Some(parse_quote!(crate::fermented::generics::#ffi_name))
@@ -125,7 +128,8 @@ impl FFIResolve for TypePath {
 
 impl FFIResolve for Type {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
-        match self {
+        // println!("Type::ffi_resolve.1: {}", self.to_token_stream());
+        let result = match self {
             Type::Path(type_path) =>
                 type_path.ffi_resolve(source).map(TypePath::into),
             Type::Reference(TypeReference { elem, .. }) =>
@@ -140,7 +144,9 @@ impl FFIResolve for Type {
                 Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
             }
             _ => None
-        }
+        };
+        // println!("Type::ffi_resolve.2: {}", result.to_token_stream());
+        result
     }
 }
 
@@ -148,7 +154,7 @@ impl FFIResolve for Type {
 impl FFIResolveExtended for Path {
 
     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-        println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
+        // println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
         let segments = &self.segments;
         let first_segment = segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -157,7 +163,7 @@ impl FFIResolveExtended for Path {
         let result = if last_ident.is_primitive() {
             None
         } else if last_ident.is_any_string() {
-            Some(parse_quote!(std::os::raw::c_char))
+            Some(DictionaryExpr::CChar.to_token_stream().to_path())
         } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
             let ffi_name = self.mangle_ident_default();
             Some(parse_quote!(crate::fermented::generics::#ffi_name))
@@ -169,6 +175,16 @@ impl FFIResolveExtended for Path {
                 .first()
                 .cloned()
                 .and_then(|path| path.ffi_external_path_converted(source))
+        } else if last_ident.is_smart_ptr() {
+            let ffi_name = self.mangle_ident_default();
+            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+
+
+            // path_arguments_to_paths(&last_segment.arguments)
+            //     .first()
+            //     .cloned()
+            //     .and_then(|path| path.ffi_external_path_converted(source))
+
         } else {
             let lock = source.context.read().unwrap();
             let crate_ident = source.scope.crate_ident();
@@ -186,14 +202,14 @@ impl FFIResolveExtended for Path {
                 }
             }
         };
-        // println!("Path::ffi_external_path_converted.2: {}", self.to_token_stream());
+        // println!("Path::ffi_external_path_converted.2: {}", result.to_token_stream());
         result
         // "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
         // "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
     }
 
     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
-        // println!("Path::ffi_internal_type_for: {}", self.to_token_stream());
+        // println!("Path::ffi_internal_type_for.1: {}", self.to_token_stream());
         let lock = source.context.read().unwrap();
         let ty = self.to_type();
         let tyty = lock.maybe_type(&ty, &source.scope)
@@ -206,9 +222,11 @@ impl FFIResolveExtended for Path {
                 }.unwrap_or(external_type.type_conversion().cloned())
             }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty, None, Punctuated::new())));
 
-        tyty.to_ty()
+        let result = tyty.to_ty()
             .ffi_external_path_converted(source)
-            .map_or(self.clone(), |ty| ty.to_path())
+            .map_or(self.clone(), |ty| ty.to_path());
+        // println!("Path::ffi_internal_type_for.2: {}", result.to_token_stream());
+        result
         // let tyty = lock.maybe_scope_type(ty, &self.scope)
         //     .and_then(|external_type| {
         //         match external_type.type_conversion() {
@@ -230,17 +248,21 @@ impl FFIResolveExtended for Path {
 
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
         let lock = source.context.read().unwrap();
-        // println!("Path::ffi_custom_or_internal_type: {}", self.to_token_stream());
+        // println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
         let ty: Type = parse_quote!(#self);
         let full_ty = source.full_type_for(&ty);
-        lock.custom.maybe_conversion(&full_ty)
-            .map_or(self.ffi_internal_type_for(source), |ty| ty.to_path())
+        let result = lock.custom.maybe_conversion(&full_ty)
+            .map_or(self.ffi_internal_type_for(source), |ty| ty.to_path());
+        // println!("Path::ffi_custom_or_internal_type.2: {}", result.to_token_stream());
+        result
     }
 
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        // println!("Path::ffi_dictionary_type_presenter: {}", self.to_token_stream());
-        ffi_dictionary_type(self, source)
-            .to_path()
+        // println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
+        let result = ffi_dictionary_type(self, source)
+            .to_path();
+        // println!("Path::ffi_dictionary_type_presenter.2: {}", result.to_token_stream());
+        result
     }
 }
 
@@ -264,7 +286,7 @@ impl FFIResolveExtended for Type {
     }
 
     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
-        // println!("Type::ffi_internal_type_for: {}", self.to_token_stream());
+        // println!("Type::ffi_internal_type_for.1: {}", self.to_token_stream());
         let lock = source.context.read().unwrap();
         let tyty = lock.maybe_type(self, &source.scope)
             .and_then(|external_type| {
@@ -276,18 +298,22 @@ impl FFIResolveExtended for Type {
                 }.unwrap_or(external_type.type_conversion().cloned())
             }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new())));
 
-        tyty.to_ty()
+        let result = tyty.to_ty()
             .ffi_external_path_converted(source)
-            .unwrap_or(self.clone())
+            .unwrap_or(self.clone());
+        // println!("Type::ffi_internal_type_for.2: {}", result.to_token_stream());
+        result
     }
 
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
         let lock = source.context.read().unwrap();
 
         let full_ty = source.full_type_for(self);
-        // println!("Type::ffi_custom_or_internal_type: {}   ({})", self.to_token_stream(), full_ty.to_token_stream());
-        lock.custom.maybe_conversion(&full_ty)
-            .unwrap_or(self.ffi_internal_type_for(source))
+        // println!("Type::ffi_custom_or_internal_type.1: {}   ({})", self.to_token_stream(), full_ty.to_token_stream());
+        let result = lock.custom.maybe_conversion(&full_ty)
+            .unwrap_or(self.ffi_internal_type_for(source));
+        // println!("Type::ffi_custom_or_internal_type.2: {}", result.to_token_stream());
+        result
     }
 
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
@@ -331,7 +357,7 @@ impl FFIResolveExtended for Type {
     }
 }
 
-pub fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
+pub fn ffi_chunk_converted(segments: &Colon2Punctuated<PathSegment>) -> Type {
     let crate_local_segments = match segments.first().unwrap().ident.to_string().as_str() {
         "crate" => segments.crate_and_ident_less(),
         _ => segments.ident_less()
@@ -345,7 +371,7 @@ pub fn ffi_chunk_converted(segments: &Punctuated<PathSegment, Colon2>) -> Type {
     };
     parse_quote!(crate::fermented::types::#ffi_path_chunk)
 }
-pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: &Punctuated<PathSegment, Colon2>) -> T {
+pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: &Colon2Punctuated<PathSegment>) -> T {
     let crate_local_segments = segments.crate_and_ident_less();
     let last_ident = &segments.iter().last().unwrap().ident;
 
@@ -377,7 +403,7 @@ pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
                     _ => unimplemented!("ffi_dictionary_type:: Non-Path Complex Type")
                 },
                 TypeConversion::Generic(ty) => ty.to_ffi_type().joined_mut(),
-                TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback")
+                TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback: {}", ty.to_token_stream())
             },
             _ => unimplemented!("ffi_dictionary_type:: Empty Optional")
         }

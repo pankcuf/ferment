@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, parse_quote, Path};
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use crate::composer::CommaPunctuated;
 use crate::helper::ItemExtension;
 use crate::holder::TypeHolder;
 
@@ -213,7 +213,7 @@ fn merge_cfg_conditions(conditions: Vec<CfgMacroType>) -> Vec<CfgMacroType> {
         vec![CfgMacroType::Any(any_conditions)]
     }
 }
-pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> Punctuated<Meta, Comma> {
+pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<Meta> {
     if attrs.contains(&None) {
         Punctuated::new()
     } else {

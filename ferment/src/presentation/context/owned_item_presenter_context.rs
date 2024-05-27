@@ -3,9 +3,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote, ToTokens};
 use syn::Type;
 use crate::context::ScopeContext;
-use crate::conversion::FieldTypeConversion;
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::FFIResolveExtended;
-use crate::presentation::context::FieldTypePresentableContext;
+use crate::presentation::context::FieldContext;
 use crate::presentation::ScopeContextPresentable;
 
 
@@ -18,7 +18,7 @@ pub enum OwnedItemPresentableContext {
     Conversion(TokenStream2, TokenStream2),
     BindingArg(FieldTypeConversion),
     BindingFieldName(FieldTypeConversion),
-    FieldType(FieldTypePresentableContext, TokenStream2),
+    FieldType(FieldContext, TokenStream2),
 
     Exhaustive(TokenStream2),
 }
@@ -95,22 +95,19 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 #conversion
             },
             OwnedItemPresentableContext::BindingArg(field_type) => {
-                match field_type {
-                    FieldTypeConversion::Named(field_name, field_type, attrs) => {
-                        let ty = field_type.ffi_full_dictionary_type_presenter(source);
-                        quote! {
-                            #attrs
-                            #field_name: #ty
-                        }
-                    },
-                    FieldTypeConversion::Unnamed(field_name, field_type, attrs) => {
-                        let field_name = format_ident!("o_{}", field_name.to_token_stream().to_string());
-                        let ty = field_type.ffi_full_dictionary_type_presenter(source);
-                        quote! {
-                            #attrs
-                            #field_name: #ty
-                        }
-                    }
+                let (attrs, field_name, conversion) = match field_type {
+                    FieldTypeConversion::Named(field_name, FieldTypeConversionKind::Type(field_type), attrs) =>
+                        (attrs, field_name.to_token_stream(), field_type.ffi_full_dictionary_type_presenter(source).to_token_stream()),
+                    FieldTypeConversion::Unnamed(field_name, FieldTypeConversionKind::Type(field_type), attrs) =>
+                        (attrs, format_ident!("o_{}", field_name.to_token_stream().to_string()).to_token_stream(), field_type.ffi_full_dictionary_type_presenter(source).to_token_stream()),
+                    FieldTypeConversion::Named(field_name, FieldTypeConversionKind::Conversion(conversion), attrs) =>
+                        (attrs, field_name.to_token_stream(), conversion.to_token_stream()),
+                    FieldTypeConversion::Unnamed(field_name, FieldTypeConversionKind::Conversion(conversion), attrs) =>
+                        (attrs, field_name.to_token_stream(), conversion.to_token_stream())
+                };
+                quote! {
+                    #attrs
+                    #field_name: #conversion
                 }
             },
             OwnedItemPresentableContext::BindingFieldName(field_type) => {

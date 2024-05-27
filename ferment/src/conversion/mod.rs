@@ -12,7 +12,7 @@ mod generic_type_conversion;
 mod type_conversion;
 // mod generic_type_conversion2;
 
-pub use self::field_type_conversion::FieldTypeConversion;
+pub use self::field_type_conversion::{FieldTypeConversion, FieldTypeConversionKind};
 pub use self::generic_type_conversion::GenericTypeConversion;
 // pub use self::generic_type_conversion2::GenericTypeConversion;
 pub use self::import_conversion::ImportConversion;

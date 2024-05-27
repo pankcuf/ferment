@@ -3,8 +3,7 @@ use std::hash::{Hash, Hasher};
 use syn::{parse_quote, Path, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use crate::composer::CommaPunctuated;
 pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
 use crate::composition::NestedArgument;
 use crate::conversion::ObjectConversion;
@@ -20,7 +19,7 @@ pub enum TypeCompositionConversion {
     Primitive(TypeComposition),
     Callback(TypeComposition),
     Bounds(GenericBoundComposition),
-    SmartPointer(TypeComposition),
+    // SmartPointer(TypeComposition),
     Fn(TypeComposition),
 
     Array(TypeComposition),
@@ -79,7 +78,7 @@ impl TypeCompositionConversion {
             },
         }
     }
-    pub fn nested_arguments(&self) -> &Punctuated<NestedArgument, Comma> {
+    pub fn nested_arguments(&self) -> &CommaPunctuated<NestedArgument> {
         &self.ty_composition().nested_arguments
     }
     pub fn replace_composition_type(&mut self, with_ty: Type) {
@@ -92,7 +91,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::Callback(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
-            TypeCompositionConversion::SmartPointer(ty, ..) |
+            // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
             TypeCompositionConversion::LocalOrGlobal(ty, ..) |
             TypeCompositionConversion::Array(ty) |
@@ -113,7 +112,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::Callback(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
-            TypeCompositionConversion::SmartPointer(ty, ..) |
+            // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
             TypeCompositionConversion::LocalOrGlobal(ty, ..) |
             TypeCompositionConversion::Array(ty) |
@@ -155,8 +154,8 @@ impl Debug for TypeCompositionConversion {
                 format!("TraitType({})", ty),
             TypeCompositionConversion::Bounds(gbc) =>
                 format!("Bounds({})", gbc),
-            TypeCompositionConversion::SmartPointer(ty) =>
-                format!("SmartPointer({})", ty),
+            // TypeCompositionConversion::SmartPointer(ty) =>
+            //     format!("SmartPointer({})", ty),
             TypeCompositionConversion::Fn(ty) =>
                 format!("Fn({})", ty),
             TypeCompositionConversion::Imported(ty, import_path) =>

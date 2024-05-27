@@ -1,7 +1,7 @@
 use quote::{format_ident, ToTokens};
 use syn::{Ident, parse_quote, Path, PathSegment};
 use syn::punctuated::Punctuated;
-use syn::token::Colon2;
+use crate::composer::Colon2Punctuated;
 use crate::ext::CrateExtension;
 use crate::holder::Holder;
 use crate::impl_holder;
@@ -94,7 +94,7 @@ impl CrateExtension for PathHolder {
     }
 }
 
-impl CrateExtension for Punctuated<PathSegment, Colon2> {
+impl CrateExtension for Colon2Punctuated<PathSegment> {
     fn is_crate_based(&self) -> bool {
         self.first().unwrap().ident == format_ident!("crate")
     }

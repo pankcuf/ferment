@@ -14,7 +14,7 @@ use crate::conversion::macro_conversion::merge_attributes;
 use crate::ext::{Accessory, DictionaryType, Mangle, ToPath};
 use crate::formatter::format_unique_attrs;
 use crate::helper::{path_arguments_to_types};
-use crate::naming::{DictionaryFieldName, Name};
+use crate::naming::{DictionaryName, Name};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum GenericTypeConversion {
@@ -31,7 +31,7 @@ pub enum GenericTypeConversion {
     Slice(Type),
     Tuple(Type),
     Optional(Type),
-    TraitBounds(Punctuated<TypeParamBound, Add>)
+    TraitBounds(AddPunctuated<TypeParamBound>)
 }
 impl Debug for GenericTypeConversion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -190,8 +190,8 @@ impl GenericTypeConversion {
                         ty.mangle_ident_default(),
                         attrs,
                         [
-                            field(DictionaryFieldName::Ok.to_ident(), path_conversions[0].clone()),
-                            field(DictionaryFieldName::Error.to_ident(), path_conversions[1].clone())]),
+                            field(DictionaryName::Ok.to_ident(), path_conversions[0].clone()),
+                            field(DictionaryName::Error.to_ident(), path_conversions[1].clone())]),
                     scope)
                     .make_expansion(scope_context)
                     .to_token_stream()
@@ -207,9 +207,9 @@ impl GenericTypeConversion {
                         ty.mangle_ident_default(),
                         attrs,
                         [
-                            field(DictionaryFieldName::Keys.to_ident(), path_conversions[0].clone()),
-                            field(DictionaryFieldName::Values.to_ident(), path_conversions[1].clone()),
-                            field(DictionaryFieldName::Count.to_ident(), parse_quote!(usize))
+                            field(DictionaryName::Keys.to_ident(), path_conversions[0].clone()),
+                            field(DictionaryName::Values.to_ident(), path_conversions[1].clone()),
+                            field(DictionaryName::Count.to_ident(), parse_quote!(usize))
                         ]),
                     scope)
                     .make_expansion(scope_context)
@@ -227,8 +227,8 @@ impl GenericTypeConversion {
                         ty.mangle_ident_default(),
                         attrs,
                         [
-                            field(DictionaryFieldName::Values.to_ident(), path_conversions[0].clone()),
-                            field(DictionaryFieldName::Count.to_ident(), parse_quote!(usize))
+                            field(DictionaryName::Values.to_ident(), path_conversions[0].clone()),
+                            field(DictionaryName::Count.to_ident(), parse_quote!(usize))
                         ]),
                     scope)
                     .make_expansion(scope_context)
@@ -241,8 +241,8 @@ impl GenericTypeConversion {
                         ty.mangle_ident_default(),
                         attrs,
                         [
-                            field(DictionaryFieldName::Values.to_ident(), ty_array.elem.joined_mut()),
-                            field(DictionaryFieldName::Count.to_ident(), parse_quote!(usize))
+                            field(DictionaryName::Values.to_ident(), ty_array.elem.joined_mut()),
+                            field(DictionaryName::Count.to_ident(), parse_quote!(usize))
                         ]),
                     scope)
                     .make_expansion(scope_context)
@@ -255,8 +255,8 @@ impl GenericTypeConversion {
                         ty.mangle_ident_default(),
                         attrs,
                         [
-                            field(DictionaryFieldName::Values.to_ident(), ty_slice.elem.joined_mut()),
-                            field(DictionaryFieldName::Count.to_ident(), parse_quote!(usize))
+                            field(DictionaryName::Values.to_ident(), ty_slice.elem.joined_mut()),
+                            field(DictionaryName::Count.to_ident(), parse_quote!(usize))
                         ]),
                     scope)
                     .make_expansion(scope_context)

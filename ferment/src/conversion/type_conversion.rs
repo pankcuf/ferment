@@ -15,9 +15,16 @@ pub enum TypeConversion {
 
 impl Debug for TypeConversion {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.to_token_stream())
-            .finish()
+        f.write_str(
+        match self {
+            TypeConversion::Primitive(_) => format!("Primitive({})", self.to_token_stream()),
+            TypeConversion::Complex(_) => format!("Complex({})", self.to_token_stream()),
+            TypeConversion::Callback(_) => format!("Callback({})", self.to_token_stream()),
+            TypeConversion::Generic(_) => format!("Generic({})", self.to_token_stream()),
+        }.as_str())
+        // f.debug_list()
+        //     .entries(self.to_token_stream())
+        //     .finish()
     }
 }
 
@@ -37,6 +44,11 @@ impl ToTokens for TypeConversion {
         }
     }
 }
+impl From<&Box<Type>> for TypeConversion {
+    fn from(value: &Box<Type>) -> Self {
+        TypeConversion::from(*value.clone())
+    }
+}
 impl From<&Type> for TypeConversion {
     fn from(value: &Type) -> Self {
         TypeConversion::from(value.clone())
@@ -44,7 +56,7 @@ impl From<&Type> for TypeConversion {
 }
 impl From<Type> for TypeConversion {
     fn from(ty: Type) -> Self {
-        // let dbg = ty.to_token_stream();
+        let dbg = ty.to_token_stream();
         let result = match ty {
             Type::Path(TypePath { ref path , ..}) => {
                 let first_segment = path.segments.first().unwrap();
@@ -55,7 +67,7 @@ impl From<Type> for TypeConversion {
                     PathArguments::AngleBracketed(..) => {
                         match last_ident.to_string().as_str() {
                             "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
-                            "Arc" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
+                            "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
                             "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
                             "IndexMap" => TypeConversion::Generic(GenericTypeConversion::IndexMap(ty)),
                             "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
@@ -76,6 +88,7 @@ impl From<Type> for TypeConversion {
                         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128"
                         | "isize" | "usize" | "bool" => TypeConversion::Primitive(ty),
                         "Box" => TypeConversion::Generic(GenericTypeConversion::Box(ty)),
+                        "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeConversion::Generic(GenericTypeConversion::AnyOther(ty)),
                         "BTreeMap" | "HashMap" => TypeConversion::Generic(GenericTypeConversion::Map(ty)),
                         "IndexMap" => TypeConversion::Generic(GenericTypeConversion::IndexMap(ty)),
                         "BTreeSet" => TypeConversion::Generic(GenericTypeConversion::BTreeSet(ty)),
@@ -108,7 +121,7 @@ impl From<Type> for TypeConversion {
                 TypeConversion::Generic(GenericTypeConversion::TraitBounds(bounds)),
             ty => unimplemented!("TypeConversion: Unknown type: {}", ty.to_token_stream())
         };
-        // println!("TypeConversion::from({}) --- {:?}", dbg, result);
+        println!("TypeConversion::from.222({}) --- {:?}", dbg, result);
 
         result
     }

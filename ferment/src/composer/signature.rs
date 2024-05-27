@@ -4,8 +4,7 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::{Attribute, Generics, ItemFn, Path, Signature, TypeBareFn};
 use syn::punctuated::Punctuated;
-use syn::token::{Comma, Paren};
-use crate::composer::{AttrsComposer, BindingComposer, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TypeContextComposer};
+use crate::composer::{AttrsComposer, BindingComposer, CommaPunctuated, Composer, constants, Depunctuated, ParentComposer, ParenWrapped, SigParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
 use crate::composer::r#type::TypeComposer;
@@ -16,7 +15,6 @@ use crate::naming::Name;
 use crate::presentation::{BindingPresentation, DocPresentation, Expansion, ScopeContextPresentable};
 use crate::presentation::context::{name::Context, OwnedItemPresentableContext};
 use crate::shared::ParentLinker;
-use crate::wrapped::Wrapped;
 
 pub struct SigComposer {
     pub base: BasicComposer<SigParentComposer>,
@@ -111,12 +109,10 @@ impl SourceExpandable for SigComposer {
                         let argument_comps = inputs
                             .iter()
                             .map(|arg| arg.compose(&(sig_context, &source)));
-                        let arguments = argument_comps.clone()
-                            .map(|arg| arg.name_type_original.clone())
-                            .collect::<Punctuated<_, _>>();
-                        let argument_conversions = argument_comps
-                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote! {}))
-                            .collect::<Punctuated<_, _>>();
+                        let arguments = Punctuated::from_iter(argument_comps.clone()
+                            .map(|arg| arg.name_type_original.clone()));
+                        let argument_conversions = Punctuated::from_iter(argument_comps
+                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote!())));
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((target_name_context.clone(), argument_conversions));
                         BindingPresentation::RegularFunction {
                             attrs: attrs.to_token_stream(),
@@ -134,12 +130,10 @@ impl SourceExpandable for SigComposer {
                         let argument_comps = inputs
                             .iter()
                             .map(|arg| arg.compose(&(sig_context, &source)));
-                        let arguments = argument_comps.clone()
-                            .map(|arg| arg.name_type_original.clone())
-                            .collect::<Punctuated<_, _>>();
-                        let argument_conversions = argument_comps
-                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote! {}))
-                            .collect::<Punctuated<_, _>>();
+                        let arguments = Punctuated::from_iter(argument_comps.clone()
+                            .map(|arg| arg.name_type_original.clone()));
+                        let argument_conversions = CommaPunctuated::from_iter(argument_comps
+                            .map(|arg| OwnedItemPresentableContext::Conversion(arg.name_type_conversion.present(&source), quote!())));
                         let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((ffi_name_context.clone(), argument_conversions));
                         BindingPresentation::RegularFunction {
                             attrs: attrs.to_token_stream(),
@@ -158,10 +152,9 @@ impl SourceExpandable for SigComposer {
                             .iter()
                             .map(|arg| arg.compose(&(sig_context, &source)));
 
-                        let arguments = argument_comps
-                            .map(|arg| arg.name_type_original.clone())
-                            .collect::<Punctuated<_, Comma>>();
-                        let presentation = Wrapped::<_, Paren>::new(arguments.present(&source));
+                        let arguments = CommaPunctuated::from_iter(argument_comps
+                            .map(|arg| arg.name_type_original.clone()));
+                        let presentation = ParenWrapped::new(arguments.present(&source));
                         let name_and_args = quote!(unsafe extern "C" fn #presentation);
                         let output_expression = return_type.presentation;
 
@@ -175,10 +168,9 @@ impl SourceExpandable for SigComposer {
                         let TypeBareFn { inputs, output, .. } = type_bare_fn;
                         let argument_comps = inputs.compose(&source);
                         let return_type = output.compose(&(true, &source));
-                        let arguments = argument_comps
+                        let arguments = Punctuated::from_iter(argument_comps
                             .iter()
-                            .map(|arg| arg.name_type_original.present(&source))
-                            .collect::<Punctuated<_, _>>();
+                            .map(|arg| arg.name_type_original.present(&source)));
                         let output_expression = return_type.presentation;
                         BindingPresentation::Callback {
                             name: full_fn_path.mangle_ident_default().to_token_stream(),

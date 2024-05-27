@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use crate::composition::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::{FFIResolve, FFIResolveExtended, ToPath};
+use crate::ext::{FFIResolve, ToPath};
 use crate::helper::path_arguments_to_types;
 use crate::holder::PathHolder;
 

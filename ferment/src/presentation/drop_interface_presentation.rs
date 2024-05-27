@@ -14,11 +14,10 @@ pub enum DropInterfacePresentation {
 impl ToTokens for DropInterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Full { attrs, ty, body} =>
-                quote! {
-                    #attrs
-                    impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } }
-                }
+            Self::Full { attrs, ty, body} => quote! {
+                #attrs
+                impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } }
+            }
         }.to_tokens(tokens)
     }
 }
