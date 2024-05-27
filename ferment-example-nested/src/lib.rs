@@ -22,6 +22,7 @@ pub mod some_inner_2 {
     use std::pin::Pin;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex, RwLock};
+    use ferment_example::errors::protocol_error::ProtocolError;
     // use std::sync::Arc;
     use crate::model::quorum::QuorumType;
     use crate::model::{LLMQSnapshot, Quorum};
@@ -47,10 +48,14 @@ pub mod some_inner_2 {
     pub struct AllResultExamples {
         pub result_ok_simple_err_simple: Result<u32, u32>,
         pub result_ok_complex_err_complex: Result<String, String>,
+        pub result_ok_complex_2_err_complex: Result<LLMQSnapshot, LLMQSnapshot>,
         pub result_ok_complex_err_generic: Result<String, Vec<u8>>,
         pub result_ok_complex_err_opt_simple: Result<String, Option<u32>>,
         pub result_ok_complex_err_opt_complex: Result<String, Option<String>>,
         pub result_ok_complex_err_opt_generic: Result<String, Option<Vec<u8>>>,
+        pub crazy_type: Result<Option<LLMQSnapshot>, ProtocolError>,
+        pub crazy_type_2: Result<LLMQSnapshot, Option<ProtocolError>>,
+
     }
     #[ferment_macro::export]
     pub struct AllSetExamples {
@@ -67,6 +72,9 @@ pub mod some_inner_2 {
         pub hashset_opt_simple: HashSet<Option<u32>>,
         pub hashset_opt_complex: HashSet<Option<String>>,
         pub hashset_opt_generic: HashSet<Option<Vec<u8>>>,
+
+        pub hashset_opt_complex_external: HashSet<Option<ProtocolError>>,
+
     }
     #[ferment_macro::export]
     pub struct AllVecExamples {
@@ -103,6 +111,8 @@ pub mod some_inner_2 {
         pub arc_generic: Arc<Vec<u8>>,
         pub arc_opt_generic: Arc<Option<BTreeMap<u32, LLMQSnapshot>>>,
         pub opt_arc_complex: Option<Arc<Option<String>>>,
+        pub crazy_type1: Result<Option<Vec<LLMQSnapshot>>, ProtocolError>,
+        pub crazy_type2: Result<Option<Arc<LLMQSnapshot>>, ProtocolError>,
     }
 
     #[ferment_macro::export]

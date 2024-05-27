@@ -244,7 +244,18 @@ impl GenericTypeConversion {
                                 PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
                                     match args.first() {
                                        Some(generic_argument) => match generic_argument {
-                                           GenericArgument::Type(ty) => single_generic_ffi_type(ty),
+                                           GenericArgument::Type(ty) => {
+                                               let result = match TypeConversion::from(ty) {
+                                                   TypeConversion::Primitive(_) => single_generic_ffi_type(ty),
+                                                   TypeConversion::Complex(_) => single_generic_ffi_type(ty),
+                                                   TypeConversion::Callback(_) => single_generic_ffi_type(ty),
+                                                   TypeConversion::Generic(gen) => gen.to_ffi_type(),
+                                               };
+
+                                               println!("OPTionalllll: {} --- {}", ty.to_token_stream(), result.to_token_stream());
+                                               // single_generic_ffi_type(ty)
+                                               result
+                                           },
                                            _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Non-Type Generic): {}", ty.to_token_stream()),
                                        },
                                         _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", ty.to_token_stream()),
@@ -304,18 +315,20 @@ impl GenericTypeConversion {
                             FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
                     }
                     TypeConversion::Generic(generic_arg_ty) => {
-                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                        let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                            println!("RESULT OPT ARG: {}", generic_arg_ty);
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => match TypeConversion::from(ty) {
                                     TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
-                                    TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE),
-                                    _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX),
+                                    TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.to_custom_or_ffi_type(&source)),
+                                    TypeConversion::Generic(nested_nested) => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), nested_nested.to_custom_or_ffi_type(&source)),
+                                    _ => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), ty.to_custom_or_ffi_type(&source)),
                                 }
                             }
-                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX) };
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.to_custom_or_ffi_type(&source)) };
                         compose_arg(
-                            generic_arg_ty.to_custom_or_ffi_type(&source),
+                            arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
                             FieldContext::InterfacesExpr(arg_composer.to(DictionaryName::O.to_token_stream())),
                             FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
@@ -388,18 +401,18 @@ impl GenericTypeConversion {
                         )
                     },
                     TypeConversion::Generic(generic_arg_ty) => {
-                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                        let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                                Some(ty) => match TypeConversion::from(ty) {
+                                Some(ty) => (match TypeConversion::from(ty) {
                                     TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
                                     TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP),
                                     _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP),
-                                }
+                                }, ty.to_custom_or_ffi_type_mut_ptr(&source))
                             }
-                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP) };
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source)) };
                         compose_arg(
-                            generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
                             arg_composer.to(arg_context(arg_name)),
                             arg_composer.destroy(arg_args(arg_name).to_token_stream())
@@ -575,28 +588,13 @@ impl GenericTypeConversion {
                 let ffi_type = ffi_name.to_type();
                 let arg_0_name = Name::Dictionary(DictionaryName::Obj);
 
-                // Arc: simple arg: to: "*obj"
-                // Arc: complex arg: to: "(*obj).clone()"
-                // Mutex: simple arg: to: "obj.into_inner().expect("Err")"
-                // Mutex: complex arg: to: "obj.into_inner().expect("Err")"
-
                 let mut path = ty.to_path();
                 path.segments.last_mut().unwrap().arguments = PathArguments::None;
-
-                // let field_name = DictionaryName::Obj;
-                // match self {
-                //     SmartPtr::Arc | SmartPtr::Rc => match TypeConversion::from(ty) {
-                //         TypeConversion::Primitive(_) => DictionaryExpr::Deref(field_name.to_token_stream()).to_token_stream(),
-                //         TypeConversion::Complex(_) => quote!((*#field_name).clone()),
-                //         TypeConversion::Generic(_) => quote!((*#field_name).clone()),
-                //         TypeConversion::Callback(_) => panic!("Errror")
-                //     },
-                //     SmartPtr::Mutex | SmartPtr::RwLock => quote!(#field_name.into_inner().expect("Err")),
-                // }
 
                 // Arc/Rc: primitive arg: to: "*obj"
                 // Arc/Rc: complex arg: to: "(*obj).clone()"
                 // Mutex/RwLock: primitive/complex arg: to: "obj.into_inner().expect("Err")"
+                // RefCell: primitive/complex arg: to: "obj.into_inner()"
 
                 let arg_to_conversion = match &path.segments.last() {
                     Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
@@ -610,8 +608,6 @@ impl GenericTypeConversion {
                         "RefCell" => quote!(#arg_0_name.into_inner()),
                         "Pin" => quote!(&**#arg_0_name),
                         _ => panic!("Error Generic Expansion (Non Supported AnyOther): {}", ty.to_token_stream())
-
-                        // matches!(self.to_string().as_str(), "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")
                     }
                     None => {
                         panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
@@ -652,18 +648,19 @@ impl GenericTypeConversion {
                             FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
                     }
                     TypeConversion::Generic(generic_arg_ty) => {
-                        let arg_composer = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                        let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                                Some(ty) => match TypeConversion::from(ty) {
+                                Some(ty) => (match TypeConversion::from(ty) {
                                     TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
                                     TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE),
                                     _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX),
-                                }
+                                }, ty.to_custom_or_ffi_type(&source))
                             }
-                        } else { ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX) };
+
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.to_custom_or_ffi_type(&source)) };
                         compose_arg(
-                            generic_arg_ty.to_custom_or_ffi_type(&source),
+                            arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(quote!(ffi_ref.#arg_0_name))),
                             FieldContext::InterfacesExpr(
                                 InterfacesMethodExpr::Boxed(
@@ -748,19 +745,22 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
             )
         }
         TypeConversion::Generic(arg_0_generic_path_conversion) => {
-            let arg_ty = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
-            let arg_0_composer = {
+            // let arg_ty = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
+            let (arg_0_composer, arg_ty) = {
                 if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
                     match arg_0_generic_path_conversion.ty() {
                         None => unimplemented!("Mixin inside generic: {}", arg_0_generic_path_conversion),
                         Some(ty) => match TypeConversion::from(ty) {
                             TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
-                            TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE_GROUP, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP),
-                            _ => ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP),
+                            TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE_GROUP, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP), ty.to_custom_or_ffi_type_mut_ptr(source)),
+                            TypeConversion::Generic(nested_nested) => {
+                                (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), nested_nested.to_custom_or_ffi_type_mut_ptr(source))
+                            },
+                            _ => (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), ty.to_custom_or_ffi_type_mut_ptr(source) ),
                         }
                     }
                 } else {
-                    ArgComposer::new(FROM_COMPLEX_GROUP, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP)
+                    (ArgComposer::new(FROM_COMPLEX_GROUP, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source))
                 }
             };
             GenericArgPresentation::new(
@@ -868,6 +868,9 @@ pub fn single_generic_ffi_type(ty: &Type) -> Type {
     } else if last_ident.is_any_string() {
         DictionaryExpr::CChar.to_token_stream().to_type()
     } else if last_ident.is_special_generic() || (last_ident.is_result() && path.segments.len() == 1) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+        let ffi_name = path.mangle_ident_default();
+        parse_quote!(crate::fermented::generics::#ffi_name)
+    } else if last_ident.is_smart_ptr() {
         let ffi_name = path.mangle_ident_default();
         parse_quote!(crate::fermented::generics::#ffi_name)
     } else {

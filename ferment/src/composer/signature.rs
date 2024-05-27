@@ -101,7 +101,7 @@ impl SourceExpandable for SigComposer {
         // let scope = source.scope.self_path_holder_ref();
         let binding = match self.name_context_ref() {
             Context::Fn { path: full_fn_path, sig_context, attrs } => {
-                println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
+                // println!("Context::Fn: {}: {:?}", full_fn_path.to_token_stream(), sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => {
                         let Signature { output, inputs, .. } = sig;

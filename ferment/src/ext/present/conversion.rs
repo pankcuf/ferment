@@ -100,7 +100,7 @@ impl Conversion for Type {
 
 impl Conversion for TypeArray {
     fn conversion_from(&self, field_path: FieldContext) -> FieldContext {
-        println!("Conversion for TypeArray: {} -- {:?}", self.to_token_stream(), field_path);
+        // println!("Conversion for TypeArray: {} -- {:?}", self.to_token_stream(), field_path);
         // let arg_type = handle_arg_type(&type_array.elem, pat, context);
         // let len = &type_array.len;
         match &*self.elem {

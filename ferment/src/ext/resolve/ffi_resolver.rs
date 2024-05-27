@@ -7,7 +7,7 @@ use crate::composer::Colon2Punctuated;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{Accessory, CrateExtension, DictionaryType, GenericNestedArg, Mangle, ResolveTrait, ToPath, ToType};
 use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
 use crate::naming::DictionaryExpr;
 
@@ -36,11 +36,15 @@ impl FFITypeResolve for Type where Self: FFIResolve {
 
 impl FFITypeResolve for GenericTypeConversion {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type {
-        // println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
-        self.ty()
-            .and_then(|ty| source.maybe_custom_conversion(ty)
-                .map(|ty| ty.clone()))
-            .unwrap_or(self.to_ffi_type())
+        println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
+        // if let Self::Optional(ty) = self {
+        //     ty.first_nested_type().and_then(|ty| source.maybe_custom_conversion(ty)).unwrap_or(self.to_ffi_type())
+        // } else {
+            self.ty()
+                .and_then(|ty| source.maybe_custom_conversion(ty)
+                    .map(|ty| ty.clone()))
+                .unwrap_or(self.to_ffi_type())
+        // }
     }
 }
 
