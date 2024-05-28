@@ -82,11 +82,11 @@ impl Display for OwnerIteratorPresentationContext {
             OwnerIteratorPresentationContext::AddrDeref(context) =>
                 format!("AddrDeref({})", context),
             OwnerIteratorPresentationContext::Obj =>
-                format!("Obj"),
+                "Obj".to_string(),
             OwnerIteratorPresentationContext::Empty =>
-                format!("Empty"),
+                "Empty".to_string(),
             OwnerIteratorPresentationContext::UnboxedRoot =>
-                format!("UnboxedRoot"),
+                "UnboxedRoot".to_string(),
             OwnerIteratorPresentationContext::StructDropBody(context) =>
                 format!("StructDropBody({:?})", context),
             OwnerIteratorPresentationContext::DropCode(context) =>

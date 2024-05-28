@@ -105,16 +105,9 @@ impl Conversion for TypeArray {
         // let len = &type_array.len;
         match &*self.elem {
             Type::Path(TypePath { path: Path { segments: _, .. }, .. }) =>
-                // if segments.last().unwrap().ident.is_primitive() {
-                    // FieldTypePresentableContext::DerefContext(field_path.into())
-                    FieldContext::From(field_path.into()),
-                // } else {
-                //     panic!("<TypeArray as Conversion>::conversion_from: {}", quote!(#segments))
-                // }
+                FieldContext::From(field_path.into()),
             Type::Tuple(..) => {
-                // FieldTypePresentableContext::From(field_path.into())
                 FieldContext::From(field_path.into())
-                // FieldTypePresentableContext::DerefContext(field_path.into())
             },
             _ => panic!("<TypeArray as Conversion>::conversion_from: {}", quote!(#self)),
         }

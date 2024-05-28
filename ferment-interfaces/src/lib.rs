@@ -81,30 +81,6 @@ pub unsafe fn unbox_string(data: *mut c_char) {
     let _ = CString::from_raw(data);
 }
 
-pub trait Unbox {
-    type Result: Sized;
-    unsafe fn unbox(ptr: *mut Self) -> Self::Result;
-}
-impl Unbox for c_char {
-    type Result = CString;
-    unsafe fn unbox(ptr: *mut Self) -> Self::Result {
-        CString::from_raw(ptr)
-    }
-}
-// impl<T> Unbox for T {
-//     type Result = Box<T>;
-//
-//     unsafe fn unbox(ptr: *mut Self) -> Self::Result {
-//         Box::from_raw(ptr)
-//     }
-// }
-
-
-// /// # Safety
-// pub unsafe fn unbox_vec<T>(vec: Vec<*mut T>) -> Vec<Box<T>> {
-//     vec.iter().map(|&x| unbox_any(x)).collect()
-// }
-
 /// # Safety
 pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
     for &x in vec.iter() {
@@ -175,15 +151,6 @@ impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
     fn new() -> Self { indexmap::IndexMap::new() }
     fn insert(&mut self, key: K, value: V) { indexmap::IndexMap::insert(self, key, value); }
 }
-
-// /// # Safety
-// pub unsafe fn from_primitive_array<const U: usize, T: Copy>(vec: *mut T, count: usize) -> [T; U] {
-//     *vec
-// }
-// /// # Safety
-// pub unsafe fn from_opt_primitive_array<const U: usize, T: Copy>(vec: *mut T, count: usize) -> [Option<T>; U] {
-//     *vec
-// }
 
 /// # Safety
 pub unsafe fn from_primitive_group<C, T: Copy>(vec: *mut T, count: usize) -> C

@@ -129,7 +129,7 @@ pub mod some_inner_2 {
         pub mutex_generic: Mutex<Vec<u8>>,
         pub mutex_opt_generic: Mutex<Option<BTreeMap<u32, LLMQSnapshot>>>,
         pub opt_mutex_complex: Option<Mutex<Option<String>>>,
-        // pub platform_case: Mutex<Option<Box<LLMQSnapshot>>>,
+        pub platform_case: Mutex<Option<Box<LLMQSnapshot>>>,
     }
 
     #[ferment_macro::export]

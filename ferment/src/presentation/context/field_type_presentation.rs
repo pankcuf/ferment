@@ -46,6 +46,7 @@ pub enum FieldContext {
     From(Box<FieldContext>),
     IntoBox(Box<FieldContext>),
     CastFrom(Box<FieldContext>, TokenStream2, TokenStream2),
+    CastDestroy(Box<FieldContext>, TokenStream2, TokenStream2),
     FromOffsetMap,
     FromOpt(Box<FieldContext>),
     AsRef(Box<FieldContext>),
@@ -128,6 +129,8 @@ impl Display for FieldContext {
                 format!("FieldTypePresentableContext::IntoBox({})", context),
             FieldContext::CastFrom(context, ty, ffi_ty) =>
                 format!("FieldTypePresentableContext::CastFrom({}, {}, {})", context, ty, ffi_ty),
+            FieldContext::CastDestroy(context, ty, ffi_ty) =>
+                format!("FieldTypePresentableContext::CastDestroy({}, {}, {})", context, ty, ffi_ty),
             FieldContext::FromOffsetMap =>
                 "FieldTypePresentableContext::FromOffsetMap".to_string(),
             FieldContext::FromOpt(context) =>
@@ -229,6 +232,9 @@ impl ScopeContextPresentable for FieldContext {
                         .to_token_stream()))
                     .present(source),
             Self::UnboxAny(presentable) =>
+
+                // Self::FFIConversionExpr(FFIConversionMethodExpr::Destroy(presentable.present(source)))
+                //     .present(source),
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAny(presentable.present(source)))
                     .present(source),
             Self::UnboxAnyTerminated(presentable) =>
@@ -268,6 +274,15 @@ impl ScopeContextPresentable for FieldContext {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::Interface;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::ffi_from(#field_path))
+            }
+            Self::CastDestroy(presentable, ty, ffi_ty) => {
+                let package = DictionaryName::Package;
+                let interface = DictionaryName::Interface;
+                let method = FFIConversionMethod::Destroy;
+                DictionaryExpr::CallMethod(
+                    quote!(<#ffi_ty as #package::#interface<#ty>>::#method),
+                    presentable.present(source))
+                    .to_token_stream()
             }
             Self::FromOffsetMap =>
                 DictionaryExpr::MapCollect(

@@ -5,6 +5,7 @@ use crate::composer::CommaPunctuated;
 use crate::conversion::FieldTypeConversion;
 use crate::naming::DictionaryName;
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum DictionaryExpr {
     // FromPrimitiveArray(TokenStream2, TokenStream2),
@@ -42,7 +43,9 @@ pub enum DictionaryExpr {
     CountRange,
     Range(TokenStream2),
     NewBox(TokenStream2),
-    Add(TokenStream2, TokenStream2)
+    Add(TokenStream2, TokenStream2),
+    CastAs(TokenStream2, TokenStream2),
+    CallMethod(TokenStream2, TokenStream2),
 }
 
 
@@ -202,6 +205,10 @@ impl ToTokens for DictionaryExpr {
                 quote!(Box::new(#conversion)),
             Self::Add(field_path, index) =>
                 quote!(#field_path.add(#index)),
+            Self::CastAs(ty, as_ty) =>
+                quote!(<#ty as #as_ty>),
+            Self::CallMethod(ns, args) =>
+                quote!(#ns(#args))
 
         }.to_tokens(dst)
     }

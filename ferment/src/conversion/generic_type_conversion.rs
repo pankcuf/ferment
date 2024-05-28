@@ -38,6 +38,7 @@ pub const TO_OPT_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMeth
 pub const DESTROY_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxVecPtr(expr);
 pub const DESTROY_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAnyVecPtr(expr);
 pub const DESTROY_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAny(expr);
+// pub const DESTROY_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FFIConversion(FFIConversionMethod::Destroy, expr);
 
 // pub const BOXED_VEC: InterfacesMethodComposer = |expr| InterfacesMethodExpr::BoxedVec(expr);
 pub const DESTROY_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::DestroyOptPrimitive(expr);

@@ -232,6 +232,10 @@ impl<'a> VisitScopeType<'a> for Path {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
                 },
+                _ if last_ident.is_box() => {
+                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
+                        .to_object(nested_arguments)
+                },
                 _ if first_ident.is_lambda_fn() => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_trait(nested_arguments)
