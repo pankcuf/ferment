@@ -99,15 +99,6 @@ impl GenericArgPresentation {
         Self { ty, destructor, from_conversion, to_conversion }
     }
 }
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum SmartPtr {
-    Arc,
-    Rc,
-    Mutex,
-    RwLock,
-}
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum GenericTypeConversion {
     Map(Type),
@@ -588,23 +579,44 @@ impl GenericTypeConversion {
                 let ffi_type = ffi_name.to_type();
                 let arg_0_name = Name::Dictionary(DictionaryName::Obj);
 
-                let mut path = ty.to_path();
-                path.segments.last_mut().unwrap().arguments = PathArguments::None;
+                let path = ty.to_path();
+                let mut constructor = path.clone();
+                constructor.segments.last_mut().unwrap().arguments = PathArguments::None;
 
                 // Arc/Rc: primitive arg: to: "*obj"
                 // Arc/Rc: complex arg: to: "(*obj).clone()"
                 // Mutex/RwLock: primitive/complex arg: to: "obj.into_inner().expect("Err")"
+                // Arc<RwLock>>: to: obj.borrow().clone()
                 // RefCell: primitive/complex arg: to: "obj.into_inner()"
 
                 let arg_to_conversion = match &path.segments.last() {
                     Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
-                        "Arc" | "Rc" => match TypeConversion::from(ty) {
+                        "Arc" | "Rc" => match TypeConversion::from(ty.first_nested_type().unwrap()) {
                             TypeConversion::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
                             TypeConversion::Complex(_) => quote!((*#arg_0_name).clone()),
-                            TypeConversion::Generic(_) => quote!((*#arg_0_name).clone()),
+                            TypeConversion::Generic(nested_generic_ty) => {
+                                println!("GENERIC inside Arc/Rc: {}", nested_generic_ty);
+                                match nested_generic_ty {
+                                    GenericTypeConversion::AnyOther(ty) => {
+                                        println!("GENERIC (AnyOther) inside Arc/Rc: {}", ty.to_token_stream());
+                                        let path = ty.to_path();
+                                        match &path.segments.last() {
+                                            Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+                                                "RwLock" | "Mutex" => quote!(std::sync::#ident::new(obj.read().expect("Poisoned").clone())),
+                                                _ => quote!((*#arg_0_name).clone())
+                                            },
+                                            None => {
+                                                panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
+                                            }
+                                        }
+                                    },
+                                    _ => quote!((*#arg_0_name).clone())
+                                }
+                            },
                             TypeConversion::Callback(_) => panic!("Errror")
                         },
                         "Mutex" | "RwLock" => quote!(#arg_0_name.into_inner().expect("Err")),
+                        // "Mutex" | "RwLock" => quote!(#arg_0_name.borrow().clone()),
                         "RefCell" => quote!(#arg_0_name.into_inner()),
                         "Pin" => quote!(&**#arg_0_name),
                         _ => panic!("Error Generic Expansion (Non Supported AnyOther): {}", ty.to_token_stream())
@@ -686,7 +698,7 @@ impl GenericTypeConversion {
                             attrs: attrs.clone(),
                             types: (ffi_type.clone(), ty.clone()),
                             conversions: (
-                                FromConversionPresentation::SmartPointer(path.to_token_stream(), arg_0_presentation.from_conversion.present(&source)),
+                                FromConversionPresentation::SmartPointer(constructor.to_token_stream(), arg_0_presentation.from_conversion.present(&source)),
                                 ToConversionPresentation::Simple(arg_0_presentation.to_conversion.present(&source)),
                                 DestroyPresentation::Default,
                                 None

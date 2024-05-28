@@ -7,7 +7,7 @@ use crate::composer::Colon2Punctuated;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, CrateExtension, DictionaryType, GenericNestedArg, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
 use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
 use crate::naming::DictionaryExpr;
 

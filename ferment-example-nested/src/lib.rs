@@ -19,7 +19,6 @@ pub mod some_inner {
 pub mod some_inner_2 {
     use std::cell::RefCell;
     use std::collections::{BTreeMap, BTreeSet, HashSet};
-    use std::pin::Pin;
     use std::rc::Rc;
     use std::sync::{Arc, Mutex, RwLock};
     use ferment_example::errors::protocol_error::ProtocolError;
@@ -130,6 +129,7 @@ pub mod some_inner_2 {
         pub mutex_generic: Mutex<Vec<u8>>,
         pub mutex_opt_generic: Mutex<Option<BTreeMap<u32, LLMQSnapshot>>>,
         pub opt_mutex_complex: Option<Mutex<Option<String>>>,
+        // pub platform_case: Mutex<Option<Box<LLMQSnapshot>>>,
     }
 
     #[ferment_macro::export]
@@ -139,6 +139,7 @@ pub mod some_inner_2 {
         pub rwlock_generic: RwLock<Vec<u8>>,
         pub rwlock_opt_generic: RwLock<Option<BTreeMap<u32, LLMQSnapshot>>>,
         pub opt_rwlock_complex: Option<RwLock<Option<String>>>,
+        pub arc_rw_lock_complex: Arc<RwLock<LLMQSnapshot>>,
     }
     #[ferment_macro::export]
     pub struct AllRefCellExamples {

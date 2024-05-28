@@ -5,7 +5,6 @@ use std::ffi::CString;
 use std::hash::Hash;
 use std::{mem, slice};
 use std::os::raw::c_char;
-use std::sync::Arc;
 
 /// We pass here main context of parent program
 
@@ -352,88 +351,84 @@ macro_rules! impl_custom_conversion2 {
 //     }
 // }
 
-pub struct Arc_u32 {
-    pub obj: u32
-}
-impl FFIConversion<std::sync::Arc<u32>> for Arc_u32 {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<u32> {
-        let ffi_ref = &*ffi;
-        Arc::new(ffi_ref.obj)
-    }
-
-    unsafe fn ffi_to_const(obj: std::sync::Arc<u32>) -> *const Self {
-        boxed(Self { obj: *obj } )
-    }
-}
-
-// pub trait FFIPtrConversion<T> {
-//     /// # Safety
-//     unsafe fn decode(&self) -> T;
-//     /// # Safety
-//     unsafe fn encode(obj: T) -> *mut Self;
+// pub struct Arc_u32 {
+//     pub obj: u32
 // }
-
-#[derive(Clone)]
-pub struct Arc_String {
-    pub value: *mut std::os::raw::c_char,
-}
-impl FFIConversion<std::sync::Arc<String>> for crate::Arc_String {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<String> {
-        let ffi_ref = &*ffi;
-        Arc::new(FFIConversion::ffi_from(ffi_ref.value))
-    }
-
-    unsafe fn ffi_to_const(obj: std::sync::Arc<String>) -> *const Self {
-        boxed(Self { value: FFIConversion::ffi_to((*obj).clone()) })
-    }
-}
-
-#[derive(Clone)]
-pub struct Mutex_u32 {
-    pub obj: u32,
-}
-
-impl FFIConversion<std::sync::Mutex<u32>> for crate::Mutex_u32 {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<u32> {
-        let ffi_ref = &*ffi;
-        std::sync::Mutex::new(ffi_ref.obj)
-    }
-
-    unsafe fn ffi_to_const(obj: std::sync::Mutex<u32>) -> *const Self {
-        boxed(Self { obj: obj.into_inner().expect("Err") })
-    }
-}
-#[derive(Clone)]
-pub struct Mutex_String {
-    pub value: *mut std::os::raw::c_char,
-}
-
-impl FFIConversion<std::sync::Mutex<String>> for crate::Mutex_String {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<String> {
-        let ffi_ref = &*ffi;
-        std::sync::Mutex::new(FFIConversion::ffi_from_const(ffi_ref.value))
-    }
-
-    unsafe fn ffi_to_const(obj: std::sync::Mutex<String>) -> *const Self {
-        boxed(Self { value: FFIConversion::ffi_to(obj.into_inner().expect("Err")) })
-    }
-}
-
-#[derive(Clone)]
-pub struct RefCell_String {
-    pub value: *mut std::os::raw::c_char,
-}
-
-impl FFIConversion<std::cell::RefCell<String>> for crate::RefCell_String {
-    unsafe fn ffi_from_const(ffi: *const Self) -> std::cell::RefCell<String> {
-        let ffi_ref = &*ffi;
-        std::cell::RefCell::new(FFIConversion::ffi_from_const(ffi_ref.value))
-    }
-
-    unsafe fn ffi_to_const(obj: std::cell::RefCell<String>) -> *const Self {
-        boxed(Self { value: FFIConversion::ffi_to(obj.into_inner()) })
-    }
-}
+// impl FFIConversion<std::sync::Arc<u32>> for Arc_u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<u32> {
+//         let ffi_ref = &*ffi;
+//         Arc::new(ffi_ref.obj)
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::sync::Arc<u32>) -> *const Self {
+//         boxed(Self { obj: *obj } )
+//     }
+// }
+//
+// #[derive(Clone)]
+// pub struct Arc_String {
+//     pub value: *mut std::os::raw::c_char,
+// }
+// impl FFIConversion<std::sync::Arc<String>> for crate::Arc_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Arc<String> {
+//         let ffi_ref = &*ffi;
+//         Arc::new(FFIConversion::ffi_from(ffi_ref.value))
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::sync::Arc<String>) -> *const Self {
+//         boxed(Self { value: FFIConversion::ffi_to((*obj).clone()) })
+//     }
+// }
+//
+//
+//
+//
+// #[derive(Clone)]
+// pub struct Mutex_u32 {
+//     pub obj: u32,
+// }
+//
+// impl FFIConversion<std::sync::Mutex<u32>> for crate::Mutex_u32 {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<u32> {
+//         let ffi_ref = &*ffi;
+//         std::sync::Mutex::new(ffi_ref.obj)
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::sync::Mutex<u32>) -> *const Self {
+//         boxed(Self { obj: obj.into_inner().expect("Err") })
+//     }
+// }
+// #[derive(Clone)]
+// pub struct Mutex_String {
+//     pub value: *mut std::os::raw::c_char,
+// }
+//
+// impl FFIConversion<std::sync::Mutex<String>> for crate::Mutex_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::sync::Mutex<String> {
+//         let ffi_ref = &*ffi;
+//         std::sync::Mutex::new(FFIConversion::ffi_from_const(ffi_ref.value))
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::sync::Mutex<String>) -> *const Self {
+//         boxed(Self { value: FFIConversion::ffi_to(obj.into_inner().expect("Err")) })
+//     }
+// }
+//
+// #[derive(Clone)]
+// pub struct RefCell_String {
+//     pub value: *mut std::os::raw::c_char,
+// }
+//
+// impl FFIConversion<std::cell::RefCell<String>> for crate::RefCell_String {
+//     unsafe fn ffi_from_const(ffi: *const Self) -> std::cell::RefCell<String> {
+//         let ffi_ref = &*ffi;
+//         std::cell::RefCell::new(FFIConversion::ffi_from_const(ffi_ref.value))
+//     }
+//
+//     unsafe fn ffi_to_const(obj: std::cell::RefCell<String>) -> *const Self {
+//         boxed(Self { value: FFIConversion::ffi_to(obj.into_inner()) })
+//     }
+// }
 
 
 // impl FFIConversion<std::sync::RwLock<u32>> for crate::RwLock_u32 {
@@ -660,45 +655,94 @@ impl FFIConversion<std::cell::RefCell<String>> for crate::RefCell_String {
 
 
 
-// TODO: maybe refactor to this interface but not sure about nullability/optional since it'll not be a pointer anymore
-pub trait FFIConversion222<T> {
-    /// # Safety
-    unsafe fn ffi_from(ffi: Self) -> T;
-    /// # Safety
-    unsafe fn ffi_to(obj: T) -> Self;
-    // /// # Safety
-    // unsafe fn ffi_from_opt(ffi: Self) -> Option<T> where Self: Sized {
-    //     (!ffi.is_null())
-    //         .then(|| <Self as FFIConversion<T>>::ffi_from(ffi))
-    // }
-    // /// # Safety
-    // unsafe fn ffi_to_opt(obj: Option<T>) -> Self;
-    /// # Safety
-    unsafe fn destroy(_ffi: Self) where Self: Sized {}
-}
+// // TODO: maybe refactor to this interface but not sure about nullability/optional since it'll not be a pointer anymore
+// pub trait FFIConversion222<T> {
+//     /// # Safety
+//     unsafe fn ffi_from(ffi: Self) -> T;
+//     /// # Safety
+//     unsafe fn ffi_to(obj: T) -> Self;
+//     // /// # Safety
+//     // unsafe fn ffi_from_opt(ffi: Self) -> Option<T> where Self: Sized {
+//     //     (!ffi.is_null())
+//     //         .then(|| <Self as FFIConversion<T>>::ffi_from(ffi))
+//     // }
+//     // /// # Safety
+//     // unsafe fn ffi_to_opt(obj: Option<T>) -> Self;
+//     /// # Safety
+//     unsafe fn destroy(_ffi: Self) where Self: Sized {}
+// }
 
-impl FFIConversion222<u32> for u32 {
-    unsafe fn ffi_from(ffi: Self) -> u32 { ffi }
-    unsafe fn ffi_to(obj: u32) -> Self { obj }
-}
+// impl FFIConversion222<u32> for u32 {
+//     unsafe fn ffi_from(ffi: Self) -> u32 { ffi }
+//     unsafe fn ffi_to(obj: u32) -> Self { obj }
+// }
+//
+// impl FFIConversion222<String> for *mut c_char {
+//     unsafe fn ffi_from(ffi: Self) -> String {
+//         std::ffi::CStr::from_ptr(ffi)
+//             .to_str()
+//             .unwrap()
+//             .to_string()
+//     }
+//     unsafe fn ffi_to(obj: String) -> Self {
+//         CString::new(obj)
+//             .unwrap()
+//             .into_raw()
+//     }
+//
+//     unsafe fn destroy(ffi: Self) {
+//         if ffi.is_null() {
+//             return;
+//         }
+//         unbox_string(ffi);
+//     }
+// }
 
-impl FFIConversion222<String> for *mut c_char {
-    unsafe fn ffi_from(ffi: Self) -> String {
-        std::ffi::CStr::from_ptr(ffi)
-            .to_str()
-            .unwrap()
-            .to_string()
-    }
-    unsafe fn ffi_to(obj: String) -> Self {
-        CString::new(obj)
-            .unwrap()
-            .into_raw()
-    }
 
-    unsafe fn destroy(ffi: Self) {
-        if ffi.is_null() {
-            return;
-        }
-        unbox_string(ffi);
-    }
-}
+//
+// #[repr(C)]
+// #[derive(Clone)]
+// pub struct std_sync_Arc_std_sync_RwLock_String {
+//     pub obj: *mut std_sync_RwLock_String
+// }
+// impl FFIConversion<std::sync::Arc<std::sync::RwLock<String>>>
+// for std_sync_Arc_std_sync_RwLock_String {
+//     unsafe fn ffi_from_const(ffi: *const std_sync_Arc_std_sync_RwLock_String) -> std::sync::Arc<std::sync::RwLock<String>> {
+//         let ffi_ref = &*ffi;
+//         std::sync::Arc::new(FFIConversion::ffi_from(ffi_ref.obj))
+//     }
+//     unsafe fn ffi_to_const(obj: std::sync::Arc<std::sync::RwLock<String>>) -> *const std_sync_Arc_std_sync_RwLock_String {
+//         Box::into_raw(Box::new(Self { obj: FFIConversion::ffi_to(std::sync::RwLock::new(obj.read().expect("Poisoned").clone())) }))
+//     }
+// }
+// impl Drop for std_sync_Arc_std_sync_RwLock_String {
+//     fn drop(&mut self) {
+//         unsafe {
+//             Box::from_raw(self.obj);
+//         }
+//     }
+// }
+//
+// #[repr(C)]
+// #[derive(Clone)]
+// pub struct std_sync_RwLock_String {
+//     pub obj: *mut std::os::raw::c_char
+// }
+// impl FFIConversion<std::sync::RwLock<String>>
+// for std_sync_RwLock_String {
+//     unsafe fn ffi_from_const(ffi: *const std_sync_RwLock_String) -> std::sync::RwLock<String> {
+//         let ffi_ref = &*ffi;
+//         std::sync::RwLock::new(FFIConversion::ffi_from(ffi_ref.obj))
+//     }
+//     unsafe fn ffi_to_const(obj: std::sync::RwLock<String>) -> *const std_sync_RwLock_String {
+//         Box::into_raw(Box::new(Self { obj: FFIConversion::ffi_to(obj.into_inner().expect("Err")) }))
+//     }
+// }
+// impl Drop for std_sync_RwLock_String {
+//     fn drop(&mut self) {
+//         unsafe {
+//             unbox_string(self.obj);
+//             // Box::from_raw(self.obj);
+//         }
+//     }
+// }
