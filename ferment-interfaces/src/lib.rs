@@ -40,10 +40,6 @@ pub trait FFIConversion<T> {
         } else {
             std::ptr::null_mut()
         }
-        // obj.map_or(
-        //     std::ptr::null_mut(),
-        //     |o| <Self as FFIConversion<T>>::ffi_to(o))
-        // // obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion<T>>::ffi_to(o))
     }
     /// # Safety
     unsafe fn destroy(ffi: *mut Self) {
@@ -253,6 +249,39 @@ pub unsafe fn fold_to_result<T, E, T2, E2>(
         Err(value_converter(error))
     }
 }
+
+// pub trait FFICallback<I, O> {
+//     // unsafe fn apply(&self, args: I) -> O;
+//     unsafe fn get<T>(&self) -> T where T: Fn(I) -> O;
+//     // unsafe fn get(&self) -> Box<dyn Fn(I) -> O>;
+//     // unsafe fn get(&self) -> T;
+//     // unsafe fn get(&self) -> Box<dyn Fn(I) -> O>;
+//     // unsafe fn get<T: Fn(([u8; 32])) -> String>(&self) -> T
+// }
+// pub trait FFICallbackPtr<I, O> {
+//     unsafe fn get(&self) -> (fn(*const std::os::raw::c_void, I) -> O, *const std::os::raw::c_void);
+// }
+// pub trait FFICallback2<I, O> {
+//     unsafe fn apply(&self, args: I) -> O;
+// }
+
+
+/// # Safety
+// pub unsafe fn callback_fn_ptr<T, I, O>(callback: T) -> unsafe fn(I) -> O where I: Sized, O: Sized {
+//     unsafe fn _callback<I, O>(args: I) -> O {
+//         callback(args)
+//     }
+//     _callback
+// }
+// pub unsafe fn callback<T, I, O, R>(callback: T) -> R where T: FFICallback<I, O>, R: Fn(I) -> O {
+//     FFICallback::get(&callback).into()
+// }
+// pub unsafe fn callback_fn_mut<T, I, O, R>(callback: T) -> R where T: FFICallback<I, O>, R: FnMut(I) -> O {
+//     FFICallback::get(&callback)
+// }
+// pub unsafe fn callback_fn_once<T, I, O, R>(callback: T) -> R where T: FFICallback<I, O>, R: FnOnce(I) -> O {
+//     FFICallback::get(&callback)
+// }
 
 
 #[macro_export]
@@ -666,7 +695,7 @@ macro_rules! impl_custom_conversion2 {
 // }
 
 
-//
+
 // #[repr(C)]
 // #[derive(Clone)]
 // pub struct std_sync_Arc_std_sync_RwLock_String {
@@ -709,7 +738,6 @@ macro_rules! impl_custom_conversion2 {
 //     fn drop(&mut self) {
 //         unsafe {
 //             unbox_string(self.obj);
-//             // Box::from_raw(self.obj);
 //         }
 //     }
 // }

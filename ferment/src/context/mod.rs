@@ -12,6 +12,7 @@ mod generic_resolver;
 mod scope_propagation;
 mod type_chain;
 mod multi_crate_context;
+mod attrs_resolver;
 
 // pub use self::crate_type::Crate;
 // pub use self::context::Context;

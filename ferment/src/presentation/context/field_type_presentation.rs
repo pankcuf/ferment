@@ -5,7 +5,7 @@ use crate::composer::CommaPunctuated;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::Terminated;
-use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
+use crate::naming::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
 use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 
@@ -20,6 +20,7 @@ pub enum FieldContext {
     DictionaryName(DictionaryName),
     DictionaryExpr(DictionaryExpr),
     FFIConversionExpr(FFIConversionMethodExpr),
+    FFICallbackExpr(FFICallbackMethodExpr),
     InterfacesExpr(InterfacesMethodExpr),
     Add(Box<FieldContext>, TokenStream2),
     To(Box<FieldContext>),
@@ -77,6 +78,8 @@ impl Display for FieldContext {
                 format!("FieldTypePresentableContext::InterfacesExpr({})", expr.to_token_stream()),
             FieldContext::FFIConversionExpr(expr) =>
                 format!("FieldTypePresentableContext::FFIConversionExpr({})", expr.to_token_stream()),
+            FieldContext::FFICallbackExpr(expr) =>
+                format!("FieldTypePresentableContext::FFICallbackExpr({})", expr.to_token_stream()),
             FieldContext::Simple(simple) =>
                 format!("FieldTypePresentableContext::Simple({})", quote!(#simple)),
             FieldContext::Add(context, index) =>
@@ -189,6 +192,8 @@ impl ScopeContextPresentable for FieldContext {
             Self::InterfacesExpr(expr) =>
                 expr.to_token_stream(),
             Self::FFIConversionExpr(expr) =>
+                expr.to_token_stream(),
+            Self::FFICallbackExpr(expr) =>
                 expr.to_token_stream(),
             Self::OwnerIteratorPresentation(presentable) =>
                 presentable.present(source),

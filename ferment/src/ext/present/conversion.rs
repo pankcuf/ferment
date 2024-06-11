@@ -27,6 +27,25 @@ impl Conversion for FieldTypeConversion {
     }
 }
 
+// impl Conversion for TypeConversion {
+//     fn conversion_from(&self, field_path: FieldContext) -> FieldContext {
+//         match self {
+//             TypeConversion::Primitive(ty) => Fie
+//             TypeConversion::Complex(ty) => {}
+//             TypeConversion::Callback(ty) => {}
+//             TypeConversion::Generic(ty) => {}
+//         }
+//     }
+//
+//     fn conversion_to(&self, field_path: FieldContext) -> FieldContext {
+//         todo!()
+//     }
+//
+//     fn conversion_destroy(&self, field_path: FieldContext) -> FieldContext {
+//         todo!()
+//     }
+// }
+
 impl Conversion for Type {
     fn conversion_from(&self, field_path: FieldContext) -> FieldContext {
         // println!("Type::conversion_from: {}", field_path);
@@ -260,7 +279,7 @@ impl Conversion for TypePath {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_from: Empty Optional: {}", self.to_token_stream()),
                 Some(conversion) => match conversion {
-                    TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
+                    // TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
                     TypeConversion::Primitive(ty) => {
                         let ty_path = ty.to_path();
                         let last_segment = ty_path.segments.last().unwrap();
@@ -314,7 +333,7 @@ impl Conversion for TypePath {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_to: Empty Optional"),
                 Some(conversion) => match conversion {
-                    TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
+                    // TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
                     TypeConversion::Primitive(ty) => {
                         let ty_path = ty.to_path();
                         let last_segment = ty_path.segments.last().unwrap();
@@ -347,7 +366,7 @@ impl Conversion for TypePath {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_destroy: Empty Optional"),
                 Some(conversion) => match conversion {
-                    TypeConversion::Callback(ty) => unimplemented!("TypePath::conversion_destroy: Optional Callback: {}", ty.to_token_stream()),
+                    // TypeConversion::Callback(ty) => unimplemented!("TypePath::conversion_destroy: Optional Callback: {}", ty.to_token_stream()),
                     TypeConversion::Primitive(_) => FieldContext::Empty,
                     _ => FieldContext::DestroyOpt(field_path.into())
                 }
@@ -390,12 +409,12 @@ impl Conversion for TypeTraitObject {
         FieldContext::AsRef(field_path.into())
     }
 
-    fn conversion_to(&self, _field_path: FieldContext) -> FieldContext {
-        todo!()
+    fn conversion_to(&self, field_path: FieldContext) -> FieldContext {
+        FieldContext::To(field_path.into())
     }
 
-    fn conversion_destroy(&self, _field_path: FieldContext) -> FieldContext {
-        todo!()
+    fn conversion_destroy(&self, field_path: FieldContext) -> FieldContext {
+        FieldContext::UnboxAny(field_path.into())
     }
 }
 

@@ -28,6 +28,7 @@ pub enum TypeCompositionConversion {
 
     Unknown(TypeComposition),
     LocalOrGlobal(TypeComposition),
+
     Imported(TypeComposition, Path),
 }
 
@@ -199,3 +200,32 @@ impl Hash for TypeCompositionConversion {
     }
 }
 
+
+// impl Conversion for TypeCompositionConversion {
+//     fn conversion_from(&self, field_path: FieldContext) -> FieldContext {
+//         match self {
+//             TypeCompositionConversion::Trait(_, _, _) => {}
+//             TypeCompositionConversion::TraitType(_) => {}
+//             TypeCompositionConversion::Object(_) => {}
+//             TypeCompositionConversion::Optional(_) => {}
+//             TypeCompositionConversion::Primitive(_) => {}
+//             TypeCompositionConversion::Callback(_) => {}
+//             TypeCompositionConversion::Bounds(_) => {}
+//             TypeCompositionConversion::Fn(_) => {}
+//             TypeCompositionConversion::Array(_) => {}
+//             TypeCompositionConversion::Slice(_) => {}
+//             TypeCompositionConversion::Tuple(_) => {}
+//             TypeCompositionConversion::Unknown(_) => {}
+//             TypeCompositionConversion::LocalOrGlobal(_) => {}
+//             TypeCompositionConversion::Imported(_, _) => {}
+//         }
+//     }
+//
+//     fn conversion_to(&self, field_path: FieldContext) -> FieldContext {
+//         todo!()
+//     }
+//
+//     fn conversion_destroy(&self, field_path: FieldContext) -> FieldContext {
+//         todo!()
+//     }
+// }

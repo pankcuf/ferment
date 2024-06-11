@@ -9,11 +9,16 @@ use crate::conversion::ObjectConversion;
 #[derive(Clone)]
 pub enum NestedArgument {
     Object(ObjectConversion),
+    // Callback { result: ObjectConversion, args: CommaPunctuated<ObjectConversion> },
     // ?
 }
 impl ToTokens for NestedArgument {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self { NestedArgument::Object(obj) => obj.to_tokens(tokens) }
+        match self {
+            NestedArgument::Object(obj) => obj.to_tokens(tokens),
+            // NestedArgument::Object(obj) |
+            // NestedArgument::Callback(obj) => obj.to_tokens(tokens),
+        }
     }
 }
 
@@ -21,6 +26,8 @@ impl Debug for NestedArgument {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             NestedArgument::Object(obj) => f.write_str(format!("{}", obj).as_str()),
+            // NestedArgument::Object(obj) |
+            // NestedArgument::Callback(obj) => f.write_str(format!("{}", obj).as_str()),
         }
     }
 }

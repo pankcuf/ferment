@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::ext::ToPath;
 
@@ -154,6 +154,8 @@ impl Mangle<String> for PathArguments {
         match self {
             PathArguments::AngleBracketed(arguments) =>
                 format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
+            PathArguments::Parenthesized(arguments) =>
+                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
             _ => segment_str,
         }
     }
@@ -184,6 +186,18 @@ impl Mangle<(bool, bool)> for AngleBracketedGenericArguments {
             })
             .collect::<Vec<_>>()
             .join("_")
+    }
+}
+
+impl Mangle<(bool, bool)> for ParenthesizedGenericArguments {
+    fn mangle_string(&self, _context: (bool, bool)) -> String {
+        format!(
+            "ARGS_{}_RTRN_{}",
+            &self.inputs.iter().map(|gen_arg| gen_arg.mangle_string_default()).collect::<Vec<_>>().join("_"),
+            match &self.output {
+                ReturnType::Default => String::new(),
+                ReturnType::Type(_, ty) => ty.mangle_string_default()
+            })
     }
 }
 

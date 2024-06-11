@@ -49,18 +49,55 @@ impl FFITypeResolve for GenericTypeConversion {
 }
 
 
+
 pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self>;
     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self;
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self;
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self;
     fn ffi_full_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        // println!("ffi_full_dictionary_type_presenter: {}", self.to_token_stream());
         self.ffi_custom_or_internal_type(source)
             .ffi_dictionary_type_presenter(source)
     }
-
 }
+
+// impl FFIResolveExtended for TypeConversion {
+//     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
+//         match self {
+//             TypeConversion::Primitive(ty) => Some(self.clone()),
+//             TypeConversion::Complex(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
+//             TypeConversion::Callback(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
+//             TypeConversion::Generic(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
+//         }
+//     }
+//
+//     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
+//         match self {
+//             TypeConversion::Primitive(ty) => self.clone(),
+//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
+//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
+//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
+//         }
+//     }
+//
+//     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
+//         match self {
+//             TypeConversion::Primitive(ty) => self.clone(),
+//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
+//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
+//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
+//         }
+//     }
+//
+//     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
+//         match self {
+//             TypeConversion::Primitive(ty) => self.clone(),
+//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
+//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
+//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
+//         }
+//     }
+// }
 
 impl FFIResolve for Path {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
@@ -74,10 +111,9 @@ impl FFIResolve for Path {
             None
         } else if last_ident.is_any_string() {
             Some(DictionaryExpr::CChar.to_token_stream().to_path())
-        } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
-            let ffi_name = self.mangle_ident_default();
-            Some(parse_quote!(crate::fermented::generics::#ffi_name))
-        } else if last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") {
+        } else if last_ident.is_special_generic() ||
+            (last_ident.is_result() && segments.len() == 1) ||
+            last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
             let ffi_name = self.mangle_ident_default();
             Some(parse_quote!(crate::fermented::generics::#ffi_name))
         } else if last_ident.is_optional() {
@@ -129,6 +165,17 @@ impl FFIResolve for TypePath {
             .map(|ffi_path| parse_quote!(#ffi_path))
     }
 }
+
+// impl FFIResolve for TypeConversion {
+//     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
+//         match self {
+//             TypeConversion::Primitive(ty) => Some(self.clone()),
+//             TypeConversion::Complex(ty) => ty.ffi_resolve(source).map(TypeConversion::from),
+//             TypeConversion::Callback(ty) => ty.ffi_resolve(source).map(TypeConversion::from),
+//             TypeConversion::Generic(ty) => ty.ffi_resolve(source).map(TypeConversion::from)
+//         }
+//     }
+// }
 
 impl FFIResolve for Type {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
@@ -252,17 +299,17 @@ impl FFIResolveExtended for Path {
 
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
         let lock = source.context.read().unwrap();
-        // println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
+        println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
         let ty: Type = parse_quote!(#self);
         let full_ty = source.full_type_for(&ty);
         let result = lock.custom.maybe_conversion(&full_ty)
             .map_or(self.ffi_internal_type_for(source), |ty| ty.to_path());
-        // println!("Path::ffi_custom_or_internal_type.2: {}", result.to_token_stream());
+        println!("Path::ffi_custom_or_internal_type.2: {} ==== {}", self.to_token_stream(), result.to_token_stream());
         result
     }
 
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        // println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
+        println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
         let result = ffi_dictionary_type(self, source)
             .to_path();
         // println!("Path::ffi_dictionary_type_presenter.2: {}", result.to_token_stream());
@@ -401,13 +448,13 @@ pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
     } else if last_ident.is_optional() {
         match path_arguments_to_type_conversions(&last_segment.arguments).first() {
             Some(conversion) => match conversion {
-                TypeConversion::Primitive(ty) => ffi_dictionary_type(&ty.to_path(), source),
+                TypeConversion::Primitive(ty) => ffi_dictionary_type(&ty.to_path(), source).joined_mut(),
                 TypeConversion::Complex(ty) => match ty {
                     Type::Path(TypePath { path, .. }) => ffi_dictionary_type(path, source),
                     _ => unimplemented!("ffi_dictionary_type:: Non-Path Complex Type")
                 },
                 TypeConversion::Generic(ty) => ty.to_ffi_type().joined_mut(),
-                TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback: {}", ty.to_token_stream())
+                // TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback: {}", ty.to_token_stream())
             },
             _ => unimplemented!("ffi_dictionary_type:: Empty Optional")
         }

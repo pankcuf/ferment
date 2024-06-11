@@ -6,7 +6,9 @@ use syn::token::RArrow;
 use crate::composer::{CommaPunctuated, ConstructorPresentableContext, Depunctuated};
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
+use crate::interface::create_callback;
 use crate::naming::{DictionaryName, InterfacesMethodExpr, Name};
+use crate::presentation::{Expansion, InterfacePresentation};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -58,11 +60,19 @@ pub enum BindingPresentation {
         return_type: ReturnType,
         output_conversions: TokenStream2,
     },
+    // Callback {
+    //     name: TokenStream2,
+    //     arguments: CommaPunctuated<TokenStream2>,
+    //     output_expression: ReturnType,
+    // },
     Callback {
-        name: TokenStream2,
-        arguments: CommaPunctuated<TokenStream2>,
-        output_expression: ReturnType,
+        name: Ident,
+        attrs: Depunctuated<Expansion>,
+        ffi_args: CommaPunctuated<TokenStream2>,
+        result: ReturnType,
+        conversion: InterfacePresentation,
     },
+
     TraitVTableInnerFn {
         name: Name,
         name_and_args: TokenStream2,
@@ -182,6 +192,7 @@ impl ToTokens for BindingPresentation {
                 )
             },
             BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs } => {
+
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_ident_default().to_token_stream(),
@@ -217,8 +228,16 @@ impl ToTokens for BindingPresentation {
                     )
                 }
             },
-            BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
-                quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
+            // BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
+            //     quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
+            BindingPresentation::Callback { name, attrs, ffi_args, result, conversion } => {
+                let definition = create_callback(name, attrs.to_token_stream(), ffi_args.to_token_stream(), result.clone());
+                quote! {
+                    #definition
+                    #conversion
+                }
+            }
+
             BindingPresentation::StaticVTable { name, fq_trait_vtable, methods_declarations, methods_implementations } => {
                 quote! {
                     static #name: #fq_trait_vtable = {

@@ -144,9 +144,14 @@ impl TryFrom<&Item> for ObjectConversion {
             },
             Item::Type(item) => {
                 let ident = &item.ident;
-                Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone())))
+                let conversion = ScopeItemConversion::Item(value.clone());
+                let obj = match &*item.ty {
+                    Type::BareFn(..) => {
+                        ObjectConversion::Item(TypeCompositionConversion::Callback(TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new())), conversion)
+                    },
+                    _ => ObjectConversion::new_obj_item(TypeComposition::new(ident.to_type(), Some(item.generics.clone()), Punctuated::new()), conversion)
+                };
+                Ok(obj)
             },
             Item::Const(item) => {
                 let ident = &item.ident;

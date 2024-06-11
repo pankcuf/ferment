@@ -272,32 +272,15 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
     match &**ty {
         Type::BareFn(type_bare_fn) => {
             let full_path = scope.self_path().clone();
-            // let full_fn_path = scope.joined_path_holder(target_name);
             let path = if full_path.is_crate_based() {
                 full_path.replaced_first_with_ident(&scope.crate_ident().to_path())
             } else {
                 full_path
             };
 
-            SigComposer::with_context(
-                path,
-                target_name,
-                FnSignatureContext::Bare(target_name.clone(), type_bare_fn.clone()),
-                generics,
-                attrs,
-                scope,
-                context)
+            SigComposer::with_context(path, target_name, FnSignatureContext::Bare(target_name.clone(), type_bare_fn.clone()), generics, attrs, scope, context)
                 .borrow()
                 .expand()
-            // let mut full_fn_path = scope.joined(target_name);
-            // if scope.is_crate_based() {
-            //     full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
-            // }
-            // Expansion::Function {
-            //     comment: DocPresentation::Default(Name::Ident(target_name.clone())),
-            //     binding: FnSignatureComposition::from_bare_fn(type_bare_fn, target_name, local_scope.self_path_holder_ref(), &source)
-            //         .present(FnSignatureCompositionContext::FFIObjectCallback, &source),
-            // }
         },
         _ =>
             ItemComposer::type_alias_composer(target_name, ty, generics, attrs, scope, context)
@@ -330,27 +313,13 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
 }
 
 fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
-    let ItemFn { attrs, sig, .. } = item;
+    let ItemFn { attrs, sig: Signature { ident, generics, ..}, .. } = item;
     let source = context.borrow();
+    let full_path = scope.self_path().crate_named(&source.scope.crate_ident().to_path());
     // println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
-    SigComposer::with_context(
-        scope.self_path().crate_named(&source.scope.crate_ident().to_path()),
-        &sig.ident,
-        FnSignatureContext::ModFn(item.clone()),
-        &sig.generics,
-        attrs,
-        scope,
-        context)
+    SigComposer::with_context(full_path, ident, FnSignatureContext::ModFn(item.clone()), generics, attrs, scope, context)
         .borrow()
         .expand()
-
-
-    // let signature = FnSignatureComposition::from_signature(&FnSignatureContext::ModFn(item.clone()), sig, &scope.parent_path_holder(), &source);
-    // Expansion::Function {
-    //     comment: DocPresentation::Safety(Name::Optional(signature.ident.clone())),
-    //     binding: signature.present(FnSignatureCompositionContext::FFIObject, &source),
-    // }
-
 }
 
 fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {

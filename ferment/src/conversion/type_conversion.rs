@@ -3,28 +3,25 @@ use std::fmt::{Debug, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
+use syn::parse::{Parse, ParseStream};
 use crate::conversion::GenericTypeConversion;
 
 #[derive(Clone, Eq)]
 pub enum TypeConversion {
     Primitive(Type),
     Complex(Type),
-    Callback(Type),
+    // Callback(Type),
     Generic(GenericTypeConversion),
 }
 
 impl Debug for TypeConversion {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.write_str(
-        match self {
+        f.write_str(match self {
             TypeConversion::Primitive(_) => format!("Primitive({})", self.to_token_stream()),
             TypeConversion::Complex(_) => format!("Complex({})", self.to_token_stream()),
-            TypeConversion::Callback(_) => format!("Callback({})", self.to_token_stream()),
-            TypeConversion::Generic(_) => format!("Generic({})", self.to_token_stream()),
+            // TypeConversion::Callback(_) => format!("Callback({})", self.to_token_stream()),
+            TypeConversion::Generic(_) => format!("Generic({})", self.to_token_stream())
         }.as_str())
-        // f.debug_list()
-        //     .entries(self.to_token_stream())
-        //     .finish()
     }
 }
 
@@ -34,12 +31,18 @@ impl PartialEq for TypeConversion {
     }
 }
 
+impl Parse for TypeConversion {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Type::parse(input).map(Self::from)
+    }
+}
+
 impl ToTokens for TypeConversion {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             TypeConversion::Primitive(ty) |
-            TypeConversion::Complex(ty) |
-            TypeConversion::Callback(ty) => ty.to_tokens(tokens),
+            TypeConversion::Complex(ty) => ty.to_tokens(tokens),
+            // TypeConversion::Callback(ty) => ty.to_tokens(tokens),
             TypeConversion::Generic(generic) => generic.to_tokens(tokens),
         }
     }
@@ -76,6 +79,7 @@ impl From<Type> for TypeConversion {
                             "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                             "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
                             "Option" => TypeConversion::Generic(GenericTypeConversion::Optional(ty)),
+                            "Fn" | "FnOnce" | "FnMut" => TypeConversion::Generic(GenericTypeConversion::Callback(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
                                     Some(TypeConversion::Generic(GenericTypeConversion::AnyOther(ty.clone()))),
@@ -97,6 +101,7 @@ impl From<Type> for TypeConversion {
                         "Result" if path.segments.len() == 1 => TypeConversion::Generic(GenericTypeConversion::Result(ty)),
                         "Map" if first_ident.to_string().eq("serde_json") => TypeConversion::Generic(GenericTypeConversion::SerdeJsonMap(ty)),
                         "Option" => TypeConversion::Generic(GenericTypeConversion::Optional(ty)),
+                        "Fn" | "FnOnce" | "FnMut" => TypeConversion::Generic(GenericTypeConversion::Callback(ty)),
                         _ => {
                             path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
@@ -113,15 +118,15 @@ impl From<Type> for TypeConversion {
                 TypeConversion::Generic(GenericTypeConversion::Array(ty.clone())),
             Type::Slice(..) =>
                 TypeConversion::Generic(GenericTypeConversion::Slice(ty.clone())),
-            Type::BareFn(..) => TypeConversion::Callback(ty.clone()),
+            Type::BareFn(..) => TypeConversion::Generic(GenericTypeConversion::Callback(ty.clone())),
             // Type::Ptr(_) => {}
             Type::Reference(TypeReference { elem, .. }) => TypeConversion::from(*elem),
             Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) =>
                 TypeConversion::Generic(GenericTypeConversion::TraitBounds(bounds)),
-            ty => unimplemented!("TypeConversion: Unknown type: {}", ty.to_token_stream())
+            ty => unimplemented!("TypeConversion: Unknown type: {:?}", ty)
         };
-        // println!("TypeConversion::from.222({}) --- {:?}", dbg, result);
+        // println!("TypeConversion::from({}) ==== {:?}", dbg, result);
 
         result
     }

@@ -39,6 +39,12 @@ pub enum FFIObjectPresentation {
         vtable_name: Name,
     },
     Full(TokenStream2),
+    // Callback {
+    //     name: Name,
+    //     attrs: Depunctuated<Expansion>,
+    //     args: CommaPunctuated<FieldTypeConversion>,
+    //     result: Option<Type>
+    // },
     Generic {
         object_presentation: TokenStream2,
         interface_presentations: Depunctuated<InterfacePresentation>,

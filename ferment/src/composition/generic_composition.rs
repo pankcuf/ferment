@@ -10,7 +10,6 @@ use crate::holder::PathHolder;
 #[derive(Clone, Debug)]
 pub struct GenericConversion {
     pub object: ObjectConversion,
-    // pub attrs: Depunctuated<Expansion>,
 }
 
  impl std::fmt::Display for GenericConversion {
@@ -48,20 +47,6 @@ impl GenericConversion {
         generic_imports(self.object.to_ty().as_ref())
     }
 }
-
-// impl ScopeContextPresentable for GenericConversion {
-//     type Presentation = TokenStream2;
-//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-//         match &self.object {
-//             ObjectConversion::Type(type_cc) |
-//             ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
-//                 TypeConversion::Generic(generic_c) => generic_c.expand(&self.attrs, source),
-//                 otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
-//             },
-//             ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
-//         }
-//     }
-// }
 
 fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
     match ty {

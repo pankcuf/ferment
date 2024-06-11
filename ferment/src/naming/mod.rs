@@ -6,7 +6,9 @@ mod interfaces;
 mod ffi_vec_conversion_method;
 mod traits;
 mod ffi_map_conversion;
+mod ffi_callback_method;
 
+pub use self::ffi_callback_method::*;
 pub use self::ffi_conversion_method::*;
 pub use self::interfaces::*;
 #[allow(unused)]

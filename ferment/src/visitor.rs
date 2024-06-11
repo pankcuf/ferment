@@ -176,7 +176,7 @@ impl Visitor {
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
-        nprint!(0, Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
+        nprint!(0, crate::formatter::Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
         // println!("::: scope_items: {}: {}", ty.to_token_stream(), scope.self_path_holder_ref());
         let self_obj = &scope.self_scope().object;
         let type_chain = self.create_type_chain(ty, scope);
@@ -258,7 +258,7 @@ impl Visitor {
                     .add_item(item, current_scope);
             },
             (Ok(MacroType::Register(custom_type)), Ok(_object)) => {
-                println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+                // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 // if let Some(scope) = item.join_scope(&current_scope, self) {
                     if let ScopeTreeExportItem::Tree(scope_context, _, _exported, _) = self.find_scope_tree(&self_scope) {
                         let scope_context_borrowed = scope_context.borrow();

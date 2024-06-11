@@ -5,10 +5,10 @@ use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, Path, Signature, Type};
 use crate::chunk::InitialType;
 use crate::composer::CommaPunctuated;
-use crate::composition::{GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
+use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
-use crate::holder::{PathHolder, TypeHolder};
+use crate::holder::{PathHolder, TypeHolder, TypePathHolder};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]
@@ -54,7 +54,14 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 #[allow(unused)]
 pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
-        .map(|(item, attrs)| format!("{}:\n\t {}", item.object.to_token_stream(), format_unique_attrs(attrs)))
+        .map(|(item, attrs)| format!("{}: {}", format_unique_attrs(attrs), item.object.to_token_stream()))
+        .collect::<Vec<_>>()
+        .join("\n\t")
+}
+#[allow(unused)]
+pub fn format_mixin_conversions(dict: &HashMap<GenericBoundComposition, HashSet<Option<Attribute>>>) -> String {
+    dict.iter()
+        .map(|(item, attrs)| format!("{}:\n\t {}", item, format_unique_attrs(attrs)))
         .collect::<Vec<_>>()
         .join("\n\t")
 }
@@ -62,7 +69,7 @@ pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Opti
 #[allow(unused)]
 pub fn format_unique_attrs(dict: &HashSet<Option<Attribute>>) -> String {
     dict.iter()
-        .map(|item| item.as_ref().map_or(format!("None"), |a| a.to_token_stream().to_string()))
+        .map(|item| item.as_ref().map_or("[None]".to_string(), |a| a.to_token_stream().to_string()))
         .collect::<Vec<_>>()
         .join("\n\t")
 }
@@ -143,7 +150,7 @@ fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
 }
 
 pub fn format_path_vec(vec: &Vec<Path>) -> String {
-    vec.iter().map(|p| format_token_stream(p)).collect::<Vec<_>>().join(",")
+    vec.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(",")
 }
 
 pub fn type_vec_path_conversion_pair(pair: (&Type, &Vec<Path>)) -> String {
@@ -157,7 +164,7 @@ pub fn format_predicates_dict(vec: &HashMap<Type, Vec<Path>>) -> String {
 }
 
 #[allow(unused)]
-fn format_generic_bounds_pair(pair: (&PathHolder, &Vec<Path>)) -> String {
+fn format_generic_bounds_pair(pair: (&TypePathHolder, &Vec<Path>)) -> String {
     format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
 }
 
@@ -328,7 +335,7 @@ pub fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
 }
 
 #[allow(unused)]
-pub fn generic_bounds_dict(dict: &HashMap<PathHolder, Vec<Path>>) -> Vec<String> {
+pub fn generic_bounds_dict(dict: &HashMap<TypePathHolder, Vec<Path>>) -> Vec<String> {
     dict.iter()
         .map(format_generic_bounds_pair)
         .collect()
@@ -399,7 +406,7 @@ pub fn scope_imports_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>)
 }
 
 #[allow(unused)]
-pub fn scope_generics_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Vec<Path>>>) -> Vec<String> {
+pub fn scope_generics_dict(dict: &HashMap<ScopeChain, HashMap<TypePathHolder, Vec<Path>>>) -> Vec<String> {
     format_scope_dict(dict, generic_bounds_dict)
 }
 
@@ -441,7 +448,7 @@ pub fn format_global_context(context: &GlobalContext) -> String {
         vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.traits.used_traits_dictionary),
         vec!["-- custom:".to_string(), context.custom.to_string()],
         vec!["-- imports:".to_string()], scope_imports_dict(&context.imports.inner),
-        // vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
+        vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
     ])
 }
 
@@ -509,7 +516,7 @@ macro_rules! nprint {
 
         // log::warn!("{}", ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*))))
         //ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*)))
-        //println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
+        // println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
     };
 }
 

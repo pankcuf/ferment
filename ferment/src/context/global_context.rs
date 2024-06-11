@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, Type, TypePath};
 use syn::punctuated::Punctuated;
 use crate::composer::{Colon2Punctuated, CommaPunctuated};
-use crate::composition::{GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
+use crate::composition::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::context::scope_chain::ScopeInfo;
@@ -13,6 +13,7 @@ use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionCo
 use crate::formatter::{format_global_context, format_token_stream};
 use crate::holder::PathHolder;
 use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined, ResolveAttrs};
+use crate::ext::visitor::GenericConstraintCollector;
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -23,7 +24,8 @@ pub struct GlobalContext {
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
     pub imports: ImportResolver,
-    pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>
+    pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>,
+    pub refined_generic_constraints: HashMap<GenericBoundComposition, HashSet<Option<Attribute>>>
 }
 
 impl std::fmt::Debug for GlobalContext {
@@ -45,7 +47,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::new() }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::new(), refined_generic_constraints: HashMap::new() }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -56,7 +58,7 @@ impl GlobalContext {
 
 
     pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&ObjectConversion> {
-        // println!("resolve_trait_type: {}", from_type.to_token_stream());
+        println!("resolve_trait_type: {} ({:?})", from_type.to_token_stream(), from_type);
         // RESOLVE PATHS
         // Self::asyn::query::TransportRequest::Client::Error
         // ? [Self::asyn::query::TransportRequest::Client::Error] Self
@@ -70,6 +72,7 @@ impl GlobalContext {
         // 3. a) [aa::bb::cc::dd] Self, [Self::ee]
         // 4. a) [aa::bb::cc] Self::dd::ee, b) [aa::bb::cc] Self::dd
         let current_scope: PathHolder = parse_quote!(#from_type);
+        println!("current_scope: {}", current_scope);
         let mut i = 0;
         let mut maybe_trait: Option<&ObjectConversion>  = None;
         while i < current_scope.len() && maybe_trait.is_none() {
@@ -179,7 +182,7 @@ impl GlobalContext {
          }
     }
 
-    pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
+    fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
             // println!("[INFO] Found scope: {}", scope);
@@ -530,8 +533,29 @@ impl GlobalContext {
                     });
                 }
             }
-            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs: _, output: _, .. }) => {
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { ref mut inputs, ref mut output, .. }) => {
                 // panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
+                inputs.iter_mut().for_each(|inner_ty| match nested_arguments.pop() {
+                    None => {}
+                    Some(nested_arg) => match nested_arg.into_value() {
+                        NestedArgument::Object(obj) => {
+                            *inner_ty = obj.to_ty().unwrap();
+                        }
+                    }
+                });
+                match output {
+                    ReturnType::Default => {}
+                    ReturnType::Type(_, inner_ty) => {
+                        match nested_arguments.pop() {
+                            None => {}
+                            Some(nested_arg) => match nested_arg.into_value() {
+                                NestedArgument::Object(obj) => {
+                                    *inner_ty = Box::new(obj.to_ty().unwrap());
+                                }
+                            }
+                        }
+                    }
+                }
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
                 // println!("GENERIC::Args:: {}", args.to_token_stream());
@@ -631,6 +655,9 @@ impl GlobalContext {
             ObjectConversion::Type(TypeCompositionConversion::Object(ty_composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Object(self.refine_nested(ty_composition, scope))));
             }
+            ObjectConversion::Type(TypeCompositionConversion::Callback(ty_composition)) => {
+                return Some(ObjectConversion::Type(TypeCompositionConversion::Callback(self.refine_nested(ty_composition, scope))));
+            }
             ObjectConversion::Type(TypeCompositionConversion::TraitType(composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::TraitType(self.refine_nested(composition, scope))));
             },
@@ -722,35 +749,48 @@ impl GlobalContext {
 
 }
 
-
 impl RefineMut for GlobalContext {
     type Refinement = ScopeRefinement;
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.scope_register.refine_with(refined);
         let mut refined_generics = HashMap::<GenericConversion, HashSet<Option<Attribute>>>::new();
+        let mut refined_generic_constraints = HashMap::<GenericBoundComposition, HashSet<Option<Attribute>>>::new();
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
                 type_chain.inner.iter().for_each(|(_conversion, object)| {
+                    let object_attrs = object.resolve_attrs();
+                    let mut all_attrs: HashSet<Option<Attribute>> = HashSet::from_iter(object_attrs);
+                    all_attrs.extend(scope_level_attrs.clone());
+                    if all_attrs.is_empty() {
+                        all_attrs.insert(None);
+                    };
                     if let Some(ty) = object.to_ty() {
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
                             .for_each(|_ty| {
-                                let mut all_attrs = object.resolve_attrs();
-                                all_attrs.extend(scope_level_attrs.clone());
-                                if all_attrs.is_empty() {
-                                    all_attrs.push(None);
-                                }
-                                let conversion = GenericConversion::new(object.clone());
-                                refined_generics.entry(conversion)
+                                refined_generics
+                                    .entry(GenericConversion::new(object.clone()))
                                     .or_insert_with(HashSet::new)
-                                    .extend(all_attrs.into_iter());
+                                    .extend(all_attrs.clone());
+                            });
+                    }
+
+                    if let Some(TypeCompositionConversion::Bounds(bounds)) = object.type_conversion() {
+                        bounds.find_generic_constraints()
+                            .iter()
+                            .for_each(|_ty| {
+                                refined_generic_constraints
+                                    .entry(bounds.clone())
+                                    .or_insert_with(HashSet::new)
+                                    .extend(all_attrs.clone());
                             });
                     }
                 })
             });
         self.refined_generics = refined_generics;
+        self.refined_generic_constraints = refined_generic_constraints;
     }
 }
 

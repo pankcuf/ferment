@@ -95,7 +95,6 @@ pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeL
 /// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
 pub type BindingDtorComposer = BindingComposer<DestructorContext>;
-// pub type BindingSigComposer = BindingComposer<FnSignatureComposition>;
 #[allow(unused)]
 pub type FieldTypeComposer = ComposerPresenterByRef<FieldTypeConversion, FieldContext>;
 pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeConversion, OwnedItemPresentableContext>;

@@ -1,6 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Generics, Type};
+use syn::{Generics, ReturnType, Type};
+use crate::composer::CommaPunctuated;
 use crate::naming::DictionaryName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
@@ -28,6 +29,14 @@ pub enum InterfacePresentation {
         ),
         decode: TokenStream2,
         encode: TokenStream2,
+    },
+    Callback {
+        attrs: TokenStream2,
+        ffi_type: Type,
+        inputs: CommaPunctuated<TokenStream2>,
+        // output: TokenStream2,
+        output: ReturnType,
+        body: TokenStream2
     }
 }
 
@@ -82,13 +91,54 @@ impl ToTokens for InterfacePresentation {
                     }
                 }
             },
-            InterfacePresentation::VecConversion { attrs, types: (ffi_type, target_type), decode, encode } => quote! {
+            Self::VecConversion { attrs, types: (ffi_type, target_type), decode, encode } => quote! {
                 #attrs
                 impl ferment_interfaces::FFIVecConversion for #ffi_type {
                     type Value = #target_type;
                     unsafe fn decode(&self) -> Self::Value { #decode }
                     unsafe fn encode(obj: Self::Value) -> *mut Self { #encode }
                 }
+            },
+            Self::Callback { attrs, ffi_type, inputs, output, body } => {
+                // impl Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String {
+                //     pub fn get(&self) -> fn(u32, [u8; 32]) -> Option<String> {
+                //         |o_0, o_1| unsafe {
+                //             let ffi_result = (self.caller)(o_0, ferment_interfaces::FFIConversion::ffi_to(o_1));
+                //             (!ffi_result.is_null()).then(|| {
+                //                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+                //                 (self.destructor)(ffi_result);
+                //                 result
+                //             })
+                //         }
+                //     }
+                // }
+
+                quote! {
+                    #attrs
+                    impl #ffi_type {
+                        pub unsafe fn call(&self, #inputs) #output {
+                            #body
+                        }
+                    }
+                }
+                // match output {
+                //     ReturnType::Default => quote! {
+                //         #attrs
+                //         impl ferment_interfaces::FFICallback<(#inputs), ()> for #ffi_type {
+                //             unsafe fn get<T: Fn((#inputs))>(&self) -> T {
+                //                 #body
+                //             }
+                //         }
+                //     },
+                //     ReturnType::Type(_, output_ty) => quote! {
+                //         #attrs
+                //         impl ferment_interfaces::FFICallback<(#inputs), #output_ty> for #ffi_type {
+                //             unsafe fn get<T: Fn((#inputs)) -> #output_ty>(&self) -> T {
+                //                 #body
+                //             }
+                //         }
+                //     }
+                // }
             }
         }.to_tokens(tokens)
     }

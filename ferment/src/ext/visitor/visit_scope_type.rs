@@ -1,11 +1,12 @@
 use quote::ToTokens;
-use syn::{GenericArgument, parse_quote, Path, PathArguments, QSelf, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{BareFnArg, GenericArgument, parse_quote, Path, PathArguments, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::composer::CommaPunctuated;
 use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};
+// use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
@@ -13,6 +14,7 @@ pub trait ToObjectConversion {
     fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
     fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
     fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
+    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
 }
 
 impl ToObjectConversion for Type {
@@ -26,6 +28,10 @@ impl ToObjectConversion for Type {
 
     fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
+    }
+
+    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_composition(self, nested_arguments)))
     }
 
     // fn to_import(self) -> ObjectConversion {
@@ -44,6 +50,9 @@ impl ToObjectConversion for TypePath {
 
     fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
+    }
+    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+        ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_path_composition(self, nested_arguments)))
     }
 
     // fn to_import(self) -> ObjectConversion {
@@ -69,6 +78,7 @@ impl<'a> VisitScopeType<'a> for Type {
             Type::Tuple(type_tuple) => type_tuple.update_nested_generics(source),
             Type::Array(type_array) => type_array.update_nested_generics(source),
             Type::Slice(type_slice) => type_slice.update_nested_generics(source),
+            Type::BareFn(type_bare_fn) => type_bare_fn.update_nested_generics(source),
             ty => ty.clone().to_unknown(Punctuated::new())
         }
     }
@@ -238,7 +248,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 },
                 _ if first_ident.is_lambda_fn() => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                        .to_trait(nested_arguments)
+                        .to_callback(nested_arguments)
                 },
                 _ => {
                     let obj_parent_scope = obj_scope.parent_scope();
@@ -406,6 +416,22 @@ impl<'a> VisitScopeType<'a> for TypeSlice {
 
     }
 }
+impl<'a> VisitScopeType<'a> for TypeBareFn {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = ObjectConversion;
+
+    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        let mut nested = self.inputs.iter().map(|BareFnArg { ty, .. }| NestedArgument::Object(ty.update_nested_generics(source))).collect::<CommaPunctuated<_>>();
+        if let ReturnType::Type(_, ty) = &self.output {
+            nested.push(NestedArgument::Object(ty.update_nested_generics(source)))
+        }
+        println!("TypeBareFn::update_nested_generics: {} --- {}", self.to_token_stream(), nested.to_token_stream());
+        ObjectConversion::Type(
+            TypeCompositionConversion::Callback(
+                TypeComposition::new(Type::BareFn(self.clone()), None, nested)))
+    }
+}
+
 
 impl<'a> VisitScopeType<'a> for TypeTuple {
     type Source = (&'a ScopeChain, &'a GlobalContext);

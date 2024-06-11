@@ -4,6 +4,7 @@ use syn::Type;
 
 #[derive(Clone, Debug)]
 pub enum DropInterfacePresentation {
+    Empty,
     Full {
         attrs: TokenStream2,
         ty: Type,
@@ -17,7 +18,8 @@ impl ToTokens for DropInterfacePresentation {
             Self::Full { attrs, ty, body} => quote! {
                 #attrs
                 impl Drop for #ty { fn drop(&mut self) { unsafe { #body; } } }
-            }
+            },
+            Self::Empty => quote!(),
         }.to_tokens(tokens)
     }
 }

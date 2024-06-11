@@ -3,7 +3,7 @@ use syn::parse::Parse;
 use syn::{parse_quote, Path, Type};
 use syn::parse_quote::ParseQuote;
 use crate::context::ScopeContext;
-use crate::conversion::ObjectConversion;
+use crate::conversion::{ObjectConversion, TypeConversion};
 
 pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
     fn trait_ty(&self, source: &ScopeContext) -> Option<ObjectConversion> {
@@ -42,3 +42,4 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
 
 impl ResolveTrait for Path {}
 impl ResolveTrait for Type {}
+impl ResolveTrait for TypeConversion {}

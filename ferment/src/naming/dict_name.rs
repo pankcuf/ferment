@@ -20,6 +20,7 @@ pub enum DictionaryName {
     Interface,
     Ffi,
     FfiRef,
+    FFiResult,
 }
 
 impl std::fmt::Display for DictionaryName {
@@ -46,6 +47,7 @@ impl ToTokens for DictionaryName {
             DictionaryName::Ffi => quote!(ffi),
             DictionaryName::FfiRef => quote!(ffi_ref),
             DictionaryName::Vtable => quote!(vtable),
+            DictionaryName::FFiResult => quote!(ffi_result),
         }
             .to_tokens(tokens)
     }

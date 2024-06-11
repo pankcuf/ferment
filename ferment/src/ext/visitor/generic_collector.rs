@@ -5,6 +5,23 @@ use crate::ext::visitor::TypeCollector;
 use crate::helper::{path_arguments_to_types, segment_arguments_to_types};
 use crate::holder::TypeHolder;
 
+// pub trait Collector where Self: TypeCollector {
+//     fn collect(&self) -> HashSet<TypeHolder> {
+//         let compositions = self.collect_compositions();
+//         //println!("find_generics: {}", format_type_holders(&HashSet::from_iter(compositions.clone().into_iter())));
+//         // collect all types with generics and ensure their uniqueness
+//         // since we don't want to implement interface multiple times for same object
+//         let mut generics: HashSet<TypeHolder> = HashSet::new();
+//         compositions
+//             .iter()
+//             .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
+//         generics
+//     }
+//     fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
+//         generics.extend(self.find_generics());
+//     }
+//
+// }
 
 pub trait GenericCollector where Self: TypeCollector {
     fn find_generics(&self) -> HashSet<TypeHolder> {

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::composer::AddPunctuated;
 use crate::composition::{TraitDecompositionPart1, TypeComposition};
@@ -103,7 +103,12 @@ impl VisitScope for Item {
             }
             Item::Trait(item_trait) => add_full_qualified_trait(visitor, item_trait, scope),
             Item::Type(item_type) => {
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone())));
+                let self_object = match &*item_type.ty {
+                    Type::BareFn(..) =>
+                        ObjectConversion::new_item(TypeCompositionConversion::Callback(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()))),
+                    _ => ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone())))
+                };
+                // println!("ADDD TYPE: {}", self_object);
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_type.ident, self_object);
                 visitor.add_generic_chain(scope, &item_type.generics);

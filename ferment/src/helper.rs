@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use quote::{quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, parse_quote, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeTuple, Variant, WherePredicate};
+use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeTuple, Variant};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use crate::composer::{AddPunctuated, CommaPunctuated};
-use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument, TypeComposition};
+use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
 use crate::ext::VisitScopeType;
 use crate::holder::PathHolder;
@@ -15,7 +15,7 @@ pub trait ItemExtension {
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
     fn maybe_ident(&self) -> Option<&Ident>;
     fn ident_string(&self) -> String {
-        self.maybe_ident().map_or(format!("(None)"), Ident::to_string)
+        self.maybe_ident().map_or("(None)".to_string(), Ident::to_string)
     }
     fn maybe_generics(&self) -> Option<&Generics>;
 
@@ -157,79 +157,18 @@ impl ItemExtension for Item {
 }
 
 
-fn generic_trait_bounds(ty: &Path, ident_path: &TypePath, bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
-    // println!("generic_trait_bounds.1: {} :: {} :: {}", format_token_stream(ty), format_token_stream(ident_path), format_token_stream(bounds));
-    let mut has_bound = false;
-    let involved = bounds.iter().filter_map(|b| {
-        // println!("generic_trait_bounds.2: {}", quote!(#b));
-        match b {
-            TypeParamBound::Trait(TraitBound { path, .. }) => {
-                //println!("generic_trait_bounds: [{}] {} == {} {}", ident_path.eq(ty), format_token_stream(ty), format_token_stream(path), format_token_stream(bounds));
-                let has = ident_path.path.eq(ty);
-                if !has_bound && has {
-                    has_bound = true;
-                }
-                has
-                    .then(|| path.clone())
-            },
-            TypeParamBound::Lifetime(_) => None
-        }
-    }).collect::<Vec<_>>();
-    // if !involved.is_empty() {
-        // println!("generic_trait_bounds.3: (result) {}", format_path_vec(&involved));
-    // }
-    involved
-}
 
 fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
     // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
-    let result = generics.params.iter().find_map(|param| {
-        if let GenericParam::Type(type_param) = param {
-            let ty: Type = parse_quote!(#path);
-            // let ty = path.to_type();
-            let ident = &type_param.ident;
-            // println!("maybe_generic_type_bound.2: {}", ident.to_token_stream());
-            let segment = PathSegment::from(ident.clone());
-            // let ident_path = ;
-            let ident_type_path = TypePath { qself: None, path: Path::from(segment) };
-            // let ident_path = seg.to_path();
-            let has_bounds = ident_type_path.path.eq(path);
-            let bounds = generic_trait_bounds(path, &ident_type_path, &type_param.bounds);
-            // println!("maybe_generic_type_bound.2: [{}: {}] --> [{}]", has_bounds, quote!(#type_param), format_path_vec(&bounds));
-            // println!("maybe_generic_type_bound: (bounds) {} ", format_path_vec(&bounds));
-            has_bounds
-                .then(|| GenericBoundComposition {
-                    bounds,
-                    predicates: generics.where_clause
-                        .as_ref()
-                        .map(|where_clause|
-                            where_clause.predicates
-                                .iter()
-                                .filter_map(|predicate| match predicate {
-                                    WherePredicate::Type(predicate_type) => {
-                                        // println!("maybe_generic_type_bound:::predicate: [{}] {} ::: {}", ty.eq(&predicate_type.bounded_ty), format_token_stream(predicate_type), format_token_stream(path));
-                                        let bounded_ty = &predicate_type.bounded_ty;
-                                        // println!("---- {:?}" , bounded_ty);
-                                        let ident_path = parse_quote!(#bounded_ty);
-                                        ty.eq(&predicate_type.bounded_ty)
-                                            .then(||(
-                                                predicate_type.bounded_ty.clone(),
-                                                {
-                                                    let bounds = generic_trait_bounds(&path, &ident_path, &predicate_type.bounds);
-                                                    // println!("maybe_generic_type_bound.3.... {}: {}: [{}]", format_token_stream(&ident_path), format_token_stream(&predicate_type.bounded_ty), format_path_vec(&bounds));
-                                                    bounds
-                                                }))
-                                    },
-                                    _ => None })
-                                .collect())
-                        .unwrap_or_default(),
-                    // TODO: it can have NestedArguments
-                    type_composition: TypeComposition::new_non_gen(ty, Some(generics.clone())),
-                })
-        } else { None }
-    });
-    // println!("maybe_generic_type_bound (result): {}", result.as_ref().map_or(format!("None"), |r| r.to_string()));
-    result
+    path.segments.last()
+        .and_then(|last_segment|
+            generics.params.iter()
+                .find_map(|param| match param {
+                    GenericParam::Type(type_param) =>
+                        last_segment.ident.eq(&type_param.ident)
+                            .then(|| GenericBoundComposition::new(path, type_param, generics)),
+                    _ => None
+                }))
 }
 
 pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
@@ -277,11 +216,24 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
 }
 pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuated<NestedArgument> {
     match arguments {
-        PathArguments::Parenthesized(_) |
         PathArguments::None => Punctuated::new(),
+        PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+            let mut nested = CommaPunctuated::new();
+            inputs.iter().for_each(|arg| {
+                nested.push(NestedArgument::Object(arg.update_nested_generics(source)));
+            });
+            match output {
+                ReturnType::Default => {}
+                ReturnType::Type(_, ty) => {
+                    nested.push(NestedArgument::Object(ty.update_nested_generics(source)));
+                }
+            }
+            nested
+        },
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
             args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(inner_type) => Some(NestedArgument::Object(inner_type.update_nested_generics(source))),
+                GenericArgument::Type(inner_type) =>
+                    Some(NestedArgument::Object(inner_type.update_nested_generics(source))),
                 _ => None
             }
             ).collect()

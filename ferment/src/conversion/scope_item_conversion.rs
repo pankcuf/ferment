@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature};
+use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature, Type};
 use syn::__private::TokenStream2;
 use crate::composition::{CfgAttributes, ImportComposition, TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ImportConversion, TypeCompositionConversion};
@@ -105,10 +105,13 @@ impl ScopeItemConversion {
                         TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits))),
                 Item::Enum(..) |
                 Item::Struct(..) |
-                Item::Type(..) |
                 Item::Fn(..) |
                 Item::Impl(..) =>
                     Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
+                Item::Type(ty) => match &*ty.ty {
+                    Type::BareFn(..) => Some(TypeCompositionConversion::Callback(ty_to_replace.clone())),
+                    _ => Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
+                },
                 _ => None
             }
             ScopeItemConversion::Fn(_) => None

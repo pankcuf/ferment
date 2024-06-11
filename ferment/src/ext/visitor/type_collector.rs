@@ -1,4 +1,5 @@
-use syn::{Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
+use syn::{Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
+use crate::composition::GenericBoundComposition;
 use crate::conversion::{MacroAttributes, ScopeItemConversion};
 use crate::ext::NestingExtension;
 use crate::helper::handle_attributes_with_handler;
@@ -6,6 +7,23 @@ use crate::holder::TypeHolder;
 
 pub trait TypeCollector {
     fn collect_compositions(&self) -> Vec<TypeHolder>;
+}
+impl TypeCollector for GenericBoundComposition {
+    fn collect_compositions(&self) -> Vec<TypeHolder> {
+        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
+        // let mut cache_type = |ty: &Type|
+        //     type_and_paths.push(TypeHolder(ty.clone()));
+        // self.bounds.iter().for_each(|bound| {
+        //
+        // });
+        self.predicates.iter().for_each(|(_ty, bounds)| {
+            bounds.iter().for_each(|bound| {
+                type_and_paths.push(TypeHolder(parse_quote!(#bound)))
+            });
+        });
+
+        type_and_paths
+    }
 }
 
 impl TypeCollector for Item {
@@ -116,3 +134,4 @@ impl TypeCollector for ScopeItemConversion {
         }
     }
 }
+

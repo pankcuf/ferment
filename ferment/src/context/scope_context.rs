@@ -69,6 +69,11 @@ impl ScopeContext {
         lock.custom.maybe_conversion(ty)
     }
 
+    pub fn maybe_object(&self, ty: &Type) -> Option<ObjectConversion> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_type(ty, &self.scope).cloned()
+    }
+
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         // println!("full_type_for: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
