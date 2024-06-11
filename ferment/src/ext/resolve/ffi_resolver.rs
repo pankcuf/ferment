@@ -28,7 +28,7 @@ pub trait FFITypeResolve {
 
 impl FFITypeResolve for Type where Self: FFIResolve {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Self {
-        // println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
+        println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
         source.maybe_custom_conversion(self)
             .unwrap_or(self.ffi_resolve_or_same(source))
     }

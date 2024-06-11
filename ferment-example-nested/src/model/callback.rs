@@ -1,3 +1,5 @@
+
+
 // Primitive Return (no destructor)
 // #[ferment_macro::export]
 // pub type GetBlockHeight = fn(block_hash: [u8; 32]) -> u32;
@@ -73,10 +75,29 @@
 // }
 #[ferment_macro::export]
 pub fn find_current_block_desc<T: Fn(u32, [u8; 32]) -> Option<String>>(_callback: T) {
-    println!("find_current_block_desc");
+    println!("find_current_block_desc: ");
+}
+#[ferment_macro::export]
+pub fn find_current_block_desc_mut<T: FnMut(u32, [u8; 32]) -> Option<String>>(_callback: T) {
+    println!("find_current_block_desc_mut: ");
 }
 
-//// Sample for callbacks
+#[ferment_macro::export]
+pub fn lookup_block_hash_by_height<T: Fn(u32) -> Option<[u8; 32]>>(_callback: T) {
+    println!("lookup_block_hash_by_height:");
+}
+#[ferment_macro::export]
+pub fn lookup_merkle_root_by_hash<T: Fn([u8; 32]) -> Option<[u8; 32]>>(_callback: T) {
+    println!("lookup_merkle_root_by_hash:");
+}
+
+
+// #[ferment_macro::export]
+// pub fn find_current_block_desc_2<T>(_callback: CallbackExample1<T>) {
+//     println!("find_current_block_desc");
+// }
+
+///// Sample for callbacks
 // pub unsafe extern "C" fn ferment_example_nested_model_callback_find_current_block_desc(_callback: *mut Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String) {
 //     let obj = find_current_block_desc(|o_0, o_1| unsafe { (&*_callback).call(o_0, o_1) });
 //     obj
@@ -92,44 +113,16 @@ pub fn find_current_block_desc<T: Fn(u32, [u8; 32]) -> Option<String>>(_callback
 // impl Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String {
 //     pub unsafe fn call(&self, o_0: u32, o_1: [u8;32]) -> Option<String> {
 //         let ffi_result = (self.caller)(o_0, ferment_interfaces::FFIConversion::ffi_to(o_1));
-//         (!ffi_result.is_null()).then(|| {
-//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//         if ffi_result.is_null() {
+//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from_opt(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
-//         })
-//
+//         } else {
+//             None
+//         }
 //     }
 // }
 
-// impl Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String {
-//     pub fn get(&self) -> fn(u32, [u8; 32]) -> Option<String> {
-//         |o_0, o_1| unsafe {
-//             // let callback = &*_callback;
-//             let ffi_result = (self.caller)(o_0, ferment_interfaces::FFIConversion::ffi_to(o_1));
-//             (!ffi_result.is_null()).then(|| {
-//                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
-//                 (self.destructor)(ffi_result);
-//                 result
-//             })
-//         }
-//     }
-// }
-// impl ferment_interfaces::FFICallback<(u32, [u8; 32]), Option<String>> for Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String {
-//     unsafe fn get<T>(&self) -> T where T: Fn((u32, [u8; 32])) -> Option<String> {
-//         let caller = self.caller;
-//         let destructor = self.destructor;
-//         |(o_0, o_1): (u32, [u8; 32])| -> Option<String> {
-//             unsafe {
-//                 let ffi_result = caller(o_0, ferment_interfaces::FFIConversion::ffi_to(o_1));
-//                 (!ffi_result.is_null()).then(|| {
-//                     let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
-//                     destructor(ffi_result);
-//                     result
-//                 })
-//             }
-//         }
-//     }
-// }
 
 // fn find_current_block_desc2(callback: Box<dyn Fn((u32, [u8; 32])) -> Option<String>>) {
 //     let _result = callback((1, [0u8; 32]));

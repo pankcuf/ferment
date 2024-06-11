@@ -200,14 +200,12 @@ impl SourceExpandable for SigComposer {
                                 ReturnType::Type(token.clone(), Box::new(source.full_type_for(field_type))),
                                 ReturnType::Type(token.clone(), Box::new(field_type.ffi_full_dictionary_type_presenter(&source))),
                                 match TypeConversion::from(field_type) {
-                                    // TypeConversion::Callback(_) => unimplemented!("TODO: callback inside callback"),
                                     TypeConversion::Primitive(_) => from_primitive_result(),
                                     TypeConversion::Complex(_) =>  from_complex_result(),
                                     TypeConversion::Generic(generic_ty) => match generic_ty {
                                         GenericTypeConversion::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                                         GenericTypeConversion::Optional(ty) => {
                                             opt_conversion(match TypeConversion::from(ty) {
-                                                // TypeConversion::Callback(_) => unimplemented!("TODO: optional callback inside callback"),
                                                 TypeConversion::Primitive(_) => from_opt_primitive_result(),
                                                 TypeConversion::Complex(_) |
                                                 TypeConversion::Generic(_) => from_complex_result(),

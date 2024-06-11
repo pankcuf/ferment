@@ -299,11 +299,9 @@ impl GenericTypeConversion {
                     }
                     TypeConversion::Generic(generic_arg_ty) => {
                         let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
-                            println!("RESULT OPT ARG: {}", generic_arg_ty);
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => match TypeConversion::from(ty) {
-                                    // TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
                                     TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.to_custom_or_ffi_type(&source)),
                                     TypeConversion::Generic(nested_nested) => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), nested_nested.to_custom_or_ffi_type(&source)),
                                     _ => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), ty.to_custom_or_ffi_type(&source)),
@@ -401,7 +399,6 @@ impl GenericTypeConversion {
                             arg_composer.destroy(arg_args(arg_name).to_token_stream())
                         )
                     },
-                    // TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream())
                 };
 
                 let nested_types = ty.nested_types();
@@ -480,8 +477,6 @@ impl GenericTypeConversion {
                                 .to_token_stream()));
 
                 let arg_0_presentation = match TypeConversion::from(&type_slice.elem) {
-                    // TypeConversion::Callback(arg_0_target_ty) =>
-                    //     unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
                     TypeConversion::Primitive(arg_0_target_path) => {
                         GenericArgPresentation::new(
                             arg_0_target_path.clone(),
@@ -706,29 +701,66 @@ impl GenericTypeConversion {
                 let PathSegment { arguments, ..} = type_path.path.segments.last().unwrap();
                 let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
                 let ffi_result = DictionaryName::FFiResult;
-                let opt_conversion = |conversion: TokenStream2| quote!((!ffi_result.is_null()).then(|| { #conversion }));
+                // let opt_conversion = |conversion: TokenStream2| quote!((!ffi_result.is_null()).then(|| { #conversion }));
+                let opt_conversion = |conversion: TokenStream2| quote! {
+                    if ffi_result.is_null() {
+                        None
+                    } else {
+                        #conversion
+                    }
+                };
                 let from_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
                     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
                     (self.destructor)(#ffi_result);
+                    Some(result)
+                };
+                let from_opt_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
+                    let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from_opt(#ffi_result);
+                    (self.destructor)(#ffi_result);
                     result
                 };
+                // let from_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
+                //     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
+                //     (self.destructor)(#ffi_result);
+                //     result
+                // };
+                // let from_opt_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
+                //     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
+                //     (self.destructor)(#ffi_result);
+                //     result
+                // };
                 let from_primitive_result = || quote!(ffi_result);
                 let from_opt_primitive_result = || DictionaryExpr::Deref(ffi_result.to_token_stream()).to_token_stream();
                 let (return_type, ffi_return_type, post_processing) = match output {
                     ReturnType::Type(token, field_type) => {
                         let full_ty = source.full_type_for(&field_type);
-                        let ffi_ty = field_type.to_custom_or_ffi_type(&source);
-                        let conversion = match TypeConversion::from(&full_ty) {
-                            TypeConversion::Primitive(_) => from_primitive_result(),
-                            TypeConversion::Complex(ty) =>  from_complex_result(&ty, &ffi_ty),
+                        let (ffi_ty, conversion) = match TypeConversion::from(&full_ty) {
+                            TypeConversion::Primitive(_) => (full_ty.clone(), from_primitive_result()),
+                            TypeConversion::Complex(ty) => {
+                                let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                let conversion = from_complex_result(&ty, &ffi_ty);
+                                (ffi_ty, conversion)
+                            },
                             TypeConversion::Generic(generic_ty) => match generic_ty {
+                                GenericTypeConversion::Optional(ty) => match TypeConversion::from(ty) {
+                                    TypeConversion::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
+                                    TypeConversion::Complex(ty) => {
+                                        let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                        let conversion = opt_conversion(from_opt_complex_result(&ty, &ffi_ty));
+                                        (ffi_ty.joined_mut(), conversion)
+                                    },
+                                    TypeConversion::Generic(ty) => {
+                                        let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                        let conversion = from_opt_complex_result(ty.ty().unwrap(), &ffi_ty);
+                                        (ffi_ty, conversion)
+                                    },
+                                },
                                 GenericTypeConversion::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
-                                GenericTypeConversion::Optional(ty) => opt_conversion(match TypeConversion::from(ty) {
-                                    TypeConversion::Primitive(_) => from_opt_primitive_result(),
-                                    TypeConversion::Complex(ty) => from_complex_result(&ty, &ffi_ty),
-                                    TypeConversion::Generic(ty) => from_complex_result(ty.ty().unwrap(), &ffi_ty),
-                                }),
-                                _ => from_complex_result(generic_ty.ty().unwrap(), &ffi_ty)
+                                _ => {
+                                    let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                    let conversion = from_complex_result(generic_ty.ty().unwrap(), &ffi_ty);
+                                    (ffi_ty, conversion)
+                                }
                             }
                         };
                         (
@@ -756,7 +788,18 @@ impl GenericTypeConversion {
                         ffi_args.push(match &conversion {
                             TypeConversion::Primitive(ty) => ty.clone(),
                             TypeConversion::Complex(ty) => ty.to_custom_or_ffi_type_mut_ptr(&source),
-                            TypeConversion::Generic(generic_ty) => generic_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            TypeConversion::Generic(generic_arg_ty) => if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                                match generic_arg_ty.ty() {
+                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                    Some(ty) => match TypeConversion::from(ty) {
+                                        TypeConversion::Primitive(_) => ty.to_custom_or_ffi_type(&source),
+                                        TypeConversion::Generic(nested_nested) => nested_nested.to_custom_or_ffi_type(&source),
+                                        _ => ty.to_custom_or_ffi_type(&source),
+                                    }
+                                }
+                            } else {
+                                generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source)
+                            },
                         }.to_token_stream());
                         arg_to_conversions.push(match &conversion {
                             TypeConversion::Primitive(..) => name.to_token_stream(),
