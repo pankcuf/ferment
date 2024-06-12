@@ -719,21 +719,12 @@ impl GenericTypeConversion {
                     (self.destructor)(#ffi_result);
                     result
                 };
-                // let from_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
-                //     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
-                //     (self.destructor)(#ffi_result);
-                //     result
-                // };
-                // let from_opt_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
-                //     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
-                //     (self.destructor)(#ffi_result);
-                //     result
-                // };
                 let from_primitive_result = || quote!(ffi_result);
                 let from_opt_primitive_result = || DictionaryExpr::Deref(ffi_result.to_token_stream()).to_token_stream();
                 let (return_type, ffi_return_type, post_processing) = match output {
                     ReturnType::Type(token, field_type) => {
                         let full_ty = source.full_type_for(&field_type);
+                        println!("DDDDD: {}", full_ty.to_token_stream());
                         let (ffi_ty, conversion) = match TypeConversion::from(&full_ty) {
                             TypeConversion::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                             TypeConversion::Complex(ty) => {
@@ -757,8 +748,14 @@ impl GenericTypeConversion {
                                 },
                                 GenericTypeConversion::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                                 _ => {
-                                    let ffi_ty = ty.to_custom_or_ffi_type(&source);
-                                    let conversion = from_complex_result(generic_ty.ty().unwrap(), &ffi_ty);
+                                    let ffi_ty = full_ty.to_custom_or_ffi_type(&source);
+                                    // let conversion = from_complex_result(generic_ty.ty().unwrap(), &ffi_ty);
+                                    let ty = generic_ty.ty().unwrap();
+                                    let conversion = quote! {
+                                        let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
+                                        (self.destructor)(#ffi_result);
+                                        result
+                                    };
                                     (ffi_ty, conversion)
                                 }
                             }

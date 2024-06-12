@@ -1,4 +1,4 @@
-use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type, TypePath, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, Type, TypePath, TypeTuple};
 use crate::composer::CommaPunctuated;
 use crate::composition::NestedArgument;
 use crate::context::ScopeChain;
@@ -71,6 +71,15 @@ impl RefineMut for PathArguments {
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         let mut refinement = refined.clone();
+        let mut refine = |inner_ty: &mut Type| match refinement.pop() {
+            None => {}
+            Some(nested_arg) => match nested_arg.into_value() {
+                NestedArgument::Object(obj) => {
+                    *inner_ty = obj.to_ty().unwrap();
+                }
+            }
+        };
+
         match self {
             PathArguments::None => {}
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
@@ -79,14 +88,7 @@ impl RefineMut for PathArguments {
                     .for_each(|arg| {
                         match arg {
                             GenericArgument::Type(inner_ty) => {
-                                match refinement.pop() {
-                                    None => {}
-                                    Some(nested_arg) => match nested_arg.into_value() {
-                                        NestedArgument::Object(obj) => {
-                                            *inner_ty = obj.to_ty().unwrap();
-                                        }
-                                    }
-                                }
+                                refine(inner_ty)
                             }
                             GenericArgument::Lifetime(_) => {}
                             GenericArgument::Const(_) => {}
@@ -95,7 +97,15 @@ impl RefineMut for PathArguments {
                         }
                     });
             }
-            PathArguments::Parenthesized(_) => {}
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+                match output {
+                    ReturnType::Default => {}
+                    ReturnType::Type(_, inner_ty) => refine(inner_ty)
+                }
+                inputs.iter_mut()
+                    .rev()
+                    .for_each(|inner_ty| refine(inner_ty))
+            }
         }
     }
 }

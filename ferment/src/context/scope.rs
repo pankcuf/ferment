@@ -1,8 +1,7 @@
-use syn::{Item, Path};
+use syn::{Generics, Item, Path, TypeParam};
 use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use crate::composition::GenericBoundComposition;
 use crate::conversion::ObjectConversion;
 use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
@@ -54,7 +53,7 @@ impl Scope {
         Scope::new(child_self_scope, object)
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
+    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
         // println!("Scope::maybe_generic_bound_for_path: {} in [{}]", format_token_stream(path), self);
         match &self.object {
             ObjectConversion::Item(_, item) => item.maybe_generic_bound_for_path(path),

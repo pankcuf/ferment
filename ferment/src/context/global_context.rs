@@ -676,8 +676,9 @@ impl GlobalContext {
                 let nested_refined = self.refine_nested(ty_composition, scope);
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Optional(nested_refined)));
             },
-            ObjectConversion::Type(TypeCompositionConversion::Bounds(_composition)) => {
-                // TODO::
+            ObjectConversion::Type(TypeCompositionConversion::Bounds(composition)) => {
+                let nested_refined = self.refine_nested_bounds(composition, scope);
+                return Some(ObjectConversion::Type(TypeCompositionConversion::Bounds(nested_refined)));
             },
             ObjectConversion::Type(TypeCompositionConversion::Fn(_composition)) => {
                 // TODO::
@@ -685,6 +686,37 @@ impl GlobalContext {
             _ => {}
         }
         None
+    }
+    fn refine_nested_bounds(&self, composition: &GenericBoundComposition, scope: &ScopeChain) -> GenericBoundComposition {
+        let mut new_bounds_composition = composition.clone();
+        println!("refine_nested_bounds.1: {}", composition);
+
+
+
+        new_bounds_composition.bounds.iter_mut().for_each(|arg| {
+            if let Some(refined) = self.maybe_refined_object(scope, arg) {
+                *arg = refined;
+            }
+            // match arg {
+            //     ObjectConversion::Type(ty) => {}
+            //     ObjectConversion::Item(ty, _) =>
+            //     ObjectConversion::Empty => {}
+            // }
+            //
+            // self.maybe_refine_args(arg.segments.last_mut().unwrap(), &mut new_bounds_composition.nested_arguments, scope);
+            // match &last_segment.arguments {
+            //     PathArguments::None => {}
+            //     PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+            //         {}
+            //     },
+            //     PathArguments::Parenthesized(ParenthesizedGenericArguments { output, inputs, .. }) => {
+            //         // output
+            //     }
+            // }
+            // self.maybe_refine_args(last_segment, , scope);
+        });
+        println!("refine_nested_bounds.2: {}", new_bounds_composition);
+        new_bounds_composition
     }
     fn refine_nested(&self, composition: &TypeComposition, scope: &ScopeChain) -> TypeComposition {
         let mut new_ty_composition = composition.clone();

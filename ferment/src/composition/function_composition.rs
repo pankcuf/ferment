@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Formatter};
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::{BareFnArg, FnArg, Generics, ItemFn, ParenthesizedGenericArguments, parse_quote, Pat, PathArguments, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
+use syn::{BareFnArg, FnArg, Generics, ItemFn, ParenthesizedGenericArguments, parse_quote, Pat, PathArguments, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
 use quote::{quote, ToTokens};
 use syn::token::RArrow;
 use crate::composer::{CommaPunctuated, Composer, Depunctuated};
 use crate::composition::CfgAttributes;
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Conversion, DictionaryType, FFIResolveExtended, FFITypeResolve, Mangle, Resolve};
+use crate::ext::{Conversion, FFIResolveExtended, FFITypeResolve, Mangle, Resolve};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryName, Name};
 use crate::presentation::context::{FieldContext, OwnedItemPresentableContext};
@@ -226,20 +226,16 @@ impl<'a> Composer<'a> for PatType {
                             0 => FieldContext::Simple(quote!(#ident)),
                             1 => {
                                 println!("TypeCompositionConversion::Bounds:::: {}", bounds);
-
-                                let first = bounds.bounds.first().unwrap();
-                                let PathSegment { arguments, ident: last_ident, ..} = &first.segments.last().unwrap();
-                                if last_ident.is_lambda_fn() {
-                                    let ParenthesizedGenericArguments { inputs, .. } = parse_quote!(#arguments);
+                                if let Some(ParenthesizedGenericArguments { inputs, .. }) = bounds.maybe_bound_is_callback(bounds.bounds.first().unwrap()) {
                                     let lambda_args = inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)).collect::<CommaPunctuated<_>>();
-
                                     FieldContext::Simple(quote!(|#lambda_args| unsafe { (&*#ident).call(#lambda_args) }))
                                 } else {
                                     FieldContext::From(FieldContext::Simple(quote!(#ident)).into())
                                 }
                             }
                             _ => {
-                                unimplemented!("Complex Mixin")
+                                unimplemented!("Mixin as fn arg...")
+                                // FieldContext::From(FieldContext::Simple(quote!(#ident)).into())
                             }
                         }
 

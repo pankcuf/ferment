@@ -3,8 +3,8 @@ use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Attribute, parse_quote, Path, Type};
-use crate::composition::{CfgAttributes, GenericBoundComposition, TypeComposition};
+use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
+use crate::composition::{CfgAttributes, TypeComposition};
 use crate::context::GlobalContext;
 use crate::context::scope::Scope;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
@@ -277,7 +277,7 @@ impl ScopeChain {
         })
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
+    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
         match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,

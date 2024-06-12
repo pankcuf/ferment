@@ -34,6 +34,9 @@
 // #[ferment_macro::export]
 // pub type CallbackExample4 = fn(chain_id: u32, chain_name: String) -> Option<String>;
 
+// use std::ffi::c_void;
+use ferment_example::errors::protocol_error::ProtocolError;
+
 ///////////
 // #[ferment_macro::export]
 // pub fn add_block_height_callback(index: u32, _callback: GetBlockHeight) {
@@ -90,7 +93,27 @@ pub fn lookup_block_hash_by_height<T: Fn(u32) -> Option<[u8; 32]>>(_callback: T)
 pub fn lookup_merkle_root_by_hash<T: Fn([u8; 32]) -> Option<[u8; 32]>>(_callback: T) {
     println!("lookup_merkle_root_by_hash:");
 }
+// pub type ShouldProcessDiffWithRange = unsafe extern "C" fn(
+//     base_block_hash: *mut [u8; 32],
+//     block_hash: *mut [u8; 32],
+//     context: *const c_void,
+// ) -> ProcessingError;
 
+// #[ferment_macro::export]
+// pub fn should_process_diff_in_range<T: Fn([u8; 32], [u8; 32]) -> Result<bool, ProtocolError>>(_callback: T) {
+//     println!("should_process_diff_in_range:");
+// }
+#[ferment_macro::export]
+pub fn should_process_diff_in_range2<T: Fn([u8; 32], [u8; 32]) -> Result<u32, ProtocolError>>(_callback: T) {
+    println!("should_process_diff_in_range:");
+}
+
+#[ferment_macro::export]
+pub fn setup_two_callbacks<
+    T: Fn([u8; 32], [u8; 32]) -> Result<u32, ProtocolError>,
+    U: Fn(u32) -> Result<u32, ProtocolError>>(_callback1: T, _callback2: U) {
+    println!("should_process_diff_in_range:");
+}
 
 // #[ferment_macro::export]
 // pub fn find_current_block_desc_2<T>(_callback: CallbackExample1<T>) {

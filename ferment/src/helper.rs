@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use quote::{quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParamBound, TypePath, TypeTuple, Variant};
+use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypeTuple, Variant};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use crate::composer::{AddPunctuated, CommaPunctuated};
-use crate::composition::{GenericBoundComposition, ImportComposition, NestedArgument};
+use crate::composition::{ImportComposition, NestedArgument};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
 use crate::ext::VisitScopeType;
 use crate::holder::PathHolder;
@@ -22,10 +22,16 @@ pub trait ItemExtension {
     fn classify_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>>;
 
 
-    fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
+    fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
         self.maybe_generics()
-            .and_then(|generics| maybe_generic_type_bound(path, generics))
+            .and_then(|generics|
+                maybe_generic_type_bound(path, generics)
+                    .map(|bound| (generics.clone(), bound.clone())))
     }
+    // fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
+    //     self.maybe_generics()
+    //         .and_then(|generics| maybe_generic_type_bound(path, generics))
+    // }
 
     fn get_used_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>> {
         self.classify_imports(imports)
@@ -158,7 +164,7 @@ impl ItemExtension for Item {
 
 
 
-fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
+fn maybe_generic_type_bound<'a>(path: &'a Path, generics: &'a Generics) -> Option<&'a TypeParam> {
     // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
     path.segments.last()
         .and_then(|last_segment|
@@ -166,10 +172,24 @@ fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericB
                 .find_map(|param| match param {
                     GenericParam::Type(type_param) =>
                         last_segment.ident.eq(&type_param.ident)
-                            .then(|| GenericBoundComposition::new(path, type_param, generics)),
+                            .then(|| type_param),
                     _ => None
                 }))
+    // TODO: where
 }
+// fn maybe_generic_type_bound(path: &Path, generics: &Generics) -> Option<GenericBoundComposition> {
+//     // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
+//     path.segments.last()
+//         .and_then(|last_segment|
+//             generics.params.iter()
+//                 .find_map(|param| match param {
+//                     GenericParam::Type(type_param) =>
+//                         last_segment.ident.eq(&type_param.ident)
+//                             .then(|| GenericBoundComposition::new(path, type_param, generics)),
+//                     _ => None
+//                 }))
+//     // TODO: where
+// }
 
 pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
     match &segment.arguments {

@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use quote::ToTokens;
-use syn::{Path, PredicateType, TraitBound, Type, TypeParamBound, WherePredicate};
+use syn::{PredicateType, TraitBound, Type, TypeParamBound, WherePredicate};
 use crate::context::ScopeChain;
 use crate::ext::ToType;
 use crate::visitor::Visitor;
@@ -31,12 +31,12 @@ impl ScopeExtension for WherePredicate {
     fn add(&self, visitor: &mut Visitor, scope: &ScopeChain) {
         match self {
             WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
-                let mut de_bounds: Vec<Path> =  vec![];
+                // let mut de_bounds: Vec<Path> =  vec![];
                 bounds.iter().for_each(|bound| {
                     match bound {
                         TypeParamBound::Trait(TraitBound { path, .. }) => {
                             let ty = path.to_type();
-                            de_bounds.push(path.clone());
+                            // de_bounds.push(path.clone());
                             visitor.add_full_qualified_type_match(scope, &ty);
                         },
                         TypeParamBound::Lifetime(_lifetime) => {}

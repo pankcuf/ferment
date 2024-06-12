@@ -1,8 +1,8 @@
 use quote::ToTokens;
-use syn::{BareFnArg, GenericArgument, parse_quote, Path, PathArguments, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::composer::CommaPunctuated;
-use crate::composition::{NestedArgument, QSelfComposition, TypeComposition};
+use crate::composer::{AddPunctuated, CommaPunctuated};
+use crate::composition::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};
@@ -101,18 +101,36 @@ impl<'a> VisitScopeType<'a> for Path {
         let mut segments = self.segments.clone();
         let mut nested_arguments = Punctuated::new();
         for segment in &mut segments {
-            if let PathArguments::AngleBracketed(angle_bracketed_generic_arguments) = &mut segment.arguments {
-                for arg in &mut angle_bracketed_generic_arguments.args {
-                    // println!("PAth: update_nested_generics.2222 {}", arg.to_token_stream());
-                    match arg {
-                        GenericArgument::Type(inner_type) => {
-                            let obj_conversion = inner_type.update_nested_generics(&(scope, context));
-                            let ty = obj_conversion.to_ty().unwrap();
-                            //println!("nested object::::: {}", obj_conversion);
-                            nested_arguments.push(NestedArgument::Object(obj_conversion));
-                            *arg = GenericArgument::Type(ty)
-                        },
-                        _ => {}
+            match &mut segment.arguments {
+                PathArguments::None => {}
+                PathArguments::AngleBracketed(angle_bracketed_generic_arguments) => {
+                    for arg in &mut angle_bracketed_generic_arguments.args {
+                        // println!("PAth: update_nested_generics.2222 {}", arg.to_token_stream());
+                        match arg {
+                            GenericArgument::Type(inner_type) => {
+                                let obj_conversion = inner_type.update_nested_generics(&(scope, context));
+                                let ty = obj_conversion.to_ty().unwrap();
+                                //println!("nested object::::: {}", obj_conversion);
+                                nested_arguments.push(NestedArgument::Object(obj_conversion));
+                                *arg = GenericArgument::Type(ty);
+                            },
+                            _ => {}
+                        }
+                    }
+                }
+                PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
+                    // println!("Path::Parenthesized::update_nested_generics: {} --- {}", inputs.to_token_stream(), output.to_token_stream());
+                    for arg in inputs {
+                        let obj_conversion = arg.update_nested_generics(&(scope, context));
+                        let ty = obj_conversion.to_ty().unwrap();
+                        nested_arguments.push(NestedArgument::Object(obj_conversion));
+                        *arg = ty;
+                    }
+                    if let ReturnType::Type(_, ret) = output {
+                        let obj_conversion = ret.update_nested_generics(&(scope, context));
+                        let ty = obj_conversion.to_ty().unwrap();
+                        nested_arguments.push(NestedArgument::Object(obj_conversion));
+                        *ret = Box::new(ty);
                     }
                 }
             }
@@ -129,9 +147,56 @@ impl<'a> VisitScopeType<'a> for Path {
         if let Some(dict_type_composition) = scope.maybe_dictionary_type(&nested_import_seg, context) {
             nprint!(1, crate::formatter::Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
             ObjectConversion::Type(dict_type_composition)
-        } else if let Some(bounds_composition) = scope.maybe_generic_bound_for_path(&import_seg.0) {
+        } else if let Some((generics, bound)) = scope.maybe_generic_bound_for_path(&import_seg.0) {
             nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
-            ObjectConversion::Type(TypeCompositionConversion::Bounds(bounds_composition))
+            // let nested_arguments = CommaPunctuated::from_iter(bound.bounds.iter().filter_map(|bound| match bound {
+            //     TypeParamBound::Trait(TraitBound { path, .. }) =>
+            //         Some(NestedArgument::Object(path.update_nested_generics(source))),
+            //     TypeParamBound::Lifetime(_) => None,
+            // }));
+            println!("YES: maybe_generic_bound_for_path: {}, generics: {}, nested: {}", bound.to_token_stream(), generics.to_token_stream(), nested_arguments.to_token_stream());
+            let path = &import_seg.0;
+            let ty: Type = parse_quote!(#path);
+            let ident_path = Path::from(PathSegment::from(bound.ident.clone()));
+
+            let generic_trait_bounds = |ty: &Path, ident_path: &Path, bounds: &AddPunctuated<TypeParamBound>| {
+                let mut has_bound = false;
+                bounds.iter().filter_map(|b| match b {
+                    TypeParamBound::Trait(TraitBound { path, .. }) => {
+                        let has = ident_path.eq(ty);
+                        if !has_bound && has {
+                            has_bound = true;
+                        }
+                        has.then(|| path.update_nested_generics(source))
+                    },
+                    TypeParamBound::Lifetime(_) => None
+                }).collect()
+            };
+            let bounds = generic_trait_bounds(path, &ident_path, &bound.bounds);
+            let predicates = generics.where_clause
+                .as_ref()
+                .map(|where_clause|
+                    where_clause.predicates
+                        .iter()
+                        .filter_map(|predicate| match predicate {
+                            WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
+                                ty.eq(bounded_ty).then(||(bounded_ty.clone(), generic_trait_bounds(&path, &bounded_ty.to_path(), bounds))),
+                            _ => None
+                        })
+                        .collect())
+                .unwrap_or_default();
+            let s = GenericBoundComposition {
+                bounds,
+                predicates,
+                // TODO: it can have NestedArguments
+                type_composition: TypeComposition::new(ty, Some(generics.clone()), nested_arguments.clone()),
+                nested_arguments
+            };
+            println!("GenericBoundComposition::new({})", s);
+
+
+            // GenericBoundComposition::new(&import_seg.0, &bound, generics, nested_arguments)
+            ObjectConversion::Type(TypeCompositionConversion::Bounds(s))
         } else if let Some(mut import_path) = context.maybe_import(scope, &import_seg).cloned() {
             // Can be reevaluated after processing entire scope tree:
             // Because import path can have multiple aliases and we need the most complete one to use mangling correctly

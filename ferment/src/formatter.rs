@@ -152,13 +152,29 @@ fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
 pub fn format_path_vec(vec: &Vec<Path>) -> String {
     vec.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(",")
 }
+pub fn format_obj_vec(vec: &Vec<ObjectConversion>) -> String {
+    vec.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(",")
+}
 
+#[allow(unused)]
 pub fn type_vec_path_conversion_pair(pair: (&Type, &Vec<Path>)) -> String {
     format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
 }
+#[allow(unused)]
+pub fn type_vec_obj_conversion_pair(pair: (&Type, &Vec<ObjectConversion>)) -> String {
+    format!("\t{}: [{}]", format_token_stream(pair.0), format_obj_vec(pair.1))
+}
+#[allow(unused)]
 pub fn format_predicates_dict(vec: &HashMap<Type, Vec<Path>>) -> String {
     vec.iter()
         .map(type_vec_path_conversion_pair)
+        .collect::<Vec<_>>()
+        .join(",")
+}
+#[allow(unused)]
+pub fn format_predicates_obj_dict(vec: &HashMap<Type, Vec<ObjectConversion>>) -> String {
+    vec.iter()
+        .map(type_vec_obj_conversion_pair)
         .collect::<Vec<_>>()
         .join(",")
 }
