@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Item, Path, Type};
+use syn::{Attribute, Item, Path, Type, TypePath};
 use syn::punctuated::Punctuated;
 use crate::composer::Depunctuated;
 use crate::composition::{Composition, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{ImportConversion, ObjectConversion};
-use crate::ext::{extract_trait_names, ToObjectConversion};
+use crate::conversion::{ImportConversion, ObjectConversion, ScopeItemConversion};
+use crate::ext::{extract_trait_names, Opaque, ToObjectConversion};
 use crate::holder::TypeHolder;
 use crate::print_phase;
 
@@ -68,10 +68,32 @@ impl ScopeContext {
         let lock = self.context.read().unwrap();
         lock.custom.maybe_conversion(ty)
     }
+    pub fn maybe_opaque_object(&self, ty: &Type) -> Option<Type> {
+        let result = match ty {
+            Type::Path(TypePath { path, .. }) => {
+                let lock = self.context.read().unwrap();
+                lock.maybe_item(path)
+                    .filter(|item| item.is_opaque())
+                    .map(ScopeItemConversion::to_ty)
+            },
+            _ => None
+        };
+
+        // let result = lock.maybe_item(&ty.to_path())
+        //     .filter(|item| item.is_opaque())
+        //     .and_then(ScopeItemConversion::to_ty);
+        // println!("maybe_opaque: {} --- {}", ty.to_token_stream(), result.to_token_stream());
+        result
+        // let result = self.(ty)
+        //     .filter(ObjectConversion::is_opaque);
+        // result.and_then(|obj| obj.to_ty())
+    }
 
     pub fn maybe_object(&self, ty: &Type) -> Option<ObjectConversion> {
         let lock = self.context.read().unwrap();
-        lock.maybe_type(ty, &self.scope).cloned()
+        let result = lock.maybe_type(ty, &self.scope).cloned();
+        // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
+        result
     }
 
     pub fn full_type_for(&self, ty: &Type) -> Type {

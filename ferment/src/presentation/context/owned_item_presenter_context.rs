@@ -13,6 +13,7 @@ use crate::presentation::ScopeContextPresentable;
 pub enum OwnedItemPresentableContext {
     DefaultField(FieldTypeConversion),
     DefaultFieldType(Type, TokenStream2),
+    DefaultFieldConversion(FieldTypeConversion, FieldContext, TokenStream2),
     Named(FieldTypeConversion, /*is_public:*/ bool),
     Lambda(TokenStream2, TokenStream2, TokenStream2),
     Conversion(TokenStream2, TokenStream2),
@@ -28,6 +29,8 @@ impl Debug for OwnedItemPresentableContext {
         match self {
             OwnedItemPresentableContext::DefaultField(ty) =>
                 f.write_str(format!("DefaultField({})", ty).as_str()),
+            OwnedItemPresentableContext::DefaultFieldConversion(ty, conversion, attrs) =>
+                f.write_str(format!("DefaultFieldConversion({}, {}, {})", ty, conversion, attrs).as_str()),
             OwnedItemPresentableContext::DefaultFieldType(ty, attrs) =>
                 f.write_str(format!("DefaultFieldType({}, {})", quote!(#ty), attrs).as_str()),
             OwnedItemPresentableContext::Named(ty, is_pub) =>
@@ -44,6 +47,7 @@ impl Debug for OwnedItemPresentableContext {
                 f.write_str(format!("FieldType({}, {})", ctx, attrs).as_str()),
             OwnedItemPresentableContext::Exhaustive(attrs) =>
                 f.write_str(format!("Exhaustive({})", attrs).as_str()),
+
         }
     }
 }
@@ -73,6 +77,14 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 quote! {
                     #attrs
                     #ty
+                }
+            },
+            OwnedItemPresentableContext::DefaultFieldConversion(field_type, conversion, attrs) => {
+                let name = field_type.name();
+                let conversion = conversion.present(source);
+                quote! {
+                    #attrs
+                    #name: #conversion
                 }
             },
             OwnedItemPresentableContext::Named(field_type, is_public) => {

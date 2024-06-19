@@ -26,9 +26,12 @@ pub enum FieldContext {
     To(Box<FieldContext>),
     ToOpt(Box<FieldContext>),
     UnwrapOr(Box<FieldContext>, TokenStream2),
+    MapOr(Box<FieldContext>, Box<FieldContext>, Box<FieldContext>),
     OwnerIteratorPresentation(OwnerIteratorPresentationContext),
+    FromOptPrimitive(Box<FieldContext>),
     ToVec(Box<FieldContext>),
     ToPrimitiveGroup(Box<FieldContext>),
+    ToOptPrimitive(Box<FieldContext>),
     ToOptPrimitiveGroup(Box<FieldContext>),
     ToComplexGroup(Box<FieldContext>),
     ToOptComplexGroup(Box<FieldContext>),
@@ -84,12 +87,16 @@ impl Display for FieldContext {
                 format!("FieldTypePresentableContext::Simple({})", quote!(#simple)),
             FieldContext::Add(context, index) =>
                 format!("FieldTypePresentableContext::Add({}, {})", context, index),
+            FieldContext::FromOptPrimitive(context) =>
+                format!("FieldTypePresentableContext::FromOptPrimitive({})", context),
             FieldContext::To(context) =>
                 format!("FieldTypePresentableContext::To({})", context),
             FieldContext::ToVec(context) =>
                 format!("FieldTypePresentableContext::ToVec({})", context),
             FieldContext::ToPrimitiveGroup(context) =>
                 format!("FieldTypePresentableContext::ToPrimitiveGroup({})", context),
+            FieldContext::ToOptPrimitive(context) =>
+                format!("FieldTypePresentableContext::ToOptPrimitive({})", context),
             FieldContext::ToOptPrimitiveGroup(context) =>
                 format!("FieldTypePresentableContext::ToOptPrimitiveGroup({})", context),
             FieldContext::ToComplexGroup(context) =>
@@ -100,6 +107,8 @@ impl Display for FieldContext {
                 format!("FieldTypePresentableContext::ToOpt({})", context),
             FieldContext::UnwrapOr(context, or) =>
                 format!("FieldTypePresentableContext::UnwrapOr({}, {})", context, or),
+            FieldContext::MapOr(condition, def, mapper) =>
+                format!("FieldTypePresentableContext::MapOr({}, {}, {})", condition, def, mapper),
             FieldContext::OwnerIteratorPresentation(context) =>
                 format!("FieldTypePresentableContext::OwnerIteratorPresentation({})", context),
             FieldContext::ToVecPtr =>
@@ -208,6 +217,9 @@ impl ScopeContextPresentable for FieldContext {
             Self::FromOpt(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFromOpt, presentable.present(source)))
                     .present(source),
+            Self::FromOptPrimitive(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(presentable.present(source)))
+                    .present(source),
             Self::To(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiTo, presentable.present(source)))
                     .present(source),
@@ -216,6 +228,9 @@ impl ScopeContextPresentable for FieldContext {
                     .present(source),
             Self::ToPrimitiveGroup(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(presentable.present(source)))
+                    .present(source),
+            Self::ToOptPrimitive(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitive(presentable.present(source)))
                     .present(source),
             Self::ToOptPrimitiveGroup(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitiveGroup(presentable.present(source)))
@@ -251,6 +266,11 @@ impl ScopeContextPresentable for FieldContext {
             Self::UnwrapOr(presentable, default) =>
                 DictionaryExpr::UnwrapOr(presentable.present(source), default.clone())
                     .to_token_stream(),
+            Self::MapOr(condition, def, mapper) =>
+                DictionaryExpr::MapOr(
+                    condition.present(source).to_token_stream(),
+                    def.present(source).to_token_stream(),
+                    mapper.present(source).to_token_stream()).to_token_stream(),
             Self::ToVec(presentable) =>
                 DictionaryExpr::ToVec(presentable.present(source))
                     .to_token_stream(),

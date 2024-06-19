@@ -49,7 +49,7 @@ impl Scope {
             .map(|ident| self.self_scope.joined(ident))
             .unwrap_or(self.self_scope.clone());
         // println!(":::: joined: {} in [{}] --> [{}] ", item.ident_string(), self, child_self_scope);
-        let object = ObjectConversion::try_from(item).unwrap();
+        let object = ObjectConversion::try_from((item, &child_self_scope)).unwrap();
         Scope::new(child_self_scope, object)
     }
 

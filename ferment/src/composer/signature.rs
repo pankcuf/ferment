@@ -8,7 +8,8 @@ use syn::punctuated::Punctuated;
 use syn::token::RArrow;
 use crate::composer::{AttrsComposer, BindingComposer, CommaPunctuated, Composer, constants, Depunctuated, ParentComposer, ParenWrapped, SigParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
-use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
+use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
+use crate::composer::generics_composer::GenericsComposer;
 use crate::composer::r#type::TypeComposer;
 use crate::composition::{AttrsComposition, CfgAttributes, FnReturnTypeComposer, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
@@ -41,7 +42,7 @@ impl SigComposer {
                 AttrsComposer::new(attrs),
                 doc_composer,
                 TypeComposer::new(ty_context),
-                generics,
+                GenericsComposer::new(generics),
                 Rc::clone(context)
             ),
             binding_composer,
@@ -93,7 +94,7 @@ impl NameContext for SigComposer {
     }
 }
 
-fn regular_fn(path: Path, aspect: Aspect, attrs: TokenStream2, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
+fn regular_fn(path: Path, aspect: Aspect, attrs: TokenStream2, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
     let Signature { output, inputs, asyncness, .. } = sig;
     // let return_type = output.compose(&(false, &source));
     // let (bare, source) = source;
@@ -123,14 +124,18 @@ fn regular_fn(path: Path, aspect: Aspect, attrs: TokenStream2, sig: &Signature, 
         name: Name::ModFn(path),
         input_conversions: fields_presenter.present(&source),
         return_type: return_type.presentation.clone(),
+        generics,
         output_conversions: return_type.conversion.present(&source)
     }
 }
 
-impl SourceExpandable for SigComposer {
+impl SourceAccessible for SigComposer {
     fn context(&self) -> &ParentComposer<ScopeContext> {
         self.base.context()
     }
+}
+
+impl SourceExpandable for SigComposer {
     fn expand(&self) -> Expansion {
         let source = self.context().borrow();
         // TODO: source.scope or local_scope?
@@ -143,6 +148,7 @@ impl SourceExpandable for SigComposer {
                         full_fn_path.clone(),
                         self.target_name_aspect(),
                         attrs.to_token_stream(),
+                        None,
                         sig,
                         sig_context,
                         &source
@@ -151,6 +157,7 @@ impl SourceExpandable for SigComposer {
                         full_fn_path.clone(),
                         self.ffi_name_aspect(),
                         attrs.to_token_stream(),
+                        None,
                         sig,
                         sig_context,
                         &source
@@ -173,8 +180,11 @@ impl SourceExpandable for SigComposer {
 
                         let arguments = CommaPunctuated::from_iter(argument_comps
                             .map(|arg| arg.name_type_original.clone()));
-                        let presentation = ParenWrapped::new(arguments.present(&source));
+                        // let presentation = ParenWrapped::new(arguments.present(&source));
+                        let presentation = ParenWrapped::new(arguments).present(&source);
                         let output_expression = return_type.presentation;
+
+
 
                         BindingPresentation::TraitVTableInnerFn {
                             name: Name::VTableInnerFn(sig.ident.clone()),

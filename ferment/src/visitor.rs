@@ -177,7 +177,6 @@ impl Visitor {
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
         nprint!(0, crate::formatter::Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
-        // println!("::: scope_items: {}: {}", ty.to_token_stream(), scope.self_path_holder_ref());
         let self_obj = &scope.self_scope().object;
         let type_chain = self.create_type_chain(ty, scope);
         match scope {
@@ -191,7 +190,6 @@ impl Visitor {
             },
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } => {
-                // println!("add_full_qualified_type_match: Obj or Trait: {} in {}", self_obj, scope);
                 self.scope_add_many(type_chain.clone(), scope);
                 self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
                 self.scope_add_many(type_chain.selfless(), parent_scope_chain);
@@ -239,12 +237,12 @@ impl Visitor {
     }
 
     pub fn add_conversion(&mut self, item: Item) {
-        // TODO: filter #[cfg(test)]
+        // TODO: filter out #[cfg(test)]
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
-        match (MacroType::try_from(&item), ObjectConversion::try_from(&item)) {
-            (Ok(MacroType::Export), Ok(_object)) => {
+        match (MacroType::try_from(&item), ObjectConversion::try_from((&item, &self_scope))) {
+            (Ok(MacroType::Export | MacroType::Opaque), Ok(_object)) => {
                 //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
@@ -259,29 +257,13 @@ impl Visitor {
             },
             (Ok(MacroType::Register(custom_type)), Ok(_object)) => {
                 // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
-                // if let Some(scope) = item.join_scope(&current_scope, self) {
-                    if let ScopeTreeExportItem::Tree(scope_context, _, _exported, _) = self.find_scope_tree(&self_scope) {
-                        let scope_context_borrowed = scope_context.borrow();
-                        scope_context_borrowed.add_custom_conversion(current_scope.clone(), custom_type, parse_quote!(#self_scope::#ident));
-                        // let composer = Rc::new(RefCell::new(ScopeContext::populated(
-                        //     scope,
-                        //     &item,
-                        //     &mut HashMap::new(),
-                        //     scope_context_borrowed.context.clone())));
-                        // exported.insert(item.scope_tree_export_id(), ScopeTreeExportItem::Item(composer, item));
-                    }
-                // }
-            },
-            // (_, Ok(_object)) => {
-            //     if let Some(scope) = item.join_scope(&current_scope, self) {
-            //         self.find_scope_tree(&self_scope)
-            //             .add_item(item, scope);
-            //     }
-            // },
-
-            (_, Ok(_object)) if ident.eq(&Some(&format_ident!("FFIConversion"))) => if let Item::Impl(..) = item {
-                if let Some(_scope) = item.join_scope(&current_scope, self) {
+                if let ScopeTreeExportItem::Tree(scope_context, _, _exported, _) = self.find_scope_tree(&self_scope) {
+                    let scope_context_borrowed = scope_context.borrow();
+                    scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
                 }
+            },
+            (_, Ok(_object)) if ident.eq(&Some(&format_ident!("FFIConversion"))) => if let Item::Impl(..) = item {
+                if let Some(_scope) = item.join_scope(&current_scope, self) {}
             },
             _ => {}
         }

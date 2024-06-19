@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
-use crate::composer::{CommaPunctuated};
-use crate::composition::{NestedArgument, TypeComposition};
+use crate::composer::CommaPunctuatedNestedArguments;
+use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{Conversion, DictionaryType, Mangle, MangleDefault};
@@ -20,14 +20,14 @@ pub struct GenericBoundComposition {
     pub predicates: HashMap<Type, Vec<ObjectConversion>>,
     // pub bounds: Vec<Path>,
     // pub predicates: HashMap<Type, Vec<Path>>,
-    pub nested_arguments: CommaPunctuated<NestedArgument>,
+    pub nested_arguments: CommaPunctuatedNestedArguments,
     // pub nested_arguments: HashMap<Path, CommaPunctuated<NestedArgument>>,
 }
 
 impl Debug for GenericBoundComposition {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!(
-            "GenericBoundComposition(\n\tty: {},\n\tbounds: {},\n\tpredicates: {},\n\tnested_args: {})",
+            "GenericBoundComposition(ty: {}, bounds: {}, predicates: {}, nested_args: {})",
             self.type_composition,
             format_obj_vec(&self.bounds),
             format_predicates_obj_dict(&self.predicates),

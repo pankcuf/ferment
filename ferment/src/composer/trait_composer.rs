@@ -2,16 +2,18 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use proc_macro2::Ident;
-use syn::{Generics, ItemTrait, Path, TraitItem, TraitItemMethod, Type};
-use crate::composer::{AttrsComposer, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
+use syn::{Generics, ItemTrait, parse_quote, Path, TraitItem, TraitItemMethod, Type};
+use crate::composer::{AttrsComposer, BraceWrapped, CommaPunctuated, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
-use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
+use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
+use crate::composer::generics_composer::GenericsComposer;
 use crate::composer::r#type::TypeComposer;
 use crate::composer::signature::SigComposer;
 use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext, TraitTypeDecomposition};
 use crate::context::{ScopeChain, ScopeContext};
+use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::{Mangle, ToPath, ToType};
-use crate::naming::Name;
+use crate::naming::{DictionaryName, Name};
 use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation, ScopeContextPresentable};
 use crate::presentation::context::name::Context;
 use crate::shared::ParentLinker;
@@ -91,7 +93,7 @@ impl TraitComposer {
                 AttrsComposer::new(attrs),
                 doc_composer,
                 TypeComposer::new(ty_context),
-                generics,
+                GenericsComposer::new(generics),
                 Rc::clone(context)
             ),
             methods,
@@ -137,12 +139,13 @@ impl BasicComposable<TraitParentComposer> for TraitComposer {
     }
 }
 
-
-
-impl SourceExpandable for TraitComposer {
+impl SourceAccessible for TraitComposer {
     fn context(&self) -> &ParentComposer<ScopeContext> {
         self.base.context()
     }
+}
+
+impl SourceExpandable for TraitComposer {
     fn expand(&self) -> Expansion {
         let source = self.context().borrow();
         // TODO: source.scope or local_scope?
@@ -152,7 +155,7 @@ impl SourceExpandable for TraitComposer {
         let ffi_type = self.ffi_name_aspect().present(&source);
         let mangled_ty = ffi_type.mangle_ident_default();
         let vtable_name = Name::Vtable(mangled_ty.clone());
-        let fields = self.methods
+        let fields: CommaPunctuated<Expansion> = self.methods
             .iter()
             .map(|sig_composer| sig_composer.borrow().expand())
             .collect();
@@ -162,12 +165,19 @@ impl SourceExpandable for TraitComposer {
             vtable: FFIObjectPresentation::TraitVTable {
                 attrs: attrs.clone(),
                 name: vtable_name.clone(),
-                fields
+                fields: BraceWrapped::new(fields).present(&source)
             },
             trait_object: FFIObjectPresentation::TraitObject {
                 attrs,
                 name: Name::TraitObj(mangled_ty),
-                vtable_name
+                fields: BraceWrapped::new(CommaPunctuated::from_iter([
+                    FieldTypeConversion::named(
+                        Name::Dictionary(DictionaryName::Object),
+                        FieldTypeConversionKind::Type(parse_quote!(*const ()))),
+                    FieldTypeConversion::named(
+                        Name::Dictionary(DictionaryName::Vtable),
+                        FieldTypeConversionKind::Type(parse_quote!(*const #vtable_name))),
+                ])).present(&source)
             }
         }
     }

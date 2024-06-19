@@ -1,13 +1,13 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use crate::composer::CommaPunctuated;
+use crate::composer::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::naming::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[derive(Clone, Debug)]
 pub enum FromConversionPresentation {
     Just(TokenStream2),
-    Tuple(CommaPunctuated<TokenStream2>),
-    Enum(CommaPunctuated<TokenStream2>),
+    Tuple(CommaPunctuatedTokens),
+    Enum(CommaPunctuatedTokens),
     Map(TokenStream2, TokenStream2),
     Result(TokenStream2, TokenStream2),
     TryInto(TokenStream2),

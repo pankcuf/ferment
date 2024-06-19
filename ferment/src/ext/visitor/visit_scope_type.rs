@@ -1,36 +1,37 @@
 use quote::ToTokens;
 use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::composer::{AddPunctuated, CommaPunctuated};
+use crate::composer::{AddPunctuated, CommaPunctuated, CommaPunctuatedNestedArguments};
 use crate::composition::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};
+use crate::formatter::format_token_stream;
 // use crate::formatter::format_token_stream;
 use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
 pub trait ToObjectConversion {
-    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
-    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
-    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
-    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion;
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
+    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
 }
 
 impl ToObjectConversion for Type {
-    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_composition(self, nested_arguments)))
     }
 
@@ -40,18 +41,18 @@ impl ToObjectConversion for Type {
 }
 
 impl ToObjectConversion for TypePath {
-    fn to_unknown(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_path_composition(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
     }
-    fn to_callback(self, nested_arguments: CommaPunctuated<NestedArgument>) -> ObjectConversion {
+    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_path_composition(self, nested_arguments)))
     }
 
@@ -83,10 +84,10 @@ impl<'a> VisitScopeType<'a> for Type {
         }
     }
 }
-fn handle_type_composition(ty: Type, nested_arguments: CommaPunctuated<NestedArgument>) -> TypeComposition {
+fn handle_type_composition(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> TypeComposition {
     TypeComposition::new(ty, None, nested_arguments)
 }
-fn handle_type_path_composition(type_path: TypePath, nested_arguments: CommaPunctuated<NestedArgument>) -> TypeComposition {
+fn handle_type_path_composition(type_path: TypePath, nested_arguments: CommaPunctuatedNestedArguments) -> TypeComposition {
     TypeComposition::new(Type::Path(type_path), None, nested_arguments)
 }
 
@@ -148,7 +149,7 @@ impl<'a> VisitScopeType<'a> for Path {
             nprint!(1, crate::formatter::Emoji::Local, "(Dictionary Type) {}", dict_type_composition);
             ObjectConversion::Type(dict_type_composition)
         } else if let Some((generics, bound)) = scope.maybe_generic_bound_for_path(&import_seg.0) {
-            nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}", bounds_composition);
+            nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}: {}", generics.to_token_stream(), bound.to_token_stream());
             // let nested_arguments = CommaPunctuated::from_iter(bound.bounds.iter().filter_map(|bound| match bound {
             //     TypeParamBound::Trait(TraitBound { path, .. }) =>
             //         Some(NestedArgument::Object(path.update_nested_generics(source))),

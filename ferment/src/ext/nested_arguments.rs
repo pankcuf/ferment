@@ -1,9 +1,8 @@
-use crate::composer::CommaPunctuated;
-use crate::composition::NestedArgument;
+use crate::composer::CommaPunctuatedNestedArguments;
 
 #[allow(unused)]
 pub trait NestedArguments {
-    fn nested_arguments(&self) -> CommaPunctuated<NestedArgument>;
+    fn nested_arguments(&self) -> CommaPunctuatedNestedArguments;
 }
 
 // pub trait FirstNestedType {

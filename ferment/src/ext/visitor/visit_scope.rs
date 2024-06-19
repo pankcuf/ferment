@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
-use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
+use quote::{quote, ToTokens};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Lifetime, LifetimeDef, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::composer::AddPunctuated;
-use crate::composition::{TraitDecompositionPart1, TypeComposition};
+use crate::composer::{AddPunctuated, CommaPunctuated};
+use crate::composition::{NestedArgument, TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{Join, ToType};
+use crate::ext::{Join, ResolveMacro, ToType};
 use crate::helper::collect_bounds;
 use crate::holder::TypePathHolder;
 use crate::visitor::Visitor;
@@ -41,10 +41,11 @@ impl VisitScope for Item {
     }
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) {
         //println!("add_to_scope: {}", scope.self_path_holder_ref());
+        let self_scope = scope.self_path_holder_ref();
         match self {
             Item::Const(_) => {}
             Item::Enum(item_enum) => {
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone())));
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
@@ -55,7 +56,38 @@ impl VisitScope for Item {
 
             }
             Item::Struct(item_struct) => {
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_struct.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Struct(item_struct.clone())));
+                let mut nested_arguments = CommaPunctuated::new();
+                let full_ty = if !item_struct.generics.params.is_empty() || item_struct.generics.where_clause.is_some() {
+                    println!("ADDD FQ STRUCT: {}: {} ---- {}", item_struct.ident, item_struct.generics.params.to_token_stream(), item_struct.generics.where_clause.to_token_stream());
+                    let mut inner_args = CommaPunctuated::new();
+                    item_struct.generics.params.iter().for_each(|p| match p {
+                        GenericParam::Type(TypeParam { ident, bounds, .. }) => {
+                            inner_args.push(quote!(#ident));
+                            let mut nested_bounds = CommaPunctuated::new();
+                            bounds.iter().for_each(|pp| match pp {
+                                TypeParamBound::Trait(TraitBound { path, .. }) => {
+                                    nested_bounds.push(NestedArgument::Object(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(parse_quote!(#path), None, CommaPunctuated::new())))));
+                                }
+                                TypeParamBound::Lifetime(Lifetime { .. }) => {}
+                            });
+                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(parse_quote!(#ident), Some(item_struct.generics.clone()), nested_bounds)))));
+
+                        }
+                        GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
+                            inner_args.push(quote!(#ident));
+                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(parse_quote!(#ident), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
+                        },
+                        GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
+                            inner_args.push(quote!(#lifetime));
+                        },
+                    });
+                    parse_quote!(#scope<#inner_args>)
+                } else {
+                    scope.to_type()
+                };
+                let self_object = ObjectConversion::new_item(
+                    TypeCompositionConversion::Object(TypeComposition::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
+                    ScopeItemConversion::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_struct.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
@@ -64,7 +96,7 @@ impl VisitScope for Item {
                     visitor.add_full_qualified_type_match(scope, ty));
             }
             Item::Fn(ItemFn { sig, .. }) => {
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
+                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone(), self_scope.clone()));
                 let sig_ident = &sig.ident;
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, self_object.clone());
                 add_itself_conversion(visitor, scope, sig_ident, self_object);
@@ -105,8 +137,8 @@ impl VisitScope for Item {
             Item::Type(item_type) => {
                 let self_object = match &*item_type.ty {
                     Type::BareFn(..) =>
-                        ObjectConversion::new_item(TypeCompositionConversion::Callback(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()))),
-                    _ => ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone())))
+                        ObjectConversion::new_item(TypeCompositionConversion::Callback(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone())),
+                    _ => ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone()))
                 };
                 // println!("ADDD TYPE: {}", self_object);
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, self_object.clone());
@@ -127,7 +159,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
             type_compo,
             TraitDecompositionPart1::from_trait_items(ident, &item_trait.items),
             add_bounds(visitor, &item_trait.supertraits, scope)),
-        ScopeItemConversion::Item(Item::Trait(item_trait.clone())));
+        ScopeItemConversion::Item(Item::Trait(item_trait.clone()), scope.self_path_holder()));
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
@@ -141,7 +173,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 let self_scope = scope.self_scope();
                 let fn_self_scope = self_scope.self_scope.joined(sig_ident);
                 add_local_type(visitor, sig_ident, scope);
-                let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(fn_self_scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone()));
+                let object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(fn_self_scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone(), self_scope.self_scope.clone()));
                 let fn_scope = ScopeChain::Fn {
                     info: ScopeInfo {
                         attrs: attrs.clone(),
@@ -212,7 +244,7 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
                     Item::Type(..) |
                     Item::Impl(..) => {
                         match MacroType::try_from(item) {
-                            Ok(MacroType::Export) | Ok(MacroType::Register(_)) => {
+                            Ok(MacroType::Export | MacroType::Opaque | MacroType::Register(_)) => {
                                 //println!("add_inner_module_conversion.item: {}", item.ident_string());
                                 item.add_to_scope(&scope.joined(item), visitor)
                             }
@@ -279,9 +311,7 @@ fn add_itself_conversion(visitor: &mut Visitor, scope: &ScopeChain, ident: &Iden
 pub fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
     let mut paths = Vec::<Path>::new();
     attrs.iter().for_each(|attr| {
-        if attr.path.segments
-            .iter()
-            .any(|segment| segment.ident == format_ident!("export")) {
+        if attr.is_labeled_for_export() {
             if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                 meta_list.nested.iter().for_each(|meta| {
                     if let NestedMeta::Meta(Meta::Path(path)) = meta {

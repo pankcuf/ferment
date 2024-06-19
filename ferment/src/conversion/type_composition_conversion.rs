@@ -3,10 +3,8 @@ use std::hash::{Hash, Hasher};
 use syn::{parse_quote, Path, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-use crate::composer::CommaPunctuated;
+use crate::composer::CommaPunctuatedNestedArguments;
 pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
-use crate::composition::NestedArgument;
-use crate::conversion::ObjectConversion;
 use crate::ext::Pop;
 
 #[derive(Clone)]
@@ -69,17 +67,12 @@ impl TypeCompositionConversion {
             other => {
                 !other.nested_arguments()
                     .iter()
-                    .find(|arg|
-                        match arg {
-                            NestedArgument::Object(obj) => match obj {
-                                ObjectConversion::Type(ty) => !ty.is_refined(),
-                                _ => false
-                            }
-                        }).is_some()
+                    .find(|arg| arg.is_refined())
+                    .is_some()
             },
         }
     }
-    pub fn nested_arguments(&self) -> &CommaPunctuated<NestedArgument> {
+    pub fn nested_arguments(&self) -> &CommaPunctuatedNestedArguments {
         &self.ty_composition().nested_arguments
     }
     pub fn replace_composition_type(&mut self, with_ty: Type) {

@@ -129,8 +129,8 @@ impl TypeCollector for Path {
 impl TypeCollector for ScopeItemConversion {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         match self {
-            ScopeItemConversion::Item(item) => item.collect_compositions(),
-            ScopeItemConversion::Fn(sig) => sig.collect_compositions(),
+            ScopeItemConversion::Item(item, ..) => item.collect_compositions(),
+            ScopeItemConversion::Fn(sig, ..) => sig.collect_compositions(),
         }
     }
 }

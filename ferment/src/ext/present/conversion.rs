@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use syn::{Path, Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, TypeConversion};
-use crate::ext::{DictionaryType, Mangle, ToPath};
+use crate::ext::{DictionaryType, Mangle};
 use crate::helper::path_arguments_to_type_conversions;
 use crate::naming::{DictionaryExpr, FFIConversionMethodExpr, Name};
 use crate::presentation::context::{FieldContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
@@ -278,15 +278,8 @@ impl Conversion for TypePath {
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_from: Empty Optional: {}", self.to_token_stream()),
-                Some(conversion) => match conversion {
-                    // TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
-                    TypeConversion::Primitive(ty) => {
-                        let ty_path = ty.to_path();
-                        let last_segment = ty_path.segments.last().unwrap();
-                        FieldContext::IfThen(field_path.into(), if last_segment.ident.is_bool() { quote!() } else { quote!(> 0) })
-                    }
-                    _ => FieldContext::FromOpt(field_path.into()),
-                }
+                Some(TypeConversion::Primitive(_)) => FieldContext::FromOptPrimitive(field_path.into()),
+                Some(_) => FieldContext::FromOpt(field_path.into()),
             }
         } else if last_ident.is_box() {
             FieldContext::IntoBox(FieldContext::From(field_path.into()).into())
@@ -332,25 +325,13 @@ impl Conversion for TypePath {
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_to: Empty Optional"),
-                Some(conversion) => match conversion {
-                    // TypeConversion::Callback(ty) => unimplemented!("Optional Callback: {}", ty.to_token_stream()),
-                    TypeConversion::Primitive(ty) => {
-                        let ty_path = ty.to_path();
-                        let last_segment = ty_path.segments.last().unwrap();
-                        let opt_ident = &last_segment.ident;
-                        if opt_ident.is_bool() {
-                            FieldContext::UnwrapOr(field_path.into(), quote!(false))
-                        } else {
-                            FieldContext::UnwrapOr(field_path.into(), quote!(0))
-                        }
-                    },
-                    TypeConversion::Generic(_ty) => FieldContext::OwnerIteratorPresentation(
-                        OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
-                            OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), quote!()),
-                            OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), quote!())
-                        ])))),
-                    _ => FieldContext::ToOpt(field_path.into())
-                }
+                Some(TypeConversion::Primitive(_)) => FieldContext::ToOptPrimitive(field_path.into()),
+                Some(TypeConversion::Generic(_)) => FieldContext::OwnerIteratorPresentation(
+                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
+                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), quote!()),
+                        OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), quote!())
+                    ])))),
+                Some(_) => FieldContext::ToOpt(field_path.into())
             }
         } else {
             FieldContext::To(field_path.into())

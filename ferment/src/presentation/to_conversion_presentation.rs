@@ -1,14 +1,14 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
-use crate::composer::CommaPunctuated;
+use crate::composer::CommaPunctuatedTokens;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::naming::{DictionaryExpr, DictionaryName, InterfacesMethodExpr, Name};
 #[derive(Clone, Debug)]
 pub enum ToConversionPresentation {
     Simple(TokenStream2),
-    Enum(CommaPunctuated<TokenStream2>),
-    Tuple(CommaPunctuated<TokenStream2>),
+    Enum(CommaPunctuatedTokens),
+    Tuple(CommaPunctuatedTokens),
     Map(TokenStream2, TokenStream2),
     Result(TokenStream2, TokenStream2)
 }

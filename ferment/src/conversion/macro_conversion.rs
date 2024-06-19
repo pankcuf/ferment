@@ -1,13 +1,15 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, parse_quote, Path};
+use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, Path};
 use syn::punctuated::Punctuated;
 use crate::composer::CommaPunctuated;
+use crate::ext::ToType;
 use crate::helper::ItemExtension;
 use crate::holder::TypeHolder;
 
 pub enum MacroType {
     Export,
+    Opaque,
     Register(TypeHolder)
 }
 #[allow(unused)]
@@ -50,10 +52,10 @@ impl TryFrom<&Item> for MacroType {
                 match path.segments.last().unwrap().ident.to_string().as_str() {
                     "export" =>
                         Some(MacroType::Export),
-                    "register" => {
-                        let first_path = arguments.first().unwrap();
-                        Some(MacroType::Register(parse_quote!(#first_path)))
-                    },
+                    "opaque" =>
+                        Some(MacroType::Opaque),
+                    "register" =>
+                        Some(MacroType::Register(TypeHolder(arguments.first().unwrap().to_type()))),
                     _ =>
                         None
                 }

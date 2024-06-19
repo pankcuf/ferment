@@ -3,10 +3,10 @@ use quote::{quote, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypeTuple, Variant};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
-use crate::composer::{AddPunctuated, CommaPunctuated};
+use crate::composer::{AddPunctuated, CommaPunctuated, CommaPunctuatedNestedArguments};
 use crate::composition::{ImportComposition, NestedArgument};
 use crate::conversion::{ImportConversion, MacroAttributes, type_ident_ref, TypeConversion};
-use crate::ext::VisitScopeType;
+use crate::ext::{ResolveMacro, VisitScopeType};
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 
@@ -21,17 +21,12 @@ pub trait ItemExtension {
 
     fn classify_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>>;
 
-
     fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
         self.maybe_generics()
             .and_then(|generics|
                 maybe_generic_type_bound(path, generics)
                     .map(|bound| (generics.clone(), bound.clone())))
     }
-    // fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<GenericBoundComposition> {
-    //     self.maybe_generics()
-    //         .and_then(|generics| maybe_generic_type_bound(path, generics))
-    // }
 
     fn get_used_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>> {
         self.classify_imports(imports)
@@ -234,7 +229,7 @@ pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
         _ => Vec::new(),
     }
 }
-pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuated<NestedArgument> {
+pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuatedNestedArguments {
     match arguments {
         PathArguments::None => Punctuated::new(),
         PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
@@ -372,22 +367,11 @@ fn cache_type_in(_container: &mut HashMap<ImportConversion, HashSet<ImportCompos
 //         }
 //     }
 // }
-pub fn is_labeled_with_macro_type(path: &Path, macro_type: &str) -> bool {
-    path.segments
-        .iter()
-        .any(|segment| macro_type == segment.ident.to_string().as_str())
-}
-pub fn is_labeled_for_export(path: &Path) -> bool {
-    is_labeled_with_macro_type(path, "export")
-}
-pub fn is_owner_labeled_with_trait_implementation(path: &Path) -> bool {
-    is_labeled_with_macro_type(path, "export")
-}
 
 pub fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute], mut handler: F) {
     attrs.iter()
         .for_each(|attr|
-            if is_labeled_for_export(&attr.path) || is_owner_labeled_with_trait_implementation(&attr.path) {
+            if attr.is_labeled_for_export() || attr.is_labeled_for_opaque_export() {
                 let mut arguments = Vec::<Path>::new();
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     meta_list.nested.iter().for_each(|meta| {

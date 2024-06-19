@@ -4,9 +4,44 @@ mod model;
 
 extern crate ferment_macro;
 
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+
+#[derive(Debug)]
+pub struct FFICoreProvider<T: Fn(u32) -> [u8; 32]> {
+    pub block_hash_by_height: T
+}
+
+pub trait CoreProvider {
+
+}
+// #[ferment_macro::opaque]
+// pub struct SDK<TTTTT: CoreProvider> {
+//     pub processor: *mut Processor,
+//     pub cache: BTreeMap<String, String>,
+//     pub context: *const std::os::raw::c_void,
+//     pub stub: TTTTT
+// }
+#[ferment_macro::opaque]
+pub struct SDK2 {
+    pub processor: *mut Processor,
+    pub cache: BTreeMap<String, String>,
+    pub context: *const std::os::raw::c_void,
+}
+
+#[ferment_macro::opaque]
+pub struct Processor {
+    pub chain_id: u32,
+}
+
 #[ferment_macro::export]
 pub struct SomeStruct {
     pub name: String,
+}
+#[ferment_macro::export]
+pub struct LLMQParams {
+    pub r#type: String,
+    pub known_confirmed_at_height: Option<u32>,
 }
 
 pub mod some_inner {

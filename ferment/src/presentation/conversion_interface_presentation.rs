@@ -1,13 +1,14 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, ReturnType, Type};
-use crate::composer::CommaPunctuated;
+use crate::composer::CommaPunctuatedTokens;
 use crate::naming::DictionaryName;
 use crate::presentation::{FromConversionPresentation, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
+    Empty,
     Conversion {
         attrs: TokenStream2,
         types: (
@@ -33,7 +34,7 @@ pub enum InterfacePresentation {
     Callback {
         attrs: TokenStream2,
         ffi_type: Type,
-        inputs: CommaPunctuated<TokenStream2>,
+        inputs: CommaPunctuatedTokens,
         // output: TokenStream2,
         output: ReturnType,
         body: TokenStream2
@@ -43,7 +44,7 @@ pub enum InterfacePresentation {
 impl ToTokens for InterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            // Self::Empty => quote!(),
+            Self::Empty => quote!(),
             Self::Conversion {
                 attrs,
                 types: (

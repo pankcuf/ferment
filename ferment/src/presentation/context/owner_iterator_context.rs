@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Path, Type};
-use crate::composer::{Assignment, BraceWrapped, CommaPunctuated, Depunctuated, Lambda, OwnedStatement, ParenWrapped, SemiPunctuated, VariantIteratorLocalContext};
+use crate::composer::{Assignment, BraceWrapped, CommaPunctuated, CommaPunctuatedOwnedItems, Depunctuated, Lambda, OwnedStatement, ParenWrapped, SemiPunctuated, VariantIteratorLocalContext};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
 use crate::interface::create_struct;
@@ -19,7 +19,7 @@ pub enum OwnerIteratorPresentationContext {
     CurlyVariantFields(VariantIteratorLocalContext),
     RoundVariantFields(VariantIteratorLocalContext),
     RoundBracesFields(VariantIteratorLocalContext),
-    MatchFields((Box<FieldContext>, CommaPunctuated<OwnedItemPresentableContext>)),
+    MatchFields((Box<FieldContext>, CommaPunctuatedOwnedItems)),
     NoFields(Aspect),
     NoFieldsConversion(Aspect),
     EnumUnitFields(VariantIteratorLocalContext),
@@ -104,27 +104,27 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 quote!(),
             OwnerIteratorPresentationContext::Variants(((name, _attrs), fields)) => {
                 let name = name.mangle_ident_default();
-                let presentation = BraceWrapped::new(fields.present(source));
+                let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::CurlyBracesFields((aspect, fields)) => {
                 let name = aspect.present(source);
-                let presentation = BraceWrapped::new(fields.present(source));
+                let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::RoundBracesFields((aspect, fields)) => {
                 let name = aspect.present(source);
-                let presentation = ParenWrapped::new(fields.present(source));
+                let presentation = ParenWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::MatchFields((presentation_context, fields)) => {
                 let name = FieldContext::Match(presentation_context.clone()).present(source);
-                let presentation = BraceWrapped::new(fields.present(source));
+                let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::TypeAliasToConversion((aspect, fields)) => {
                 let name = aspect.present(source);
-                let presentation = ParenWrapped::new(fields.present(source));
+                let presentation = ParenWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
             OwnerIteratorPresentationContext::RoundVariantFields(context) => {
@@ -133,7 +133,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let attrs = aspect.attrs();
                 let path: Path = name.to_path();
                 let ident = &path.segments.last().unwrap().ident;
-                let presentation = ParenWrapped::new(fields.present(source));
+                let presentation = ParenWrapped::new(fields.clone()).present(source);
                 quote! {
                     #attrs
                     #ident #presentation
@@ -145,7 +145,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let attrs = aspect.attrs();
                 let path = name.to_path();
                 let ident = &path.segments.last().unwrap().ident;
-                let presentation = BraceWrapped::new(fields.present(source));
+                let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote! {
                     #attrs
                     #ident #presentation
@@ -154,7 +154,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
             OwnerIteratorPresentationContext::TypeAlias((aspect, fields)) |
             OwnerIteratorPresentationContext::UnnamedStruct((aspect, fields)) => {
                 let ffi_type = aspect.present(source);
-                let wrapped = ParenWrapped::new(fields.present(source)).to_token_stream();
+                let wrapped = ParenWrapped::new(fields.clone()).present(source);
                 create_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs().to_token_stream(),
@@ -164,8 +164,8 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 let ffi_type = aspect.present(source);
                 create_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
-                    TokenStream2::default(),
-                    BraceWrapped::new(fields.present(source)))
+                    aspect.attrs().to_token_stream(),
+                    BraceWrapped::new(fields.clone()).present(source))
             },
             OwnerIteratorPresentationContext::Enum(context) => {
                 let enum_presentation = context.present(source);
@@ -230,8 +230,7 @@ impl ScopeContextPresentable for OwnerIteratorPresentationContext {
                 result.to_token_stream()
             },
             OwnerIteratorPresentationContext::DropCode(items) =>
-                BraceWrapped::new(items.present(source))
-                    .to_token_stream(),
+                BraceWrapped::new(items.clone()).present(source),
         }
     }
 }

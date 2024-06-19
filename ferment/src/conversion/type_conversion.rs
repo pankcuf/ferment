@@ -124,6 +124,8 @@ impl From<Type> for TypeConversion {
             Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) =>
                 TypeConversion::Generic(GenericTypeConversion::TraitBounds(bounds)),
+            // todo: actually it's just about of absence of the conversions for opaque types
+            Type::Ptr(..) => TypeConversion::Primitive(ty),
             ty => unimplemented!("TypeConversion: Unknown type: {:?}", ty)
         };
         // println!("TypeConversion::from({}) ==== {:?}", dbg, result);

@@ -22,27 +22,28 @@ pub trait FFIResolve where Self: Sized + ToTokens + Parse {
 pub trait FFITypeResolve {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type;
     fn to_custom_or_ffi_type_mut_ptr(&self, source: &ScopeContext) -> Type {
-        self.to_custom_or_ffi_type(source).joined_mut()
+        self.to_custom_or_ffi_type(source)
+            .joined_mut()
     }
 }
 
 impl FFITypeResolve for Type where Self: FFIResolve {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Self {
-        println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
+        // println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
         source.maybe_custom_conversion(self)
+            .or_else(|| source.maybe_opaque_object(self))
             .unwrap_or(self.ffi_resolve_or_same(source))
     }
 }
 
 impl FFITypeResolve for GenericTypeConversion {
     fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type {
-        println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
+        // println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
         // if let Self::Optional(ty) = self {
         //     ty.first_nested_type().and_then(|ty| source.maybe_custom_conversion(ty)).unwrap_or(self.to_ffi_type())
         // } else {
             self.ty()
-                .and_then(|ty| source.maybe_custom_conversion(ty)
-                    .map(|ty| ty.clone()))
+                .and_then(|ty| source.maybe_custom_conversion(ty).or_else(|| source.maybe_opaque_object(ty)))
                 .unwrap_or(self.to_ffi_type())
         // }
     }
@@ -56,48 +57,12 @@ pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self;
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self;
     fn ffi_full_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        self.ffi_custom_or_internal_type(source)
-            .ffi_dictionary_type_presenter(source)
+        let result = self.ffi_custom_or_internal_type(source)
+            .ffi_dictionary_type_presenter(source);
+        // println!("ffi_full_dictionary_type_presenter: {} --- {}", self.to_token_stream(), result.to_token_stream());
+        result
     }
 }
-
-// impl FFIResolveExtended for TypeConversion {
-//     fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-//         match self {
-//             TypeConversion::Primitive(ty) => Some(self.clone()),
-//             TypeConversion::Complex(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
-//             TypeConversion::Callback(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
-//             TypeConversion::Generic(ty) => ty.ffi_external_path_converted(source).map(TypeConversion::from),
-//         }
-//     }
-//
-//     fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
-//         match self {
-//             TypeConversion::Primitive(ty) => self.clone(),
-//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
-//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
-//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_internal_type_for(source)),
-//         }
-//     }
-//
-//     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
-//         match self {
-//             TypeConversion::Primitive(ty) => self.clone(),
-//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
-//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
-//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_custom_or_internal_type(source)),
-//         }
-//     }
-//
-//     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-//         match self {
-//             TypeConversion::Primitive(ty) => self.clone(),
-//             TypeConversion::Complex(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
-//             TypeConversion::Callback(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
-//             TypeConversion::Generic(ty) => TypeConversion::from(ty.ffi_full_dictionary_type_presenter(source)),
-//         }
-//     }
-// }
 
 impl FFIResolve for Path {
     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
@@ -299,23 +264,26 @@ impl FFIResolveExtended for Path {
 
     fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
         let lock = source.context.read().unwrap();
-        println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
+        // println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
         let ty: Type = parse_quote!(#self);
         let full_ty = source.full_type_for(&ty);
         let result = lock.custom.maybe_conversion(&full_ty)
+            .or_else(|| source.maybe_opaque_object(&full_ty))
             .map_or(self.ffi_internal_type_for(source), |ty| ty.to_path());
-        println!("Path::ffi_custom_or_internal_type.2: {} ==== {}", self.to_token_stream(), result.to_token_stream());
+        // println!("Path::ffi_custom_or_internal_type.2: {} ==== {}", self.to_token_stream(), result.to_token_stream());
         result
     }
 
     fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
+        // println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
         let result = ffi_dictionary_type(self, source)
             .to_path();
         // println!("Path::ffi_dictionary_type_presenter.2: {}", result.to_token_stream());
         result
     }
 }
+
+
 
 impl FFIResolveExtended for Type {
 
@@ -362,8 +330,9 @@ impl FFIResolveExtended for Type {
         let full_ty = source.full_type_for(self);
         // println!("Type::ffi_custom_or_internal_type.1: {}   ({})", self.to_token_stream(), full_ty.to_token_stream());
         let result = lock.custom.maybe_conversion(&full_ty)
+            .or_else(|| source.maybe_opaque_object(&full_ty))
             .unwrap_or(self.ffi_internal_type_for(source));
-        // println!("Type::ffi_custom_or_internal_type.2: {}", result.to_token_stream());
+        // println!("Type::ffi_custom_or_internal_type: {} --- {}", full_ty.to_token_stream(), result.to_token_stream());
         result
     }
 
@@ -381,8 +350,8 @@ impl FFIResolveExtended for Type {
                 match &**elem {
                     Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
                         "c_void" => match (star_token, const_token, mutability) {
-                            (_, Some(_const_token), None) => parse_quote!(OpaqueContext_FFI),
-                            (_, None, Some(_mut_token)) => parse_quote!(OpaqueContextMut_FFI),
+                            (_, Some(_const_token), None) => parse_quote!(ferment_interfaces::OpaqueContext),
+                            (_, None, Some(_mut_token)) => parse_quote!(ferment_interfaces::OpaqueContextMut),
                             _ => panic!("ffi_dictionary_type_presenter: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                         },
                         _ => parse_quote!(*mut #path)

@@ -3,8 +3,9 @@ use syn::Type;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use crate::composer::Depunctuated;
+use crate::context::ScopeContext;
 use crate::naming::Name;
-use crate::presentation::Expansion;
+use crate::presentation::{Expansion, ScopeContextPresentable};
 
 #[derive(Clone)]
 pub enum FieldTypeConversionKind {
@@ -39,6 +40,14 @@ impl ToTokens for FieldTypeConversion {
                 #index: #ty
             },
         }.to_tokens(tokens)
+    }
+}
+
+impl ScopeContextPresentable for FieldTypeConversion {
+    type Presentation = TokenStream2;
+
+    fn present(&self, _source: &ScopeContext) -> Self::Presentation {
+        self.to_token_stream()
     }
 }
 impl Debug for FieldTypeConversion {

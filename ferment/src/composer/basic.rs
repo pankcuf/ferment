@@ -1,6 +1,6 @@
-use syn::Generics;
 use crate::composer::{AttrsComposer, Composer, Depunctuated, ParentComposer, TypeContextComposer};
-use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext};
+use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
+use crate::composer::generics_composer::GenericsComposer;
 use crate::composer::r#type::TypeComposer;
 use crate::context::ScopeContext;
 use crate::presentation::context::name;
@@ -12,11 +12,12 @@ pub struct BasicComposer<Parent> where Parent: SharedAccess {
     pub attr: AttrsComposer<Parent>,
     pub doc: TypeContextComposer<Parent>,
     pub ty: TypeComposer<Parent>,
-    pub generics: Option<Generics>,
+    pub generics: GenericsComposer<Parent>,
 }
 impl<Parent> ParentLinker<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
     fn link(&mut self, parent: &Parent) {
         self.attr.link(parent);
+        self.generics.link(parent);
         self.ty.link(parent);
         self.doc.link(parent);
     }
@@ -30,11 +31,15 @@ impl<Parent> BasicComposable<Parent> for BasicComposer<Parent> where Parent: Sha
         DocPresentation::Direct(self.doc.compose(&()))
     }
 }
-impl<Parent> SourceExpandable for BasicComposer<Parent> where Parent: SharedAccess {
+
+impl<Parent> SourceAccessible for BasicComposer<Parent> where Parent: SharedAccess {
     fn context(&self) -> &ParentComposer<ScopeContext> {
         &self.context
     }
 }
+
+impl<Parent> SourceExpandable for BasicComposer<Parent> where Parent: SharedAccess {}
+
 impl<Parent> NameContext for BasicComposer<Parent> where Parent: SharedAccess {
     fn name_context_ref(&self) -> &name::Context {
         &self.ty.context
@@ -45,7 +50,7 @@ impl<Parent> BasicComposer<Parent> where Parent: SharedAccess {
         attr: AttrsComposer<Parent>,
         doc: TypeContextComposer<Parent>,
         ty: TypeComposer<Parent>,
-        generics: Option<Generics>,
+        generics: GenericsComposer<Parent>,
         context: ParentComposer<ScopeContext>
     ) -> BasicComposer<Parent> {
         Self { context, attr, doc, ty, generics }

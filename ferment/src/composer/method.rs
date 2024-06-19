@@ -41,7 +41,7 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
     type Source = ScopeContext;
     type Result = Vec<BindingPresentation>;
     fn compose(&self, source: &Self::Source) -> Self::Result {
-        let (aspect, context) = self.parent
+        let ((aspect, context), generics) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);
@@ -51,7 +51,8 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
                     aspect.present(source),
                     field_type.name(),
                     field_type.ty().ffi_full_dictionary_type_presenter(source),
-                    field_type.attrs()
+                    field_type.attrs(),
+                    generics.clone()
                 ))
             })
             .collect()

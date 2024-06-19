@@ -10,6 +10,7 @@ mod scope_item_conversion;
 mod local_type_conversion;
 mod generic_type_conversion;
 mod type_conversion;
+mod opaque_conversion;
 // mod generic_type_conversion2;
 
 pub use self::field_type_conversion::{FieldTypeConversion, FieldTypeConversionKind};
@@ -21,6 +22,7 @@ pub use self::item_conversion::{ItemConversion, type_ident_ref};
 pub use self::macro_conversion::MacroAttributes;
 pub use self::macro_conversion::MacroType;
 pub use self::object_conversion::ObjectConversion;
+pub use self::opaque_conversion::OpaqueConversion;
 pub use self::scope_item_conversion::ScopeItemConversion;
 pub use self::type_conversion::TypeConversion;
 pub use self::type_composition_conversion::TypeCompositionConversion;

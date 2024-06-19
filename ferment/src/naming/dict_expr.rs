@@ -1,8 +1,7 @@
 use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::CommaPunctuated;
-use crate::conversion::FieldTypeConversion;
+use crate::composer::FieldTypesContext;
 use crate::naming::DictionaryName;
 
 #[allow(unused)]
@@ -14,7 +13,7 @@ pub enum DictionaryExpr {
     // FromComplexOptArray(TokenStream2, TokenStream2),
     // MapKeysCloned(TokenStream2),
     // MapValuesCloned(TokenStream2),
-    NamedStructInit(CommaPunctuated<FieldTypeConversion>),
+    NamedStructInit(FieldTypesContext),
     ObjLen,
     ObjIntoIter,
     ObjToVec,
@@ -30,7 +29,7 @@ pub enum DictionaryExpr {
     IfNotNull(TokenStream2, TokenStream2),
     IfThen(TokenStream2, TokenStream2),
     // IfNotNullThen(TokenStream2, TokenStream2),
-    // MapOr(TokenStream2, TokenStream2, TokenStream2),
+    MapOr(TokenStream2, TokenStream2, TokenStream2),
     NullMut,
     CChar,
     AsSlice(TokenStream2),
@@ -174,8 +173,8 @@ impl ToTokens for DictionaryExpr {
             //         .to_token_stream(),
             Self::IfThen(condition, expr) =>
                 quote!(#condition.then(|| #expr)),
-            // Self::MapOr(condition, def, mapper) =>
-            //     quote!(#condition.map_or(#def, #mapper)),
+            Self::MapOr(condition, def, mapper) =>
+                quote!(#condition.map_or(#def, #mapper)),
             Self::NullMut =>
                 quote!(std::ptr::null_mut()),
             Self::CChar =>

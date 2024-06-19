@@ -3,7 +3,8 @@ use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, Impl
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use crate::composer::{CommaPunctuated, ItemComposer, ParentComposer, VariantComposer};
+use syn::token::{Brace, Paren};
+use crate::composer::{CommaPunctuatedOwnedItems, ItemComposer, ItemComposerWrapper, ParentComposer, VariantComposer};
 use crate::composer::composable::SourceExpandable;
 use crate::composer::enum_composer::EnumComposer;
 use crate::composer::signature::SigComposer;
@@ -47,13 +48,13 @@ impl std::fmt::Display for ItemConversion {
 impl ToTokens for ItemConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            ItemConversion::Mod(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Struct(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Enum(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Type(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Fn(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Trait(item, ..) => item.to_tokens(tokens),
-            ItemConversion::Impl(item, ..) => item.to_tokens(tokens),
+            Self::Mod(item, ..) => item.to_tokens(tokens),
+            Self::Struct(item, ..) => item.to_tokens(tokens),
+            Self::Enum(item, ..) => item.to_tokens(tokens),
+            Self::Type(item, ..) => item.to_tokens(tokens),
+            Self::Fn(item, ..) => item.to_tokens(tokens),
+            Self::Trait(item, ..) => item.to_tokens(tokens),
+            Self::Impl(item, ..) => item.to_tokens(tokens),
         }
     }
 }
@@ -191,7 +192,7 @@ impl ItemConversion {
 fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
     // println!("enum_expansion: {:?}", item_enum);
-    EnumComposer::new(
+    EnumComposer::<Paren>::new(
         target_name,
         generics,
         attrs,
@@ -199,7 +200,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
         context,
         variants.iter()
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
-                let (variant_composer, fields_context): (VariantComposer, CommaPunctuated<OwnedItemPresentableContext>) = match discriminant {
+                let (variant_composer, fields_context): (VariantComposer, CommaPunctuatedOwnedItems) = match discriminant {
                     Some((_, Expr::Lit(lit, ..))) => (
                         |local_context| OwnerIteratorPresentationContext::EnumUnitFields(local_context.clone()),
                         Punctuated::from_iter([OwnedItemPresentableContext::Conversion(quote!(#lit), attrs.cfg_attributes_expanded().to_token_stream())])),
@@ -234,14 +235,14 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                 };
                 let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes_expanded() });
                 let attrs = AttrsComposition::from(attrs, variant_name, item_scope);
-                let composer = match fields {
-                    Fields::Unit =>
-                        ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context),
-                    Fields::Unnamed(fields) =>
-                        ItemComposer::enum_variant_composer_unnamed(name_context, attrs, &fields.unnamed, context),
-                    Fields::Named(fields) =>
-                        ItemComposer::enum_variant_composer_named(name_context, attrs, &fields.named, context)
-                };
+                let composer = ItemComposerWrapper::enum_variant(fields, name_context, attrs, context);
+                // let composer = match fields {
+                //     Fields::Unit => Box::new(ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context)),
+                //     Fields::Unnamed(fields) =>
+                //         Box::new(ItemComposer::enum_variant_composer_unnamed(name_context, attrs, &fields.unnamed, context)),
+                //     Fields::Named(fields) =>
+                //         Box::new(ItemComposer::enum_variant_composer_named(name_context, attrs, &fields.named, context))
+                // };
                 (composer, (variant_composer, (aspect, fields_context)))
             }).unzip())
         .borrow()
@@ -255,13 +256,18 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
     // println!("struct_expansion: [{}] --- [{}]", scope, scope_context.borrow().scope);
     match f {
         Fields::Unnamed(ref fields) =>
-            ItemComposer::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context),
+            ItemComposer::<Paren>::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context)
+                .borrow()
+                .expand(),
         Fields::Named(ref fields) =>
-            ItemComposer::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context),
+            ItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context)
+                .borrow().expand(),
         Fields::Unit =>
-            ItemComposer::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context),
+            ItemComposer::<Paren>::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context)
+                .borrow()
+                .expand(),
         // panic!("Fields::Unit is not supported yet"),
-    }.borrow().expand()
+    }
 }
 
 fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
@@ -283,7 +289,7 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
                 .expand()
         },
         _ =>
-            ItemComposer::type_alias_composer(target_name, ty, generics, attrs, scope, context)
+            ItemComposer::<Paren>::type_alias_composer(target_name, ty, generics, attrs, scope, context)
                 .borrow()
                 .expand()
     }

@@ -116,30 +116,25 @@ impl ScopeTreeExportItem {
     }
 
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
-        let ident = &item_mod.ident;
-        match &item_mod.content {
-            Some((_, items)) => {
-                match self {
-                    ScopeTreeExportItem::Item(context, _) => {
-                        let mut inner_tree = ScopeTreeExportItem::with_global_context(scope.clone(), context.borrow().context.clone(), item_mod.attrs.clone());
-                        inner_tree.add_items(items, scope);
-                    },
-                    ScopeTreeExportItem::Tree(context, _, exported, _) => {
-                        let mut inner_tree = ScopeTreeExportItem::with_global_context(scope.clone(), context.borrow().context.clone(), item_mod.attrs.clone());
-                        inner_tree.add_items(items, scope);
-                        exported.insert(ScopeTreeExportID::from_ident(ident), inner_tree);
-                    }
+        let ItemMod { attrs, ident, content, .. } = item_mod;
+        let new_export_item = |context: &mut ParentComposer<ScopeContext>| ScopeTreeExportItem::with_global_context(scope.clone(), context.borrow().context.clone(), attrs.clone());
+        match content {
+            Some((_, items)) => match self {
+                ScopeTreeExportItem::Item(context, _) => {
+                    let mut inner_tree = new_export_item(context);
+                    inner_tree.add_items(items, scope);
+                },
+                ScopeTreeExportItem::Tree(context, _, exported, _) => {
+                    let mut inner_tree = new_export_item(context);
+                    inner_tree.add_items(items, scope);
+                    exported.insert(ScopeTreeExportID::from_ident(ident), inner_tree);
                 }
             },
-            None => {
-                match self {
-                    ScopeTreeExportItem::Item(..) => {},
-                    ScopeTreeExportItem::Tree(context, _, exported, _) => {
-                        let inner_tree = ScopeTreeExportItem::with_global_context(scope.clone(), context.borrow().context.clone(), item_mod.attrs.clone());
-                        exported.insert(ScopeTreeExportID::from_ident(ident), inner_tree);
-                    }
+            None => match self {
+                ScopeTreeExportItem::Item(..) => {},
+                ScopeTreeExportItem::Tree(context, _, exported, _) => {
+                    exported.insert(ScopeTreeExportID::from_ident(ident), new_export_item(context));
                 }
-
             }
         }
     }

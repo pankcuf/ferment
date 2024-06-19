@@ -15,11 +15,16 @@ impl Join<Item> for ScopeChain {
             Item::Const(..) |
             Item::Type(..) |
             Item::Enum(..) |
-            Item::Struct(..) => ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
-            Item::Trait(..) => ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
-            Item::Fn(..) => ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
-            Item::Impl(..) => ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into(), },
-            Item::Mod(..) => ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+            Item::Struct(..) =>
+                ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+            Item::Trait(..) =>
+                ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+            Item::Fn(..) =>
+                ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+            Item::Impl(..) =>
+                ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into(), },
+            Item::Mod(..) =>
+                ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
             _ => self.clone()
         }
     }

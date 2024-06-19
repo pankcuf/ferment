@@ -2,9 +2,10 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, spanned::Spanned, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTuple};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Generics, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, spanned::Spanned, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTuple};
 use syn::__private::TokenStream2;
-use crate::composer::{AddPunctuated, BraceWrapped, CommaPunctuated, ComposerPresenter, ConstructorPresentableContext, Depunctuated, ParentComposer};
+use syn::token::Brace;
+use crate::composer::{AddPunctuated, BraceWrapped, CommaPunctuated, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, ComposerPresenter, ConstructorPresentableContext, Depunctuated, ParentComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, TypeConversion};
 use crate::conversion::macro_conversion::merge_attributes;
@@ -12,7 +13,7 @@ use crate::ext::{Accessory, DictionaryType, FFITypeResolve, GenericNestedArg, Ma
 use crate::helper::usize_to_tokenstream;
 use crate::interface::{create_callback, create_struct};
 use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethod, FFIConversionMethodExpr, FFIVecConversionMethodExpr, InterfacesMethodExpr, Name};
-use crate::presentation::context::{BindingPresentableContext, FieldContext, IteratorPresentationContext, OwnedItemPresentableContext};
+use crate::presentation::context::{BindingPresentableContext, FieldContext, OwnedItemPresentableContext};
 use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::destroy_presentation::DestroyPresentation;
 
@@ -606,7 +607,7 @@ impl GenericTypeConversion {
                         // "Mutex" | "RwLock" => quote!(#arg_0_name.borrow().clone()),
                         "RefCell" => quote!(#arg_0_name.into_inner()),
                         "Pin" => quote!(&**#arg_0_name),
-                        _ => panic!("Error Generic Expansion (Non Supported AnyOther): {}", ty.to_token_stream())
+                        _ => { return quote! {}; }
                     }
                     None => {
                         panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
@@ -935,6 +936,7 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
 fn compose_generic_presentation(
     ffi_name: Ident,
     attrs: TokenStream2,
+    // generics: Option<Generics>,
     field_conversions: Depunctuated<FieldTypeConversion>,
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
@@ -942,20 +944,26 @@ fn compose_generic_presentation(
     let ffi_as_path: Path = parse_quote!(#ffi_name);
     let ffi_as_type: Type = parse_quote!(#ffi_name);
     let fields = CommaPunctuated::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
-    let body = BraceWrapped::new(fields.present(source));
-    let object_presentation = create_struct(&ffi_as_path.segments.last().unwrap().ident, attrs.clone(), body);
-    let bindings = compose_bindings(&ffi_as_type, attrs.clone(), field_conversions).present(source);
+    let body = BraceWrapped::new(fields);
+    let object_presentation = create_struct(&ffi_as_path.segments.last().unwrap().ident, attrs.clone(), body.present(source));
+    let bindings = compose_bindings(&ffi_as_type, attrs.clone(), None, field_conversions).present(source);
     let drop_presentation = DropInterfacePresentation::Full { attrs, ty: ffi_as_type, body: drop_body.to_token_stream() };
     FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
 }
 
-fn compose_bindings(ffi_type: &Type, attrs: TokenStream2, conversions: Depunctuated<FieldTypeConversion>) -> Depunctuated<BindingPresentableContext> {
+fn compose_bindings(
+    ffi_type: &Type,
+    attrs: TokenStream2,
+    generics: Option<Generics>,
+    conversions: Depunctuated<FieldTypeConversion>
+) -> Depunctuated<BindingPresentableContext<CommaPunctuatedOwnedItems, CommaPunctuatedTokens, Brace>> {
+    let body = BraceWrapped::new(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect());
     Depunctuated::from_iter([
         BindingPresentableContext::Constructor(
-            ConstructorPresentableContext::Default(ffi_type.clone(), attrs.to_token_stream()),
+            ConstructorPresentableContext::Default(ffi_type.clone(), attrs.to_token_stream(), generics.clone()),
             conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), false)).collect(),
-            IteratorPresentationContext::Curly(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect())),
-        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.to_token_stream())
+            body),
+        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.to_token_stream(), generics)
     ])
 }
 

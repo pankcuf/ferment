@@ -4,13 +4,13 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::composer::{Colon2Punctuated, CommaPunctuated};
+use crate::composer::{Colon2Punctuated, CommaPunctuatedNestedArguments};
 use crate::composition::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::context::scope_chain::ScopeInfo;
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::formatter::{format_global_context, format_token_stream};
+use crate::formatter::{format_global_context, format_path_vec, format_token_stream};
 use crate::holder::PathHolder;
 use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined, ResolveAttrs};
 use crate::ext::visitor::GenericConstraintCollector;
@@ -23,6 +23,7 @@ pub struct GlobalContext {
     pub generics: GenericResolver,
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
+    // pub opaque: CustomResolver,
     pub imports: ImportResolver,
     pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>,
     pub refined_generic_constraints: HashMap<GenericBoundComposition, HashSet<Option<Attribute>>>
@@ -47,7 +48,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::new(), refined_generic_constraints: HashMap::new() }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::default(), refined_generic_constraints: HashMap::default() }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -72,7 +73,7 @@ impl GlobalContext {
         // 3. a) [aa::bb::cc::dd] Self, [Self::ee]
         // 4. a) [aa::bb::cc] Self::dd::ee, b) [aa::bb::cc] Self::dd
         let current_scope: PathHolder = parse_quote!(#from_type);
-        println!("current_scope: {}", current_scope);
+        // println!("current_scope: {}", current_scope);
         let mut i = 0;
         let mut maybe_trait: Option<&ObjectConversion>  = None;
         while i < current_scope.len() && maybe_trait.is_none() {
@@ -143,6 +144,7 @@ impl GlobalContext {
 
 
     fn maybe_obj_or_parent_scope_type(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
+        // println!("maybe_obj_or_parent_scope_type: {}", ty.to_token_stream());
         self.maybe_scope_object(ty, self_scope)
             .or(match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
@@ -160,12 +162,13 @@ impl GlobalContext {
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } |
             ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_scope_object(ty, parent_scope).or(match &**parent_scope_chain {
-                    ScopeChain::CrateRoot { .. } |
-                    ScopeChain::Mod { ..} =>
-                        self.maybe_scope_object(ty, &parent_scope_chain),
-                    _ => None,
-                }),
+                self.maybe_scope_object(ty, parent_scope)
+                    .or(match &**parent_scope_chain {
+                        ScopeChain::CrateRoot { .. } |
+                        ScopeChain::Mod { ..} =>
+                            self.maybe_scope_object(ty, &parent_scope_chain),
+                        _ => None,
+                    }),
         })
     }
 
@@ -182,7 +185,7 @@ impl GlobalContext {
          }
     }
 
-    fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
+    pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
             // println!("[INFO] Found scope: {}", scope);
@@ -199,6 +202,7 @@ impl GlobalContext {
         }
         None
     }
+
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> ScopeChain {
         // println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
@@ -321,9 +325,7 @@ impl GlobalContext {
         self.imports
             .inner
             .keys()
-            .find_map(|scope_chain|
-                path.eq(scope_chain.self_path())
-                    .then(|| scope_chain))
+            .find(|scope_chain| path.eq(scope_chain.self_path()))
 
     }
 
@@ -505,29 +507,28 @@ impl GlobalContext {
             .or(self.traverse_scopes(ty_to_replace, scope))
     }
 
-    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut CommaPunctuated<NestedArgument>, scope: &ScopeChain) {
+    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut CommaPunctuatedNestedArguments, scope: &ScopeChain) {
         // println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
         // self.refin
         match &mut segment.arguments {
             PathArguments::None => {
                 if !nested_arguments.is_empty() {
                     // Nested args here can be unrefined if their owner is not refined
-
                     segment.arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments {
                         colon2_token: None,
                         lt_token: Default::default(),
                         args: nested_arguments.into_iter().map(|nested_arg| match nested_arg {
-                            NestedArgument::Object(obj) => {
-                                if let Some(refined) = self.maybe_refined_object(scope, obj) {
+                            NestedArgument::Object(obj) |
+                            NestedArgument::Constraint(obj) => {
+                                let refined = if let Some(refined) = self.maybe_refined_object(scope, obj) {
                                     let refined_ty = refined.to_ty();
-                                    // println!("NESTED REFINED: {} ({})", refined, refined_ty.to_token_stream());
                                     *obj = refined;
-                                    GenericArgument::Type(refined_ty.unwrap())
+                                    refined_ty
                                 } else {
-                                    // println!("NESTED NON_REFINED: {}", obj);
-                                    GenericArgument::Type(obj.to_ty().unwrap())
-                                }
-                            }
+                                    obj.to_ty()
+                                };
+                                GenericArgument::Type(refined.unwrap())
+                            },
                         }).collect(),
                         gt_token: Default::default(),
                     });
@@ -538,38 +539,29 @@ impl GlobalContext {
                 inputs.iter_mut().for_each(|inner_ty| match nested_arguments.pop() {
                     None => {}
                     Some(nested_arg) => match nested_arg.into_value() {
-                        NestedArgument::Object(obj) => {
-                            *inner_ty = obj.to_ty().unwrap();
-                        }
+                        NestedArgument::Object(obj) => *inner_ty = obj.to_ty().unwrap(),
+                        NestedArgument::Constraint(obj) => *inner_ty = obj.to_ty().unwrap(),
                     }
                 });
                 match output {
                     ReturnType::Default => {}
-                    ReturnType::Type(_, inner_ty) => {
-                        match nested_arguments.pop() {
-                            None => {}
-                            Some(nested_arg) => match nested_arg.into_value() {
-                                NestedArgument::Object(obj) => {
-                                    *inner_ty = Box::new(obj.to_ty().unwrap());
-                                }
-                            }
+                    ReturnType::Type(_, inner_ty) => match nested_arguments.pop() {
+                        None => {}
+                        Some(nested_arg) => match nested_arg.into_value() {
+                            NestedArgument::Object(obj) => *inner_ty = Box::new(obj.to_ty().unwrap()),
+                            NestedArgument::Constraint(obj) => *inner_ty = Box::new(obj.to_ty().unwrap()),
                         }
                     }
                 }
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
-                // println!("GENERIC::Args:: {}", args.to_token_stream());
                 args.iter_mut()
                     .for_each(|arg| match arg {
-                        GenericArgument::Type(inner_ty) => {
-                            // println!("GENERIC::TYpe:: {}", inner_ty.to_token_stream());
-                            match nested_arguments.pop() {
-                                None => {}
-                                Some(nested_arg) => match nested_arg.into_value() {
-                                    NestedArgument::Object(obj) => {
-                                        *inner_ty = obj.to_ty().unwrap();
-                                    }
-                                }
+                        GenericArgument::Type(inner_ty) => match nested_arguments.pop() {
+                            None => {}
+                            Some(nested_arg) => match nested_arg.into_value() {
+                                NestedArgument::Object(obj) =>  *inner_ty = obj.to_ty().unwrap(),
+                                NestedArgument::Constraint(obj) =>  *inner_ty = obj.to_ty().unwrap(),
                             }
                         }
                         GenericArgument::Lifetime(_) => {}
@@ -585,6 +577,7 @@ impl GlobalContext {
     // We need to find full qualified paths for involved chunk and bind for them to actual items
     fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
         match object {
+            // ObjectConversion::Item()
             ObjectConversion::Type(TypeCompositionConversion::Imported(ty_composition, import_path)) => {
                 // println!("maybe_refined_object (Imported)::: {} ---- {}", ty_composition, import_path.to_token_stream());
                 let mut ty_replacement = ty_composition.clone();
@@ -690,30 +683,10 @@ impl GlobalContext {
     fn refine_nested_bounds(&self, composition: &GenericBoundComposition, scope: &ScopeChain) -> GenericBoundComposition {
         let mut new_bounds_composition = composition.clone();
         println!("refine_nested_bounds.1: {}", composition);
-
-
-
         new_bounds_composition.bounds.iter_mut().for_each(|arg| {
             if let Some(refined) = self.maybe_refined_object(scope, arg) {
                 *arg = refined;
             }
-            // match arg {
-            //     ObjectConversion::Type(ty) => {}
-            //     ObjectConversion::Item(ty, _) =>
-            //     ObjectConversion::Empty => {}
-            // }
-            //
-            // self.maybe_refine_args(arg.segments.last_mut().unwrap(), &mut new_bounds_composition.nested_arguments, scope);
-            // match &last_segment.arguments {
-            //     PathArguments::None => {}
-            //     PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-            //         {}
-            //     },
-            //     PathArguments::Parenthesized(ParenthesizedGenericArguments { output, inputs, .. }) => {
-            //         // output
-            //     }
-            // }
-            // self.maybe_refine_args(last_segment, , scope);
         });
         println!("refine_nested_bounds.2: {}", new_bounds_composition);
         new_bounds_composition
@@ -722,23 +695,22 @@ impl GlobalContext {
         let mut new_ty_composition = composition.clone();
         new_ty_composition.nested_arguments
             .iter_mut()
-            .for_each(|arg| match arg {
-                NestedArgument::Object(obj) => {
-                    if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                        *obj = object_to_refine;
-                    }
+            .for_each(|arg| {
+                let obj = arg.object_mut();
+                if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
+                    *obj = object_to_refine;
                 }
             });
         new_ty_composition.ty.refine_with(new_ty_composition.nested_arguments.clone());
         new_ty_composition
     }
     fn refine_nested_ty(&self, new_ty_composition: &mut TypeComposition, scope: &ScopeChain) {
-
         match &mut new_ty_composition.ty {
             Type::Tuple(type_tuple) => {
                 type_tuple.elems.iter_mut().enumerate().for_each(|(index, elem)| {
                     match &mut new_ty_composition.nested_arguments[index] {
-                        NestedArgument::Object(obj) => {
+                        NestedArgument::Object(obj) |
+                        NestedArgument::Constraint(obj) => {
                             if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
                                 let to_ty = object_to_refine.to_ty().unwrap();
                                 *obj = object_to_refine;
@@ -750,7 +722,7 @@ impl GlobalContext {
             },
             Type::Array(type_array) => {
                 match &mut new_ty_composition.nested_arguments.first_mut() {
-                    Some(NestedArgument::Object(obj)) => {
+                    Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
                             let to_ty = object_to_refine.to_ty().unwrap();
                             *obj = object_to_refine;
@@ -762,7 +734,7 @@ impl GlobalContext {
             },
             Type::Slice(type_slice) => {
                 match &mut new_ty_composition.nested_arguments.first_mut() {
-                    Some(NestedArgument::Object(obj)) => {
+                    Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
                             let to_ty = object_to_refine.to_ty().unwrap();
                             *obj = object_to_refine;
@@ -823,6 +795,27 @@ impl RefineMut for GlobalContext {
             });
         self.refined_generics = refined_generics;
         self.refined_generic_constraints = refined_generic_constraints;
+
+        self.generics.inner.iter_mut()
+            .for_each(|(scope, generic_chain)| {
+                generic_chain.values_mut()
+                    .for_each(|bounds| {
+                        println!("REFINE GENERIC BOUNDS: {}", format_path_vec(bounds));
+                        bounds.iter_mut().for_each(|bound| {
+                            if let Some(ty) = self.scope_register.scope_type_for_path(bound, scope) {
+                                match ty {
+                                    Type::Path(TypePath { path, .. }) => {
+                                        println!("REFINE BOUND: {}", path.to_token_stream());
+                                        *bound = path;
+                                    },
+                                    _ => {
+                                        println!("NON REFINE BOUND: {}", ty.to_token_stream());
+                                    }
+                                }
+                            }
+                        });
+                    });
+        })
     }
 }
 
@@ -834,11 +827,8 @@ impl Unrefined for GlobalContext {
             .for_each(|(scope, type_chain)| {
                 let scope_types_to_refine = type_chain.inner.iter()
                     .filter_map(|(holder, object)|
-                        if let Some(object_to_refine) = self.maybe_refined_object(scope, object) {
-                            Some((holder.clone(), object_to_refine))
-                        } else {
-                            None
-                        })
+                        self.maybe_refined_object(scope, object)
+                            .map(|object_to_refine| (holder.clone(), object_to_refine)))
                     .collect::<HashMap<_, _>>();
                 if !scope_types_to_refine.is_empty() {
                     scope_updates.push((scope.clone(), scope_types_to_refine));

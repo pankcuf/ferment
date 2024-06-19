@@ -4,7 +4,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::Item;
 use crate::composer::ParentComposer;
 use crate::context::{ScopeChain, ScopeContext};
-use crate::conversion::{ItemConversion, MacroType};
+use crate::conversion::{ItemConversion, MacroType, OpaqueConversion};
 use crate::helper::ItemExtension;
 use crate::tree::ScopeTree;
 
@@ -45,6 +45,9 @@ impl ToTokens for ScopeTreeItem {
         match self {
             Self::Item { item, scope, scope_context } => match MacroType::try_from(item) {
                 Ok(MacroType::Export) => ItemConversion::try_from((item, scope))
+                    .map(|conversion| conversion.make_expansion(scope_context).into_token_stream())
+                    .unwrap_or_default(),
+                Ok(MacroType::Opaque) => OpaqueConversion::try_from((item, scope))
                     .map(|conversion| conversion.make_expansion(scope_context).into_token_stream())
                     .unwrap_or_default(),
                 _ => quote! {}

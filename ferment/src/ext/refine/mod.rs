@@ -1,5 +1,5 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, Type, TypePath, TypeTuple};
-use crate::composer::CommaPunctuated;
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::composition::NestedArgument;
 use crate::context::ScopeChain;
 
@@ -39,7 +39,7 @@ pub trait RefineAtScope: Sized {
 }
 
 impl RefineMut for Type {
-    type Refinement = CommaPunctuated<NestedArgument>;
+    type Refinement = CommaPunctuatedNestedArguments;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         match self {
@@ -54,7 +54,8 @@ impl RefineMut for Type {
                         match refinement.pop() {
                             None => {}
                             Some(nested_arg) => match nested_arg.into_value() {
-                                NestedArgument::Object(obj) => {
+                                NestedArgument::Object(obj) |
+                                NestedArgument::Constraint(obj) => {
                                     *inner_ty = obj.to_ty().unwrap();
                                 }
                             }
@@ -67,17 +68,14 @@ impl RefineMut for Type {
 }
 
 impl RefineMut for PathArguments {
-    type Refinement = CommaPunctuated<NestedArgument>;
+    type Refinement = CommaPunctuatedNestedArguments;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         let mut refinement = refined.clone();
         let mut refine = |inner_ty: &mut Type| match refinement.pop() {
+            Some(nested_arg) =>
+                *inner_ty = nested_arg.into_value().object().to_ty().unwrap(),
             None => {}
-            Some(nested_arg) => match nested_arg.into_value() {
-                NestedArgument::Object(obj) => {
-                    *inner_ty = obj.to_ty().unwrap();
-                }
-            }
         };
 
         match self {

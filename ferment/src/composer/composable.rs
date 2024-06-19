@@ -9,10 +9,11 @@ use crate::presentation::context::name::Aspect;
 use crate::presentation::destroy_presentation::DestroyPresentation;
 use crate::shared::SharedAccess;
 
-
-pub trait SourceExpandable {
+pub trait SourceAccessible {
     fn context(&self) -> &ParentComposer<ScopeContext>;
     fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
+}
+pub trait SourceExpandable: SourceAccessible {
     fn expand(&self) -> Expansion { Expansion::Empty }
 }
 
@@ -22,6 +23,12 @@ pub trait NameContext {
     fn ffi_name_aspect(&self) -> Aspect { Aspect::FFI(self.name_context()) }
     fn target_name_aspect(&self) -> Aspect { Aspect::Target(self.name_context()) }
 }
+// pub trait HasBase<Parent: SharedAccess> {
+//     fn base(&self) -> &BasicComposer<Parent>;
+// }
+// pub trait HasFields<Parent: SharedAccess> {
+//     fn field_types(&self) -> &FieldTypesContext;
+// }
 pub trait BasicComposable<Parent>: SourceExpandable + NameContext where Parent: SharedAccess {
     fn compose_attributes(&self) -> Depunctuated<Expansion>;
     fn compose_docs(&self) -> DocPresentation;

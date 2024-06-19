@@ -14,6 +14,9 @@ pub type OpaqueContextMut = *mut std::os::raw::c_void;
 
 // No Drop implementation for them
 
+// pub trait FFIOpaqueConversion {
+//
+// }
 
 pub trait FFIConversion<T> {
     /// # Safety

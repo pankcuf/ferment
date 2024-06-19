@@ -11,21 +11,24 @@ pub mod generic;
 pub mod signature;
 pub mod basic;
 pub mod trait_composer;
+pub mod opaque_item;
+mod ffi_bindings;
+mod generics_composer;
 
 
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Field, Type};
+use syn::{Field, Generics, Type};
 use syn::punctuated::Punctuated;
 use syn::token::{Add, Brace, Colon2, Comma, Dot, FatArrow, Paren, Semi};
-pub use constants::BYPASS_FIELD_CONTEXT;
 pub use enum_composer::EnumComposer;
 use crate::composer::generic::GenericComposer;
+use crate::composer::opaque_item::OpaqueItemComposer;
 use crate::composer::signature::SigComposer;
 use crate::composer::trait_composer::TraitComposer;
-use crate::composition::FnSignatureContext;
+use crate::composition::{FnSignatureContext, NestedArgument};
 use crate::conversion::FieldTypeConversion;
 use crate::naming::Name;
 use crate::opposed::Opposed;
@@ -36,21 +39,22 @@ use crate::shared::{ParentLinker, SharedAccess};
 use crate::wrapped::{Void, Wrapped};
 pub use self::attrs::{AttrsComposer};
 pub use self::ffi_conversions::{FFIAspect, FFIComposer};
-pub use self::item::ItemComposer;
+pub use self::item::{ItemComposer, ItemComposerWrapper};
 pub use self::method::MethodComposer;
 
 #[derive(Clone)]
 pub enum ConstructorPresentableContext {
-    EnumVariant(Type, TokenStream2),
-    Default(Type, TokenStream2)
+    EnumVariant(Type, TokenStream2, Option<Generics>),
+    Default(Type, TokenStream2, Option<Generics>)
 }
+
 impl Debug for ConstructorPresentableContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EnumVariant(ty, attrs) =>
-                f.write_str(format!("EnumVariant({}, {})", ty.to_token_stream(), attrs).as_str()),
-            Self::Default(ty, attrs) =>
-                f.write_str(format!("Default({}, {})", ty.to_token_stream(), attrs).as_str()),
+            Self::EnumVariant(ty, attrs, generics) =>
+                f.write_str(format!("EnumVariant({}, {attrs}, {})", ty.to_token_stream(), generics.to_token_stream()).as_str()),
+            Self::Default(ty, attrs, generics) =>
+                f.write_str(format!("Default({}, {attrs}, {})", ty.to_token_stream(), generics.to_token_stream()).as_str()),
         }
     }
 }
@@ -75,22 +79,23 @@ pub type SharedComposerRef<'a, Parent, Context> = ComposerPresenterByRef<<Parent
 pub type SharedComposerMut<Parent, Context> = ComposerPresenterByRef<<Parent as SharedAccess>::MutableAccess, Context>;
 pub type ParentComposer<T> = Rc<std::cell::RefCell<T>>;
 pub type ParentComposerRef<'a, T> = std::cell::Ref<'a, T>;
-pub type ItemParentComposer = ParentComposer<ItemComposer>;
-pub type EnumParentComposer = ParentComposer<EnumComposer>;
+pub type ItemParentComposer<I> = ParentComposer<ItemComposer<I>>;
+pub type OpaqueItemParentComposer<I> = ParentComposer<OpaqueItemComposer<I>>;
+pub type EnumParentComposer<I> = ParentComposer<EnumComposer<I>>;
 pub type SigParentComposer = ParentComposer<SigComposer>;
 pub type TraitParentComposer = ParentComposer<TraitComposer>;
 pub type GenericParentComposer = ParentComposer<GenericComposer>;
-pub type ItemParentComposerRef<'a> = ParentComposerRef<'a, ItemComposer>;
-pub type EnumParentComposerRef<'a> = ParentComposerRef<'a, EnumComposer>;
-pub type ItemComposerPresenterRef<'a, T> = ComposerPresenterByRef<ItemParentComposerRef<'a>, T>;
-pub type EnumComposerPresenterRef<'a, T> = ComposerPresenterByRef<EnumParentComposerRef<'a>, T>;
-pub type ItemComposerFieldTypesContextPresenter<'a> = ItemComposerPresenterRef<'a, FieldTypesContext>;
+pub type ItemParentComposerRef<'a, I> = ParentComposerRef<'a, ItemComposer<I>>;
+pub type EnumParentComposerRef<'a, I> = ParentComposerRef<'a, EnumComposer<I>>;
+pub type ItemComposerPresenterRef<'a, T, I> = ComposerPresenterByRef<ItemParentComposerRef<'a, I>, T>;
+pub type EnumComposerPresenterRef<'a, T, I> = ComposerPresenterByRef<EnumParentComposerRef<'a, I>, T>;
+pub type ItemComposerFieldTypesContextPresenter<'a, I> = ItemComposerPresenterRef<'a, FieldTypesContext, I>;
 pub type NameContextComposer<Parent> = ContextComposer<Name, TokenStream2, Parent>;
 pub type TypeContextComposer<Parent> = ContextComposer<Type, TokenStream2, Parent>;
 pub type OwnerIteratorConversionComposer<T> = ComposerPresenter<OwnerAspectIteratorLocalContext<T>, OwnerIteratorPresentationContext>;
 pub type OwnerIteratorPostProcessingComposer<T> = ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, T>;
 pub type VariantComposer = ComposerPresenterByRef<VariantIteratorLocalContext, OwnerIteratorPresentationContext>;
-pub type FieldsComposer = ComposerPresenterByRef<CommaPunctuated<Field>, FieldTypesContext>;
+pub type FieldsComposer = ComposerPresenterByRef<CommaPunctuatedFields, FieldTypesContext>;
 pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, FieldContext>;
 /// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
@@ -104,12 +109,12 @@ pub type VariantIteratorLocalContext = OwnerAspectIteratorLocalContext<Comma>;
 pub type FieldTypesContext = CommaPunctuated<FieldTypeConversion>;
 pub type OwnedStatement = SemiPunctuated<OwnedItemPresentableContext>;
 pub type FieldsOwnerContext<T> = (T, FieldTypesContext);
-pub type LocalConversionContext = FieldsOwnerContext<Aspect>;
+pub type LocalConversionContext = (FieldsOwnerContext<Aspect>, Option<Generics>);
 pub type ConstructorFieldsContext = FieldsOwnerContext<ConstructorPresentableContext>;
-pub type BindingAccessorContext = (Type, TokenStream2, Type, TokenStream2);
-pub type DestructorContext = (Type, TokenStream2);
+pub type BindingAccessorContext = (Type, TokenStream2, Type, TokenStream2, Option<Generics>);
+pub type DestructorContext = (Type, TokenStream2, Option<Generics>);
 pub type FieldTypeLocalContext = (TokenStream2, FieldContext);
-
+pub type FunctionContext = (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>);
 pub type OwnedItemPresentablePair = (OwnedItemPresentableContext, OwnedItemPresentableContext);
 pub type OwnedItemPresentationPair = (OwnerIteratorPresentationContext, OwnerIteratorPresentationContext);
 pub type FieldsSequenceMixer<Parent, Context, Statement> = SequenceMixer<
@@ -131,22 +136,22 @@ pub type FieldsOwnedComposer<Parent> = SequenceComposer<
     VariantIteratorLocalContext,
     OwnerIteratorPresentationContext
 >;
-pub type ConstructorComposer<Parent> = SequenceComposer<
+pub type ConstructorComposer<Parent, S, SP, I> = SequenceComposer<
     Parent,
     ConstructorFieldsContext,
     FieldTypeConversion,
     OwnedItemPresentablePair,
-    (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
-    BindingPresentableContext
+    FunctionContext,
+    BindingPresentableContext<S, SP, I>
 >;
 #[allow(unused)]
-pub type FnComposer<Parent> = SequenceComposer<
+pub type FnComposer<Parent, S, SP, I> = SequenceComposer<
     Parent,
     FnSignatureContext,
     FieldTypeConversion,
     OwnedItemPresentablePair,
-    (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>),
-    BindingPresentableContext
+    FunctionContext,
+    BindingPresentableContext<S, SP, I>
 >;
 
 #[allow(unused)]
@@ -162,14 +167,23 @@ pub type AddPunctuated<T> = Punctuated<T, Add>;
 #[allow(unused)]
 pub type DotPunctuated<T> = Punctuated<T, Dot>;
 #[allow(unused)]
-pub type BraceWrapped<T> = Wrapped<T, Brace>;
+pub type BraceWrapped<S, SP> = Wrapped<S, SP, Brace>;
 #[allow(unused)]
-pub type ParenWrapped<T> = Wrapped<T, Paren>;
+pub type ParenWrapped<S, SP> = Wrapped<S, SP, Paren>;
 
 #[allow(unused)]
 pub type Assignment<T1, T2> = Opposed<T1, T2, syn::token::Eq>;
 #[allow(unused)]
 pub type Lambda<T1, T2> = Opposed<T1, T2, FatArrow>;
+
+#[allow(unused)]
+pub type CommaPunctuatedTokens = CommaPunctuated<TokenStream2>;
+#[allow(unused)]
+pub type CommaPunctuatedOwnedItems = CommaPunctuated<OwnedItemPresentableContext>;
+#[allow(unused)]
+pub type CommaPunctuatedFields = CommaPunctuated<Field>;
+#[allow(unused)]
+pub type CommaPunctuatedNestedArguments = CommaPunctuated<NestedArgument>;
 
 pub trait Composer<'a> {
     type Source;

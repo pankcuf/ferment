@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use syn::{Path, Type, TypeReference};
+use syn::{Path, Type, TypePtr, TypeReference};
 use crate::context::ScopeChain;
 use crate::context::type_chain::TypeChain;
 use crate::conversion::ObjectConversion;
@@ -50,8 +50,10 @@ impl ScopeResolver {
     }
 
     pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
+        // println!("maybe_scope_type: {} --- [{}]", ty.to_token_stream(), scope);
         let tc = match ty {
-            Type::Reference(TypeReference { elem, .. }) => TypeHolder::from(elem),
+            Type::Reference(TypeReference { elem, .. }) |
+            Type::Ptr(TypePtr { elem, .. }) => TypeHolder::from(elem),
             _ => TypeHolder::from(ty)
         };
         self.inner

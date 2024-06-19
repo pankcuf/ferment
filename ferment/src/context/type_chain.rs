@@ -98,7 +98,9 @@ impl TypeChain {
         self.inner.insert(ty, obj);
     }
     pub fn get(&self, ty: &TypeHolder) -> Option<&ObjectConversion> {
-        self.inner.get(ty)
+        let result = self.inner.get(ty);
+        // println!("TypeChain::get({}) --> {}", ty.to_token_stream(), result.to_token_stream());
+        result
     }
     pub fn find(&self, holder: &TypeHolder) -> Option<&ObjectConversion> {
         self.inner.values()

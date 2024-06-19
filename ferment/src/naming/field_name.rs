@@ -107,7 +107,7 @@ impl Mangle<MangleDefault> for Name {
             Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
             Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
-            Name::ModFn(name) => name.mangle_string(context).to_string(),
+            Name::ModFn(name) => name.mangle_string(context).to_string().replace("r#", ""),
             Name::TraitObj(ident) => ident.to_string(),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format!("{}_{}", item_name, trait_vtable_ident)
@@ -120,16 +120,16 @@ impl Mangle<MangleDefault> for Name {
             Name::Getter(obj_type, field_name) => format!(
                 "{}_get_{}",
                 obj_type.mangle_ident_default(),
-                field_name.to_string()
+                field_name.to_string().replace("r#", "")
             ),
             Name::Setter(obj_type, field_name) => format!(
                 "{}_set_{}",
                 obj_type.mangle_ident_default(),
-                field_name.to_string()
+                field_name.to_string().replace("r#", "")
             ),
             Name::Ident(variant) => variant.to_string(),
             Name::Optional(ident) => quote!(#ident).to_string(),
-            Name::Pat(pat) => pat.to_token_stream().to_string(),
+            Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
 
             Name::Underscore => quote!(_).to_string()

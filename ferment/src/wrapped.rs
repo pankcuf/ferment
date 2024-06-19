@@ -1,7 +1,10 @@
 use std::marker::PhantomData;
 use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use quote::{quote, ToTokens};
+use syn::__private::TokenStream2;
 use syn::token::{Brace, Bracket, Paren};
+use crate::context::ScopeContext;
+use crate::presentation::ScopeContextPresentable;
 
 #[derive(Clone, Debug)]
 pub struct Void;
@@ -36,22 +39,24 @@ impl DelimiterTrait for Void {
     fn delimiter() -> Delimiter { Delimiter::None }
 }
 
-#[derive(Clone)]
-pub struct Wrapped<T, P>
+#[derive(Clone, Debug)]
+pub struct Wrapped<S, SP, I>
     where
-        T: ToTokens,
-        P: DelimiterTrait,
+        S: ScopeContextPresentable<Presentation = SP>,
+        SP: ToTokens,
+        I: DelimiterTrait + ?Sized,
 {
-    content: T,
-    _marker: PhantomData<P>,
+    content: S,
+    _marker: PhantomData<I>,
 }
 
-impl<T, P> Wrapped<T, P>
+impl<S, SP, I> Wrapped<S, SP, I>
     where
-        T: ToTokens,
-        P: DelimiterTrait,
+        S: ScopeContextPresentable<Presentation = SP>,
+        SP: ToTokens,
+        I: DelimiterTrait + ?Sized,
 {
-    pub fn new(content: T) -> Self {
+    pub fn new(content: S) -> Self {
         Wrapped {
             content,
             _marker: PhantomData,
@@ -59,20 +64,30 @@ impl<T, P> Wrapped<T, P>
     }
 }
 
-impl<T, P> ToTokens for Wrapped<T, P>
-    where
-        T: ToTokens,
-        P: DelimiterTrait,
-{
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let content = self.content.to_token_stream();
-        let delimiter = P::delimiter();
-        let group = Group::new(delimiter, content);
-        tokens.extend(Some(TokenTree::Group(group)));
+// impl<T, P> ToTokens for Wrapped<T, P>
+//     where
+//         T: ScopeContextPresentable,
+//         P: DelimiterTrait,
+// {
+//     fn to_tokens(&self, tokens: &mut TokenStream) {
+//         let content = self.content.to_token_stream();
+//         let delimiter = P::delimiter();
+//         let group = Group::new(delimiter, content);
+//         tokens.extend(Some(TokenTree::Group(group)));
+//     }
+// }
+//
+
+impl<S, SP, I> ScopeContextPresentable for Wrapped<S, SP, I>
+    where S: ScopeContextPresentable<Presentation = SP>, SP: ToTokens, I: DelimiterTrait + ?Sized {
+    type Presentation = TokenStream2;
+
+    fn present(&self, source: &ScopeContext) -> Self::Presentation {
+        TokenTree::Group(Group::new(I::delimiter(), self.content.present(source).to_token_stream()))
+            .to_token_stream()
+        // tokens.extend(Some(TokenTree::Group(group)));
     }
 }
-
-
 
 // impl<T, P> ScopeContextPresentable for Wrapped<T, P>
 //     where T: ScopeContextPresentable, P: ToTokens + Default + DelimiterTrait {

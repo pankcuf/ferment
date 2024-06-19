@@ -2,7 +2,8 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::ItemUse;
 use crate::composer::{Depunctuated, SemiPunctuated};
-use crate::presentation::{BindingPresentation, DropInterfacePresentation};
+use crate::context::ScopeContext;
+use crate::presentation::{BindingPresentation, DropInterfacePresentation, ScopeContextPresentable};
 use crate::presentation::conversion_interface_presentation::InterfacePresentation;
 use crate::presentation::doc_presentation::DocPresentation;
 use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
@@ -75,5 +76,13 @@ impl ToTokens for Expansion {
                 vec![vtable.to_token_stream(), export.to_token_stream(), destructor.to_token_stream()]
         };
         quote!(#(#presentations)*).to_tokens(tokens)
+    }
+}
+
+impl ScopeContextPresentable for Expansion {
+    type Presentation = TokenStream2;
+
+    fn present(&self, _source: &ScopeContext) -> Self::Presentation {
+        self.to_token_stream()
     }
 }
