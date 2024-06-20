@@ -263,7 +263,7 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
             ItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context)
                 .borrow().expand(),
         Fields::Unit =>
-            ItemComposer::<Paren>::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context)
+            ItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context)
                 .borrow()
                 .expand(),
         // panic!("Fields::Unit is not supported yet"),
