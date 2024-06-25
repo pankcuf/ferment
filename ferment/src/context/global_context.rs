@@ -59,7 +59,7 @@ impl GlobalContext {
 
 
     pub fn resolve_trait_type(&self, from_type: &Type) -> Option<&ObjectConversion> {
-        println!("resolve_trait_type: {} ({:?})", from_type.to_token_stream(), from_type);
+        // println!("resolve_trait_type: {} ({:?})", from_type.to_token_stream(), from_type);
         // RESOLVE PATHS
         // Self::asyn::query::TransportRequest::Client::Error
         // ? [Self::asyn::query::TransportRequest::Client::Error] Self
@@ -172,7 +172,7 @@ impl GlobalContext {
         })
     }
 
-    pub fn maybe_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
+    pub fn maybe_object(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
          match scope {
              ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
                  self.maybe_scope_object(ty, &scope),
@@ -185,13 +185,22 @@ impl GlobalContext {
          }
     }
 
+    pub fn maybe_type_composition_conversion(&self, ty: &Type, scope: &ScopeChain) -> Option<&TypeCompositionConversion> {
+        match self.maybe_object(ty, scope) {
+            Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, ..)) =>
+                Some(ty),
+            _ =>
+                None
+        }
+    }
+
     pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
             // println!("[INFO] Found scope: {}", scope);
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
-            if let Some(ObjectConversion::Item(_, item)) = self.maybe_type(&ty, scope) {
+            if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
                 // println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
             } else {
@@ -648,8 +657,8 @@ impl GlobalContext {
             ObjectConversion::Type(TypeCompositionConversion::Object(ty_composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Object(self.refine_nested(ty_composition, scope))));
             }
-            ObjectConversion::Type(TypeCompositionConversion::Callback(ty_composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Callback(self.refine_nested(ty_composition, scope))));
+            ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty_composition)) => {
+                return Some(ObjectConversion::Type(TypeCompositionConversion::FnPointer(self.refine_nested(ty_composition, scope))));
             }
             ObjectConversion::Type(TypeCompositionConversion::TraitType(composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::TraitType(self.refine_nested(composition, scope))));
@@ -682,13 +691,13 @@ impl GlobalContext {
     }
     fn refine_nested_bounds(&self, composition: &GenericBoundComposition, scope: &ScopeChain) -> GenericBoundComposition {
         let mut new_bounds_composition = composition.clone();
-        println!("refine_nested_bounds.1: {}", composition);
+        // println!("refine_nested_bounds.1: {}", composition);
         new_bounds_composition.bounds.iter_mut().for_each(|arg| {
             if let Some(refined) = self.maybe_refined_object(scope, arg) {
                 *arg = refined;
             }
         });
-        println!("refine_nested_bounds.2: {}", new_bounds_composition);
+        // println!("refine_nested_bounds.2: {}", new_bounds_composition);
         new_bounds_composition
     }
     fn refine_nested(&self, composition: &TypeComposition, scope: &ScopeChain) -> TypeComposition {

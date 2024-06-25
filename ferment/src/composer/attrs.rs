@@ -1,8 +1,9 @@
-use crate::composer::{Composer, LinkedComposer, Depunctuated, ParentComposer};
+use crate::composer::{Depunctuated, ParentComposer};
+use crate::composer::r#abstract::{Composer, LinkedComposer, ParentLinker};
 use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::ScopeContext;
 use crate::presentation::Expansion;
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::shared::SharedAccess;
 
 pub struct AttrsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,

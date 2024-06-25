@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use proc_macro2::Ident;
 use syn::{Generics, ItemTrait, parse_quote, Path, TraitItem, TraitItemMethod, Type};
-use crate::composer::{AttrsComposer, BraceWrapped, CommaPunctuated, Composer, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
+use crate::composer::{BraceWrapped, CommaPunctuated, constants, Depunctuated, ParentComposer, SigParentComposer, TraitParentComposer, TypeContextComposer};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
-use crate::composer::generics_composer::GenericsComposer;
-use crate::composer::r#type::TypeComposer;
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::composer::signature::SigComposer;
 use crate::composition::{AttrsComposition, CfgAttributes, FnSignatureContext, TraitTypeDecomposition};
 use crate::context::{ScopeChain, ScopeContext};
@@ -16,7 +15,6 @@ use crate::ext::{Mangle, ToPath, ToType};
 use crate::naming::{DictionaryName, Name};
 use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation, ScopeContextPresentable};
 use crate::presentation::context::name::Context;
-use crate::shared::ParentLinker;
 
 pub struct TraitComposer {
     pub base: BasicComposer<TraitParentComposer>,
@@ -74,7 +72,6 @@ impl TraitComposer {
             item_trait.ident.to_path(),
             Some(item_trait.generics.clone()),
             AttrsComposition::from(&item_trait.attrs, &item_trait.ident, scope),
-            constants::composer_doc_default(),
             context)
     }
 
@@ -84,18 +81,11 @@ impl TraitComposer {
         self_path: Path,
         generics: Option<Generics>,
         attrs: AttrsComposition,
-        doc_composer: TypeContextComposer<TraitParentComposer>,
         context: &ParentComposer<ScopeContext>
     ) -> TraitParentComposer {
         let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes_expanded() };
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::new(
-                AttrsComposer::new(attrs),
-                doc_composer,
-                TypeComposer::new(ty_context),
-                GenericsComposer::new(generics),
-                Rc::clone(context)
-            ),
+            base: BasicComposer::from(attrs, ty_context, generics, constants::composer_doc(), Rc::clone(context)),
             methods,
             types,
         }));
@@ -133,6 +123,9 @@ impl NameContext for TraitComposer {
 impl BasicComposable<TraitParentComposer> for TraitComposer {
     fn compose_attributes(&self) -> Depunctuated<Expansion> {
         self.base.compose_attributes()
+    }
+    fn compose_generics(&self) -> Option<Generics> {
+        self.base.generics.compose(self.context())
     }
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(&()))

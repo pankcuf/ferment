@@ -17,7 +17,7 @@ use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 use crate::naming::Name;
 use crate::presentation::{DocPresentation, Expansion};
-use crate::presentation::context::{OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::context::name::{Aspect, Context};
 use crate::tree::ScopeTreeExportID;
 
@@ -202,22 +202,22 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
                 let (variant_composer, fields_context): (VariantComposer, CommaPunctuatedOwnedItems) = match discriminant {
                     Some((_, Expr::Lit(lit, ..))) => (
-                        |local_context| OwnerIteratorPresentationContext::EnumUnitFields(local_context.clone()),
+                        |local_context| SequenceOutput::EnumUnitFields(local_context.clone()),
                         Punctuated::from_iter([OwnedItemPresentableContext::Conversion(quote!(#lit), attrs.cfg_attributes_expanded().to_token_stream())])),
                     None => match fields {
                         Fields::Unit => (
-                            |(aspect, _)| OwnerIteratorPresentationContext::NoFields(aspect.clone()),
+                            |(aspect, _)| SequenceOutput::NoFields(aspect.clone()),
                             Punctuated::new()
                         ),
                         Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => (
-                            |local_context| OwnerIteratorPresentationContext::RoundVariantFields(local_context.clone()),
+                            |local_context| SequenceOutput::RoundVariantFields(local_context.clone()),
                             unnamed
                                 .iter()
                                 .map(|field_type| OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone(), field_type.attrs.cfg_attributes_expanded().to_token_stream()))
                                 .collect(),
                         ),
                         Fields::Named(FieldsNamed { named, .. }) => (
-                            |local_context| OwnerIteratorPresentationContext::CurlyVariantFields(local_context.clone()),
+                            |local_context| SequenceOutput::CurlyVariantFields(local_context.clone()),
                             named
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|

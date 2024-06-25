@@ -6,7 +6,7 @@ use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeConversion};
 
 pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
-    fn trait_ty(&self, source: &ScopeContext) -> Option<ObjectConversion> {
+    fn maybe_trait_object(&self, source: &ScopeContext) -> Option<ObjectConversion> {
         // println!("FFI (check...1) for: {}", self.to_token_stream());
         let lock = source.context.read().unwrap();
         let ty: Type = parse_quote!(#self);
@@ -34,8 +34,8 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
         maybe_trait.cloned()
     }
 
-    fn to_trait_ty(&self, source: &ScopeContext) -> Option<Type> {
-        self.trait_ty(source)
+    fn maybe_trait_ty(&self, source: &ScopeContext) -> Option<Type> {
+        self.maybe_trait_object(source)
             .and_then(|full_trait_ty| full_trait_ty.to_ty())
     }
 }

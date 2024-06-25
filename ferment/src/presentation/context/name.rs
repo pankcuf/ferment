@@ -119,7 +119,7 @@ impl ScopeContextPresentable for Aspect {
                                 let trait_ty = trait_ty.as_ref()
                                     .and_then(|trait_ty|
                                         trait_ty.resolve(source)
-                                            .to_trait_ty(source));
+                                            .maybe_trait_ty(source));
 
                                 match trait_ty {
                                     Some(trait_ty) => {

@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Formatter};
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::{BareFnArg, FnArg, Generics, ItemFn, ParenthesizedGenericArguments, parse_quote, Pat, PathArguments, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
+use syn::{FnArg, Generics, ItemFn, ParenthesizedGenericArguments, parse_quote, Pat, PathArguments, PathSegment, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, TypePath};
 use quote::{quote, ToTokens};
 use syn::token::RArrow;
-use crate::composer::{CommaPunctuated, Composer, Depunctuated};
-use crate::composition::CfgAttributes;
+use crate::composer::{CommaPunctuated, r#abstract::Composer, Depunctuated};
+use crate::composition::{CfgAttributes, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Conversion, FFIResolveExtended, FFITypeResolve, Mangle, Resolve};
+use crate::ext::{Conversion, FFIVariableResolve, FFITypeResolve, Mangle, Resolve};
 use crate::holder::PathHolder;
 use crate::naming::{DictionaryName, Name};
 use crate::presentation::context::{FieldContext, OwnedItemPresentableContext};
@@ -97,11 +97,11 @@ impl<'a> Composer<'a> for ReturnType {
                 conversion: FieldContext::LineTermination
             },
             (false, ReturnType::Type(_, ty)) => FnReturnTypeComposer {
-                presentation: ReturnType::Type(RArrow::default(), Box::new(ty.ffi_full_dictionary_type_presenter(source))),
+                presentation: ReturnType::Type(RArrow::default(), Box::new(ty.to_full_ffi_variable(source))),
                 conversion: ty.conversion_to(FieldContext::Obj)
             },
             (true, ReturnType::Type(token, field_type)) => FnReturnTypeComposer {
-                presentation: ReturnType::Type(token.clone(), Box::new(field_type.ffi_full_dictionary_type_presenter(source))),
+                presentation: ReturnType::Type(token.clone(), Box::new(field_type.to_full_ffi_variable(source))),
                 conversion: FieldContext::Empty
             },
             (true, ReturnType::Default) => FnReturnTypeComposer {
@@ -112,34 +112,35 @@ impl<'a> Composer<'a> for ReturnType {
     }
 }
 
-impl<'a> Composer<'a> for CommaPunctuated<BareFnArg> {
-    type Source = ScopeContext;
-    type Result = Depunctuated<FnArgComposer>;
-    fn compose(&self, source: &Self::Source) -> Self::Result {
-        self.iter()
-            .map(|bare_fn_arg| bare_fn_arg.compose(source))
-            .collect()
-    }
-}
-
-impl<'a> Composer<'a> for BareFnArg {
-    type Source = ScopeContext;
-    type Result = FnArgComposer;
-    fn compose(&self, source: &Self::Source) -> Self::Result {
-        let BareFnArg { ty, attrs, name, .. } = self;
-        let name = name.clone().map(|(ident, _)| ident);
-        println!("BareFnArg::compose: {}", ty.to_token_stream());
-        FnArgComposer::new(
-            name.as_ref().map(Ident::to_token_stream),
-            OwnedItemPresentableContext::Named(
-                FieldTypeConversion::Named(
-                    Name::Optional(name),
-                    FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
-                    attrs.cfg_attributes_expanded()),
-                false),
-            FieldContext::Empty)
-    }
-}
+// impl<'a> Composer<'a> for CommaPunctuated<BareFnArg> {
+//     type Source = ScopeContext;
+//     type Result = Depunctuated<FnArgComposer>;
+//     fn compose(&self, source: &Self::Source) -> Self::Result {
+//         self.iter()
+//             .map(|bare_fn_arg| bare_fn_arg.compose(source))
+//             .collect()
+//     }
+// }
+//
+// impl<'a> Composer<'a> for BareFnArg {
+//     type Source = ScopeContext;
+//     type Result = FnArgComposer;
+//     fn compose(&self, source: &Self::Source) -> Self::Result {
+//         let BareFnArg { ty, attrs, name, .. } = self;
+//         let name = name.clone().map(|(ident, _)| ident);
+//         println!("BareFnArg::compose: {}", ty.to_token_stream());
+//         FnArgComposer::new(
+//             name.as_ref().map(Ident::to_token_stream),
+//             OwnedItemPresentableContext::Named(
+//                 FieldTypeConversion::Named(
+//                     Name::Optional(name),
+//                     // FieldTypeConversionKind::Type(ty.to_full_ffi_variable_type(source)),
+//                     FieldTypeConversionKind::Type(ty.clone()),
+//                     attrs.cfg_attributes_expanded()),
+//                 false),
+//             FieldContext::Empty)
+//     }
+// }
 
 impl<'a> Composer<'a> for PatType {
     type Source = (&'a FnSignatureContext, &'a ScopeContext);
@@ -148,12 +149,9 @@ impl<'a> Composer<'a> for PatType {
         let (_ctx, source) = source;
         let PatType { ty, attrs, pat, .. } = self;
         let maybe_obj = source.maybe_object(ty);
-        println!("PatType::compose: {}", maybe_obj.as_ref().map_or("Nothing".to_string(), |a| format!("{}", a)));
+        // println!("PatType::compose: {}", maybe_obj.as_ref().map_or("Nothing".to_string(), |a| format!("{}", a)));
         let ident = match &**pat {
-            Pat::Ident(PatIdent { ident, .. }) => {
-                ident
-                // println!("Compose PatType: {} --> {}", ty.to_token_stream(), ty.resolve(source).to_token_stream());
-            },
+            Pat::Ident(PatIdent { ident, .. }) => ident,
             _ =>
                 panic!("error: Arg conversion not supported: {}", quote!(#ty)),
         };
@@ -161,43 +159,31 @@ impl<'a> Composer<'a> for PatType {
         let (conversion_kind, name_type_conversion) = match maybe_obj {
             Some(ObjectConversion::Item(composition, ..) |
                  ObjectConversion::Type(composition)) => {
-                let ty = composition.ty();
+                let ty = composition.ty().clone();
                 println!("PatType::compose({})", composition);
                 match composition {
-                    TypeCompositionConversion::Callback(..) => (
-                        FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
-                        {
-                            let ffi_ty = ty.to_custom_or_ffi_type(source);
-                            println!("TypeCompositionConversion::Callback:::: {}", ty.to_token_stream());
-                            match ty {
-                                Type::Path(TypePath { qself: _, path }) => match path.segments.last() {
-                                    Some(last_segment) => match &last_segment.arguments {
-                                        PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                                            let ret = match output {
-                                                ReturnType::Default => quote!(()),
-                                                ReturnType::Type(_, ty) => quote!(#ty),
-                                            };
-                                            FieldContext::Simple(quote!(<#ffi_ty as ferment_interfaces::FFICallback<(#inputs), #ret>>::get(&*#ident)))
-                                        },
-                                        _ => panic!("Non callback type: {}", ty.to_token_stream()),
-                                    },
-                                    None => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", ty.to_token_stream()),
-                                },
-                                _ => unimplemented!("TODO: Non-supported optional type as generic argument (Type): {}", ty.to_token_stream()),
-                            }
-                            // let TypeBareFn { inputs, .. } = parse_quote!(#ty);
-                            // let arg_names = inputs.iter().map(|BareFnArg { name, .. }| name.as_ref().map(|(ident, _)| ident).to_token_stream()).collect::<CommaPunctuated<TokenStream2>>();
+                    // TODO: For now we assume that every callback defined as fn pointer is opaque
+                    TypeCompositionConversion::FnPointer(TypeComposition { ty: Type::Path(TypePath { qself: _, path }), .. }) => match path.segments.last() {
+                        Some(PathSegment { arguments: PathArguments::Parenthesized(ParenthesizedGenericArguments { .. }), .. }) => {
+                            let ffi_ty = ty.special_or_to_ffi_full_path_type(source);
+                            // let ret = match output {
+                            //     ReturnType::Default => quote!(()),
+                            //     ReturnType::Type(_, ty) => quote!(#ty),
+                            // };
+                            // Lambda
+                            println!("PatType::FnPointer::Parenthesized({}) --> {}", ty.to_token_stream(), ffi_ty.to_token_stream());
 
-                            // ::<(u32, [u8; 32]), Option<String>>::
+                            (FieldTypeConversionKind::Type(ffi_ty), FieldContext::Simple(quote!(#ident)))
+                        },
+                        Some(PathSegment { arguments, .. }) => {
+                            let ffi_ty = ty.special_or_to_ffi_full_path_type(source);
+                            println!("PatType::FnPointer::{}({}) --> {}", arguments.to_token_stream(), ty.to_token_stream(), ffi_ty.to_token_stream());
 
-
-                            // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident)))
-                            // FieldContext::MapExpression(
-                            //     FieldContext::Simple(arg_names.to_token_stream()).into(),
-                            //     // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident, (#arg_names)))).into())
-                            //     FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident))).into())
-                        }
-                    ),
+                            (FieldTypeConversionKind::Type(ffi_ty), FieldContext::Simple(quote!(#ident)))
+                        },
+                        None =>
+                            unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", ty.to_token_stream()),
+                    },
                     TypeCompositionConversion::Primitive(_) |
                     TypeCompositionConversion::Trait(_, _, _) |
                     TypeCompositionConversion::TraitType(_) |
@@ -208,7 +194,7 @@ impl<'a> Composer<'a> for PatType {
                     TypeCompositionConversion::Tuple(_) |
                     TypeCompositionConversion::Unknown(_) |
                     TypeCompositionConversion::LocalOrGlobal(_) => (
-                        FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
+                        FieldTypeConversionKind::Type(ty.to_full_ffi_variable(source)),
                         {
                             let conversion = ty.resolve(source).conversion_from(FieldContext::Simple(quote!(#ident)));
                             match ty {
@@ -233,76 +219,17 @@ impl<'a> Composer<'a> for PatType {
                                     FieldContext::From(FieldContext::Simple(quote!(#ident)).into())
                                 }
                             }
-                            _ => {
-                                unimplemented!("Mixin as fn arg...")
-                                // FieldContext::From(FieldContext::Simple(quote!(#ident)).into())
-                            }
+                            _ =>
+                                unimplemented!("Mixin as fn arg..."),
                         }
-
-                        // match ty {
-                        //     Type::Path(TypePath { qself: _, path }) => match path.segments.last() {
-                        //         Some(last_segment) => match &last_segment.arguments {
-                        //             PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                        //                 FieldContext::Simple(quote!(ferment_interfaces::FFICallback::<(#inputs), #output>::get(&#ident)))
-                        //             },
-                        //             _ => panic!("Non callback type: {}", ty.to_token_stream()),
-                        //         },
-                        //         None => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", ty.to_token_stream()),
-                        //     },
-                        //     _ => unimplemented!("TODO: Non-supported optional type as generic argument (Type): {}", ty.to_token_stream()),
-                        // }
-
-                    // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&*#ident)))
-
-                        // bounds.conversion_from(FieldContext::Simple(quote!(#ident)))
                     ),
-                    TypeCompositionConversion::Fn(_) => panic!("error: Arg conversion (Fn) not supported: {}", quote!(#ty)),
+                    ty =>
+                        panic!("error: Arg conversion ({ty}) not supported"),
                 }
             }
             _ => panic!("ObjectConversion::None or Empty"),
         };
-        // TODO: handle mut/const with pat
-        // let full_ty = ;
-        // let ty_conversion = TypeConversion::from(ty);
-        // let (conversion_kind, name_type_conversion) = match ty_conversion {
-        //     TypeConversion::Primitive(..) |
-        //     TypeConversion::Complex(..) |
-        //     TypeConversion::Generic(..) => (
-        //         FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
-        //         match &**pat {
-        //             Pat::Ident(PatIdent { ident, .. }) => {
-        //                 // println!("Compose PatType: {} --> {}", ty.to_token_stream(), ty.resolve(source).to_token_stream());
-        //                 let full_ty = ty.resolve(source);
-        //                 let conversion = full_ty.conversion_from(FieldContext::Simple(quote!(#ident)));
-        //                 match &**ty {
-        //                     Type::Reference(..) =>
-        //                         FieldContext::AsRef(conversion.into()),
-        //                     _ => conversion
-        //
-        //                 }
-        //             },
-        //             _ =>
-        //                 panic!("error: Arg conversion not supported: {}", quote!(#ty)),
-        //         }
-        //     ),
-        //     TypeConversion::Callback(..) => (
-        //         FieldTypeConversionKind::Type(ty.ffi_full_dictionary_type_presenter(source)),
-        //         match &**pat {
-        //             Pat::Ident(PatIdent { ident, .. }) => {
-        //                 let TypeBareFn { inputs, .. } = parse_quote!(#ty);
-        //                 let arg_names = inputs.iter().map(|BareFnArg { name, .. }| name.as_ref().map(|(ident, _)| ident).to_token_stream()).collect::<CommaPunctuated<TokenStream2>>();
-        //                 FieldContext::MapExpression(
-        //                     FieldContext::Simple(arg_names.to_token_stream()).into(),
-        //                     FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Apply(quote!(&#ident, (#arg_names)))).into())
-        //             },
-        //             _ =>
-        //                 panic!("error: Arg conversion not supported: {}", quote!(#ty)),
-        //         }
-        //
-        //     )
-        // };
-        // println!("PatType: {}", name_type_conversion);
-        FnArgComposer::new(
+        let composer = FnArgComposer::new(
             Some(pat.to_token_stream()),
             OwnedItemPresentableContext::Named(
                 FieldTypeConversion::Named(
@@ -310,7 +237,9 @@ impl<'a> Composer<'a> for PatType {
                     conversion_kind,
                     attrs.cfg_attributes_expanded()),
                 false),
-            name_type_conversion)
+            name_type_conversion);
+        // println!("PatType: {:?}", composer);
+        composer
     }
 }
 
@@ -336,8 +265,6 @@ impl<'a> Composer<'a> for Receiver {
         let (ctx, source) = source;
         let Receiver { mutability, reference, attrs, .. } = self;
         match ctx {
-            FnSignatureContext::ModFn(_) => panic!("receiver in mod fn"),
-            FnSignatureContext::Bare(_, _) => panic!("receiver in bare fn"),
             FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
             FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => {
                 let (mangled_ident, name_type_conversion) = match maybe_trait_ty {
@@ -364,6 +291,7 @@ impl<'a> Composer<'a> for Receiver {
                 };
                 FnArgComposer::new(None, name_type_original, name_type_conversion)
             },
+            _ => panic!("Receiver in regular fn")
         }
     }
 }

@@ -20,3 +20,4 @@ pub use self::to_conversion_presentation::ToConversionPresentation;
 pub use self::expansion::Expansion;
 pub use self::presentable::ScopeContextPresentable;
 pub use self::binding_presentation::BindingPresentation;
+pub use self::destroy_presentation::DestroyPresentation;

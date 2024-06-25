@@ -39,14 +39,14 @@ impl TypeConversion {
             .collect::<Vec<_>>()
     }
 
-    pub fn as_generic_arg_type(&self, context: &ScopeContext) -> TokenStream2 {
+    pub fn as_generic_arg_type(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.ffi_resolve_or_same(context).to_token_stream(),
+                ty.maybe_ffi_resolve(source).unwrap_or(parse_quote!(#self)).to_token_stream(),
             TypeConversion::Generic(conversion) =>
-                conversion.to_ffi_type().to_token_stream(),
+                conversion.to_ffi_full_path(source).to_token_stream(),
             // TypeConversion::Callback(ty) =>
             //     unimplemented!("Callbacks are not implemented in generics: {}", ty.to_token_stream()),
         }

@@ -6,7 +6,7 @@ use syn::punctuated::Punctuated;
 use crate::composer::Depunctuated;
 use crate::composition::{Composition, ImportComposition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{ImportConversion, ObjectConversion, ScopeItemConversion};
+use crate::conversion::{ImportConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{extract_trait_names, Opaque, ToObjectConversion};
 use crate::holder::TypeHolder;
 use crate::print_phase;
@@ -91,15 +91,20 @@ impl ScopeContext {
 
     pub fn maybe_object(&self, ty: &Type) -> Option<ObjectConversion> {
         let lock = self.context.read().unwrap();
-        let result = lock.maybe_type(ty, &self.scope).cloned();
+        let result = lock.maybe_object(ty, &self.scope).cloned();
         // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
+    }
+
+    pub fn maybe_type_conversion(&self, ty: &Type) -> Option<TypeCompositionConversion> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_type_composition_conversion(ty, &self.scope).cloned()
     }
 
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
         // println!("full_type_for: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
-        let full_ty = lock.maybe_type(ty, &self.scope)
+        let full_ty = lock.maybe_object(ty, &self.scope)
             .and_then(ObjectConversion::to_ty)
             .unwrap_or(ty.clone());
         full_ty

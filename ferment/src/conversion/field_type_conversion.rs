@@ -75,11 +75,18 @@ impl FieldTypeConversion {
         Self::Unnamed(name, kind, Depunctuated::new())
     }
 
-    pub fn ty(&self) -> &Type {
+    pub fn kind(&self) -> &FieldTypeConversionKind {
         match self {
-            FieldTypeConversion::Named(_, FieldTypeConversionKind::Type(ty), _) => ty,
-            FieldTypeConversion::Unnamed(_, FieldTypeConversionKind::Type(ty), _) => ty,
-            _ => panic!("It's a conversion")
+            FieldTypeConversion::Named(_, kind, _) |
+            FieldTypeConversion::Unnamed(_, kind, _) => kind,
+        }
+
+    }
+    pub fn ty(&self) -> &Type {
+        if let FieldTypeConversionKind::Type(ty) = self.kind() {
+            ty
+        } else {
+            panic!("improper use of conversion as type")
         }
     }
     pub fn name(&self) -> TokenStream2 {

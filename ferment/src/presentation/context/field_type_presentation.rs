@@ -1,15 +1,15 @@
-use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
+use ferment_macro::Display;
 use crate::composer::CommaPunctuated;
 use crate::context::ScopeContext;
 use crate::conversion::FieldTypeConversion;
 use crate::ext::Terminated;
 use crate::naming::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
-use crate::presentation::context::OwnerIteratorPresentationContext;
+use crate::presentation::context::SequenceOutput;
 use crate::presentation::ScopeContextPresentable;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
 #[allow(unused)]
 pub enum FieldContext {
     Empty,
@@ -27,7 +27,7 @@ pub enum FieldContext {
     ToOpt(Box<FieldContext>),
     UnwrapOr(Box<FieldContext>, TokenStream2),
     MapOr(Box<FieldContext>, Box<FieldContext>, Box<FieldContext>),
-    OwnerIteratorPresentation(OwnerIteratorPresentationContext),
+    OwnerIteratorPresentation(SequenceOutput),
     FromOptPrimitive(Box<FieldContext>),
     ToVec(Box<FieldContext>),
     ToPrimitiveGroup(Box<FieldContext>),
@@ -43,8 +43,6 @@ pub enum FieldContext {
     UnboxAny(Box<FieldContext>),
     UnboxAnyTerminated(Box<FieldContext>),
     DestroyOpt(Box<FieldContext>),
-    // DestroyPrimitiveGroup(TokenStream2),
-    // DestroyComplexGroup(Box<FieldContext>),
     DestroyString(Box<FieldContext>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<FieldContext>),
@@ -66,117 +64,6 @@ pub enum FieldContext {
     FromTuple(Box<FieldContext>, CommaPunctuated<FieldContext>),
     MapExpression(Box<FieldContext>, Box<FieldContext>),
     AsMut_(Box<FieldContext>)
-}
-
-impl Display for FieldContext {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            FieldContext::Empty =>
-                "FieldTypePresentableContext::Empty".to_string(),
-            FieldContext::DictionaryName(name) =>
-                format!("FieldTypePresentableContext::DictionaryName({})", name),
-            FieldContext::DictionaryExpr(expr) =>
-                format!("FieldTypePresentableContext::DictionaryExpr({})", expr),
-            FieldContext::InterfacesExpr(expr) =>
-                format!("FieldTypePresentableContext::InterfacesExpr({})", expr.to_token_stream()),
-            FieldContext::FFIConversionExpr(expr) =>
-                format!("FieldTypePresentableContext::FFIConversionExpr({})", expr.to_token_stream()),
-            FieldContext::FFICallbackExpr(expr) =>
-                format!("FieldTypePresentableContext::FFICallbackExpr({})", expr.to_token_stream()),
-            FieldContext::Simple(simple) =>
-                format!("FieldTypePresentableContext::Simple({})", quote!(#simple)),
-            FieldContext::Add(context, index) =>
-                format!("FieldTypePresentableContext::Add({}, {})", context, index),
-            FieldContext::FromOptPrimitive(context) =>
-                format!("FieldTypePresentableContext::FromOptPrimitive({})", context),
-            FieldContext::To(context) =>
-                format!("FieldTypePresentableContext::To({})", context),
-            FieldContext::ToVec(context) =>
-                format!("FieldTypePresentableContext::ToVec({})", context),
-            FieldContext::ToPrimitiveGroup(context) =>
-                format!("FieldTypePresentableContext::ToPrimitiveGroup({})", context),
-            FieldContext::ToOptPrimitive(context) =>
-                format!("FieldTypePresentableContext::ToOptPrimitive({})", context),
-            FieldContext::ToOptPrimitiveGroup(context) =>
-                format!("FieldTypePresentableContext::ToOptPrimitiveGroup({})", context),
-            FieldContext::ToComplexGroup(context) =>
-                format!("FieldTypePresentableContext::ToComplexGroup({})", context),
-            FieldContext::ToOptComplexGroup(context) =>
-                format!("FieldTypePresentableContext::ToOptComplexGroup({})", context),
-            FieldContext::ToOpt(context) =>
-                format!("FieldTypePresentableContext::ToOpt({})", context),
-            FieldContext::UnwrapOr(context, or) =>
-                format!("FieldTypePresentableContext::UnwrapOr({}, {})", context, or),
-            FieldContext::MapOr(condition, def, mapper) =>
-                format!("FieldTypePresentableContext::MapOr({}, {}, {})", condition, def, mapper),
-            FieldContext::OwnerIteratorPresentation(context) =>
-                format!("FieldTypePresentableContext::OwnerIteratorPresentation({})", context),
-            FieldContext::ToVecPtr =>
-                "FieldTypePresentableContext::ToVecPtr".to_string(),
-            FieldContext::Obj =>
-                "FieldTypePresentableContext::Obj".to_string(),
-            FieldContext::Self_ =>
-                "FieldTypePresentableContext::Self_".to_string(),
-            FieldContext::SelfAsTrait(trait_ty) =>
-                format!("FieldTypePresentableContext::SelfAsTrait({})", trait_ty),
-            FieldContext::ObjFieldName(field_name) =>
-                format!("FieldTypePresentableContext::ObjFieldName({})", field_name),
-            FieldContext::FieldTypeConversionName(conversion) =>
-                format!("FieldTypePresentableContext::ObjFieldName({})", conversion),
-            FieldContext::LineTermination =>
-                "FieldTypePresentableContext::LineTermination".to_string(),
-            FieldContext::UnboxAny(context) =>
-                format!("FieldTypePresentableContext::UnboxAny({})", context),
-            FieldContext::UnboxAnyTerminated(context) =>
-                format!("FieldTypePresentableContext::UnboxAnyTerminated({})", context),
-            FieldContext::DestroyOpt(context) =>
-                format!("FieldTypePresentableContext::DestroyOpt({})", context),
-            FieldContext::DestroyString(context, smth) =>
-                format!("FieldTypePresentableContext::DestroyString({}, {})", context, smth),
-            FieldContext::FromRawParts(context) =>
-                format!("FieldTypePresentableContext::FromRawParts({})", context),
-            FieldContext::From(context) =>
-                format!("FieldTypePresentableContext::From({})", context),
-            FieldContext::IntoBox(context) =>
-                format!("FieldTypePresentableContext::IntoBox({})", context),
-            FieldContext::CastFrom(context, ty, ffi_ty) =>
-                format!("FieldTypePresentableContext::CastFrom({}, {}, {})", context, ty, ffi_ty),
-            FieldContext::CastDestroy(context, ty, ffi_ty) =>
-                format!("FieldTypePresentableContext::CastDestroy({}, {}, {})", context, ty, ffi_ty),
-            FieldContext::FromOffsetMap =>
-                "FieldTypePresentableContext::FromOffsetMap".to_string(),
-            FieldContext::FromOpt(context) =>
-                format!("FieldTypePresentableContext::FromOpt({})", context),
-            FieldContext::AsRef(context) =>
-                format!("FieldTypePresentableContext::AsRef({})", context),
-            FieldContext::AsMutRef(context) =>
-                format!("FieldTypePresentableContext::AsMutRef({})", context),
-            FieldContext::AsSlice(context) =>
-                format!("FieldTypePresentableContext::AsSlice({})", context),
-            FieldContext::IfThen(context, statement) =>
-                format!("FieldTypePresentableContext::IfThen({}, {})", context, statement),
-            FieldContext::Named((ff, context)) =>
-                format!("FieldTypePresentableContext::Named(({}, {}))", ff, context),
-            FieldContext::Deref(context) =>
-                format!("FieldTypePresentableContext::Deref({})", context),
-            FieldContext::DerefContext(context) =>
-                format!("FieldTypePresentableContext::DerefContext({})", context),
-            FieldContext::FfiRefWithFieldName(context) =>
-                format!("FieldTypePresentableContext::FfiRefWithFieldName({})", context),
-            FieldContext::FfiRefWithConversion(context) =>
-                format!("FieldTypePresentableContext::FfiRefWithConversion({})", context),
-            FieldContext::Match(context) =>
-                format!("FieldTypePresentableContext::Match({})", context),
-            FieldContext::FromTuple(context, items) =>
-                format!("FieldTypePresentableContext::FromTuple({}, [{}])", context, items.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(",")),
-            FieldContext::MapExpression(context, mapper) =>
-                format!("FieldTypePresentableContext::MapExpression({}, {})", context, mapper),
-            FieldContext::O =>
-                "FieldTypePresentableContext::O".to_string(),
-            FieldContext::AsMut_(context) =>
-                format!("FieldTypePresentableContext::AsMut_({})", context),
-        }.as_str())
-    }
 }
 
 impl ScopeContextPresentable for FieldContext {

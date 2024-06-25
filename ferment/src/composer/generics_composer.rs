@@ -1,8 +1,9 @@
 use syn::{GenericParam, Generics, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate};
-use crate::composer::{AddPunctuated, Composer, LinkedComposer, ParentComposer};
+use crate::composer::{AddPunctuated, ParentComposer};
+use crate::composer::r#abstract::{Composer, LinkedComposer, ParentLinker};
 use crate::context::ScopeContext;
 use crate::holder::TypePathHolder;
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::shared::SharedAccess;
 
 pub struct GenericsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,

@@ -108,7 +108,7 @@ impl ScopeItemConversion {
                 Item::Impl(..) =>
                     Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
                 Item::Type(ty) => match &*ty.ty {
-                    Type::BareFn(..) => Some(TypeCompositionConversion::Callback(ty_to_replace.clone())),
+                    Type::BareFn(..) => Some(TypeCompositionConversion::FnPointer(ty_to_replace.clone())),
                     _ => Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
                 },
                 _ => None

@@ -32,7 +32,7 @@ impl ToObjectConversion for Type {
     }
 
     fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_composition(self, nested_arguments)))
+        ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_composition(self, nested_arguments)))
     }
 
     // fn to_import(self) -> ObjectConversion {
@@ -53,7 +53,7 @@ impl ToObjectConversion for TypePath {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
     }
     fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Callback(handle_type_path_composition(self, nested_arguments)))
+        ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_path_composition(self, nested_arguments)))
     }
 
     // fn to_import(self) -> ObjectConversion {
@@ -155,7 +155,7 @@ impl<'a> VisitScopeType<'a> for Path {
             //         Some(NestedArgument::Object(path.update_nested_generics(source))),
             //     TypeParamBound::Lifetime(_) => None,
             // }));
-            println!("YES: maybe_generic_bound_for_path: {}, generics: {}, nested: {}", bound.to_token_stream(), generics.to_token_stream(), nested_arguments.to_token_stream());
+            //println!("YES: maybe_generic_bound_for_path: {}, generics: {}, nested: {}", bound.to_token_stream(), generics.to_token_stream(), nested_arguments.to_token_stream());
             let path = &import_seg.0;
             let ty: Type = parse_quote!(#path);
             let ident_path = Path::from(PathSegment::from(bound.ident.clone()));
@@ -186,18 +186,8 @@ impl<'a> VisitScopeType<'a> for Path {
                         })
                         .collect())
                 .unwrap_or_default();
-            let s = GenericBoundComposition {
-                bounds,
-                predicates,
-                // TODO: it can have NestedArguments
-                type_composition: TypeComposition::new(ty, Some(generics.clone()), nested_arguments.clone()),
-                nested_arguments
-            };
-            println!("GenericBoundComposition::new({})", s);
-
-
             // GenericBoundComposition::new(&import_seg.0, &bound, generics, nested_arguments)
-            ObjectConversion::Type(TypeCompositionConversion::Bounds(s))
+            ObjectConversion::Type(TypeCompositionConversion::Bounds(GenericBoundComposition::new(ty, bounds, predicates, generics, nested_arguments)))
         } else if let Some(mut import_path) = context.maybe_import(scope, &import_seg).cloned() {
             // Can be reevaluated after processing entire scope tree:
             // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
@@ -206,25 +196,7 @@ impl<'a> VisitScopeType<'a> for Path {
             if import_path.is_crate_based() {
                 import_path.replace_first_with(&scope.crate_ident_as_path());
             }
-
             ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
-            /*
-            let last_segment = segments.pop().unwrap();
-            let import_path = if import_path.is_crate_based() {
-                nprint!(1, Emoji::Local, "(ScopeImport Local) {}", format_token_stream(&import_path));
-                let path = import_path.replaced_first_with_ident(&scope.crate_ident_as_path());
-                parse_quote!(#path)
-            } else {
-                nprint!(1, Emoji::Local, "(ScopeImport External) {}", format_token_stream(&import_path));
-                segments.extend(import_path.segments.clone());
-                parse_quote!(#segments)
-            };
-            let mut full_import_path = context.ensure_full_import(import_path);
-            full_import_path.segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
-            TypePath { qself: new_qself, path: full_import_path }
-                .to_unknown()
-            */
-
         } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_type_path) {
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
@@ -493,7 +465,7 @@ impl<'a> VisitScopeType<'a> for TypeBareFn {
         }
         println!("TypeBareFn::update_nested_generics: {} --- {}", self.to_token_stream(), nested.to_token_stream());
         ObjectConversion::Type(
-            TypeCompositionConversion::Callback(
+            TypeCompositionConversion::FnPointer(
                 TypeComposition::new(Type::BareFn(self.clone()), None, nested)))
     }
 }

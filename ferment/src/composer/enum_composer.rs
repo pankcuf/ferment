@@ -4,20 +4,19 @@ use syn::punctuated::Punctuated;
 use std::rc::Rc;
 use std::cell::RefCell;
 use quote::{quote, ToTokens};
-use crate::composer::{AttrsComposer, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, Composer, constants, Depunctuated, EnumParentComposer, FFIAspect, OwnerIteratorPostProcessingComposer, ParentComposer, VariantComposer, VariantIteratorLocalContext};
+use crate::composer::{CommaPunctuatedOwnedItems, CommaPunctuatedTokens, constants, Depunctuated, EnumParentComposer, FFIAspect, OwnerIteratorPostProcessingComposer, ParentComposer, VariantComposer, VariantIteratorLocalContext};
+use crate::composer::r#abstract::Composer;
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, BindingComposable, ConversionComposable, DropComposable, SourceExpandable, FFIObjectComposable, NameContext, SourceAccessible};
-use crate::composer::generics_composer::GenericsComposer;
 use crate::composer::item::ItemComposerWrapper;
-use crate::composer::r#type::TypeComposer;
+use crate::composer::r#abstract::ParentLinker;
 use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::presentation::context::{FieldContext, name, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
-use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
+use crate::presentation::context::{FieldContext, name, OwnedItemPresentableContext, SequenceOutput};
+use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ScopeContextPresentable, ToConversionPresentation};
 use crate::presentation::context::binding::BindingPresentableContext;
-use crate::presentation::context::name::{Aspect, Context};
-use crate::presentation::destroy_presentation::DestroyPresentation;
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::presentation::context::name::Context;
+use crate::shared::SharedAccess;
 use crate::wrapped::DelimiterTrait;
 
 pub struct EnumComposer<I>
@@ -30,7 +29,7 @@ pub struct EnumComposer<I>
 }
 
 impl<I> NameContext for EnumComposer<I> where I: DelimiterTrait + ?Sized {
-    fn name_context_ref(&self) -> &name::Context {
+    fn name_context_ref(&self) -> &Context {
         self.base.name_context_ref()
     }
 }
@@ -41,6 +40,9 @@ impl<I> BasicComposable<EnumParentComposer<I>> for EnumComposer<I>
         self.base.compose_attributes()
     }
 
+    fn compose_generics(&self) -> Option<Generics> {
+        self.base.generics.compose(self.context())
+    }
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::DefaultT(self.base.doc.compose(&()))
     }
@@ -76,8 +78,8 @@ impl<I> DropComposable for EnumComposer<I>
         let source = self.source_ref();
         DropInterfacePresentation::Full {
             attrs: self.compose_attributes().to_token_stream(),
-            ty: self.base.ffi_name_aspect().present(&source),
-            body: OwnerIteratorPresentationContext::MatchFields((
+            ty: self.compose_ffi_name(),
+            body: SequenceOutput::MatchFields((
                 FieldContext::Simple(quote!(self)).into(),
                 {
                     let mut result =
@@ -111,9 +113,9 @@ impl<I> BindingComposable for EnumComposer<I>
             .iter()
             .map(|composer| composer.compose_ctor(&source)));
         bindings.push(BindingPresentableContext::<CommaPunctuatedOwnedItems, CommaPunctuatedTokens, I>::Destructor(
-            Aspect::FFI(self.base.name_context()).present(&source),
-            self.compose_attributes().to_token_stream(),
-            self.base.generics.compose(self.context()))
+            self.compose_ffi_name(),
+            self.compose_attributes(),
+            self.compose_generics())
             .present(&source));
         bindings
     }
@@ -132,7 +134,7 @@ impl<Parent, I> ConversionComposable<Parent> for EnumComposer<I>
         (FromConversionPresentation::Enum(conversions_from_ffi),
          ToConversionPresentation::Enum(conversions_to_ffi),
          DestroyPresentation::Default,
-         self.base.generics.compose(self.context()))
+         self.compose_generics())
     }
 }
 
@@ -146,14 +148,14 @@ impl<I> EnumComposer<I> where I: DelimiterTrait + ?Sized {
         variant_composers: (Vec<ItemComposerWrapper>, Vec<(VariantComposer, VariantIteratorLocalContext)>),
     ) -> EnumParentComposer<I> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::new(
-                AttrsComposer::new(AttrsComposition::from(attrs, target_name, scope)),
-                constants::enum_composer_doc(),
-                TypeComposer::new(Context::Enum {
+            base: BasicComposer::from(
+                AttrsComposition::from(attrs, target_name, scope),
+                Context::Enum {
                     ident: target_name.clone(),
                     attrs: attrs.cfg_attributes_expanded(),
-                }),
-                GenericsComposer::new(Some(generics.clone())),
+                },
+                Some(generics.clone()),
+                constants::composer_doc(),
                 Rc::clone(context)
             ),
             variant_composers: variant_composers.0,

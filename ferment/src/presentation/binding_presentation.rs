@@ -3,12 +3,13 @@ use quote::{quote, ToTokens};
 use syn::{Generics, PathArguments, ReturnType, Type};
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
-use crate::composer::{CommaPunctuated, CommaPunctuatedTokens, ConstructorPresentableContext, Depunctuated};
+use crate::composer::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
 use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
 use crate::interface::create_callback;
 use crate::naming::{DictionaryName, InterfacesMethodExpr, Name};
 use crate::presentation::{Expansion, InterfacePresentation};
+use crate::presentation::context::ConstructorPresentableContext;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -160,22 +161,22 @@ impl ToTokens for BindingPresentation {
                 quote!(),
             Self::Constructor { context, ctor_arguments, body_presentation} => {
                 match context {
-                    ConstructorPresentableContext::EnumVariant(ffi_type, attrs, generics) => {
+                    ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics)) => {
                         let variant_path = ffi_type.to_path();
                         present_pub_function(
                             attrs.to_token_stream(),
-                            Name::Constructor(ffi_type.clone()).mangle_ident_default().to_token_stream(),
+                            Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                             generics.clone(),
                             InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
                     }
-                    ConstructorPresentableContext::Default(ffi_type, attrs, generics) => {
+                    ConstructorPresentableContext::Default((ffi_type, attrs, generics)) => {
                         let mut ffi_path = ffi_type.to_path();
                         ffi_path.segments.last_mut().unwrap().arguments = PathArguments::None;
                         present_pub_function(
                             attrs.to_token_stream(),
-                            Name::Constructor(ffi_type.clone()).mangle_ident_default().to_token_stream(),
+                            Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
                             generics.clone(),
@@ -186,7 +187,7 @@ impl ToTokens for BindingPresentation {
             Self::Destructor { name, ffi_name, attrs, generics } => {
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldTypeConversion::Named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ffi_name.joined_mut()), Depunctuated::new())
                     ]),
@@ -202,7 +203,7 @@ impl ToTokens for BindingPresentation {
                 ]);
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
                     ]),
@@ -214,7 +215,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs, generics } => {
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     Punctuated::from_iter([FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
                     generics.clone(),
@@ -224,7 +225,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, generics } => {
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
@@ -236,7 +237,7 @@ impl ToTokens for BindingPresentation {
                 // println!("BindingPresentation::Setter: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
@@ -248,7 +249,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
@@ -260,7 +261,7 @@ impl ToTokens for BindingPresentation {
                 println!("BindingPresentation::SetterOpaque: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
                 present_pub_function(
                     attrs.to_token_stream(),
-                    name.mangle_ident_default().to_token_stream(),
+                    name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
                         FieldTypeConversion::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
@@ -275,7 +276,7 @@ impl ToTokens for BindingPresentation {
                     args.extend(arguments.clone());
                     present_pub_function(
                         attrs.to_token_stream(),
-                        name.mangle_ident_default().to_token_stream(),
+                        name.mangle_tokens_default(),
                         args,
                         return_type.clone(),
                         generics.clone(),
@@ -288,7 +289,7 @@ impl ToTokens for BindingPresentation {
                 } else {
                     present_pub_function(
                         attrs.to_token_stream(),
-                        name.mangle_ident_default().to_token_stream(),
+                        name.mangle_tokens_default(),
                         arguments.clone(),
                         return_type.clone(),
                         generics.clone(),

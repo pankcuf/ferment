@@ -1,8 +1,9 @@
 use syn::punctuated::Punctuated;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, Composer, ConstructorComposer, Depunctuated, DestructorContext, LocalConversionContext, MethodComposer};
+use crate::composer::{BindingAccessorContext, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, ConstructorComposer, Depunctuated, DestructorContext, LocalConversionContext, MethodComposer};
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::context::ScopeContext;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::shared::SharedAccess;
 use crate::wrapped::DelimiterTrait;
 
 pub struct FFIBindingsComposer<Parent, I>

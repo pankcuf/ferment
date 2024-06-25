@@ -107,8 +107,8 @@ impl ObjectConversion {
     }
     pub fn type_conversion(&self) -> Option<&TypeCompositionConversion> {
         match self {
-            ObjectConversion::Type(type_conversion) => Some(type_conversion),
-            ObjectConversion::Item(scope, _item) => Some(scope),
+            ObjectConversion::Type(type_conversion) |
+            ObjectConversion::Item(type_conversion, ..) => Some(type_conversion),
             ObjectConversion::Empty => None
         }
     }
@@ -154,7 +154,7 @@ impl TryFrom<(&Item, &PathHolder)> for ObjectConversion {
                 let conversion = ScopeItemConversion::Item(value.clone(), scope.clone());
                 let obj = match &**ty {
                     Type::BareFn(..) => {
-                        ObjectConversion::Item(TypeCompositionConversion::Callback(TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new())), conversion)
+                        ObjectConversion::Item(TypeCompositionConversion::FnPointer(TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new())), conversion)
                     },
                     _ => ObjectConversion::new_obj_item(TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), conversion)
                 };

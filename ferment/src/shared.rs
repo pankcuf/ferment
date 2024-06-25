@@ -17,10 +17,6 @@ pub trait SharedAccess {
         where
             F: FnOnce(&Self::MutableAccess) -> R;
 }
-pub trait ParentLinker<Parent> {
-    fn link(&mut self, parent: &Parent);
-}
-
 impl<T: 'static> SharedAccess for Rc<RefCell<T>> {
     type Item = T;
     type ImmutableAccess = Ref<'static, T>;

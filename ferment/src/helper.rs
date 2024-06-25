@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use quote::{quote, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypeTuple, Variant};
+use syn::{AngleBracketedGenericArguments, Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, GenericArgument, GenericParam, Generics, Ident, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, Meta, NestedMeta, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PatType, ReturnType, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant};
 use syn::__private::{Span, TokenStream2};
 use syn::punctuated::Punctuated;
 use crate::composer::{AddPunctuated, CommaPunctuated, CommaPunctuatedNestedArguments};
@@ -208,27 +208,6 @@ pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     }
 }
 
-fn path_from_type(ty: &Type) -> Option<&Path> {
-    match ty {
-        Type::Array(TypeArray { elem, len: _, .. }) => path_from_type(elem),
-        Type::Path(TypePath { path, .. }) => Some(path),
-        Type::Tuple(TypeTuple { elems, .. }) =>
-            elems.first().and_then(path_from_type),
-        _ => None,
-    }
-}
-
-pub fn path_arguments_to_paths(arguments: &PathArguments) -> Vec<&Path> {
-    match arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-            args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(ty) => path_from_type(ty),
-                // GenericArgument::Type(Type::Reference(TypeReference { mutability, elem })) => Some(path),
-                _ => None
-            }).collect(),
-        _ => Vec::new(),
-    }
-}
 pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuatedNestedArguments {
     match arguments {
         PathArguments::None => Punctuated::new(),

@@ -1,11 +1,16 @@
-use crate::composer::{AttrsComposer, Composer, Depunctuated, ParentComposer, TypeContextComposer};
+use std::rc::Rc;
+use syn::Generics;
+use crate::composer::{AttrsComposer, constants, Depunctuated, ParentComposer, TypeContextComposer};
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
 use crate::composer::generics_composer::GenericsComposer;
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::composer::r#type::TypeComposer;
+use crate::composition::AttrsComposition;
 use crate::context::ScopeContext;
 use crate::presentation::context::name;
 use crate::presentation::{DocPresentation, Expansion};
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::presentation::context::name::Context;
+use crate::shared::SharedAccess;
 
 pub struct BasicComposer<Parent> where Parent: SharedAccess {
     pub context: ParentComposer<ScopeContext>,
@@ -26,6 +31,9 @@ impl<Parent> ParentLinker<Parent> for BasicComposer<Parent> where Parent: Shared
 impl<Parent> BasicComposable<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
     fn compose_attributes(&self) -> Depunctuated<Expansion> {
         self.attr.compose(self.context())
+    }
+    fn compose_generics(&self) -> Option<Generics> {
+        self.generics.compose(self.context())
     }
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.doc.compose(&()))
@@ -54,5 +62,15 @@ impl<Parent> BasicComposer<Parent> where Parent: SharedAccess {
         context: ParentComposer<ScopeContext>
     ) -> BasicComposer<Parent> {
         Self { context, attr, doc, ty, generics }
+    }
+
+    pub fn from(attrs: AttrsComposition, name_context: Context, generics: Option<Generics>, doc: TypeContextComposer<Parent>, context: ParentComposer<ScopeContext>) -> BasicComposer<Parent> {
+        Self::new(
+            AttrsComposer::new(attrs),
+            doc,
+            TypeComposer::new(name_context),
+            GenericsComposer::new(generics),
+            context
+        )
     }
 }

@@ -5,7 +5,7 @@ use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, TypeConver
 use crate::ext::{DictionaryType, Mangle};
 use crate::helper::path_arguments_to_type_conversions;
 use crate::naming::{DictionaryExpr, FFIConversionMethodExpr, Name};
-use crate::presentation::context::{FieldContext, OwnedItemPresentableContext, OwnerIteratorPresentationContext};
+use crate::presentation::context::{FieldContext, OwnedItemPresentableContext, SequenceOutput};
 
 pub trait Conversion {
     fn conversion_from(&self, field_path: FieldContext) -> FieldContext;
@@ -327,7 +327,7 @@ impl Conversion for TypePath {
                 None => unimplemented!("TypePath::conversion_to: Empty Optional"),
                 Some(TypeConversion::Primitive(_)) => FieldContext::ToOptPrimitive(field_path.into()),
                 Some(TypeConversion::Generic(_)) => FieldContext::OwnerIteratorPresentation(
-                    OwnerIteratorPresentationContext::MatchFields((field_path.into(), Punctuated::from_iter([
+                    SequenceOutput::MatchFields((field_path.into(), Punctuated::from_iter([
                         OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), quote!()),
                         OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), quote!())
                     ])))),

@@ -11,7 +11,7 @@ use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::conversion::{ObjectConversion, TypeConversion};
-use crate::formatter::format_generic_conversions;
+use crate::formatter::{format_generic_conversions, format_mixin_conversions};
 use crate::presentation::Expansion;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
 
@@ -101,18 +101,19 @@ impl CrateTree {
                 parent_scope_chain: self.current_tree.scope.clone().into() }, source.context.clone())));
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&global.refined_generics));
         let mut generics = Depunctuated::new();
-        generics.extend(global.refined_generics.iter().map(|(generic, attrs)| match &generic.object {
-            ObjectConversion::Type(type_cc) |
-            ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
-                TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &generics_source),
-                otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
-            },
-            ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
+        generics.extend(global.refined_generics.iter()
+            .map(|(generic, attrs)| match &generic.object {
+                ObjectConversion::Type(type_cc) |
+                ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
+                    TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &generics_source),
+                    otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
+                },
+                ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
         }));
-        generics.extend(global.refined_generic_constraints.iter().map(|(generic, attrs)| {
-            println!("mixin: [{}] attrs: [{:?}]", generic, attrs);
-            quote!()
-        }));
+        print_phase!("PHASE 3: MIXINS TO EXPAND", "\t{}", format_mixin_conversions(&global.refined_generic_constraints));
+        generics.extend(global.refined_generic_constraints.iter()
+            .map(|(mixin, attrs)|
+                mixin.expand(attrs, &generics_source)));
         generics
     }
 

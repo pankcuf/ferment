@@ -5,7 +5,7 @@ pub mod resolve_attrs;
 pub mod opaque;
 pub mod resolve_macro;
 
-pub use self::ffi_resolver::{FFIResolveExtended, FFITypeResolve};
+pub use self::ffi_resolver::{FFIVariableResolve, FFITypeResolve};
 pub use self::opaque::Opaque;
 pub use self::resolve::Resolve;
 pub use self::resolve_attrs::ResolveAttrs;

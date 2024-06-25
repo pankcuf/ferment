@@ -1,8 +1,8 @@
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use crate::composer::{Composer, ContextComposer, DropSequenceMixer, FFIConversionMixer, ParentLinker};
+use crate::composer::{DropSequenceMixer, FFIConversionMixer, OwnerIteratorPostProcessingComposer};
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::context::ScopeContext;
-use crate::presentation::context::OwnerIteratorPresentationContext;
 use crate::presentation::ScopeContextPresentable;
 use crate::shared::SharedAccess;
 
@@ -19,7 +19,7 @@ pub struct FFIComposer<Parent> where Parent: SharedAccess {
     pub from_conversion_composer: FFIConversionMixer<Parent>,
     pub to_conversion_composer: FFIConversionMixer<Parent>,
     pub drop_composer: DropSequenceMixer<Parent>,
-    pub destroy_composer: ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, Parent>,
+    pub destroy_composer: OwnerIteratorPostProcessingComposer<Parent>,
     // pub bindings_composer: FFIBindingsComposer<Parent>,
 }
 
@@ -38,7 +38,7 @@ impl<Parent> FFIComposer<Parent> where Parent: SharedAccess {
     pub const fn new(
         from_conversion_composer: FFIConversionMixer<Parent>,
         to_conversion_composer: FFIConversionMixer<Parent>,
-        destroy_composer: ContextComposer<OwnerIteratorPresentationContext, OwnerIteratorPresentationContext, Parent>,
+        destroy_composer: OwnerIteratorPostProcessingComposer<Parent>,
         drop_composer: DropSequenceMixer<Parent>,
         // bindings_composer: FFIBindingsComposer<Parent>
     ) -> Self {

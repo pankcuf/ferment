@@ -6,20 +6,18 @@ use syn::{Attribute, BareFnArg, Generics, ItemFn, Path, ReturnType, Signature, T
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
-use crate::composer::{AttrsComposer, BindingComposer, CommaPunctuated, Composer, constants, Depunctuated, ParentComposer, ParenWrapped, SigParentComposer, TypeContextComposer};
+use crate::composer::{BindingComposer, CommaPunctuated, constants, Depunctuated, ParentComposer, ParenWrapped, SigParentComposer};
 use crate::composer::basic::BasicComposer;
 use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
-use crate::composer::generics_composer::GenericsComposer;
-use crate::composer::r#type::TypeComposer;
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::composition::{AttrsComposition, CfgAttributes, FnReturnTypeComposer, FnSignatureContext};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
-use crate::ext::{Conversion, FFIResolveExtended, FFITypeResolve, Mangle};
+use crate::ext::{Conversion, FFIVariableResolve, FFITypeResolve, Mangle, Resolve};
 use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethodExpr, InterfacesMethodExpr, Name};
 use crate::presentation::{BindingPresentation, DocPresentation, Expansion, InterfacePresentation, ScopeContextPresentable};
 use crate::presentation::context::{FieldContext, name::Context, OwnedItemPresentableContext};
 use crate::presentation::context::name::Aspect;
-use crate::shared::ParentLinker;
 
 pub struct SigComposer {
     pub base: BasicComposer<SigParentComposer>,
@@ -33,18 +31,11 @@ impl SigComposer {
         sig_context: FnSignatureContext,
         generics: Option<Generics>,
         attrs: AttrsComposition,
-        doc_composer: TypeContextComposer<SigParentComposer>,
         binding_composer: BindingComposer<SigParentComposer>,
         context: &ParentComposer<ScopeContext>) -> SigParentComposer {
         let ty_context = Context::Fn { path, sig_context, attrs: attrs.cfg_attributes_expanded() };
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::new(
-                AttrsComposer::new(attrs),
-                doc_composer,
-                TypeComposer::new(ty_context),
-                GenericsComposer::new(generics),
-                Rc::clone(context)
-            ),
+            base: BasicComposer::from(attrs, ty_context, generics, constants::composer_doc(), Rc::clone(context)),
             binding_composer,
         }));
         {
@@ -67,7 +58,6 @@ impl SigComposer {
             sig_context,
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
-            constants::composer_doc_default(),
             |composer| {
                 let composer = composer.borrow();
                 let _source = composer.base.context.borrow();
@@ -77,10 +67,12 @@ impl SigComposer {
     }
 }
 
-
 impl BasicComposable<SigParentComposer> for SigComposer {
     fn compose_attributes(&self) -> Depunctuated<Expansion> {
         self.base.compose_attributes()
+    }
+    fn compose_generics(&self) -> Option<Generics> {
+        self.base.generics.compose(self.context())
     }
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(&()))
@@ -94,17 +86,15 @@ impl NameContext for SigComposer {
     }
 }
 
-fn regular_fn(path: Path, aspect: Aspect, attrs: TokenStream2, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
+fn compose_regular_fn(path: Path, aspect: Aspect, attrs: TokenStream2, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
     let Signature { output, inputs, asyncness, .. } = sig;
-    // let return_type = output.compose(&(false, &source));
-    // let (bare, source) = source;
     let return_type = match output {
         ReturnType::Default => FnReturnTypeComposer {
             presentation: ReturnType::Default,
             conversion: FieldContext::LineTermination
         },
         ReturnType::Type(_, ty) => FnReturnTypeComposer {
-            presentation: ReturnType::Type(RArrow::default(), Box::new(ty.ffi_full_dictionary_type_presenter(source))),
+            presentation: ReturnType::Type(RArrow::default(), Box::new(ty.to_full_ffi_variable(source))),
             conversion: ty.conversion_to(FieldContext::Obj)
         }
     };
@@ -144,7 +134,7 @@ impl SourceExpandable for SigComposer {
             Context::Fn { path: full_fn_path, sig_context, attrs } => {
                 println!("SigComposer::expand: Fn: {:?}", sig_context);
                 match sig_context {
-                    FnSignatureContext::ModFn(ItemFn { sig, .. }) => regular_fn(
+                    FnSignatureContext::ModFn(ItemFn { sig, .. }) => compose_regular_fn(
                         full_fn_path.clone(),
                         self.target_name_aspect(),
                         attrs.to_token_stream(),
@@ -153,7 +143,7 @@ impl SourceExpandable for SigComposer {
                         sig_context,
                         &source
                     ),
-                    FnSignatureContext::Impl(_, _, sig) => regular_fn(
+                    FnSignatureContext::Impl(_, _, sig) => compose_regular_fn(
                         full_fn_path.clone(),
                         self.ffi_name_aspect(),
                         attrs.to_token_stream(),
@@ -170,7 +160,7 @@ impl SourceExpandable for SigComposer {
                                 conversion: FieldContext::LineTermination
                             },
                             ReturnType::Type(_, ty) => FnReturnTypeComposer {
-                                presentation: ReturnType::Type(RArrow::default(), Box::new(ty.ffi_full_dictionary_type_presenter(&source))),
+                                presentation: ReturnType::Type(RArrow::default(), Box::new(ty.to_full_ffi_variable(&source))),
                                 conversion: ty.conversion_to(FieldContext::Obj)
                             },
                         };
@@ -207,8 +197,8 @@ impl SourceExpandable for SigComposer {
 
                         let (return_type, ffi_return_type, post_processing) = match output {
                             ReturnType::Type(token, field_type) => (
-                                ReturnType::Type(token.clone(), Box::new(source.full_type_for(field_type))),
-                                ReturnType::Type(token.clone(), Box::new(field_type.ffi_full_dictionary_type_presenter(&source))),
+                                ReturnType::Type(token.clone(), Box::new(field_type.resolve(&source))),
+                                ReturnType::Type(token.clone(), Box::new(field_type.to_full_ffi_variable(&source))),
                                 match TypeConversion::from(field_type) {
                                     TypeConversion::Primitive(_) => from_primitive_result(),
                                     TypeConversion::Complex(_) =>  from_complex_result(),
@@ -241,18 +231,14 @@ impl SourceExpandable for SigComposer {
                                 arg_target_types.push(ty.to_token_stream());
                                 ffi_args.push(match &conversion {
                                     TypeConversion::Primitive(ty) => ty.clone(),
-                                    TypeConversion::Complex(ty) => ty.to_custom_or_ffi_type_mut_ptr(&source),
-                                    // TypeConversion::Callback(ty) => ty.to_custom_or_ffi_type(&source),
-                                    TypeConversion::Generic(generic_ty) => generic_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                                    TypeConversion::Complex(ty) => ty.special_or_to_ffi_full_path_variable_type(&source),
+                                    TypeConversion::Generic(generic_ty) => generic_ty.special_or_to_ffi_full_path_variable_type(&source),
                                 }.to_token_stream());
                                 arg_to_conversions.push(match &conversion {
-                                    // TypeConversion::Callback(..) =>
-                                    //     unimplemented!("Callback in callback => |#arg_names| ferment_interfaces::FFICallback::apply(&name, (#arg_names))"),
                                     TypeConversion::Primitive(..) => name.to_token_stream(),
                                     TypeConversion::Generic(generic_ty) => match generic_ty {
                                         GenericTypeConversion::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                                         GenericTypeConversion::Optional(ty) => match TypeConversion::from(ty) {
-                                            // TypeConversion::Callback(_) => unimplemented!("TODO: optional callback inside callback"),
                                             TypeConversion::Primitive(_) => InterfacesMethodExpr::ToOptPrimitive(name.to_token_stream()).to_token_stream(),
                                             TypeConversion::Complex(_) |
                                             TypeConversion::Generic(_) => FFIConversionMethodExpr::FfiToOpt(name.to_token_stream()).to_token_stream(),
@@ -265,7 +251,7 @@ impl SourceExpandable for SigComposer {
 
                         let attrs = self.compose_attributes();
                         let conversion = InterfacePresentation::Callback {
-                            attrs: attrs.to_token_stream(),
+                            attrs: attrs.clone(),
                             ffi_type: self.ffi_name_aspect().present(&source),
                             inputs: arg_target_types,
                             output: return_type,

@@ -15,7 +15,7 @@ pub enum TypeCompositionConversion {
     Object(TypeComposition),
     Optional(TypeComposition),
     Primitive(TypeComposition),
-    Callback(TypeComposition),
+    FnPointer(TypeComposition),
     Bounds(GenericBoundComposition),
     // SmartPointer(TypeComposition),
     Fn(TypeComposition),
@@ -83,7 +83,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Object(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
-            TypeCompositionConversion::Callback(ty) |
+            TypeCompositionConversion::FnPointer(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
@@ -104,7 +104,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Object(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
-            TypeCompositionConversion::Callback(ty) |
+            TypeCompositionConversion::FnPointer(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
@@ -162,8 +162,8 @@ impl Debug for TypeCompositionConversion {
                 format!("Tuple({})", ty),
             TypeCompositionConversion::LocalOrGlobal(ty) =>
                 format!("LocalOrGlobal({})", ty),
-            TypeCompositionConversion::Callback(ty) =>
-                format!("Callback({})", ty),
+            TypeCompositionConversion::FnPointer(ty) =>
+                format!("FnPointer({})", ty),
         }.as_str())
     }
 }

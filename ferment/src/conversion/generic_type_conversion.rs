@@ -1,21 +1,21 @@
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
-use quote::{quote, quote_spanned, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Generics, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, spanned::Spanned, Type, TypeArray, TypeParamBound, TypePath, TypeSlice, TypeTuple};
+use quote::{quote, ToTokens};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Generics, ParenthesizedGenericArguments, parse_quote, PathArguments, PathSegment, ReturnType, Type, TypeParamBound, TypePath, TypeSlice};
 use syn::__private::TokenStream2;
 use syn::token::Brace;
-use crate::composer::{AddPunctuated, BraceWrapped, CommaPunctuated, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, ComposerPresenter, ConstructorPresentableContext, Depunctuated, ParentComposer};
+use crate::composer::{AddPunctuated, BraceWrapped, CommaPunctuated, ComposerPresenter, Depunctuated, ParentComposer};
+use crate::composer::constants::struct_composer_ctor_root;
 use crate::context::ScopeContext;
 use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind, TypeConversion};
-use crate::conversion::macro_conversion::merge_attributes;
-use crate::ext::{Accessory, DictionaryType, FFITypeResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
+use crate::conversion::macro_conversion::expand_attributes;
+use crate::ext::{Accessory, FFITypeResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
 use crate::helper::usize_to_tokenstream;
 use crate::interface::{create_callback, create_struct};
 use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethod, FFIConversionMethodExpr, FFIVecConversionMethodExpr, InterfacesMethodExpr, Name};
-use crate::presentation::context::{BindingPresentableContext, FieldContext, OwnedItemPresentableContext};
-use crate::presentation::{DropInterfacePresentation, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
-use crate::presentation::destroy_presentation::DestroyPresentation;
+use crate::presentation::context::{binding::ConstructorBindingPresentableContext, BindingPresentableContext, ConstructorPresentableContext, FieldContext, OwnedItemPresentableContext};
+use crate::presentation::{DestroyPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ScopeContextPresentable, ToConversionPresentation};
 
 pub type InterfacesMethodComposer = ComposerPresenter<TokenStream2, InterfacesMethodExpr>;
 pub const FROM_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::FromOptPrimitive(expr);
@@ -205,69 +205,14 @@ impl GenericTypeConversion {
             }
         }
     }
-    pub fn to_ffi_type(&self) -> Type {
-        match self {
-            GenericTypeConversion::Map(ty) |
-            GenericTypeConversion::IndexMap(ty) |
-            GenericTypeConversion::SerdeJsonMap(ty) |
-            GenericTypeConversion::Vec(ty) |
-            GenericTypeConversion::BTreeSet(ty) |
-            GenericTypeConversion::HashSet(ty) |
-            GenericTypeConversion::Result(ty) |
-            GenericTypeConversion::Box(ty) |
-            GenericTypeConversion::AnyOther(ty) =>
-                single_generic_ffi_type(ty),
-            GenericTypeConversion::Callback(ty) |
-            GenericTypeConversion::Array(ty) |
-            GenericTypeConversion::Slice(ty) => {
-                let ffi_name = ty.mangle_ident_default();
-                parse_quote!(crate::fermented::generics::#ffi_name)
-            }
-            GenericTypeConversion::Tuple(tuple) => {
-                let tuple: TypeTuple = parse_quote!(#tuple);
-                match tuple.elems.len() {
-                    0 => single_generic_ffi_type(tuple.elems.first().unwrap()),
-                    _ => {
-                        let ffi_name = tuple.mangle_ident_default();
-                        parse_quote!(crate::fermented::generics::#ffi_name)
-                    }
-                }
-            }
-            GenericTypeConversion::Optional(ty) => match ty {
-                Type::Path(TypePath { qself: _, path }) => match path.segments.last() {
-                    Some(last_segment) => match &last_segment.arguments {
-                        PathArguments::None => panic!("Empty optional arguments as generic argument (PathArguments::None): {}", ty.to_token_stream()),
-                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => match args.first() {
-                            Some(GenericArgument::Type(ty)) => match TypeConversion::from(ty) {
-                                TypeConversion::Generic(gen) => gen.to_ffi_type(),
-                                _ => single_generic_ffi_type(ty),
-                            },
-                            _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", ty.to_token_stream()),
-                        },
-                        PathArguments::Parenthesized(args) => {
-                            let ffi_name = args.mangle_ident_default();
-                            parse_quote!(crate::fermented::generics::#ffi_name)
-                        },
-                    },
-                    None => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", ty.to_token_stream()),
-                },
-                Type::Array(TypeArray { elem, .. }) => single_generic_ffi_type(elem),
-                _ => unimplemented!("TODO: Non-supported optional type as generic argument (Type): {}", ty.to_token_stream()),
-            }
-            GenericTypeConversion::TraitBounds(ty) =>
-                unimplemented!("TODO: TraitBounds when generic expansion: {}", ty.to_token_stream()),
-        }
-    }
-
 }
 
 impl GenericTypeConversion {
 
     pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, scope_context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         let source = scope_context.borrow();
-        let attrs = merge_attributes(attrs);
-        let attrs = (!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default();
-        println!("GenericTypeConversion::expand.1: {} ---- {}", self, attrs.to_token_stream());
+        let attrs = expand_attributes(attrs);
+        println!("Generic::Expand: {} ---- {}", self, attrs.to_token_stream());
 
         match self {
             GenericTypeConversion::Result(ty) => {
@@ -282,7 +227,6 @@ impl GenericTypeConversion {
                         FieldContext::MapExpression(FieldContext::O.into(), from_expr.into()),
                         to_expr);
                 let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
-                    // TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream()),
                     TypeConversion::Primitive(arg_ty) => {
                         compose_arg(
                             arg_ty.clone(),
@@ -293,7 +237,7 @@ impl GenericTypeConversion {
                     TypeConversion::Complex(arg_ty) => {
                         let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX);
                         compose_arg(
-                            arg_ty.to_custom_or_ffi_type(&source),
+                            arg_ty.special_or_to_ffi_full_path_type(&source),
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
                             FieldContext::InterfacesExpr(arg_composer.to(DictionaryName::O.to_token_stream())),
                             FieldContext::InterfacesExpr(arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
@@ -303,12 +247,12 @@ impl GenericTypeConversion {
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.to_custom_or_ffi_type(&source)),
-                                    TypeConversion::Generic(nested_nested) => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), nested_nested.to_custom_or_ffi_type(&source)),
-                                    _ => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), ty.to_custom_or_ffi_type(&source)),
+                                    TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                                    TypeConversion::Generic(nested_nested) => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                                    _ => (ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
                                 }
                             }
-                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.to_custom_or_ffi_type(&source)) };
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
                         compose_arg(
                             arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
@@ -376,7 +320,7 @@ impl GenericTypeConversion {
                     TypeConversion::Complex(arg_ty) => {
                         let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP);
                         compose_arg(
-                            arg_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_ty.special_or_to_ffi_full_path_variable_type(&source),
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())).into(),
                             arg_composer.to(arg_context(arg_name)),
                             arg_composer.destroy(arg_args(arg_name).to_token_stream())
@@ -390,9 +334,9 @@ impl GenericTypeConversion {
                                     // TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
                                     TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP),
                                     _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP),
-                                }, ty.to_custom_or_ffi_type_mut_ptr(&source))
+                                }, ty.special_or_to_ffi_full_path_variable_type(&source))
                             }
-                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source)) };
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), generic_arg_ty.special_or_to_ffi_full_path_variable_type(&source)) };
                         compose_arg(
                             arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(DictionaryName::O.to_token_stream())),
@@ -417,7 +361,7 @@ impl GenericTypeConversion {
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
+                            attrs,
                             types: (ffi_as_type.clone(), ty.clone()),
                             conversions: (
                                 FromConversionPresentation::Map(from_key_conversion.present(&source), from_value_conversion.present(&source)),
@@ -487,14 +431,14 @@ impl GenericTypeConversion {
                     }
                     TypeConversion::Complex(arg_0_target_ty) => {
                         GenericArgPresentation::new(
-                            arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_0_target_ty.special_or_to_ffi_full_path_variable_type(&source),
                             arg_0_destroy(DESTROY_COMPLEX_GROUP),
                             arg_0_from(FROM_COMPLEX_GROUP),
                             arg_0_to(TO_COMPLEX_GROUP))
                     }
                     TypeConversion::Generic(arg_0_generic_path_conversion) => {
                         GenericArgPresentation::new(
-                            arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(&source),
+                            arg_0_generic_path_conversion.special_or_to_ffi_full_path_variable_type(&source),
                             arg_0_destroy(DESTROY_COMPLEX_GROUP),
                             arg_0_from(FROM_COMPLEX_GROUP),
                             arg_0_to(TO_COMPLEX_GROUP))
@@ -520,20 +464,19 @@ impl GenericTypeConversion {
                                 None
                             )
                         },
-                        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
+                        InterfacePresentation::VecConversion { attrs, types: (ffi_as_type, target_type), decode: decode.present(&source), encode: encode.present(&source) }
                     ]),
                     Depunctuated::from_iter([value_destructor.present(&source).terminated()]),
                     &source
                 )
             },
-            GenericTypeConversion::Tuple(ty) => {
-                let ffi_name = ty.mangle_ident_default();
+            GenericTypeConversion::Tuple(Type::Tuple(type_tuple)) => {
+                let ffi_name = type_tuple.mangle_ident_default();
                 let ffi_as_type = ffi_name.to_type();
-                let type_tuple: TypeTuple = parse_quote!(#ty);
                 let tuple_items = type_tuple.elems.iter()
                     .enumerate()
                     .map(|(index, ty)|
-                        dictionary_generic_arg(
+                        dictionary_generic_arg_pair(
                             Name::UnnamedArg(index),
                             usize_to_tokenstream(index),
                             ty,
@@ -548,8 +491,8 @@ impl GenericTypeConversion {
                             .map(|(index, (root_path, _))| FieldTypeConversion::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
-                            types: (ffi_as_type, parse_quote!(#ty)),
+                            attrs,
+                            types: (ffi_as_type, parse_quote!(#type_tuple)),
                             conversions: (
                                 FromConversionPresentation::Tuple(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.present(&source))).collect()),
                                 ToConversionPresentation::Tuple(tuple_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.to_conversion.present(&source))).collect()),
@@ -601,7 +544,6 @@ impl GenericTypeConversion {
                                     _ => quote!((*#arg_0_name).clone())
                                 }
                             },
-                            // TypeConversion::Callback(_) => panic!("Errror")
                         },
                         "Mutex" | "RwLock" => quote!(#arg_0_name.into_inner().expect("Err")),
                         // "Mutex" | "RwLock" => quote!(#arg_0_name.borrow().clone()),
@@ -621,7 +563,6 @@ impl GenericTypeConversion {
                         from_expr,
                         to_expr);
                 let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
-                    // TypeConversion::Callback(_) => unimplemented!("Callback: {}", ty.to_token_stream()),
                     TypeConversion::Primitive(arg_ty) => {
                         compose_arg(
                             arg_ty.clone(),
@@ -637,7 +578,7 @@ impl GenericTypeConversion {
                     TypeConversion::Complex(arg_ty) => {
                         let arg_composer = ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX);
                         compose_arg(
-                            arg_ty.to_custom_or_ffi_type(&source),
+                            arg_ty.special_or_to_ffi_full_path_type(&source),
                             FieldContext::InterfacesExpr(arg_composer.from(quote!(ffi_ref.#arg_0_name))),
                             FieldContext::InterfacesExpr(
                                 InterfacesMethodExpr::Boxed(
@@ -652,13 +593,12 @@ impl GenericTypeConversion {
                             match generic_arg_ty.ty() {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => (match TypeConversion::from(ty) {
-                                    // TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
                                     TypeConversion::Primitive(_) => ArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE),
                                     _ => ArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX),
-                                }, ty.to_custom_or_ffi_type(&source))
+                                }, ty.special_or_to_ffi_full_path_type(&source))
                             }
 
-                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.to_custom_or_ffi_type(&source)) };
+                        } else { (ArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
                         compose_arg(
                             arg_ty,
                             FieldContext::InterfacesExpr(arg_composer.from(quote!(ffi_ref.#arg_0_name))),
@@ -683,7 +623,7 @@ impl GenericTypeConversion {
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
-                            attrs: attrs.clone(),
+                            attrs,
                             types: (ffi_type.clone(), ty.clone()),
                             conversions: (
                                 FromConversionPresentation::SmartPointer(constructor.to_token_stream(), arg_0_presentation.from_conversion.present(&source)),
@@ -702,7 +642,6 @@ impl GenericTypeConversion {
                 let PathSegment { arguments, ..} = type_path.path.segments.last().unwrap();
                 let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
                 let ffi_result = DictionaryName::FFiResult;
-                // let opt_conversion = |conversion: TokenStream2| quote!((!ffi_result.is_null()).then(|| { #conversion }));
                 let opt_conversion = |conversion: TokenStream2| quote! {
                     if ffi_result.is_null() {
                         None
@@ -724,12 +663,12 @@ impl GenericTypeConversion {
                 let from_opt_primitive_result = || DictionaryExpr::Deref(ffi_result.to_token_stream()).to_token_stream();
                 let (return_type, ffi_return_type, post_processing) = match output {
                     ReturnType::Type(token, field_type) => {
-                        let full_ty = source.full_type_for(&field_type);
+                        let full_ty = field_type.resolve(&source);
                         println!("DDDDD: {}", full_ty.to_token_stream());
                         let (ffi_ty, conversion) = match TypeConversion::from(&full_ty) {
                             TypeConversion::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                             TypeConversion::Complex(ty) => {
-                                let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                let ffi_ty = ty.special_or_to_ffi_full_path_type(&source);
                                 let conversion = from_complex_result(&ty, &ffi_ty);
                                 (ffi_ty, conversion)
                             },
@@ -737,20 +676,19 @@ impl GenericTypeConversion {
                                 GenericTypeConversion::Optional(ty) => match TypeConversion::from(ty) {
                                     TypeConversion::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                                     TypeConversion::Complex(ty) => {
-                                        let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                        let ffi_ty = ty.special_or_to_ffi_full_path_type(&source);
                                         let conversion = opt_conversion(from_opt_complex_result(&ty, &ffi_ty));
                                         (ffi_ty.joined_mut(), conversion)
                                     },
                                     TypeConversion::Generic(ty) => {
-                                        let ffi_ty = ty.to_custom_or_ffi_type(&source);
+                                        let ffi_ty = ty.special_or_to_ffi_full_path_type(&source);
                                         let conversion = from_opt_complex_result(ty.ty().unwrap(), &ffi_ty);
                                         (ffi_ty, conversion)
                                     },
                                 },
                                 GenericTypeConversion::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                                 _ => {
-                                    let ffi_ty = full_ty.to_custom_or_ffi_type(&source);
-                                    // let conversion = from_complex_result(generic_ty.ty().unwrap(), &ffi_ty);
+                                    let ffi_ty = full_ty.special_or_to_ffi_full_path_type(&source);
                                     let ty = generic_ty.ty().unwrap();
                                     let conversion = quote! {
                                         let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
@@ -785,18 +723,18 @@ impl GenericTypeConversion {
                         args.push(quote!(#name: #ty));
                         ffi_args.push(match &conversion {
                             TypeConversion::Primitive(ty) => ty.clone(),
-                            TypeConversion::Complex(ty) => ty.to_custom_or_ffi_type_mut_ptr(&source),
+                            TypeConversion::Complex(ty) => ty.special_or_to_ffi_full_path_variable_type(&source),
                             TypeConversion::Generic(generic_arg_ty) => if let GenericTypeConversion::Optional(..) = generic_arg_ty {
                                 match generic_arg_ty.ty() {
                                     None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                     Some(ty) => match TypeConversion::from(ty) {
-                                        TypeConversion::Primitive(_) => ty.to_custom_or_ffi_type(&source),
-                                        TypeConversion::Generic(nested_nested) => nested_nested.to_custom_or_ffi_type(&source),
-                                        _ => ty.to_custom_or_ffi_type(&source),
+                                        TypeConversion::Primitive(_) => ty.special_or_to_ffi_full_path_type(&source),
+                                        TypeConversion::Generic(nested_nested) => nested_nested.special_or_to_ffi_full_path_type(&source),
+                                        _ => ty.special_or_to_ffi_full_path_type(&source),
                                     }
                                 }
                             } else {
-                                generic_arg_ty.to_custom_or_ffi_type_mut_ptr(&source)
+                                generic_arg_ty.special_or_to_ffi_full_path_variable_type(&source)
                             },
                         }.to_token_stream());
                         arg_to_conversions.push(match &conversion {
@@ -815,13 +753,11 @@ impl GenericTypeConversion {
                     });
                 let ffi_name = ty.mangle_ident_default();
                 let ffi_type = ffi_name.to_type();
-                println!("GenericTypeConversion::Callback:: {}: {:?}", ffi_name, ty);
-
                 FFIObjectPresentation::Generic {
                     object_presentation: create_callback(&ffi_name, attrs.to_token_stream(), ffi_args.to_token_stream(), ffi_return_type),
                     interface_presentations: Depunctuated::from_iter([
                         InterfacePresentation::Callback {
-                            attrs: attrs.to_token_stream(),
+                            attrs: attrs.clone(),
                             ffi_type: ffi_type,
                             inputs: args,
                             output: return_type,
@@ -834,15 +770,15 @@ impl GenericTypeConversion {
                     drop_presentation: DropInterfacePresentation::Empty,
                     bindings: Default::default(),
                 }
-                // FFIObjectPresentation::Empty
             },
             GenericTypeConversion::Optional(_) |
             GenericTypeConversion::Box(_) |
-            GenericTypeConversion::TraitBounds(_) => FFIObjectPresentation::Empty,
+            GenericTypeConversion::TraitBounds(_) |
+            _ => FFIObjectPresentation::Empty,
         }.to_token_stream()
     }
 }
-fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: TypeConversion, from_conversion_presentation: FromConversionPresentation, to_conversion_presentation: ToConversionPresentation, attrs: TokenStream2, source: &ScopeContext) -> FFIObjectPresentation {
+fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: TypeConversion, from_conversion_presentation: FromConversionPresentation, to_conversion_presentation: ToConversionPresentation, attrs: Depunctuated<Expansion>, source: &ScopeContext) -> FFIObjectPresentation {
     let ffi_name = ty.mangle_ident_default();
     let ffi_type = ffi_name.to_type();
     let arg_0_name = Name::Dictionary(DictionaryName::Values);
@@ -876,29 +812,28 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
         }
         TypeConversion::Complex(arg_0_target_ty) => {
             GenericArgPresentation::new(
-                arg_0_target_ty.to_custom_or_ffi_type_mut_ptr(source),
+                arg_0_target_ty.special_or_to_ffi_full_path_variable_type(source),
                 arg_0_destroy(DESTROY_COMPLEX_GROUP),
                 arg_0_from(FROM_COMPLEX_GROUP),
                 arg_0_to(TO_COMPLEX_GROUP)
             )
         }
         TypeConversion::Generic(arg_0_generic_path_conversion) => {
-            // let arg_ty = arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source);
             let (arg_0_composer, arg_ty) = {
                 if let GenericTypeConversion::Optional(..) = arg_0_generic_path_conversion {
                     match arg_0_generic_path_conversion.ty() {
                         None => unimplemented!("Mixin inside generic: {}", arg_0_generic_path_conversion),
                         Some(ty) => match TypeConversion::from(ty) {
                             // TypeConversion::Callback(_) => unimplemented!("Callback inside generic: {}", ty.to_token_stream()),
-                            TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE_GROUP, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP), ty.to_custom_or_ffi_type_mut_ptr(source)),
+                            TypeConversion::Primitive(_) => (ArgComposer::new(FROM_OPT_PRIMITIVE_GROUP, TO_OPT_PRIMITIVE_GROUP, DESTROY_COMPLEX_GROUP), ty.special_or_to_ffi_full_path_variable_type(source)),
                             TypeConversion::Generic(nested_nested) => {
-                                (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), nested_nested.to_custom_or_ffi_type_mut_ptr(source))
+                                (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), nested_nested.special_or_to_ffi_full_path_variable_type(source))
                             },
-                            _ => (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), ty.to_custom_or_ffi_type_mut_ptr(source) ),
+                            _ => (ArgComposer::new(FROM_OPT_COMPLEX_GROUP, TO_OPT_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), ty.special_or_to_ffi_full_path_variable_type(source) ),
                         }
                     }
                 } else {
-                    (ArgComposer::new(FROM_COMPLEX_GROUP, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), arg_0_generic_path_conversion.to_custom_or_ffi_type_mut_ptr(source))
+                    (ArgComposer::new(FROM_COMPLEX_GROUP, TO_COMPLEX_GROUP, DESTROY_COMPLEX_GROUP), arg_0_generic_path_conversion.special_or_to_ffi_full_path_variable_type(source))
                 }
             };
             GenericArgPresentation::new(
@@ -927,51 +862,63 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
                     None
                 )
             },
-            InterfacePresentation::VecConversion { attrs: attrs.clone(), types: (ffi_type, vec_conversion_type), decode: arg_0_presentation.from_conversion.present(source), encode: arg_0_presentation.to_conversion.present(source) }
+            InterfacePresentation::VecConversion { attrs, types: (ffi_type, vec_conversion_type), decode: arg_0_presentation.from_conversion.present(source), encode: arg_0_presentation.to_conversion.present(source) }
         ]),
         Depunctuated::from_iter([arg_0_presentation.destructor.present(source).terminated()]),
         source
     )
 }
-fn compose_generic_presentation(
+pub fn compose_generic_presentation(
     ffi_name: Ident,
-    attrs: TokenStream2,
-    // generics: Option<Generics>,
+    attrs: Depunctuated<Expansion>,
     field_conversions: Depunctuated<FieldTypeConversion>,
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
     source: &ScopeContext) -> FFIObjectPresentation {
-    let ffi_as_path: Path = parse_quote!(#ffi_name);
-    let ffi_as_type: Type = parse_quote!(#ffi_name);
-    let fields = CommaPunctuated::from_iter(field_conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), true)));
-    let body = BraceWrapped::new(fields);
-    let object_presentation = create_struct(&ffi_as_path.segments.last().unwrap().ident, attrs.clone(), body.present(source));
-    let bindings = compose_bindings(&ffi_as_type, attrs.clone(), None, field_conversions).present(source);
-    let drop_presentation = DropInterfacePresentation::Full { attrs, ty: ffi_as_type, body: drop_body.to_token_stream() };
-    FFIObjectPresentation::Generic { object_presentation, interface_presentations, drop_presentation, bindings }
+    FFIObjectPresentation::Generic {
+        object_presentation: create_struct(
+            &ffi_name,
+            attrs.to_token_stream(),
+            BraceWrapped::new(
+                CommaPunctuated::from_iter(field_conversions.iter()
+                    .map(|field| OwnedItemPresentableContext::Named(field.clone(), true))))
+            .present(source)),
+        interface_presentations,
+        drop_presentation: DropInterfacePresentation::Full {
+            attrs: attrs.to_token_stream(),
+            ty: parse_quote!(#ffi_name),
+            body: drop_body.to_token_stream()
+        },
+        bindings: compose_bindings(
+            parse_quote!(#ffi_name),
+            attrs,
+            None,
+            field_conversions)
+            .present(source)
+    }
 }
 
 fn compose_bindings(
-    ffi_type: &Type,
-    attrs: TokenStream2,
+    ffi_type: Type,
+    attrs: Depunctuated<Expansion>,
     generics: Option<Generics>,
     conversions: Depunctuated<FieldTypeConversion>
-) -> Depunctuated<BindingPresentableContext<CommaPunctuatedOwnedItems, CommaPunctuatedTokens, Brace>> {
-    let body = BraceWrapped::new(conversions.iter().map(|field| OwnedItemPresentableContext::DefaultField(field.clone())).collect());
+) -> Depunctuated<ConstructorBindingPresentableContext<Brace>> {
     Depunctuated::from_iter([
-        BindingPresentableContext::Constructor(
-            ConstructorPresentableContext::Default(ffi_type.clone(), attrs.to_token_stream(), generics.clone()),
-            conversions.iter().map(|field| OwnedItemPresentableContext::Named(field.clone(), false)).collect(),
-            body),
-        BindingPresentableContext::Destructor(ffi_type.clone(), attrs.to_token_stream(), generics)
+        struct_composer_ctor_root()((
+            ConstructorPresentableContext::Default((ffi_type.clone(), attrs.clone(), generics.clone())),
+            conversions.into_iter()
+                .map(|field| (
+                    OwnedItemPresentableContext::Named(field.clone(), false),
+                    OwnedItemPresentableContext::DefaultField(field)))
+                .collect())),
+        BindingPresentableContext::Destructor(ffi_type.clone(), attrs, generics)
     ])
 }
 
-fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, source: &ScopeContext) -> (Type, Depunctuated<GenericArgPresentation>) {
+pub(crate) fn dictionary_generic_arg_pair(name: Name, field_name: TokenStream2, ty: &Type, source: &ScopeContext) -> (Type, Depunctuated<GenericArgPresentation>) {
     let ty = ty.resolve(source);
     match TypeConversion::from(&ty) {
-        // TypeConversion::Callback(arg_0_target_ty) =>
-        //     unimplemented!("Callbacks are not implemented in generics: {}", arg_0_target_ty.to_token_stream()),
         TypeConversion::Primitive(arg_ty) => {
             (arg_ty.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_ty.clone(),
@@ -995,33 +942,6 @@ fn dictionary_generic_arg(name: Name, field_name: TokenStream2, ty: &Type, sourc
                 FieldContext::From(FieldContext::FfiRefWithConversion(FieldTypeConversion::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
                 FieldContext::Named((name.to_token_stream(), FieldContext::To(FieldContext::ObjFieldName(field_name).into()).into())))]))
         }
-    }
-}
-
-pub fn single_generic_ffi_type(ty: &Type) -> Type {
-    let path: Path = parse_quote!(#ty);
-    let first_segment = path.segments.first().unwrap();
-    let mut cloned_segments = path.segments.clone();
-    let first_ident = &first_segment.ident;
-    let last_segment = cloned_segments.iter_mut().last().unwrap();
-    let last_ident = &last_segment.ident;
-    if last_ident.is_primitive() {
-        parse_quote!(#last_ident)
-    } else if last_ident.is_any_string() {
-        DictionaryExpr::CChar.to_token_stream().to_type()
-    } else if last_ident.is_special_generic() ||
-        (last_ident.is_result() && path.segments.len() == 1) ||
-        (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
-        last_ident.is_smart_ptr() ||
-        last_ident.is_lambda_fn() {
-        let ffi_name = path.mangle_ident_default();
-        parse_quote!(crate::fermented::generics::#ffi_name)
-    } else {
-        let new_segments = cloned_segments
-            .into_iter()
-            .map(|segment| quote_spanned! { segment.span() => #segment })
-            .collect::<Vec<_>>();
-        parse_quote!(#(#new_segments)::*)
     }
 }
 

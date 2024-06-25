@@ -210,3 +210,50 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
+
+#[proc_macro_derive(Display)]
+pub fn to_string_derive(input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a syntax tree
+    let input = parse_macro_input!(input as DeriveInput);
+
+    // Get the name of the type we're deriving ToString for
+    let name = input.ident;
+
+    // Ensure that we're dealing with an enum
+    let data = match input.data {
+        Data::Enum(data) => data,
+        _ => panic!("#[derive(ToString)] is only defined for enums"),
+    };
+
+    // Generate match arms for each variant
+    let match_arms = data.variants.iter().map(|Variant { ident, fields, .. } | {
+        match fields {
+            Fields::Named(fields) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+            Fields::Unnamed(fields) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+            Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
+        }
+    });
+
+    // Generate the implementation
+    let expanded = quote! {
+        // impl std::string::ToString for #name {
+        //     fn to_string(&self) -> String {
+        //         match self {
+        //             #(#match_arms)*
+        //         }
+        //     }
+        // }
+        impl std::fmt::Display for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(match self {
+                    #(#match_arms)*
+                }.as_str())
+            }
+        }
+
+
+    };
+
+    // Hand the output tokens back to the compiler
+    TokenStream::from(expanded)
+}

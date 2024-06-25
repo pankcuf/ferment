@@ -258,7 +258,7 @@ impl ScopeChain {
     }
 
     pub fn maybe_dictionary_type(&self, path: &Path, source: &GlobalContext) -> Option<TypeCompositionConversion> {
-        path.segments.last().and_then(|last_segment| {
+        let result = path.segments.last().and_then(|last_segment| {
             let nested_arguments = path_arguments_to_nested_objects(&last_segment.arguments, &(self, source));
             let ident = &last_segment.ident;
             if ident.is_primitive() {
@@ -269,12 +269,14 @@ impl ScopeChain {
             //     Some(TypeCompositionConversion::SmartPointer(TypeComposition::new(path.to_type(), None, nested_arguments)))
             } else if ident.is_special_std_trait()  {
                 Some(TypeCompositionConversion::TraitType(TypeComposition::new_non_gen(path.to_type(), None)))
-            } else if matches!(ident.to_string().as_str(), "FromIterator") {
+            } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") {
                 Some(TypeCompositionConversion::TraitType(TypeComposition::new(path.to_type(), None, nested_arguments)))
             } else {
                 None
             }
-        })
+        });
+        println!("maybe_dictionary_type: {} ---> {}", path.to_token_stream(), result.to_token_stream());
+        result
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {

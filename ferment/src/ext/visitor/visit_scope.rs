@@ -137,7 +137,7 @@ impl VisitScope for Item {
             Item::Type(item_type) => {
                 let self_object = match &*item_type.ty {
                     Type::BareFn(..) =>
-                        ObjectConversion::new_item(TypeCompositionConversion::Callback(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone())),
+                        ObjectConversion::new_item(TypeCompositionConversion::FnPointer(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone())),
                     _ => ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone()))
                 };
                 // println!("ADDD TYPE: {}", self_object);

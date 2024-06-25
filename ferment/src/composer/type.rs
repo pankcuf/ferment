@@ -1,5 +1,6 @@
+use crate::composer::r#abstract::ParentLinker;
 use crate::presentation::context::name::Context;
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
 pub enum FFIAspect {

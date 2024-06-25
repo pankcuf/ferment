@@ -1,8 +1,9 @@
-use crate::composer::{Composer, BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
+use crate::composer::{BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
+use crate::composer::r#abstract::{Composer, ParentLinker};
 use crate::context::ScopeContext;
-use crate::ext::FFIResolveExtended;
+use crate::ext::FFIVariableResolve;
 use crate::presentation::{BindingPresentation, ScopeContextPresentable};
-use crate::shared::{ParentLinker, SharedAccess};
+use crate::shared::SharedAccess;
 
 pub struct MethodComposer<Parent, BindingContext, SharedContext>
     where Parent: SharedAccess, BindingContext: Clone, SharedContext: Clone {
@@ -50,7 +51,7 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
                 (self.seq_iterator_item)((
                     aspect.present(source),
                     field_type.name(),
-                    field_type.ty().ffi_full_dictionary_type_presenter(source),
+                    field_type.ty().to_full_ffi_variable(source),
                     field_type.attrs(),
                     generics.clone()
                 ))

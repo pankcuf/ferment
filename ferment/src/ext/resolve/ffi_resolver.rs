@@ -1,351 +1,494 @@
 use proc_macro2::Ident;
-use quote::{quote, ToTokens};
-use syn::{parse_quote, Path, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use quote::{quote, quote_spanned, ToTokens};
+use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
-use crate::composer::Colon2Punctuated;
+use syn::spanned::Spanned;
+use ferment_macro::Display;
 use crate::composition::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
-use crate::helper::{path_arguments_to_paths, path_arguments_to_type_conversions};
-use crate::naming::DictionaryExpr;
+use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, Resolve, ResolveTrait, ToPath, ToType};
+use crate::helper::path_arguments_to_type_conversions;
 
-pub trait FFIResolve where Self: Sized + ToTokens + Parse {
-    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self>;
-    fn ffi_resolve_or_same(&self, source: &ScopeContext) -> Self {
-        self.ffi_resolve(source)
-            .unwrap_or(parse_quote!(#self))
+#[derive(Display)]
+pub enum GlobalType {
+    /// Traits
+    Clone, // For types that can be cloned.
+    Copy, // For types that can be copied.
+    Debug, // For types that can be formatted using {, //?}.
+    Default, // For types that have a default value.
+    Drop, // For types that need to run code on destruction.
+    Eq, // For types that can be compared for equality.
+    PartialEq, // For types that can be compared for partial equality.
+    Ord, // For types that can be compared for ordering.
+    PartialOrd, // For types that can be compared for partial ordering.
+    Hash, // For types that can be hashed.
+    From, // For types that can be created from another type.
+    Into, // For types that can be converted into another type.
+    AsRef, // For types that can be referenced as another type.
+    AsMut, // For types that can be mutably referenced as another type.
+    Borrow, // For types that can be borrowed as another type.
+    BorrowMut, // For types that can be mutably borrowed as another type.
+    Deref, // For types that can be dereferenced to another type.
+    DerefMut, // For types that can be mutably dereferenced to another type.
+    Iterator, // For types that can be iterated over.
+    DoubleEndedIterator, // For iterators that can be iterated from both ends.
+    ExactSizeIterator, // For iterators with a known exact length.
+    Fn,
+    FnMut,
+    FnOnce, // For types that can be called as functions.
+
+    /// Types
+    Box, // For heap-allocated values.
+    Vec, // For growable arrays.
+    String, // For heap-allocated strings.
+    Option, // For optional values.
+    Result, // For error handling.
+    Some, None, // Variants of Option.
+    Ok, Err, // Variants of Result.
+}
+
+pub enum FFIFullDictionaryPath {
+    Void,
+    CChar
+}
+
+#[derive(Clone)]
+pub enum FFIConversionType {
+    Custom(Type),
+    Opaque(Type),
+    Dynamic(Type),
+    Regular(Type)
+}
+
+impl FFIConversionType {
+    pub fn ty(&self) -> &Type {
+        match self {
+            FFIConversionType::Custom(ty) |
+            FFIConversionType::Opaque(ty) |
+            FFIConversionType::Dynamic(ty) |
+            FFIConversionType::Regular(ty) => ty
+        }
     }
 }
 
-pub trait FFITypeResolve {
-    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type;
-    fn to_custom_or_ffi_type_mut_ptr(&self, source: &ScopeContext) -> Type {
-        self.to_custom_or_ffi_type(source)
+
+impl ToType for FFIFullDictionaryPath {
+    fn to_type(&self) -> Type {
+        match self {
+            FFIFullDictionaryPath::Void => parse_quote!(std::os::raw::c_void),
+            FFIFullDictionaryPath::CChar => parse_quote!(std::os::raw::c_char),
+        }
+    }
+}
+impl ToPath for FFIFullDictionaryPath {
+    fn to_path(&self) -> Path {
+        self.to_type()
+            .to_path()
+    }
+}
+
+pub enum FFIFullPath {
+    Type {
+        crate_ident: Ident,
+        ffi_name: Path,
+    },
+    Generic {
+        ffi_name: Path
+    },
+    External {
+        path: Path,
+    },
+    Dictionary {
+        path: FFIFullDictionaryPath
+    },
+}
+
+impl ToPath for FFIFullPath {
+    fn to_path(&self) -> Path {
+        match self {
+            FFIFullPath::Type { crate_ident, ffi_name } =>
+                parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
+            FFIFullPath::Generic { ffi_name } =>
+                parse_quote!(crate::fermented::generics::#ffi_name),
+            FFIFullPath::External { path } =>
+                parse_quote!(#path),
+            FFIFullPath::Dictionary { path } =>
+                path.to_path(),
+        }
+    }
+}
+impl ToType for FFIFullPath {
+    fn to_type(&self) -> Type {
+        match self {
+            FFIFullPath::Type { crate_ident, ffi_name } =>
+                parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
+            FFIFullPath::Generic { ffi_name } =>
+                parse_quote!(crate::fermented::generics::#ffi_name),
+            FFIFullPath::External { path } =>
+                parse_quote!(#path),
+            FFIFullPath::Dictionary { path } =>
+                path.to_type(),
+        }
+    }
+}
+
+pub trait ToFFIFullPath {
+    fn to_ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath;
+    fn to_ffi_full_type(&self, source: &ScopeContext) -> Type {
+        self.to_ffi_full_path(source)
+            .to_type()
+    }
+}
+
+pub trait FFIResolve: Sized + ToTokens + Parse {
+    fn maybe_ffi_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+}
+
+/// Types that are exported with [ferment_macro::export] or can be mixin types from exported crates
+pub trait FFIInternalType {
+    fn maybe_trait_or_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+}
+
+pub trait FFISpecialTypeResolve {
+    /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
+    /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<Type>;
+}
+
+pub trait FFITypeResolve: FFISpecialTypeResolve + ToFFIFullPath {
+    fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
+        self.maybe_special_type(source)
+            .unwrap_or(self.to_ffi_full_type(source))
+    }
+    fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type {
+        self.special_or_to_ffi_full_path_type(source)
             .joined_mut()
     }
 }
+pub trait FFIFullPathResolve: FFIResolve + ResolveTrait + Clone {
+    fn maybe_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+    fn maybe_special_or_trait_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+}
 
-impl FFITypeResolve for Type where Self: FFIResolve {
-    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Self {
-        // println!("Type::to_custom_or_ffi_type: {}", self.to_token_stream());
+pub trait FFIVariableResolve: FFIFullPathResolve {
+    fn to_ffi_variable(&self, source: &ScopeContext) -> Type;
+    fn to_full_ffi_variable(&self, source: &ScopeContext) -> Type {
+        self.maybe_special_or_trait_ffi_full_path(source)
+            .map(|ffi_path| ffi_path.to_type())
+            .unwrap_or(parse_quote!(#self))
+            .to_type()
+            .to_ffi_variable(source)
+    }
+}
+
+impl FFIInternalType for Type {
+    fn maybe_trait_or_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        let lock = source.context.read().unwrap();
+        lock.maybe_object(self, &source.scope)
+            .and_then(|external_type| match external_type.type_conversion() {
+                Some(TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds)) =>
+                    ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned()),
+                _ => None
+                }.unwrap_or(external_type.type_conversion().cloned()))
+            .unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new())))
+            .to_ty()
+            .maybe_ffi_full_path(source)
+    }
+}
+
+impl FFIInternalType for Path {
+    fn maybe_trait_or_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        self.to_type()
+            .maybe_trait_or_ffi_full_path(source)
+    }
+}
+
+
+impl ToFFIFullPath for Type {
+    fn to_ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath {
+        self.maybe_ffi_resolve(source)
+            .unwrap_or(FFIFullPath::External { path: parse_quote!(#self) })
+    }
+}
+
+impl ToFFIFullPath for GenericTypeConversion {
+    fn to_ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath {
+        match self {
+            GenericTypeConversion::Map(ty) |
+            GenericTypeConversion::IndexMap(ty) |
+            GenericTypeConversion::SerdeJsonMap(ty) |
+            GenericTypeConversion::Vec(ty) |
+            GenericTypeConversion::BTreeSet(ty) |
+            GenericTypeConversion::HashSet(ty) |
+            GenericTypeConversion::Result(ty) |
+            GenericTypeConversion::Box(ty) |
+            GenericTypeConversion::AnyOther(ty) =>
+                single_generic_ffi_type(ty),
+            GenericTypeConversion::Callback(ty) |
+            GenericTypeConversion::Array(ty) |
+            GenericTypeConversion::Slice(ty) =>
+                FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
+            GenericTypeConversion::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
+                0 => single_generic_ffi_type(tuple.elems.first().unwrap()),
+                _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
+            }
+            GenericTypeConversion::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
+                Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
+                    Some(GenericArgument::Type(ty)) => match TypeConversion::from(ty) {
+                        TypeConversion::Generic(gen) => gen.to_ffi_full_path(source),
+                        _ => single_generic_ffi_type(ty),
+                    },
+                    _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
+                },
+                Some(PathSegment { arguments: PathArguments::Parenthesized(args), .. }) =>
+                    FFIFullPath::Generic { ffi_name: args.mangle_ident_default().to_path() },
+                _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),
+            },
+            GenericTypeConversion::Optional(Type::Array(TypeArray { elem, .. })) =>
+                single_generic_ffi_type(elem),
+            gen_ty =>
+                unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty.to_token_stream()),
+        }
+    }
+}
+
+impl FFISpecialTypeResolve for Type {
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<Type> {
         source.maybe_custom_conversion(self)
             .or_else(|| source.maybe_opaque_object(self))
-            .unwrap_or(self.ffi_resolve_or_same(source))
+    }
+}
+impl FFISpecialTypeResolve for GenericTypeConversion {
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<Type> {
+        self.ty()
+            .and_then(|ty| ty.maybe_special_type(source))
     }
 }
 
-impl FFITypeResolve for GenericTypeConversion {
-    fn to_custom_or_ffi_type(&self, source: &ScopeContext) -> Type {
-        // println!("GenericTypeConversion::to_custom_or_ffi_type: {}", self.to_token_stream());
-        // if let Self::Optional(ty) = self {
-        //     ty.first_nested_type().and_then(|ty| source.maybe_custom_conversion(ty)).unwrap_or(self.to_ffi_type())
-        // } else {
-            self.ty()
-                .and_then(|ty| source.maybe_custom_conversion(ty).or_else(|| source.maybe_opaque_object(ty)))
-                .unwrap_or(self.to_ffi_type())
-        // }
-    }
-}
-
-
-
-pub trait FFIResolveExtended: FFIResolve where Self: ResolveTrait {
-    fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self>;
-    fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self;
-    fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self;
-    fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self;
-    fn ffi_full_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        let result = self.ffi_custom_or_internal_type(source)
-            .ffi_dictionary_type_presenter(source);
-        // println!("ffi_full_dictionary_type_presenter: {} --- {}", self.to_token_stream(), result.to_token_stream());
-        result
-    }
-}
+impl FFITypeResolve for Type where Self: FFIResolve {}
+impl FFITypeResolve for GenericTypeConversion {}
 
 impl FFIResolve for Path {
-    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Path::ffi_resolve.1: {}", self.to_token_stream());
+    fn maybe_ffi_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
         let segments = &self.segments;
         let first_segment = segments.first().unwrap();
         let last_segment = segments.last().unwrap();
         let first_ident = &first_segment.ident;
         let last_ident = &last_segment.ident;
-        let result = if last_ident.is_primitive() {
+        if last_ident.is_primitive() {
             None
         } else if last_ident.is_any_string() {
-            Some(DictionaryExpr::CChar.to_token_stream().to_path())
+            Some(FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar })
         } else if last_ident.is_special_generic() ||
             (last_ident.is_result() && segments.len() == 1) ||
             last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
-            let ffi_name = self.mangle_ident_default();
-            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+            Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
         } else if last_ident.is_optional() {
-            path_arguments_to_paths(&last_segment.arguments)
-                .first()
-                .cloned()
-                .and_then(|path| path.ffi_resolve(source))
+            match &last_segment.arguments {
+                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+                    args.iter().find_map(|arg| match arg {
+                        GenericArgument::Type(ty) =>
+                            ty.maybe_ffi_resolve(source),
+                        _ => None
+                    }),
+                _ => None
+            }
         } else if last_ident.is_box() {
-            path_arguments_to_paths(&last_segment.arguments)
-                .first()
-                .cloned()
-                .and_then(|item| {
-                    // let path = match item {
-                    //     Type::TraitObject(TypeTraitObject { bounds , .. }) => {
-                    //         bounds.iter().find_map(|bound| match bound {
-                    //             TypeParamBound::Trait(TraitBound { path, .. }) => {
-                    //                 let p: Path = parse_quote!(#path);
-                    //                 Some(p)
-                    //             }
-                    //             TypeParamBound::Lifetime(_) => None
-                    //         }).unwrap()
-                    //     },
-                    //     _ => parse_quote!(#item)
-                    // };
-                    Some(item.ffi_custom_or_internal_type(source))
-                })
+            match &last_segment.arguments {
+                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+                    args.iter().find_map(|arg| match arg {
+                        GenericArgument::Type(ty) =>
+                            ty.maybe_special_or_trait_ffi_full_path(source),
+                        _ => None
+                    }),
+                _ => None
+            }
         } else {
-            let ffi_type = if let Some(
+            let chunk =  if let Some(
                 ObjectConversion::Type(TypeCompositionConversion::Trait(tc, ..)) |
                 ObjectConversion::Type(TypeCompositionConversion::TraitType(tc))
-            ) = self.trait_ty(source) {
-                ffi_chunk_converted(&tc.ty.to_path().segments)
+            ) = self.maybe_trait_object(source) {
+                &tc.ty.to_path().segments
             } else {
-                ffi_chunk_converted(segments)
+                segments
             };
-            // println!("[{}] [{}] resolve_ffi_path: {} ----> {}", self.scope.crate_scope(), self.scope.self_path_holder(), ty.to_token_stream(), ffi_type.to_token_stream());
-            Some(ffi_type.to_path())
-        };
-        // println!("Path::ffi_resolve.2: {} --> {}", self.to_token_stream(), result.to_token_stream());
-        result
-        // "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
-        // "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
+            let crate_local_segments = match chunk.first().unwrap().ident.to_string().as_str() {
+                "crate" => chunk.crate_and_ident_less(),
+                _ => chunk.ident_less()
+            };
+            let mangled_segments_ident = chunk.mangle_ident_default();
+            let ffi_path_chunk = if crate_local_segments.is_empty() {
+                mangled_segments_ident.to_token_stream()
+            } else {
+                quote!(#crate_local_segments::#mangled_segments_ident)
+            };
+            Some(FFIFullPath::External { path: parse_quote!(crate::fermented::types::#ffi_path_chunk) })
+        }
     }
 }
 
 impl FFIResolve for TypePath {
-    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
-        self.path.ffi_resolve(source)
-            .map(|ffi_path| parse_quote!(#ffi_path))
+    fn maybe_ffi_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        self.path.maybe_ffi_resolve(source)
+            // .map(|ffi_path| parse_quote!(#ffi_path))
     }
 }
 
-// impl FFIResolve for TypeConversion {
-//     fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
-//         match self {
-//             TypeConversion::Primitive(ty) => Some(self.clone()),
-//             TypeConversion::Complex(ty) => ty.ffi_resolve(source).map(TypeConversion::from),
-//             TypeConversion::Callback(ty) => ty.ffi_resolve(source).map(TypeConversion::from),
-//             TypeConversion::Generic(ty) => ty.ffi_resolve(source).map(TypeConversion::from)
-//         }
-//     }
-// }
-
 impl FFIResolve for Type {
-    fn ffi_resolve(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Type::ffi_resolve.1: {}", self.to_token_stream());
-        let result = match self {
+    fn maybe_ffi_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        match self {
             Type::Path(type_path) =>
-                type_path.ffi_resolve(source).map(TypePath::into),
+                type_path.maybe_ffi_resolve(source),
             Type::Reference(TypeReference { elem, .. }) =>
-                elem.ffi_resolve(source),
+                elem.maybe_ffi_resolve(source),
+            Type::Array(..) |
+            Type::Slice(..) |
+            Type::Tuple(..) =>
+                Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() }),
             Type::TraitObject(TypeTraitObject { bounds: _, .. }) => {
                 unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject")
             },
-            Type::Array(..) |
-            Type::Slice(..) |
-            Type::Tuple(..) => {
-                let ffi_chunk = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
-            }
             _ => None
-        };
-        // println!("Type::ffi_resolve.2: {}", result.to_token_stream());
-        result
+        }
     }
 }
 
 
-impl FFIResolveExtended for Path {
-
-    fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Path::ffi_external_path_converted.1: {}", self.to_token_stream());
+impl FFIFullPathResolve for Path {
+    fn maybe_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
         let segments = &self.segments;
         let first_segment = segments.first().unwrap();
         let first_ident = &first_segment.ident;
         let last_segment = segments.last().unwrap();
         let last_ident = &last_segment.ident;
-        let result = if last_ident.is_primitive() {
+        if last_ident.is_primitive() {
             None
         } else if last_ident.is_any_string() {
-            Some(DictionaryExpr::CChar.to_token_stream().to_path())
-        } else if last_ident.is_special_generic() || (last_ident.is_result() && segments.len() == 1) {
-            let ffi_name = self.mangle_ident_default();
-            Some(parse_quote!(crate::fermented::generics::#ffi_name))
-        } else if last_ident.to_string().eq("Map") || first_ident.to_string().eq("serde_json") {
-            let ffi_name = self.mangle_ident_default();
-            Some(parse_quote!(crate::fermented::generics::#ffi_name))
+            Some(FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar })
+        } else if last_ident.is_special_generic() ||
+            (last_ident.is_result() && segments.len() == 1) ||
+            (last_ident.to_string().eq("Map") || first_ident.to_string().eq("serde_json"))  {
+            Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
         } else if last_ident.is_optional() || last_ident.is_box() {
-            path_arguments_to_paths(&last_segment.arguments)
-                .first()
-                .cloned()
-                .and_then(|path| path.ffi_external_path_converted(source))
-        } else if last_ident.is_smart_ptr() {
-            let ffi_name = self.mangle_ident_default();
-            Some(parse_quote!(crate::fermented::generics::#ffi_name))
-
-
-            // path_arguments_to_paths(&last_segment.arguments)
-            //     .first()
-            //     .cloned()
-            //     .and_then(|path| path.ffi_external_path_converted(source))
-
-        } else {
-            let lock = source.context.read().unwrap();
-            let crate_ident = source.scope.crate_ident();
-            let first_segment = segments.first().unwrap();
-            let first_ident = &first_segment.ident;
-
-            match first_ident.to_string().as_str() {
-                "crate" | _ if lock.config.is_current_crate(first_ident) =>
-                    Some(ffi_external_chunk(crate_ident, segments)),
-                _ if lock.config.contains_fermented_crate(first_ident) =>
-                    Some(ffi_external_chunk(first_ident, segments)),
-                _ => {
-                    let segments = segments.ident_less();
-                    Some(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) })
-                }
+            match &last_segment.arguments {
+                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+                    args.iter().find_map(|arg| match arg {
+                        GenericArgument::Type(ty) =>
+                            ty.maybe_ffi_full_path(source),
+                        _ => None
+                    }),
+                _ => None
             }
-        };
-        // println!("Path::ffi_external_path_converted.2: {}", result.to_token_stream());
-        result
-        // "OpaqueContext" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContext_FFI)),
-        // "OpaqueContextMut" => Some(parse_quote!(ferment_interfaces::fermented::types::OpaqueContextMut_FFI)),
+        } else if last_ident.is_smart_ptr() {
+            Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
+        } else {
+            crate_ident_replacement(&segments.first().unwrap().ident, source)
+                .map(|crate_ident| {
+                    let crate_local_segments = segments.crate_and_ident_less();
+                    FFIFullPath::Type {
+                        crate_ident: crate_ident.clone(),
+                        ffi_name: if crate_local_segments.is_empty() {
+                            let ty: Type = parse_quote!(#crate_ident::#last_ident);
+                            ty.mangle_ident_default().to_path()
+                        } else {
+                            let no_ident_segments = segments.ident_less();
+                            let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
+                            let mangled_ty = ty.mangle_ident_default();
+                            parse_quote!(#crate_local_segments::#mangled_ty)
+                        }
+                    }
+                })
+                .or({
+                    let segments = segments.ident_less();
+                    Some(FFIFullPath::External {
+                        path: if segments.is_empty() {
+                            last_ident.to_path()
+                        } else {
+                            parse_quote!(#segments::#last_ident)
+                        }
+                    })
+                })
+        }
     }
 
-    fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
-        // println!("Path::ffi_internal_type_for.1: {}", self.to_token_stream());
-        let lock = source.context.read().unwrap();
-        let ty = self.to_type();
-        let tyty = lock.maybe_type(&ty, &source.scope)
-            .and_then(|external_type| {
-                match external_type.type_conversion() {
-                    Some(TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds)) =>
-                        ty.ty.trait_ty(source)
-                            .map(|oc| oc.type_conversion().cloned()),
-                    _ => None
-                }.unwrap_or(external_type.type_conversion().cloned())
-            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty, None, Punctuated::new())));
-
-        let result = tyty.to_ty()
-            .ffi_external_path_converted(source)
-            .map_or(self.clone(), |ty| ty.to_path());
-        // println!("Path::ffi_internal_type_for.2: {}", result.to_token_stream());
-        result
-        // let tyty = lock.maybe_scope_type(ty, &self.scope)
-        //     .and_then(|external_type| {
-        //         match external_type.type_conversion() {
-        //             Some(TypeCompositionConversion::Trait(ty, _decomposition)) =>
-        //                 self.trait_ty(&ty.ty)
-        //                     .map(|oc| oc.type_conversion().cloned()),
-        //             _ => None
-        //         }.unwrap_or(external_type.type_conversion().cloned())
-        //
-        //     }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None)));
-        // let result = match tyty.ty() {
-        //     Type::Path(TypePath { path, .. }) =>
-        //         path.ffi_external_path_converted(source)
-        //             .map(|path| parse_quote!(#path)),
-        //     _ => None
-        // };
-        // let result = result.unwrap_or(ty.clone());
+    fn maybe_special_or_trait_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        self.to_type()
+            .resolve(source)
+            .maybe_special_type(source)
+            .map(|ty| FFIFullPath::External { path: ty.to_path() })
+            .or(self.maybe_trait_or_ffi_full_path(source))
     }
 
-    fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
-        let lock = source.context.read().unwrap();
-        // println!("Path::ffi_custom_or_internal_type.1: {}", self.to_token_stream());
-        let ty: Type = parse_quote!(#self);
-        let full_ty = source.full_type_for(&ty);
-        let result = lock.custom.maybe_conversion(&full_ty)
-            .or_else(|| source.maybe_opaque_object(&full_ty))
-            .map_or(self.ffi_internal_type_for(source), |ty| ty.to_path());
-        // println!("Path::ffi_custom_or_internal_type.2: {} ==== {}", self.to_token_stream(), result.to_token_stream());
-        result
-    }
+}
 
-    fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        // println!("Path::ffi_dictionary_type_presenter.1: {}", self.to_token_stream());
-        let result = ffi_dictionary_type(self, source)
-            .to_path();
-        // println!("Path::ffi_dictionary_type_presenter.2: {}", result.to_token_stream());
-        result
+impl FFIVariableResolve for Path {
+    fn to_ffi_variable(&self, source: &ScopeContext) -> Type {
+        let first_segment = self.segments.first().unwrap();
+        let first_ident = &first_segment.ident;
+        let last_segment = self.segments.last().unwrap();
+        let last_ident = &last_segment.ident;
+        if last_ident.is_primitive() {
+            self.to_type()
+        } else if last_ident.is_optional() {
+            match path_arguments_to_type_conversions(&last_segment.arguments).first() {
+                Some(TypeConversion::Primitive(ty)) =>
+                    ty.to_path().to_full_ffi_variable(source)
+                        .joined_mut(),
+                Some(TypeConversion::Generic(generic_ty)) =>
+                    generic_ty.to_ffi_full_type(source)
+                        .joined_mut(),
+                Some(TypeConversion::Complex(Type::Path(TypePath { path, .. }))) =>
+                    path.to_ffi_variable(source),
+                _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
+            }
+        } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+            source.scope_type_for_path(self)
+                .map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default())
+                .to_type()
+                .joined_mut()
+        } else {
+            self.to_type()
+                .joined_mut()
+        }
     }
 }
 
-
-
-impl FFIResolveExtended for Type {
-
-    fn ffi_external_path_converted(&self, source: &ScopeContext) -> Option<Self> {
-        // println!("Type::ffi_external_path_converted: {}", self.to_token_stream());
+impl FFIFullPathResolve for Type {
+    fn maybe_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
         match self {
             Type::Path(TypePath { path, .. }) =>
-                path.ffi_external_path_converted(source)
-                    .map(|path| path.to_type()),
-            Type::Reference(TypeReference { elem, .. }) => elem.ffi_external_path_converted(source),
+                path.maybe_ffi_full_path(source)
+                    .map(|path| path),
+            Type::Reference(TypeReference { elem, .. }) =>
+                elem.maybe_ffi_full_path(source),
             Type::Array(..) |
             Type::Slice(..) |
-            Type::Tuple(..) => {
-                let ffi_chunk = self.mangle_ident_default();
-                Some(parse_quote!(crate::fermented::generics::#ffi_chunk))
-            }
+            Type::Tuple(..) =>
+                Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() }),
             _ => None
         }
     }
 
-    fn ffi_internal_type_for(&self, source: &ScopeContext) -> Self {
-        // println!("Type::ffi_internal_type_for.1: {}", self.to_token_stream());
-        let lock = source.context.read().unwrap();
-        let tyty = lock.maybe_type(self, &source.scope)
-            .and_then(|external_type| {
-                match external_type.type_conversion() {
-                    Some(TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds)) =>
-                        ty.ty.trait_ty(source)
-                            .map(|oc| oc.type_conversion().cloned()),
-                    _ => None
-                }.unwrap_or(external_type.type_conversion().cloned())
-            }).unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new())));
-
-        let result = tyty.to_ty()
-            .ffi_external_path_converted(source)
-            .unwrap_or(self.clone());
-        // println!("Type::ffi_internal_type_for.2: {}", result.to_token_stream());
-        result
+    fn maybe_special_or_trait_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
+        self.resolve(source)
+            .maybe_special_type(source)
+            .map(|ty| FFIFullPath::External { path: ty.to_path() })
+            .or(self.maybe_trait_or_ffi_full_path(source))
     }
+}
 
-    fn ffi_custom_or_internal_type(&self, source: &ScopeContext) -> Self {
-        let lock = source.context.read().unwrap();
-
-        let full_ty = source.full_type_for(self);
-        // println!("Type::ffi_custom_or_internal_type.1: {}   ({})", self.to_token_stream(), full_ty.to_token_stream());
-        let result = lock.custom.maybe_conversion(&full_ty)
-            .or_else(|| source.maybe_opaque_object(&full_ty))
-            .unwrap_or(self.ffi_internal_type_for(source));
-        // println!("Type::ffi_custom_or_internal_type: {} --- {}", full_ty.to_token_stream(), result.to_token_stream());
-        result
-    }
-
-    fn ffi_dictionary_type_presenter(&self, source: &ScopeContext) -> Self {
-        // println!("Type::ffi_dictionary_type_presenter: {}", self.to_token_stream());
+impl FFIVariableResolve for Type {
+    fn to_ffi_variable(&self, source: &ScopeContext) -> Type {
         match self {
             Type::Path(TypePath { path, .. }) =>
-                ffi_dictionary_type(path, source),
+                path.to_ffi_variable(source),
             Type::Array(TypeArray { elem, len, .. }) =>
                 parse_quote!(*mut [#elem; #len]),
             Type::Reference(TypeReference { elem, .. }) |
             Type::Slice(TypeSlice { elem, .. }) =>
-                elem.ffi_dictionary_type_presenter(source),
+                elem.to_ffi_variable(source),
             Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
                 match &**elem {
                     Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
@@ -356,7 +499,8 @@ impl FFIResolveExtended for Type {
                         },
                         _ => parse_quote!(*mut #path)
                     },
-                    Type::Ptr(type_ptr) => parse_quote!(*mut #type_ptr),
+                    Type::Ptr(type_ptr) =>
+                        parse_quote!(*mut #type_ptr),
                     _ => self.clone()
                 },
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
@@ -364,79 +508,48 @@ impl FFIResolveExtended for Type {
                     TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
                     TypeParamBound::Lifetime(_) => None
                 }).unwrap();
-                bound.ffi_dictionary_type_presenter(source)
+                bound.to_ffi_variable(source)
             },
-            Type::Tuple(type_tuple) =>
-                type_tuple.mangle_ident_default()
-                    .to_type(),
-            Type::ImplTrait(type_impl_trait) =>
-                type_impl_trait.mangle_ident_default()
-                    .to_type(),
-            _ => panic!("ffi_dictionary_type_presenter: type not supported: {}", self.to_token_stream())
+            ty =>
+                ty.mangle_ident_default().to_type()
         }
     }
 }
 
-pub fn ffi_chunk_converted(segments: &Colon2Punctuated<PathSegment>) -> Type {
-    let crate_local_segments = match segments.first().unwrap().ident.to_string().as_str() {
-        "crate" => segments.crate_and_ident_less(),
-        _ => segments.ident_less()
-    };
-    let mangled_segments_ident = segments.mangle_ident_default();
-    let ffi_path_chunk = if crate_local_segments.is_empty() {
-        mangled_segments_ident
-            .to_token_stream()
-    } else {
-        quote!(#crate_local_segments::#mangled_segments_ident)
-    };
-    parse_quote!(crate::fermented::types::#ffi_path_chunk)
-}
-pub fn ffi_external_chunk<T: FFIResolveExtended>(crate_ident: &Ident, segments: &Colon2Punctuated<PathSegment>) -> T {
-    let crate_local_segments = segments.crate_and_ident_less();
-    let last_ident = &segments.iter().last().unwrap().ident;
-
-    let ffi_chunk_path = if crate_local_segments.is_empty() {
-        let ty: Type = parse_quote!(#crate_ident::#last_ident);
-        let mangled_ty = ty.mangle_ident_default();
-        mangled_ty.to_token_stream()
-    } else {
-        let no_ident_segments = segments.ident_less();
-        let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
-        let mangled_ty = ty.mangle_ident_default();
-        quote!(#crate_local_segments::#mangled_ty)
-    };
-    parse_quote!(crate::fermented::types::#crate_ident::#ffi_chunk_path)
-}
-pub fn ffi_dictionary_type(path: &Path, source: &ScopeContext) -> Type {
+fn single_generic_ffi_type(ty: &Type) -> FFIFullPath {
+    let path: Path = parse_quote!(#ty);
     let first_segment = path.segments.first().unwrap();
+    let mut cloned_segments = path.segments.clone();
     let first_ident = &first_segment.ident;
-    let last_segment = path.segments.last().unwrap();
+    let last_segment = cloned_segments.iter_mut().last().unwrap();
     let last_ident = &last_segment.ident;
     if last_ident.is_primitive() {
-        path.to_type()
-    } else if last_ident.is_optional() {
-        match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-            Some(conversion) => match conversion {
-                TypeConversion::Primitive(ty) => ffi_dictionary_type(&ty.to_path(), source).joined_mut(),
-                TypeConversion::Complex(ty) => match ty {
-                    Type::Path(TypePath { path, .. }) => ffi_dictionary_type(path, source),
-                    _ => unimplemented!("ffi_dictionary_type:: Non-Path Complex Type")
-                },
-                TypeConversion::Generic(ty) => ty.to_ffi_type().joined_mut(),
-                // TypeConversion::Callback(ty) => unimplemented!("ffi_dictionary_type:: Callback: {}", ty.to_token_stream())
-            },
-            _ => unimplemented!("ffi_dictionary_type:: Empty Optional")
-        }
-        // let first_segment = path_arguments_to_paths(&last_segment.arguments).first().unwrap();
-
-        // ffi_dictionary_type(path_arguments_to_paths(&last_segment.arguments).first().unwrap(), source)
-    } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
-        source.scope_type_for_path(path)
-            .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-            .joined_mut()
-            .to_type()
+        FFIFullPath::External { path: last_ident.to_path() }
+    } else if last_ident.is_any_string() {
+        FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
+    } else if last_ident.is_special_generic() ||
+        (last_ident.is_result() && path.segments.len() == 1) ||
+        // TODO: avoid this hardcode
+        (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
+        last_ident.is_smart_ptr() ||
+        last_ident.is_lambda_fn() {
+        FFIFullPath::Generic { ffi_name: path.mangle_ident_default().to_path() }
     } else {
-        path.to_type()
-            .joined_mut()
+        let new_segments = cloned_segments
+            .into_iter()
+            .map(|segment| quote_spanned! { segment.span() => #segment })
+            .collect::<Vec<_>>();
+        FFIFullPath::External { path: parse_quote!(#(#new_segments)::*) }
+
     }
 }
+fn crate_ident_replacement<'a>(ident: &'a Ident, source: &'a ScopeContext) -> Option<&'a Ident> {
+    let lock = source.context.read().unwrap();
+    match ident.to_string().as_str() {
+        "crate" | _ if lock.config.is_current_crate(ident) => Some(source.scope.crate_ident()),
+        _ if lock.config.contains_fermented_crate(ident) =>
+            Some(ident),
+        _ => None
+    }
+}
+

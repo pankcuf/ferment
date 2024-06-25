@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
+use crate::composition::GenericBoundComposition;
+use crate::conversion::ObjectConversion;
 use crate::ext::ToPath;
 
 #[derive(Default, Copy, Clone)]
@@ -10,15 +13,15 @@ pub struct MangleDefault; // "::" -> "_"
 
 pub trait Mangle<T: Clone> where Self: Debug {
     fn mangle_string(&self, context: T) -> String;
-    // fn mangle_ident(&self, context: T) -> Ident {
-    //     format_ident!("{}", self.mangle_string(context))
-    // }
     fn mangle_string_default(&self) -> String where T: Default {
         self.mangle_string(T::default())
     }
     fn mangle_ident_default(&self) -> Ident where T: Default {
-        // println!("mangle_ident_default: {:?}", self);
         format_ident!("{}", self.mangle_string(T::default()))
+    }
+    fn mangle_tokens_default(&self) -> TokenStream2 where T: Default {
+        self.mangle_ident_default()
+            .to_token_stream()
     }
 }
 
@@ -198,6 +201,137 @@ impl Mangle<(bool, bool)> for ParenthesizedGenericArguments {
                 ReturnType::Default => String::new(),
                 ReturnType::Type(_, ty) => ty.mangle_string_default()
             })
+    }
+}
+
+impl Mangle<MangleDefault> for LifetimeDef {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        "".to_string()
+    }
+}
+
+impl Mangle<MangleDefault> for ConstParam {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("where_CNST_{}_is_{}", self.ident, self.ty.mangle_string(context))
+    }
+}
+
+impl Mangle<MangleDefault> for GenericParam {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        match self {
+            GenericParam::Type(ty) => ty.mangle_string(context),
+            GenericParam::Lifetime(lifetime_def) => lifetime_def.mangle_string(context),
+            GenericParam::Const(const_param) => const_param.mangle_string(context)
+        }
+    }
+}
+
+impl Mangle<MangleDefault> for TypeParam {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("where_{}_is_{}",
+                self.ident,
+                self.bounds.iter().map(|f| f.mangle_string(context)).collect::<Vec<_>>().join(""))
+    }
+}
+
+impl Mangle<MangleDefault> for Lifetime {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        "".to_string()
+    }
+}
+
+impl Mangle<MangleDefault> for TypeParamBound {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        match self {
+            TypeParamBound::Trait(trait_bound) => trait_bound.mangle_string(context),
+            TypeParamBound::Lifetime(lifetime) => lifetime.mangle_string(context),
+        }
+    }
+}
+
+impl Mangle<MangleDefault> for PredicateType {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!("where_{}_is_{}",
+                self.bounded_ty.mangle_string(context),
+                self.bounds.iter().map(|f| f.mangle_string(context)).collect::<Vec<_>>().join(""))
+    }
+}
+
+impl Mangle<MangleDefault> for PredicateLifetime {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        "".to_string()
+    }
+}
+impl Mangle<MangleDefault> for PredicateEq {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        "".to_string()
+    }
+}
+
+impl Mangle<MangleDefault> for WherePredicate {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        match self {
+            WherePredicate::Type(predicate_ty) => predicate_ty.mangle_string(context),
+            WherePredicate::Lifetime(predicate_lifetime) => predicate_lifetime.mangle_string(context),
+            WherePredicate::Eq(predicate_eq) => predicate_eq.mangle_string(context),
+        }
+    }
+}
+impl Mangle<MangleDefault> for WhereClause {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.predicates.iter()
+            .map(|predicate| predicate.mangle_string(context))
+            .collect::<Vec<_>>()
+            .join("_")
+    }
+}
+
+impl Mangle<MangleDefault> for Generics {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        let mut chunks = vec![];
+        chunks.extend(self.params.iter().map(|param| param.mangle_string(context)));
+        if let Some(where_clause) = self.where_clause.as_ref() {
+            chunks.push(where_clause.mangle_string(context));
+        }
+        chunks.join("_")
+    }
+}
+
+impl Mangle<MangleDefault> for ObjectConversion {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        match self {
+            ObjectConversion::Type(ty) |
+            ObjectConversion::Item(ty, _) => ty.ty().mangle_string(context),
+            ObjectConversion::Empty => panic!("err"),
+        }
+    }
+}
+
+impl Mangle<MangleDefault> for GenericBoundComposition {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        // println!("Mixin_{}", self.bounds.iter().map(|b| b.to_ty().unwrap().mangle_string(context)).collect::<Vec<_>>().join("_"));
+
+        let mut chunks = vec![];
+
+        chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
+        chunks.extend(self.predicates.iter()
+            .map(|(_predicate, objects)|
+                     objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_")
+                // format!("where_{}_is_{}",
+                //         predicate.mangle_string(context),
+                //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
+            )
+        );
+        chunks.join("_")
+        // format!("Mixin_{}", chunks.join("_"))
+
+        // format!("{}", self.bounds.iter().map(|b| {
+        //     match b {
+        //         ObjectConversion::Type(ty) |
+        //         ObjectConversion::Item(ty, _) => ty.ty().mangle_string(context),
+        //         ObjectConversion::Empty => panic!("err"),
+        //     }
+        // }).collect::<Vec<_>>().join("_"))
     }
 }
 

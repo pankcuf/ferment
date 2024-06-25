@@ -1,11 +1,6 @@
-// use crate::nested::ProtocolError;
-//
 #[derive(Clone, Debug)]
 #[ferment_macro::export]
-pub enum Status {
-    Error,
-    Success
-}
+pub enum Status { Error, Success }
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 #[ferment_macro::export]
@@ -26,9 +21,7 @@ pub struct DocumentQuery { pub version: u32 }
 pub struct Identifier(pub u32);
 #[derive(Clone, Debug)]
 #[ferment_macro::export]
-pub struct CoreGrpcClient {
-    pub uri: Uri
-}
+pub struct CoreGrpcClient { pub uri: Uri }
 
 #[ferment_macro::export]
 pub trait CanRetry {

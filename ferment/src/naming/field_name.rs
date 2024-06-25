@@ -33,7 +33,7 @@ pub enum Name {
 impl ToTokens for Name {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Name::UnnamedArg(..) => self.mangle_ident_default().to_token_stream(),
+            Name::UnnamedArg(..) => self.mangle_tokens_default(),
             Name::Constructor(ident) => {
                 format_ident!("{}_ctor", ident.mangle_ident_default()).to_token_stream()
             }
@@ -43,7 +43,7 @@ impl ToTokens for Name {
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream(),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_token_stream(),
             Name::TraitObj(ident) => ident.to_token_stream(),
-            Name::ModFn(path) => path.mangle_ident_default().to_token_stream(),
+            Name::ModFn(path) => path.mangle_tokens_default(),
             Name::TraitFn(item_name, trait_name) => {
                 format_ident!("{}_as_{}", item_name.mangle_string_default(), trait_name.mangle_string_default()).to_token_stream()
             }

@@ -12,7 +12,7 @@ pub use self::constraints::Constraints;
 pub use self::r#abstract::{Accessory, DictionaryType, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};
 pub use self::present::{Conversion, GenericNestedArg, Mangle, MangleDefault, Terminated};
 pub use self::refine::{RefineMut, RefineUnrefined, Unrefined};
-pub use self::resolve::{FFIResolveExtended, FFITypeResolve, Opaque, Resolve, ResolveAttrs, ResolveMacro, ResolveTrait};
+pub use self::resolve::{FFIVariableResolve, FFITypeResolve, Opaque, Resolve, ResolveAttrs, ResolveMacro, ResolveTrait};
 pub use self::visitor::NestingExtension;
 pub use self::visitor::visit_scope::{add_trait_names, create_generics_chain, extract_trait_names, VisitScope};
 pub use self::visitor::visit_scope_type::{ToObjectConversion, VisitScopeType};

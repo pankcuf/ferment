@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
+use quote::quote;
 use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, Path};
 use syn::punctuated::Punctuated;
-use crate::composer::CommaPunctuated;
+use crate::composer::{CommaPunctuated, Depunctuated};
 use crate::ext::ToType;
 use crate::helper::ItemExtension;
 use crate::holder::TypeHolder;
+use crate::presentation::Expansion;
 
 pub enum MacroType {
     Export,
@@ -214,6 +216,10 @@ fn merge_cfg_conditions(conditions: Vec<CfgMacroType>) -> Vec<CfgMacroType> {
     } else {
         vec![CfgMacroType::Any(any_conditions)]
     }
+}
+pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Depunctuated<Expansion> {
+    let attrs = merge_attributes(attrs);
+    Depunctuated::from_iter([Expansion::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
 }
 pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<Meta> {
     if attrs.contains(&None) {
