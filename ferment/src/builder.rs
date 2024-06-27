@@ -7,8 +7,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use crate::context::GlobalContext;
 use crate::error;
-use crate::file::FileTreeProcessor;
-use crate::tree::ScopeTreeExportItem;
+use crate::tree::{FileTreeProcessor, ScopeTreeExportItem};
 use cargo_metadata::MetadataCommand;
 use syn::Attribute;
 

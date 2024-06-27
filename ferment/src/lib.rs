@@ -6,7 +6,6 @@ mod context;
 mod conversion;
 mod ext;
 mod error;
-mod file;
 mod formatter;
 mod presentable;
 mod presentation;
