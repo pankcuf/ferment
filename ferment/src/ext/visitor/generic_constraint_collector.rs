@@ -1,7 +1,7 @@
 use std::collections::HashSet;
+use crate::ast::TypeHolder;
 use crate::composable::GenericBoundComposition;
 use crate::ext::visitor::{GenericCollector, TypeCollector};
-use crate::holder::TypeHolder;
 
 pub trait GenericConstraintCollector where Self: TypeCollector {
     fn find_generic_constraints(&self) -> HashSet<TypeHolder> {

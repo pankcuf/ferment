@@ -1,9 +1,8 @@
 use quote::{format_ident, ToTokens};
 use syn::{Ident, parse_quote, Path, PathSegment};
 use syn::punctuated::Punctuated;
-use crate::ast::Colon2Punctuated;
+use crate::ast::{Colon2Punctuated, Holder};
 use crate::ext::CrateExtension;
-use crate::holder::Holder;
 use crate::impl_holder;
 
 #[allow(unused)]

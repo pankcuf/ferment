@@ -1,15 +1,13 @@
 use quote::ToTokens;
 use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::ast::{AddPunctuated, CommaPunctuated};
+use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};
 use crate::formatter::format_token_stream;
-// use crate::formatter::format_token_stream;
-use crate::holder::{PathHolder, TypePathHolder};
 use crate::nprint;
 
 pub trait ToObjectConversion {

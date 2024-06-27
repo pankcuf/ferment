@@ -4,15 +4,14 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::ast::Colon2Punctuated;
-use crate::composer::CommaPunctuatedNestedArguments;
-use crate::composable::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
+use crate::ast::{Colon2Punctuated, PathHolder};
+use crate::composable::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeInfo, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::formatter::{format_global_context, format_path_vec, format_token_stream};
-use crate::holder::PathHolder;
 use crate::ext::{CrateExtension, GenericCollector, GenericConstraintCollector, Pop, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
+use crate::formatter::{format_global_context, format_path_vec, format_token_stream};
 
 #[derive(Clone)]
 pub struct GlobalContext {

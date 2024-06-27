@@ -2,10 +2,9 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use syn::{ItemUse, PathSegment, UseName, UsePath, UseTree};
-use crate::ast::Colon2Punctuated;
+use crate::ast::{Colon2Punctuated, PathHolder};
 use crate::conversion::ImportConversion;
 use crate::ext::{CrateExtension, Pop};
-use crate::holder::PathHolder;
 
 #[derive(Clone)]
 pub struct ImportComposition {

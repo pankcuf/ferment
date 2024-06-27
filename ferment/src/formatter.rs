@@ -3,11 +3,10 @@ use std::fmt::{Display, Formatter, Write};
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, Path, Signature, Type};
-use crate::ast::CommaPunctuated;
+use crate::ast::{CommaPunctuated, PathHolder, TypeHolder, TypePathHolder};
 use crate::composable::{GenericBoundComposition, GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
-use crate::holder::{PathHolder, TypeHolder, TypePathHolder};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]

@@ -2,12 +2,11 @@ use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Path, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::ast::Depunctuated;
+use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{extract_trait_names, Opaque, ToObjectConversion};
-use crate::holder::TypeHolder;
 use crate::print_phase;
 
 #[derive(Clone)]

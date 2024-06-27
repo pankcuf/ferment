@@ -3,13 +3,12 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemMod, ItemTrait, Lifetime, LifetimeDef, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::ast::{AddPunctuated, CommaPunctuated};
+use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeComposition};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{Join, ResolveMacro, ToType};
 use crate::ext::item::collect_bounds;
-use crate::holder::TypePathHolder;
 use crate::tree::Visitor;
 
 pub trait VisitScope {

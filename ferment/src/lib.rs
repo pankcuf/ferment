@@ -8,7 +8,6 @@ mod ext;
 mod error;
 mod file;
 mod formatter;
-mod holder;
 mod presentable;
 mod presentation;
 mod shared;

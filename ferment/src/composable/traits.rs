@@ -3,14 +3,13 @@ use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
-use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ast::{CommaPunctuated, Depunctuated, PathHolder};
 use crate::composable::{Composition, FnSignatureContext, GenericsComposition, TraitDecompositionPart2Context};
 use crate::composer::{ParentComposer, SigComposer, SigParentComposer, SourceExpandable};
 use crate::context::ScopeContext;
 use crate::conversion::TypeCompositionConversion;
 use crate::ext::ToType;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
-use crate::holder::PathHolder;
 use crate::presentation::Expansion;
 
 #[derive(Clone, Debug)]

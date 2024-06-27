@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use syn::Path;
+use crate::ast::TypePathHolder;
 use crate::context::ScopeChain;
-use crate::holder::TypePathHolder;
 
 #[derive(Clone, Default)]
 pub struct GenericResolver {

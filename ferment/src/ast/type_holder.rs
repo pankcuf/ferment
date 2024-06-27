@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::Type;
+use crate::ast::Holder;
 use crate::conversion::TypeCompositionConversion;
-use crate::holder::Holder;
 use crate::impl_holder;
 
 impl_holder!(TypeHolder, Type);

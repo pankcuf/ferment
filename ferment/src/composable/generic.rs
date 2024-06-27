@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
+use crate::ast::PathHolder;
 use crate::conversion::ObjectConversion;
-use crate::holder::PathHolder;
 
 #[derive(Clone, Debug)]
 pub struct GenericConversion {

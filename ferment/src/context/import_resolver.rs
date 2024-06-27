@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use proc_macro2::Ident;
 use syn::{parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
+use crate::ast::PathHolder;
 use crate::context::ScopeChain;
-use crate::holder::PathHolder;
 
 // pub trait Maybe<T> {
 //     type Context;

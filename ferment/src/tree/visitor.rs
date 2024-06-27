@@ -4,10 +4,10 @@ use std::sync::{Arc, RwLock};
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree};
 use syn::visit::Visit;
+use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion};
 use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, NestingExtension, Pop, VisitScope, VisitScopeType};
-use crate::holder::{PathHolder, TypeHolder};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
 

@@ -3,11 +3,11 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Item, ItemTrait, Signature, Type};
 use syn::__private::TokenStream2;
+use crate::ast::PathHolder;
 use crate::composable::{CfgAttributes, TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{TypeCompositionConversion};
 use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToType};
 use crate::formatter::format_token_stream;
-use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 
 #[derive(Clone, PartialEq, Eq, Hash)]

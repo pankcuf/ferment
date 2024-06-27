@@ -3,10 +3,10 @@ use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, Signature, Type};
 use syn::punctuated::Punctuated;
+use crate::ast::PathHolder;
 use crate::composable::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
-use crate::holder::PathHolder;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {

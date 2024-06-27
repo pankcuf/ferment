@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{Path, Type, TypePtr, TypeReference};
-use crate::context::ScopeChain;
-use crate::context::type_chain::TypeChain;
+use crate::ast::TypeHolder;
+use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
 use crate::ext::RefineMut;
 use crate::formatter::types_dict;
-use crate::holder::TypeHolder;
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
 
 #[derive(Clone, Default)]

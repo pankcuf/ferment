@@ -35,8 +35,8 @@ impl_to_type!(Path);
 impl_to_type!(Type);
 impl_to_type!(TokenStream2);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
-impl_to_type!(crate::holder::PathHolder);
-impl_to_type!(crate::holder::TypeHolder);
+impl_to_type!(crate::ast::PathHolder);
+impl_to_type!(crate::ast::TypeHolder);
 impl_to_type!(crate::presentation::Name);
 
 impl_to_path!(Ident);

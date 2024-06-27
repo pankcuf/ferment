@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::{Path, Type};
+use crate::ast::{Holder, TypeHolder};
 use crate::conversion::ObjectConversion;
 use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
-use crate::holder::{Holder, TypeHolder};
 
 #[derive(Copy, Clone)]
 pub struct DefaultScopePolicy;

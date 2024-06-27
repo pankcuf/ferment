@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, Path, PathArguments, Type, TypePath};
+use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
 use crate::formatter::types_dict;
-use crate::holder::TypeHolder;
 
 #[derive(Clone, Default)]
 pub struct CustomResolver {

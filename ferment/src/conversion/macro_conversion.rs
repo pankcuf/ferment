@@ -3,9 +3,8 @@ use std::fmt::{Display, Formatter};
 use quote::quote;
 use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, Path};
 use syn::punctuated::Punctuated;
-use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
 use crate::ext::{ItemExtension, ToType};
-use crate::holder::TypeHolder;
 use crate::presentation::Expansion;
 
 pub enum MacroType {
