@@ -4,7 +4,7 @@ use syn::{parse_quote, Path, Type};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::composer::CommaPunctuatedNestedArguments;
-pub use crate::composition::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
+pub use crate::composable::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
 use crate::ext::Pop;
 
 #[derive(Clone)]
@@ -192,33 +192,3 @@ impl Hash for TypeCompositionConversion {
         self.to_ty().to_token_stream().to_string().hash(state);
     }
 }
-
-
-// impl Conversion for TypeCompositionConversion {
-//     fn conversion_from(&self, field_path: FieldContext) -> FieldContext {
-//         match self {
-//             TypeCompositionConversion::Trait(_, _, _) => {}
-//             TypeCompositionConversion::TraitType(_) => {}
-//             TypeCompositionConversion::Object(_) => {}
-//             TypeCompositionConversion::Optional(_) => {}
-//             TypeCompositionConversion::Primitive(_) => {}
-//             TypeCompositionConversion::Callback(_) => {}
-//             TypeCompositionConversion::Bounds(_) => {}
-//             TypeCompositionConversion::Fn(_) => {}
-//             TypeCompositionConversion::Array(_) => {}
-//             TypeCompositionConversion::Slice(_) => {}
-//             TypeCompositionConversion::Tuple(_) => {}
-//             TypeCompositionConversion::Unknown(_) => {}
-//             TypeCompositionConversion::LocalOrGlobal(_) => {}
-//             TypeCompositionConversion::Imported(_, _) => {}
-//         }
-//     }
-//
-//     fn conversion_to(&self, field_path: FieldContext) -> FieldContext {
-//         todo!()
-//     }
-//
-//     fn conversion_destroy(&self, field_path: FieldContext) -> FieldContext {
-//         todo!()
-//     }
-// }

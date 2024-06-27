@@ -1,5 +1,5 @@
-use crate::composer::r#abstract::ParentLinker;
-use crate::presentation::context::name::Context;
+use crate::composer::r#abstract::Linkable;
+use crate::presentable::Context;
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
@@ -13,7 +13,7 @@ pub struct TypeComposer<Parent> where Parent: SharedAccess {
     pub context: Context,
 }
 
-impl<Parent> ParentLinker<Parent> for TypeComposer<Parent> where Parent: SharedAccess {
+impl<Parent> Linkable<Parent> for TypeComposer<Parent> where Parent: SharedAccess {
     fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }

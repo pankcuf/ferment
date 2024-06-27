@@ -9,8 +9,8 @@ use syn::__private::TokenStream2;
 use crate::builder::Crate;
 use crate::composer::ParentComposer;
 use crate::Config;
-use crate::composition::{ImportComposition, TypeComposition};
-use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, TypeChain};
+use crate::composable::{ImportComposition, TypeComposition};
+use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo, TypeChain};
 use crate::conversion::{ImportConversion, ObjectConversion, TypeCompositionConversion};
 use crate::holder::{PathHolder, TypeHolder};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
@@ -21,7 +21,13 @@ fn decompose_module() {
     println!("{}", root_scope_tree().to_token_stream());
 }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
-    ScopeChain::CrateRoot { crate_ident: format_ident!("crate"), self_scope: Scope::new(self_scope, ObjectConversion::Empty) }
+    ScopeChain::CrateRoot {
+        info: ScopeInfo {
+            attrs: vec![],
+            crate_ident: format_ident!("crate"),
+            self_scope: Scope::new(self_scope, ObjectConversion::Empty),
+        }
+    }
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ParentComposer<ScopeContext> {
@@ -30,7 +36,7 @@ fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContex
 
 fn root_scope_tree() -> ScopeTree {
     let mut global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new())));
-    let root_scope = ScopeChain::crate_root(format_ident!("crate"));
+    let root_scope = ScopeChain::crate_root(format_ident!("crate"), vec![]);
     global_context
         .scope_mut(&root_scope)
         .add_many(TypeChain::from(HashMap::from([
@@ -71,12 +77,6 @@ fn root_scope_tree() -> ScopeTree {
                 parse_quote!(pub struct RootStruct { pub name: String }))),
             (ScopeTreeExportID::Ident(parse_quote!(ffi)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::ffi), global_context_ptr.clone()),
-                // HashSet::from([
-                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<bool>))))),
-                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
-                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
-                //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>)))))
-                // ]),
                 HashMap::from([
                     (ImportConversion::External, HashSet::from([
                         ImportComposition::new(parse_quote!(BTreeMap), PathHolder(parse_quote!(std::collections)))]))
@@ -87,6 +87,7 @@ fn root_scope_tree() -> ScopeTree {
                     (ScopeTreeExportID::Ident(parse_quote!(UsedKeyMatrix)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::ffi::UsedKeyMatrix), global_context_ptr.clone()), parse_quote!(pub type UsedKeyMatrix = Vec<bool>;))),
                     (ScopeTreeExportID::Ident(parse_quote!(ArrayOfArraysOfHashes)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::ffi::ArrayOfArraysOfHashes), global_context_ptr.clone()), parse_quote!(pub type ArrayOfArraysOfHashes = Vec<Vec<crate::nested::HashID>>;))),
                 ]),
+                vec![]
             )),
             (ScopeTreeExportID::Ident(parse_quote!(chain)),
              ScopeTreeExportItem::tree_with_context_and_export(
@@ -103,15 +104,16 @@ fn root_scope_tree() -> ScopeTree {
                                              parse_quote!(crate::chain::common::chain_type::ChainType),
                                              global_context_ptr.clone()),
                                          parse_quote!(pub enum ChainType { MainNet, TestNet })))
-                                 ])
-                             ))
-                         ])
+                                 ]),
+                                 vec![]))
+                         ]),
+                         vec![]
                      ))
-                 ])),
+                 ]),
+                 vec![]),
             ),
             (ScopeTreeExportID::Ident(parse_quote!(example)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::example), global_context_ptr.clone()),
-                // HashSet::from([]),
                 HashMap::from([]),
                 HashMap::from([
                     (ScopeTreeExportID::Ident(parse_quote!(address)), ScopeTreeExportItem::Tree(
@@ -131,11 +133,12 @@ fn root_scope_tree() -> ScopeTree {
                             (ScopeTreeExportID::Ident(parse_quote!(get_chain_type_string)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::example::address::address_with_script_pubkey), global_context_ptr.clone()), parse_quote!(pub fn get_chain_type_string(chain_type: ChainType) -> String { chain_type.get_string() }))),
                             (ScopeTreeExportID::Ident(parse_quote!(get_chain_hashes_by_map)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::example::address::address_with_script_pubkey), global_context_ptr.clone()), parse_quote!(pub fn get_chain_hashes_by_map(map: BTreeMap<ChainType, HashID>) -> String { map.iter().fold(String::new(), |mut acc, (chain_type, hash_id)| { acc.add(chain_type.get_string()); acc.add(" => "); acc.add(hash_id.to_string().as_str()); acc }) } ))),
                         ]),
+                        vec![]
                     ))
                 ]),
-            ))
-        ])
-    )
+                vec![]))
+        ]),
+        vec![])
 }
 
 #[allow(unused)]

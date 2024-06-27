@@ -1,6 +1,6 @@
 use syn::{Path, PathSegment};
 use syn::punctuated::Punctuated;
-use crate::composer::Colon2Punctuated;
+use crate::ast::Colon2Punctuated;
 use crate::ext::CrateExtension;
 use crate::holder::PathHolder;
 

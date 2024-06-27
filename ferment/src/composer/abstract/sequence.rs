@@ -1,6 +1,6 @@
-use crate::composer::{ComposerPresenter, ComposerPresenterByRef, SharedComposer};
-use crate::composer::r#abstract::{Composer, IterativeComposer, ParentLinker};
+use crate::composer::{Composer, ComposerPresenter, ComposerPresenterByRef, IterativeComposer, Linkable, SharedComposer};
 use crate::shared::SharedAccess;
+//pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
 pub struct SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     where Parent: SharedAccess, ParentCtx: Clone {
@@ -9,12 +9,12 @@ pub struct SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     get_context: SharedComposer<Parent, ParentCtx>,
     iterator: IterativeComposer<ParentCtx, SeqCtx, SeqMap, SeqOut>,
 }
-//pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
 impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
         Parent: SharedAccess,
         ParentCtx: Clone {
+    #[allow(unused)]
     pub const fn with_iterator_setup(
         set_output: ComposerPresenter<SeqOut, Out>,
         get_context: SharedComposer<Parent, ParentCtx>,
@@ -31,6 +31,7 @@ impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, Pa
             )
         }
     }
+    #[allow(unused)]
     pub const fn new(
         set_output: ComposerPresenter<SeqOut, Out>,
         get_context: SharedComposer<Parent, ParentCtx>,
@@ -40,8 +41,7 @@ impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, Pa
     }
 }
 
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> ParentLinker<Parent>
-for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Linkable<Parent> for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
         Parent: SharedAccess,
         ParentCtx: Clone {
@@ -50,8 +50,7 @@ for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     }
 }
 
-impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a>
-for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a> for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
         Parent: SharedAccess,
         ParentCtx: Clone {

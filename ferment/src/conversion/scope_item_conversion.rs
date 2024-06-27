@@ -1,14 +1,12 @@
-use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature, Type};
+use syn::{Attribute, Generics, Item, ItemTrait, Signature, Type};
 use syn::__private::TokenStream2;
-use crate::composition::{CfgAttributes, ImportComposition, TraitDecompositionPart1, TypeComposition};
-use crate::conversion::{ImportConversion, TypeCompositionConversion};
-use crate::ext::{ResolveAttrs, ToType};
+use crate::composable::{CfgAttributes, TraitDecompositionPart1, TypeComposition};
+use crate::conversion::{TypeCompositionConversion};
+use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToType};
 use crate::formatter::format_token_stream;
-use crate::helper::{collect_bounds, ItemExtension};
 use crate::holder::PathHolder;
 use crate::tree::ScopeTreeExportID;
 
@@ -84,13 +82,6 @@ impl ItemExtension for ScopeItemConversion {
         match self {
             ScopeItemConversion::Item(item, ..) => item.maybe_generics(),
             ScopeItemConversion::Fn(sig, ..) => sig.maybe_generics()
-        }
-    }
-
-    fn classify_imports(&self, imports: &HashMap<PathHolder, Path>) -> HashMap<ImportConversion, HashSet<ImportComposition>> {
-        match self {
-            ScopeItemConversion::Item(item, ..) => item.classify_imports(imports),
-            ScopeItemConversion::Fn(sig, ..) => sig.classify_imports(imports)
         }
     }
 }

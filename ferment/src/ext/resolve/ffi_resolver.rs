@@ -5,12 +5,13 @@ use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use ferment_macro::Display;
-use crate::composition::TypeComposition;
+use crate::composable::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
 use crate::ext::{Accessory, CrateExtension, DictionaryType, Mangle, Resolve, ResolveTrait, ToPath, ToType};
-use crate::helper::path_arguments_to_type_conversions;
+use crate::ext::item::path_arguments_to_type_conversions;
 
+#[allow(unused)]
 #[derive(Display)]
 pub enum GlobalType {
     /// Traits
@@ -45,34 +46,31 @@ pub enum GlobalType {
     String, // For heap-allocated strings.
     Option, // For optional values.
     Result, // For error handling.
-    Some, None, // Variants of Option.
-    Ok, Err, // Variants of Result.
 }
 
 pub enum FFIFullDictionaryPath {
     Void,
     CChar
 }
-
-#[derive(Clone)]
-pub enum FFIConversionType {
-    Custom(Type),
-    Opaque(Type),
-    Dynamic(Type),
-    Regular(Type)
+#[allow(unused)]
+pub enum FFIFullDictionaryVariable {
+    Void,
+    CChar
 }
-
-impl FFIConversionType {
-    pub fn ty(&self) -> &Type {
+impl ToType for FFIFullDictionaryVariable {
+    fn to_type(&self) -> Type {
         match self {
-            FFIConversionType::Custom(ty) |
-            FFIConversionType::Opaque(ty) |
-            FFIConversionType::Dynamic(ty) |
-            FFIConversionType::Regular(ty) => ty
+            FFIFullDictionaryVariable::Void => FFIFullDictionaryPath::Void.to_type(),
+            FFIFullDictionaryVariable::CChar => FFIFullDictionaryPath::CChar.to_type(),
         }
     }
 }
-
+impl ToPath for FFIFullDictionaryVariable {
+    fn to_path(&self) -> Path {
+        self.to_type()
+            .to_path()
+    }
+}
 
 impl ToType for FFIFullDictionaryPath {
     fn to_type(&self) -> Type {
@@ -157,6 +155,11 @@ pub trait FFISpecialTypeResolve {
     fn maybe_special_type(&self, source: &ScopeContext) -> Option<Type>;
 }
 
+pub trait FFIFullPathResolve: FFIResolve + ResolveTrait + Clone {
+    fn maybe_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+    fn maybe_special_or_trait_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
+}
+
 pub trait FFITypeResolve: FFISpecialTypeResolve + ToFFIFullPath {
     fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
         self.maybe_special_type(source)
@@ -167,11 +170,6 @@ pub trait FFITypeResolve: FFISpecialTypeResolve + ToFFIFullPath {
             .joined_mut()
     }
 }
-pub trait FFIFullPathResolve: FFIResolve + ResolveTrait + Clone {
-    fn maybe_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
-    fn maybe_special_or_trait_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath>;
-}
-
 pub trait FFIVariableResolve: FFIFullPathResolve {
     fn to_ffi_variable(&self, source: &ScopeContext) -> Type;
     fn to_full_ffi_variable(&self, source: &ScopeContext) -> Type {
@@ -182,6 +180,10 @@ pub trait FFIVariableResolve: FFIFullPathResolve {
             .to_ffi_variable(source)
     }
 }
+
+// pub trait FFIFnArgResolve {
+//     fn to_
+// }
 
 impl FFIInternalType for Type {
     fn maybe_trait_or_ffi_full_path(&self, source: &ScopeContext) -> Option<FFIFullPath> {
@@ -332,7 +334,6 @@ impl FFIResolve for Path {
 impl FFIResolve for TypePath {
     fn maybe_ffi_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
         self.path.maybe_ffi_resolve(source)
-            // .map(|ffi_path| parse_quote!(#ffi_path))
     }
 }
 

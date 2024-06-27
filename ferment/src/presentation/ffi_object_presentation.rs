@@ -1,11 +1,9 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
-use crate::composer::Depunctuated;
+use crate::ast::Depunctuated;
 use crate::ext::ToPath;
-use crate::interface::create_struct;
 use crate::naming::Name;
-use crate::presentation::{BindingPresentation, DropInterfacePresentation, Expansion};
-use crate::presentation::conversion_interface_presentation::InterfacePresentation;
+use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Expansion};
 
 #[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {
@@ -37,12 +35,6 @@ pub enum FFIObjectPresentation {
         fields: TokenStream2
     },
     Full(TokenStream2),
-    // Callback {
-    //     name: Name,
-    //     attrs: Depunctuated<Expansion>,
-    //     args: CommaPunctuated<FieldTypeConversion>,
-    //     result: Option<Type>
-    // },
     Generic {
         object_presentation: TokenStream2,
         interface_presentations: Depunctuated<InterfacePresentation>,

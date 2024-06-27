@@ -88,7 +88,7 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let name = &input.ident;
-    let expanded = quote!(impl crate::composition::CompositionContext for #name {});
+    let expanded = quote!(impl crate::composable::CompositionContext for #name {});
 
     TokenStream::from(expanded)
 }
@@ -213,36 +213,20 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(Display)]
 pub fn to_string_derive(input: TokenStream) -> TokenStream {
-    // Parse the input tokens into a syntax tree
     let input = parse_macro_input!(input as DeriveInput);
-
-    // Get the name of the type we're deriving ToString for
     let name = input.ident;
-
-    // Ensure that we're dealing with an enum
     let data = match input.data {
         Data::Enum(data) => data,
         _ => panic!("#[derive(ToString)] is only defined for enums"),
     };
-
-    // Generate match arms for each variant
     let match_arms = data.variants.iter().map(|Variant { ident, fields, .. } | {
         match fields {
-            Fields::Named(fields) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
-            Fields::Unnamed(fields) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+            Fields::Named(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+            Fields::Unnamed(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
             Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
         }
     });
-
-    // Generate the implementation
     let expanded = quote! {
-        // impl std::string::ToString for #name {
-        //     fn to_string(&self) -> String {
-        //         match self {
-        //             #(#match_arms)*
-        //         }
-        //     }
-        // }
         impl std::fmt::Display for #name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str(match self {
@@ -250,10 +234,20 @@ pub fn to_string_derive(input: TokenStream) -> TokenStream {
                 }.as_str())
             }
         }
-
-
     };
+    TokenStream::from(expanded)
+}
 
-    // Hand the output tokens back to the compiler
+#[proc_macro_derive(BasicComposerOwner)]
+pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
+    let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let expanded = quote! {
+        impl #impl_generics crate::composer::r#abstract::BasicComposerOwner for #ident #ty_generics #where_clause {
+            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>> {
+                &self.base
+            }
+        }
+    };
     TokenStream::from(expanded)
 }

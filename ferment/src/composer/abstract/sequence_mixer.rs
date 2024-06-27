@@ -1,6 +1,5 @@
-use crate::composer::{ComposerPresenter, ComposerPresenterByRef, SharedComposer};
-use crate::composer::r#abstract::{Composer, ParentLinker, SequenceComposer};
-use crate::presentation::ScopeContextPresentable;
+use crate::composer::{Composer, ComposerPresenter, ComposerPresenterByRef, Linkable, SequenceComposer, SharedComposer};
+use crate::presentable::ScopeContextPresentable;
 use crate::shared::SharedAccess;
 
 pub struct SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
@@ -14,7 +13,7 @@ pub struct SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, M
     context: SharedComposer<Parent, MixCtx>,
     sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
 }
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> ParentLinker<Parent>
+impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Linkable<Parent>
 for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
     where
         Parent: SharedAccess,

@@ -4,13 +4,14 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
-use crate::composer::{Depunctuated, ParentComposer, SemiPunctuated};
-use crate::composition::{CfgAttributes, create_item_use_with_tree, ImportComposition};
+use crate::ast::{Depunctuated, SemiPunctuated};
+use crate::composable::{CfgAttributes, create_item_use_with_tree, ImportComposition};
+use crate::composer::ParentComposer;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
 use crate::ext::{Join, RefineUnrefined};
 use crate::formatter::format_tree_item_dict;
-use crate::presentation::expansion::Expansion;
+use crate::presentation::Expansion;
 use crate::print_phase;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 

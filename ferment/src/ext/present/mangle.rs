@@ -4,7 +4,7 @@ use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use crate::composition::GenericBoundComposition;
+use crate::composable::GenericBoundComposition;
 use crate::conversion::ObjectConversion;
 use crate::ext::ToPath;
 

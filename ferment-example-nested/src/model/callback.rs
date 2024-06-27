@@ -82,10 +82,10 @@ pub fn find_current_block_desc<T: Fn(u32, [u8; 32]) -> Option<String>>(_callback
 }
 #[ferment_macro::opaque]
 pub type ClassicCallback = fn(u32);
-#[ferment_macro::export]
-pub fn find_current_block_classic(_callback: ClassicCallback) {
-    println!("find_current_block_desc: ");
-}
+// #[ferment_macro::export]
+// pub fn find_current_block_classic(_callback: ClassicCallback) {
+//     println!("find_current_block_desc: ");
+// }
 #[ferment_macro::export]
 pub fn find_current_block_desc_mut<T: FnMut(u32, [u8; 32]) -> Option<String>>(_callback: T) {
     println!("find_current_block_desc_mut: ");

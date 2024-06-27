@@ -4,12 +4,12 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemMod};
+use crate::composable::ImportComposition;
 use crate::composer::ParentComposer;
-use crate::composition::ImportComposition;
 use crate::context::{GlobalContext, ScopeChain, ScopeContext};
 use crate::conversion::ImportConversion;
+use crate::ext::ItemExtension;
 use crate::formatter::{format_imported_dict, format_tree_exported_dict};
-use crate::helper::ItemExtension;
 use crate::tree::ScopeTreeExportID;
 
 
@@ -99,17 +99,13 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(
                 scope_context,
-                imported,
+                _,
                 exported,
                 _attrs) => {
                 exported.insert(
                     item.scope_tree_export_id(),
                     ScopeTreeExportItem::Item(
-                        Rc::new(RefCell::new(ScopeContext::populated(
-                            scope.clone(),
-                            item,
-                            imported,
-                            scope_context.borrow().context.clone()))),
+                        Rc::new(RefCell::new(ScopeContext::with(scope.clone(), scope_context.borrow().context.clone()))),
                         item.clone()));
             }
         }

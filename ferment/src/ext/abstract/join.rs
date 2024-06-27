@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::Item;
 use crate::context::{ScopeChain, ScopeInfo};
-use crate::helper::ItemExtension;
+use crate::ext::item::ItemExtension;
 
 pub trait Join<T: ToTokens> {
     fn joined(&self, other: &T) -> Self;

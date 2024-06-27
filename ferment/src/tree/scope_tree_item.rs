@@ -5,7 +5,7 @@ use syn::Item;
 use crate::composer::ParentComposer;
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{ItemConversion, MacroType, OpaqueConversion};
-use crate::helper::ItemExtension;
+use crate::ext::ItemExtension;
 use crate::tree::ScopeTree;
 
 #[derive(Clone)]

@@ -3,9 +3,8 @@ use std::fmt::{Display, Formatter, Write};
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, Path, Signature, Type};
-use crate::chunk::InitialType;
-use crate::composer::CommaPunctuated;
-use crate::composition::{GenericBoundComposition, GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
+use crate::ast::CommaPunctuated;
+use crate::composable::{GenericBoundComposition, GenericConversion, ImportComposition, TraitCompositionPart1, TraitDecompositionPart1, TraitTypeDecomposition};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ImportConversion, ObjectConversion};
 use crate::holder::{PathHolder, TypeHolder, TypePathHolder};
@@ -140,11 +139,6 @@ pub fn ident_trait_type_decomposition_conversion_pair(dict: (&Ident, &TraitTypeD
         quote!(#ident: [bounds: #(#trait_bounds)*, generics: #generics])
     })
 }
-
-#[allow(unused)]
-pub fn scope_chunk_conversion_pair(dict: (&InitialType, &Type)) -> String {
-    format!("\t{}: {}", format_token_stream(dict.0), format_token_stream(dict.1))
-}
 fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
     format!("\t{}: {}", format_token_stream(pair.0), format_token_stream(pair.1))
 }
@@ -187,12 +181,6 @@ fn format_generic_bounds_pair(pair: (&TypePathHolder, &Vec<Path>)) -> String {
 fn format_ident_trait_pair(pair: (&Ident, &TraitCompositionPart1)) -> String {
     let implementors = &pair.1.implementors;
     format!("\t{}: {}: [{}]", format_token_stream(pair.0), "...", quote!(#(#implementors),*))
-}
-
-#[allow(unused)]
-pub fn format_chunks_dict(dict: &HashMap<InitialType, Type>) -> String {
-    chunks_dict(dict)
-        .join("\n")
 }
 
 #[allow(unused)]
@@ -354,12 +342,6 @@ pub fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
 pub fn generic_bounds_dict(dict: &HashMap<TypePathHolder, Vec<Path>>) -> Vec<String> {
     dict.iter()
         .map(format_generic_bounds_pair)
-        .collect()
-}
-
-fn chunks_dict(dict: &HashMap<InitialType, Type>) -> Vec<String> {
-    dict.iter()
-        .map(scope_chunk_conversion_pair)
         .collect()
 }
 

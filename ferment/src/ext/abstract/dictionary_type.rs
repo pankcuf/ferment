@@ -21,8 +21,8 @@ pub trait DictionaryType {
     fn is_box(&self) -> bool;
     fn is_optional(&self) -> bool;
     fn is_lambda_fn(&self) -> bool;
-    fn is_from(&self) -> bool;
-    fn is_into(&self) -> bool;
+    // fn is_from(&self) -> bool;
+    // fn is_into(&self) -> bool;
 }
 
 impl DictionaryType for Ident {
@@ -75,11 +75,11 @@ impl DictionaryType for Ident {
         matches!(self.to_string().as_str(), "FnOnce" | "Fn" | "FnMut")
     }
 
-    fn is_from(&self) -> bool {
-        matches!(self.to_string().as_str(), "From")
-    }
-
-    fn is_into(&self) -> bool {
-        matches!(self.to_string().as_str(), "Into")
-    }
+    // fn is_from(&self) -> bool {
+    //     matches!(self.to_string().as_str(), "From")
+    // }
+    //
+    // fn is_into(&self) -> bool {
+    //     matches!(self.to_string().as_str(), "Into")
+    // }
 }

@@ -1,8 +1,10 @@
-use crate::composer::{BindingComposer, LocalConversionContext, BindingAccessorContext, DestructorContext, SharedComposer};
-use crate::composer::r#abstract::{Composer, ParentLinker};
+use quote::ToTokens;
+use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
+use crate::composer::r#abstract::{Composer, Linkable};
 use crate::context::ScopeContext;
 use crate::ext::FFIVariableResolve;
-use crate::presentation::{BindingPresentation, ScopeContextPresentable};
+use crate::presentable::ScopeContextPresentable;
+use crate::presentation::BindingPresentation;
 use crate::shared::SharedAccess;
 
 pub struct MethodComposer<Parent, BindingContext, SharedContext>
@@ -26,7 +28,7 @@ impl<Parent, BindingContext, SharedContext> MethodComposer<Parent, BindingContex
         }
     }
 }
-impl<Parent, BindingContext, SharedContext> ParentLinker<Parent>
+impl<Parent, BindingContext, SharedContext> Linkable<Parent>
 for MethodComposer<Parent, BindingContext, SharedContext>
     where
         Parent: SharedAccess,
@@ -50,9 +52,9 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
             .map(|field_type| {
                 (self.seq_iterator_item)((
                     aspect.present(source),
-                    field_type.name(),
+                    field_type.name.to_token_stream(),
                     field_type.ty().to_full_ffi_variable(source),
-                    field_type.attrs(),
+                    field_type.attrs.clone(),
                     generics.clone()
                 ))
             })

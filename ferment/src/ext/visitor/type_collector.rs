@@ -1,13 +1,38 @@
-use syn::{Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
-use crate::composition::GenericBoundComposition;
-use crate::conversion::{MacroAttributes, ScopeItemConversion};
-use crate::ext::NestingExtension;
-use crate::helper::handle_attributes_with_handler;
+use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, Meta, NestedMeta, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
+use crate::composable::GenericBoundComposition;
+use crate::conversion::ScopeItemConversion;
+use crate::ext::{NestingExtension, ResolveMacro};
 use crate::holder::TypeHolder;
+
+#[allow(unused)]
+pub struct MacroAttributes {
+    pub path: Path,
+    pub arguments: Vec<Path>,
+}
 
 pub trait TypeCollector {
     fn collect_compositions(&self) -> Vec<TypeHolder>;
 }
+fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute], mut handler: F) {
+    attrs.iter()
+        .for_each(|attr|
+            if attr.is_labeled_for_export() || attr.is_labeled_for_opaque_export() {
+                let mut arguments = Vec::<Path>::new();
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    meta_list.nested.iter().for_each(|meta| {
+                        if let NestedMeta::Meta(Meta::Path(path)) = meta {
+                            arguments.push(path.clone());
+                        }
+                    });
+                }
+                handler(MacroAttributes {
+                    path: attr.path.clone(),
+                    arguments
+                })
+            }
+        )
+}
+
 impl TypeCollector for GenericBoundComposition {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();

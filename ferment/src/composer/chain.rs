@@ -1,5 +1,4 @@
-use crate::composer::composable::BindingComposable;
-use crate::composer::ParentComposer;
+use crate::composer::{BindingComposable, ParentComposer};
 use crate::presentation::Expansion;
 
 #[allow(unused)]

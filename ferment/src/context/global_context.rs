@@ -4,16 +4,15 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::composer::{Colon2Punctuated, CommaPunctuatedNestedArguments};
-use crate::composition::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
+use crate::ast::Colon2Punctuated;
+use crate::composer::CommaPunctuatedNestedArguments;
+use crate::composable::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
 use crate::Config;
-use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
-use crate::context::scope_chain::ScopeInfo;
+use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeInfo, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::formatter::{format_global_context, format_path_vec, format_token_stream};
 use crate::holder::PathHolder;
-use crate::ext::{CrateExtension, visitor::GenericCollector, Pop, RefineMut, RefineUnrefined, ToPath, ToType, Unrefined, ResolveAttrs};
-use crate::ext::visitor::GenericConstraintCollector;
+use crate::ext::{CrateExtension, GenericCollector, GenericConstraintCollector, Pop, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
 
 #[derive(Clone)]
 pub struct GlobalContext {

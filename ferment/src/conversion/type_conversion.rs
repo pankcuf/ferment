@@ -10,7 +10,6 @@ use crate::conversion::GenericTypeConversion;
 pub enum TypeConversion {
     Primitive(Type),
     Complex(Type),
-    // Callback(Type),
     Generic(GenericTypeConversion),
 }
 
@@ -19,7 +18,6 @@ impl Debug for TypeConversion {
         f.write_str(match self {
             TypeConversion::Primitive(_) => format!("Primitive({})", self.to_token_stream()),
             TypeConversion::Complex(_) => format!("Complex({})", self.to_token_stream()),
-            // TypeConversion::Callback(_) => format!("Callback({})", self.to_token_stream()),
             TypeConversion::Generic(_) => format!("Generic({})", self.to_token_stream())
         }.as_str())
     }
@@ -42,7 +40,6 @@ impl ToTokens for TypeConversion {
         match self {
             TypeConversion::Primitive(ty) |
             TypeConversion::Complex(ty) => ty.to_tokens(tokens),
-            // TypeConversion::Callback(ty) => ty.to_tokens(tokens),
             TypeConversion::Generic(generic) => generic.to_tokens(tokens),
         }
     }

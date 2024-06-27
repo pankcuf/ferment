@@ -1,11 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use proc_macro2::Ident;
-use syn::{Item, parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
+use syn::{parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::composition::ImportComposition;
 use crate::context::ScopeChain;
-use crate::conversion::ImportConversion;
-use crate::helper::ItemExtension;
 use crate::holder::PathHolder;
 
 // pub trait Maybe<T> {
@@ -46,12 +43,6 @@ impl ImportResolver {
                 // Just ignore them for now
             }
         }
-    }
-
-    pub fn find_used_imports(&self, item: &Item, scope: &ScopeChain) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
-        self.inner
-            .get(scope)
-            .map(|imports| item.get_used_imports(imports))
     }
 
     pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&HashMap<PathHolder, Path>> {

@@ -1,9 +1,16 @@
+mod composable;
+mod context;
 mod iterative;
+mod linked;
 mod sequence;
 mod sequence_mixer;
-mod linked;
-mod context;
 
+#[allow(unused)]
+mod new;
+#[allow(unused)]
+mod new_const;
+
+pub use self::composable::*;
 pub use self::context::*;
 pub use self::iterative::*;
 pub use self::linked::*;
@@ -15,3 +22,4 @@ pub trait Composer<'a> {
     type Result;
     fn compose(&self, source: &'a Self::Source) -> Self::Result;
 }
+

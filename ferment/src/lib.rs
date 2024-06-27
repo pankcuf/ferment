@@ -1,30 +1,25 @@
+
+mod ast;
+mod builder;
+mod composable;
 mod composer;
-pub mod builder;
+mod context;
+mod conversion;
+mod ext;
 mod error;
-mod helper;
-mod interface;
+mod file;
+mod formatter;
+mod holder;
+mod naming;
+mod presentable;
 mod presentation;
-mod visitor;
+mod shared;
 #[cfg(test)]
 mod test;
-mod context;
-mod formatter;
-mod chunk;
-mod holder;
-mod conversion;
-mod composition;
 mod tree;
-mod naming;
-mod ext;
-mod shared;
-mod wrapped;
-mod opposed;
-// mod sequence;
-mod file;
 
-
-pub use self::builder::Builder;
-pub use self::builder::Config;
+pub use self::error::Error;
+pub use self::builder::{Builder, Config, Crate};
 
 // It's organized as a sequential process of tree transformation
 // Files -> File Tree -> Scope Agnostic Tree -> Full Context Tree -> Expansion

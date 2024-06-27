@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use crate::composition::GenericBoundComposition;
+use crate::composable::GenericBoundComposition;
 use crate::ext::visitor::{GenericCollector, TypeCollector};
 use crate::holder::TypeHolder;
 

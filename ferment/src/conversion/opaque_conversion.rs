@@ -4,14 +4,13 @@ use syn::{Fields, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTra
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
-use crate::composer::composable::SourceExpandable;
-use crate::composer::ParentComposer;
-use crate::composer::opaque_item::OpaqueItemComposer;
+use crate::composer::{OpaqueItemComposer, ParentComposer, SourceExpandable};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::presentation::Expansion;
 use crate::tree::ScopeTreeExportID;
 
 #[derive(Clone)]
+#[allow(unused)]
 pub enum OpaqueConversion {
     Mod(ItemMod, ScopeChain),
     Struct(ItemStruct, ScopeChain),

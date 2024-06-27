@@ -1,6 +1,6 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, Type, TypePath, TypeTuple};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::composition::NestedArgument;
+use crate::composable::NestedArgument;
 use crate::context::ScopeChain;
 
 pub trait RefineMut: Sized {

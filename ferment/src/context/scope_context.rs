@@ -1,12 +1,11 @@
-use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Item, Path, Type, TypePath};
+use syn::{Attribute, Path, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::composer::Depunctuated;
-use crate::composition::{Composition, ImportComposition, TraitCompositionPart1};
+use crate::ast::Depunctuated;
+use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{ImportConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
+use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{extract_trait_names, Opaque, ToObjectConversion};
 use crate::holder::TypeHolder;
 use crate::print_phase;
@@ -45,11 +44,6 @@ impl ScopeContext {
     }
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
-    }
-    pub fn populated(scope: ScopeChain, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, context: Arc<RwLock<GlobalContext>>) -> Self {
-        let s = Self { scope, context };
-        s.populate_imports(item, imported);
-        s
     }
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
@@ -162,25 +156,6 @@ impl ScopeContext {
     //     let lock = self.context.read().unwrap();
     //     lock.scope_register.find_generics_fq_in(item, scope)
     // }
-
-    pub fn find_used_imports(&self, item: &Item) -> Option<HashMap<ImportConversion, HashSet<ImportComposition>>> {
-        let lock = self.context.read().unwrap();
-        lock.imports.find_used_imports(item, &self.scope)
-    }
-
-    pub fn populate_imports(&self, item: &Item, imported: &mut HashMap<ImportConversion, HashSet<ImportComposition>>) {
-        if let Some(scope_imports) = self.find_used_imports(item) {
-            scope_imports
-                .iter()
-                .for_each(|(import_type, imports)|
-                    imported.entry(import_type.clone())
-                        .or_insert_with(HashSet::new)
-                        .extend(imports.clone()));
-        }
-        // let scope_generics = self.find_generics_fq_in(item, &scope);
-        // println!("populate_imports_and_generics:\n {}", format_generic_conversions(&scope_generics));
-        // generics.extend(scope_generics);
-    }
 
     // pub fn ffi_dictionary_type(&self, path: &Path) -> Type {
     //     // println!("ffi_dictionary_field_type: {}", format_token_stream(path));

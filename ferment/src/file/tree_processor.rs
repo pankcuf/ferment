@@ -8,8 +8,7 @@ use crate::builder::Crate;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::{Config, error, print_phase};
 use crate::presentation::Expansion;
-use crate::tree::{CrateTree, ScopeTreeExportItem};
-use crate::visitor::Visitor;
+use crate::tree::{CrateTree, ScopeTreeExportItem, Visitor};
 pub struct FileTreeProcessor {
     pub path: PathBuf,
     pub scope: ScopeChain,

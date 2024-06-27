@@ -1,21 +1,19 @@
 mod constraints;
 mod collection;
-// mod prefix;
-mod nested_arguments;
 mod refine;
 mod resolve;
-pub mod visitor;
+mod visitor;
 mod present;
 mod r#abstract;
+mod item;
 
-pub use self::constraints::Constraints;
-pub use self::r#abstract::{Accessory, DictionaryType, HashMapMergePolicy, ItemHelper, Join, MergeInto, MergePolicy, Pop, ToPath, ToType, ValueReplaceScenario};
-pub use self::present::{Conversion, GenericNestedArg, Mangle, MangleDefault, Terminated};
-pub use self::refine::{RefineMut, RefineUnrefined, Unrefined};
-pub use self::resolve::{FFIVariableResolve, FFITypeResolve, Opaque, Resolve, ResolveAttrs, ResolveMacro, ResolveTrait};
-pub use self::visitor::NestingExtension;
-pub use self::visitor::visit_scope::{add_trait_names, create_generics_chain, extract_trait_names, VisitScope};
-pub use self::visitor::visit_scope_type::{ToObjectConversion, VisitScopeType};
+pub use self::constraints::*;
+pub use self::r#abstract::*;
+pub use self::item::*;
+pub use self::present::*;
+pub use self::refine::*;
+pub use self::resolve::*;
+pub use self::visitor::*;
 
 pub trait CrateExtension {
     fn is_crate_based(&self) -> bool;

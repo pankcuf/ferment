@@ -1,8 +1,9 @@
 use quote::ToTokens;
 use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
-use crate::composer::{AddPunctuated, CommaPunctuated, CommaPunctuatedNestedArguments};
-use crate::composition::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
+use crate::ast::{AddPunctuated, CommaPunctuated};
+use crate::composable::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, ToPath};

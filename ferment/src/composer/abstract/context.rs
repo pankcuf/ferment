@@ -1,14 +1,14 @@
-use crate::composer::{ComposerPresenter, SharedComposer};
-use crate::composer::r#abstract::{Composer, LinkedComposer, ParentLinker};
+use crate::composer::{Composer, ComposerPresenter, Linkable, SharedComposer};
 use crate::shared::SharedAccess;
 
-pub struct ContextComposer<Context, Result, Parent: SharedAccess> {
+pub struct ContextComposer<Context, Result, Parent> where Parent: SharedAccess {
     parent: Option<Parent>,
     set_output: ComposerPresenter<Context, Result>,
     get_context: SharedComposer<Parent, Context>,
 }
 
-impl<Context, Result, Parent: SharedAccess> ContextComposer<Context, Result, Parent> {
+impl<Context, Result, Parent> ContextComposer<Context, Result, Parent>
+    where Parent: SharedAccess {
     pub const fn new(
         set_output: ComposerPresenter<Context, Result>,
         get_context: SharedComposer<Parent, Context>
@@ -17,7 +17,8 @@ impl<Context, Result, Parent: SharedAccess> ContextComposer<Context, Result, Par
     }
 }
 
-impl<Context, Result, Parent: SharedAccess> ParentLinker<Parent> for ContextComposer<Context, Result, Parent> {
+impl<Context, Result, Parent> Linkable<Parent> for ContextComposer<Context, Result, Parent>
+    where Parent: SharedAccess {
     fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }
@@ -34,8 +35,5 @@ impl<'a, Context, Result, Parent> Composer<'a> for ContextComposer<Context, Resu
                 .access(self.get_context))
     }
 }
-
-impl<'a, Context, Result, Parent: SharedAccess> LinkedComposer<'a, Parent> for ContextComposer<Context, Result, Parent> {}
-
 
 

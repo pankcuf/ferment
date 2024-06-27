@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use syn::{Item, Path, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::conversion::ScopeItemConversion;
+use crate::ext::item::{path_arguments_to_types, segment_arguments_to_types};
 use crate::ext::visitor::TypeCollector;
-use crate::helper::{path_arguments_to_types, segment_arguments_to_types};
 use crate::holder::TypeHolder;
 
 // pub trait Collector where Self: TypeCollector {

@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use syn::{parse_quote, Path, Type};
 use syn::__private::TokenStream2;
-use crate::composer::Colon2Punctuated;
+use crate::ast::Colon2Punctuated;
 
 pub trait ToType {
     fn to_type(&self) -> Type;
@@ -34,7 +34,7 @@ impl_to_type!(Ident);
 impl_to_type!(Path);
 impl_to_type!(Type);
 impl_to_type!(TokenStream2);
-impl_to_type!(crate::composition::TraitBoundDecomposition);
+impl_to_type!(crate::composable::TraitBoundDecomposition);
 impl_to_type!(crate::holder::PathHolder);
 impl_to_type!(crate::holder::TypeHolder);
 impl_to_type!(crate::naming::Name);

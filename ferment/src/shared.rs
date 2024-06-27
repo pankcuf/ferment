@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 pub trait SharedAccess {
     type Item;
-    type ImmutableAccess;
-    type MutableAccess;
+    type ImmutableAccess: ?Sized;
+    type MutableAccess: ?Sized;
 
     fn clone_container(&self) -> Self where Self: Sized;
 

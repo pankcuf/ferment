@@ -1,6 +1,7 @@
 use syn::{GenericParam, Generics, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate};
-use crate::composer::{AddPunctuated, ParentComposer};
-use crate::composer::r#abstract::{Composer, LinkedComposer, ParentLinker};
+use crate::ast::AddPunctuated;
+use crate::composer::ParentComposer;
+use crate::composer::r#abstract::{Composer, Linkable};
 use crate::context::ScopeContext;
 use crate::holder::TypePathHolder;
 use crate::shared::SharedAccess;
@@ -9,14 +10,13 @@ pub struct GenericsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,
     pub generics: Option<Generics>,
 }
-impl<'a, Parent: SharedAccess> LinkedComposer<'a, Parent> for GenericsComposer<Parent> {}
 impl<Parent: SharedAccess> GenericsComposer<Parent> {
     pub fn new(generics: Option<Generics>) -> GenericsComposer<Parent> {
         Self { parent: None, generics }
     }
 }
 
-impl<Parent: SharedAccess> ParentLinker<Parent> for GenericsComposer<Parent> {
+impl<Parent: SharedAccess> Linkable<Parent> for GenericsComposer<Parent> {
     fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }

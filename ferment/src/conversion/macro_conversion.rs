@@ -3,9 +3,8 @@ use std::fmt::{Display, Formatter};
 use quote::quote;
 use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, Path};
 use syn::punctuated::Punctuated;
-use crate::composer::{CommaPunctuated, Depunctuated};
-use crate::ext::ToType;
-use crate::helper::ItemExtension;
+use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ext::{ItemExtension, ToType};
 use crate::holder::TypeHolder;
 use crate::presentation::Expansion;
 
@@ -68,11 +67,6 @@ impl TryFrom<&Item> for MacroType {
     }
 }
 
-
-pub struct MacroAttributes {
-    pub path: Path,
-    pub arguments: Vec<Path>,
-}
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub enum CfgMacroType {

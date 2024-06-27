@@ -3,11 +3,10 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
 use syn::punctuated::Punctuated;
-use crate::composition::{ImportComposition, TypeComposition};
+use crate::composable::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::{FFIResolve, ToPath};
-use crate::helper::path_arguments_to_types;
+use crate::ext::{FFIResolve, path_arguments_to_types, ToFFIFullPath, ToPath};
 use crate::holder::PathHolder;
 
 pub mod composing;
@@ -44,11 +43,9 @@ impl TypeConversion {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.maybe_ffi_resolve(source).unwrap_or(parse_quote!(#self)).to_token_stream(),
+                ty.maybe_ffi_resolve(source).map(|p| p.to_path()).unwrap_or(parse_quote!(#self)).to_token_stream(),
             TypeConversion::Generic(conversion) =>
-                conversion.to_ffi_full_path(source).to_token_stream(),
-            // TypeConversion::Callback(ty) =>
-            //     unimplemented!("Callbacks are not implemented in generics: {}", ty.to_token_stream()),
+                conversion.to_ffi_full_path(source).to_path().to_token_stream(),
         }
     }
 

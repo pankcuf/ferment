@@ -1,15 +1,10 @@
-use std::rc::Rc;
 use syn::Generics;
-use crate::composer::{AttrsComposer, constants, Depunctuated, ParentComposer, TypeContextComposer};
-use crate::composer::composable::{BasicComposable, SourceExpandable, NameContext, SourceAccessible};
-use crate::composer::generics_composer::GenericsComposer;
-use crate::composer::r#abstract::{Composer, ParentLinker};
-use crate::composer::r#type::TypeComposer;
-use crate::composition::AttrsComposition;
+use crate::ast::Depunctuated;
+use crate::composable::AttrsComposition;
+use crate::composer::{AttrsComposer, BasicComposable, Composer, DocsComposable, GenericsComposer, NameContext, ParentComposer, Linkable, SourceAccessible, SourceExpandable, TypeComposer, TypeContextComposer};
 use crate::context::ScopeContext;
-use crate::presentation::context::name;
+use crate::presentable::Context;
 use crate::presentation::{DocPresentation, Expansion};
-use crate::presentation::context::name::Context;
 use crate::shared::SharedAccess;
 
 pub struct BasicComposer<Parent> where Parent: SharedAccess {
@@ -19,7 +14,7 @@ pub struct BasicComposer<Parent> where Parent: SharedAccess {
     pub ty: TypeComposer<Parent>,
     pub generics: GenericsComposer<Parent>,
 }
-impl<Parent> ParentLinker<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
+impl<Parent> Linkable<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
     fn link(&mut self, parent: &Parent) {
         self.attr.link(parent);
         self.generics.link(parent);
@@ -27,6 +22,12 @@ impl<Parent> ParentLinker<Parent> for BasicComposer<Parent> where Parent: Shared
         self.doc.link(parent);
     }
 }
+impl<Parent> DocsComposable for BasicComposer<Parent> where Parent: SharedAccess {
+    fn compose_docs(&self) -> DocPresentation {
+        DocPresentation::Direct(self.doc.compose(&()))
+    }
+}
+
 
 impl<Parent> BasicComposable<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
     fn compose_attributes(&self) -> Depunctuated<Expansion> {
@@ -34,9 +35,6 @@ impl<Parent> BasicComposable<Parent> for BasicComposer<Parent> where Parent: Sha
     }
     fn compose_generics(&self) -> Option<Generics> {
         self.generics.compose(self.context())
-    }
-    fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::Direct(self.doc.compose(&()))
     }
 }
 
@@ -49,7 +47,7 @@ impl<Parent> SourceAccessible for BasicComposer<Parent> where Parent: SharedAcce
 impl<Parent> SourceExpandable for BasicComposer<Parent> where Parent: SharedAccess {}
 
 impl<Parent> NameContext for BasicComposer<Parent> where Parent: SharedAccess {
-    fn name_context_ref(&self) -> &name::Context {
+    fn name_context_ref(&self) -> &Context {
         &self.ty.context
     }
 }

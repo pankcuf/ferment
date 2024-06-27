@@ -1,14 +1,15 @@
-pub mod generic_collector;
-mod nesting;
-pub mod scope;
-pub mod type_collector;
-pub mod visit_scope;
-pub mod visit_scope_type;
+mod generic_collector;
 mod generic_constraint_collector;
+mod nesting;
+// mod scope;
+mod type_collector;
+mod visit_scope;
+mod visit_scope_type;
 
-pub use self::generic_collector::GenericCollector;
-pub use self::generic_constraint_collector::GenericConstraintCollector;
-pub use self::nesting::NestingExtension;
-pub use self::type_collector::TypeCollector;
-// pub use self::visit_scope::VisitScope;
-// pub use self::visit_scope_type::{VisitScopeType, ToObjectConversion};
+pub use self::generic_collector::*;
+pub use self::generic_constraint_collector::*;
+pub use self::nesting::*;
+// pub use self::scope::*;
+pub use self::type_collector::*;
+pub use self::visit_scope::*;
+pub use self::visit_scope_type::*;

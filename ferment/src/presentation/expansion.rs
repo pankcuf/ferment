@@ -1,12 +1,10 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::ItemUse;
-use crate::composer::{Depunctuated, SemiPunctuated};
+use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::context::ScopeContext;
-use crate::presentation::{BindingPresentation, DropInterfacePresentation, ScopeContextPresentable};
-use crate::presentation::conversion_interface_presentation::InterfacePresentation;
-use crate::presentation::doc_presentation::DocPresentation;
-use crate::presentation::ffi_object_presentation::FFIObjectPresentation;
+use crate::presentable::ScopeContextPresentable;
+use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, InterfacePresentation};
 use crate::tree::CrateTree;
 
 /// Root-level composer chain

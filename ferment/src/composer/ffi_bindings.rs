@@ -1,21 +1,21 @@
 use syn::punctuated::Punctuated;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, ConstructorComposer, Depunctuated, DestructorContext, LocalConversionContext, MethodComposer};
-use crate::composer::r#abstract::{Composer, ParentLinker};
+use crate::ast::{DelimiterTrait, Depunctuated};
+use crate::composer::{BindingAccessorContext, Composer, CtorSequenceComposer, DestructorContext, Linkable, LocalConversionContext, MethodComposer};
 use crate::context::ScopeContext;
-use crate::presentation::{BindingPresentation, ScopeContextPresentable};
+use crate::presentable::ScopeContextPresentable;
+use crate::presentation::BindingPresentation;
 use crate::shared::SharedAccess;
-use crate::wrapped::DelimiterTrait;
 
 pub struct FFIBindingsComposer<Parent, I>
     where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
     pub parent: Option<Parent>,
-    pub ctor_composer: ConstructorComposer<Parent, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, I>,
+    pub ctor_composer: CtorSequenceComposer<Parent, I>,
     pub dtor_composer: MethodComposer<Parent, DestructorContext, DestructorContext>,
     pub getter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
     pub setter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
 }
 
-impl<Parent, I> ParentLinker<Parent> for FFIBindingsComposer<Parent, I>
+impl<Parent, I> Linkable<Parent> for FFIBindingsComposer<Parent, I>
     where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
     fn link(&mut self, parent: &Parent) {
         self.getter_composer.link(parent);
@@ -29,7 +29,7 @@ impl<Parent, I> ParentLinker<Parent> for FFIBindingsComposer<Parent, I>
 impl<Parent, I> FFIBindingsComposer<Parent, I>
     where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
     pub const fn new(
-        ctor_composer: ConstructorComposer<Parent, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, I>,
+        ctor_composer: CtorSequenceComposer<Parent, I>,
         dtor_composer: MethodComposer<Parent, DestructorContext, DestructorContext>,
         getter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
         setter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>

@@ -3,27 +3,24 @@ use std::rc::Rc;
 use proc_macro2::Ident;
 use syn::{Attribute, Generics};
 use syn::token::Comma;
-use crate::composer::basic::BasicComposer;
-use crate::composer::{CommaPunctuatedFields, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, ComposerPresenter, constants, ConstructorComposer, Depunctuated, FieldsComposer, FieldsOwnedComposer, FieldTypesContext, MethodComposer, OpaqueItemParentComposer, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, ParentComposer, VariantIteratorLocalContext};
-use crate::composer::composable::{BasicComposable, BindingComposable, FieldsContext, FieldsConversionComposable, NameContext, SourceAccessible, SourceExpandable};
+use ferment_macro::BasicComposerOwner;
+use crate::ast::{DelimiterTrait, Depunctuated};
+use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPunctuatedFields, ComposerPresenter, constants, CtorSequenceComposer, DocsComposable, FFIBindingsComposer, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypesContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, ParentComposer, Linkable, SourceAccessible, SourceExpandable};
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, composer_target_binding, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
-use crate::composer::ffi_bindings::FFIBindingsComposer;
-use crate::composer::r#abstract::{Composer, ParentLinker};
-use crate::composition::{AttrsComposition, CfgAttributes};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
 use crate::naming::Name;
+use crate::presentable::{Context, SequenceOutput};
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation};
-use crate::presentation::context::{name::Context, SequenceOutput};
 use crate::shared::SharedAccess;
-use crate::wrapped::DelimiterTrait;
 
+#[derive(BasicComposerOwner)]
 pub struct OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized + 'static {
-    pub base: BasicComposer<OpaqueItemParentComposer<I>>,
-    pub fields_from_composer: FieldsOwnedComposer<OpaqueItemParentComposer<I>>,
-    pub fields_to_composer: FieldsOwnedComposer<OpaqueItemParentComposer<I>>,
-    pub bindings_composer: FFIBindingsComposer<OpaqueItemParentComposer<I>, I>,
-    pub fields_composer: FieldsComposer,
+    pub base: BasicComposer<ParentComposer<Self>>,
+    pub fields_from_composer: FieldsOwnedSequenceComposer<ParentComposer<Self>>,
+    pub fields_to_composer: FieldsOwnedSequenceComposer<ParentComposer<Self>>,
+    pub bindings_composer: FFIBindingsComposer<ParentComposer<Self>, I>,
     pub field_types: FieldTypesContext,
 }
 impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
@@ -34,7 +31,7 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         fields: &CommaPunctuatedFields,
         scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>
-    ) -> OpaqueItemParentComposer<I> {
+    ) -> ParentComposer<Self> {
         Self::struct_composer(
             target_name,
             generics,
@@ -55,7 +52,7 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         fields: &CommaPunctuatedFields,
         scope: &ScopeChain,
         context: &ParentComposer<ScopeContext>
-    ) -> OpaqueItemParentComposer<I> {
+    ) -> ParentComposer<Self> {
         Self::struct_composer(
             target_name,
             generics,
@@ -79,9 +76,9 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         context: &ParentComposer<ScopeContext>,
         root_presenter: OwnerIteratorConversionComposer<Comma>,
         field_presenter: OwnedFieldTypeComposerRef,
-        ctor_composer: ConstructorComposer<OpaqueItemParentComposer<I>, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, I>,
-        fields_composer: FieldsComposer) -> OpaqueItemParentComposer<I> {
-        Self::new::<OpaqueItemParentComposer<I>>(
+        ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
+        fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
+        Self::new::<ParentComposer<Self>>(
             Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
@@ -100,10 +97,10 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         attrs: AttrsComposition,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>,
-        root_presenter: ComposerPresenter<VariantIteratorLocalContext, SequenceOutput>,
+        root_presenter: ComposerPresenter<OwnerAspectWithCommaPunctuatedItems, SequenceOutput>,
         field_presenter: OwnedFieldTypeComposerRef,
-        ctor_composer: ConstructorComposer<OpaqueItemParentComposer<I>, CommaPunctuatedOwnedItems, CommaPunctuatedTokens, I>,
-        fields_composer: FieldsComposer) -> OpaqueItemParentComposer<I> {
+        ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
+        fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(attrs, name_context, generics, constants::composer_doc(), Rc::clone(context)),
             fields_from_composer: constants::fields_from_composer(root_presenter, field_presenter),
@@ -137,7 +134,6 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
                         },
                     constants::target_aspect_seq_context())
             ),
-            fields_composer,
             field_types: fields_composer(fields),
         }));
         {
@@ -146,17 +142,11 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         }
         root
     }
-    fn setup_composers(&mut self, root: &OpaqueItemParentComposer<I>) {
+    fn setup_composers(&mut self, root: &ParentComposer<Self>) {
         self.base.link(root);
         self.fields_from_composer.link(root);
         self.fields_to_composer.link(root);
         self.bindings_composer.link(root);
-    }
-
-}
-impl<I> NameContext for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn name_context_ref(&self) -> &Context {
-        self.base.name_context_ref()
     }
 }
 
@@ -166,30 +156,17 @@ impl<I> FieldsContext for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized
     }
 }
 impl<I> FieldsConversionComposable for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn fields_from(&self) -> &FieldsOwnedComposer<ParentComposer<Self>> {
+    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> {
         &self.fields_from_composer
     }
 
-    fn fields_to(&self) -> &FieldsOwnedComposer<ParentComposer<Self>> {
+    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> {
         &self.fields_to_composer
     }
 }
-
-impl<I> BasicComposable<OpaqueItemParentComposer<I>> for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn compose_attributes(&self) -> Depunctuated<Expansion> {
-        self.base.compose_attributes()
-    }
-    fn compose_generics(&self) -> Option<Generics> {
-        self.base.generics.compose(self.context())
-    }
+impl<I> DocsComposable for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
     fn compose_docs(&self) -> DocPresentation {
         self.base.compose_docs()
-    }
-}
-
-impl<I> SourceAccessible for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn context(&self) -> &ParentComposer<ScopeContext> {
-        self.base.context()
     }
 }
 

@@ -5,10 +5,10 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{ItemUse, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::builder::Crate;
-use crate::composer::{Depunctuated, SemiPunctuated};
-use crate::composition::create_item_use_with_tree;
 use crate::{error, print_phase};
+use crate::ast::{Depunctuated, SemiPunctuated};
+use crate::builder::Crate;
+use crate::composable::create_item_use_with_tree;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::conversion::{ObjectConversion, TypeConversion};
 use crate::formatter::{format_generic_conversions, format_mixin_conversions};
@@ -17,7 +17,6 @@ use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
 
 #[derive(Clone, Debug)]
 pub struct CrateTree {
-    pub current_crate: Crate,
     pub current_tree: ScopeTree,
     pub external_crates: HashMap<Crate, ScopeTree>,
 }
@@ -73,7 +72,7 @@ impl CrateTree {
                 // print_phase!("PHASE 2: CURRENT CRATE TREE", "\n{:?}", current_tree);
                 // print_phase!("PHASE 2: EXTERNAL CRATES TREE", "\n{:?}", external_crates);
                 current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
-                let mut crate_tree = Self { current_crate: current_crate.clone(), current_tree, external_crates };
+                let mut crate_tree = Self { current_tree, external_crates };
                 crate_tree.current_tree.refine();
                 Ok(crate_tree)
             }

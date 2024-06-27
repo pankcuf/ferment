@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
-use crate::composer::CommaPunctuatedTokens;
-use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
+use crate::ast::CommaPunctuatedTokens;
+use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
 use crate::naming::{DictionaryExpr, DictionaryName, InterfacesMethodExpr, Name};
 #[derive(Clone, Debug)]
 pub enum ToConversionPresentation {
@@ -29,9 +29,9 @@ impl ToTokens for ToConversionPresentation {
                 InterfacesMethodExpr::Boxed(
                     DictionaryExpr::NamedStructInit(
                         Punctuated::from_iter([
-                            FieldTypeConversion::named(Name::Dictionary(DictionaryName::Count), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-                            FieldTypeConversion::named(Name::Dictionary(DictionaryName::Keys), FieldTypeConversionKind::Conversion(to_key_conversion.clone())),
-                            FieldTypeConversion::named(Name::Dictionary(DictionaryName::Values), FieldTypeConversionKind::Conversion(to_value_conversion.clone())),
+                            FieldTypeComposition::named(Name::Dictionary(DictionaryName::Count), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                            FieldTypeComposition::named(Name::Dictionary(DictionaryName::Keys), FieldTypeConversionKind::Conversion(to_key_conversion.clone())),
+                            FieldTypeComposition::named(Name::Dictionary(DictionaryName::Values), FieldTypeConversionKind::Conversion(to_value_conversion.clone())),
                         ]))
                         .to_token_stream())
                     .to_token_stream(),

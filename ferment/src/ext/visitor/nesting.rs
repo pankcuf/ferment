@@ -15,7 +15,7 @@ impl<A, T, P> NestingExtension for Punctuated<T, P>
     type Item = A;
 
     fn nested_items(&self) -> HashSet<Self::Item> {
-        HashSet::from_iter(self.iter().flat_map(|ff| ff.nested_items()))
+        HashSet::from_iter(self.iter().flat_map(T::nested_items))
     }
 }
 

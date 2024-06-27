@@ -1,6 +1,6 @@
-use crate::composer::{Depunctuated, ParentComposer};
-use crate::composer::r#abstract::{Composer, LinkedComposer, ParentLinker};
-use crate::composition::{AttrsComposition, CfgAttributes};
+use crate::ast::Depunctuated;
+use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composer::{Composer, Linkable, ParentComposer};
 use crate::context::ScopeContext;
 use crate::presentation::Expansion;
 use crate::shared::SharedAccess;
@@ -9,14 +9,13 @@ pub struct AttrsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,
     pub attrs: AttrsComposition,
 }
-impl<'a, Parent: SharedAccess> LinkedComposer<'a, Parent> for AttrsComposer<Parent> {}
 impl<Parent: SharedAccess> AttrsComposer<Parent> {
     pub fn new(attrs: AttrsComposition) -> AttrsComposer<Parent> {
         Self { parent: None, attrs }
     }
 }
 
-impl<Parent: SharedAccess> ParentLinker<Parent> for AttrsComposer<Parent> {
+impl<Parent: SharedAccess> Linkable<Parent> for AttrsComposer<Parent> {
     fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }

@@ -1,9 +1,8 @@
-use crate::ext::{Mangle, MangleDefault};
-use crate::helper::usize_to_tokenstream;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Pat, Path, Type};
+use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
 use crate::naming::DictionaryName;
 
 
@@ -90,7 +89,6 @@ impl ToTokens for Name {
 }
 
 impl Mangle<MangleDefault> for Name {
-    // type Context = MangleDefault;
 
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {

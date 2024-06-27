@@ -1,13 +1,13 @@
-pub mod ffi_resolver;
-pub mod resolve;
-pub mod resolve_trait;
-pub mod resolve_attrs;
-pub mod opaque;
-pub mod resolve_macro;
+mod ffi_resolver;
+mod resolve;
+mod resolve_trait;
+mod resolve_attrs;
+mod opaque;
+mod resolve_macro;
 
-pub use self::ffi_resolver::{FFIVariableResolve, FFITypeResolve};
-pub use self::opaque::Opaque;
-pub use self::resolve::Resolve;
-pub use self::resolve_attrs::ResolveAttrs;
-pub use self::resolve_macro::ResolveMacro;
-pub use self::resolve_trait::ResolveTrait;
+pub use self::ffi_resolver::*;
+pub use self::opaque::*;
+pub use self::resolve::*;
+pub use self::resolve_attrs::*;
+pub use self::resolve_macro::*;
+pub use self::resolve_trait::*;

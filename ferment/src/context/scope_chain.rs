@@ -4,13 +4,11 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
-use crate::composition::{CfgAttributes, TypeComposition};
-use crate::context::GlobalContext;
-use crate::context::scope::Scope;
+use crate::composable::{CfgAttributes, TypeComposition};
+use crate::context::{GlobalContext, Scope};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, Pop, ResolveAttrs, ToPath, ToType};
+use crate::ext::{CrateExtension, DictionaryType, path_arguments_to_nested_objects, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::format_attrs;
-use crate::helper::path_arguments_to_nested_objects;
 use crate::holder::PathHolder;
 
 #[derive(Clone, Eq)]

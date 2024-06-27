@@ -1,6 +1,6 @@
 use syn::Attribute;
 use crate::ext::ResolveMacro;
-use crate::helper::ItemExtension;
+use crate::ext::item::ItemExtension;
 
 pub trait Opaque {
     fn is_opaque(&self) -> bool;

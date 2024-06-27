@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 use syn::{parse_quote, Path};
-use crate::composition::ImportComposition;
+use crate::composable::ImportComposition;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum ImportConversion {

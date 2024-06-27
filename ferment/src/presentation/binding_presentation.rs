@@ -3,13 +3,13 @@ use quote::{quote, ToTokens};
 use syn::{Generics, PathArguments, ReturnType, Type};
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
-use crate::composer::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
-use crate::conversion::{FieldTypeConversion, FieldTypeConversionKind};
+use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
+use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
+use crate::composer::CommaPunctuatedArgs;
 use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
-use crate::interface::create_callback;
 use crate::naming::{DictionaryName, InterfacesMethodExpr, Name};
-use crate::presentation::{Expansion, InterfacePresentation};
-use crate::presentation::context::ConstructorPresentableContext;
+use crate::presentable::ConstructorPresentableContext;
+use crate::presentation::{ArgPresentation, create_callback, Expansion, InterfacePresentation};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -17,17 +17,16 @@ pub enum BindingPresentation {
     Empty,
     Constructor {
         context: ConstructorPresentableContext,
-        ctor_arguments: CommaPunctuatedTokens,
+        ctor_arguments: CommaPunctuatedArgs,
         body_presentation: TokenStream2,
     },
     Destructor {
-        attrs: TokenStream2,
-        name: Name,
-        ffi_name: Type,
+        attrs: Depunctuated<Expansion>,
+        ty: Type,
         generics: Option<Generics>,
     },
     Getter {
-        attrs: TokenStream2,
+        attrs: Depunctuated<Expansion>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -35,7 +34,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     Setter {
-        attrs: TokenStream2,
+        attrs: Depunctuated<Expansion>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -43,7 +42,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     GetterOpaque {
-        attrs: TokenStream2,
+        attrs: Depunctuated<Expansion>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -51,7 +50,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     SetterOpaque {
-        attrs: TokenStream2,
+        attrs: Depunctuated<Expansion>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -73,10 +72,10 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     RegularFunction {
-        attrs: TokenStream2,
+        attrs: Depunctuated<Expansion>,
         name: Name,
         is_async: bool,
-        arguments: CommaPunctuatedTokens,
+        arguments: CommaPunctuatedArgs,
         input_conversions: TokenStream2,
         return_type: ReturnType,
         output_conversions: TokenStream2,
@@ -106,7 +105,7 @@ pub enum BindingPresentation {
     },
     StaticVTableInnerFn {
         name: Name,
-        args: CommaPunctuatedTokens,
+        args: CommaPunctuatedArgs,
         output: ReturnType,
         body: TokenStream2,
     },
@@ -184,12 +183,13 @@ impl ToTokens for BindingPresentation {
                     }
                 }
             },
-            Self::Destructor { name, ffi_name, attrs, generics } => {
+            Self::Destructor { ty, attrs, generics } => {
+                let name = Name::Destructor(ty.clone());
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeConversion::Named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ffi_name.joined_mut()), Depunctuated::new())
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ty.joined_mut()))
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -198,14 +198,14 @@ impl ToTokens for BindingPresentation {
             },
             Self::ObjAsTrait { name, item_type, trait_type, vtable_name, attrs } => {
                 let fields = CommaPunctuated::from_iter([
-                    FieldTypeConversion::named(Name::Dictionary(DictionaryName::Object), FieldTypeConversionKind::Conversion(quote!(obj as *const ()))),
-                    FieldTypeConversion::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
+                    FieldTypeComposition::named(Name::Dictionary(DictionaryName::Object), FieldTypeConversionKind::Conversion(quote!(obj as *const ()))),
+                    FieldTypeComposition::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
                 ]);
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
                     ]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     None,
@@ -216,7 +216,7 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
-                    Punctuated::from_iter([FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
+                    Punctuated::from_iter([FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
                     generics.clone(),
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
@@ -227,7 +227,7 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
@@ -239,8 +239,8 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -251,20 +251,20 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
                 )
             },
             BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
-                println!("BindingPresentation::SetterOpaque: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
+                // println!("BindingPresentation::SetterOpaque: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs.to_token_stream());
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
-                        FieldTypeConversion::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
+                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -272,7 +272,7 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics } => {
                 if *is_async {
-                    let mut args = Punctuated::from_iter([quote!(runtime: *mut std::os::raw::c_void)]);
+                    let mut args = Punctuated::from_iter([ArgPresentation::NamedType { attrs: quote!(), name: quote!(runtime), var: quote!(*mut std::os::raw::c_void) }]);
                     args.extend(arguments.clone());
                     present_pub_function(
                         attrs.to_token_stream(),

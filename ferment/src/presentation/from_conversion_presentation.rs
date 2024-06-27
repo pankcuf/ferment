@@ -1,6 +1,6 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use crate::composer::{CommaPunctuated, CommaPunctuatedTokens};
+use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::naming::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[derive(Clone, Debug)]
