@@ -6,13 +6,12 @@ use std::sync::{Arc, RwLock};
 use quote::{format_ident, quote, ToTokens};
 use syn::parse_quote;
 use syn::__private::TokenStream2;
-use crate::builder::Crate;
-use crate::composer::ParentComposer;
-use crate::Config;
+use crate::{Config, Crate};
+use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::{ImportComposition, TypeComposition};
+use crate::composer::ParentComposer;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo, TypeChain};
 use crate::conversion::{ImportConversion, ObjectConversion, TypeCompositionConversion};
-use crate::holder::{PathHolder, TypeHolder};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
 

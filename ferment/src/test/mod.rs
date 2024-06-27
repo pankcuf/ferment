@@ -3,11 +3,11 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
 use syn::punctuated::Punctuated;
+use crate::ast::PathHolder;
 use crate::composable::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
 use crate::ext::{FFIResolve, path_arguments_to_types, ToFFIFullPath, ToPath};
-use crate::holder::PathHolder;
 
 pub mod composing;
 pub mod mangling;
