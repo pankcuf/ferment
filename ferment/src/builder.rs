@@ -137,7 +137,7 @@ impl Builder {
     ///
     /// ```no_run
     /// # extern crate ferment;
-    /// use ferment::builder::Crate;
+    /// use ferment::Crate;
     /// ferment::Builder::new(Crate::current_with_name("current_crate"))
     /// .with_mod_name("mod_name")
     /// .with_crates(vec![])
