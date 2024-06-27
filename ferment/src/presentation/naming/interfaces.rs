@@ -1,7 +1,7 @@
 use quote::{quote, TokenStreamExt, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::MethodCall;
-use crate::naming::FFIConversionMethod;
+use crate::presentation::FFIConversionMethod;
 
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment_interfaces"]

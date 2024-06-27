@@ -3,8 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, ReturnType, Type};
 use crate::ast::Depunctuated;
 use crate::composer::CommaPunctuatedArgs;
-use crate::naming::DictionaryName;
-use crate::presentation::{DestroyPresentation, Expansion, FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::{DestroyPresentation, DictionaryName, Expansion, FromConversionPresentation, ToConversionPresentation};
 
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {

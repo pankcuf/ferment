@@ -186,7 +186,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
         pub enum #expression_enum_name {
             #expression_variants
         }
-        impl crate::naming::MethodCall for #expression_enum_name {
+        impl crate::presentation::MethodCall for #expression_enum_name {
             fn method(&self) -> TokenStream2 {
                 let mut tokens = TokenStream2::new();
                 let method = match self {
@@ -204,7 +204,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
         }
         impl ToTokens for #expression_enum_name {
             fn to_tokens(&self, dst: &mut TokenStream2) {
-                (self as &dyn crate::naming::MethodCall).to_tokens(dst)
+                (self as &dyn crate::presentation::MethodCall).to_tokens(dst)
             }
         }
     };
@@ -243,7 +243,7 @@ pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
-        impl #impl_generics crate::composer::r#abstract::BasicComposerOwner for #ident #ty_generics #where_clause {
+        impl #impl_generics crate::composer::BasicComposerOwner for #ident #ty_generics #where_clause {
             fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>> {
                 &self.base
             }

@@ -10,9 +10,8 @@ use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPu
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, composer_target_binding, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
-use crate::naming::Name;
 use crate::presentable::{Context, SequenceOutput};
-use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation};
+use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation, Name};
 use crate::shared::SharedAccess;
 
 #[derive(BasicComposerOwner)]

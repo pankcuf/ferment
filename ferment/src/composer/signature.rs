@@ -13,9 +13,8 @@ use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, Bindin
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
 use crate::ext::{Conversion, FFITypeResolve, FFIVariableResolve, Mangle, Resolve};
-use crate::naming::{DictionaryExpr, DictionaryName, FFIConversionMethodExpr, InterfacesMethodExpr, Name};
 use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, BindingPresentation, DocPresentation, Expansion, InterfacePresentation};
+use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, Expansion, FFIConversionMethodExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(BasicComposerOwner)]
 pub struct SigComposer {

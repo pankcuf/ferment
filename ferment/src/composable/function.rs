@@ -9,9 +9,8 @@ use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{Conversion, FFIVariableResolve, FFITypeResolve, Mangle, Resolve};
-use crate::naming::{DictionaryName, Name};
 use crate::presentable::{Expression, OwnedItemPresentableContext};
-use crate::presentation::Expansion;
+use crate::presentation::{DictionaryName, Expansion, Name};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {

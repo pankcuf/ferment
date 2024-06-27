@@ -11,9 +11,8 @@ use crate::context::ScopeContext;
 use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectConversion, TypeCompositionConversion};
 use crate::ext::{Conversion, DictionaryType, Mangle, Terminated, ToType, usize_to_tokenstream};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
-use crate::naming::Name;
 use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::{DestroyPresentation, FromConversionPresentation, InterfacePresentation, ToConversionPresentation};
+use crate::presentation::{DestroyPresentation, FromConversionPresentation, InterfacePresentation, Name, ToConversionPresentation};
 
 #[derive(Clone)]
 pub struct GenericBoundComposition {

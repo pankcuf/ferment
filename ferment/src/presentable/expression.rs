@@ -5,8 +5,8 @@ use crate::ast::CommaPunctuated;
 use crate::composable::FieldTypeComposition;
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
-use crate::naming::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
 
 #[derive(Clone, Debug, Display)]
 #[allow(unused)]

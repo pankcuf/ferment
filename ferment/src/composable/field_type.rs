@@ -4,9 +4,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use crate::ast::Depunctuated;
 use crate::context::ScopeContext;
-use crate::naming::Name;
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::Expansion;
+use crate::presentation::{Expansion, Name};
 
 #[derive(Clone, Debug)]
 pub enum FieldTypeConversionKind {

@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
-use crate::naming::{DictionaryExpr, DictionaryName, InterfacesMethodExpr, Name};
+use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr, Name};
 #[derive(Clone, Debug)]
 pub enum ToConversionPresentation {
     Simple(TokenStream2),

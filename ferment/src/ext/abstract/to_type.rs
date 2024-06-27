@@ -37,12 +37,12 @@ impl_to_type!(TokenStream2);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
 impl_to_type!(crate::holder::PathHolder);
 impl_to_type!(crate::holder::TypeHolder);
-impl_to_type!(crate::naming::Name);
+impl_to_type!(crate::presentation::Name);
 
 impl_to_path!(Ident);
 impl_to_path!(Type);
 impl_to_path!(TokenStream2);
 impl_to_path!(Colon2Punctuated<syn::PathSegment>);
 impl_to_path!(crate::conversion::ObjectConversion);
-impl_to_path!(crate::naming::Name);
+impl_to_path!(crate::presentation::Name);
 impl_to_path!(syn::TypePath);

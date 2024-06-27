@@ -9,9 +9,8 @@ use crate::composer::{CommaPunctuatedOwnedItems, EnumComposer, ItemComposer, Ite
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
 use crate::holder::PathHolder;
-use crate::naming::Name;
 use crate::presentable::{Aspect, Context, OwnedItemPresentableContext, SequenceOutput};
-use crate::presentation::{DocPresentation, Expansion};
+use crate::presentation::{DocPresentation, Expansion, Name};
 use crate::tree::ScopeTreeExportID;
 
 

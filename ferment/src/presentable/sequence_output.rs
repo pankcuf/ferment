@@ -6,9 +6,8 @@ use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Depunctuated, Lambda
 use crate::composer::{CommaPunctuatedOwnedItems, OwnedStatement, OwnerAspectWithCommaPunctuatedItems};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
-use crate::naming::{DictionaryName, InterfacesMethodExpr};
 use crate::presentable::{Aspect, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, create_struct, Expansion};
+use crate::presentation::{ArgPresentation, create_struct, DictionaryName, Expansion, InterfacesMethodExpr};
 
 
 #[derive(Clone, Debug, Display)]

@@ -9,9 +9,8 @@ use crate::composable::{AttrsComposition, CfgAttributes, FieldTypeComposition, F
 use crate::composer::{BasicComposable, BasicComposer, Composer, constants, DocsComposable, Linkable, NameContext, ParentComposer, SigComposer, SigParentComposer, SourceAccessible, SourceExpandable, TraitParentComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{Mangle, ToPath, ToType};
-use crate::naming::{DictionaryName, Name};
 use crate::presentable::{Context, ScopeContextPresentable};
-use crate::presentation::{DocPresentation, Expansion, FFIObjectPresentation};
+use crate::presentation::{DictionaryName, DocPresentation, Expansion, FFIObjectPresentation, Name};
 
 #[derive(BasicComposerOwner)]
 pub struct TraitComposer {

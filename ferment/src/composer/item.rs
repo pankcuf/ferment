@@ -9,13 +9,11 @@ use syn::punctuated::Punctuated;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::Depunctuated;
 use crate::composable::{AttrsComposition, CfgAttributes};
-use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, DropComposable, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemParentComposer, Linkable, MethodComposer, NameContext, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable};
-use crate::composer::constants::{BINDING_DTOR_COMPOSER, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
+use crate::composer::{BasicComposable, BasicComposer, BindingComposable, BINDING_DTOR_COMPOSER, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, DropComposable, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemParentComposer, Linkable, MethodComposer, NameContext, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
-use crate::naming::Name;
 use crate::presentable::{ScopeContextPresentable, Expression, Context, SequenceOutput};
-use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, Name, ToConversionPresentation};
 use crate::shared::SharedAccess;
 use crate::ast::DelimiterTrait;
 

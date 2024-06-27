@@ -2,8 +2,7 @@ use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
 use crate::ast::Depunctuated;
 use crate::ext::ToPath;
-use crate::naming::Name;
-use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Expansion};
+use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Expansion, Name};
 
 #[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {

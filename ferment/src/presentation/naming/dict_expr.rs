@@ -2,17 +2,11 @@ use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::composer::FieldTypesContext;
-use crate::naming::DictionaryName;
+use crate::presentation::DictionaryName;
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum DictionaryExpr {
-    // FromPrimitiveArray(TokenStream2, TokenStream2),
-    // FromPrimitiveOptArray(TokenStream2, TokenStream2),
-    // FromComplexArray(TokenStream2, TokenStream2),
-    // FromComplexOptArray(TokenStream2, TokenStream2),
-    // MapKeysCloned(TokenStream2),
-    // MapValuesCloned(TokenStream2),
     NamedStructInit(FieldTypesContext),
     ObjLen,
     ObjIntoIter,
@@ -28,7 +22,6 @@ pub enum DictionaryExpr {
     AsMut_(TokenStream2),
     IfNotNull(TokenStream2, TokenStream2),
     IfThen(TokenStream2, TokenStream2),
-    // IfNotNullThen(TokenStream2, TokenStream2),
     MapOr(TokenStream2, TokenStream2, TokenStream2),
     NullMut,
     CChar,
@@ -86,91 +79,14 @@ impl ToTokens for DictionaryExpr {
                 quote!(&mut #expr),
             Self::NamedStructInit(fields) =>
                 quote!(Self { #fields }),
-            // Self::FromPrimitiveArray(values, count) => {
-            //     let let_ffi_ref = Self::LetFfiRef;
-            //     let ffi_ref = DictionaryName::FfiRef;
-            //     let from_raw = Self::FromRawParts(
-            //         quote!(#ffi_ref.#values),
-            //         quote!(#ffi_ref.#count));
-            //     quote! {
-            //         #let_ffi_ref
-            //         #from_raw
-            //             .try_into()
-            //             .expect("Array Length mismatch")
-            //     }
-            // }
-            // Self::FromPrimitiveOptArray(values, count) => {
-            //     let let_ffi_ref = Self::LetFfiRef;
-            //     let ffi_ref = DictionaryName::FfiRef;
-            //     let collector = InterfacesMethodExpr::FromOptPrimitiveGroup(CommaPunctuated::from_iter([
-            //         Self::SelfProp(quote!(values)),
-            //         Self::SelfProp(quote!(count))]).to_token_stream());
-            //     quote! {
-            //         #let_ffi_ref
-            //         let count = #ffi_ref.#count;
-            //         let values = #ffi_ref.#values;
-            //         #collector
-            //     }
-            // }
-            // Self::FromComplexArray(values, count) => {
-            //     let let_ffi_ref = Self::LetFfiRef;
-            //     let ffi_ref = DictionaryName::FfiRef;
-            //     let mapper = Self::Mapper(
-            //         DictionaryName::I.to_token_stream(),
-            //         FFIConversionMethodExpr::FfiFromConst(
-            //             Self::Add(
-            //                 quote!(*#ffi_ref.#values),
-            //                 DictionaryName::I.to_token_stream())
-            //                 .to_token_stream())
-            //             .to_token_stream());
-            //
-            //     quote! {
-            //         #let_ffi_ref
-            //         (0..#ffi_ref.#count)
-            //             .into_iter()
-            //             .map(#mapper)
-            //             .collect::<Vec<_>>()
-            //             .try_into()
-            //             .expect("Array Length mismatch")
-            //     }
-            // }
-            // Self::FromComplexOptArray(values, count) => {
-            //     let let_ffi_ref = Self::LetFfiRef;
-            //     let ffi_ref = DictionaryName::FfiRef;
-            //     let mapper = Self::Mapper(
-            //         DictionaryName::I.to_token_stream(),
-            //         FFIConversionMethodExpr::FfiFromOpt(
-            //             Self::Add(
-            //                 quote!(*#ffi_ref.#values),
-            //                 DictionaryName::I.to_token_stream())
-            //                 .to_token_stream())
-            //             .to_token_stream());
-            //
-            //     quote! {
-            //         #let_ffi_ref
-            //         (0..#ffi_ref.#count)
-            //             .into_iter()
-            //             .map(#mapper)
-            //             .collect::<Vec<_>>()
-            //             .try_into()
-            //             .expect("Array Length mismatch")
-            //     }
-            // }
             Self::Mapper(context, expr) =>
                 quote!(|#context| #expr),
-            // Self::MapKeysCloned(field_name) =>
-            //     quote!(#field_name.keys().cloned()),
-            // Self::MapValuesCloned(field_name) =>
-            //     quote!(#field_name.values().cloned()),
             Self::SelfProp(prop) =>
                 quote!(self.#prop),
             Self::AsMut_(field_path) =>
                 quote!(#field_path as *mut _),
             Self::IfNotNull(condition, expr) =>
                 quote!(if (!(#condition).is_null()) { #expr }),
-            // Self::IfNotNullThen(condition, expr) =>
-            //     Self::IfThen(quote!((!(#condition).is_null())), expr.clone())
-            //         .to_token_stream(),
             Self::IfThen(condition, expr) =>
                 quote!(#condition.then(|| #expr)),
             Self::MapOr(condition, def, mapper) =>

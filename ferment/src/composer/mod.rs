@@ -24,9 +24,8 @@ use syn::token::{Comma, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{FieldTypeComposition, FnSignatureContext, NestedArgument};
 use crate::composer::r#abstract::{ContextComposer, SequenceComposer, SequenceMixer};
-use crate::naming::Name;
 use crate::presentable::{Aspect, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, SequenceOutput};
-use crate::presentation::{ArgPresentation, BindingPresentation, Expansion};
+use crate::presentation::{ArgPresentation, BindingPresentation, Expansion, Name};
 use crate::shared::SharedAccess;
 
 pub use self::r#abstract::*;

@@ -3,7 +3,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Pat, Path, Type};
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
-use crate::naming::DictionaryName;
+use crate::presentation::DictionaryName;
 
 
 #[derive(Clone, Debug)]

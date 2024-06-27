@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse_quote;
 use crate::formatter::format_token_stream;
-use crate::naming::Name;
+use crate::presentation::Name;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]

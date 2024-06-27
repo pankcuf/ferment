@@ -1,29 +1,33 @@
-mod expansion;
-mod ffi_object_presentation;
-mod doc_presentation;
+mod arg_presentation;
 mod binding_presentation;
 mod conversion_interface_presentation;
-mod trait_vtable_presentation;
-mod drop_interface_presentation;
-mod from_conversion_presentation;
-mod to_conversion_presentation;
 mod destroy_presentation;
-mod arg_presentation;
+mod doc_presentation;
+mod drop_interface_presentation;
+mod expansion;
+mod ffi_object_presentation;
+mod from_conversion_presentation;
+mod naming;
+mod to_conversion_presentation;
+// mod trait_vtable_presentation;
 
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::ReturnType;
+
 pub use self::arg_presentation::*;
+pub use self::binding_presentation::*;
 pub use self::conversion_interface_presentation::*;
+pub use self::destroy_presentation::*;
 pub use self::doc_presentation::*;
 pub use self::drop_interface_presentation::*;
+pub use self::expansion::*;
 pub use self::ffi_object_presentation::*;
 pub use self::from_conversion_presentation::*;
+pub use self::naming::*;
 pub use self::to_conversion_presentation::*;
-pub use self::expansion::*;
-pub use self::binding_presentation::*;
-pub use self::destroy_presentation::*;
+//pub use self::trait_vtable_presentation::*;
 
 pub fn create_struct<T: ToTokens>(ident: &Ident, attrs: TokenStream2, implementation: T) -> TokenStream2 {
     quote! {

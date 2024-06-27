@@ -4,11 +4,9 @@ use syn::punctuated::Punctuated;
 use crate::ast::Depunctuated;
 use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
 use crate::conversion::TypeConversion;
-use crate::ext::{DictionaryType, Mangle};
-use crate::ext::item::path_arguments_to_type_conversions;
-use crate::naming::{DictionaryExpr, FFIConversionMethodExpr, Name};
+use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
-
+use crate::presentation::{DictionaryExpr, FFIConversionMethodExpr, Name};
 pub trait Conversion {
     fn conversion_from(&self, expr: Expression) -> Expression;
     fn conversion_to(&self, expr: Expression) -> Expression;
