@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Generics, ItemFn, Path, ReturnType, Signature, TypeBareFn};
+use syn::{Attribute, BareFnArg, Generics, ItemFn, Path, ReturnType, Signature, Type, TypeBareFn};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
@@ -12,9 +12,9 @@ use crate::composable::{AttrsComposition, CfgAttributes, FnReturnTypeComposer, F
 use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
-use crate::ext::{Conversion, FFITypeResolve, FFIVariableResolve, Mangle, Resolve};
+use crate::ext::{Conversion, FFITypeResolve, Mangle, Resolve, ToType};
 use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, Expansion, FFIConversionMethodExpr, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, Expansion, FFIConversionMethodExpr, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(BasicComposerOwner)]
 pub struct SigComposer {
@@ -84,7 +84,7 @@ fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>
             conversion: Expression::LineTermination
         },
         ReturnType::Type(_, ty) => FnReturnTypeComposer {
-            presentation: ReturnType::Type(RArrow::default(), Box::new(ty.to_full_ffi_variable(source))),
+            presentation: ReturnType::Type(RArrow::default(), Box::new(<Type as Resolve<FFIVariable>>::resolve(ty, source).to_type())),
             conversion: ty.conversion_to(Expression::Obj)
         }
     };
@@ -143,7 +143,7 @@ impl SourceExpandable for SigComposer {
                                 conversion: Expression::LineTermination
                             },
                             ReturnType::Type(_, ty) => FnReturnTypeComposer {
-                                presentation: ReturnType::Type(RArrow::default(), Box::new(ty.to_full_ffi_variable(&source))),
+                                presentation: ReturnType::Type(RArrow::default(), Box::new(<Type as Resolve<FFIVariable>>::resolve(ty, &source).to_type())),
                                 conversion: ty.conversion_to(Expression::Obj)
                             },
                         };
@@ -180,7 +180,7 @@ impl SourceExpandable for SigComposer {
                         let (return_type, ffi_return_type, post_processing) = match output {
                             ReturnType::Type(token, field_type) => (
                                 ReturnType::Type(token.clone(), Box::new(field_type.resolve(&source))),
-                                ReturnType::Type(token.clone(), Box::new(field_type.to_full_ffi_variable(&source))),
+                                ReturnType::Type(token.clone(), Box::new(<Type as Resolve<FFIVariable>>::resolve(field_type, &source).to_type())),
                                 match TypeConversion::from(field_type) {
                                     TypeConversion::Primitive(_) => from_primitive_result(),
                                     TypeConversion::Complex(_) =>  from_complex_result(),

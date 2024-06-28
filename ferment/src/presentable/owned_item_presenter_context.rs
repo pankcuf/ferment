@@ -6,9 +6,10 @@ use ferment_macro::Display;
 use crate::ast::Depunctuated;
 use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
 use crate::context::ScopeContext;
-use crate::ext::FFIVariableResolve;
+use crate::conversion::{ObjectConversion, TypeCompositionConversion};
+use crate::ext::{FFISpecialTypeResolve, Resolve};
 use crate::presentable::{Expression, ScopeContextPresentable, SequenceOutput};
-use crate::presentation::{ArgPresentation, Expansion, Name};
+use crate::presentation::{ArgPresentation, Expansion, FFIVariable, Name};
 
 
 #[derive(Clone, Display, Debug)]
@@ -47,7 +48,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             },
             OwnedItemPresentableContext::DefaultFieldType(field_type, attrs) => ArgPresentation::AttributedConversion {
                 attrs: attrs.to_token_stream(),
-                conversion: field_type.to_full_ffi_variable(source).to_token_stream()
+                conversion: <Type as Resolve<FFIVariable>>::resolve(field_type, source).to_token_stream()
             },
             OwnedItemPresentableContext::BindingFieldName(FieldTypeComposition { name, named, attrs, .. }) => ArgPresentation::AttributedConversion {
                 attrs: attrs.to_token_stream(),
@@ -64,9 +65,9 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingArg(FieldTypeComposition { name, kind, named, attrs}) => {
                 let (field_name, conversion) = match (kind, named) {
                     (FieldTypeConversionKind::Type(field_type), true) =>
-                        (name.to_token_stream(), field_type.to_full_ffi_variable(source).to_token_stream()),
+                        (name.to_token_stream(), <Type as Resolve<FFIVariable>>::resolve(field_type, source).to_token_stream()),
                     (FieldTypeConversionKind::Type(field_type), false) =>
-                        (anonymous_ident(name).to_token_stream(), field_type.to_full_ffi_variable(source).to_token_stream()),
+                        (anonymous_ident(name).to_token_stream(), <Type as Resolve<FFIVariable>>::resolve(field_type, source).to_token_stream()),
                     (FieldTypeConversionKind::Conversion(conversion), _) =>
                         (name.to_token_stream(), conversion.to_token_stream())
                 };
@@ -77,11 +78,26 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 }
             },
 
-            OwnedItemPresentableContext::Named(FieldTypeComposition { attrs, name, kind, ..}, is_public) => ArgPresentation::QualifiedNamedType {
-                attrs: attrs.to_token_stream(),
-                qualifier: (*is_public).then(|| quote!(pub)).unwrap_or_default(),
-                name: name.to_token_stream(),
-                var: kind.ty().to_full_ffi_variable(source).to_token_stream(),
+            OwnedItemPresentableContext::Named(FieldTypeComposition { attrs, name, kind, ..}, is_public) => {
+                let ty = kind.ty();
+                let var = if let Some(special) = <Type as Resolve<Type>>::resolve(ty, source).maybe_special_type(source) {
+                    if let Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_), ..) |
+                                ObjectConversion::Type(TypeCompositionConversion::FnPointer(_), ..)) = source.maybe_object(ty) {
+                        FFIVariable::Direct { ty: special }
+                    } else {
+                        FFIVariable::MutPtr { ty: special }
+                    }
+                } else {
+                    let composition = <Type as Resolve<TypeCompositionConversion>>::resolve(ty, source);
+                    let result = <TypeCompositionConversion as Resolve<FFIVariable>>::resolve(&composition, source);
+                    result
+                };
+                ArgPresentation::QualifiedNamedType {
+                    attrs: attrs.to_token_stream(),
+                    qualifier: (*is_public).then(|| quote!(pub)).unwrap_or_default(),
+                    name: name.to_token_stream(),
+                    var: var.to_token_stream(),
+                }
             },
 
             OwnedItemPresentableContext::Lambda(name, value, attrs) => ArgPresentation::Lambda {

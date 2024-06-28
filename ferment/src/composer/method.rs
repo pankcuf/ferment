@@ -1,10 +1,11 @@
 use quote::ToTokens;
+use syn::Type;
 use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
 use crate::composer::r#abstract::{Composer, Linkable};
 use crate::context::ScopeContext;
-use crate::ext::FFIVariableResolve;
+use crate::ext::{Resolve, ToType};
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::BindingPresentation;
+use crate::presentation::{BindingPresentation, FFIVariable};
 use crate::shared::SharedAccess;
 
 pub struct MethodComposer<Parent, BindingContext, SharedContext>
@@ -53,7 +54,7 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
                 (self.seq_iterator_item)((
                     aspect.present(source),
                     field_type.name.to_token_stream(),
-                    field_type.ty().to_full_ffi_variable(source),
+                    <Type as Resolve<FFIVariable>>::resolve(field_type.ty(), source).to_type(),
                     field_type.attrs.clone(),
                     generics.clone()
                 ))

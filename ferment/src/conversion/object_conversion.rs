@@ -120,8 +120,8 @@ impl ObjectConversion {
     // }
     pub fn to_ty(&self) -> Option<Type> {
         match self {
-            ObjectConversion::Type(type_conversion) => Some(type_conversion.to_ty()),
-            ObjectConversion::Item(scope, _) => Some(scope.to_ty()),
+            ObjectConversion::Type(ty) |
+            ObjectConversion::Item(ty, _) => Some(ty.to_type()),
             ObjectConversion::Empty => None
         }
     }

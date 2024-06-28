@@ -5,7 +5,7 @@ use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::composer::CommaPunctuatedNestedArguments;
 pub use crate::composable::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
-use crate::ext::Pop;
+use crate::ext::{Pop, ToType};
 
 #[derive(Clone)]
 pub enum TypeCompositionConversion {
@@ -32,7 +32,7 @@ pub enum TypeCompositionConversion {
 
 impl ToTokens for TypeCompositionConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.to_ty().to_tokens(tokens)
+        self.to_type().to_tokens(tokens)
         // match self {
         //     TypeCompositionConversion::Imported(ty, path) => {
         //         let mut path = path.clone();
@@ -119,7 +119,10 @@ impl TypeCompositionConversion {
     pub fn ty(&self) -> &Type {
         &self.ty_composition().ty
     }
-    pub fn to_ty(&self) -> Type {
+}
+
+impl ToType for TypeCompositionConversion {
+    fn to_type(&self) -> Type {
         match self {
             TypeCompositionConversion::Imported(ty, import_path) => {
                 let ty = &ty.ty;
@@ -176,8 +179,8 @@ impl Display for TypeCompositionConversion {
 
 impl PartialEq for TypeCompositionConversion {
     fn eq(&self, other: &Self) -> bool {
-        let self_tokens = [self.to_ty().to_token_stream()];
-        let other_tokens = [other.to_ty().to_token_stream()];
+        let self_tokens = [self.to_type().to_token_stream()];
+        let other_tokens = [other.to_type().to_token_stream()];
         self_tokens.iter()
             .map(|t| t.to_string())
             .zip(other_tokens.iter().map(|t| t.to_string()))
@@ -189,6 +192,6 @@ impl Eq for TypeCompositionConversion {}
 
 impl Hash for TypeCompositionConversion {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.to_ty().to_token_stream().to_string().hash(state);
+        self.to_type().to_token_stream().to_string().hash(state);
     }
 }

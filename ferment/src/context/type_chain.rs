@@ -5,7 +5,7 @@ use quote::ToTokens;
 use syn::{Path, Type};
 use crate::ast::{Holder, TypeHolder};
 use crate::conversion::ObjectConversion;
-use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
+use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ToType, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
 
 #[derive(Copy, Clone)]
@@ -106,7 +106,7 @@ impl TypeChain {
         self.inner.values()
             .find(|obj| match obj {
                 ObjectConversion::Type(ty) |
-                ObjectConversion::Item(ty, ..) => ty.to_ty().eq(&holder.0),
+                ObjectConversion::Item(ty, ..) => ty.to_type().eq(&holder.0),
                 ObjectConversion::Empty => false
             })
     }

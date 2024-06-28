@@ -5,12 +5,12 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{ItemUse, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::{error, print_phase};
+use crate::{Crate, error, print_phase};
 use crate::ast::{Depunctuated, SemiPunctuated};
-use crate::builder::Crate;
 use crate::composable::create_item_use_with_tree;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::ext::ToType;
 use crate::formatter::{format_generic_conversions, format_mixin_conversions};
 use crate::presentation::Expansion;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
@@ -103,7 +103,7 @@ impl CrateTree {
         generics.extend(global.refined_generics.iter()
             .map(|(generic, attrs)| match &generic.object {
                 ObjectConversion::Type(type_cc) |
-                ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_ty()) {
+                ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_type()) {
                     TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &generics_source),
                     otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
                 },

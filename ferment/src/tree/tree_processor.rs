@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use proc_macro2::Ident;
 use syn::{Attribute, Item, ItemMod};
 use syn::visit::Visit;
-use crate::builder::Crate;
+use crate::Crate;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::{Config, error, print_phase};
 use crate::presentation::Expansion;

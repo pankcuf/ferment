@@ -9,9 +9,9 @@ use crate::composable::{FieldTypeComposition, FieldTypeConversionKind, TypeCompo
 use crate::composer::{CommaPunctuatedNestedArguments, ParentComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Conversion, DictionaryType, Mangle, Terminated, ToType, usize_to_tokenstream};
+use crate::ext::{DictionaryType, Mangle, Terminated, ToType, usize_to_tokenstream};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
-use crate::presentable::{Expression, ScopeContextPresentable};
+use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{DestroyPresentation, FromConversionPresentation, InterfacePresentation, Name, ToConversionPresentation};
 
 #[derive(Clone)]
@@ -74,34 +74,6 @@ impl GenericBoundComposition {
             nested_arguments,
         }
     }
-    // pub fn new(path: &Path, type_param: &TypeParam, generics: Generics, nested_arguments: CommaPunctuated<NestedArgument>) -> Self {
-    //     let ty: Type = parse_quote!(#path);
-    //     let ident = &type_param.ident;
-    //     let segment = PathSegment::from(ident.clone());
-    //     let ident_path = Path::from(segment);
-    //     let bounds = generic_trait_bounds(path, &ident_path, &type_param.bounds);
-    //     let predicates = generics.where_clause
-    //         .as_ref()
-    //         .map(|where_clause|
-    //             where_clause.predicates
-    //                 .iter()
-    //                 .filter_map(|predicate| match predicate {
-    //                     WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
-    //                         ty.eq(bounded_ty).then(||(bounded_ty.clone(), generic_trait_bounds(&path, &bounded_ty.to_path(), bounds))),
-    //                     _ => None
-    //                 })
-    //                 .collect())
-    //         .unwrap_or_default();
-    //     let s = Self {
-    //         bounds,
-    //         predicates,
-    //         // TODO: it can have NestedArguments
-    //         type_composition: TypeComposition::new(ty, Some(generics.clone()), nested_arguments.clone()),
-    //         nested_arguments
-    //     };
-    //     println!("GenericBoundComposition::new({})", s);
-    //     s
-    // }
 
     pub fn ffi_full_dictionary_type_presenter(&self, _source: &ScopeContext) -> Type {
         // unimplemented!("")
@@ -126,37 +98,6 @@ impl GenericBoundComposition {
             }
         }
         None
-    }
-}
-
-
-// pub fn generic_trait_bounds(ty: &Path, ident_path: &Path, bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
-//     let mut has_bound = false;
-//     bounds.iter().filter_map(|b| match b {
-//         TypeParamBound::Trait(TraitBound { path, .. }) => {
-//             let has = ident_path.eq(ty);
-//             if !has_bound && has {
-//                 has_bound = true;
-//             }
-//             has.then(|| path.clone())
-//         },
-//         TypeParamBound::Lifetime(_) => None
-//     }).collect()
-// }
-
-impl Conversion for GenericBoundComposition {
-    fn conversion_from(&self, field_path: Expression) -> Expression {
-        field_path
-        // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident)))
-        // FieldContext::From(field_path.into())
-    }
-
-    fn conversion_to(&self, field_path: Expression) -> Expression {
-        Expression::To(field_path.into())
-    }
-
-    fn conversion_destroy(&self, field_path: Expression) -> Expression {
-        Expression::UnboxAny(field_path.into())
     }
 }
 

@@ -649,7 +649,7 @@ impl GenericTypeConversion {
                 let from_opt_primitive_result = || DictionaryExpr::Deref(ffi_result.to_token_stream()).to_token_stream();
                 let (return_type, ffi_return_type, post_processing) = match output {
                     ReturnType::Type(token, field_type) => {
-                        let full_ty = field_type.resolve(&source);
+                        let full_ty: Type = field_type.resolve(&source);
                         println!("DDDDD: {}", full_ty.to_token_stream());
                         let (ffi_ty, conversion) = match TypeConversion::from(&full_ty) {
                             TypeConversion::Primitive(_) => (full_ty.clone(), from_primitive_result()),
@@ -903,7 +903,7 @@ fn compose_bindings(
 }
 
 pub(crate) fn dictionary_generic_arg_pair(name: Name, field_name: TokenStream2, ty: &Type, source: &ScopeContext) -> (Type, Depunctuated<GenericArgPresentation>) {
-    let ty = ty.resolve(source);
+    let ty: Type = ty.resolve(source);
     match TypeConversion::from(&ty) {
         TypeConversion::Primitive(arg_ty) => {
             (arg_ty.clone(), Depunctuated::from_iter([GenericArgPresentation::new(

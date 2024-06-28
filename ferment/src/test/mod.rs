@@ -7,7 +7,7 @@ use crate::ast::PathHolder;
 use crate::composable::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
-use crate::ext::{FFIResolve, path_arguments_to_types, ToFFIFullPath, ToPath};
+use crate::ext::{path_arguments_to_types, ToPath};
 
 pub mod composing;
 pub mod mangling;
@@ -43,9 +43,9 @@ impl TypeConversion {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.maybe_ffi_resolve(source).map(|p| p.to_path()).unwrap_or(parse_quote!(#self)).to_token_stream(),
+                ty.maybe_ffi_resolve(source).map_or(quote!(#self), |p| p.to_token_stream()),
             TypeConversion::Generic(conversion) =>
-                conversion.to_ffi_full_path(source).to_path().to_token_stream(),
+                conversion.to_ffi_full_path(source).to_token_stream(),
         }
     }
 

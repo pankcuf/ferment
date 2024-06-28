@@ -4,6 +4,7 @@ use syn::{parse_quote, Path, Type};
 use syn::parse_quote::ParseQuote;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeConversion};
+use crate::ext::ToType;
 
 pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
     fn maybe_trait_object(&self, source: &ScopeContext) -> Option<ObjectConversion> {
@@ -16,7 +17,7 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
             Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, _)) => {
                 // loc
                 // check maybe it's really known
-                let trait_scope = lock.actual_scope_for_type(&ty.to_ty(), &source.scope);
+                let trait_scope = lock.actual_scope_for_type(&ty.to_type(), &source.scope);
                 if let Some(obj) = lock.maybe_scope_object(&parse_quote!(Self), &trait_scope) {
                     maybe_trait = Some(obj);
                 }

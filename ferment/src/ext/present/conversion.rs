@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use syn::{Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::ast::Depunctuated;
-use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
+use crate::composable::{FieldTypeComposition, FieldTypeConversionKind, GenericBoundComposition};
 use crate::conversion::TypeConversion;
 use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
@@ -332,5 +332,21 @@ impl Conversion for TypeImplTrait {
 
     fn conversion_destroy(&self, _expr: Expression) -> Expression {
         todo!()
+    }
+}
+
+impl Conversion for GenericBoundComposition {
+    fn conversion_from(&self, field_path: Expression) -> Expression {
+        field_path
+        // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident)))
+        // FieldContext::From(field_path.into())
+    }
+
+    fn conversion_to(&self, field_path: Expression) -> Expression {
+        Expression::To(field_path.into())
+    }
+
+    fn conversion_destroy(&self, field_path: Expression) -> Expression {
+        Expression::UnboxAny(field_path.into())
     }
 }
