@@ -36,7 +36,8 @@ pub const TO_OPT_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMeth
 pub const DESTROY_PRIMITIVE_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxVecPtr(expr);
 pub const DESTROY_COMPLEX_GROUP: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAnyVecPtr(expr);
 pub const DESTROY_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAny(expr);
-
+pub const DESTROY_OPT_COMPLEX: InterfacesMethodComposer = |expr| InterfacesMethodExpr::UnboxAnyOpt(expr);
+// Expression::DestroyOpt(expr.into())
 pub const DESTROY_OPT_PRIMITIVE: InterfacesMethodComposer = |expr| InterfacesMethodExpr::DestroyOptPrimitive(expr);
 
 pub struct GenericArgComposer {
@@ -221,10 +222,11 @@ impl GenericTypeConversion {
                             arg_ty.clone(),
                             Expression::Deref(DictionaryName::O.to_token_stream()),
                             Expression::AsMut_(Expression::O.into()),
-                            Expression::Empty)
+                            Expression::InterfacesExpr(DESTROY_OPT_PRIMITIVE(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+
                     }
                     TypeConversion::Complex(arg_ty) => {
-                        let arg_composer = GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX);
+                        let arg_composer = GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX);
                         compose_arg(
                             arg_ty.special_or_to_ffi_full_path_type(&source),
                             arg_composer.from(DictionaryName::O.to_token_stream()),
@@ -237,11 +239,11 @@ impl GenericTypeConversion {
                                 None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                                 Some(ty) => match TypeConversion::from(ty) {
                                     TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
-                                    TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
-                                    _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                                    TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                                    _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
                                 }
                             }
-                        } else { (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
+                        } else { (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
                         compose_arg(
                             arg_ty,
                             arg_composer.from(DictionaryName::O.to_token_stream()),

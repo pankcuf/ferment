@@ -74,6 +74,11 @@ pub fn boxed_slice<T: Clone>(slice: &[T]) -> *mut T {
 pub unsafe fn unbox_any<T: ?Sized>(any: *mut T) -> Box<T> {
     Box::from_raw(any)
 }
+pub unsafe fn unbox_any_opt<T: ?Sized>(any: *mut T) {
+    if !any.is_null() {
+        unbox_any(any);
+    }
+}
 
 /// # Safety
 pub unsafe fn unbox_string(data: *mut c_char) {
