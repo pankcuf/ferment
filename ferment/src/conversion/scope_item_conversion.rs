@@ -113,8 +113,10 @@ impl ScopeItemConversion {
             ScopeItemConversion::Fn(.., scope) => scope
         }
     }
-    pub fn to_ty(&self) -> Type {
+}
+
+impl ToType for ScopeItemConversion {
+    fn to_type(&self) -> Type {
         self.scope().to_type()
     }
-
 }

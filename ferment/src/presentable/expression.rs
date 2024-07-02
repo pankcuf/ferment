@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
 use crate::ast::CommaPunctuated;
-use crate::composable::FieldTypeComposition;
+use crate::composable::FieldComposer;
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
@@ -37,7 +37,7 @@ pub enum Expression {
     ToVecPtr,
     SelfAsTrait(TokenStream2),
     ObjFieldName(TokenStream2),
-    FieldTypeConversionName(FieldTypeComposition),
+    FieldTypeConversionName(FieldComposer),
     LineTermination,
     UnboxAny(Box<Expression>),
     UnboxAnyTerminated(Box<Expression>),
@@ -46,6 +46,7 @@ pub enum Expression {
     FromRawParts(TokenStream2),
     From(Box<Expression>),
     IntoBox(Box<Expression>),
+    IntoBoxRaw(Box<Expression>),
     CastFrom(Box<Expression>, TokenStream2, TokenStream2),
     CastDestroy(Box<Expression>, TokenStream2, TokenStream2),
     FromOffsetMap,
@@ -58,7 +59,7 @@ pub enum Expression {
     Deref(TokenStream2),
     DerefContext(Box<Expression>),
     FfiRefWithFieldName(Box<Expression>),
-    FfiRefWithConversion(FieldTypeComposition),
+    FfiRefWithConversion(FieldComposer),
     Match(Box<Expression>),
     FromTuple(Box<Expression>, CommaPunctuated<Expression>),
     MapExpression(Box<Expression>, Box<Expression>),
@@ -233,6 +234,10 @@ impl ScopeContextPresentable for Expression {
             Self::IntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
                     .present(source),
+            Self::IntoBoxRaw(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
+                    .present(source),
+
             Self::AsMut_(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::AsMut_(expr.present(source)))
                     .present(source),

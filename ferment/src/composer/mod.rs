@@ -14,6 +14,9 @@ mod opaque_item;
 mod ffi_bindings;
 mod generics_composer;
 mod r#abstract;
+mod variable;
+mod from_conversion;
+mod to_conversion;
 
 
 use std::rc::Rc;
@@ -22,7 +25,7 @@ use syn::{Field, Generics, Type};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{FieldTypeComposition, FnSignatureContext, NestedArgument};
+use crate::composable::{FieldComposer, FnSignatureContext, NestedArgument};
 use crate::composer::r#abstract::{ContextComposer, SequenceComposer, SequenceMixer};
 use crate::presentable::{Aspect, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{ArgPresentation, BindingPresentation, Expansion, Name};
@@ -36,14 +39,17 @@ pub use self::constants::*;
 pub use self::enum_composer::*;
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
+pub use self::from_conversion::*;
 pub use self::generic::*;
 pub use self::generics_composer::*;
 pub use self::item::*;
 pub use self::method::*;
 pub use self::opaque_item::*;
 pub use self::signature::*;
+pub use self::to_conversion::*;
 pub use self::trait_composer::*;
 pub use self::r#type::TypeComposer;
+pub use self::variable::*;
 
 
 
@@ -69,11 +75,11 @@ pub type OwnerIteratorConversionComposer<T> = ComposerPresenter<OwnerAspectWithI
 pub type OwnerIteratorPostProcessingComposer<T> = ContextComposer<SequenceOutput, SequenceOutput, T>;
 
 pub type VariantComposerRef = ComposerPresenterByRef<OwnerAspectWithCommaPunctuatedItems, SequenceOutput>;
-pub type ConstructorArgComposerRef = ComposerPresenterByRef<FieldTypeComposition, OwnedItemPresentablePair>;
+pub type ConstructorArgComposerRef = ComposerPresenterByRef<FieldComposer, OwnedItemPresentablePair>;
 
 pub type FieldsComposerRef = ComposerPresenterByRef<CommaPunctuatedFields, FieldTypesContext>;
 pub type FieldTypePresentationContextPassRef = ComposerPresenterByRef<FieldTypeLocalContext, Expression>;
-pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldTypeComposition, OwnedItemPresentableContext>;
+pub type OwnedFieldTypeComposerRef = ComposerPresenterByRef<FieldComposer, OwnedItemPresentableContext>;
 
 /// Bindings
 pub type BindingComposer<T> = ComposerPresenter<T, BindingPresentation>;
@@ -82,7 +88,7 @@ pub type OwnedItemsPunctuated<SEP> = Punctuated<OwnedItemPresentableContext, SEP
 pub type OwnerWithItems<ASPECT, SEP> = (ASPECT, OwnedItemsPunctuated<SEP>);
 pub type OwnerAspectWithItems<SEP> = OwnerWithItems<Aspect, SEP>;
 pub type OwnerAspectWithCommaPunctuatedItems = OwnerAspectWithItems<Comma>;
-pub type FieldTypesContext = CommaPunctuated<FieldTypeComposition>;
+pub type FieldTypesContext = CommaPunctuated<FieldComposer>;
 pub type OwnedStatement = OwnedItemsPunctuated<Semi>;
 pub type FieldsOwnerContext<T> = (T, FieldTypesContext);
 pub type LocalFieldsOwnerContext<T> = (FieldsOwnerContext<T>, Option<Generics>);
@@ -114,7 +120,7 @@ pub type FFIConversionMixer<Parent> =
 pub type DropSequenceMixer<Parent> =
     FieldsSequenceMixer<Parent, FieldTypesContext, OwnedStatement>;
 pub type FieldsSequenceComposer<Parent, OwnerAspect, B, C, Presentable> =
-    SequenceComposer<Parent, OwnerAspect, FieldTypeComposition, B, C, Presentable>;
+    SequenceComposer<Parent, OwnerAspect, FieldComposer, B, C, Presentable>;
 pub type FnSequenceComposer<Parent, OwnerAspect, I> = FieldsSequenceComposer<
     Parent,
     OwnerAspect,

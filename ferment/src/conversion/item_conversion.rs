@@ -5,7 +5,7 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
 use crate::ast::PathHolder;
-use crate::composable::{AttrsComposition, CfgAttributes, FieldTypeComposition, FieldTypeConversionKind, FnSignatureContext};
+use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext};
 use crate::composer::{CommaPunctuatedOwnedItems, EnumComposer, ItemComposer, ItemComposerWrapper, ParentComposer, SigComposer, SourceExpandable, TraitComposer, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
@@ -216,7 +216,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
                                     OwnedItemPresentableContext::Named(
-                                        FieldTypeComposition::new(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), true, attrs.cfg_attributes_expanded()), false))
+                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), true, attrs.cfg_attributes_expanded()), false))
                                 .collect(),
                         ),
                     },

@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
-use crate::composable::{FieldTypeComposition, FieldTypeConversionKind, TypeComposition};
+use crate::composable::{FieldComposer, FieldTypeConversionKind, TypeComposition};
 use crate::composer::{CommaPunctuatedNestedArguments, ParentComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectConversion, TypeCompositionConversion};
@@ -127,7 +127,7 @@ impl GenericBoundComposition {
             Depunctuated::from_iter(
                 mixin_items.iter()
                     .enumerate()
-                    .map(|(index, (root_path, _))| FieldTypeComposition::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
+                    .map(|(index, (root_path, _))| FieldComposer::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
             Depunctuated::from_iter([
                 InterfacePresentation::Conversion {
                     attrs,

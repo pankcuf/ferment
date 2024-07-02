@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use syn::{GenericArgument, Path, PathArguments, Type, TypePath};
-use crate::ast::TypeHolder;
+use syn::{GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
+use crate::ast::{Colon2Punctuated, TypeHolder};
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
 use crate::formatter::types_dict;
@@ -40,38 +40,47 @@ impl CustomResolver {
     }
 
     fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a ScopeChain) -> Option<&'a ObjectConversion> {
-        // println!("replacement_for: {} in [{}]", ty.to_token_stream(), scope.self_path_holder_ref());
         let tc = TypeHolder::from(ty);
         self.inner
             .get(scope)
-            .and_then(|conversion_pairs| {
-                conversion_pairs.get(&tc)
-            })
+            .and_then(|conversion_pairs| conversion_pairs.get(&tc))
     }
 
     fn replace_conversion(&self, scope: &ScopeChain, ty: &Type) -> Option<Type> {
         // println!("replace_conversion.1: {}", ty.to_token_stream());
         let mut custom_type = ty.clone();
         let mut replaced = false;
-        if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = &mut custom_type {
+        let mut replace_segments = |segments: &mut Colon2Punctuated<PathSegment>| {
             for segment in &mut *segments {
                 if let PathArguments::AngleBracketed(angle_bracketed_generic_arguments) = &mut segment.arguments {
                     for arg in &mut angle_bracketed_generic_arguments.args {
                         if let GenericArgument::Type(inner_type) = arg {
                             if let Some(replaced_type) = self.replace_conversion(scope, inner_type) {
                                 *arg = GenericArgument::Type(replaced_type);
-                                // replaced = true;
                             }
                         }
                     }
                 }
             }
-            if let Some(type_type) = self.replacement_for(ty, scope) {
-                if let Some(Type::Path(TypePath { path: Path { segments: new_segments, .. }, .. })) = type_type.to_ty() {
-                    *segments = new_segments.clone();
-                    replaced = true;
-                }
+            if let Some(Type::Path(TypePath { path: Path { segments: new_segments, .. }, .. })) = self.replacement_for(ty, scope).and_then(ObjectConversion::maybe_type) {
+                *segments = new_segments.clone();
+                replaced = true;
             }
+
+        };
+        match &mut custom_type {
+            Type::Path(TypePath { path: Path { segments, .. }, .. }) => {
+                replace_segments(segments)
+            },
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+                bounds.iter_mut().for_each(|bound| match bound {
+                    TypeParamBound::Trait(TraitBound { path: Path { segments, .. }, .. }) => {
+                        replace_segments(segments);
+                    },
+                    TypeParamBound::Lifetime(_) => {}
+                })
+            },
+            _ => {}
         }
         // if replaced {
         //     println!("replace_conversion.2: {}: {}", replaced, custom_type.to_token_stream());

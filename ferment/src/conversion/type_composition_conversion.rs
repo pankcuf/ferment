@@ -14,6 +14,7 @@ pub enum TypeCompositionConversion {
     // TraitAssociatedType(TypeComposition),
     Object(TypeComposition),
     Optional(TypeComposition),
+    Boxed(TypeComposition),
     Primitive(TypeComposition),
     FnPointer(TypeComposition),
     Bounds(GenericBoundComposition),
@@ -81,6 +82,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::TraitType(ty) |
             // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
+            TypeCompositionConversion::Boxed(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
@@ -103,6 +105,7 @@ impl TypeCompositionConversion {
             // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
+            TypeCompositionConversion::Boxed(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
@@ -143,6 +146,8 @@ impl Debug for TypeCompositionConversion {
                 format!("Object({})", ty),
             TypeCompositionConversion::Optional(ty) =>
                 format!("Optional({})", ty),
+            TypeCompositionConversion::Boxed(ty) =>
+                format!("Boxed({})", ty),
             TypeCompositionConversion::Unknown(ty) =>
                format!("Unknown({})", ty),
             TypeCompositionConversion::Primitive(ty) =>

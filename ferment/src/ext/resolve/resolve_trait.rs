@@ -37,7 +37,7 @@ pub trait ResolveTrait where Self: Sized + ToTokens + Parse + ParseQuote {
 
     fn maybe_trait_ty(&self, source: &ScopeContext) -> Option<Type> {
         self.maybe_trait_object(source)
-            .and_then(|full_trait_ty| full_trait_ty.to_ty())
+            .and_then(|full_trait_ty| full_trait_ty.maybe_type())
     }
 }
 

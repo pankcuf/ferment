@@ -1,8 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
-use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, Generics, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, Variant};
+use quote::{format_ident, quote, ToTokens};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, Generics, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -221,7 +221,7 @@ pub fn to_string_derive(input: TokenStream) -> TokenStream {
     };
     let match_arms = data.variants.iter().map(|Variant { ident, fields, .. } | {
         match fields {
-            Fields::Named(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+            Fields::Named(_) => quote! { Self::#ident { .. } => stringify!(#ident).to_string(), },
             Fields::Unnamed(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
             Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
         }
@@ -251,3 +251,35 @@ pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
+
+#[proc_macro_attribute]
+pub fn debug_io(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as ItemFn);
+    let ItemFn { sig: Signature { ident: ref method_name, ref inputs, .. }, ref block, .. } = input;
+    let args: Vec<_> = inputs.iter().filter_map(|arg| {
+        if let FnArg::Typed(PatType { pat, .. }) = arg {
+            Some(quote! { #pat })
+        } else {
+            None
+        }
+    }).collect();
+    let fn_name = format!("{}", method_name);
+
+    let args_str = args.iter().map(ToTokens::to_token_stream).collect::<Vec<_>>();
+    let new_block = quote! {{
+        let debug_str = #fn_name;
+        let result = {
+            #block
+        };
+        println!("{}({:?}) -> {:?}", debug_str, #(#args_str),*, result);
+        result
+    }};
+    let mut output = input.clone();
+
+    output.block = parse_quote!(#new_block);
+    TokenStream::from(quote! { #output })
+}
+
+
+
+

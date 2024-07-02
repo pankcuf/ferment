@@ -32,14 +32,14 @@ impl FieldTypeConversionKind {
 }
 
 #[derive(Clone, Debug)]
-pub struct FieldTypeComposition {
+pub struct FieldComposer {
     pub name: Name,
     pub kind: FieldTypeConversionKind,
     pub attrs: Depunctuated<Expansion>,
     pub named: bool,
 }
 
-impl FieldTypeComposition {
+impl FieldComposer {
     pub fn new(name: Name, kind: FieldTypeConversionKind, named: bool, attrs: Depunctuated<Expansion>) -> Self {
         Self { name, kind, named, attrs }
     }
@@ -61,14 +61,14 @@ impl FieldTypeComposition {
     }
 
 }
-impl ToTokens for FieldTypeComposition {
+impl ToTokens for FieldComposer {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { name, kind, attrs, .. } = self;
         let template = quote! { #attrs #name: #kind };
         template.to_tokens(tokens)
     }
 }
-impl ScopeContextPresentable for FieldTypeComposition {
+impl ScopeContextPresentable for FieldComposer {
     type Presentation = TokenStream2;
 
     fn present(&self, _source: &ScopeContext) -> Self::Presentation {

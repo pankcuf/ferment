@@ -102,16 +102,19 @@ impl OpaqueConversion {
 
 fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemStruct { attrs, fields: ref f, ident: target_name, generics, .. } = item_struct;
-    // println!("struct_expansion: {}: [{} --- {}]", item_struct.ident, scope.crate_scope(), scope.self_path_holder());
-    // println!("struct_expansion: [{}] --- [{}]", scope, scope_context.borrow().scope);
     match f {
         Fields::Unnamed(ref fields) =>
-            OpaqueItemComposer::<Paren>::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context).borrow().expand(),
+            OpaqueItemComposer::<Paren>::struct_composer_unnamed(target_name, attrs, generics, &fields.unnamed, scope, scope_context)
+                .borrow()
+                .expand(),
         Fields::Named(ref fields) =>
-            OpaqueItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context).borrow().expand(),
+            OpaqueItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &fields.named, scope, scope_context)
+                .borrow()
+                .expand(),
         Fields::Unit =>
-            OpaqueItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context).borrow().expand(),
-        // panic!("Fields::Unit is not supported yet"),
+            OpaqueItemComposer::<Brace>::struct_composer_named(target_name, attrs, generics, &Punctuated::new(), scope, scope_context)
+                .borrow()
+                .expand(),
     }
 }
 

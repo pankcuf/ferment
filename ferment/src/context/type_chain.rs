@@ -121,7 +121,7 @@ impl TypeChain {
         self.inner.iter()
             .find_map(|(TypeHolder { 0: other}, full_type)| {
                 if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
-                    full_type.to_ty()
+                    full_type.maybe_type()
                 } else {
                     None
                 }

@@ -215,7 +215,7 @@ impl GlobalContext {
         // println!("actual_scope_for_type: {} in [{}]", format_token_stream(ty), current_scope);
         let p = parse_quote!(#ty);
         let scope = if let Some(st) = self.maybe_scope_object(ty, current_scope) {
-            let self_ty = st.to_ty().unwrap();
+            let self_ty = st.maybe_type().unwrap();
             let self_path: Path = self_ty.to_path();
             self.maybe_scope(&self_path).cloned()
         } else if let Some(import_path) = self.maybe_scope_import_path(current_scope, &p) {
@@ -528,11 +528,11 @@ impl GlobalContext {
                             NestedArgument::Object(obj) |
                             NestedArgument::Constraint(obj) => {
                                 let refined = if let Some(refined) = self.maybe_refined_object(scope, obj) {
-                                    let refined_ty = refined.to_ty();
+                                    let refined_ty = refined.maybe_type();
                                     *obj = refined;
                                     refined_ty
                                 } else {
-                                    obj.to_ty()
+                                    obj.maybe_type()
                                 };
                                 GenericArgument::Type(refined.unwrap())
                             },
@@ -546,8 +546,8 @@ impl GlobalContext {
                 inputs.iter_mut().for_each(|inner_ty| match nested_arguments.pop() {
                     None => {}
                     Some(nested_arg) => match nested_arg.into_value() {
-                        NestedArgument::Object(obj) => *inner_ty = obj.to_ty().unwrap(),
-                        NestedArgument::Constraint(obj) => *inner_ty = obj.to_ty().unwrap(),
+                        NestedArgument::Object(obj) => *inner_ty = obj.maybe_type().unwrap(),
+                        NestedArgument::Constraint(obj) => *inner_ty = obj.maybe_type().unwrap(),
                     }
                 });
                 match output {
@@ -555,8 +555,8 @@ impl GlobalContext {
                     ReturnType::Type(_, inner_ty) => match nested_arguments.pop() {
                         None => {}
                         Some(nested_arg) => match nested_arg.into_value() {
-                            NestedArgument::Object(obj) => *inner_ty = Box::new(obj.to_ty().unwrap()),
-                            NestedArgument::Constraint(obj) => *inner_ty = Box::new(obj.to_ty().unwrap()),
+                            NestedArgument::Object(obj) => *inner_ty = Box::new(obj.maybe_type().unwrap()),
+                            NestedArgument::Constraint(obj) => *inner_ty = Box::new(obj.maybe_type().unwrap()),
                         }
                     }
                 }
@@ -567,8 +567,8 @@ impl GlobalContext {
                         GenericArgument::Type(inner_ty) => match nested_arguments.pop() {
                             None => {}
                             Some(nested_arg) => match nested_arg.into_value() {
-                                NestedArgument::Object(obj) =>  *inner_ty = obj.to_ty().unwrap(),
-                                NestedArgument::Constraint(obj) =>  *inner_ty = obj.to_ty().unwrap(),
+                                NestedArgument::Object(obj) =>  *inner_ty = obj.maybe_type().unwrap(),
+                                NestedArgument::Constraint(obj) =>  *inner_ty = obj.maybe_type().unwrap(),
                             }
                         }
                         GenericArgument::Lifetime(_) => {}
@@ -670,11 +670,12 @@ impl GlobalContext {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Trait(self.refine_nested(composition, scope), dec.clone(), paths.clone())));
             },
             ObjectConversion::Type(TypeCompositionConversion::Optional(ty_composition)) => {
-                // let mut new_ty_composition = ty_composition.clone();
-                // self.refine_nested_ty(&mut new_ty_composition, scope);
-                // return Some(ObjectConversion::Type(TypeCompositionConversion::Optional(new_ty_composition)));
                 let nested_refined = self.refine_nested(ty_composition, scope);
                 return Some(ObjectConversion::Type(TypeCompositionConversion::Optional(nested_refined)));
+            },
+            ObjectConversion::Type(TypeCompositionConversion::Boxed(ty_composition)) => {
+                let nested_refined = self.refine_nested(ty_composition, scope);
+                return Some(ObjectConversion::Type(TypeCompositionConversion::Boxed(nested_refined)));
             },
             ObjectConversion::Type(TypeCompositionConversion::Bounds(composition)) => {
                 let nested_refined = self.refine_nested_bounds(composition, scope);
@@ -719,7 +720,7 @@ impl GlobalContext {
                         NestedArgument::Object(obj) |
                         NestedArgument::Constraint(obj) => {
                             if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                                let to_ty = object_to_refine.to_ty().unwrap();
+                                let to_ty = object_to_refine.maybe_type().unwrap();
                                 *obj = object_to_refine;
                                 *elem = to_ty;
                             }
@@ -731,7 +732,7 @@ impl GlobalContext {
                 match &mut new_ty_composition.nested_arguments.first_mut() {
                     Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                            let to_ty = object_to_refine.to_ty().unwrap();
+                            let to_ty = object_to_refine.maybe_type().unwrap();
                             *obj = object_to_refine;
                             *type_array.elem = to_ty;
                         }
@@ -743,7 +744,7 @@ impl GlobalContext {
                 match &mut new_ty_composition.nested_arguments.first_mut() {
                     Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
                         if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                            let to_ty = object_to_refine.to_ty().unwrap();
+                            let to_ty = object_to_refine.maybe_type().unwrap();
                             *obj = object_to_refine;
                             *type_slice.elem = to_ty;
                         }
@@ -776,7 +777,7 @@ impl RefineMut for GlobalContext {
                     if all_attrs.is_empty() {
                         all_attrs.insert(None);
                     };
-                    if let Some(ty) = object.to_ty() {
+                    if let Some(ty) = object.maybe_type() {
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())

@@ -5,33 +5,51 @@ mod model;
 extern crate ferment_macro;
 
 use std::collections::BTreeMap;
-use std::fmt::Debug;
+use ferment_interfaces::boxed;
 
-#[derive(Debug)]
-pub struct FFICoreProvider<T: Fn(u32) -> [u8; 32]> {
-    pub block_hash_by_height: T
-}
 
-pub trait CoreProvider {
-
-}
-// #[ferment_macro::opaque]
-// pub struct SDK<TTTTT: CoreProvider> {
-//     pub processor: *mut Processor,
-//     pub cache: BTreeMap<String, String>,
-//     pub context: *const std::os::raw::c_void,
-//     pub stub: TTTTT
-// }
 #[ferment_macro::opaque]
-pub struct SDK2 {
+pub type BlockHashByHeight = unsafe extern "C" fn(u32) -> [u8; 32];
+
+#[ferment_macro::opaque]
+pub struct FFICoreProvider {
+    pub block_hash_by_height: BlockHashByHeight,
+}
+
+impl CoreProvider for FFICoreProvider {
+    fn get_block_hash_by_height(&self, _height: u32) -> [u8; 32] {
+        [0u8; 32]
+        // (self.block_hash_by_height)(height)
+    }
+}
+
+#[ferment_macro::opaque]
+pub trait CoreProvider {
+    fn get_block_hash_by_height(&self, height: u32) -> [u8; 32];
+}
+#[ferment_macro::opaque]
+pub struct DashSharedCore {
     pub processor: *mut Processor,
     pub cache: BTreeMap<String, String>,
-    pub context: *const std::os::raw::c_void,
+    context: *const std::os::raw::c_void,
+}
+
+#[ferment_macro::opaque]
+impl DashSharedCore {
+    pub fn new(
+        block_hash_by_height: BlockHashByHeight,
+        context: *const std::os::raw::c_void) -> Self {
+        Self {
+            processor: boxed(Processor { chain_id: Box::new(FFICoreProvider { block_hash_by_height }) }),
+            cache: Default::default(),
+            context
+        }
+    }
 }
 
 #[ferment_macro::opaque]
 pub struct Processor {
-    pub chain_id: u32,
+    pub chain_id: Box<dyn CoreProvider>,
 }
 
 #[ferment_macro::export]
@@ -57,7 +75,6 @@ pub mod some_inner_2 {
     use std::rc::Rc;
     use std::sync::{Arc, Mutex, RwLock};
     use ferment_example::errors::protocol_error::ProtocolError;
-    // use std::sync::Arc;
     use crate::model::quorum::QuorumType;
     use crate::model::{LLMQSnapshot, Quorum};
     #[ferment_macro::export]

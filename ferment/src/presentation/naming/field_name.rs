@@ -2,11 +2,12 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Pat, Path, Type};
+use ferment_macro::Display;
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
 use crate::presentation::DictionaryName;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
 #[allow(unused)]
 pub enum Name {
     UnnamedArg(usize),

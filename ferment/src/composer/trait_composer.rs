@@ -5,7 +5,7 @@ use proc_macro2::Ident;
 use syn::{Generics, ItemTrait, parse_quote, Path, TraitItem, TraitItemMethod, Type};
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{BraceWrapped, CommaPunctuated};
-use crate::composable::{AttrsComposition, CfgAttributes, FieldTypeComposition, FieldTypeConversionKind, FnSignatureContext, TraitTypeDecomposition};
+use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext, TraitTypeDecomposition};
 use crate::composer::{BasicComposable, BasicComposer, Composer, constants, DocsComposable, Linkable, NameContext, ParentComposer, SigComposer, SigParentComposer, SourceAccessible, SourceExpandable, TraitParentComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{Mangle, ToPath, ToType};
@@ -144,10 +144,10 @@ impl SourceExpandable for TraitComposer {
                 attrs,
                 name: Name::TraitObj(mangled_ty),
                 fields: BraceWrapped::new(CommaPunctuated::from_iter([
-                    FieldTypeComposition::named(
+                    FieldComposer::named(
                         Name::Dictionary(DictionaryName::Object),
                         FieldTypeConversionKind::Type(parse_quote!(*const ()))),
-                    FieldTypeComposition::named(
+                    FieldComposer::named(
                         Name::Dictionary(DictionaryName::Vtable),
                         FieldTypeConversionKind::Type(parse_quote!(*const #vtable_name))),
                 ])).present(&source)

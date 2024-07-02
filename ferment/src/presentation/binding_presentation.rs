@@ -4,7 +4,7 @@ use syn::{Generics, PathArguments, ReturnType, Type};
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
-use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
+use crate::composable::{FieldComposer, FieldTypeConversionKind};
 use crate::composer::CommaPunctuatedArgs;
 use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
 use crate::presentable::ConstructorPresentableContext;
@@ -188,7 +188,7 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ty.joined_mut()))
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ty.joined_mut()))
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -197,14 +197,14 @@ impl ToTokens for BindingPresentation {
             },
             Self::ObjAsTrait { name, item_type, trait_type, vtable_name, attrs } => {
                 let fields = CommaPunctuated::from_iter([
-                    FieldTypeComposition::named(Name::Dictionary(DictionaryName::Object), FieldTypeConversionKind::Conversion(quote!(obj as *const ()))),
-                    FieldTypeComposition::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
+                    FieldComposer::named(Name::Dictionary(DictionaryName::Object), FieldTypeConversionKind::Conversion(quote!(obj as *const ()))),
+                    FieldComposer::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
                 ]);
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
                     ]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     None,
@@ -215,7 +215,7 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
-                    Punctuated::from_iter([FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
+                    Punctuated::from_iter([FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
                     generics.clone(),
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
@@ -226,7 +226,7 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
@@ -238,8 +238,8 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -250,7 +250,7 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
@@ -262,8 +262,8 @@ impl ToTokens for BindingPresentation {
                     attrs.to_token_stream(),
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
-                        FieldTypeComposition::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
+                        FieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeConversionKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),

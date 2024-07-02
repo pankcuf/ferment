@@ -109,7 +109,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         match arg {
                             GenericArgument::Type(inner_type) => {
                                 let obj_conversion = inner_type.update_nested_generics(&(scope, context));
-                                let ty = obj_conversion.to_ty().unwrap();
+                                let ty = obj_conversion.maybe_type().unwrap();
                                 //println!("nested object::::: {}", obj_conversion);
                                 nested_arguments.push(NestedArgument::Object(obj_conversion));
                                 *arg = GenericArgument::Type(ty);
@@ -122,13 +122,13 @@ impl<'a> VisitScopeType<'a> for Path {
                     // println!("Path::Parenthesized::update_nested_generics: {} --- {}", inputs.to_token_stream(), output.to_token_stream());
                     for arg in inputs {
                         let obj_conversion = arg.update_nested_generics(&(scope, context));
-                        let ty = obj_conversion.to_ty().unwrap();
+                        let ty = obj_conversion.maybe_type().unwrap();
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
                         *arg = ty;
                     }
                     if let ReturnType::Type(_, ret) = output {
                         let obj_conversion = ret.update_nested_generics(&(scope, context));
-                        let ty = obj_conversion.to_ty().unwrap();
+                        let ty = obj_conversion.maybe_type().unwrap();
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
                         *ret = Box::new(ty);
                     }
@@ -197,11 +197,12 @@ impl<'a> VisitScopeType<'a> for Path {
             }
             ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
         } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_type_path) {
+            // TODO: multiple bounds handling
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
-                let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope).cloned() {
+                let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope) {
                     nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
-                    segments
+                    segments.clone()
                 } else {
                     nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
                     let first_bound_ident = &first_bound.segments.first().unwrap().ident;
@@ -280,8 +281,10 @@ impl<'a> VisitScopeType<'a> for Path {
                         .to_object(nested_arguments)
                 },
                 _ if last_ident.is_box() => {
-                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                        .to_object(nested_arguments)
+                    ObjectConversion::Type(TypeCompositionConversion::Boxed(handle_type_path_composition(TypePath {
+                        qself: new_qself,
+                        path: Path { leading_colon: self.leading_colon, segments }
+                    }, nested_arguments)))
                 },
                 _ if first_ident.is_lambda_fn() => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }

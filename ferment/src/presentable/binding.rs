@@ -23,6 +23,7 @@ impl<S, SP, I> ScopeContextPresentable for BindingPresentableContext<S, SP, I>
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         match self {
             BindingPresentableContext::Constructor(context, args, body) => {
+                println!("BindingPresentableContext::Constructor: {}: \n--{}\n--{}", context, args.present(source).to_token_stream(), body.present(source));
                 BindingPresentation::Constructor {
                     context: context.clone(),
                     ctor_arguments: args.present(&source),

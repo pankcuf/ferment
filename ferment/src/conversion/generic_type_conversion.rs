@@ -6,7 +6,7 @@ use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Generics, 
 use syn::__private::TokenStream2;
 use syn::token::Brace;
 use crate::ast::{AddPunctuated, BraceWrapped, CommaPunctuated, Depunctuated};
-use crate::composable::{FieldTypeComposition, FieldTypeConversionKind};
+use crate::composable::{FieldComposer, FieldTypeConversionKind};
 use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{expand_attributes, TypeConversion};
@@ -257,8 +257,8 @@ impl GenericTypeConversion {
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeComposition::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut())),
-                        FieldTypeComposition::named(arg_1_name, FieldTypeConversionKind::Type(arg_1_presentation.ty.joined_mut())),
+                        FieldComposer::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut())),
+                        FieldComposer::named(arg_1_name, FieldTypeConversionKind::Type(arg_1_presentation.ty.joined_mut())),
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -341,9 +341,9 @@ impl GenericTypeConversion {
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeComposition::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
-                        FieldTypeComposition::named(arg_0_name,FieldTypeConversionKind::Type(key.joined_mut())),
-                        FieldTypeComposition::named(arg_1_name, FieldTypeConversionKind::Type(value.joined_mut()))
+                        FieldComposer::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+                        FieldComposer::named(arg_0_name, FieldTypeConversionKind::Type(key.joined_mut())),
+                        FieldComposer::named(arg_1_name, FieldTypeConversionKind::Type(value.joined_mut()))
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -403,8 +403,8 @@ impl GenericTypeConversion {
                         InterfacesMethodExpr::Boxed(
                             DictionaryExpr::NamedStructInit(
                                 CommaPunctuated::from_iter([
-                                    FieldTypeComposition::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-                                    FieldTypeComposition::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
+                                    FieldComposer::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                                    FieldComposer::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
                                 .to_token_stream()));
 
                 let arg_0_presentation = match TypeConversion::from(&type_slice.elem) {
@@ -436,8 +436,8 @@ impl GenericTypeConversion {
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeComposition::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
-                        FieldTypeComposition::named(arg_0_name, FieldTypeConversionKind::Type(value.joined_mut()))
+                        FieldComposer::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+                        FieldComposer::named(arg_0_name, FieldTypeConversionKind::Type(value.joined_mut()))
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -474,7 +474,7 @@ impl GenericTypeConversion {
                     Depunctuated::from_iter(
                         tuple_items.iter()
                             .enumerate()
-                            .map(|(index, (root_path, _))| FieldTypeComposition::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
+                            .map(|(index, (root_path, _))| FieldComposer::unnamed(Name::UnnamedArg(index), FieldTypeConversionKind::Type(root_path.clone())))),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
                             attrs,
@@ -557,7 +557,7 @@ impl GenericTypeConversion {
                                 InterfacesMethodExpr::Boxed(
                                     DictionaryExpr::NamedStructInit(
                                         CommaPunctuated::from_iter([
-                                            FieldTypeComposition::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_to_conversion.to_token_stream()))
+                                            FieldComposer::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_to_conversion.to_token_stream()))
                                         ])).to_token_stream())),
                             Expression::Empty)
                     }
@@ -570,7 +570,7 @@ impl GenericTypeConversion {
                                 InterfacesMethodExpr::Boxed(
                                     DictionaryExpr::NamedStructInit(
                                         CommaPunctuated::from_iter([
-                                            FieldTypeComposition::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).present(&source)))
+                                            FieldComposer::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).present(&source)))
                                         ])).to_token_stream())),
                             arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
                     }
@@ -592,7 +592,7 @@ impl GenericTypeConversion {
                                 InterfacesMethodExpr::Boxed(
                                     DictionaryExpr::NamedStructInit(
                                         CommaPunctuated::from_iter([
-                                            FieldTypeComposition::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).present(&source)))
+                                            FieldComposer::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(arg_composer.to(arg_to_conversion).present(&source)))
                                         ])).to_token_stream())),
                             arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
                     }
@@ -605,7 +605,7 @@ impl GenericTypeConversion {
                     ffi_name,
                     attrs.clone(),
                     Depunctuated::from_iter([
-                        FieldTypeComposition::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty))
+                        FieldComposer::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty))
                     ]),
                     Depunctuated::from_iter([
                         InterfacePresentation::Conversion {
@@ -780,8 +780,8 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
             InterfacesMethodExpr::Boxed(
                 DictionaryExpr::NamedStructInit(
                     CommaPunctuated::from_iter([
-                        FieldTypeComposition::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-                        FieldTypeComposition::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
+                        FieldComposer::named(count_name.clone(), FieldTypeConversionKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                        FieldComposer::named(arg_0_name.clone(), FieldTypeConversionKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).to_token_stream()))]))
                     .to_token_stream()));
 
     let arg_0_destroy = |composer: InterfacesMethodComposer|
@@ -834,8 +834,8 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
         ffi_name,
         attrs.clone(),
         Depunctuated::from_iter([
-            FieldTypeComposition::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
-            FieldTypeComposition::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut()))
+            FieldComposer::named(count_name, FieldTypeConversionKind::Type(parse_quote!(usize))),
+            FieldComposer::named(arg_0_name, FieldTypeConversionKind::Type(arg_0_presentation.ty.joined_mut()))
         ]),
         Depunctuated::from_iter([
             InterfacePresentation::Conversion {
@@ -857,7 +857,7 @@ fn compose_generic_group(ty: &Type, vec_conversion_type: Type, arg_conversion: T
 pub fn compose_generic_presentation(
     ffi_name: Ident,
     attrs: Depunctuated<Expansion>,
-    field_conversions: Depunctuated<FieldTypeComposition>,
+    field_conversions: Depunctuated<FieldComposer>,
     interface_presentations: Depunctuated<InterfacePresentation>,
     drop_body: Depunctuated<TokenStream2>,
     source: &ScopeContext) -> FFIObjectPresentation {
@@ -888,7 +888,7 @@ fn compose_bindings(
     ffi_type: Type,
     attrs: Depunctuated<Expansion>,
     generics: Option<Generics>,
-    conversions: Depunctuated<FieldTypeComposition>
+    conversions: Depunctuated<FieldComposer>
 ) -> Depunctuated<ConstructorBindingPresentableContext<Brace>> {
     Depunctuated::from_iter([
         struct_composer_ctor_root()((
@@ -909,14 +909,14 @@ pub(crate) fn dictionary_generic_arg_pair(name: Name, field_name: TokenStream2, 
             (arg_ty.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_ty.clone(),
                 Expression::Empty,
-                Expression::FfiRefWithConversion(FieldTypeComposition::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_ty))),
+                Expression::FfiRefWithConversion(FieldComposer::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_ty))),
                 Expression::Named((name.to_token_stream(), Expression::ObjFieldName(field_name).into())))]))
         }
         TypeConversion::Complex(arg_type) => {
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type.clone(),
                 Expression::InterfacesExpr(DESTROY_COMPLEX(DictionaryExpr::SelfProp(name.to_token_stream()).to_token_stream())),
-                Expression::From(Expression::FfiRefWithConversion(FieldTypeComposition::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
+                Expression::From(Expression::FfiRefWithConversion(FieldComposer::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
                 Expression::Named((name.to_token_stream(), Expression::To(Expression::ObjFieldName(field_name).into()).into())))]))
         }
 
@@ -925,7 +925,7 @@ pub(crate) fn dictionary_generic_arg_pair(name: Name, field_name: TokenStream2, 
             (arg_type.clone(), Depunctuated::from_iter([GenericArgPresentation::new(
                 arg_type.clone(),
                 Expression::InterfacesExpr(DESTROY_COMPLEX(DictionaryExpr::SelfProp(name.to_token_stream()).to_token_stream())),
-                Expression::From(Expression::FfiRefWithConversion(FieldTypeComposition::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
+                Expression::From(Expression::FfiRefWithConversion(FieldComposer::unnamed(name.clone(), FieldTypeConversionKind::Type(arg_type))).into()),
                 Expression::Named((name.to_token_stream(), Expression::To(Expression::ObjFieldName(field_name).into()).into())))]))
         }
     }

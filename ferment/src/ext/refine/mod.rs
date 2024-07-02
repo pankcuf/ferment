@@ -56,7 +56,7 @@ impl RefineMut for Type {
                             Some(nested_arg) => match nested_arg.into_value() {
                                 NestedArgument::Object(obj) |
                                 NestedArgument::Constraint(obj) => {
-                                    *inner_ty = obj.to_ty().unwrap();
+                                    *inner_ty = obj.maybe_type().unwrap();
                                 }
                             }
                         }
@@ -74,7 +74,7 @@ impl RefineMut for PathArguments {
         let mut refinement = refined.clone();
         let mut refine = |inner_ty: &mut Type| match refinement.pop() {
             Some(nested_arg) =>
-                *inner_ty = nested_arg.into_value().object().to_ty().unwrap(),
+                *inner_ty = nested_arg.into_value().object().maybe_type().unwrap(),
             None => {}
         };
 

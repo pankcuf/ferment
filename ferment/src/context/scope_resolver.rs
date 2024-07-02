@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use syn::{Path, Type, TypePtr, TypeReference};
+use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
-use crate::ext::RefineMut;
+use crate::ext::{RefineMut, ToType};
 use crate::formatter::types_dict;
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
 
@@ -48,16 +48,29 @@ impl ScopeResolver {
             .or_default()
     }
 
-    pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
-        // println!("maybe_scope_type: {} --- [{}]", ty.to_token_stream(), scope);
-        let tc = match ty {
-            Type::Reference(TypeReference { elem, .. }) |
-            Type::Ptr(TypePtr { elem, .. }) => TypeHolder::from(elem),
-            _ => TypeHolder::from(ty)
-        };
+    fn maybe_scope_type_(&self, tc: &TypeHolder, scope: &ScopeChain) -> Option<&ObjectConversion> {
         self.inner
             .get(scope)
-            .and_then(|chain| chain.get(&tc))
+            .and_then(|chain| chain.get(tc))
+    }
+    pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
+        // println!("maybe_scope_type: {} --- [{}]", ty.to_token_stream(), scope);
+        match ty {
+            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
+                1 => match bounds.first().unwrap() {
+                    TypeParamBound::Trait(TraitBound { path, .. }) =>
+                        self.maybe_scope_type_(&TypeHolder::from(&path.to_type()), scope),
+                    TypeParamBound::Lifetime(_) =>
+                        panic!("maybe_opaque_object::error")
+                },
+                _ => panic!("maybe_opaque_object::error")
+            },
+            Type::Reference(TypeReference { elem: ty, .. }) |
+            Type::Ptr(TypePtr { elem: ty, .. }) =>
+                self.maybe_scope_type_(&TypeHolder::from(ty), scope),
+            ty =>
+                self.maybe_scope_type_(&TypeHolder::from(ty), scope),
+        }
     }
 
     pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {

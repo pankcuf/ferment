@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundComposition;
@@ -39,6 +39,7 @@ impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>
 }
 impl Mangle<MangleDefault> for Type {
     fn mangle_string(&self, context: MangleDefault) -> String {
+        // println!("Mangle Type: {}", self.to_token_stream());
         match self {
             // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
             Type::Path(TypePath { path, .. }) =>
@@ -51,6 +52,8 @@ impl Mangle<MangleDefault> for Type {
                 type_tuple.mangle_string(context),
             Type::Reference(type_reference) =>
                 type_reference.mangle_string(context),
+            Type::BareFn(type_bare_fn) =>
+                type_bare_fn.mangle_string(context),
             ty =>
                 ty.to_path().get_ident().unwrap().clone().to_string()
         }
@@ -110,6 +113,18 @@ impl Mangle<MangleDefault> for TypeImplTrait {
 impl Mangle<MangleDefault> for TypeReference {
     fn mangle_string(&self, context: MangleDefault) -> String {
         self.elem.mangle_string(context)
+    }
+}
+impl Mangle<MangleDefault> for TypeBareFn {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        format!(
+            "FnPtr_ARGS_{}_RTRN_{}",
+            &self.inputs.iter().map(|BareFnArg { ty, .. } | ty.mangle_string(context)).collect::<Vec<_>>().join("_"),
+            match &self.output {
+                ReturnType::Default => String::new(),
+                ReturnType::Type(_, ty) => ty.mangle_string_default()
+            })
+
     }
 }
 

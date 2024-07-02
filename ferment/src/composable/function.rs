@@ -3,7 +3,7 @@ use proc_macro2::Ident;
 use syn::{FnArg, ItemFn, ParenthesizedGenericArguments, parse_quote, Pat, PatIdent, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
 use quote::{quote, ToTokens};
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{CfgAttributes, FieldTypeComposition, FieldTypeConversionKind, TypeComposition};
+use crate::composable::{CfgAttributes, FieldComposer, FieldTypeConversionKind, TypeComposition};
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
@@ -94,6 +94,7 @@ impl<'a> Composer<'a> for PatType {
                         TypeCompositionConversion::TraitType(TypeComposition { ty, .. }) |
                         TypeCompositionConversion::Object(TypeComposition { ty, .. }) |
                         TypeCompositionConversion::Optional(TypeComposition { ty, .. }) |
+                        TypeCompositionConversion::Boxed(TypeComposition { ty, .. }) |
                         TypeCompositionConversion::Array(TypeComposition { ty, .. }) |
                         TypeCompositionConversion::Slice(TypeComposition { ty, .. }) |
                         TypeCompositionConversion::Tuple(TypeComposition { ty, .. }) |
@@ -136,7 +137,7 @@ impl<'a> Composer<'a> for PatType {
 }
 
 fn original(name: Name, ty: Type, attrs: Depunctuated<Expansion>) -> OwnedItemPresentableContext {
-    OwnedItemPresentableContext::Named(FieldTypeComposition::new(name, FieldTypeConversionKind::Type(ty), true, attrs), false)
+    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeConversionKind::Type(ty), true, attrs), false)
 }
 
 impl<'a> Composer<'a> for FnArg {

@@ -5,6 +5,7 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::conversion::ObjectConversion;
+use crate::ext::ToType;
 
 #[derive(Clone)]
 pub enum NestedArgument {
@@ -71,6 +72,12 @@ impl TypeComposition {
     }
     pub fn nested_argument_at_index(&self, index: usize) -> &NestedArgument {
         &self.nested_arguments[index]
+    }
+}
+
+impl ToType for TypeComposition {
+    fn to_type(&self) -> Type {
+        self.ty.clone()
     }
 }
 

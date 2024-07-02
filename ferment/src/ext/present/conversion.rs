@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use syn::{Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::ast::Depunctuated;
-use crate::composable::{FieldTypeComposition, FieldTypeConversionKind, GenericBoundComposition};
+use crate::composable::{FieldComposer, FieldTypeConversionKind, GenericBoundComposition};
 use crate::conversion::TypeConversion;
 use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
@@ -13,7 +13,7 @@ pub trait Conversion {
     fn conversion_destroy(&self, expr: Expression) -> Expression;
 }
 
-impl Conversion for FieldTypeComposition {
+impl Conversion for FieldComposer {
     fn conversion_from(&self, expr: Expression) -> Expression {
         self.ty().conversion_from(expr)
     }
@@ -29,7 +29,7 @@ impl Conversion for FieldTypeComposition {
 
 impl Conversion for Type {
     fn conversion_from(&self, expr: Expression) -> Expression {
-        // println!("Type::conversion_from: {}", field_path);
+        println!("Type::conversion_from: {}", expr);
         let resutl = match self {
             Type::Array(ty) =>
                 ty.conversion_from(expr),
@@ -291,7 +291,7 @@ impl Conversion for TypeTuple {
             .map(|(index, elem)|
                 elem.conversion_from(
                     Expression::FfiRefWithConversion(
-                        FieldTypeComposition::unnamed(
+                        FieldComposer::unnamed(
                             Name::UnnamedArg(index),
                             FieldTypeConversionKind::Type(elem.clone())))
                         .into()))

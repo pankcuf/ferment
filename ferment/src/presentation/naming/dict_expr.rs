@@ -35,6 +35,7 @@ pub enum DictionaryExpr {
     CountRange,
     Range(TokenStream2),
     NewBox(TokenStream2),
+    FromRawBox(TokenStream2),
     Add(TokenStream2, TokenStream2),
     CastAs(TokenStream2, TokenStream2),
     CallMethod(TokenStream2, TokenStream2),
@@ -118,12 +119,14 @@ impl ToTokens for DictionaryExpr {
                 quote!((0..#expr)),
             Self::NewBox(conversion) =>
                 quote!(Box::new(#conversion)),
+            Self::FromRawBox(conversion) =>
+                quote!(Box::from_raw(#conversion)),
             Self::Add(field_path, index) =>
                 quote!(#field_path.add(#index)),
             Self::CastAs(ty, as_ty) =>
                 quote!(<#ty as #as_ty>),
             Self::CallMethod(ns, args) =>
-                quote!(#ns(#args))
+                quote!(#ns(#args)),
 
         }.to_tokens(dst)
     }

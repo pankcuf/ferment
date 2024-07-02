@@ -1,12 +1,15 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use ferment_macro::Display;
+use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, DictionaryType, FFIFullPathResolve, FFISpecialTypeResolve, Mangle, path_arguments_to_type_conversions, Resolve, ToPath, ToType};
+use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, SpecialType, ToPath, ToType};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
+#[derive(Clone, Display, Debug)]
 pub enum FFIVariable {
     Direct { ty: Type },
     ConstPtr { ty: Type },
@@ -31,6 +34,7 @@ impl ToType for FFIVariable {
 
 impl Resolve<FFIVariable> for Path {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
+        // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
         let last_segment = self.segments.last().unwrap();
@@ -63,63 +67,87 @@ impl Resolve<FFIVariable> for Path {
     }
 }
 
+pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
+    // println!("resolve_type: {}", ty.to_token_stream());
+    match ty {
+        Type::Path(TypePath { path, .. }) =>
+            path.resolve(source),
+        Type::Array(TypeArray { elem, len, .. }) => FFIVariable::MutPtr {
+            ty: parse_quote!([#elem; #len])
+        },
+        Type::Reference(TypeReference { elem, .. }) |
+        Type::Slice(TypeSlice { elem, .. }) =>
+            elem.resolve(source),
+        Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
+            match *elem {
+                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
+                    "c_void" => match (star_token, const_token, mutability) {
+                        (_, Some(_const_token), None) => FFIVariable::ConstPtr { ty: FFIFullDictionaryPath::Void.to_type() },
+                        (_, None, Some(_mut_token)) => FFIVariable::MutPtr { ty: FFIFullDictionaryPath::Void.to_type() },
+                        _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                    },
+                    _ => FFIVariable::MutPtr {
+                        ty: path.to_type()
+                    }
+                },
+                Type::Ptr(..) => FFIVariable::MutPtr {
+                    ty: elem.to_type(),
+                },
+                ty => mutability.as_ref()
+                    .map_or( FFIVariable::ConstPtr { ty: ty.clone() }, |_| FFIVariable::MutPtr { ty: ty.clone() })
+            },
+        Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) => {
+            bounds.resolve(source)
+        }
+        Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) =>
+            bounds.resolve(source),
+        ty => FFIVariable::Direct { ty: ty.mangle_ident_default().to_type() }
+    }
+}
+
+impl Resolve<FFIVariable> for AddPunctuated<TypeParamBound> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable {
+        // println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
+        let bound = self.iter().find_map(|bound| match bound {
+            TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
+            TypeParamBound::Lifetime(_) => None
+        }).unwrap();
+        bound.resolve(source)
+    }
+}
+
 impl Resolve<FFIVariable> for Type {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        match self.maybe_special_or_trait_ffi_full_path(source)
+        // println!("Type::<FFIVariable>::resolve({})", self.to_token_stream());
+        let full_ty = <Type as Resolve<Type>>::resolve(self, source);
+        let maybe_special = <Type as Resolve<Option<SpecialType>>>::resolve(&full_ty, source);
+        let refined = maybe_special
+            .map(|ty| FFIFullPath::External { path: ty.to_path() })
+            .or(<Type as Resolve<TypeCompositionConversion>>::resolve(self, source)
+                .to_type()
+                .resolve(source))
             .map(|ffi_path| ffi_path.to_type())
             .unwrap_or(parse_quote!(#self))
-            .to_type() {
-            Type::Path(TypePath { path, .. }) =>
-                path.resolve(source),
-            Type::Array(TypeArray { elem, len, .. }) => FFIVariable::MutPtr {
-                ty: parse_quote!([#elem; #len])
-            },
-            Type::Reference(TypeReference { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. }) =>
-                elem.resolve(source),
-            Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
-                match *elem {
-                    Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                        "c_void" => match (star_token, const_token, mutability) {
-                            (_, Some(_const_token), None) => FFIVariable::ConstPtr { ty: FFIFullDictionaryPath::Void.to_type() },
-                            (_, None, Some(_mut_token)) => FFIVariable::MutPtr { ty: FFIFullDictionaryPath::Void.to_type() },
-                            _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
-                        },
-                        _ => FFIVariable::MutPtr {
-                            ty: path.to_type()
-                        }
-                    },
-                    Type::Ptr(..) => FFIVariable::MutPtr {
-                        ty: elem.to_type(),
-                    },
-                    ty => mutability.as_ref()
-                        .map_or( FFIVariable::ConstPtr { ty: ty.clone() }, |_| FFIVariable::MutPtr { ty: ty.clone() })
-                },
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                let bound = bounds.iter().find_map(|bound| match bound {
-                    TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-                    TypeParamBound::Lifetime(_) => None
-                }).unwrap();
-                bound.resolve(source)
-            },
-            ty => FFIVariable::Direct { ty: ty.mangle_ident_default().to_type() }
-        }
+            .to_type();
+        resolve_type_variable(refined, source)
     }
 }
 
 impl Resolve<FFIVariable> for TypeCompositionConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        match self {
+        // println!("TypeCompositionConversion::<FFIVariable>::resolve({})", self.to_token_stream());
+        match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
-            TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }) => FFIVariable::Direct {
-                ty: ty
-                    .maybe_special_type(source)
+            TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }, ..) => FFIVariable::Direct {
+                ty: <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
+                    .map(|special| special.to_type())
                     .unwrap_or(<Type as Resolve::<FFIFullPath>>::resolve(ty, source)
                         .to_type())
             },
-            TypeCompositionConversion::Primitive(ty) =>
-                FFIVariable::Direct { ty: ty.ty.clone() },
-            TypeCompositionConversion::Trait(TypeComposition { ty, .. }, _, _) |
+            TypeCompositionConversion::Primitive(composition) => FFIVariable::Direct {
+                ty: composition.to_type()
+            },
+            TypeCompositionConversion::Trait(TypeComposition { ty, .. }, ..) |
             TypeCompositionConversion::TraitType(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Object(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Optional(TypeComposition { ty, .. }) |
@@ -127,17 +155,36 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
             TypeCompositionConversion::Slice(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Tuple(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Unknown(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::LocalOrGlobal(TypeComposition { ty, .. }) =>
-                <Type as Resolve<Type>>::resolve(ty, source)
-                    .maybe_special_type(source)
+            TypeCompositionConversion::LocalOrGlobal(TypeComposition { ty, .. }) => {
+                println!("TypeCompositionConversion::Regular: {}", ty.to_token_stream());
+                <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
                     .map(|ty| FFIFullPath::External { path: ty.to_path() })
                     .or(<Type as Resolve<TypeCompositionConversion>>::resolve(ty, source)
                         .to_type()
                         .resolve(source))
                     .map(|ffi_path| ffi_path.to_type())
                     .unwrap_or(parse_quote!(#ty))
-                    .to_type()
-                    .resolve(source),
+                    .resolve(source)
+            },
+            TypeCompositionConversion::Boxed(TypeComposition { ty, .. }, ..) => {
+                println!("TypeCompositionConversion::Boxed: {}", ty.to_token_stream());
+                match ty.first_nested_type() {
+                    Some(nested_full_ty) => {
+                        println!("Nested: {}", nested_full_ty.to_token_stream());
+                        resolve_type_variable(match <Type as Resolve<Option<SpecialType>>>::resolve(nested_full_ty, source) {
+                            Some(special) => special.to_type(),
+                            None => {
+                                let conversion = <Type as Resolve<TypeCompositionConversion>>::resolve(nested_full_ty, source);
+                                <Type as Resolve<Option<FFIFullPath>>>::resolve(&conversion.to_type(), source)
+                                    .map(|full_path| full_path.to_type())
+                                    .unwrap_or_else(|| nested_full_ty.clone())
+                            }
+                        }, source)
+                    }
+                    None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
+                }
+            },
+
             TypeCompositionConversion::Bounds(bounds) =>
                 bounds.resolve(source),
             ty =>
@@ -148,6 +195,7 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
 
 impl Resolve<FFIVariable> for GenericBoundComposition {
     fn resolve(&self, _source: &ScopeContext) -> FFIVariable {
+        // println!("GenericBoundComposition::<FFIVariable>::resolve({})", self);
         let ffi_name = self.mangle_ident_default();
         FFIVariable::MutPtr { ty: parse_quote!(crate::fermented::generics::#ffi_name) }
     }

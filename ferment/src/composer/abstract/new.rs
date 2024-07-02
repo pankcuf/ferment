@@ -1,4 +1,4 @@
-use crate::composable::{FieldTypeComposition, FnSignatureContext};
+use crate::composable::{FieldComposer, FnSignatureContext};
 use crate::composer::{Composer, ConstructorFieldsContext, FieldTypeLocalContext, FieldTypesContext, FunctionContext, Linkable, LocalConversionContext, OwnedItemPresentablePair, OwnedStatement, OwnerAspectWithCommaPunctuatedItems};
 use crate::presentable::{BindingPresentableContext, Expression, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
 use crate::shared::SharedAccess;
@@ -35,7 +35,7 @@ pub type DropSequenceMixer<Parent> = FieldsSequenceMixer<
 pub type FieldsOwnedComposer<Parent> = SequenceComposer<
     Parent,
     LocalConversionContext,
-    FieldTypeComposition,
+    FieldComposer,
     OwnedItemPresentableContext,
     OwnerAspectWithCommaPunctuatedItems,
     SequenceOutput
@@ -43,7 +43,7 @@ pub type FieldsOwnedComposer<Parent> = SequenceComposer<
 pub type CtorSequenceComposer<Parent, S, SP, I> = SequenceComposer<
     Parent,
     ConstructorFieldsContext,
-    FieldTypeComposition,
+    FieldComposer,
     OwnedItemPresentablePair,
     FunctionContext,
     BindingPresentableContext<S, SP, I>,
@@ -52,7 +52,7 @@ pub type CtorSequenceComposer<Parent, S, SP, I> = SequenceComposer<
 pub type FnSignatureSequenceComposer<Parent, S, SP, I> = SequenceComposer<
     Parent,
     FnSignatureContext,
-    FieldTypeComposition,
+    FieldComposer,
     OwnedItemPresentablePair,
     FunctionContext,
     BindingPresentableContext<S, SP, I>,
@@ -60,7 +60,7 @@ pub type FnSignatureSequenceComposer<Parent, S, SP, I> = SequenceComposer<
 pub type FieldsSequenceComposer<Parent, OwnerAspect, B, C, Presentable> = SequenceComposer<
     Parent,
     OwnerAspect,
-    FieldTypeComposition,
+    FieldComposer,
     B,
     C,
     Presentable>;

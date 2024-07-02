@@ -22,7 +22,6 @@ impl<Parent: SharedAccess> Linkable<Parent> for GenericsComposer<Parent> {
 
 impl<'a, Parent: SharedAccess> Composer<'a> for GenericsComposer<Parent> {
     type Source = ParentComposer<ScopeContext>;
-    // type Result = (CommaPunctuatedTokens, CommaPunctuatedTokens);
     type Result = Option<Generics>;
     fn compose(&self, context: &Self::Source) -> Self::Result {
         let context = context.borrow();
@@ -30,12 +29,14 @@ impl<'a, Parent: SharedAccess> Composer<'a> for GenericsComposer<Parent> {
             let mut g = generics.clone();
             let update_bound = |type_path: &TypePathHolder, bounds: &mut AddPunctuated<TypeParamBound>| {
                 if let Some(refined_bounds) = context.context.read().unwrap().generics.maybe_generic_bounds(&context.scope, type_path) {
-                    bounds.iter_mut().zip(refined_bounds).for_each(|(b, rb)| match b {
-                        TypeParamBound::Trait(TraitBound { path, .. }) => {
-                            *path = rb.clone();
-                        },
-                        TypeParamBound::Lifetime(_) => {}
-                    });
+                    bounds.iter_mut()
+                        .zip(refined_bounds)
+                        .for_each(|(b, rb)| match b {
+                            TypeParamBound::Trait(TraitBound { path, .. }) => {
+                                *path = rb.clone();
+                            },
+                            TypeParamBound::Lifetime(_) => {}
+                        });
                 }
             };
             g.params.iter_mut().for_each(|gp| match gp {
@@ -44,7 +45,7 @@ impl<'a, Parent: SharedAccess> Composer<'a> for GenericsComposer<Parent> {
                     update_bound(&ident_path, bounds);
                 }
                 GenericParam::Lifetime(_) |
-                GenericParam::Const(_) => unimplemented!("GenericsComposer::compose(Lifetime | Const)"),
+                GenericParam::Const(_) => {},
             });
             if let Some(ref mut wh) = g.where_clause {
                 wh.predicates.iter_mut().for_each(|wp| match wp {

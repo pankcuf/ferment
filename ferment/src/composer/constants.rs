@@ -4,8 +4,8 @@ use quote::{quote, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::{Field, parse_quote};
 use crate::ast::{DelimiterTrait, Depunctuated, Wrapped};
-use crate::composable::{CfgAttributes, FieldTypeComposition, FieldTypeConversionKind};
-use crate::composer::{BasicComposable, BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ContextComposer, CtorSequenceComposer, DropSequenceMixer, FieldsContext, FieldsConversionComposable, FFIComposer, FFIConversionMixer, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, NameContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectWithItems, OwnerIteratorPostProcessingComposer, SharedComposer, EnumComposer, LocalConversionContext, OwnerAspectWithCommaPunctuatedItems, ConstructorFieldsContext, ParentComposer, SequenceOutputPair, CommaPunctuatedOwnedItems, CommaPunctuatedFields, FunctionContext, ConstructorArgComposerRef, FieldsComposerRef, TypeContextComposer, DestructorContext, ParentComposerPresenterByRef, ParentSharedComposer, ParentComposerRef, OwnedItemsPunctuated, LocalFieldsOwnerContext, SequenceComposer, SequenceMixer, SourceAccessible};
+use crate::composable::{CfgAttributes, FieldComposer, FieldTypeConversionKind};
+use crate::composer::{BasicComposable, BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ContextComposer, CtorSequenceComposer, DropSequenceMixer, FieldsContext, FieldsConversionComposable, FFIComposer, FFIConversionMixer, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, NameContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectWithItems, OwnerIteratorPostProcessingComposer, SharedComposer, EnumComposer, LocalConversionContext, OwnerAspectWithCommaPunctuatedItems, ConstructorFieldsContext, ParentComposer, SequenceOutputPair, CommaPunctuatedOwnedItems, CommaPunctuatedFields, FunctionContext, ConstructorArgComposerRef, FieldsComposerRef, TypeContextComposer, DestructorContext, ParentComposerPresenterByRef, ParentSharedComposer, ParentComposerRef, OwnedItemsPunctuated, LocalFieldsOwnerContext, SequenceComposer, SequenceMixer, SourceAccessible, FromConversionComposer};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
 use crate::ext::Conversion;
 use crate::presentable::{Aspect, BindingPresentableContext, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, SequenceOutput};
@@ -249,15 +249,7 @@ const fn struct_composer_ctor_named_opaque_item() -> ConstructorArgComposerRef {
         OwnedItemPresentableContext::Named(field_type.clone(), false),
         OwnedItemPresentableContext::DefaultFieldConversion(
             field_type.clone(),
-            match TypeConversion::from(field_type.ty()) {
-                TypeConversion::Primitive(_) =>
-                    Expression::Simple(field_type.name.to_token_stream()),
-                TypeConversion::Complex(_) => Expression::From(Expression::Simple(field_type.name.to_token_stream()).into()),
-                TypeConversion::Generic(generic_ty) => match generic_ty {
-                    GenericTypeConversion::Optional(_) => Expression::FromOpt(Expression::Simple(field_type.name.to_token_stream()).into()),
-                    _ => Expression::From(Expression::Simple(field_type.name.to_token_stream()).into())
-                }
-            },
+            FromConversionComposer::from(field_type),
             field_type.attrs.clone())
     )
 }
@@ -367,7 +359,7 @@ pub const fn enum_variant_composer_conversion_unit() -> OwnerIteratorConversionC
 }
 
 pub const ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER: FieldsComposerRef = |fields|
-    compose_fields(fields, |index, Field { ty, attrs, .. }| FieldTypeComposition::new(
+    compose_fields(fields, |index, Field { ty, attrs, .. }| FieldComposer::new(
         Name::UnnamedArg(index),
         FieldTypeConversionKind::Type(ty.clone()),
         false,
@@ -377,7 +369,7 @@ pub const STRUCT_UNNAMED_FIELDS_COMPOSER: FieldsComposerRef = |fields|
     compose_fields(
         fields,
         |index, Field { ty, attrs, .. }|
-            FieldTypeComposition::new(
+            FieldComposer::new(
                 Name::UnnamedStructFieldsComp(ty.clone(), index),
                 FieldTypeConversionKind::Type(ty.clone()),
                 false,
@@ -387,7 +379,7 @@ pub const STRUCT_NAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
     CommaPunctuatedFields,
     FieldTypesContext> = |fields|
     compose_fields(fields, |_index, Field { ident, ty, attrs, .. }|
-        FieldTypeComposition::new(
+        FieldComposer::new(
             Name::Optional(ident.clone()),
             FieldTypeConversionKind::Type(ty.clone()),
             true,
@@ -395,7 +387,7 @@ pub const STRUCT_NAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
         ));
 pub const EMPTY_FIELDS_COMPOSER: FieldsComposerRef = |_| Punctuated::new();
 fn compose_fields<F>(fields: &CommaPunctuatedFields, mapper: F) -> FieldTypesContext
-    where F: Fn(usize, &Field) -> FieldTypeComposition {
+    where F: Fn(usize, &Field) -> FieldComposer {
     fields
         .iter()
         .enumerate()
@@ -498,7 +490,7 @@ pub const fn composer_target_binding<C>() -> ParentSharedComposer<C, DestructorC
 
 
 fn compose_fields_conversions<F, Out, It>(field_types: FieldTypesContext, mapper: F) -> It
-    where F: Fn(&FieldTypeComposition) -> Out, It: FromIterator<Out> {
+    where F: Fn(&FieldComposer) -> Out, It: FromIterator<Out> {
     field_types.iter().map(mapper).collect()
 }
 
@@ -523,7 +515,7 @@ const fn struct_composer_from_iterator_post_processor<SEP: Default>()
     -> OwnedIteratorPostProcessor<SEP> {
     |(((aspect, field_types), _generics), presenter)|
         (aspect, {
-            let composer = |field_type: &FieldTypeComposition|
+            let composer = |field_type: &FieldComposer|
                 OwnedItemPresentableContext::Expression(
                     presenter(&(field_type.name.to_token_stream(), field_type.conversion_from(Expression::FfiRefWithConversion(field_type.clone())))),
                     field_type.attrs.clone());
@@ -534,7 +526,7 @@ const fn struct_composer_to_iterator_post_processor<SEP: Default>()
     -> OwnedIteratorPostProcessor<SEP> {
     |(((aspect, field_types), _generics), presenter)|
         (aspect, {
-            let composer = |field_type: &FieldTypeComposition|
+            let composer = |field_type: &FieldComposer|
                 OwnedItemPresentableContext::Expression(
                     presenter(&(field_type.name.to_token_stream(), field_type.conversion_to(Expression::ObjFieldName(field_type.name.to_token_stream())))),
                     field_type.attrs.clone());
@@ -545,7 +537,7 @@ const fn type_alias_composer_to_iterator_post_processor<SEP: Default>()
     -> OwnedIteratorPostProcessor<SEP> {
     |(((aspect, field_types), _generics), presenter)|
         (aspect, {
-            let composer = |field_type: &FieldTypeComposition|
+            let composer = |field_type: &FieldComposer|
                 OwnedItemPresentableContext::Expression(
                     presenter(&(quote!(), field_type.conversion_to(Expression::Obj))),
                     field_type.attrs.clone());
@@ -556,7 +548,7 @@ const fn enum_variant_composer_from_sequence_iterator_root<SEP: Default>()
     -> OwnedIteratorPostProcessor<SEP> {
     |(((aspect, field_types), _generics), presenter)|
         (aspect, {
-            let composer = |field_type: &FieldTypeComposition|
+            let composer = |field_type: &FieldComposer|
                 OwnedItemPresentableContext::Expression(
                     presenter(&(field_type.name.to_token_stream(), field_type.conversion_from(Expression::Deref(field_type.name.to_token_stream())))),
                     field_type.attrs.clone());
@@ -572,7 +564,7 @@ const fn enum_variant_composer_from_sequence_iterator_root<SEP: Default>()
 const fn enum_variant_composer_to_sequence_iterator_root<SEP: Default>()
     -> OwnedIteratorPostProcessor<SEP> {
     |(((aspect, field_types), _generics), presenter)| {
-        let composer = |field_type: &FieldTypeComposition|
+        let composer = |field_type: &FieldComposer|
             OwnedItemPresentableContext::Expression(
                 presenter(&(field_type.name.to_token_stream(), field_type.conversion_to(Expression::FieldTypeConversionName(field_type.clone())))),
                 field_type.attrs.clone());
@@ -584,7 +576,7 @@ const fn enum_variant_composer_to_sequence_iterator_root<SEP: Default>()
 const fn struct_composer_drop_iterator_post_processor<SEP: Default>()
     -> DropFieldsIterator<SEP> {
     |(field_types, presenter)| {
-        let composer = |field_type: &FieldTypeComposition|
+        let composer = |field_type: &FieldComposer|
             OwnedItemPresentableContext::Expression(
                 presenter(&(quote!(), field_type.conversion_destroy(Expression::FfiRefWithConversion(field_type.clone())))),
                 field_type.attrs.clone());
@@ -594,7 +586,7 @@ const fn struct_composer_drop_iterator_post_processor<SEP: Default>()
 const fn enum_variant_composer_drop_sequence_iterator_root<'a, SEP: Default>()
     -> DropFieldsIterator<SEP> {
     |(field_types, presenter)| {
-        let composer = |field_type: &FieldTypeComposition|
+        let composer = |field_type: &FieldComposer|
             OwnedItemPresentableContext::Expression(
                 presenter(&(field_type.name.to_token_stream(), field_type.conversion_destroy(Expression::Deref(field_type.name.to_token_stream())))),
                 field_type.attrs.clone());
@@ -604,7 +596,7 @@ const fn enum_variant_composer_drop_sequence_iterator_root<'a, SEP: Default>()
 }
 
 const fn fields_composer_iterator_root<CTX, Item, OUT>()
-    -> ComposerPresenter<(LocalFieldsOwnerContext<CTX>, ComposerPresenterByRef<FieldTypeComposition, Item>), (CTX, OUT)>
+    -> ComposerPresenter<(LocalFieldsOwnerContext<CTX>, ComposerPresenterByRef<FieldComposer, Item>), (CTX, OUT)>
     where OUT: FromIterator<Item> {
     |(((aspect, field_types), _generics), composer)|
         (aspect, compose_fields_conversions(field_types, composer))

@@ -66,7 +66,7 @@ impl ValueReplaceScenario for ObjectConversion {
 
 impl ToTokens for ObjectConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        self.to_ty().to_tokens(tokens)
+        self.maybe_type().to_tokens(tokens)
     }
 }
 impl Debug for ObjectConversion {
@@ -118,7 +118,7 @@ impl ObjectConversion {
     //         ObjectConversion::Empty => None
     //     }
     // }
-    pub fn to_ty(&self) -> Option<Type> {
+    pub fn maybe_type(&self) -> Option<Type> {
         match self {
             ObjectConversion::Type(ty) |
             ObjectConversion::Item(ty, _) => Some(ty.to_type()),

@@ -1,12 +1,13 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Path, Type, TypePath};
+use quote::ToTokens;
+use syn::{Attribute, parse_quote, Path, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{extract_trait_names, Opaque, ToObjectConversion};
+use crate::ext::{extract_trait_names, Opaque, ToObjectConversion, ToType};
 use crate::print_phase;
 
 #[derive(Clone)]
@@ -62,24 +63,31 @@ impl ScopeContext {
         lock.custom.maybe_conversion(ty)
     }
     pub fn maybe_opaque_object(&self, ty: &Type) -> Option<Type> {
-        let result = match ty {
-            Type::Path(TypePath { path, .. }) => {
-                let lock = self.context.read().unwrap();
-                lock.maybe_item(path)
-                    .filter(|item| item.is_opaque())
-                    .map(ScopeItemConversion::to_ty)
+        // println!("maybe_opaque_object: {}", ty.to_token_stream());
+        let resolve_opaque = |path: &Path| {
+            // println!("resolve_opaque: {}", path.to_token_stream());
+            let lock = self.context.read().unwrap();
+            let result = lock.maybe_item(path)
+                .filter(|item| item.is_opaque())
+                .map(ScopeItemConversion::to_type);
+            println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
+            result
+        };
+        match ty {
+            Type::Path(TypePath { path, .. }) =>
+                resolve_opaque(path),
+            Type::TraitObject(TypeTraitObject { dyn_token, bounds, .. }) => match bounds.len() {
+                1 => match bounds.first().unwrap() {
+                    TypeParamBound::Trait(TraitBound { path, .. }) =>
+                        resolve_opaque(path)
+                            .map(|ty| parse_quote!(#dyn_token #ty)),
+                    TypeParamBound::Lifetime(_) =>
+                        panic!("maybe_opaque_object::error")
+                },
+                _ => panic!("maybe_opaque_object::error")
             },
             _ => None
-        };
-
-        // let result = lock.maybe_item(&ty.to_path())
-        //     .filter(|item| item.is_opaque())
-        //     .and_then(ScopeItemConversion::to_ty);
-        // println!("maybe_opaque: {} --- {}", ty.to_token_stream(), result.to_token_stream());
-        result
-        // let result = self.(ty)
-        //     .filter(ObjectConversion::is_opaque);
-        // result.and_then(|obj| obj.to_ty())
+        }
     }
 
     pub fn maybe_object(&self, ty: &Type) -> Option<ObjectConversion> {
@@ -96,10 +104,11 @@ impl ScopeContext {
 
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        // println!("full_type_for: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
+        // println!("full_type_for.1: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
         let full_ty = lock.maybe_object(ty, &self.scope)
-            .and_then(ObjectConversion::to_ty)
+            .and_then(ObjectConversion::maybe_type)
             .unwrap_or(ty.clone());
+        // println!("full_type_for.2: {}", full_ty.to_token_stream());
         full_ty
     }
 

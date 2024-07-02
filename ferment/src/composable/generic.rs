@@ -44,7 +44,7 @@ impl GenericConversion {
     }
 
     pub fn used_imports(&self) -> HashSet<PathHolder> {
-        generic_imports(self.object.to_ty().as_ref())
+        generic_imports(self.object.maybe_type().as_ref())
     }
 }
 
