@@ -8,6 +8,7 @@ pub trait DictionaryType {
     fn is_any_string(&self) -> bool {
         self.is_str() || self.is_string()
     }
+    fn is_void(&self) -> bool;
     fn is_digit(&self) -> bool;
     fn is_bool(&self) -> bool;
     fn is_str(&self) -> bool;
@@ -26,6 +27,10 @@ pub trait DictionaryType {
 }
 
 impl DictionaryType for Ident {
+    fn is_void(&self) -> bool {
+        self.to_string().eq("c_void")
+    }
+
     fn is_digit(&self) -> bool {
         matches!(self.to_string().as_str(), "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize")
     }

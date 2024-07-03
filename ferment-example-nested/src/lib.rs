@@ -6,44 +6,47 @@ extern crate ferment_macro;
 
 use std::collections::BTreeMap;
 use ferment_interfaces::boxed;
+use crate::model::LLMQSnapshot;
 
 
 #[ferment_macro::opaque]
 pub type BlockHashByHeight = unsafe extern "C" fn(u32) -> [u8; 32];
-
 #[ferment_macro::opaque]
-pub struct FFICoreProvider {
-    pub block_hash_by_height: BlockHashByHeight,
-}
-
-impl CoreProvider for FFICoreProvider {
-    fn get_block_hash_by_height(&self, _height: u32) -> [u8; 32] {
-        [0u8; 32]
-        // (self.block_hash_by_height)(height)
-    }
-}
+pub type SnapshotByHeight = unsafe extern "C" fn(u32) -> LLMQSnapshot;
 
 #[ferment_macro::opaque]
 pub trait CoreProvider {
     fn get_block_hash_by_height(&self, height: u32) -> [u8; 32];
+    fn snapshot_by_height(&self, height: u32) -> LLMQSnapshot;
 }
 #[ferment_macro::opaque]
-pub struct DashSharedCore {
-    pub processor: *mut Processor,
-    pub cache: BTreeMap<String, String>,
-    context: *const std::os::raw::c_void,
+pub struct FFIPtrCoreProvider {
+    pub block_hash_by_height: BlockHashByHeight,
+    pub snapshot_by_height: SnapshotByHeight,
+}
+impl CoreProvider for FFIPtrCoreProvider {
+    fn get_block_hash_by_height(&self, height: u32) -> [u8; 32] {
+        unsafe { (self.block_hash_by_height)(height) }
+    }
+
+    fn snapshot_by_height(&self, height: u32) -> LLMQSnapshot {
+        unsafe { (self.snapshot_by_height)(height) }
+    }
+}
+// #[ferment_macro::opaque]
+pub struct FFITraitCoreProvider<T: Fn(u32) -> [u8; 32], U: Fn(u32) -> LLMQSnapshot> {
+    pub block_hash_by_height: T,
+    pub snapshot_by_height: U,
 }
 
-#[ferment_macro::opaque]
-impl DashSharedCore {
-    pub fn new(
-        block_hash_by_height: BlockHashByHeight,
-        context: *const std::os::raw::c_void) -> Self {
-        Self {
-            processor: boxed(Processor { chain_id: Box::new(FFICoreProvider { block_hash_by_height }) }),
-            cache: Default::default(),
-            context
-        }
+impl<T, U> CoreProvider for FFITraitCoreProvider<T, U>
+    where T: Fn(u32) -> [u8; 32], U: Fn(u32) -> LLMQSnapshot {
+    fn get_block_hash_by_height(&self, height: u32) -> [u8; 32] {
+        (self.block_hash_by_height)(height)
+    }
+
+    fn snapshot_by_height(&self, height: u32) -> LLMQSnapshot {
+        (self.snapshot_by_height)(height)
     }
 }
 
@@ -51,6 +54,47 @@ impl DashSharedCore {
 pub struct Processor {
     pub chain_id: Box<dyn CoreProvider>,
 }
+
+
+#[ferment_macro::opaque]
+pub struct DashSharedCore {
+    pub processor: *mut Processor,
+    pub cache: BTreeMap<String, String>,
+    context: *const std::os::raw::c_void,
+}
+
+#[ferment_macro::export]
+impl DashSharedCore {
+    pub fn new_with_pointers(
+        block_hash_by_height: BlockHashByHeight,
+        snapshot_by_height: SnapshotByHeight,
+        context: *const std::os::raw::c_void) -> Self {
+        Self {
+            processor: boxed(Processor { chain_id: Box::new(FFIPtrCoreProvider { block_hash_by_height, snapshot_by_height }) }),
+            cache: Default::default(),
+            context
+        }
+    }
+}
+// #[ferment_macro::export]
+// impl DashSharedCore {
+//     pub fn new<T, U>(
+//         block_hash_by_height: T,
+//         snapshot_by_height: U,
+//         context: *const std::os::raw::c_void) -> Self
+//         where T: Fn(u32) -> [u8; 32] + 'static, U: Fn(u32) -> LLMQSnapshot + 'static {
+//         Self {
+//             processor: boxed(Processor { chain_id: Box::new(FFITraitCoreProvider { block_hash_by_height, snapshot_by_height }) }),
+//             cache: Default::default(),
+//             context
+//         }
+//     }
+// }
+
+
+
+
+
 
 #[ferment_macro::export]
 pub struct SomeStruct {

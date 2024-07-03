@@ -10,7 +10,7 @@ use crate::composable::{FieldComposer, FieldTypeConversionKind};
 use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{expand_attributes, TypeConversion};
-use crate::ext::{Accessory, FFITypeResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType, usize_to_tokenstream};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType, usize_to_tokenstream};
 use crate::presentable::{BindingPresentableContext, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, create_callback, create_struct, DestroyPresentation, DictionaryExpr, DictionaryName, DropInterfacePresentation, Expansion, FFIConversionMethod, FFIConversionMethodExpr, FFIObjectPresentation, FFIVecConversionMethodExpr, FromConversionPresentation, InterfacePresentation, InterfacesMethodExpr, Name, ToConversionPresentation};
 

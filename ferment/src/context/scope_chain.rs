@@ -265,6 +265,8 @@ impl ScopeChain {
                 Some(TypeCompositionConversion::Object(TypeComposition::new_non_gen(path.to_type(), None)))
             // } else if ident.is_smart_ptr() {
             //     Some(TypeCompositionConversion::SmartPointer(TypeComposition::new(path.to_type(), None, nested_arguments)))
+            // } else if ident.is_void() {
+            //     Some(TypeCompositionConversion::Object(TypeComposition::new_non_gen(path.to_type(), None)))
             } else if ident.is_special_std_trait()  {
                 Some(TypeCompositionConversion::TraitType(TypeComposition::new_non_gen(path.to_type(), None)))
             } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") {

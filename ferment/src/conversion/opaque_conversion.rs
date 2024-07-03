@@ -89,12 +89,12 @@ impl OpaqueConversion {
         match self {
             Self::Struct(item, scope) =>
                 struct_expansion(item, scope, scope_context),
+            Self::Impl(..) |
             Self::Mod(..) |
             Self::Enum(..) |
             Self::Type(..) |
             Self::Fn(..) |
-            Self::Trait(..) |
-            Self::Impl(..) =>
+            Self::Trait(..) =>
                 Expansion::Empty
         }
     }
@@ -118,3 +118,19 @@ fn struct_expansion(item_struct: &ItemStruct, scope: &ScopeChain, scope_context:
     }
 }
 
+// fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &ParentComposer<ScopeContext>) -> Expansion {
+//     let ItemImpl { generics: _, trait_, self_ty, items, ..  } = item_impl;
+//
+//     let source = scope_context.borrow();
+//     let full_path = scope.self_path().crate_named(&source.scope.crate_ident().to_path());
+//     items.iter()
+//         .filter_map(|impl_item| match impl_item {
+//             ImplItem::Method(ImplItemMethod { sig,  .. }) => {
+//                 let sig_context = FnSignatureContext::Impl(*self_ty.clone(), match trait_ {
+//                     None => None,
+//                     Some((_, path, _)) => Some(parse_quote!(#path))
+//                 }, sig.clone())
+//             }
+//             _ => None
+//         }).collect();
+// }

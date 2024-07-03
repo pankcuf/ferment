@@ -33,11 +33,15 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
     type Presentation = ArgPresentation;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-        println!("OwnedItemPresentableContext::present: {}", self);
+        //println!("OwnedItemPresentableContext::present: {}", self);
         match self {
-            OwnedItemPresentableContext::Expression(field_type_context, attrs) => ArgPresentation::AttributedConversion {
-                attrs: attrs.to_token_stream(),
-                conversion: field_type_context.present(source)
+            OwnedItemPresentableContext::Expression(field_type_context, attrs) => {
+                println!("OwnedItemPresentableContext::Expression: {}", field_type_context.present(source));
+
+                ArgPresentation::AttributedConversion {
+                    attrs: attrs.to_token_stream(),
+                    conversion: field_type_context.present(source)
+                }
             },
             OwnedItemPresentableContext::SequenceOutput(seq, attrs) => ArgPresentation::AttributedConversion {
                 attrs: attrs.to_token_stream(),
@@ -59,12 +63,12 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 }
             },
             OwnedItemPresentableContext::DefaultFieldConversion(FieldComposer { name, .. }, conversion, attrs) => {
-                println!("OwnedItemPresentableContext::DefaultFieldConversion: {} --- {}", name, conversion.compose(source));
-
+                let var = conversion.compose(source);
+                println!("OwnedItemPresentableContext::DefaultFieldConversion: {} --- {}", name.to_token_stream(), var.present(source));
                 ArgPresentation::NamedType {
                     attrs: attrs.to_token_stream(),
                     name: name.to_token_stream(),
-                    var: conversion.compose(source).present(source)
+                    var: var.present(source)
                 }
             },
             OwnedItemPresentableContext::BindingArg(FieldComposer { name, kind, named, attrs}) => {

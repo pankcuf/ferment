@@ -29,7 +29,7 @@ impl Conversion for FieldComposer {
 
 impl Conversion for Type {
     fn conversion_from(&self, expr: Expression) -> Expression {
-        println!("Type::conversion_from: {}", expr);
+        //println!("Type::conversion_from: {}", expr);
         let resutl = match self {
             Type::Array(ty) =>
                 ty.conversion_from(expr),
@@ -124,19 +124,7 @@ impl Conversion for TypeSlice {
     }
 
     fn conversion_to(&self, expr: Expression) -> Expression {
-        match &*self.elem {
-            Type::Path(..) =>
-                Expression::To(Expression::ToVec(expr.into()).into()),
-            Type::Tuple(..) =>
-                Expression::To(Expression::ToVec(expr.into()).into()),
-            Type::Array(..) =>
-                Expression::To(Expression::ToVec(expr.into()).into()),
-            Type::Slice(..) =>
-                Expression::To(Expression::ToVec(expr.into()).into()),
-            Type::Reference(..) =>
-                Expression::To(Expression::ToVec(expr.into()).into()),
-            _ => panic!("<TypeSlice as Conversion>::conversion_to: Unknown type {} === {:?}", quote!(#self), self),
-        }
+        Expression::To(Expression::ToVec(expr.into()).into())
     }
 
     fn conversion_destroy(&self, expr: Expression) -> Expression {
@@ -145,6 +133,7 @@ impl Conversion for TypeSlice {
 }
 impl Conversion for TypePtr {
     fn conversion_from(&self, expr: Expression) -> Expression {
+        println!("TypePtr::conversion_from: {} === {}", self.to_token_stream(), expr);
         match &*self.elem {
             Type::Ptr(type_ptr) => match &*type_ptr.elem {
                 Type::Path(_type_path) => Expression::FromOffsetMap,
@@ -326,27 +315,25 @@ impl Conversion for TypeImplTrait {
         Expression::AsRef(expr.into())
     }
 
-    fn conversion_to(&self, _expr: Expression) -> Expression {
-        todo!()
+    fn conversion_to(&self, expr: Expression) -> Expression {
+        Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, _expr: Expression) -> Expression {
-        todo!()
+    fn conversion_destroy(&self, expr: Expression) -> Expression {
+        Expression::UnboxAny(expr.into())
     }
 }
 
 impl Conversion for GenericBoundComposition {
-    fn conversion_from(&self, field_path: Expression) -> Expression {
-        field_path
-        // FieldContext::FFICallbackExpr(FFICallbackMethodExpr::Get(quote!(&#ident)))
-        // FieldContext::From(field_path.into())
+    fn conversion_from(&self, expr: Expression) -> Expression {
+        expr
     }
 
-    fn conversion_to(&self, field_path: Expression) -> Expression {
-        Expression::To(field_path.into())
+    fn conversion_to(&self, expr: Expression) -> Expression {
+        Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, field_path: Expression) -> Expression {
-        Expression::UnboxAny(field_path.into())
+    fn conversion_destroy(&self, expr: Expression) -> Expression {
+        Expression::UnboxAny(expr.into())
     }
 }

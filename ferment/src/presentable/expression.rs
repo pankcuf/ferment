@@ -6,7 +6,7 @@ use crate::composable::FieldComposer;
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug, Display)]
 #[allow(unused)]
@@ -17,6 +17,7 @@ pub enum Expression {
     Self_,
     Simple(TokenStream2),
     DictionaryName(DictionaryName),
+    Name(Name),
     DictionaryExpr(DictionaryExpr),
     FFIConversionExpr(FFIConversionMethodExpr),
     FFICallbackExpr(FFICallbackMethodExpr),
@@ -46,7 +47,7 @@ pub enum Expression {
     FromRawParts(TokenStream2),
     From(Box<Expression>),
     IntoBox(Box<Expression>),
-    IntoBoxRaw(Box<Expression>),
+    FromRawBox(Box<Expression>),
     CastFrom(Box<Expression>, TokenStream2, TokenStream2),
     CastDestroy(Box<Expression>, TokenStream2, TokenStream2),
     FromOffsetMap,
@@ -234,7 +235,7 @@ impl ScopeContextPresentable for Expression {
             Self::IntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
                     .present(source),
-            Self::IntoBoxRaw(expr) =>
+            Self::FromRawBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
                     .present(source),
 
@@ -258,6 +259,8 @@ impl ScopeContextPresentable for Expression {
                 let items = items.present(source);
                 quote!({ let ffi_ref = &*#root_path; (#items) })
             }
+            Expression::Name(name) => name
+                .to_token_stream()
         }
     }
 }

@@ -1,17 +1,13 @@
-use quote::ToTokens;
-use syn::{parse_quote, Type};
+use quote::{quote, ToTokens};
+use syn::{ParenthesizedGenericArguments, PatType, Type};
+use crate::ast::CommaPunctuated;
 use crate::composable::{FieldComposer, TypeComposition};
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{GenericNestedArg, Resolve, SpecialType};
+use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, SpecialType};
 use crate::presentable::Expression;
-use crate::presentation::{FFIVariable, Name};
-
-pub enum FromConversionType {
-    FromPrimitive,
-    FromComplex,
-}
+use crate::presentation::Name;
 
 #[derive(Clone, Debug)]
 pub struct FromConversionComposer {
@@ -24,99 +20,87 @@ impl From<&FieldComposer> for FromConversionComposer {
         Self { name: value.name.clone(), ty: value.ty().clone() }
     }
 }
+
+#[allow(unused)]
+impl From<&PatType> for FromConversionComposer {
+    fn from(value: &PatType) -> Self {
+        let PatType { ty, pat, .. } = value;
+        Self { name: Name::Pat(*pat.clone()), ty: *ty.clone() }
+    }
+}
+
+
+#[allow(unused)]
 impl FromConversionComposer {
     pub fn new(name: Name, ty: Type) -> Self {
         Self { name, ty }
     }
 }
-
 impl<'a> Composer<'a> for FromConversionComposer {
     type Source = ScopeContext;
     type Result = Expression;
 
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
-
-        // match TypeConversion::from(&self.ty) {
-        //     TypeConversion::Primitive(_) =>
-        //         Expression::Simple(self.name.to_token_stream()),
-        //     TypeConversion::Complex(_) => Expression::From(Expression::Simple(self.name.to_token_stream()).into()),
-        //     TypeConversion::Generic(generic_ty) => match generic_ty {
-        //         GenericTypeConversion::Optional(_) => Expression::FromOpt(Expression::Simple(self.name.to_token_stream()).into()),
-        //         _ => Expression::From(Expression::Simple(self.name.to_token_stream()).into())
-        //     }
-        // }
-
-        let full_ty: Type = Resolve::resolve(&self.ty, source);
-        match <Type as Resolve<Option<SpecialType>>>::resolve(&full_ty, source) {
-            Some(special) => match source.maybe_object(&self.ty) {
-                Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_), ..) |
-                     ObjectConversion::Type(TypeCompositionConversion::FnPointer(_), ..)) => {
-                    println!("FromConversionComposer (Special FnPointer): {}", special.to_token_stream());
-                    Expression::Simple(self.name.to_token_stream())
-                }
-                Some(ObjectConversion::Item(TypeCompositionConversion::Trait(..), ..) |
-                     ObjectConversion::Type(TypeCompositionConversion::TraitType(..), ..)) => {
-                    println!("FromConversionComposer (Special Trait): {}", special.to_token_stream());
-                    Expression::Simple(self.name.to_token_stream())
-                    // Expression::From(Expression::Simple(self.name.to_token_stream()).into())
+        let Self { name, ty } = self;
+        let field_path = Expression::Simple(name.to_token_stream());
+        let full_type = ty.full_type(source);
+        let expression = match full_type.maybe_special_type(source) {
+            Some(SpecialType::Opaque(..)) =>
+                field_path,
+            Some(SpecialType::Custom(..)) =>
+                Expression::From(field_path.into()),
+            None => match ty.composition(source) {
+                TypeCompositionConversion::FnPointer(..) =>
+                    field_path,
+                TypeCompositionConversion::Optional(..)  =>
+                    Expression::FromOpt(field_path.into()),
+                TypeCompositionConversion::Boxed(TypeComposition { ref ty, .. }) => if let Some(nested_ty) = ty.first_nested_type() {
+                    match (nested_ty.maybe_special_type(source),
+                           nested_ty.maybe_object(source)) {
+                        (Some(SpecialType::Opaque(..)),
+                            Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_) |
+                                                        TypeCompositionConversion::Trait(..) |
+                                                        TypeCompositionConversion::TraitType(..), ..) |
+                                 ObjectConversion::Type(TypeCompositionConversion::FnPointer(_) |
+                                                        TypeCompositionConversion::Trait(..) |
+                                                        TypeCompositionConversion::TraitType(..)))) =>
+                            Expression::IntoBox(field_path.into()),
+                        (Some(SpecialType::Opaque(..)), _any_other) =>
+                            Expression::FromRawBox(field_path.into()),
+                        (Some(SpecialType::Custom(..)), _any) =>
+                            Expression::IntoBox(Expression::From(field_path.into()).into()),
+                        _ =>
+                            Expression::From(Expression::IntoBox(field_path.into()).into())
+                    }
+                } else {
+                    field_path
                 },
-                _ => {
-                    println!("FromConversionComposer (Special MutPtr): {}", special.to_token_stream());
-                    Expression::Simple(self.name.to_token_stream())
-                    // Expression::From(Expression::Simple(self.name.to_token_stream()).into())
+                TypeCompositionConversion::Bounds(bounds) => match bounds.bounds.len() {
+                    0 => field_path,
+                    1 => if let Some(ParenthesizedGenericArguments { inputs, .. }) = bounds.maybe_bound_is_callback(bounds.bounds.first().unwrap()) {
+                        let lambda_args = CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)));
+                        Expression::Simple(quote!(|#lambda_args| unsafe { (&*#name).call(#lambda_args) }))
+                    } else {
+                        Expression::From(field_path.into())
+                    }
+                    _ =>
+                        Expression::From(field_path.into())
+                },
+                _ => match TypeConversion::from(ty) {
+                    TypeConversion::Primitive(_) =>
+                        field_path,
+                    TypeConversion::Generic(GenericTypeConversion::Optional(_)) =>
+                        Expression::FromOpt(field_path.into()),
+                    _ =>
+                        Expression::From(field_path.into())
                 }
             }
-            None => {
-                println!("FromConversionComposer (Regular): {}", full_ty.to_token_stream());
-                let conversion = <Type as Resolve<TypeCompositionConversion>>::resolve(&self.ty, source);
-                match conversion {
-                    TypeCompositionConversion::Optional(_)  => {
-                        let nested_ty = self.ty.first_nested_type().unwrap();
-                        Expression::FromOpt(Expression::Simple(self.name.to_token_stream()).into())
-                    }
-                    TypeCompositionConversion::Boxed(TypeComposition { ref ty, .. }) => {
-                        println!("FromConversionComposer (Boxed conversion): {}", conversion);
-                        let nested_ty = ty.first_nested_type().unwrap();
-                        // println!("OwnedItemPresentableContext::Named (Boxed conversion): Nested Type: {}", nested_ty.to_token_stream());
-                        match <Type as Resolve<Option<SpecialType>>>::resolve(nested_ty, source) {
-                            Some(special) => {
-                                println!("FromConversionComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
-                                match source.maybe_object(nested_ty) {
-                                    Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_), ..) |
-                                         ObjectConversion::Type(TypeCompositionConversion::FnPointer(_), ..)) => {
-                                        println!("FromConversionComposer (Special Boxed conversion): Nested Special FnPointer: {}", nested_ty.to_token_stream());
-                                        Expression::IntoBox(Expression::Simple(self.name.to_token_stream()).into())
-                                    }
-                                    Some(ObjectConversion::Item(TypeCompositionConversion::Trait(..), ..) |
-                                         ObjectConversion::Type(TypeCompositionConversion::TraitType(..), ..)) => {
-                                        println!("FromConversionComposer (Special Boxed conversion): Nested Special Trait: {}", nested_ty.to_token_stream());
-                                        Expression::IntoBox(Expression::Simple(self.name.to_token_stream()).into())
-                                    },
-                                    _ => {
-                                        println!("FromConversionComposer (Boxed conversion): Nested Special MutPtr: {}", nested_ty.to_token_stream());
-                                        Expression::IntoBoxRaw(Expression::Simple(self.name.to_token_stream()).into())
-                                    }
-                                }
-                            }
-                            None => {
-                                // let nested_conversion = <Type as Resolve<TypeCompositionConversion>>::resolve(nested_ty, source);
-                                Expression::From(Expression::IntoBox(Expression::Simple(self.name.to_token_stream()).into()).into())
-                            }
-                        }
-                    }
-                    _ => {
-                        match TypeConversion::from(&self.ty) {
-                            TypeConversion::Primitive(_) =>
-                                Expression::Simple(self.name.to_token_stream()),
-                            TypeConversion::Complex(_) => Expression::From(Expression::Simple(self.name.to_token_stream()).into()),
-                            TypeConversion::Generic(generic_ty) => match generic_ty {
-                                GenericTypeConversion::Optional(_) => Expression::FromOpt(Expression::Simple(self.name.to_token_stream()).into()),
-                                _ => Expression::From(Expression::Simple(self.name.to_token_stream()).into())
-                            }
-                        }
-                    }
-                }
-            }
+        };
+        match ty {
+            Type::Reference(_) =>
+                Expression::AsRef(expression.into()),
+            _ =>
+                expression
         }
     }
 }

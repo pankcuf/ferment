@@ -9,6 +9,7 @@ pub trait Opaque {
 impl<T> Opaque for T where T: ItemExtension {
     fn is_opaque(&self) -> bool {
         self.maybe_attrs().map_or(false, Opaque::is_opaque)
+
     }
 }
 

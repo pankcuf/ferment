@@ -1,8 +1,9 @@
+use std::fmt::Debug;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
 use crate::context::ScopeContext;
-use crate::conversion::GenericTypeConversion;
+use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion};
 use crate::ext::{Accessory, Resolve, ToPath, ToType};
 use crate::presentation::FFIFullPath;
 
@@ -34,38 +35,68 @@ impl ToPath for SpecialType {
     }
 }
 
-// pub trait FFISpecialTypeResolve {
-//     /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
-//     /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
-//     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType>;
-// }
-// impl FFISpecialTypeResolve for Type {
-//     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType> {
-//         // println!("Type::maybe_special_type: {}", self.to_token_stream());
-//         source.maybe_custom_conversion(self)
-//             .map(SpecialType::Custom)
-//             .or_else(|| source.maybe_opaque_object(self)
-//                 .map(SpecialType::Opaque))
-//     }
-// }
-// impl FFISpecialTypeResolve for GenericTypeConversion {
-//     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType> {
-//         // println!("GenericTypeConversion::maybe_special_type: {}", self.to_token_stream());
-//         self.ty()
-//             .and_then(|ty| ty.maybe_special_type(source))
-//     }
-// }
+pub trait FFITypeResolve {
+    fn full_type(&self, source: &ScopeContext) -> Type;
+}
 
-pub trait FFITypeResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> {
-    fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
-        <Self as Resolve<Option<SpecialType>>>::resolve(self, source)
-            .map(|special| special.to_type())
-            .unwrap_or(<Self as Resolve::<FFIFullPath>>::resolve(self, source).to_type())
+impl FFITypeResolve for Type {
+    fn full_type(&self, source: &ScopeContext) -> Type {
+        self.resolve(source)
     }
-    fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type {
+}
+
+pub trait FFISpecialTypeResolve {
+    /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
+    /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType>;
+}
+impl FFISpecialTypeResolve for Type {
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType> {
+        self.resolve(source)
+    }
+}
+
+pub trait FFIObjectResolve {
+    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectConversion>;
+}
+
+impl FFIObjectResolve for Type {
+    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectConversion> {
+        source.maybe_object(self)
+    }
+}
+
+pub trait FFICompositionResolve {
+    fn composition(&self, source: &ScopeContext) -> TypeCompositionConversion;
+}
+
+impl FFICompositionResolve for Type {
+    fn composition(&self, source: &ScopeContext) -> TypeCompositionConversion {
+        self.resolve(source)
+    }
+}
+
+pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> {
+    fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type where Self: Debug {
+        println!("special_or_to_ffi_full_path_type:: {:?}", self);
+        let res = <Self as Resolve<Option<SpecialType>>>::resolve(self, source)
+            .map(|special| {
+                println!("spec:: {:?}", special);
+
+                special.to_type()
+            })
+            .unwrap_or_else(|| {
+                println!("else:");
+                <Self as Resolve::<FFIFullPath>>::resolve(self, source).to_type()
+            });
+        println!("special_or_to_ffi_full_path_type.222:: {:?}", self);
+        res
+    }
+    fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type where Self: Debug {
         self.special_or_to_ffi_full_path_type(source)
             .joined_mut()
     }
 }
-impl FFITypeResolve for Type {}
-impl FFITypeResolve for GenericTypeConversion {}
+impl FFIVarResolve for Type {}
+impl FFIVarResolve for GenericTypeConversion {}
+

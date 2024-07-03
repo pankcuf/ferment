@@ -4,16 +4,15 @@ use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::{Attribute, BareFnArg, Generics, ItemFn, Path, ReturnType, Signature, Type, TypeBareFn};
 use syn::__private::TokenStream2;
-use syn::punctuated::Punctuated;
 use syn::token::RArrow;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
-use crate::composable::{AttrsComposition, CfgAttributes, FnReturnTypeComposer, FnSignatureContext};
-use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable};
+use crate::composable::{AttrsComposition, CfgAttributes, FnArgComposer, FnReturnTypeComposer, FnSignatureContext};
+use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable, CommaPunctuatedOwnedItems, ToConversionComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
-use crate::ext::{Conversion, FFITypeResolve, Mangle, Resolve, ToType};
-use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
+use crate::ext::{Conversion, FFIVarResolve, Mangle, Resolve, ToType};
+use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, Expansion, FFIConversionMethodExpr, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(BasicComposerOwner)]
@@ -77,6 +76,7 @@ impl DocsComposable for SigComposer {
 }
 
 fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
+    println!("compose_regular_fn: {}", path.to_token_stream());
     let Signature { output, inputs, asyncness, .. } = sig;
     let return_type = match output {
         ReturnType::Default => FnReturnTypeComposer {
@@ -85,24 +85,25 @@ fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>
         },
         ReturnType::Type(_, ty) => FnReturnTypeComposer {
             presentation: ReturnType::Type(RArrow::default(), Box::new(<Type as Resolve<FFIVariable>>::resolve(ty, source).to_type())),
-            conversion: ty.conversion_to(Expression::Obj)
+            conversion: {
+                ToConversionComposer::new(Name::Dictionary(DictionaryName::Obj), *ty.clone())
+                    .compose(source)
+            }
         }
     };
 
-    let argument_comps = inputs
+    let (arguments, argument_conversions): (CommaPunctuatedOwnedItems, CommaPunctuatedOwnedItems) = inputs
         .iter()
-        .map(|arg| arg.compose(&(sig_context, &source)));
-    let arguments = Punctuated::from_iter(argument_comps.clone()
-        .map(|arg| arg.name_type_original.clone()));
-    let argument_conversions = CommaPunctuated::from_iter(argument_comps
-        .map(|arg| OwnedItemPresentableContext::Expression(arg.name_type_conversion.clone(), Depunctuated::new())));
-    let fields_presenter = constants::ROUND_BRACES_FIELDS_PRESENTER((aspect, argument_conversions));
+        .map(|arg| arg.compose(&(sig_context, &source)))
+        .map(|FnArgComposer { name_type_original, name_type_conversion, .. }|
+            (name_type_original, OwnedItemPresentableContext::Expression(name_type_conversion, Depunctuated::new())))
+        .unzip();
     BindingPresentation::RegularFunction {
         attrs,
         is_async: asyncness.is_some(),
         arguments: arguments.present(&source),
         name: Name::ModFn(path),
-        input_conversions: fields_presenter.present(&source),
+        input_conversions: SequenceOutput::RoundBracesFields((aspect, argument_conversions)).present(&source),
         return_type: return_type.presentation.clone(),
         generics,
         output_conversions: return_type.conversion.present(&source)

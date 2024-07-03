@@ -34,7 +34,7 @@ impl ToType for FFIVariable {
 
 impl Resolve<FFIVariable> for Path {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
+        println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
         let last_segment = self.segments.last().unwrap();
@@ -68,7 +68,7 @@ impl Resolve<FFIVariable> for Path {
 }
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
-    // println!("resolve_type: {}", ty.to_token_stream());
+    println!("resolve_type: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
@@ -107,7 +107,7 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
 
 impl Resolve<FFIVariable> for AddPunctuated<TypeParamBound> {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
+        println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
             TypeParamBound::Lifetime(_) => None
@@ -118,7 +118,7 @@ impl Resolve<FFIVariable> for AddPunctuated<TypeParamBound> {
 
 impl Resolve<FFIVariable> for Type {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("Type::<FFIVariable>::resolve({})", self.to_token_stream());
+        println!("Type::<FFIVariable>::resolve({})", self.to_token_stream());
         let full_ty = <Type as Resolve<Type>>::resolve(self, source);
         let maybe_special = <Type as Resolve<Option<SpecialType>>>::resolve(&full_ty, source);
         let refined = maybe_special
@@ -135,7 +135,7 @@ impl Resolve<FFIVariable> for Type {
 
 impl Resolve<FFIVariable> for TypeCompositionConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("TypeCompositionConversion::<FFIVariable>::resolve({})", self.to_token_stream());
+        println!("TypeCompositionConversion::<FFIVariable>::resolve({})", self.to_token_stream());
         match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }, ..) => FFIVariable::Direct {

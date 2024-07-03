@@ -39,8 +39,8 @@ impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>
 }
 impl Mangle<MangleDefault> for Type {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        // println!("Mangle Type: {}", self.to_token_stream());
-        match self {
+        // println!("Mangle Type: {} --- {:?}", self.to_token_stream(), self);
+        let res = match self {
             // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
             Type::Path(TypePath { path, .. }) =>
                 path.mangle_string(context),
@@ -56,7 +56,9 @@ impl Mangle<MangleDefault> for Type {
                 type_bare_fn.mangle_string(context),
             ty =>
                 ty.to_path().get_ident().unwrap().clone().to_string()
-        }
+        };
+        // println!("Mangle Type..222: {}", res);
+        res
     }
 }
 
@@ -162,7 +164,7 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
 
 impl Mangle<String> for PathArguments {
     fn mangle_string(&self, context: String) -> String {
-        // println!("PathArguments::mangle_string: {}: {}", self.to_token_stream(), context);
+        println!("PathArguments::mangle_string: {} --- {:?} ---- {}", self.to_token_stream(), self, context);
         let mut segment_str = context.clone();
         let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
         if is_map {

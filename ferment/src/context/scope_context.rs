@@ -1,13 +1,13 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use quote::ToTokens;
 use syn::{Attribute, parse_quote, Path, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{extract_trait_names, Opaque, ToObjectConversion, ToType};
+use crate::ext::{DictionaryType, extract_trait_names, Opaque, ToObjectConversion, ToType};
+use crate::presentation::FFIFullDictionaryPath;
 use crate::print_phase;
 
 #[derive(Clone)]
@@ -69,8 +69,11 @@ impl ScopeContext {
             let lock = self.context.read().unwrap();
             let result = lock.maybe_item(path)
                 .filter(|item| item.is_opaque())
-                .map(ScopeItemConversion::to_type);
-            println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
+                .map(ScopeItemConversion::to_type)
+                .or_else(|| {
+                    path.segments.last().filter(|last_segment| last_segment.ident.is_void()).map(|_| FFIFullDictionaryPath::Void.to_type())
+                });
+            //println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
             result
         };
         match ty {

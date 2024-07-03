@@ -52,8 +52,8 @@ impl Resolve<TypeCompositionConversion> for Type {
 
 impl Resolve<Option<FFIFullPath>> for Type {
     fn resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
-        // println!("Type::<Option<FFIFullPath>>::resolve({})", self.to_token_stream());
-        match self {
+        println!("Type::<Option<FFIFullPath>>::resolve({}) -- {:?}", self.to_token_stream(), self);
+        let res = match self {
             Type::Path(TypePath{ path, .. }) =>
                 path.resolve(source),
             Type::Reference(TypeReference { elem, .. }) =>
@@ -74,14 +74,20 @@ impl Resolve<Option<FFIFullPath>> for Type {
 
             },
             _ => None
-        }
+        };
+        println!("Type::<Option<FFIFullPath>>::resolve...2({}", res.to_token_stream());
+        res
     }
 }
 impl Resolve<FFIFullPath> for Type {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
-        // println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
+        println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
         <Self as Resolve<Option<FFIFullPath>>>::resolve(self, source)
-            .unwrap_or(FFIFullPath::External { path: parse_quote!(#self) })
+            .unwrap_or_else(|| {
+                println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
+
+                FFIFullPath::External { path: parse_quote!(#self) }
+            })
     }
 }
 
@@ -94,7 +100,7 @@ impl Resolve<Option<SpecialType>> for GenericTypeConversion {
 
 impl Resolve<FFIFullPath> for GenericTypeConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
-        // println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
+        println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
         match self {
             GenericTypeConversion::Map(ty) |
             GenericTypeConversion::IndexMap(ty) |
