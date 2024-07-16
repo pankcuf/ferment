@@ -84,6 +84,7 @@ pub fn get_root_struct() -> RootStruct {
 }
 
 pub mod nested {
+    use std::collections::BTreeMap;
     use crate::RootStruct;
 
     #[ferment_macro::export]
@@ -152,14 +153,15 @@ pub mod nested {
 //     #[ferment_macro::export]
 //     pub struct Identifier(pub IdentifierBytes32);
 //
-//     #[ferment_macro::export]
-//     pub enum TestEnum {
-//         Variant1(String),
-//         Variant2,
-//         Variant3(HashID, u32),
-//         Variant4(HashID, u32, String),
-//         Variant5(BTreeMap<String, HashID>, u32, String),
-//     }
+    #[ferment_macro::export]
+    pub enum TestEnum {
+        Variant1(String),
+        Variant2,
+        Variant3(HashID, u32),
+        Variant4(HashID, u32, String),
+        Variant5(BTreeMap<String, HashID>, u32, String),
+        Variant6([u8; 32]),
+    }
 // //
 //     #[ferment_macro::export]
 //     pub struct DataContractNotPresentError {

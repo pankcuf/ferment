@@ -40,6 +40,7 @@ pub enum Expression {
     ObjFieldName(TokenStream2),
     FieldTypeConversionName(FieldComposer),
     LineTermination,
+    Terminate(Box<Expression>),
     UnboxAny(Box<Expression>),
     UnboxAnyTerminated(Box<Expression>),
     DestroyOpt(Box<Expression>),
@@ -260,7 +261,10 @@ impl ScopeContextPresentable for Expression {
                 quote!({ let ffi_ref = &*#root_path; (#items) })
             }
             Expression::Name(name) => name
-                .to_token_stream()
+                .to_token_stream(),
+            Expression::Terminate(expr) => {
+                expr.present(source).terminated()
+            }
         }
     }
 }

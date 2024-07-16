@@ -176,7 +176,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
             constants::ROUND_BRACES_FIELDS_PRESENTER,
             constants::bypass_field_context(),
             constants::ROOT_DESTROY_CONTEXT_COMPOSER,
-            constants::bypass_field_context(),
+            constants::terminated_field_context(),
             constants::enum_variant_composer_ctor_unnamed(),
             ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER
         )
@@ -196,7 +196,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
             constants::CURLY_BRACES_FIELDS_PRESENTER,
             constants::struct_composer_conversion_named(),
             constants::ROOT_DESTROY_CONTEXT_COMPOSER,
-            constants::bypass_field_context(),
+            constants::terminated_field_context(),
             constants::enum_variant_composer_ctor_named(),
             STRUCT_NAMED_FIELDS_COMPOSER
         )

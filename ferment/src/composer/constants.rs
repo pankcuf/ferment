@@ -41,6 +41,9 @@ pub const fn field_types_composer<'a, C>() -> ParentComposerPresenterByRef<'a, C
 pub const fn bypass_field_context() -> FieldTypePresentationContextPassRef {
     |(_, context)| context.clone()
 }
+pub const fn terminated_field_context() -> FieldTypePresentationContextPassRef {
+    |(_, context)| Expression::Terminate(context.clone().into())
+}
 pub const fn ffi_aspect_seq_context<C>() -> ParentSharedComposer<C, LocalConversionContext>
     where C: BasicComposable<ParentComposer<C>> + FieldsContext + 'static {
     |composer: &ParentComposerRef<C>| ((composer.ffi_name_aspect(), composer.field_types()), composer.compose_generics())
@@ -192,17 +195,6 @@ pub const fn struct_destroy_composer<C>() -> OwnerIteratorPostProcessingComposer
     where C: BasicComposable<ParentComposer<C>> + FieldsConversionComposable + 'static {
     ContextComposer::new(ROOT_DESTROY_CONTEXT_COMPOSER, empty_context_presenter())
 }
-pub const fn struct_drop_sequence_mixer<C>() -> DropSequenceMixer<ParentComposer<C>>
-    where C: BasicComposable<ParentComposer<C>> + FieldsContext + 'static {
-    SequenceMixer::new(
-        |(_, conversion)| conversion.clone(),
-        |_| SequenceOutput::Empty,
-        |fields| SequenceOutput::StructDropBody(fields.clone()),
-        field_types_composer(),
-        bypass_field_context(),
-        struct_composer_drop_iterator_post_processor()
-    )
-}
 
 pub const fn struct_composer_ctor_root<I>() -> ComposerPresenter<FunctionContext, ConstructorBindingPresentableContext<I>>
     where I: DelimiterTrait + ?Sized {
@@ -325,6 +317,17 @@ pub const fn fields_from_presenter_composer<C>(
     ContextComposer::new(root, fields_from_presenter::<C>())
 }
 
+pub const fn struct_drop_sequence_mixer<C>() -> DropSequenceMixer<ParentComposer<C>>
+    where C: BasicComposable<ParentComposer<C>> + FieldsContext + 'static {
+    SequenceMixer::new(
+        |(_, conversion)| conversion.clone(),
+        |_| SequenceOutput::Empty,
+        |fields| SequenceOutput::StructDropBody(fields.clone()),
+        field_types_composer(),
+        bypass_field_context(),
+        struct_composer_drop_iterator_post_processor()
+    )
+}
 pub const fn enum_variant_drop_sequence_mixer<C>(
     seq_iterator_item: FieldTypePresentationContextPassRef,
 ) -> DropSequenceMixer<ParentComposer<C>>

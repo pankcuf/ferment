@@ -168,8 +168,10 @@ impl ScopeContextPresentable for SequenceOutput {
                 result.extend(items.present(source));
                 result.to_token_stream()
             },
-            SequenceOutput::DropCode(items) =>
-                BraceWrapped::new(items.clone()).present(source),
+            SequenceOutput::DropCode(items) => {
+                println!("SequenceOutput::DropCode: {}", BraceWrapped::new(items.clone()).present(source));
+                BraceWrapped::new(items.clone()).present(source)
+            },
         }
     }
 }
