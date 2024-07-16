@@ -1,12 +1,12 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, parse_quote, Path, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{Attribute, ImplItemMethod, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeParamBound, TypePath, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{DictionaryType, extract_trait_names, Opaque, ToObjectConversion, ToType};
+use crate::ext::{DictionaryType, extract_trait_names, Join, Opaque, ToObjectConversion, ToType};
 use crate::presentation::FFIFullDictionaryPath;
 use crate::print_phase;
 
@@ -216,6 +216,16 @@ impl ScopeContext {
     }
 }
 
+impl Join<ImplItemMethod> for ScopeContext {
+    fn joined(&self, other: &ImplItemMethod) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}
 
+impl Join<TraitItemMethod> for ScopeContext {
+    fn joined(&self, other: &TraitItemMethod) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}
 
 

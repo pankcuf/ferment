@@ -5,6 +5,7 @@ use syn::punctuated::Punctuated;
 pub trait Constraints {
     fn has_self(&self) -> bool;
     fn has_no_self(&self) -> bool { !self.has_self() }
+
 }
 
 

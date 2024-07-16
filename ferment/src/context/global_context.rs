@@ -614,7 +614,7 @@ impl GlobalContext {
                 }
                 let dict_path = import_type_path.path.clone();
                 ty_replacement.ty = Type::Path(import_type_path);
-                let conversion_replacement = if let Some(dictionary_type) = scope.maybe_dictionary_type(&dict_path, self) {
+                let conversion_replacement = if let Some(dictionary_type) = scope.maybe_dictionary_composition(&dict_path, self) {
                     dictionary_type
                 } else if let Some(found_item) = self.maybe_known_item(&ty_replacement, scope) {
                     // println!("[INFO] Known item found: [{}]", found_item.to_token_stream());
@@ -657,6 +657,9 @@ impl GlobalContext {
             }
             ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty_composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::FnPointer(self.refine_nested(ty_composition, scope))));
+            }
+            ObjectConversion::Type(TypeCompositionConversion::LambdaFn(ty_composition)) => {
+                return Some(ObjectConversion::Type(TypeCompositionConversion::LambdaFn(self.refine_nested(ty_composition, scope))));
             }
             ObjectConversion::Type(TypeCompositionConversion::TraitType(composition)) => {
                 return Some(ObjectConversion::Type(TypeCompositionConversion::TraitType(self.refine_nested(composition, scope))));
@@ -770,18 +773,22 @@ impl RefineMut for GlobalContext {
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
+                println!("REFINE GENERIC in {}", scope.fmt_short());
                 type_chain.inner.iter().for_each(|(_conversion, object)| {
+                    // println!("\t{} ---- {}", _conversion, object);
                     let object_attrs = object.resolve_attrs();
                     let mut all_attrs: HashSet<Option<Attribute>> = HashSet::from_iter(object_attrs);
                     all_attrs.extend(scope_level_attrs.clone());
                     if all_attrs.is_empty() {
                         all_attrs.insert(None);
-                    };
+                    }
                     if let Some(ty) = object.maybe_type() {
+                        println!("--- FIND GENERICS IN TYPE: {}", ty.to_token_stream());
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
                             .for_each(|_ty| {
+                                println!("--- ADD GENERIC: OBJECT: {}", object);
                                 refined_generics
                                     .entry(GenericConversion::new(object.clone()))
                                     .or_insert_with(HashSet::new)
@@ -790,14 +797,22 @@ impl RefineMut for GlobalContext {
                     }
 
                     if let Some(TypeCompositionConversion::Bounds(bounds)) = object.type_conversion() {
+                        println!("REFINE_SCOPE_BOUNDS: {}", bounds);
+                        // refined_generic_constraints
+                        //     .entry(bounds.clone())
+                        //     .or_insert_with(HashSet::new)
+                        //     .extend(all_attrs.clone());
                         bounds.find_generic_constraints()
                             .iter()
                             .for_each(|_ty| {
+                                println!("--- ADD GENERIC: BOUNDS: {}", bounds);
                                 refined_generic_constraints
                                     .entry(bounds.clone())
                                     .or_insert_with(HashSet::new)
                                     .extend(all_attrs.clone());
                             });
+                    } else if let Some(TypeCompositionConversion::LambdaFn(bounds)) = object.type_conversion() {
+
                     }
                 })
             });
@@ -822,6 +837,7 @@ impl RefineMut for GlobalContext {
                                 }
                             }
                         });
+
                     });
         })
     }

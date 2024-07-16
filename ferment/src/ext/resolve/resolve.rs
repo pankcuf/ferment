@@ -5,8 +5,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use crate::composable::TypeComposition;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{CrateExtension, DictionaryType, Mangle, ResolveTrait, SpecialType, ToPath};
+use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
+use crate::ext::{CrateExtension, DictionaryType, Mangle, Pop, ResolveTrait, SpecialType, ToPath};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 pub trait Resolve<T> {
@@ -30,29 +30,80 @@ impl Resolve<Option<SpecialType>> for Type {
 
     // #[ferment_macro::debug_io]
     fn resolve(&self, source: &ScopeContext) -> Option<SpecialType> {
-        // println!("Type::<Option<SpecialType>>::resolve({})", self.to_token_stream());
-        source.maybe_custom_conversion(self)
+        // println!("Type::<Option<SpecialType>>::resolve.1({})", self.to_token_stream());
+        let result = source.maybe_custom_conversion(self)
             .map(SpecialType::Custom)
             .or_else(|| source.maybe_opaque_object(self)
-                .map(SpecialType::Opaque))
+                .map(SpecialType::Opaque));
+        // println!("Type::<Option<SpecialType>>::resolve.2({})", result.to_token_stream());
+        result
     }
 }
 impl Resolve<TypeCompositionConversion> for Type {
     fn resolve(&self, source: &ScopeContext) -> TypeCompositionConversion {
-        // println!("Type::<TypeCompositionConversion>::resolve({})", self.to_token_stream());
-        <Type as Resolve<Option<ObjectConversion>>>::resolve(self, source)
-            .and_then(|external_type| match external_type.type_conversion() {
-                Some(TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds)) =>
-                    ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned()),
-                _ => None
-            }.unwrap_or(external_type.type_conversion().cloned()))
-            .unwrap_or(TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new())))
+        // println!("Type::<TypeCompositionConversion>::resolve.1({}) in [{}]", self.to_token_stream(), source.scope);
+        let result = <Type as Resolve<Option<ObjectConversion>>>::resolve(self, source)
+            .and_then(|external_type| {
+                match external_type {
+                    ObjectConversion::Item(ty_conversion, ScopeItemConversion::Fn(sig, path)) => {
+                        // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
+                        let parent_object = &source.scope.parent_scope().unwrap().self_scope().object;
+                        // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);
+                        match parent_object {
+                            ObjectConversion::Type(ref ty_conversion) |
+                            ObjectConversion::Item(ref ty_conversion, ..) => {
+                                match ty_conversion {
+                                    TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
+                                        // println!("Type::<TypeCompositionConversion> It's a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                        ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                                    },
+                                    _ => {
+                                        None
+                                    },
+                                }.unwrap_or_else(|| {
+                                    // println!("Type::<TypeCompositionConversion> Not a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                    parent_object.type_conversion().cloned()
+                                })
+                            },
+                            ObjectConversion::Empty => {
+                                // println!("Type::<TypeCompositionConversion> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
+                                None
+                            }
+                        }
+                    },
+                    ObjectConversion::Type(ref ty_conversion) |
+                    ObjectConversion::Item(ref ty_conversion, ..) => {
+                        match ty_conversion {
+                            TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
+                                // println!("Type::<TypeCompositionConversion> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                                ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                            },
+                            _ => {
+                                None
+                            },
+                        }.unwrap_or_else(|| {
+                            // println!("Type::<TypeCompositionConversion> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                            external_type.type_conversion().cloned()
+                        })
+                    },
+                    ObjectConversion::Empty => {
+                        // println!("Type::<TypeCompositionConversion> Has no object --> {}", external_type.type_conversion().to_token_stream());
+                        None
+                    }
+                }
+            })
+            .unwrap_or_else(|| {
+                // println!("Type::<TypeCompositionConversion> Default Unknown --> {}", self.to_token_stream());
+                TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new()))
+            });
+        // println!("Type::<TypeCompositionConversion>::resolve.2({}) in [{}] --> {}", self.to_token_stream(), source.scope, result);
+        result
     }
 }
 
 impl Resolve<Option<FFIFullPath>> for Type {
     fn resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
-        println!("Type::<Option<FFIFullPath>>::resolve({}) -- {:?}", self.to_token_stream(), self);
+        // println!("Type::<Option<FFIFullPath>>::resolve({}) -- {:?}", self.to_token_stream(), self);
         let res = match self {
             Type::Path(TypePath{ path, .. }) =>
                 path.resolve(source),
@@ -75,16 +126,16 @@ impl Resolve<Option<FFIFullPath>> for Type {
             },
             _ => None
         };
-        println!("Type::<Option<FFIFullPath>>::resolve...2({}", res.to_token_stream());
+        // println!("Type::<Option<FFIFullPath>>::resolve...2({}", res.to_token_stream());
         res
     }
 }
 impl Resolve<FFIFullPath> for Type {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
-        println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
+        // println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
         <Self as Resolve<Option<FFIFullPath>>>::resolve(self, source)
             .unwrap_or_else(|| {
-                println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
+                // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
 
                 FFIFullPath::External { path: parse_quote!(#self) }
             })
@@ -100,7 +151,7 @@ impl Resolve<Option<SpecialType>> for GenericTypeConversion {
 
 impl Resolve<FFIFullPath> for GenericTypeConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
-        println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
+        // println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
         match self {
             GenericTypeConversion::Map(ty) |
             GenericTypeConversion::IndexMap(ty) |

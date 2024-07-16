@@ -164,7 +164,6 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
 
 impl Mangle<String> for PathArguments {
     fn mangle_string(&self, context: String) -> String {
-        println!("PathArguments::mangle_string: {} --- {:?} ---- {}", self.to_token_stream(), self, context);
         let mut segment_str = context.clone();
         let is_map = matches!(segment_str.as_str(), "BTreeMap" | "HashMap");
         if is_map {
@@ -326,19 +325,22 @@ impl Mangle<MangleDefault> for ObjectConversion {
 
 impl Mangle<MangleDefault> for GenericBoundComposition {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        // println!("Mixin_{}", self.bounds.iter().map(|b| b.to_ty().unwrap().mangle_string(context)).collect::<Vec<_>>().join("_"));
 
         let mut chunks = vec![];
 
         chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
         chunks.extend(self.predicates.iter()
             .map(|(_predicate, objects)|
-                     objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_")
+                     objects.iter()
+                         .map(|obj| obj.mangle_string(context))
+                         .collect::<Vec<_>>()
+                         .join("_")
                 // format!("where_{}_is_{}",
                 //         predicate.mangle_string(context),
                 //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
             )
         );
+        println!("GenericBoundComposition::mangle({}) --> {}", self, chunks.join("_"));
         chunks.join("_")
         // format!("Mixin_{}", chunks.join("_"))
 

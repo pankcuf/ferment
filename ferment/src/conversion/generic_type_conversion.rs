@@ -640,7 +640,8 @@ impl GenericTypeConversion {
                 let from_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
                     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from(#ffi_result);
                     (self.destructor)(#ffi_result);
-                    Some(result)
+                    // Some(result)
+                    result
                 };
                 let from_opt_complex_result = |ty: &Type, ffi_ty: &Type| quote! {
                     let result = <#ffi_ty as ferment_interfaces::FFIConversion<#ty>>::ffi_from_opt(#ffi_result);
@@ -652,7 +653,7 @@ impl GenericTypeConversion {
                 let (return_type, ffi_return_type, post_processing) = match output {
                     ReturnType::Type(token, field_type) => {
                         let full_ty: Type = field_type.resolve(&source);
-                        println!("DDDDD: {}", full_ty.to_token_stream());
+                        //println!("DDDDD: {}", full_ty.to_token_stream());
                         let (ffi_ty, conversion) = match TypeConversion::from(&full_ty) {
                             TypeConversion::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                             TypeConversion::Complex(ty) => {

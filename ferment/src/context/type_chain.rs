@@ -2,10 +2,10 @@ use std::collections::hash_map::OccupiedEntry;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{Path, Type};
+use syn::{Generics, Path, Type};
 use crate::ast::{Holder, TypeHolder};
 use crate::conversion::ObjectConversion;
-use crate::ext::{Constraints, HashMapMergePolicy, MergePolicy, ToType, ValueReplaceScenario};
+use crate::ext::{Constraints, ContainsSubType, HashMapMergePolicy, MergePolicy, ToType, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
 
 #[derive(Copy, Clone)]
@@ -74,6 +74,12 @@ pub struct TypeChain {
     pub inner: HashMap<TypeHolder, ObjectConversion>
 }
 
+impl<T: Iterator<Item = (TypeHolder, ObjectConversion)>> From<T> for TypeChain {
+    fn from(value: T) -> Self {
+        Self { inner: HashMap::from_iter(value) }
+    }
+}
+
 impl Debug for TypeChain {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format_types_dict(&self.inner).as_str())
@@ -87,11 +93,11 @@ impl Display for TypeChain {
     }
 }
 
-impl From<HashMap<TypeHolder, ObjectConversion>> for TypeChain {
-    fn from(inner: HashMap<TypeHolder, ObjectConversion>) -> Self {
-        TypeChain { inner }
-    }
-}
+// impl From<HashMap<TypeHolder, ObjectConversion>> for TypeChain {
+//     fn from(inner: HashMap<TypeHolder, ObjectConversion>) -> Self {
+//         TypeChain { inner }
+//     }
+// }
 
 impl TypeChain {
     pub fn insert(&mut self, ty: TypeHolder, obj: ObjectConversion) {
@@ -111,11 +117,21 @@ impl TypeChain {
             })
     }
     pub fn selfless(&self) -> Self {
-        let mut inner = HashMap::new();
-        for (ty, obj) in &self.inner {
-            inner.insert(ty.clone(), obj.clone());
-        }
-        Self { inner: self.inner.clone().into_iter().filter(|(th, _)| th.0.has_no_self()).collect() }
+        // let mut inner = HashMap::new();
+        // for (ty, obj) in &self.inner {
+        //     inner.insert(ty.clone(), obj.clone());
+        // }
+        // self.inner.iter().cloned()
+        // Self::from(self.inner.iter().filter(|(th, _)| th.0.has_no_self()).cloned())
+        Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.0.has_no_self()))
+    }
+    pub fn excluding_self_and_bounds(&self, generics: &Generics) -> Self {
+        // let mut inner = HashMap::new();
+        // for (ty, obj) in &self.inner {
+        //     inner.insert(ty.clone(), obj.clone());
+        // }
+
+        Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.0.has_no_self() && generics.contains_sub_type(&th.0)))
     }
     pub fn get_by_path(&self, path: &Path) -> Option<Type> {
         self.inner.iter()
@@ -130,8 +146,8 @@ impl TypeChain {
     pub fn add_one(&mut self, holder: TypeHolder, object: ObjectConversion) {
         self.inner.insert_with_policy(holder, object, EnrichScopePolicy);
     }
-    pub fn add_many(&mut self, types: TypeChain) {
-        self.inner.extend_with_policy(types.inner, EnrichScopePolicy);
+    pub fn add_many<I>(&mut self, types: I) where I: Iterator<Item = (TypeHolder, ObjectConversion)> {
+        self.inner.extend_with_policy(types, EnrichScopePolicy);
     }
 
     // pub fn find_generics_fq<G: GenericCollector>(&self, item: &G) -> HashSet<GenericConversion> {

@@ -95,7 +95,7 @@ impl RefineMut for ScopeResolver {
         refined.into_iter()
             .for_each(|(scope, updates)|
                 self.scope_register_mut(&scope)
-                    .add_many(TypeChain::from(updates)));
+                    .add_many(updates.into_iter()));
 
     }
 }

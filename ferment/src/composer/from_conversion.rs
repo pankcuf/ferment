@@ -50,7 +50,7 @@ impl<'a> Composer<'a> for FromConversionComposer {
             Some(SpecialType::Custom(..)) =>
                 Expression::From(field_path.into()),
             None => match ty.composition(source) {
-                TypeCompositionConversion::FnPointer(..) =>
+                TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::LambdaFn(..) =>
                     field_path,
                 TypeCompositionConversion::Optional(..)  =>
                     Expression::FromOpt(field_path.into()),
@@ -59,9 +59,11 @@ impl<'a> Composer<'a> for FromConversionComposer {
                            nested_ty.maybe_object(source)) {
                         (Some(SpecialType::Opaque(..)),
                             Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_) |
+                                                        TypeCompositionConversion::LambdaFn(_) |
                                                         TypeCompositionConversion::Trait(..) |
                                                         TypeCompositionConversion::TraitType(..), ..) |
                                  ObjectConversion::Type(TypeCompositionConversion::FnPointer(_) |
+                                                        TypeCompositionConversion::LambdaFn(_) |
                                                         TypeCompositionConversion::Trait(..) |
                                                         TypeCompositionConversion::TraitType(..)))) =>
                             Expression::IntoBox(field_path.into()),
@@ -79,7 +81,7 @@ impl<'a> Composer<'a> for FromConversionComposer {
                     0 => field_path,
                     1 => if let Some(ParenthesizedGenericArguments { inputs, .. }) = bounds.maybe_bound_is_callback(bounds.bounds.first().unwrap()) {
                         let lambda_args = CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)));
-                        Expression::Simple(quote!(|#lambda_args| unsafe { (&*#name).call(#lambda_args) }))
+                        Expression::Simple(quote!(move |#lambda_args| unsafe { (&*#name).call(#lambda_args) }))
                     } else {
                         Expression::From(field_path.into())
                     }

@@ -9,7 +9,7 @@ use crate::composable::{CfgAttributes, TypeComposition};
 use crate::context::{GlobalContext, Scope};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, path_arguments_to_nested_objects, Pop, ResolveAttrs, ToPath, ToType};
-use crate::formatter::format_attrs;
+use crate::formatter::{format_attrs, format_token_stream};
 
 #[derive(Clone, Eq)]
 pub struct ScopeInfo {
@@ -51,6 +51,23 @@ pub enum ScopeChain {
         info: ScopeInfo,
         parent_scope_chain: Box<ScopeChain>,
     },
+}
+
+impl ScopeChain {
+    pub fn func(self_scope: Scope, attrs: &Vec<Attribute>, crate_ident: &Ident, parent_scope: &ScopeChain) -> Self {
+        ScopeChain::Fn {
+            info: ScopeInfo {
+                attrs: attrs.clone(),
+                crate_ident: crate_ident.clone(),
+                self_scope,
+            },
+            parent_scope_chain: Box::new(parent_scope.clone())
+        }
+    }
+
+    // pub fn perform<T: Fn(Self, U), U>(&self, op: T) {
+    //     op(self, )
+    // }
 }
 
 impl PartialEq<Self> for ScopeChain {
@@ -102,21 +119,30 @@ impl ScopeChain {
             ScopeChain::Trait { .. } => 5
         }
     }
-
-    #[allow(unused)]
-    fn fmt_short(&self) -> String {
+    pub fn info(&self) -> &ScopeInfo {
         match self {
             ScopeChain::CrateRoot { info, .. } |
             ScopeChain::Mod { info, .. } |
             ScopeChain::Fn { info, .. } |
             ScopeChain::Object { info, .. } |
             ScopeChain::Impl { info, .. } |
-            ScopeChain::Trait { info, .. } =>
-                format!("[{}]", info.self_scope.self_scope.0.to_token_stream()),
+            ScopeChain::Trait { info, .. } => info
+        }
+    }
+
+    #[allow(unused)]
+    pub fn fmt_short(&self) -> String {
+        match self {
+            ScopeChain::CrateRoot { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "CrateRoot"),
+            ScopeChain::Mod { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Mod"),
+            ScopeChain::Fn { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Fn"),
+            ScopeChain::Object { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Object"),
+            ScopeChain::Impl { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Impl"),
+            ScopeChain::Trait { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Trait"),
         }
     }
     #[allow(unused)]
-    fn fmt_long(&self) -> String {
+    pub fn fmt_long(&self) -> String {
         match self {
             ScopeChain::CrateRoot { info } =>
                 format!("[{}] :: {} + {} (CrateRoot)", format_attrs(&info.attrs), info.crate_ident, info.self_scope),
@@ -255,7 +281,7 @@ impl ScopeChain {
         }
     }
 
-    pub fn maybe_dictionary_type(&self, path: &Path, source: &GlobalContext) -> Option<TypeCompositionConversion> {
+    pub fn maybe_dictionary_composition(&self, path: &Path, source: &GlobalContext) -> Option<TypeCompositionConversion> {
         let result = path.segments.last().and_then(|last_segment| {
             let nested_arguments = path_arguments_to_nested_objects(&last_segment.arguments, &(self, source));
             let ident = &last_segment.ident;
@@ -275,12 +301,13 @@ impl ScopeChain {
                 None
             }
         });
-        println!("maybe_dictionary_type: {} ---> {}", path.to_token_stream(), result.to_token_stream());
+        //println!("maybe_dictionary_type: {} ---> {}", path.to_token_stream(), result.to_token_stream());
         result
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
-        match self {
+        //println!("maybe_generic_bound_for_path.... {} in [{}]", path.to_token_stream(), self.self_path_holder_ref());
+        let result = match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
             ScopeChain::Trait { info, .. } |
@@ -290,7 +317,11 @@ impl ScopeChain {
             ScopeChain::Fn { info, parent_scope_chain, .. } =>
                 info.self_scope.maybe_generic_bound_for_path(path)
                     .or(parent_scope_chain.maybe_generic_bound_for_path(path)),
+        };
+        if result.is_some() {
+            println!("maybe_generic_bound_for_path: FOUND: {}", result.as_ref().map_or("None".to_string(), |(g, tp)| format!("{} ----- {}", g.to_token_stream(), tp.to_token_stream())));
         }
+        result
     }
 }
 

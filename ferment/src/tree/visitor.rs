@@ -7,7 +7,7 @@ use syn::visit::Visit;
 use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MacroType, ObjectConversion};
-use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, NestingExtension, Pop, VisitScope, VisitScopeType};
+use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
 
@@ -91,7 +91,7 @@ impl Visitor {
             parent: scope.self_path_holder_ref().clone(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
-            tree: ScopeTreeExportItem::with_global_context(scope, context.clone(), attrs)
+            tree: ScopeTreeExportItem::tree_with_context(scope, context.clone(), attrs)
         }
     }
 
@@ -126,8 +126,9 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits.add_trait(scope, item_trait, itself);
     }
-    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics) {
-        let generics = create_generics_chain(self, generics, scope);
+    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
+        //println!("add_generic_chain: [add_2_parent: {}] {} in [{}]", add_to_parent, generics.to_token_stream(), scope);
+        let generics = create_generics_chain(self, generics, scope, add_to_parent);
         let mut lock = self.context.write().unwrap();
         // println!("Visitor::add_generic_chain: {:?}", generics); // TODO: always empty
         lock.generics.extend_in_scope(scope, generics)
@@ -137,7 +138,7 @@ impl Visitor {
         // println!("scope_add_many: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
-            .add_many(types);
+            .add_many(types.inner.into_iter());
     }
     pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
         // println!("scope_add_one: {}", scope.self_path_holder_ref());
@@ -147,7 +148,7 @@ impl Visitor {
     }
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        add_trait_names(self, scope, &trait_names);
+        add_trait_names(self, scope, &trait_names, true);
         let mut lock = self.context.write().unwrap();
         lock.traits
             .add_used_traits(scope, trait_names)
@@ -162,52 +163,58 @@ impl Visitor {
         //     .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
     }
 
-    fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
-        let involved_types = ty.nested_items();
-        let mut destination = TypeChain::default();
-        involved_types.iter()
-            .for_each(|ty|
-                destination.add_one(
+    pub(crate) fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
+        let context = self.context.read().unwrap();
+        TypeChain::from(
+            ty.unique_nested_items()
+                .iter()
+                .map(|ty| (
                     TypeHolder::from(ty),
-                    ty.update_nested_generics(&(scope, &self.context.read().unwrap()))));
-        // println!("TYPECHAIN: {} ---> {}", ty.to_token_stream(), destination);
-        destination
+                    ty.update_nested_generics(&(scope, &context)))))
     }
-
-    pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type) {
-        nprint!(0, crate::formatter::Emoji::Plus, "{} in [{}]", ty.to_token_stream(), scope);
+    pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
+        type_chains.into_iter().for_each(|(scope, type_chain)| {
+            self.scope_add_many(type_chain, &scope)
+        });
+    }
+    pub(crate) fn add_full_qualified_type_chain(&mut self, scope: &ScopeChain, type_chain: TypeChain, add_to_parent: bool) {
         let self_obj = &scope.self_scope().object;
-        let type_chain = self.create_type_chain(ty, scope);
         match scope {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => {
                 self.scope_add_many(type_chain.selfless(), scope);
             },
             ScopeChain::Impl { parent_scope_chain, .. } => {
-                self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                if add_to_parent {
+                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                }
                 self.scope_add_many(type_chain, scope);
             },
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } => {
                 self.scope_add_many(type_chain.clone(), scope);
                 self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
-                self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                if add_to_parent {
+                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                }
             },
             ScopeChain::Fn { parent_scope_chain, .. } => {
                 match &**parent_scope_chain {
                     ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
                         self.scope_add_many(type_chain.clone(), scope);
-                        self.scope_add_many(type_chain, parent_scope_chain);
+                        if add_to_parent {
+                            self.scope_add_many(type_chain, parent_scope_chain);
+                        }
                     },
                     ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
                     ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
-                        self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
                         self.scope_add_many(type_chain.clone(), scope);
                         self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
-                        // self.scope_add_one(parse_quote!(Self), self_obj.clone(), parent_scope_chain);
-                        self.scope_add_many(type_chain, parent_scope_chain);
-
+                        if add_to_parent {
+                            self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
+                            self.scope_add_many(type_chain, parent_scope_chain);
+                        }
                     },
                     ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
                         // TODO: actually there are may be anything wrapped into anything like trait inside a function...
@@ -218,6 +225,12 @@ impl Visitor {
         }
     }
 
+    pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type, add_to_parent: bool) {
+        nprint!(0, crate::formatter::Emoji::Plus, "{}: {} (add_2_parent: {})", scope.fmt_short(), ty.to_token_stream(), add_to_parent);
+        let type_chain = self.create_type_chain(ty, scope);
+        self.add_full_qualified_type_chain(scope, type_chain, add_to_parent)
+    }
+
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
         for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
@@ -226,7 +239,7 @@ impl Visitor {
                     panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
                 ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) => {
                     if !exported.contains_key(&ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_export(scope_context.clone(), HashMap::default(), attrs.clone()));
+                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), HashMap::default(), attrs.clone()));
                     }
                     current_tree = exported.get_mut(&ident).unwrap();
                 }
@@ -242,7 +255,7 @@ impl Visitor {
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectConversion::try_from((&item, &self_scope))) {
             (Ok(MacroType::Export | MacroType::Opaque), Ok(_object)) => {
-                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+                // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);

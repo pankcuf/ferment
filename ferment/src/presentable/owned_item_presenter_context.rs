@@ -36,7 +36,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
         //println!("OwnedItemPresentableContext::present: {}", self);
         match self {
             OwnedItemPresentableContext::Expression(field_type_context, attrs) => {
-                println!("OwnedItemPresentableContext::Expression: {}", field_type_context.present(source));
+                // println!("OwnedItemPresentableContext::Expression: {}", field_type_context.present(source));
 
                 ArgPresentation::AttributedConversion {
                     attrs: attrs.to_token_stream(),
@@ -64,7 +64,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             },
             OwnedItemPresentableContext::DefaultFieldConversion(FieldComposer { name, .. }, conversion, attrs) => {
                 let var = conversion.compose(source);
-                println!("OwnedItemPresentableContext::DefaultFieldConversion: {} --- {}", name.to_token_stream(), var.present(source));
+                // println!("OwnedItemPresentableContext::DefaultFieldConversion: {} --- {}", name.to_token_stream(), var.present(source));
                 ArgPresentation::NamedType {
                     attrs: attrs.to_token_stream(),
                     name: name.to_token_stream(),
@@ -72,7 +72,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 }
             },
             OwnedItemPresentableContext::BindingArg(FieldComposer { name, kind, named, attrs}) => {
-                println!("OwnedItemPresentableContext::BindingArg: {} ({}), {}", name.to_token_stream(), name, kind.ty().to_token_stream());
+                // println!("OwnedItemPresentableContext::BindingArg: {} ({}), {}", name.to_token_stream(), name, kind.ty().to_token_stream());
                 let (field_name, conversion) = match (kind, named) {
                     (FieldTypeConversionKind::Type(field_type), true) =>
                         (name.to_token_stream(), <Type as Resolve<FFIVariable>>::resolve(field_type, source).to_token_stream()),

@@ -89,13 +89,13 @@ fn root_scope_tree() -> ScopeTree {
                 vec![]
             )),
             (ScopeTreeExportID::Ident(parse_quote!(chain)),
-             ScopeTreeExportItem::tree_with_context_and_export(
+             ScopeTreeExportItem::tree_with_context_and_exports(
                  scope_ctx(parse_quote!(crate::chain), global_context_ptr.clone()),
                  HashMap::from([
-                     (ScopeTreeExportID::Ident(parse_quote!(common)), ScopeTreeExportItem::tree_with_context_and_export(
+                     (ScopeTreeExportID::Ident(parse_quote!(common)), ScopeTreeExportItem::tree_with_context_and_exports(
                          scope_ctx(parse_quote!(crate::chain::common), global_context_ptr.clone()),
                          HashMap::from([
-                             (ScopeTreeExportID::Ident(parse_quote!(chain_type)), ScopeTreeExportItem::tree_with_context_and_export(
+                             (ScopeTreeExportID::Ident(parse_quote!(chain_type)), ScopeTreeExportItem::tree_with_context_and_exports(
                                  scope_ctx(parse_quote!(crate::chain::common::chain_type), global_context_ptr.clone()),
                                  HashMap::from([
                                      (ScopeTreeExportID::Ident(parse_quote!(ChainType)), ScopeTreeExportItem::Item(

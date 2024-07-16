@@ -2,7 +2,7 @@ use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplIt
 use crate::ast::TypeHolder;
 use crate::composable::GenericBoundComposition;
 use crate::conversion::ScopeItemConversion;
-use crate::ext::{NestingExtension, ResolveMacro};
+use crate::ext::{UniqueNestedItems, ResolveMacro};
 
 #[allow(unused)]
 pub struct MacroAttributes {
@@ -141,13 +141,13 @@ impl TypeCollector for Signature {
 
 impl TypeCollector for Type {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
-        self.nested_items().iter().map(TypeHolder::from).collect()
+        self.unique_nested_items().iter().map(TypeHolder::from).collect()
     }
 }
 
 impl TypeCollector for Path {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
-        self.nested_items().iter().map(TypeHolder::from).collect()
+        self.unique_nested_items().iter().map(TypeHolder::from).collect()
     }
 }
 

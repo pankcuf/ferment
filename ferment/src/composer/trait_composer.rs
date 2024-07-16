@@ -8,7 +8,7 @@ use crate::ast::{BraceWrapped, CommaPunctuated};
 use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext, TraitTypeDecomposition};
 use crate::composer::{BasicComposable, BasicComposer, Composer, constants, DocsComposable, Linkable, NameContext, ParentComposer, SigComposer, SigParentComposer, SourceAccessible, SourceExpandable, TraitParentComposer};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::ext::{Mangle, ToPath, ToType};
+use crate::ext::{Join, Mangle, ToPath, ToType};
 use crate::presentable::{Context, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, DocPresentation, Expansion, FFIObjectPresentation, Name};
 
@@ -25,22 +25,23 @@ impl TraitComposer {
         item_trait: &ItemTrait,
         self_ty: Type,
         scope: &ScopeChain,
-        context: &ParentComposer<ScopeContext>) -> TraitParentComposer {
+        scope_context: &ParentComposer<ScopeContext>) -> TraitParentComposer {
         let trait_ident = &item_trait.ident;
         // let fn_name = self.ident.unwrap();
         // let mut full_fn_path = scope.joined(&trait_ident);
         // if self.scope.is_crate_based() {
         //     full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
         // }
-        let source = context.borrow();
+        let source = scope_context.borrow();
         let mut methods = vec![];
         let mut types = HashMap::new();
         item_trait.items
             .iter()
             .for_each(|trait_item| match trait_item {
-                TraitItem::Method(TraitItemMethod { sig, attrs, .. } ) => {
+                TraitItem::Method(trait_item_method) => {
+                    let TraitItemMethod { sig, attrs, .. } = trait_item_method;
                     let sig_context = FnSignatureContext::TraitInner(self_ty.clone(), Some(trait_ident.to_type()), sig.clone());
-
+                    let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
                     let composer = SigComposer::with_context(
                         scope.joined_path_holder(&sig.ident).0,
                         &sig.ident,
@@ -48,7 +49,7 @@ impl TraitComposer {
                         &sig.generics,
                         attrs,
                         &source.scope,
-                        context
+                        &method_scope_context
                     );
                     methods.push(composer);
                     // methods.push(FnSignatureComposition::from_signature(&sig_context, sig, scope, &source));
@@ -70,7 +71,7 @@ impl TraitComposer {
             item_trait.ident.to_path(),
             Some(item_trait.generics.clone()),
             AttrsComposition::from(&item_trait.attrs, &item_trait.ident, scope),
-            context)
+            scope_context)
     }
 
     fn new(

@@ -79,7 +79,13 @@ pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn opaque(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    // let input = parse_macro_input!(input as DeriveInput);
+    // let expanded = quote! {
+    //     #[repr(C)]
+    //     #input
+    // };
     input
+    // TokenStream::from(expanded)
 }
 
 

@@ -85,8 +85,8 @@ impl GenericBoundComposition {
     }
 
     pub fn maybe_bound_is_callback<'a>(&self, bound: &'a ObjectConversion) -> Option<&'a ParenthesizedGenericArguments> {
-        if let ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty)) |
-        ObjectConversion::Item(TypeCompositionConversion::FnPointer(ty), _) = bound {
+        if let ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty) | TypeCompositionConversion::LambdaFn(ty)) |
+        ObjectConversion::Item(TypeCompositionConversion::FnPointer(ty) | TypeCompositionConversion::LambdaFn(ty), _) = bound {
             if let Type::Path(TypePath { path, .. }) = &ty.ty {
                 if let Some(PathSegment { arguments, ident: last_ident, ..}) = &path.segments.last() {
                     if last_ident.is_lambda_fn() {

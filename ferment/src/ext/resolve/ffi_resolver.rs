@@ -78,18 +78,18 @@ impl FFICompositionResolve for Type {
 
 pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> {
     fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type where Self: Debug {
-        println!("special_or_to_ffi_full_path_type:: {:?}", self);
+        // println!("special_or_to_ffi_full_path_type:: {:?}", self);
         let res = <Self as Resolve<Option<SpecialType>>>::resolve(self, source)
             .map(|special| {
-                println!("spec:: {:?}", special);
+                //println!("spec:: {:?}", special);
 
                 special.to_type()
             })
             .unwrap_or_else(|| {
-                println!("else:");
+                //println!("else:");
                 <Self as Resolve::<FFIFullPath>>::resolve(self, source).to_type()
             });
-        println!("special_or_to_ffi_full_path_type.222:: {:?}", self);
+        //println!("special_or_to_ffi_full_path_type.222:: {:?}", self);
         res
     }
     fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type where Self: Debug {

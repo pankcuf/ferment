@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
+use quote::ToTokens;
 use syn::{Attribute, Item, ItemMod};
 use crate::composable::ImportComposition;
 use crate::composer::ParentComposer;
@@ -55,12 +56,15 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(ctx, ..) => ctx.borrow().scope.clone(),
         }
     }
-    pub fn tree_with_context_and_export(context: ParentComposer<ScopeContext>, export: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
-        Self::Tree(context, HashMap::default(), export, attrs)
+    pub fn tree_with_context_and_exports(context: ParentComposer<ScopeContext>, exports: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
+        Self::Tree(context, HashMap::default(), exports, attrs)
     }
-    pub fn with_global_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
+    pub fn tree_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
         let context = Rc::new(RefCell::new(ScopeContext::with(scope, context)));
-        Self::tree_with_context_and_export(context, HashMap::default(), attrs)
+        Self::tree_with_context_and_exports(context, HashMap::default(), attrs)
+    }
+    pub fn item_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, item: Item) -> Self {
+        Self::Item(Rc::new(RefCell::new(ScopeContext::with(scope, context))), item)
     }
     pub fn add_item(&mut self, item: Item, scope: ScopeChain) {
         if let ScopeTreeExportItem::Tree(..) = self {
@@ -95,6 +99,7 @@ impl ScopeTreeExportItem {
         );
     }
     fn add_non_mod_item(&mut self, item: &Item, scope: &ScopeChain) {
+        println!("---- add_non_mod_item: {} -- {}", item.maybe_ident().to_token_stream(), scope);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(
@@ -104,16 +109,14 @@ impl ScopeTreeExportItem {
                 _attrs) => {
                 exported.insert(
                     item.scope_tree_export_id(),
-                    ScopeTreeExportItem::Item(
-                        Rc::new(RefCell::new(ScopeContext::with(scope.clone(), scope_context.borrow().context.clone()))),
-                        item.clone()));
+                    ScopeTreeExportItem::item_with_context(scope.clone(), scope_context.borrow().context.clone(), item.clone()));
             }
         }
     }
 
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
         let ItemMod { attrs, ident, content, .. } = item_mod;
-        let new_export_item = |context: &mut ParentComposer<ScopeContext>| ScopeTreeExportItem::with_global_context(scope.clone(), context.borrow().context.clone(), attrs.clone());
+        let new_export_item = |context: &mut ParentComposer<ScopeContext>| ScopeTreeExportItem::tree_with_context(scope.clone(), context.borrow().context.clone(), attrs.clone());
         match content {
             Some((_, items)) => match self {
                 ScopeTreeExportItem::Item(context, _) => {

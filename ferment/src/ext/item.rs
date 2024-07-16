@@ -125,6 +125,8 @@ pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
                 GenericArgument::Type(ty) => Some(ty),
                 _ => None
             }).collect(),
+        // PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) =>
+
         _ => Vec::new(),
     }
 }

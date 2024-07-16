@@ -1,6 +1,7 @@
 pub mod snapshot;
 pub mod quorum;
 pub mod callback;
+pub mod tuples;
 
 pub use snapshot::LLMQSnapshot;
 pub use snapshot::LLMQSnapshotSkipMode;
@@ -25,6 +26,12 @@ pub enum TestModLevelOptSnapshot {
 pub struct Quorum {
     pub llmq_type: QuorumType
 }
+#[ferment_macro::export]
+pub struct LLMQParams {
+    pub r#type: String,
+    pub known_confirmed_at_height: Option<u32>,
+}
+
 
 pub mod ferment_example {
     use crate::model::{Quorum, QuorumType};
@@ -39,3 +46,32 @@ pub mod ferment_example {
         Quorum { llmq_type: QuorumType::Rotated }
     }
 }
+
+pub mod some_inner {
+    use crate::model::{Quorum, QuorumType};
+    #[ferment_macro::export]
+    pub fn get_normal_quorum() -> Quorum {
+        Quorum { llmq_type: QuorumType::Normal }
+    }
+}
+pub mod some_inner_2 {
+    use crate::model::quorum::QuorumType;
+    use crate::model::Quorum;
+    #[ferment_macro::export]
+    pub fn get_normal_quorum() -> Quorum {
+        Quorum { llmq_type: QuorumType::Normal }
+    }
+
+
+    // #[ferment_macro::export]
+    // pub struct DocumentTypeV2 {
+    //     pub name: String,
+    //     pub indexes: BTreeMap<String, Option<Vec<u8>>>,
+    // }
+    // #[ferment_macro::export]
+    // pub struct DocumentTypeV3 {
+    //     pub name: String,
+    //     pub indexes: BTreeMap<String, Option<Vec<String>>>,
+    // }
+}
+

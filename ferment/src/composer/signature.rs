@@ -8,7 +8,7 @@ use syn::token::RArrow;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{AttrsComposition, CfgAttributes, FnArgComposer, FnReturnTypeComposer, FnSignatureContext};
-use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable, CommaPunctuatedOwnedItems, ToConversionComposer};
+use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable, CommaPunctuatedOwnedItems, ToConversionComposer, VariableComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
 use crate::ext::{Conversion, FFIVarResolve, Mangle, Resolve, ToType};
@@ -84,7 +84,9 @@ fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>
             conversion: Expression::LineTermination
         },
         ReturnType::Type(_, ty) => FnReturnTypeComposer {
-            presentation: ReturnType::Type(RArrow::default(), Box::new(<Type as Resolve<FFIVariable>>::resolve(ty, source).to_type())),
+            presentation: {
+                ReturnType::Type(RArrow::default(), Box::new(VariableComposer::from(&**ty).compose(source).to_type()))
+            },
             conversion: {
                 ToConversionComposer::new(Name::Dictionary(DictionaryName::Obj), *ty.clone())
                     .compose(source)
@@ -144,7 +146,7 @@ impl SourceExpandable for SigComposer {
                                 conversion: Expression::LineTermination
                             },
                             ReturnType::Type(_, ty) => FnReturnTypeComposer {
-                                presentation: ReturnType::Type(RArrow::default(), Box::new(<Type as Resolve<FFIVariable>>::resolve(ty, &source).to_type())),
+                                presentation: ReturnType::Type(RArrow::default(), Box::new(VariableComposer::from(&**ty).compose(&source).to_type())),
                                 conversion: ty.conversion_to(Expression::Obj)
                             },
                         };

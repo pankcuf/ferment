@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::rc::Rc;
 use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, Variant};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
@@ -8,7 +10,7 @@ use crate::ast::PathHolder;
 use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext};
 use crate::composer::{CommaPunctuatedOwnedItems, EnumComposer, ItemComposer, ItemComposerWrapper, ParentComposer, SigComposer, SourceExpandable, TraitComposer, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
-use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
+use crate::ext::{CrateExtension, ItemExtension, Join, ToPath, ToType};
 use crate::presentable::{Aspect, Context, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{DocPresentation, Expansion, Name};
 use crate::tree::ScopeTreeExportID;
@@ -292,6 +294,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
     let self_ty = item_trait.ident.to_type();
     // let source = context.borrow();
     // println!("trait_expansion: [{}] --- [{}]", scope, source.scope);
+
     TraitComposer::from_item_trait(item_trait, self_ty, scope, context)
         .borrow()
         .expand()
@@ -337,7 +340,11 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
         // <ferment_example::chain::common::chain_type::DevnetType as ferment_example::chain::common::chain_type::IHaveChainSettings>
         match impl_item {
-            ImplItem::Method(ImplItemMethod { sig,  .. }) => {
+            ImplItem::Method(item) => {
+                let ImplItemMethod { sig, .. } = item;
+                // let fn_scope_context = Rc::new(RefCell::new(ScopeContext::with(scope.joined(item), scope_context.borrow().context.clone())));
+
+                let method_scope_context = Rc::new(RefCell::new(scope_context.borrow().joined(item)));
                 let sig_context = FnSignatureContext::Impl(*self_ty.clone(), match trait_ {
                     None => None,
                     Some((_, path, _)) => Some(parse_quote!(#path))
@@ -349,7 +356,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
                     &sig.generics,
                     sig.maybe_attrs().unwrap_or(&vec![]),
                     scope,
-                    scope_context
+                    &method_scope_context
                 ).borrow().expand())
                 // Some(FnSignatureComposition::from_signature(&impl_context, sig, scope.self_path_holder_ref(), &source)
                 //     .present(FnSignatureCompositionContext::FFIObject, &source))

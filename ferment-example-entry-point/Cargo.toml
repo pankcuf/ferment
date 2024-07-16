@@ -1,0 +1,19 @@
+[package]
+name = "ferment-example-entry-point"
+version = "0.1.4"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+async-trait = "0.1.74"
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+tokio = { version = "1.34", features = ["full"] }
+
+[build-dependencies]
+cbindgen = "0.26.0"
+ferment = { path = "../ferment" }
+
+
+[lib]
+name = "ferment_example_entry_point"

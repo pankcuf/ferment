@@ -41,6 +41,14 @@ pub fn format_type_holders(dict: &HashSet<TypeHolder>) -> String {
         .join("\n\n")
 }
 #[allow(unused)]
+pub fn format_type_holders_vec(dict: &Vec<TypeHolder>) -> String {
+    dict.iter()
+        // .map(|item| format_token_stream(&item.0))
+        .map(|item| item.0.to_token_stream().to_string())
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+#[allow(unused)]
 pub fn format_types(dict: &HashSet<Type>) -> String {
     dict.iter()
         // .map(|item| format_token_stream(item))

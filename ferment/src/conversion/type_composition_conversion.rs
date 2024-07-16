@@ -17,6 +17,7 @@ pub enum TypeCompositionConversion {
     Boxed(TypeComposition),
     Primitive(TypeComposition),
     FnPointer(TypeComposition),
+    LambdaFn(TypeComposition),
     Bounds(GenericBoundComposition),
     // SmartPointer(TypeComposition),
     Fn(TypeComposition),
@@ -86,6 +87,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
+            TypeCompositionConversion::LambdaFn(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
@@ -108,6 +110,7 @@ impl TypeCompositionConversion {
             TypeCompositionConversion::Boxed(ty, ..) |
             TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
+            TypeCompositionConversion::LambdaFn(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
             // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
@@ -172,6 +175,8 @@ impl Debug for TypeCompositionConversion {
                 format!("LocalOrGlobal({})", ty),
             TypeCompositionConversion::FnPointer(ty) =>
                 format!("FnPointer({})", ty),
+            TypeCompositionConversion::LambdaFn(ty) =>
+                format!("LambdaFn({})", ty),
         }.as_str())
     }
 }

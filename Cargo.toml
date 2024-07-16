@@ -2,6 +2,7 @@
 members = [
     "ferment",
     "ferment-example",
+    "ferment-example-entry-point",
     "ferment-example-nested",
     "ferment-example-platform",
     "ferment-example-traits-nested",
