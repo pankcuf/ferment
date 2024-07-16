@@ -221,7 +221,8 @@ impl GenericTypeConversion {
                         compose_arg(
                             arg_ty.clone(),
                             Expression::Deref(DictionaryName::O.to_token_stream()),
-                            Expression::AsMut_(Expression::O.into()),
+                            Expression::InterfacesExpr(InterfacesMethodExpr::Boxed(DictionaryName::O.to_token_stream())),
+                            // Expression::AsMut_(Expression::O.into()),
                             Expression::InterfacesExpr(DESTROY_OPT_PRIMITIVE(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
 
                     }

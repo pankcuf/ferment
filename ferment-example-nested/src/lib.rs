@@ -1,6 +1,6 @@
 mod fermented;
-// mod model;
-// mod gen;
+mod model;
+mod gen;
 mod entry;
 
 
