@@ -6,7 +6,7 @@ use syn::spanned::Spanned;
 use crate::composable::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{CrateExtension, DictionaryType, Mangle, Pop, ResolveTrait, SpecialType, ToPath};
+use crate::ext::{CrateExtension, DictionaryType, Mangle, ResolveTrait, SpecialType, ToPath};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 pub trait Resolve<T> {
@@ -45,7 +45,7 @@ impl Resolve<TypeCompositionConversion> for Type {
         let result = <Type as Resolve<Option<ObjectConversion>>>::resolve(self, source)
             .and_then(|external_type| {
                 match external_type {
-                    ObjectConversion::Item(ty_conversion, ScopeItemConversion::Fn(sig, path)) => {
+                    ObjectConversion::Item(.., ScopeItemConversion::Fn(..)) => {
                         // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
                         let parent_object = &source.scope.parent_scope().unwrap().self_scope().object;
                         // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);

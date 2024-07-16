@@ -1,6 +1,4 @@
-use quote::ToTokens;
 use syn::{parse_quote, Type};
-use syn::punctuated::Punctuated;
 use crate::composable::TypeComposition;
 use crate::composer::Composer;
 use crate::context::ScopeContext;
@@ -48,7 +46,7 @@ impl<'a> Composer<'a> for VariableComposer {
             None => {
                 // println!("VariableComposer (NonSpecial): {} in [{}]", full_ty.to_token_stream(), source.scope);
                 match source.maybe_object(&self.ty) {
-                    Some(ObjectConversion::Item(fn_ty_conversion, ScopeItemConversion::Fn(..))) => {
+                    Some(ObjectConversion::Item(.., ScopeItemConversion::Fn(..))) => {
                         // println!("VariableComposer (Function): {} in [{}]", fn_ty_conversion.to_token_stream(), source.scope);
                         FFIVariable::MutPtr {
                             ty: match &source.scope.parent_scope().unwrap().self_scope().object {

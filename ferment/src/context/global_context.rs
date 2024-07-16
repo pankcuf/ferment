@@ -811,8 +811,6 @@ impl RefineMut for GlobalContext {
                                     .or_insert_with(HashSet::new)
                                     .extend(all_attrs.clone());
                             });
-                    } else if let Some(TypeCompositionConversion::LambdaFn(bounds)) = object.type_conversion() {
-
                     }
                 })
             });

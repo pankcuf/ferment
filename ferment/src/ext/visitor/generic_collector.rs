@@ -3,7 +3,7 @@ use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ParenthesizedGenericArguments, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::TypeHolder;
 use crate::conversion::ScopeItemConversion;
-use crate::ext::item::{path_arguments_to_types, segment_arguments_to_types};
+use crate::ext::item::segment_arguments_to_types;
 use crate::ext::visitor::TypeCollector;
 use crate::formatter::{format_type_holders, format_type_holders_vec};
 
@@ -65,7 +65,7 @@ impl GenericCollector for Type {
                                     GenericArgument::Type(..) => true,
                                     _ => false
                                 }),
-                            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => true,
+                            PathArguments::Parenthesized(ParenthesizedGenericArguments { .. }) => true,
                             _ => false,
                         };
                         has_nested_types && !matches!(seg.ident.to_string().as_str(), "Option")

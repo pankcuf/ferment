@@ -6,7 +6,7 @@ use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundComposition, TypeComposition};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Pop, Resolve, SpecialType, ToPath, ToType};
+use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, SpecialType, ToPath, ToType};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Display, Debug)]

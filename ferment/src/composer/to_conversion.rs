@@ -5,7 +5,7 @@ use crate::composable::{FieldComposer, TypeComposition};
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
+use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, Resolve, SpecialType, ToType};
 use crate::presentable::Expression;
 use crate::presentation::{InterfacesMethodExpr, Name};
 
@@ -45,7 +45,7 @@ impl<'a> Composer<'a> for ToConversionComposer {
         let Self { name, ty } = self;
         let field_path = Expression::Simple(name.to_token_stream());
         match source.maybe_object(ty) {
-            Some(ObjectConversion::Item(fn_ty_conversion, ScopeItemConversion::Fn(..))) => match &source.scope.parent_scope().unwrap().self_scope().object {
+            Some(ObjectConversion::Item(.., ScopeItemConversion::Fn(..))) => match &source.scope.parent_scope().unwrap().self_scope().object {
                 ObjectConversion::Type(ref ty_conversion) |
                 ObjectConversion::Item(ref ty_conversion, ..) => {
                     let full_parent_ty: Type = Resolve::resolve(ty_conversion.ty(), source);

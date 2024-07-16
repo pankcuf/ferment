@@ -14,7 +14,7 @@ pub trait ToObjectConversion {
     fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
     fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
     fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
-    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
+    // fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
 }
 
 impl ToObjectConversion for Type {
@@ -30,9 +30,9 @@ impl ToObjectConversion for Type {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
     }
 
-    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_composition(self, nested_arguments)))
-    }
+    // fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
+    //     ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_composition(self, nested_arguments)))
+    // }
 
     // fn to_import(self) -> ObjectConversion {
     //     ObjectConversion::Type(TypeCompositionConversion::Imported(handle_type_composition(self)))
@@ -51,9 +51,9 @@ impl ToObjectConversion for TypePath {
     fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
         ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
     }
-    fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_path_composition(self, nested_arguments)))
-    }
+    // fn to_callback(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
+    //     ObjectConversion::Type(TypeCompositionConversion::FnPointer(handle_type_path_composition(self, nested_arguments)))
+    // }
 
     // fn to_import(self) -> ObjectConversion {
     //     ObjectConversion::Type(TypeCompositionConversion::Imported(handle_type_path_composition(self)))

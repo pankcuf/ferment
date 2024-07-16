@@ -119,7 +119,7 @@ impl VisitScope for Item {
                 visitor.add_generic_chain(scope, &item_type.generics, true);
                 visitor.add_full_qualified_type_match(scope, &item_type.ty, true);
             }
-            Item::Impl(ItemImpl { generics, trait_, self_ty, items , ..}) => {
+            Item::Impl(ItemImpl { generics, trait_, self_ty: _, items , ..}) => {
                 if let Some((_, path, _)) = trait_ {
                     visitor.add_full_qualified_type_match(scope, &path.to_type(), true);
                 }
@@ -141,7 +141,7 @@ impl VisitScope for Item {
                                 visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
                             }
                             inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                let mut type_chain = visitor.create_type_chain(ty, &fn_scope);
+                                let type_chain = visitor.create_type_chain(ty, &fn_scope);
                                 let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
                                 // println!("add_impl_method add_method_arg: Self::{} into: {}", ident, scope.self_scope().object);
                                 // type_chain.insert(parse_quote!(Self), scope.self_scope().object.clone());
