@@ -74,7 +74,12 @@ pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    input
+    let input = TokenStream2::from(input);
+    let expanded = quote! {
+        #[repr(C)]
+        #input
+    };
+    TokenStream::from(expanded)
 }
 
 #[proc_macro_attribute]
