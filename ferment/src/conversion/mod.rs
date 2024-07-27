@@ -8,6 +8,7 @@ mod local_type_conversion;
 mod generic_type_conversion;
 mod type_conversion;
 mod opaque_conversion;
+mod dictionary_conversion;
 
 pub use self::generic_type_conversion::*;
 pub use self::import_conversion::*;

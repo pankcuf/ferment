@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use quote::ToTokens;
 use syn::{Attribute, Item, ItemMod};
 use crate::composable::ImportComposition;
 use crate::composer::ParentComposer;
@@ -99,7 +98,7 @@ impl ScopeTreeExportItem {
         );
     }
     fn add_non_mod_item(&mut self, item: &Item, scope: &ScopeChain) {
-        println!("---- add_non_mod_item: {} -- {}", item.maybe_ident().to_token_stream(), scope);
+        // println!("---- add_non_mod_item: {} -- {}", item.maybe_ident().to_token_stream(), scope);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
             ScopeTreeExportItem::Tree(

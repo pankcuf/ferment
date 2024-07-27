@@ -1,4 +1,5 @@
 mod fermented;
+#[allow(dead_code)]
 mod entry;
 
 

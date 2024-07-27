@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::ItemUse;
-use crate::ast::{Depunctuated, SemiPunctuated};
+use syn::{Attribute, ItemUse};
+use crate::ast::{Depunctuated, Directives, SemiPunctuated};
 use crate::context::ScopeContext;
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, FFIObjectPresentation, InterfacePresentation};
@@ -18,19 +18,19 @@ pub enum Expansion {
         binding: BindingPresentation,
     },
     Full {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
         conversion: InterfacePresentation,
         drop: DropInterfacePresentation,
         bindings: Depunctuated<BindingPresentation>,
-        traits: Depunctuated<Expansion>,
+        traits: Directives,
     },
     Root {
         tree: CrateTree,
     },
     Mod {
-        attrs: Depunctuated<Expansion>,
+        attrs: Directives,
         directives: TokenStream2,
         name: TokenStream2,
         imports: SemiPunctuated<ItemUse>,
@@ -38,7 +38,7 @@ pub enum Expansion {
     },
     Impl {
         comment: DocPresentation,
-        items: Depunctuated<Expansion>,
+        items: Directives,
     },
     Trait {
         comment: DocPresentation,
@@ -63,7 +63,7 @@ impl ToTokens for Expansion {
             Self::Function { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
             Self::Full { attrs, comment, ffi_presentation, conversion, drop, bindings, traits } =>
-                vec![comment.to_token_stream(), attrs.to_token_stream(), ffi_presentation.to_token_stream(), attrs.to_token_stream(), conversion.to_token_stream(), attrs.to_token_stream(), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()],
+                vec![comment.to_token_stream(), quote!(#(#attrs)*), ffi_presentation.to_token_stream(), quote!(#(#attrs)*), conversion.to_token_stream(), quote!(#(#attrs)*), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()],
             Self::Mod { attrs, directives, name, imports , conversions } =>
                 vec![quote!(#attrs #directives pub mod #name { #imports #conversions })],
             Self::Trait { comment, vtable, trait_object } =>

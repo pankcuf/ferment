@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::Attribute;
-use crate::ast::Depunctuated;
+use crate::ast::Directives;
 use crate::context::ScopeChain;
 use crate::presentation::Expansion;
 
@@ -29,7 +29,7 @@ pub trait CfgAttributes {
         let cfg_attrs = self.cfg_attributes();
         cfg_attrs.iter().map(|attr| Some(attr.clone())).collect()
     }
-    fn cfg_attributes_expanded(&self) -> Depunctuated<Expansion> {
+    fn cfg_attributes_expanded(&self) -> Directives {
         self.cfg_attributes()
             .iter()
             .map(|a| Expansion::TokenStream(a.to_token_stream()))

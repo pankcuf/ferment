@@ -1,18 +1,18 @@
-use syn::{Attribute, Generics, ParenthesizedGenericArguments, parse_quote, PathArguments, PathSegment, Type, TypePath};
+use syn::{Attribute, Generics, parse_quote, Type};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use crate::ast::Depunctuated;
+use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{FieldComposer, FieldTypeConversionKind, TypeComposition};
 use crate::composer::{CommaPunctuatedNestedArguments, ParentComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectConversion, TypeCompositionConversion};
-use crate::ext::{DictionaryType, Mangle, Terminated, ToType, usize_to_tokenstream};
+use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectConversion};
+use crate::ext::{Mangle, Terminated, ToType};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::{DestroyPresentation, FromConversionPresentation, InterfacePresentation, Name, ToConversionPresentation};
+use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(Clone)]
 pub struct GenericBoundComposition {
@@ -84,23 +84,7 @@ impl GenericBoundComposition {
         //
     }
 
-    pub fn maybe_bound_is_callback<'a>(&self, bound: &'a ObjectConversion) -> Option<&'a ParenthesizedGenericArguments> {
-        if let ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty) | TypeCompositionConversion::LambdaFn(ty)) |
-        ObjectConversion::Item(TypeCompositionConversion::FnPointer(ty) | TypeCompositionConversion::LambdaFn(ty), _) = bound {
-            if let Type::Path(TypePath { path, .. }) = &ty.ty {
-                if let Some(PathSegment { arguments, ident: last_ident, ..}) = &path.segments.last() {
-                    if last_ident.is_lambda_fn() {
-                        if let PathArguments::Parenthesized(args) = arguments {
-                            return Some(args)
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
 }
-
 impl GenericBoundComposition {
     pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, scope_context: &ParentComposer<ScopeContext>) -> TokenStream2 {
         // println!("Mixin::Expand: {} ---- {:?}", self, attrs);
@@ -108,7 +92,6 @@ impl GenericBoundComposition {
         let attrs = expand_attributes(attrs);
         let ffi_name = self.mangle_ident_default();
         let self_ty = &self.type_composition.ty;
-        // let ffi_name = self_ty.mangle_ident_default();
         let ffi_as_type = ffi_name.to_type();
         println!("Mixin::Expand: {} ---- \n\tattrs: {:?}\n\tname: {}", self, attrs, ffi_name);
 
@@ -117,7 +100,7 @@ impl GenericBoundComposition {
             .map(|(index, (predicate_ty, _bounds))|
                 dictionary_generic_arg_pair(
                     Name::UnnamedArg(index),
-                    usize_to_tokenstream(index),
+                    Name::Index(index),
                     predicate_ty,
                     &source))
             .collect::<Depunctuated<_>>();
@@ -133,9 +116,23 @@ impl GenericBoundComposition {
                     attrs,
                     types: (ffi_as_type, parse_quote!(#self_ty)),
                     conversions: (
-                        FromConversionPresentation::Tuple(mixin_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.present(&source))).collect()),
-                        ToConversionPresentation::Tuple(mixin_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.to_conversion.present(&source))).collect()),
-                        DestroyPresentation::Default,
+                        DictionaryExpr::FromRoot(
+                            ParenWrapped::new(
+                                CommaPunctuated::from_iter(
+                                    mixin_items.iter()
+                                        .flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.clone()))))
+                                .present(&source))
+                            .to_token_stream(),
+                        // FromConversionPresentation::Tuple(mixin_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.present(&source))).collect()),
+                        InterfacesMethodExpr::Boxed(
+                            DictionaryExpr::SelfDestructuring(
+                                CommaPunctuated::from_iter(
+                                    mixin_items.iter()
+                                        .flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.present(&source))))
+                                    .to_token_stream())
+                                .to_token_stream())
+                            .to_token_stream(),
+                        InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated(),
                         None
                     )
                 }

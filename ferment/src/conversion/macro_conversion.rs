@@ -1,11 +1,10 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use quote::quote;
-use syn::{Attribute, Item, Lit, Meta, MetaList, NestedMeta, Path};
+use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, NestedMeta, parse_quote, Path};
 use syn::punctuated::Punctuated;
-use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
+use crate::ast::{CommaPunctuated, TypeHolder};
 use crate::ext::{ItemExtension, ToType};
-use crate::presentation::Expansion;
 
 pub enum MacroType {
     Export,
@@ -210,9 +209,19 @@ fn merge_cfg_conditions(conditions: Vec<CfgMacroType>) -> Vec<CfgMacroType> {
         vec![CfgMacroType::Any(any_conditions)]
     }
 }
-pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Depunctuated<Expansion> {
+pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Vec<Attribute> {
     let attrs = merge_attributes(attrs);
-    Depunctuated::from_iter([Expansion::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
+
+
+    (!attrs.is_empty()).then(|| vec![Attribute {
+        pound_token: Default::default(),
+        style: AttrStyle::Outer,
+        bracket_token: Default::default(),
+        path: parse_quote!(cfg),
+        tokens: quote!((#attrs)),
+    }]).unwrap_or_default()
+    // vec![]
+    // Depunctuated::from_iter([Expansion::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
 }
 pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<Meta> {
     if attrs.contains(&None) {

@@ -1,7 +1,6 @@
-use quote::{quote, ToTokens};
-use syn::{ParenthesizedGenericArguments, Type};
-use crate::ast::CommaPunctuated;
-use crate::composable::{FieldComposer, TypeComposition};
+use quote::ToTokens;
+use syn::Type;
+use crate::composable::TypeComposition;
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
@@ -13,16 +12,18 @@ use crate::presentation::{InterfacesMethodExpr, Name};
 pub struct ToConversionComposer {
     pub name: Name,
     pub ty: Type,
+
+    pub expr: Option<Expression>
 }
 
-impl From<&FieldComposer> for ToConversionComposer {
-    fn from(value: &FieldComposer) -> Self {
-        Self { name: value.name.clone(), ty: value.ty().clone() }
-    }
-}
+// impl From<&FieldComposer> for ToConversionComposer {
+//     fn from(value: &FieldComposer) -> Self {
+//         Self { name: value.name.clone(), ty: value.ty().clone(), expr: None }
+//     }
+// }
 impl ToConversionComposer {
-    pub fn new(name: Name, ty: Type) -> Self {
-        Self { name, ty }
+    pub fn new(name: Name, ty: Type, expr: Option<Expression>) -> Self {
+        Self { name, ty, expr }
     }
 }
 
@@ -30,8 +31,10 @@ fn from_external(ty: &Type, field_path: Expression) -> Expression {
     match TypeConversion::from(ty) {
         TypeConversion::Primitive(_) =>
             field_path,
-        TypeConversion::Generic(GenericTypeConversion::Optional(_)) =>
-            Expression::ToOpt(field_path.into()),
+        TypeConversion::Generic(GenericTypeConversion::Optional(ty)) => match TypeConversion::from(ty.first_nested_type().unwrap()) {
+            TypeConversion::Primitive(_) => Expression::ToOptPrimitive(field_path.into()),
+            _ => Expression::ToOpt(field_path.into()),
+        }
         _ =>
             Expression::To(field_path.into())
     }
@@ -42,10 +45,11 @@ impl<'a> Composer<'a> for ToConversionComposer {
     type Result = Expression;
 
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
-        let Self { name, ty } = self;
-        let field_path = Expression::Simple(name.to_token_stream());
+        let Self { name, ty, expr } = self;
+        let field_path = /*ty.conversion_to(*/expr.clone()
+            .unwrap_or(Expression::Simple(name.to_token_stream()))/*)*/;
         match source.maybe_object(ty) {
-            Some(ObjectConversion::Item(.., ScopeItemConversion::Fn(..))) => match &source.scope.parent_scope().unwrap().self_scope().object {
+            Some(ObjectConversion::Item(.., ScopeItemConversion::Fn(..))) => match &source.scope.parent_object().unwrap() {
                 ObjectConversion::Type(ref ty_conversion) |
                 ObjectConversion::Item(ref ty_conversion, ..) => {
                     let full_parent_ty: Type = Resolve::resolve(ty_conversion.ty(), source);
@@ -70,8 +74,10 @@ impl<'a> Composer<'a> for ToConversionComposer {
                     None => match ty.composition(source) {
                         TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::LambdaFn(..) =>
                             field_path,
-                        TypeCompositionConversion::Optional(..)  =>
-                            Expression::ToOpt(field_path.into()),
+                        TypeCompositionConversion::Optional(ty) => match TypeConversion::from(ty.ty.first_nested_type().unwrap()) {
+                            TypeConversion::Primitive(_) => Expression::ToOptPrimitive(field_path.into()),
+                            _ => Expression::ToOpt(field_path.into())
+                        }
                         TypeCompositionConversion::Boxed(TypeComposition { ref ty, .. }) => if let Some(nested_ty) = ty.first_nested_type() {
                             match (nested_ty.maybe_special_type(source),
                                    nested_ty.maybe_object(source)) {
@@ -95,9 +101,10 @@ impl<'a> Composer<'a> for ToConversionComposer {
                         },
                         TypeCompositionConversion::Bounds(bounds) => match bounds.bounds.len() {
                             0 => field_path,
-                            1 => if let Some(ParenthesizedGenericArguments { inputs, .. }) = bounds.maybe_bound_is_callback(bounds.bounds.first().unwrap()) {
-                                let lambda_args = CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)));
-                                Expression::Simple(quote!(move |#lambda_args| unsafe { (&*#name).call(#lambda_args) }))
+                            1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                                // Expression::Simple(quote!(move |#lambda_args| unsafe { (&*#name).call(#lambda_args) }))
+                                Expression::FromLambda(field_path.into(), lambda_args).into()
+
                             } else {
                                 Expression::To(field_path.into())
                             }

@@ -1,17 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, Type, TypePath};
+use quote::format_ident;
+use syn::{Attribute, parse_quote, Path, Type, TypePath};
 use syn::punctuated::Punctuated;
 use crate::Config;
-use crate::ast::{Colon2Punctuated, PathHolder};
-use crate::composable::{GenericBoundComposition, GenericConversion, NestedArgument, TraitCompositionPart1, TypeComposition};
-use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::{CustomResolver, GenericResolver, ImportResolver, Scope, ScopeChain, ScopeInfo, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
+use crate::ast::PathHolder;
+use crate::composable::{GenericBoundComposition, GenericConversion, TraitCompositionPart1, TypeComposition};
+use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, GenericCollector, GenericConstraintCollector, Pop, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
-use crate::formatter::{format_global_context, format_path_vec, format_token_stream};
+use crate::ext::{GenericCollector, GenericConstraintCollector, Pop, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
+use crate::formatter::format_global_context;
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -489,7 +488,7 @@ impl GlobalContext {
         }.and_then(|scope_item| scope_item.update_scope_item(new_ty_to_replace))
     }
 
-    fn maybe_known_item(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
+    pub(crate) fn maybe_known_item(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
         // println!("maybe_known_item: {} in [{}]", ty_to_replace, scope.self_path_holder_ref());
         // So we found a unknown path chunk in the scope
         // Here we trying to determine paths where the actual item located (if it's not evidently imported)
@@ -511,255 +510,20 @@ impl GlobalContext {
 
         self.maybe_item(&path)
             .and_then(|scope_item| scope_item.update_scope_item(new_ty_to_replace))
-            .or(self.traverse_scopes(ty_to_replace, scope))
+            .or_else(|| self.traverse_scopes(ty_to_replace, scope))
     }
 
-    fn maybe_refine_args(&self, segment: &mut PathSegment, nested_arguments: &mut CommaPunctuatedNestedArguments, scope: &ScopeChain) {
-        // println!("maybe_refine_args::: {} ---- {:?}", segment.to_token_stream(), nested_arguments);
-        // self.refin
-        match &mut segment.arguments {
-            PathArguments::None => {
-                if !nested_arguments.is_empty() {
-                    // Nested args here can be unrefined if their owner is not refined
-                    segment.arguments = PathArguments::AngleBracketed(AngleBracketedGenericArguments {
-                        colon2_token: None,
-                        lt_token: Default::default(),
-                        args: nested_arguments.into_iter().map(|nested_arg| match nested_arg {
-                            NestedArgument::Object(obj) |
-                            NestedArgument::Constraint(obj) => {
-                                let refined = if let Some(refined) = self.maybe_refined_object(scope, obj) {
-                                    let refined_ty = refined.maybe_type();
-                                    *obj = refined;
-                                    refined_ty
-                                } else {
-                                    obj.maybe_type()
-                                };
-                                GenericArgument::Type(refined.unwrap())
-                            },
-                        }).collect(),
-                        gt_token: Default::default(),
-                    });
-                }
-            }
-            PathArguments::Parenthesized(ParenthesizedGenericArguments { ref mut inputs, ref mut output, .. }) => {
-                // panic!("Parenthesized args: {} -> {}", inputs.to_token_stream(), output.to_token_stream())
-                inputs.iter_mut().for_each(|inner_ty| match nested_arguments.pop() {
-                    None => {}
-                    Some(nested_arg) => match nested_arg.into_value() {
-                        NestedArgument::Object(obj) => *inner_ty = obj.maybe_type().unwrap(),
-                        NestedArgument::Constraint(obj) => *inner_ty = obj.maybe_type().unwrap(),
-                    }
-                });
-                match output {
-                    ReturnType::Default => {}
-                    ReturnType::Type(_, inner_ty) => match nested_arguments.pop() {
-                        None => {}
-                        Some(nested_arg) => match nested_arg.into_value() {
-                            NestedArgument::Object(obj) => *inner_ty = Box::new(obj.maybe_type().unwrap()),
-                            NestedArgument::Constraint(obj) => *inner_ty = Box::new(obj.maybe_type().unwrap()),
-                        }
-                    }
-                }
-            },
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
-                args.iter_mut()
-                    .for_each(|arg| match arg {
-                        GenericArgument::Type(inner_ty) => match nested_arguments.pop() {
-                            None => {}
-                            Some(nested_arg) => match nested_arg.into_value() {
-                                NestedArgument::Object(obj) =>  *inner_ty = obj.maybe_type().unwrap(),
-                                NestedArgument::Constraint(obj) =>  *inner_ty = obj.maybe_type().unwrap(),
-                            }
-                        }
-                        GenericArgument::Lifetime(_) => {}
-                        GenericArgument::Const(_) => {}
-                        GenericArgument::Binding(_) => {}
-                        GenericArgument::Constraint(_) => {}
-                    });
-            }
-        };
 
-    }
 
-    // We need to find full qualified paths for involved chunk and bind for them to actual items
-    fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
-        match object {
-            // ObjectConversion::Item()
-            ObjectConversion::Type(TypeCompositionConversion::Imported(ty_composition, import_path)) => {
-                // println!("maybe_refined_object (Imported)::: {} ---- {}", ty_composition, import_path.to_token_stream());
-                let mut ty_replacement = ty_composition.clone();
-                let mut import_type_path: TypePath = parse_quote!(#import_path);
-                let crate_name = scope.crate_ident_as_path();
-                import_type_path.path = import_path.crate_named(&crate_name);
-                let mut refined = false;
-                // If we skip items from unknown crate names here we can skip local items which is bad
-                let mut chunks = import_type_path.path.clone();
-                while !chunks.segments.is_empty() {
-                    chunks.segments = chunks.segments.popped();
-                    if !chunks.segments.is_empty() {
-                        let mod_chain = create_mod_chain(&chunks);
-                        if let Some(parent_imports) = self.imports.maybe_scope_imports(&mod_chain) {
-                            for (PathHolder(_ident), alias_path) in parent_imports {
-                                let alias = alias_path.crate_named(&crate_name);
-                                if let Some(merged) = self.refined_import(&import_type_path.path, &alias) {
-                                    import_type_path.path.segments = merged.segments;
-                                    refined = true;
-                                }
-                            }
-                        }
-                    }
-                }
-                if !refined {
-                    self.maybe_refine_args(import_type_path.path.segments.last_mut().unwrap(), &mut ty_replacement.nested_arguments, scope);
-                }
-                let dict_path = import_type_path.path.clone();
-                ty_replacement.ty = Type::Path(import_type_path);
-                let conversion_replacement = if let Some(dictionary_type) = scope.maybe_dictionary_composition(&dict_path, self) {
-                    dictionary_type
-                } else if let Some(found_item) = self.maybe_known_item(&ty_replacement, scope) {
-                    // println!("[INFO] Known item found: [{}]", found_item.to_token_stream());
-                    found_item
-                } else {
-                    println!("[WARN] Unknown import: [{}]", ty_replacement.ty.to_token_stream());
-                    TypeCompositionConversion::Unknown(ty_replacement)
-                };
-                return Some(ObjectConversion::Type(conversion_replacement));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Unknown(ty_to_replace)) => {
-                // println!("[INFO] Unknown item found: [{}]", ty_to_replace.ty.to_token_stream());
-                if let Some(refined) = self.maybe_known_item(ty_to_replace, scope) {
-                    // println!("[INFO] Refined item found: [{}]", refined.to_token_stream());
-                    return Some(ObjectConversion::Type(refined));
-                } else {
-                    println!("[INFO] Unknown item not refined: [{}]", format_token_stream(&ty_to_replace.ty));
+    // We need to find full qualified paths for involved chunk and bind them to actual items
+    pub(crate) fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
+        // println!("maybe_refined_object.1: {} in {}", object, scope.fmt_short());
+        let mut refined = object.clone();
+        let result = refined.refine_in_scope(scope, self)
+            .then_some(refined);
 
-                }
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Array(ty_composition)) => {
-                let mut new_ty_composition = ty_composition.clone();
-                self.refine_nested_ty(&mut new_ty_composition, scope);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Array(new_ty_composition)));
-            }
-            ObjectConversion::Type(TypeCompositionConversion::Slice(ty_composition)) => {
-                let mut new_ty_composition = ty_composition.clone();
-                self.refine_nested_ty(&mut new_ty_composition, scope);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Slice(new_ty_composition)));
-            }
-            ObjectConversion::Type(TypeCompositionConversion::Tuple(ty_composition)) => {
-                // println!("Refine Tuple.1: {}", ty_composition);
-                let mut new_ty_composition = ty_composition.clone();
-                self.refine_nested_ty(&mut new_ty_composition, scope);
-                // println!("Refine Tuple.2: {}", new_ty_composition);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Tuple(new_ty_composition)));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Object(ty_composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Object(self.refine_nested(ty_composition, scope))));
-            }
-            ObjectConversion::Type(TypeCompositionConversion::FnPointer(ty_composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::FnPointer(self.refine_nested(ty_composition, scope))));
-            }
-            ObjectConversion::Type(TypeCompositionConversion::LambdaFn(ty_composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::LambdaFn(self.refine_nested(ty_composition, scope))));
-            }
-            ObjectConversion::Type(TypeCompositionConversion::TraitType(composition)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::TraitType(self.refine_nested(composition, scope))));
-            },
-            // ObjectConversion::Type(TypeCompositionConversion::SmartPointer(ty_composition)) => {
-            //     let refined = self.refine_nested(ty_composition, scope);
-            //     println!("maybe_refined_object (SmartPointer)::: {} ---- {}", ty_composition, refined);
-            //     return Some(ObjectConversion::Type(TypeCompositionConversion::SmartPointer(refined)));
-            // }
-            ObjectConversion::Type(TypeCompositionConversion::Trait(composition, dec, paths)) => {
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Trait(self.refine_nested(composition, scope), dec.clone(), paths.clone())));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Optional(ty_composition)) => {
-                let nested_refined = self.refine_nested(ty_composition, scope);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Optional(nested_refined)));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Boxed(ty_composition)) => {
-                let nested_refined = self.refine_nested(ty_composition, scope);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Boxed(nested_refined)));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Bounds(composition)) => {
-                let nested_refined = self.refine_nested_bounds(composition, scope);
-                return Some(ObjectConversion::Type(TypeCompositionConversion::Bounds(nested_refined)));
-            },
-            ObjectConversion::Type(TypeCompositionConversion::Fn(_composition)) => {
-                // TODO::
-            },
-            _ => {}
-        }
-        None
-    }
-    fn refine_nested_bounds(&self, composition: &GenericBoundComposition, scope: &ScopeChain) -> GenericBoundComposition {
-        let mut new_bounds_composition = composition.clone();
-        // println!("refine_nested_bounds.1: {}", composition);
-        new_bounds_composition.bounds.iter_mut().for_each(|arg| {
-            if let Some(refined) = self.maybe_refined_object(scope, arg) {
-                *arg = refined;
-            }
-        });
-        // println!("refine_nested_bounds.2: {}", new_bounds_composition);
-        new_bounds_composition
-    }
-    fn refine_nested(&self, composition: &TypeComposition, scope: &ScopeChain) -> TypeComposition {
-        let mut new_ty_composition = composition.clone();
-        new_ty_composition.nested_arguments
-            .iter_mut()
-            .for_each(|arg| {
-                let obj = arg.object_mut();
-                if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                    *obj = object_to_refine;
-                }
-            });
-        new_ty_composition.ty.refine_with(new_ty_composition.nested_arguments.clone());
-        new_ty_composition
-    }
-    fn refine_nested_ty(&self, new_ty_composition: &mut TypeComposition, scope: &ScopeChain) {
-        match &mut new_ty_composition.ty {
-            Type::Tuple(type_tuple) => {
-                type_tuple.elems.iter_mut().enumerate().for_each(|(index, elem)| {
-                    match &mut new_ty_composition.nested_arguments[index] {
-                        NestedArgument::Object(obj) |
-                        NestedArgument::Constraint(obj) => {
-                            if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                                let to_ty = object_to_refine.maybe_type().unwrap();
-                                *obj = object_to_refine;
-                                *elem = to_ty;
-                            }
-                        },
-                    }
-                });
-            },
-            Type::Array(type_array) => {
-                match &mut new_ty_composition.nested_arguments.first_mut() {
-                    Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
-                        if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                            let to_ty = object_to_refine.maybe_type().unwrap();
-                            *obj = object_to_refine;
-                            *type_array.elem = to_ty;
-                        }
-                    }
-                    None => {}
-                }
-            },
-            Type::Slice(type_slice) => {
-                match &mut new_ty_composition.nested_arguments.first_mut() {
-                    Some(NestedArgument::Object(obj) | NestedArgument::Constraint(obj)) => {
-                        if let Some(object_to_refine) = self.maybe_refined_object(scope, obj) {
-                            let to_ty = object_to_refine.maybe_type().unwrap();
-                            *obj = object_to_refine;
-                            *type_slice.elem = to_ty;
-                        }
-                    }
-                    None => {}
-                }
-            }
-            _ => {
-                // What about others like Reference?
-            }
-        }
-
+        // println!("maybe_refined_object.2: {} in {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
+        result
     }
 
 }
@@ -773,7 +537,7 @@ impl RefineMut for GlobalContext {
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
-                println!("REFINE GENERIC in {}", scope.fmt_short());
+                //println!("REFINE GENERIC in {}", scope.fmt_short());
                 type_chain.inner.iter().for_each(|(_conversion, object)| {
                     // println!("\t{} ---- {}", _conversion, object);
                     let object_attrs = object.resolve_attrs();
@@ -783,12 +547,12 @@ impl RefineMut for GlobalContext {
                         all_attrs.insert(None);
                     }
                     if let Some(ty) = object.maybe_type() {
-                        println!("--- FIND GENERICS IN TYPE: {}", ty.to_token_stream());
+                        //println!("--- FIND GENERICS IN TYPE: {}", ty.to_token_stream());
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
                             .for_each(|_ty| {
-                                println!("--- ADD GENERIC: OBJECT: {}", object);
+                                //println!("--- ADD GENERIC: OBJECT: {}", object);
                                 refined_generics
                                     .entry(GenericConversion::new(object.clone()))
                                     .or_insert_with(HashSet::new)
@@ -797,7 +561,7 @@ impl RefineMut for GlobalContext {
                     }
 
                     if let Some(TypeCompositionConversion::Bounds(bounds)) = object.type_conversion() {
-                        println!("REFINE_SCOPE_BOUNDS: {}", bounds);
+                        //println!("REFINE_SCOPE_BOUNDS: {}", bounds);
                         // refined_generic_constraints
                         //     .entry(bounds.clone())
                         //     .or_insert_with(HashSet::new)
@@ -805,7 +569,7 @@ impl RefineMut for GlobalContext {
                         bounds.find_generic_constraints()
                             .iter()
                             .for_each(|_ty| {
-                                println!("--- ADD GENERIC: BOUNDS: {}", bounds);
+                                //println!("--- ADD GENERIC: BOUNDS: {}", bounds);
                                 refined_generic_constraints
                                     .entry(bounds.clone())
                                     .or_insert_with(HashSet::new)
@@ -821,16 +585,16 @@ impl RefineMut for GlobalContext {
             .for_each(|(scope, generic_chain)| {
                 generic_chain.values_mut()
                     .for_each(|bounds| {
-                        println!("REFINE GENERIC BOUNDS: {}", format_path_vec(bounds));
+                        //println!("REFINE GENERIC BOUNDS: {}", format_path_vec(bounds));
                         bounds.iter_mut().for_each(|bound| {
                             if let Some(ty) = self.scope_register.scope_type_for_path(bound, scope) {
                                 match ty {
                                     Type::Path(TypePath { path, .. }) => {
-                                        println!("REFINE BOUND: {}", path.to_token_stream());
+                                        //println!("REFINE BOUND: {}", path.to_token_stream());
                                         *bound = path;
                                     },
                                     _ => {
-                                        println!("NON REFINE BOUND: {}", ty.to_token_stream());
+                                        //println!("NON REFINE BOUND: {}", ty.to_token_stream());
                                     }
                                 }
                             }
@@ -935,160 +699,7 @@ impl GlobalContext {
         result
     }
 
-    fn lookup_reexport(&self, import_path: &Path) -> Option<Path> {
-        let mut scope_path_candidate = import_path.clone();
-        let mut result: Option<Path> = None;
-        let mut chunk: Option<Path> = None;
-        while let Some(scope_path_last_segment) = import_path.segments.last() {
-            scope_path_candidate = scope_path_candidate.popped();
-            match self.maybe_imports_scope(&scope_path_candidate) {
-                Some(reexport_scope) => {
-                    let path: PathHolder = parse_quote!(#scope_path_last_segment);
-                    match self.maybe_import(reexport_scope, &path) {
-                        Some(reexport_import) => {
-                            let reexport_scope_path = reexport_scope.self_path_holder_ref();
-                            // println!("[INFO] Re-export found: \n\t[{}] +\n\t[{}]\n\t[{}]",
-                            //          format_token_stream(reexport_scope_path),
-                            //          format_token_stream(reexport_import),
-                            //          format_token_stream(&chunk));
-                            let segments: Colon2Punctuated<PathSegment> = match (reexport_import.segments.first().unwrap().ident.to_string().as_str(), chunk.as_ref()) {
-                                ("crate", Some(chunk_ref)) => {
-                                    let crate_name_chunk = reexport_scope.crate_ident().to_path();
-                                    let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
-                                    let new_segments_iter = result.segments.iter().skip(reexport_scope_path.len());
-                                    let new_path: Path = parse_quote!(#(#new_segments_iter)::*);
-                                    let re_result = merge_reexport_chunks(&new_path, chunk_ref);
-                                    parse_quote!(#re_result)
-                                },
-                                ("crate", None) => {
-                                    let crate_name_chunk = reexport_scope.crate_ident().to_path();
-                                    let result = reexport_import.replaced_first_with_ident(&crate_name_chunk);
-                                    result.segments.iter().skip(reexport_scope_path.len()).cloned().collect()
-                                },
-                                ("self", Some(_chunk_ref)) => {
-                                    reexport_import.segments.iter().skip(1).cloned().collect()
-                                },
-                                ("self", None) => {
-                                    reexport_import.segments.iter().skip(1).cloned().collect()
-                                },
-                                ("super", Some(_chunk_ref)) => {
-                                    let super_path = reexport_scope_path.popped();
-                                    parse_quote!(#super_path::#reexport_import)
-                                },
-                                ("super", None) => {
-                                    let super_path = reexport_scope_path.popped();
-                                    parse_quote!(#super_path::#reexport_import)
-                                },
-                                (_, Some(chunk_ref)) => {
-                                    let reexport_chunk = reexport_import.popped();
-                                    parse_quote!(#reexport_chunk::#chunk_ref)
-                                }
-                                (_, None) => {
-                                    parse_quote!(#reexport_import)
-                                }
-                            };
-                            result = Some(parse_quote!(#reexport_scope_path::#segments));
-                            chunk = Some(Path { segments, leading_colon: None });
-                        },
-                        None => {
-                            if scope_path_candidate.segments.is_empty() {
-                                return result;
-                            } else if let Some(reexport) = self.lookup_reexport(&scope_path_candidate) {
-                                result = Some(reexport);
-                            }
-                        }
-                    }
-                },
-                None => {
-                    if scope_path_candidate.segments.is_empty() {
-                        return result;
-                    } else if let Some(reexport) = self.lookup_reexport(&scope_path_candidate) {
-                        result = Some(reexport);
-                    }
-                }
-            }
-        }
-        result
-    }
-    fn refined_import(&self, import_path: &Path, alias: &Path) -> Option<Path> {
-        let last_import_segment = import_path.segments.last();
-        let last_alias_segment = alias.segments.last();
-        if last_import_segment.is_some() &&
-            last_alias_segment.is_some() &&
-            last_import_segment.unwrap().ident == last_alias_segment.unwrap().ident {
-            // println!("[INFO] Try refine import:\n\timport: [{}]\n\talias: [{}]\n\tscope: [{}]",
-            //          format_token_stream(import_path),
-            //          format_token_stream(alias),
-            // scope.self_path_holder_ref());
-            let reexport = self.lookup_reexport(import_path);
-            // if reexport.is_some() {
-            //     println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
-            // }
-            return reexport;
-        }
-        None
-    }
 
 }
 
-pub fn create_mod_chain(path: &Path) -> ScopeChain {
-    // print!("create_mod_chain: {}", path.to_token_stream());
-    let segments = &path.segments;
 
-    let crate_ident = &segments.first().unwrap().ident;
-    let self_scope = Scope::new(PathHolder::from(path), ObjectConversion::Empty);
-    let parent_chunks = path.popped();
-    let parent_scope_chain = if parent_chunks.segments.len() > 1 {
-        create_mod_chain(&parent_chunks)
-    } else {
-        ScopeChain::CrateRoot {
-            info: ScopeInfo {
-                attrs: vec![],
-                crate_ident: crate_ident.clone(),
-                self_scope: Scope { self_scope: PathHolder(parent_chunks), object: ObjectConversion::Empty }
-            }
-        }
-    };
-    if segments.len() == 1 {
-        ScopeChain::CrateRoot {
-            info: ScopeInfo {
-                attrs: vec![],
-                crate_ident: crate_ident.clone(),
-                self_scope
-            }
-        }
-    } else {
-        ScopeChain::Mod {
-            info: ScopeInfo {
-                attrs: vec![],
-                crate_ident: crate_ident.clone(),
-                self_scope,
-            },
-            parent_scope_chain: Box::new(parent_scope_chain.clone())
-        }
-    }
-}
-
-fn merge_reexport_chunks(base: &Path, extension: &Path) -> Path {
-    let mut base_segments: Vec<_> = base.segments.iter().collect();
-    let mut ext_segments: Vec<_> = extension.segments.iter().collect();
-    base_segments.reverse();
-    ext_segments.reverse();
-    let mut result_segments = vec![];
-    let mut skip = 0;
-    for (base_segment, ext_segment) in base_segments.iter().zip(ext_segments.iter()) {
-        if base_segment.ident == ext_segment.ident {
-            skip += 1;
-        } else {
-            break;
-        }
-    }
-    base_segments.reverse();
-    ext_segments.reverse();
-    result_segments.extend(base_segments.iter().take(base_segments.len() - skip).cloned());
-    result_segments.extend(ext_segments.into_iter());
-    Path {
-        leading_colon: base.leading_colon,
-        segments: result_segments.into_iter().cloned().collect(),
-    }
-}

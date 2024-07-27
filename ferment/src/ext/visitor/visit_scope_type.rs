@@ -1,13 +1,13 @@
 use quote::ToTokens;
-use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, ToPath};
-use crate::formatter::format_token_stream;
+use crate::ext::{CrateExtension, DictionaryType, ToPath, ToType};
+// use crate::formatter::format_token_stream;
 use crate::nprint;
 
 pub trait ToObjectConversion {
@@ -96,7 +96,7 @@ impl<'a> VisitScopeType<'a> for Path {
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
         let (scope, context, qself) = source;
-        println!("{}: Path: update_nested_generics {}", scope.fmt_short(), self.to_token_stream());
+        // println!("{}: Path: update_nested_generics {}", scope.fmt_short(), self.to_token_stream());
         let new_qself = qself.as_ref().map(|q| q.qself.clone());
         let mut segments = self.segments.clone();
         let mut nested_arguments = Punctuated::new();
@@ -208,6 +208,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 };
                 segments.replace_last_with(&new_segments);
             }
+            println!("TO TRAIT: (BOUNDS): {} -- {:?}", segments.to_token_stream(), nested_arguments);
             TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                 .to_trait(nested_arguments)
         } else {
@@ -280,7 +281,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     }, nested_arguments)))
                 },
                 _ if first_ident.is_lambda_fn() => {
-                    println!("first_ident.is_lambda_fn: {}", segments.to_token_stream());
+                    // println!("first_ident.is_lambda_fn: {}", segments.to_token_stream());
 
                     // ObjectConversion::Type(TypeCompositionConversion::Bounds(GenericBoundComposition::new(ty, bounds, predicates, generics, nested_arguments)))
 
@@ -495,21 +496,46 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
     type Result = ObjectConversion;
 
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        //println!("update_nested_generics (TypeTraitObject): {}", self.to_token_stream());
+        // println!("update_nested_generics (TypeTraitObject): {}", self.to_token_stream());
         let (scope, context) = source;
         let TypeTraitObject { dyn_token, bounds } = self;
         let mut bounds = bounds.clone();
+        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
+
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
-
-                //println!("update_nested_generics (Bound): {} --- {:?}", path.to_token_stream(), path);
-
-                *path = path.update_nested_generics(&(scope, context, None))
-                    .to_path();
+                let object = path.update_nested_generics(&(scope, context, None));
+                match &object {
+                    ObjectConversion::Type(tyc) |
+                    ObjectConversion::Item(tyc, _) => {
+                        let ty = tyc.to_type();
+                        match ty {
+                            Type::Path(TypePath { path: ty_path, .. }) => {
+                                *path = ty_path;
+                            }
+                            Type::ImplTrait(TypeImplTrait { bounds, .. }) => {
+                                *bound = bounds.first().unwrap().clone();
+                            }
+                            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+                                *bound = bounds.first().unwrap().clone();
+                            }
+                            _ => {}
+                        }
+                    }
+                    ObjectConversion::Empty => {}
+                }
+                nested_arguments.push(NestedArgument::Constraint(object));
             },
             _ => {},
         });
-        Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds })
-            .to_trait(Punctuated::new())
+        ObjectConversion::Type(
+            TypeCompositionConversion::TraitType(
+                handle_type_composition(
+                    Type::TraitObject(
+                        TypeTraitObject {
+                            dyn_token: dyn_token.clone(),
+                            bounds
+                        }),
+                    nested_arguments)))
     }
 }

@@ -6,7 +6,7 @@ use syn::spanned::Spanned;
 use crate::composable::TypeComposition;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{CrateExtension, DictionaryType, Mangle, ResolveTrait, SpecialType, ToPath};
+use crate::ext::{CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 pub trait Resolve<T> {
@@ -30,7 +30,7 @@ impl Resolve<Option<SpecialType>> for Type {
 
     // #[ferment_macro::debug_io]
     fn resolve(&self, source: &ScopeContext) -> Option<SpecialType> {
-        // println!("Type::<Option<SpecialType>>::resolve.1({})", self.to_token_stream());
+        // println!("Type::<Option<SpecialType>>::resolve.1({}) -- {}", self.to_token_stream(), source.scope.fmt_short());
         let result = source.maybe_custom_conversion(self)
             .map(SpecialType::Custom)
             .or_else(|| source.maybe_opaque_object(self)
@@ -41,13 +41,13 @@ impl Resolve<Option<SpecialType>> for Type {
 }
 impl Resolve<TypeCompositionConversion> for Type {
     fn resolve(&self, source: &ScopeContext) -> TypeCompositionConversion {
-        // println!("Type::<TypeCompositionConversion>::resolve.1({}) in [{}]", self.to_token_stream(), source.scope);
+        // println!("Type::<TypeCompositionConversion>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
         let result = <Type as Resolve<Option<ObjectConversion>>>::resolve(self, source)
             .and_then(|external_type| {
                 match external_type {
                     ObjectConversion::Item(.., ScopeItemConversion::Fn(..)) => {
                         // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
-                        let parent_object = &source.scope.parent_scope().unwrap().self_scope().object;
+                        let parent_object = &source.scope.parent_object().unwrap();
                         // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);
                         match parent_object {
                             ObjectConversion::Type(ref ty_conversion) |
@@ -96,7 +96,7 @@ impl Resolve<TypeCompositionConversion> for Type {
                 // println!("Type::<TypeCompositionConversion> Default Unknown --> {}", self.to_token_stream());
                 TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new()))
             });
-        // println!("Type::<TypeCompositionConversion>::resolve.2({}) in [{}] --> {}", self.to_token_stream(), source.scope, result);
+        // println!("Type::<TypeCompositionConversion>::resolve.2({}) in {} --> {}", self.to_token_stream(), source.scope.fmt_short(), result);
         result
     }
 }
@@ -148,7 +148,6 @@ impl Resolve<Option<SpecialType>> for GenericTypeConversion {
             .and_then(|ty| ty.resolve(source))
     }
 }
-
 impl Resolve<FFIFullPath> for GenericTypeConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
         // println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
@@ -186,8 +185,26 @@ impl Resolve<FFIFullPath> for GenericTypeConversion {
             },
             GenericTypeConversion::Optional(Type::Array(TypeArray { elem, .. })) =>
                 single_generic_ffi_type(elem),
+            GenericTypeConversion::TraitBounds(bounds) => {
+                match bounds.len() {
+                    1 => FFIFullPath::Generic { ffi_name: {
+                        if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) =  bounds.first() {
+                            let ty: Type = parse_quote!(#path);
+                            match ty.maybe_special_type(source) {
+                                Some(SpecialType::Opaque(..)) => return FFIFullPath::External { path: parse_quote!(#path) },
+                                Some(SpecialType::Custom(..)) => return FFIFullPath::External { path: parse_quote!(#path) },
+                                None => {}
+                            }
+                        }
+
+                        bounds.first().unwrap().mangle_ident_default().to_path()
+                    }
+                    },
+                    _ => FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }
+                }
+            },
             gen_ty =>
-                unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty.to_token_stream()),
+                unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
         }
     }
 }
@@ -199,15 +216,6 @@ impl Resolve<Option<SpecialType>> for TypeCompositionConversion {
         self.ty().resolve(source)
     }
 }
-
-// impl<T> Resolve<T> for Type where T: Resolve<FFIVariable> {
-//     fn resolve(&self, source: &ScopeContext) -> T {
-//         let intermediate = <Type as Resolve<T>>::resolve(self, source);
-//         let result = <T as Resolve<FFIVariable>>::resolve(&intermediate, source);
-//         result
-//     }
-// }
-
 
 impl Resolve<Option<FFIFullPath>> for Path {
     fn resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
@@ -262,7 +270,7 @@ impl Resolve<Option<FFIFullPath>> for Path {
                         }
                     }
                 })
-                .or({
+                .or_else(|| {
                     let segments = chunk.ident_less();
                     Some(FFIFullPath::External {
                         path: if segments.is_empty() {

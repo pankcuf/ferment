@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
-use quote::{quote, ToTokens};
-use syn::{Generics, PathArguments, ReturnType, Type};
+use quote::{format_ident, quote, ToTokens};
+use syn::{Attribute, Field, Generics, parse_quote, PathArguments, ReturnType, Type, Visibility};
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
@@ -8,7 +8,7 @@ use crate::composable::{FieldComposer, FieldTypeConversionKind};
 use crate::composer::CommaPunctuatedArgs;
 use crate::ext::{Accessory, Mangle, Pop, Terminated, ToPath, ToType};
 use crate::presentable::ConstructorPresentableContext;
-use crate::presentation::{ArgPresentation, create_callback, DictionaryName, Expansion, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{ArgPresentation, create_callback, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -20,12 +20,12 @@ pub enum BindingPresentation {
         body_presentation: TokenStream2,
     },
     Destructor {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         ty: Type,
         generics: Option<Generics>,
     },
     Getter {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -33,7 +33,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     Setter {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -41,7 +41,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     GetterOpaque {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -49,7 +49,7 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     SetterOpaque {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         name: Name,
         field_name: TokenStream2,
         obj_type: Type,
@@ -57,21 +57,21 @@ pub enum BindingPresentation {
         generics: Option<Generics>,
     },
     ObjAsTrait {
-        attrs: TokenStream2,
+        attrs: Vec<Attribute>,
         name: Name,
         item_type: Type,
         trait_type: TokenStream2,
         vtable_name: Name,
     },
     ObjAsTraitDestructor {
-        attrs: TokenStream2,
+        attrs: Vec<Attribute>,
         name: Name,
         item_type: TokenStream2,
         trait_type: TokenStream2,
         generics: Option<Generics>,
     },
     RegularFunction {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         name: Name,
         is_async: bool,
         arguments: CommaPunctuatedArgs,
@@ -87,7 +87,7 @@ pub enum BindingPresentation {
     // },
     Callback {
         name: Ident,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         ffi_args: CommaPunctuatedTokens,
         result: ReturnType,
         conversion: InterfacePresentation,
@@ -117,7 +117,7 @@ pub enum BindingPresentation {
 }
 
 fn present_pub_function<T: ToTokens>(
-    attrs: TokenStream2,
+    attrs: &Vec<Attribute>,
     name: TokenStream2,
     args: CommaPunctuated<T>,
     output: ReturnType,
@@ -126,7 +126,7 @@ fn present_pub_function<T: ToTokens>(
     present_function(attrs, quote!(pub), name, args, output, generics, body)
 }
 pub fn present_function<T: ToTokens>(
-    attrs: TokenStream2,
+    attrs: &Vec<Attribute>,
     acc: TokenStream2,
     name: TokenStream2,
     args: CommaPunctuated<T>,
@@ -135,14 +135,14 @@ pub fn present_function<T: ToTokens>(
     body: TokenStream2) -> TokenStream2 {
     match generics {
         None => quote! {
-           #attrs
+           #(#attrs)*
            #[no_mangle]
            #acc unsafe extern "C" fn #name(#args) #output {
                 #body
             }
         },
         Some(Generics { params, where_clause, .. }) => quote! {
-           #attrs
+           #(#attrs)*
            #[no_mangle]
            #acc unsafe extern "C" fn #name<#params>(#args) #output #where_clause {
                 #body
@@ -162,7 +162,7 @@ impl ToTokens for BindingPresentation {
                     ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics)) => {
                         let variant_path = ffi_type.to_path();
                         present_pub_function(
-                            attrs.to_token_stream(),
+                            attrs,
                             Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
@@ -173,7 +173,7 @@ impl ToTokens for BindingPresentation {
                         let mut ffi_path = ffi_type.to_path();
                         ffi_path.segments.last_mut().unwrap().arguments = PathArguments::None;
                         present_pub_function(
-                            attrs.to_token_stream(),
+                            attrs,
                             Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
                             ctor_arguments.clone(),
                             ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
@@ -185,7 +185,7 @@ impl ToTokens for BindingPresentation {
             Self::Destructor { ty, attrs, generics } => {
                 let name = Name::Destructor(ty.clone());
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeConversionKind::Type(ty.joined_mut()))
@@ -201,7 +201,7 @@ impl ToTokens for BindingPresentation {
                     FieldComposer::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeConversionKind::Conversion(quote!(&#vtable_name))),
                 ]);
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(item_type.joined_const()))
@@ -213,7 +213,7 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs, generics } => {
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
@@ -223,7 +223,7 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, generics } => {
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
@@ -235,7 +235,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, generics } => {
                 // println!("BindingPresentation::Setter: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
@@ -247,7 +247,7 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_const()))]),
@@ -259,7 +259,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
                 // println!("BindingPresentation::SetterOpaque: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs.to_token_stream());
                 present_pub_function(
-                    attrs.to_token_stream(),
+                    attrs,
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
                         FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeConversionKind::Type(obj_type.joined_mut())),
@@ -271,10 +271,12 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics } => {
                 if *is_async {
-                    let mut args = Punctuated::from_iter([ArgPresentation::NamedType { attrs: quote!(), name: quote!(runtime), var: quote!(*mut std::os::raw::c_void) }]);
+                    let mut args = Punctuated::from_iter([
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) })
+                    ]);
                     args.extend(arguments.clone());
                     present_pub_function(
-                        attrs.to_token_stream(),
+                        attrs,
                         name.mangle_tokens_default(),
                         args,
                         return_type.clone(),
@@ -287,7 +289,7 @@ impl ToTokens for BindingPresentation {
                     )
                 } else {
                     present_pub_function(
-                        attrs.to_token_stream(),
+                        attrs,
                         name.mangle_tokens_default(),
                         arguments.clone(),
                         return_type.clone(),
@@ -299,7 +301,7 @@ impl ToTokens for BindingPresentation {
             // BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
             //     quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
             BindingPresentation::Callback { name, attrs, ffi_args, result, conversion } => {
-                let definition = create_callback(name, attrs.to_token_stream(), ffi_args.to_token_stream(), result.clone());
+                let definition = create_callback(name, attrs, ffi_args.to_token_stream(), result.clone());
                 quote! {
                     #definition
                     #conversion
@@ -321,7 +323,7 @@ impl ToTokens for BindingPresentation {
             }
             BindingPresentation::StaticVTableInnerFn { name, args, output, body } => {
                 present_function(
-                    quote!(),
+                    &vec![],
                     quote!(),
                     name.to_token_stream(),
                     args.clone(),

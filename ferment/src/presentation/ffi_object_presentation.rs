@@ -1,8 +1,9 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
+use syn::Attribute;
 use crate::ast::Depunctuated;
 use crate::ext::ToPath;
-use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Expansion, Name};
+use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Name};
 
 #[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {
@@ -20,7 +21,7 @@ pub enum FFIObjectPresentation {
     // },
     TraitVTable {
         name: Name,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         fields: TokenStream2
     },
     // TraitVTableInnerFn {
@@ -30,7 +31,7 @@ pub enum FFIObjectPresentation {
     // },
     TraitObject {
         name: Name,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         fields: TokenStream2
     },
     Full(TokenStream2),
@@ -48,10 +49,10 @@ impl ToTokens for FFIObjectPresentation {
         match self {
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, attrs, fields } => {
-                create_struct(&name.to_path().segments.last().unwrap().ident, attrs.to_token_stream(), fields)
+                create_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
             },
             Self::TraitObject { name, attrs, fields } => {
-                create_struct(&name.to_path().segments.last().unwrap().ident, attrs.to_token_stream(), fields)
+                create_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
             },
             Self::Generic {
                 object_presentation,

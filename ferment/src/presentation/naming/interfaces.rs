@@ -37,6 +37,7 @@ pub enum InterfacesMethod {
     FoldToMap,
     FoldToVec,
     FoldToResult,
+    ToResult,
 }
 impl ToTokens for InterfacesMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
@@ -65,6 +66,7 @@ impl ToTokens for InterfacesMethod {
             InterfacesMethod::FoldToMap => quote!(fold_to_map),
             InterfacesMethod::FoldToVec => quote!(fold_to_vec),
             InterfacesMethod::FoldToResult => quote!(fold_to_result),
+            InterfacesMethod::ToResult => quote!(to_result),
             InterfacesMethod::FromOptPrimitive => quote!(from_opt_primitive),
             InterfacesMethod::ToOptPrimitive => quote!(to_opt_primitive),
             InterfacesMethod::DestroyOptPrimitive => quote!(destroy_opt_primitive),

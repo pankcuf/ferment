@@ -521,7 +521,7 @@ macro_rules! nprint {
 
         // log::warn!("{}", ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*))))
         //ansi_term::Colour::Green.paint(format!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*)))
-        println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
+        // println!("{}{} {}", " ".repeat($counter*2), $emoji, format!($($arg)*));
     };
 }
 

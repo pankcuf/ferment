@@ -1,11 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use syn::{parse_quote, Path, Type};
+use syn::{ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::composer::CommaPunctuatedNestedArguments;
 pub use crate::composable::{GenericBoundComposition, TypeComposition, TraitDecompositionPart1};
-use crate::ext::{Pop, ToType};
+use crate::ext::{DictionaryType, Pop, ToType};
 
 #[derive(Clone)]
 pub enum TypeCompositionConversion {
@@ -125,6 +125,21 @@ impl TypeCompositionConversion {
     pub fn ty(&self) -> &Type {
         &self.ty_composition().ty
     }
+    pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
+        if let TypeCompositionConversion::FnPointer(ty) | TypeCompositionConversion::LambdaFn(ty) = self {
+            if let Type::Path(TypePath { path, .. }) = &ty.ty {
+                if let Some(PathSegment { arguments, ident: last_ident, ..}) = &path.segments.last() {
+                    if last_ident.is_lambda_fn() {
+                        if let PathArguments::Parenthesized(args) = arguments {
+                            return Some(args)
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
 }
 
 impl ToType for TypeCompositionConversion {

@@ -1,14 +1,13 @@
 use proc_macro2::Ident;
-use syn::{parse_quote, Path, Type};
-use crate::ast::Depunctuated;
+use syn::{Attribute, parse_quote, Path, Type};
+use ferment_macro::Display;
 use crate::composable::FnSignatureContext;
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ResolveTrait, ToType};
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::Expansion;
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
 pub enum Aspect {
     Target(Context),
     FFI(Context),
@@ -16,7 +15,7 @@ pub enum Aspect {
 }
 
 impl Aspect {
-    pub fn attrs(&self) -> &Depunctuated<Expansion> {
+    pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
             Aspect::FFI(context) => context.attrs(),
@@ -37,30 +36,30 @@ impl Aspect {
 pub enum Context {
     Enum {
         ident: Ident,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
     },
     EnumVariant {
         ident: Ident,
         variant_ident: Ident,
-        attrs: Depunctuated<Expansion>
+        attrs: Vec<Attribute>
     },
     Struct {
         ident: Ident,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
     },
     Fn {
         path: Path,
         sig_context: FnSignatureContext,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
     },
     Trait {
         path: Path,
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
     }
 }
 
 impl Context {
-    fn attrs(&self) -> &Depunctuated<Expansion> {
+    fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Context::Enum { attrs, .. } => attrs,
             Context::EnumVariant { attrs, .. } => attrs,

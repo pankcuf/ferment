@@ -10,15 +10,8 @@ license.workspace = true
 keywords.workspace = true
 
 [dependencies]
-ferment-interfaces = { path = "../ferment-interfaces" }
-ferment-macro = { path = "../ferment-macro" }
-platform-value = { path = "../../platform/packages/rs-platform-value" }
-platform-version = { path = "../../platform/packages/rs-platform-version" }
-dpp = { path = "../../platform/packages/rs-dpp", features = ["state-transitions"] }
-dash-sdk = { path = "../../platform/packages/rs-sdk" }
-serde_json = { version = "1.0", features = ["preserve_order"] }
 anyhow = { version = "1.0.75" }
-jsonschema = "0.17.1"
+dash-sdk = { path = "../../platform/packages/rs-sdk" }
 dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
     "std",
     "secp-recovery",
@@ -26,13 +19,22 @@ dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
     "signer",
     "serde",
 ], default-features = false, branch = "master" }
-indexmap = { version = "2.0.2", features = ["serde"] }
+dpp = { path = "../../platform/packages/rs-dpp", features = ["state-transitions"] }
 fancy-regex = "0.13.0"
+ferment-interfaces = { path = "../ferment-interfaces" }
+ferment-macro = { path = "../ferment-macro" }
+grovedb-version = "1.0.0-rc.2"
+indexmap = { version = "2.0.2", features = ["serde"] }
+jsonschema = "0.18.0"
+platform-value = { path = "../../platform/packages/rs-platform-value" }
+platform-version = { path = "../../platform/packages/rs-platform-version" }
+regex = { version = "1.10.4" }
+serde_json = { version = "1.0", features = ["preserve_order"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
 ferment = { path = "../ferment" }
-toml = "0.8.8"
+toml = "0.8.16"
 
 [features]
 cbor = ["platform-value/cbor", "dpp/cbor", "dpp/ciborium"]

@@ -228,4 +228,12 @@ impl Join<TraitItemMethod> for ScopeContext {
     }
 }
 
-
+// impl<'a, T, S> Composer<'a> for ScopeContext
+//     where S: ScopeContextPresentable<Presentation=T>, T: ToTokens {
+//     type Source = S;
+//     type Result = <S as ScopeContextPresentable>::Presentation;
+//
+//     fn compose(&self, source: &'a Self::Source) -> Self::Result {
+//         source.present(self)
+//     }
+// }

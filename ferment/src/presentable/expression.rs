@@ -1,10 +1,12 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
+use syn::Expr;
 use ferment_macro::Display;
-use crate::ast::CommaPunctuated;
-use crate::composable::FieldComposer;
+use crate::ast::{CommaPunctuated, DotPunctuated};
+use crate::composer::Composer;
 use crate::context::ScopeContext;
-use crate::ext::Terminated;
+use crate::conversion::FROM_OPT_COMPLEX;
+use crate::ext::{ConversionType, Terminated};
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr, Name};
 
@@ -19,6 +21,7 @@ pub enum Expression {
     DictionaryName(DictionaryName),
     Name(Name),
     DictionaryExpr(DictionaryExpr),
+    FieldPath(DotPunctuated<TokenStream2>),
     FFIConversionExpr(FFIConversionMethodExpr),
     FFICallbackExpr(FFICallbackMethodExpr),
     InterfacesExpr(InterfacesMethodExpr),
@@ -37,13 +40,15 @@ pub enum Expression {
     ToOptComplexGroup(Box<Expression>),
     ToVecPtr,
     SelfAsTrait(TokenStream2),
+    ObjName(Name),
     ObjFieldName(TokenStream2),
-    FieldTypeConversionName(FieldComposer),
     LineTermination,
-    Terminate(Box<Expression>),
+    ConversionType(Box<ConversionType>),
+    Terminated(Box<ConversionType>),
     UnboxAny(Box<Expression>),
     UnboxAnyTerminated(Box<Expression>),
     DestroyOpt(Box<Expression>),
+    DestroyOptPrimitive(Box<Expression>),
     DestroyString(Box<Expression>, TokenStream2),
     FromRawParts(TokenStream2),
     From(Box<Expression>),
@@ -58,14 +63,19 @@ pub enum Expression {
     AsSlice(Box<Expression>),
     IfThen(Box<Expression>, TokenStream2),
     Named((TokenStream2, Box<Expression>)),
+    NamedComposer((TokenStream2, Box<ConversionType>)),
     Deref(TokenStream2),
+    DerefName(Name),
     DerefContext(Box<Expression>),
-    FfiRefWithFieldName(Box<Expression>),
-    FfiRefWithConversion(FieldComposer),
+    FfiRefWithName(Name),
+    FfiRefWithTokenizedName(TokenStream2),
     Match(Box<Expression>),
     FromTuple(Box<Expression>, CommaPunctuated<Expression>),
     MapExpression(Box<Expression>, Box<Expression>),
-    AsMut_(Box<Expression>)
+    AsMut_(Box<Expression>),
+    Expr(Expr),
+    FromLambda(Box<Expression>, CommaPunctuated<Name>),
+    FromPtrClone(Box<Expression>),
 }
 
 impl ScopeContextPresentable for Expression {
@@ -104,7 +114,7 @@ impl ScopeContextPresentable for Expression {
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFrom, presentable.present(source)))
                     .present(source),
             Self::FromOpt(presentable) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFromOpt, presentable.present(source)))
+                Self::InterfacesExpr(FROM_OPT_COMPLEX(presentable.present(source)))
                     .present(source),
             Self::FromOptPrimitive(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(presentable.present(source)))
@@ -141,9 +151,6 @@ impl ScopeContextPresentable for Expression {
                         .to_token_stream()))
                     .present(source),
             Self::UnboxAny(presentable) =>
-
-                // Self::FFIConversionExpr(FFIConversionMethodExpr::Destroy(presentable.present(source)))
-                //     .present(source),
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAny(presentable.present(source)))
                     .present(source),
             Self::UnboxAnyTerminated(presentable) =>
@@ -176,12 +183,15 @@ impl ScopeContextPresentable for Expression {
                     Self::UnboxAnyTerminated(presentable.clone())
                         .present(source))
                     .to_token_stream(),
+            Self::DestroyOptPrimitive(presentable) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(presentable.present(source)))
+                    .present(source),
             Self::DestroyString(presentable, path) => {
-                let package = DictionaryName::Package;
-                let interface = DictionaryName::Interface;
-                let field_path = presentable.present(source);
-                let cchar = DictionaryExpr::CChar;
-                quote!(<#cchar as #package::#interface<#path>>::destroy(#field_path))
+                Self::CastDestroy(
+                    presentable.clone(),
+                    path.to_token_stream(),
+                    DictionaryExpr::CChar.to_token_stream())
+                    .present(source)
             },
             Self::CastFrom(presentable, ty, ffi_ty) => {
                 let field_path = presentable.present(source);
@@ -189,13 +199,13 @@ impl ScopeContextPresentable for Expression {
                 let interface = DictionaryName::Interface;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::ffi_from(#field_path))
             }
-            Self::CastDestroy(presentable, ty, ffi_ty) => {
+            Self::CastDestroy(args, ty, ffi_ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::Interface;
                 let method = FFIConversionMethod::Destroy;
                 DictionaryExpr::CallMethod(
                     quote!(<#ffi_ty as #package::#interface<#ty>>::#method),
-                    presentable.present(source))
+                    args.present(source))
                     .to_token_stream()
             }
             Self::FromOffsetMap =>
@@ -221,10 +231,10 @@ impl ScopeContextPresentable for Expression {
                 let ty = presentable.present(source);
                 quote!(#l_value: #ty)
             }
-            Self::FfiRefWithFieldName(presentable) => {
-                let field_name = presentable.present(source);
-                quote!(ffi_ref.#field_name)
-            }
+            Self::NamedComposer((l_value, composer)) => {
+                let expression = composer.compose(source);
+                Self::Named((l_value.clone(), expression.into())).present(source)
+            },
             Self::Match(presentable) =>
                 Self::DictionaryExpr(DictionaryExpr::Match(presentable.present(source)))
                     .present(source),
@@ -243,6 +253,9 @@ impl ScopeContextPresentable for Expression {
             Self::AsMut_(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::AsMut_(expr.present(source)))
                     .present(source),
+            Self::DerefName(name) =>
+                Self::Deref(name.to_token_stream())
+                    .present(source),
             Self::Deref(field_name) =>
                 Self::DictionaryExpr(DictionaryExpr::Deref(field_name.clone()))
                     .present(source),
@@ -250,21 +263,41 @@ impl ScopeContextPresentable for Expression {
                 Self::Deref(presentable.present(source)).present(source),
             Self::ObjFieldName(field_name) =>
                 quote!(obj.#field_name),
-            Self::FieldTypeConversionName(field_type) =>
-                field_type.name.to_token_stream(),
-            Self::FfiRefWithConversion(field_type) =>
-                Self::FfiRefWithFieldName(Self::FieldTypeConversionName(field_type.clone()).into())
-                    .present(source),
+            Self::ObjName(name) =>
+                quote!(obj.#name),
+            Self::FfiRefWithName(name) => {
+                quote!(ffi_ref.#name)
+            }
+            Self::FfiRefWithTokenizedName(field_name) => {
+                quote!(ffi_ref.#field_name)
+            }
+            Self::FieldPath(chunks) => chunks.to_token_stream(),
             Self::FromTuple(presentable, items) => {
                 let root_path = presentable.present(source);
                 let items = items.present(source);
                 quote!({ let ffi_ref = &*#root_path; (#items) })
             }
-            Expression::Name(name) => name
+            Self::Name(name) => name
                 .to_token_stream(),
-            Expression::Terminate(expr) => {
-                expr.present(source).terminated()
+            Self::ConversionType(expr) => {
+                expr.compose(source)
+                    .present(source)
             }
+            Self::Terminated(expr) => {
+                expr.compose(source)
+                    .present(source)
+                    .terminated()
+            }
+            Self::FromLambda(field_path, lambda_args) => {
+                let field_path = field_path.present(source);
+                quote!(move |#lambda_args| unsafe { (&*#field_path).call(#lambda_args) })
+            }
+            Self::FromPtrClone(field_path) => {
+                let field_path = field_path.present(source);
+                quote!((&*#field_path).clone())
+            }
+            Self::Expr(expr) =>
+                expr.to_token_stream(),
         }
     }
 }

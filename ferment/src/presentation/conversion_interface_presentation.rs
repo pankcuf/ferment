@@ -1,28 +1,28 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Generics, ReturnType, Type};
-use crate::ast::Depunctuated;
+use syn::{Attribute, Generics, ReturnType, Type};
 use crate::composer::CommaPunctuatedArgs;
-use crate::presentation::{DestroyPresentation, DictionaryName, Expansion, FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::DictionaryName;
 
+// pub struct Presentable<T: ?Sized + Clone + ToTokens>(pub T);
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
     Empty,
     Conversion {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         types: (
             Type, // FFI
             Type // Original
         ),
         conversions: (
-            FromConversionPresentation,
-            ToConversionPresentation,
-            DestroyPresentation,
+            TokenStream2,
+            TokenStream2,
+            TokenStream2,
             Option<Generics>
         ),
     },
     VecConversion {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         types: (
             Type, // FFI
             Type // Original
@@ -31,7 +31,7 @@ pub enum InterfacePresentation {
         encode: TokenStream2,
     },
     Callback {
-        attrs: Depunctuated<Expansion>,
+        attrs: Vec<Attribute>,
         ffi_type: Type,
         inputs: CommaPunctuatedArgs,
         output: ReturnType,
@@ -76,7 +76,7 @@ impl ToTokens for InterfacePresentation {
                 let interface = DictionaryName::Interface;
                 let obj = DictionaryName::Obj;
                 quote! {
-                    #attrs
+                    #(#attrs)*
                     impl #generic_bounds #package::#interface<#target_type #generic_bounds> for #ffi_type #where_clause {
                         unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type #generic_bounds {
                             #from_presentation
@@ -91,7 +91,7 @@ impl ToTokens for InterfacePresentation {
                 }
             },
             Self::VecConversion { attrs, types: (ffi_type, target_type), decode, encode } => quote! {
-                #attrs
+                #(#attrs)*
                 impl ferment_interfaces::FFIVecConversion for #ffi_type {
                     type Value = #target_type;
                     unsafe fn decode(&self) -> Self::Value { #decode }
@@ -113,7 +113,7 @@ impl ToTokens for InterfacePresentation {
                 // }
 
                 quote! {
-                    #attrs
+                    #(#attrs)*
                     impl #ffi_type {
                         pub unsafe fn call(&self, #inputs) #output {
                             #body

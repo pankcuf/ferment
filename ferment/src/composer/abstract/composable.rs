@@ -1,10 +1,11 @@
 use std::cell::Ref;
-use syn::{Generics, Type};
+use syn::{Attribute, Generics, Type};
+use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
 use crate::composer::{BasicComposer, Composer, FieldsOwnedSequenceComposer, FieldTypesContext, ParentComposer};
 use crate::context::ScopeContext;
 use crate::presentable::{Aspect, Context, ScopeContextPresentable};
-use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, InterfacePresentation, ToConversionPresentation};
+use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation};
 use crate::shared::SharedAccess;
 
 pub trait BasicComposerOwner: Sized + 'static {
@@ -23,7 +24,7 @@ impl<T> SourceAccessible for T where T: BasicComposerOwner {
 }
 
 impl<T> BasicComposable<ParentComposer<T>> for T where T: BasicComposerOwner + SourceExpandable + DocsComposable {
-    fn compose_attributes(&self) -> Depunctuated<Expansion> {
+    fn compose_attributes(&self) -> Vec<Attribute> {
         self.base().compose_attributes()
     }
     fn compose_generics(&self) -> Option<Generics> {
@@ -78,7 +79,7 @@ pub trait DocsComposable {
 }
 
 pub trait BasicComposable<Parent>: SourceExpandable + NameContext + DocsComposable where Parent: SharedAccess {
-    fn compose_attributes(&self) -> Depunctuated<Expansion>;
+    fn compose_attributes(&self) -> Vec<Attribute>;
     fn compose_generics(&self) -> Option<Generics>;
 }
 
@@ -97,7 +98,7 @@ pub trait ConversionComposable<Parent> where Parent: SharedAccess {
             conversions: self.compose_interface_aspects()
         }
     }
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>);
+    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>);
 }
 
 pub trait FFIObjectComposable {

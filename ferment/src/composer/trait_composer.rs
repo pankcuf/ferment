@@ -82,7 +82,7 @@ impl TraitComposer {
         attrs: AttrsComposition,
         context: &ParentComposer<ScopeContext>
     ) -> TraitParentComposer {
-        let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes_expanded() };
+        let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(attrs, ty_context, generics, constants::composer_doc(), Rc::clone(context)),
             methods,

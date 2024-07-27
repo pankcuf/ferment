@@ -118,9 +118,11 @@ impl Resolve<FFIVariable> for AddPunctuated<TypeParamBound> {
 
 impl Resolve<FFIVariable> for Type {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("Type::<FFIVariable>::resolve({})", self.to_token_stream());
+        // println!("Type::<FFIVariable>::resolve.1({})", self.to_token_stream());
         let full_ty = <Type as Resolve<Type>>::resolve(self, source);
+        // println!("Type::<FFIVariable>::resolve.2({})", full_ty.to_token_stream());
         let maybe_special = <Type as Resolve<Option<SpecialType>>>::resolve(&full_ty, source);
+        // println!("Type::<FFIVariable>::resolve.3({})", maybe_special.to_token_stream());
         let refined = maybe_special
             .map(|ty| FFIFullPath::External { path: ty.to_path() })
             .or(<Type as Resolve<TypeCompositionConversion>>::resolve(self, source)
@@ -135,7 +137,7 @@ impl Resolve<FFIVariable> for Type {
 
 impl Resolve<FFIVariable> for TypeCompositionConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("TypeCompositionConversion::<FFIVariable>::resolve.1({}) in [{}]", self.to_token_stream(), source.scope);
+        // println!("TypeCompositionConversion::<FFIVariable>::resolve.1({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }, ..) => FFIVariable::Direct {
@@ -199,7 +201,7 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
             ty =>
                 panic!("error: Arg conversion ({}) not supported", ty),
         };
-        // println!("TypeCompositionConversion::<FFIVariable>::resolve.2({}) --> {}", self.to_token_stream(), result.to_token_stream());
+        // println!("TypeCompositionConversion::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
         result
     }
 }
@@ -207,7 +209,7 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
 impl Resolve<FFIVariable> for GenericBoundComposition {
     fn resolve(&self, _source: &ScopeContext) -> FFIVariable {
         let ffi_name = self.mangle_ident_default();
-        println!("GenericBoundComposition::<FFIVariable>::resolve({})", self);
+        // println!("GenericBoundComposition::<FFIVariable>::resolve({})", self);
         FFIVariable::MutPtr { ty: parse_quote!(crate::fermented::generics::#ffi_name) }
     }
 }

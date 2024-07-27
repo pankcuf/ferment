@@ -1,19 +1,22 @@
 use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::FieldTypesContext;
+use crate::ast::Depunctuated;
+use crate::ext::Terminated;
 use crate::presentation::DictionaryName;
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum DictionaryExpr {
-    NamedStructInit(FieldTypesContext),
+    Depunctuated(Depunctuated<TokenStream2>),
+    SelfDestructuring(TokenStream2),
     ObjLen,
     ObjIntoIter,
     ObjToVec,
     FfiDeref,
     FfiDerefAsRef,
     LetFfiRef,
+    LetExpr(TokenStream2, TokenStream2),
     Deref(TokenStream2),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
@@ -30,6 +33,7 @@ pub enum DictionaryExpr {
     ToVec(TokenStream2),
     MapCollect(TokenStream2, TokenStream2),
     Match(TokenStream2),
+    MatchResult(TokenStream2, TokenStream2),
     FromRoot(TokenStream2),
     UnwrapOr(TokenStream2, TokenStream2),
     CountRange,
@@ -39,6 +43,7 @@ pub enum DictionaryExpr {
     Add(TokenStream2, TokenStream2),
     CastAs(TokenStream2, TokenStream2),
     CallMethod(TokenStream2, TokenStream2),
+    TryIntoUnwrap(TokenStream2)
 }
 
 
@@ -50,6 +55,8 @@ impl std::fmt::Display for DictionaryExpr {
 impl ToTokens for DictionaryExpr {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {
+            Self::Depunctuated(tokens) =>
+                tokens.to_token_stream(),
             Self::ObjLen => {
                 let obj = DictionaryName::Obj;
                 quote!(#obj.len())
@@ -67,19 +74,19 @@ impl ToTokens for DictionaryExpr {
             Self::FfiDerefAsRef =>
                 Self::AsRef(Self::FfiDeref.to_token_stream())
                     .to_token_stream(),
-            Self::LetFfiRef => {
-                let ffi_ref = DictionaryName::FfiRef;
-                let ffi_deref = Self::FfiDerefAsRef;
-                quote!(let #ffi_ref = #ffi_deref;)
-            }
+            Self::LetExpr(left, right) =>
+                quote!(let #left = #right),
+            Self::LetFfiRef =>
+                Self::LetExpr(
+                    DictionaryName::FfiRef.to_token_stream(),
+                    Self::FfiDerefAsRef.to_token_stream().terminated())
+                    .to_token_stream(),
             Self::Deref(expr) =>
                 quote!(*#expr),
             Self::AsRef(expr) =>
                 quote!(&#expr),
             Self::AsMutRef(expr) =>
                 quote!(&mut #expr),
-            Self::NamedStructInit(fields) =>
-                quote!(Self { #fields }),
             Self::Mapper(context, expr) =>
                 quote!(|#context| #expr),
             Self::SelfProp(prop) =>
@@ -124,10 +131,65 @@ impl ToTokens for DictionaryExpr {
             Self::Add(field_path, index) =>
                 quote!(#field_path.add(#index)),
             Self::CastAs(ty, as_ty) =>
+                // Expr::Cast(ExprCast {
+                //     attrs: vec![],
+                //     expr: Box::new(Expr::__NonExhaustive),
+                //     as_token: Default::default(),
+                //     ty: Box::new(Type::__NonExhaustive),
+                // }).to_token_stream()
                 quote!(<#ty as #as_ty>),
             Self::CallMethod(ns, args) =>
                 quote!(#ns(#args)),
+            Self::SelfDestructuring(tokens) =>
+                quote!(Self { #tokens }),
+            Self::TryIntoUnwrap(expr) =>
+                quote!(#expr.try_into().unwrap()),
+            Self::MatchResult(to_ok_conversion, to_error_conversion) => {
+                let null_mut = DictionaryExpr::NullMut;
+                let field_path = DictionaryName::Obj;
+                let arg_path = DictionaryName::O;
+                Self::Match(quote!(#field_path {
+                    Ok(#arg_path) => (#to_ok_conversion, #null_mut),
+                    Err(#arg_path) => (#null_mut, #to_error_conversion)
+                })).to_token_stream()
 
+                // Expr::Match(ExprMatch {
+                //     attrs: vec![],
+                //     match_token: Default::default(),
+                //     expr: Box::new(Expr::Path(ExprPath {
+                //         attrs: vec![],
+                //         qself: None,
+                //         path: DictionaryName::Obj.to_path(),
+                //     })),
+                //     brace_token: Default::default(),
+                //     arms: vec![
+                //         Arm {
+                //             attrs: vec![],
+                //             pat: Pat::TupleStruct(PatTupleStruct {
+                //                 attrs: vec![],
+                //                 path: parse_quote!(Ok),
+                //                 pat: PatTuple {
+                //                     attrs: vec![],
+                //                     paren_token: Default::default(),
+                //                     elems: CommaPunctuated::from_iter([Pat::Path(DictionaryName::O.)]),
+                //                 },
+                //             }),
+                //             guard: None,
+                //             fat_arrow_token: Default::default(),
+                //             body: Box::new(Expr::__NonExhaustive),
+                //             comma: None,
+                //         },
+                //         Arm {
+                //             attrs: vec![],
+                //             pat: Pat::__NonExhaustive,
+                //             guard: None,
+                //             fat_arrow_token: Default::default(),
+                //             body: Box::new(Expr::__NonExhaustive),
+                //             comma: None,
+                //         },
+                //     ],
+                // }).to_token_stream()
+            },
         }.to_tokens(dst)
     }
 }

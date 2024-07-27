@@ -10,7 +10,9 @@ use crate::presentation::DictionaryName;
 #[derive(Clone, Debug, Display)]
 #[allow(unused)]
 pub enum Name {
+    Empty,
     UnnamedArg(usize),
+    Index(usize),
     Constructor(Type),
     Destructor(Type),
     Dictionary(DictionaryName),
@@ -33,6 +35,8 @@ pub enum Name {
 impl ToTokens for Name {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
+            Name::Empty => quote!(),
+            Name::Index(index) => usize_to_tokenstream(*index),
             Name::UnnamedArg(..) => self.mangle_tokens_default(),
             Name::Constructor(ident) => {
                 format_ident!("{}_ctor", ident.mangle_ident_default()).to_token_stream()
@@ -93,6 +97,9 @@ impl Mangle<MangleDefault> for Name {
 
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
+            Name::Empty => String::new(),
+            Name::Index(index) => index.to_string(),
+            Name::UnnamedArg(index) => format!("o_{}", index),
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
                 Type::Path(..) => usize_to_tokenstream(*index).to_string(),
                 Type::Array(_type_array) => usize_to_tokenstream(*index).to_string(),
@@ -102,7 +109,6 @@ impl Mangle<MangleDefault> for Name {
                     quote!(#ty)
                 ),
             },
-            Name::UnnamedArg(index) => format!("o_{}", index),
             Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
             Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
@@ -131,7 +137,7 @@ impl Mangle<MangleDefault> for Name {
             Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
 
-            Name::Underscore => quote!(_).to_string()
+            Name::Underscore => quote!(_).to_string(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 
 pub trait UniqueNestedItems {
@@ -180,7 +180,13 @@ impl UniqueNestedItems for TypeParamBound {
 
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         match self {
-            TypeParamBound::Trait(TraitBound { path, .. }) => path.unique_nested_items(),
+            TypeParamBound::Trait(TraitBound { path, .. }) => {
+                let mut involved = HashSet::from([]);
+                let self_ty = parse_quote!(#path);
+                involved.insert(self_ty);
+                involved.extend(path.unique_nested_items());
+                involved
+            },
             TypeParamBound::Lifetime(_) => HashSet::new()
         }
     }

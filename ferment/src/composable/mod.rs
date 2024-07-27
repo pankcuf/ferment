@@ -9,6 +9,7 @@ mod attrs;
 mod context;
 mod generic_bounds;
 mod trait_vtable;
+mod nested_arg;
 
 pub use attrs::*;
 pub use context::*;
@@ -17,6 +18,7 @@ pub use function::*;
 pub use generic::*;
 pub use generic_bounds::*;
 pub use import::*;
+pub use nested_arg::*;
 pub use qself::*;
 pub use traits::*;
 #[allow(unused)]

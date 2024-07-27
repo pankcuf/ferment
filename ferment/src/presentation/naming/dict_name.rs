@@ -1,6 +1,8 @@
 use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
+use syn::{parse_quote, Path};
+use crate::ext::ToPath;
 
 #[derive(Clone, Debug)]
 pub enum DictionaryName {
@@ -50,5 +52,12 @@ impl ToTokens for DictionaryName {
             DictionaryName::FFiResult => quote!(ffi_result),
         }
             .to_tokens(tokens)
+    }
+}
+
+impl ToPath for DictionaryName {
+    fn to_path(&self) -> Path {
+        let tokens = self.to_token_stream();
+        parse_quote!(#tokens)
     }
 }

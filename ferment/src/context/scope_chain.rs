@@ -8,7 +8,7 @@ use crate::ast::PathHolder;
 use crate::composable::{CfgAttributes, TypeComposition};
 use crate::context::{GlobalContext, Scope};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, path_arguments_to_nested_objects, Pop, ResolveAttrs, ToPath, ToType};
+use crate::ext::{CrateExtension, DictionaryType, Fermented, Opaque, path_arguments_to_nested_objects, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
 #[derive(Clone, Eq)]
@@ -24,6 +24,15 @@ impl PartialEq<Self> for ScopeInfo {
     }
 }
 
+impl ScopeInfo {
+    pub fn fmt_export_type(&self) -> String {
+        self.attrs.is_opaque()
+            .then(|| "Opaque")
+            .or_else(|| self.attrs.is_fermented()
+                .then(|| "Fermented"))
+            .unwrap_or("Unknown").to_string()
+    }
+}
 
 #[derive(Clone, Eq)]
 #[repr(u8)]
@@ -133,12 +142,12 @@ impl ScopeChain {
     #[allow(unused)]
     pub fn fmt_short(&self) -> String {
         match self {
-            ScopeChain::CrateRoot { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "CrateRoot"),
-            ScopeChain::Mod { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Mod"),
-            ScopeChain::Fn { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Fn"),
-            ScopeChain::Object { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Object"),
-            ScopeChain::Impl { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Impl"),
-            ScopeChain::Trait { info, .. } => format!("[{}({})]", format_token_stream(&info.self_scope.self_scope.0), "Trait"),
+            ScopeChain::CrateRoot { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "CrateRoot", info.fmt_export_type()),
+            ScopeChain::Mod { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "Mod", info.fmt_export_type()),
+            ScopeChain::Fn { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "Fn", info.fmt_export_type()),
+            ScopeChain::Object { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "Object", info.fmt_export_type()),
+            ScopeChain::Impl { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "Impl", info.fmt_export_type()),
+            ScopeChain::Trait { info, .. } => format!("[{}({} + {})]", format_token_stream(&info.self_scope.self_scope.0), "Trait", info.fmt_export_type()),
         }
     }
     #[allow(unused)]
@@ -247,7 +256,10 @@ impl ScopeChain {
             ScopeChain::Impl { parent_scope_chain, .. } => Some(parent_scope_chain),
         }
     }
-
+    pub fn parent_object(&self) -> Option<&ObjectConversion> {
+        self.parent_scope()
+            .map(|scope| &scope.self_scope().object)
+    }
     pub fn obj_root_chain(&self) -> Option<&Self> {
         match self {
             ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => None,

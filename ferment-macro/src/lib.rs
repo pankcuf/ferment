@@ -232,10 +232,15 @@ pub fn to_string_derive(input: TokenStream) -> TokenStream {
     };
     let match_arms = data.variants.iter().map(|Variant { ident, fields, .. } | {
         match fields {
-            Fields::Named(_) => quote! { Self::#ident { .. } => stringify!(#ident).to_string(), },
-            Fields::Unnamed(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
-            Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
+            Fields::Named(fields) => quote! { Self::#ident { .. } => format!("{}{}", stringify!(#ident), stringify!(#fields)), },
+            Fields::Unnamed(fields) => quote! { Self::#ident(..) => format!("{}{}", stringify!(#ident), stringify!(#fields)), },
+            Fields::Unit => quote! { Self::#ident => format!("{}", stringify!(#ident)), }
         }
+        // match fields {
+        //     Fields::Named(_) => quote! { Self::#ident { .. } => stringify!(#ident).to_string(), },
+        //     Fields::Unnamed(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
+        //     Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
+        // }
     });
     let expanded = quote! {
         impl std::fmt::Display for #name {

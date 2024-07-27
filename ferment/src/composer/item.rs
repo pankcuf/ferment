@@ -2,8 +2,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
 use proc_macro2::Ident;
-use quote::ToTokens;
 use syn::{Attribute, Field, Fields, Generics, Type, Visibility, VisPublic};
+use syn::__private::TokenStream2;
 use syn::token::{Brace, Comma, Paren, Pub};
 use syn::punctuated::Punctuated;
 use ferment_macro::BasicComposerOwner;
@@ -12,8 +12,8 @@ use crate::composable::{AttrsComposition, CfgAttributes};
 use crate::composer::{BasicComposable, BasicComposer, BindingComposable, BINDING_DTOR_COMPOSER, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, DropComposable, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemParentComposer, Linkable, MethodComposer, NameContext, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
-use crate::presentable::{ScopeContextPresentable, Expression, Context, SequenceOutput};
-use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, Name, ToConversionPresentation};
+use crate::presentable::{ScopeContextPresentable, Context, SequenceOutput, Expression};
+use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, Name};
 use crate::shared::SharedAccess;
 use crate::ast::DelimiterTrait;
 
@@ -68,7 +68,7 @@ impl ItemComposerWrapper {
                 composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
         }
     }
-    pub fn compose_attributes(&self) -> Depunctuated<Expansion> {
+    pub fn compose_attributes(&self) -> Vec<Attribute> {
         match self {
             ItemComposerWrapper::EnumVariantNamed(composer) => composer.borrow().compose_attributes(),
             ItemComposerWrapper::EnumVariantUnnamed(composer) => composer.borrow().compose_attributes(),
@@ -156,7 +156,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
             constants::enum_variant_composer_conversion_unit(),
             constants::bypass_field_context(),
             constants::ROOT_DESTROY_CONTEXT_COMPOSER,
-            |_| Expression::Empty,
+            |_field_type_local_context| Expression::Empty,
             constants::enum_variant_composer_ctor_unit(),
             EMPTY_FIELDS_COMPOSER
         )
@@ -212,7 +212,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         Self::new::<ParentComposer<Self>>(
             Context::Struct {
                 ident: target_name.clone(),
-                attrs: attrs.cfg_attributes_expanded(),
+                attrs: attrs.cfg_attributes(),
             },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
@@ -250,7 +250,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         Self::new::<ParentComposer<Self>>(
             Context::Struct {
                 ident: target_name.clone(),
-                attrs: attrs.cfg_attributes_expanded(),
+                attrs: attrs.cfg_attributes(),
             },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
@@ -385,7 +385,7 @@ impl<I> SourceExpandable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
 impl<I> DropComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
     fn compose_drop(&self) -> DropInterfacePresentation {
         DropInterfacePresentation::Full {
-            attrs: self.compose_attributes().to_token_stream(),
+            attrs: self.compose_attributes(),
             ty: self.compose_ffi_name(),
             body: self.compose_aspect(FFIAspect::Drop).present(&self.source_ref())
         }
@@ -418,12 +418,12 @@ impl<Parent, I> ConversionComposable<Parent> for ItemComposer<I>
     where
         Parent: SharedAccess,
         I: DelimiterTrait + ?Sized {
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
+    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>) {
         let source = self.source_ref();
         (
-            FromConversionPresentation::Just(self.compose_aspect(FFIAspect::From).present(&source)),
-            ToConversionPresentation::Simple(self.compose_aspect(FFIAspect::To).present(&source)),
-            DestroyPresentation::Custom(self.compose_aspect(FFIAspect::Destroy).present(&source)),
+            self.compose_aspect(FFIAspect::From).present(&source),
+            self.compose_aspect(FFIAspect::To).present(&source),
+            self.compose_aspect(FFIAspect::Destroy).present(&source),
             self.compose_generics()
         )
     }

@@ -78,7 +78,7 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
         fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
         Self::new::<ParentComposer<Self>>(
-            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes_expanded() },
+            Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes() },
             Some(generics.clone()),
             AttrsComposition::from(attrs, target_name, scope),
             fields,

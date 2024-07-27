@@ -17,8 +17,8 @@ impl Debug for ScopeResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.inner.iter()
             .map(|(key, value)|
-                format!("\t{}:\n\t\t{}", key, types_dict(&value.inner)
-                    .join("\n\t\t")))
+                format!("\t{}:\n\t{}", key.fmt_short(), types_dict(&value.inner)
+                    .join("\n\t")))
             .collect::<Vec<String>>();
         iter.sort();
         f.write_str( iter.join("\n\n").as_str())
@@ -49,13 +49,16 @@ impl ScopeResolver {
     }
 
     fn maybe_scope_type_(&self, tc: &TypeHolder, scope: &ScopeChain) -> Option<&ObjectConversion> {
-        self.inner
+        // println!("maybe_scope_type_.1: {} in {}", tc, scope.fmt_short());
+        let result = self.inner
             .get(scope)
-            .and_then(|chain| chain.get(tc))
+            .and_then(|chain| chain.get(tc));
+        // println!("maybe_scope_type_.2: {} --> {}", tc, result.as_ref().map_or("None".to_string(), |r| format!("{}", r)));
+        result
     }
     pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
-        // println!("maybe_scope_type: {} --- [{}]", ty.to_token_stream(), scope);
-        match ty {
+        // println!("maybe_scope_type.1: {} --- [{}]", ty.to_token_stream(), scope.fmt_short());
+        let result = match ty {
             Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
                 1 => match bounds.first().unwrap() {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
@@ -70,7 +73,9 @@ impl ScopeResolver {
                 self.maybe_scope_type_(&TypeHolder::from(ty), scope),
             ty =>
                 self.maybe_scope_type_(&TypeHolder::from(ty), scope),
-        }
+        };
+        // println!("maybe_scope_type.2: {} --- [{}]", ty.to_token_stream(), result.to_token_stream());
+        result
     }
 
     pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {

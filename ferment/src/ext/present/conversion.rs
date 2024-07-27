@@ -1,19 +1,59 @@
 use quote::{quote, ToTokens};
 use syn::{Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use crate::ast::Depunctuated;
-use crate::composable::{FieldComposer, FieldTypeConversionKind, GenericBoundComposition};
+use crate::composable::{FieldComposer, GenericBoundComposition};
+use crate::composer::{Composer, DestroyConversionComposer, FromConversionComposer, ToConversionComposer};
+use crate::context::ScopeContext;
 use crate::conversion::TypeConversion;
 use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{DictionaryExpr, FFIConversionMethodExpr, Name};
-pub trait Conversion {
+
+#[derive(Clone, Debug)]
+pub enum ConversionType {
+    From(FromConversionComposer),
+    To(ToConversionComposer),
+    Destroy(DestroyConversionComposer),
+    // Variable(VariableComposer)
+}
+
+#[allow(unused)]
+impl ConversionType {
+    pub fn expr(&self) -> &Option<Expression> {
+        match self {
+            ConversionType::From(composer) => &composer.expr,
+            ConversionType::To(composer) => &composer.expr,
+            ConversionType::Destroy(composer) => &composer.expr,
+            // ConversionType::Variable(composer) => &None,
+        }
+    }
+}
+
+impl<'a> Composer<'a> for ConversionType {
+    type Source = ScopeContext;
+    type Result = Expression;
+
+    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+        match self {
+            ConversionType::From(composer) =>
+                composer.compose(source),
+            ConversionType::To(composer) =>
+                composer.compose(source),
+            ConversionType::Destroy(composer) =>
+                composer.compose(source),
+            // ConversionType::Variable(composer) =>
+            //     composer.compose(source)
+        }
+    }
+}
+
+pub trait ConversionTrait {
     fn conversion_from(&self, expr: Expression) -> Expression;
     fn conversion_to(&self, expr: Expression) -> Expression;
     fn conversion_destroy(&self, expr: Expression) -> Expression;
 }
 
-impl Conversion for FieldComposer {
+impl ConversionTrait for FieldComposer {
     fn conversion_from(&self, expr: Expression) -> Expression {
         self.ty().conversion_from(expr)
     }
@@ -27,7 +67,7 @@ impl Conversion for FieldComposer {
     }
 }
 
-impl Conversion for Type {
+impl ConversionTrait for Type {
     fn conversion_from(&self, expr: Expression) -> Expression {
         //println!("Type::conversion_from: {}", expr);
         let resutl = match self {
@@ -98,7 +138,7 @@ impl Conversion for Type {
     }
 }
 
-impl Conversion for TypeArray {
+impl ConversionTrait for TypeArray {
     fn conversion_from(&self, expr: Expression) -> Expression {
         Expression::From(expr.into())
     }
@@ -112,7 +152,7 @@ impl Conversion for TypeArray {
     }
 }
 
-impl Conversion for TypeSlice {
+impl ConversionTrait for TypeSlice {
     fn conversion_from(&self, expr: Expression) -> Expression {
         let ty = &*self.elem;
         let ffi_type = self.mangle_ident_default();
@@ -131,7 +171,7 @@ impl Conversion for TypeSlice {
         Expression::UnboxAny(expr.into())
     }
 }
-impl Conversion for TypePtr {
+impl ConversionTrait for TypePtr {
     fn conversion_from(&self, expr: Expression) -> Expression {
         println!("TypePtr::conversion_from: {} === {}", self.to_token_stream(), expr);
         match &*self.elem {
@@ -139,14 +179,14 @@ impl Conversion for TypePtr {
                 Type::Path(_type_path) => Expression::FromOffsetMap,
                 _ => Expression::From(expr.into()),
             },
-            Type::Path(type_path) =>
-                Expression::FromRawParts(type_path
-                    .path
-                    .segments
-                    .last()
-                    .unwrap()
-                    .ident
-                    .to_token_stream()),
+            Type::Path(..) => expr,
+                // Expression::FromRawParts(type_path
+                //     .path
+                //     .segments
+                //     .last()
+                //     .unwrap()
+                //     .ident
+                //     .to_token_stream()),
             _ => Expression::From(expr.into()),
         }
     }
@@ -174,7 +214,7 @@ impl Conversion for TypePtr {
     }
 }
 
-impl Conversion for TypeReference {
+impl ConversionTrait for TypeReference {
     fn conversion_from(&self, expr: Expression) -> Expression {
         match &*self.elem {
             Type::Path(type_path) => match type_path.path.segments.last().unwrap().ident.to_string().as_str() {
@@ -212,7 +252,7 @@ impl Conversion for TypeReference {
     }
 }
 
-impl Conversion for TypePath {
+impl ConversionTrait for TypePath {
     fn conversion_from(&self, expr: Expression) -> Expression {
         let last_segment = self.path.segments.last().unwrap();
         let last_ident = &last_segment.ident;
@@ -239,10 +279,36 @@ impl Conversion for TypePath {
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 Some(TypeConversion::Primitive(_)) => Expression::ToOptPrimitive(expr.into()),
-                Some(TypeConversion::Generic(_)) => Expression::OwnerIteratorPresentation(
+                Some(TypeConversion::Generic(_)) =>
+                    // Expression::Expr(Expr::Match(ExprMatch {
+                    //     attrs: vec![],
+                    //     match_token: Default::default(),
+                    //     expr: Box::new(Expr::),
+                    //     brace_token: Default::default(),
+                    //     arms: vec![
+                    //         Arm {
+                    //             attrs: vec![],
+                    //             pat: Pat::Verbatim(quote!(Some(vec))),
+                    //             guard: None,
+                    //             fat_arrow_token: Default::default(),
+                    //             body: Box::new(Expr::Verbatim(FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream())),
+                    //             comma: Some(Default::default()),
+                    //         },
+                    //         Arm {
+                    //             attrs: vec![],
+                    //             pat: Pat::Verbatim(quote!(None)),
+                    //             guard: None,
+                    //             fat_arrow_token: Default::default(),
+                    //             body: Box::new(Expr::Verbatim(DictionaryExpr::NullMut.to_token_stream())),
+                    //             comma: None,
+                    //         }
+                    //     ],
+                    // }))
+
+                    Expression::OwnerIteratorPresentation(
                     SequenceOutput::MatchFields((expr.into(), Punctuated::from_iter([
-                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Depunctuated::new()),
-                        OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), Depunctuated::new())
+                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Vec::new()),
+                        OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), Vec::new())
                     ])))),
                 Some(_) => Expression::ToOpt(expr.into()),
                 None => unimplemented!("TypePath::conversion_to: Empty Optional"),
@@ -273,17 +339,12 @@ impl Conversion for TypePath {
     }
 }
 
-impl Conversion for TypeTuple {
+impl ConversionTrait for TypeTuple {
     fn conversion_from(&self, expr: Expression) -> Expression {
         Expression::FromTuple(expr.into(), self.elems.iter()
             .enumerate()
             .map(|(index, elem)|
-                elem.conversion_from(
-                    Expression::FfiRefWithConversion(
-                        FieldComposer::unnamed(
-                            Name::UnnamedArg(index),
-                            FieldTypeConversionKind::Type(elem.clone())))
-                        .into()))
+                elem.conversion_from(Expression::FfiRefWithName(Name::UnnamedArg(index))))
             .collect())
     }
 
@@ -296,7 +357,7 @@ impl Conversion for TypeTuple {
     }
 }
 
-impl Conversion for TypeTraitObject {
+impl ConversionTrait for TypeTraitObject {
     fn conversion_from(&self, expr: Expression) -> Expression {
         Expression::AsRef(expr.into())
     }
@@ -310,7 +371,7 @@ impl Conversion for TypeTraitObject {
     }
 }
 
-impl Conversion for TypeImplTrait {
+impl ConversionTrait for TypeImplTrait {
     fn conversion_from(&self, expr: Expression) -> Expression {
         Expression::AsRef(expr.into())
     }
@@ -324,7 +385,7 @@ impl Conversion for TypeImplTrait {
     }
 }
 
-impl Conversion for GenericBoundComposition {
+impl ConversionTrait for GenericBoundComposition {
     fn conversion_from(&self, expr: Expression) -> Expression {
         expr
     }

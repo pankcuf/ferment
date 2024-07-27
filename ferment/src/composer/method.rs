@@ -1,4 +1,3 @@
-use quote::ToTokens;
 use syn::Type;
 use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
 use crate::composer::r#abstract::{Composer, Linkable};
@@ -50,12 +49,13 @@ for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
             .expect("no parent")
             .access(self.context);
         context.iter()
-            .map(|field_type| {
+            .map(|composer| {
+                // println!("MethodComposer::ty: {}", field_type.ty().to_token_stream());
                 (self.seq_iterator_item)((
                     aspect.present(source),
-                    field_type.name.to_token_stream(),
-                    <Type as Resolve<FFIVariable>>::resolve(field_type.ty(), source).to_type(),
-                    field_type.attrs.clone(),
+                    composer.tokenized_name(),
+                    <Type as Resolve<FFIVariable>>::resolve(composer.ty(), source).to_type(),
+                    composer.to_attrs(),
                     generics.clone()
                 ))
             })

@@ -1,6 +1,8 @@
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, Type, TypePath, TypeTuple};
-use crate::composer::CommaPunctuatedNestedArguments;
+mod refine;
+pub use refine::RefineInScope;
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use crate::composable::NestedArgument;
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
 
 pub trait RefineMut: Sized {
@@ -21,19 +23,6 @@ pub trait RefineUnrefined: RefineMut + Unrefined<Unrefinement = Self::Refinement
 }
 
 #[allow(unused)]
-pub trait Refine: Sized {
-    type Unrefined;
-    fn refine_with(&self, refined: Self::Unrefined) -> Self;
-
-    fn unrefined(&self) -> Self::Unrefined;
-
-    fn refine_with_unrefined(&self) -> Self {
-        let unrefined = self.unrefined();
-        self.refine_with(unrefined)
-    }
-}
-
-#[allow(unused)]
 pub trait RefineAtScope: Sized {
     fn refine_at_scope(&self, scope: &ScopeChain) -> Self;
 }
@@ -43,9 +32,8 @@ impl RefineMut for Type {
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         match self {
-            Type::Path(TypePath { path, .. }) => {
-                path.segments.last_mut().unwrap().arguments.refine_with(refined);
-            },
+            Type::Path(TypePath { path, .. }) =>
+                path.segments.last_mut().unwrap().arguments.refine_with(refined),
             Type::Tuple(TypeTuple { elems, .. }) => {
                 let mut refinement = refined.clone();
                 elems.iter_mut()
@@ -62,6 +50,20 @@ impl RefineMut for Type {
                         }
                     });
             },
+            Type::TraitObject(TypeTraitObject { bounds, .. }) |
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) =>
+                bounds.iter_mut()
+                    .zip(refined.iter())
+                    .for_each(|(bound, nested_arg)| if let TypeParamBound::Trait(TraitBound { path , ..}) = bound {
+                        match nested_arg.ty() {
+                            Some(Type::TraitObject(TypeTraitObject { bounds, .. }) |
+                                 Type::ImplTrait(TypeImplTrait { bounds, .. })) =>
+                                *path = parse_quote!(#bounds),
+                            Some(Type::Path(TypePath { path: bounds, .. })) =>
+                                *path = bounds.clone(),
+                            _ => {}
+                        }
+                }),
             _ => {}
         }
     }

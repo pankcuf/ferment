@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, Lifetime, LifetimeDef, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
@@ -252,7 +252,7 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
         visitor.add_full_qualified_type_chain(scope, type_chain, true);
     }
     inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-        println!("add input: {} in [{}]", ty.to_token_stream(), scope);
+        // println!("add input: {} in [{}]", ty.to_token_stream(), scope);
         // TODO: Prevent generic bound from adding to parent here
         // It's easy when arg is non-compound type, i.e. itself
         // It's hard when bound is a part of arg i.e. T: Into<U>
@@ -318,7 +318,7 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
 // }
 
 fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
-    println!("add_bounds: [add_2_parent: {}] {} in [{}]", add_to_parent, bounds.to_token_stream(), scope);
+    // println!("add_bounds: [add_2_parent: {}] {} in [{}]", add_to_parent, bounds.to_token_stream(), scope);
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
         let ty = path.to_type();
@@ -345,7 +345,7 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
             predicates.iter().for_each(|predicate| match predicate {
                 WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
                     // where T: Debug + Clone, T::Item: XX,
-                    println!("WherePredicate: {}", bounded_ty.to_token_stream());
+                    // println!("WherePredicate: {}", bounded_ty.to_token_stream());
                     generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
                     visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
                 },

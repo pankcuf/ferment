@@ -3,13 +3,15 @@ use proc_macro2::Ident;
 use std::rc::Rc;
 use std::cell::RefCell;
 use quote::{quote, ToTokens};
+use syn::__private::TokenStream2;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{CommaPunctuated, DelimiterTrait, Depunctuated};
 use crate::composable::{AttrsComposition, CfgAttributes};
 use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPunctuatedArgs, CommaPunctuatedOwnedItems, Composer, constants, ConversionComposable, DocsComposable, DropComposable, EnumParentComposer, FFIAspect, FFIObjectComposable, ItemComposerWrapper, Linkable, NameContext, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
+use crate::ext::Terminated;
 use crate::presentable::{BindingPresentableContext, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
-use crate::presentation::{BindingPresentation, DestroyPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, FromConversionPresentation, ToConversionPresentation};
+use crate::presentation::{BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacesMethodExpr};
 use crate::shared::SharedAccess;
 
 #[derive(BasicComposerOwner)]
@@ -50,7 +52,7 @@ impl<I> DropComposable for EnumComposer<I>
     fn compose_drop(&self) -> DropInterfacePresentation {
         let source = self.source_ref();
         DropInterfacePresentation::Full {
-            attrs: self.compose_attributes().to_token_stream(),
+            attrs: self.compose_attributes(),
             ty: self.compose_ffi_name(),
             body: SequenceOutput::MatchFields((
                 Expression::Simple(quote!(self)).into(),
@@ -61,7 +63,7 @@ impl<I> DropComposable for EnumComposer<I>
                         .map(|composer|
                             OwnedItemPresentableContext::SequenceOutput(composer.compose_aspect(FFIAspect::Drop), composer.compose_attributes())));
                     // TODO: make only if fields contain any conditional compilation flags
-                    result.push(OwnedItemPresentableContext::Exhaustive(quote!()));
+                    result.push(OwnedItemPresentableContext::Exhaustive(Vec::new()));
                     result
                 }))
                 .present(&source)
@@ -97,18 +99,27 @@ impl<I> BindingComposable for EnumComposer<I>
 
 impl<Parent, I> ConversionComposable<Parent> for EnumComposer<I>
     where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
-    fn compose_interface_aspects(&self) -> (FromConversionPresentation, ToConversionPresentation, DestroyPresentation, Option<Generics>) {
-        let (conversions_from_ffi, conversions_to_ffi) = self.variant_composers.iter().map(|composer| {
+    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>) {
+        let (conversions_from_ffi, conversions_to_ffi): (CommaPunctuated<_>, CommaPunctuated<_>) = self.variant_composers.iter().map(|composer| {
             let source = self.source_ref();
             let attrs = composer.compose_attributes();
-            let from = composer.compose_aspect(FFIAspect::From).present(&source);
-            let to = composer.compose_aspect(FFIAspect::To).present(&source);
-
-            (quote! { #attrs #from }, quote! { #attrs #to })
+            (
+                Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::From).present(&source)])
+                    .to_token_stream(),
+                Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::To).present(&source)])
+                    .to_token_stream()
+            )
         }).unzip();
-        (FromConversionPresentation::Enum(conversions_from_ffi),
-         ToConversionPresentation::Enum(conversions_to_ffi),
-         DestroyPresentation::Default,
+        ({
+            let ffi_ref = DictionaryName::FfiRef;
+            DictionaryExpr::FromRoot(DictionaryExpr::Match(quote!(#ffi_ref { #conversions_from_ffi })).to_token_stream())
+                .to_token_stream()
+            },
+         InterfacesMethodExpr::Boxed(
+             DictionaryExpr::Match(quote!(obj { #conversions_to_ffi, _ => unreachable!("Enum Variant unreachable") }))
+                 .to_token_stream())
+             .to_token_stream(),
+         InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated(),
          self.compose_generics())
     }
 }
@@ -127,7 +138,7 @@ impl<I> EnumComposer<I> where I: DelimiterTrait + ?Sized {
                 AttrsComposition::from(attrs, target_name, scope),
                 Context::Enum {
                     ident: target_name.clone(),
-                    attrs: attrs.cfg_attributes_expanded(),
+                    attrs: attrs.cfg_attributes(),
                 },
                 Some(generics.clone()),
                 constants::composer_doc(),

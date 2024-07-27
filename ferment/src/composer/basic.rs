@@ -1,10 +1,9 @@
-use syn::Generics;
-use crate::ast::Depunctuated;
+use syn::{Attribute, Generics};
 use crate::composable::AttrsComposition;
 use crate::composer::{AttrsComposer, BasicComposable, Composer, DocsComposable, GenericsComposer, NameContext, ParentComposer, Linkable, SourceAccessible, SourceExpandable, TypeComposer, TypeContextComposer};
 use crate::context::ScopeContext;
 use crate::presentable::Context;
-use crate::presentation::{DocPresentation, Expansion};
+use crate::presentation::DocPresentation;
 use crate::shared::SharedAccess;
 
 pub struct BasicComposer<Parent> where Parent: SharedAccess {
@@ -30,7 +29,7 @@ impl<Parent> DocsComposable for BasicComposer<Parent> where Parent: SharedAccess
 
 
 impl<Parent> BasicComposable<Parent> for BasicComposer<Parent> where Parent: SharedAccess {
-    fn compose_attributes(&self) -> Depunctuated<Expansion> {
+    fn compose_attributes(&self) -> Vec<Attribute> {
         self.attr.compose(self.context())
     }
     fn compose_generics(&self) -> Option<Generics> {

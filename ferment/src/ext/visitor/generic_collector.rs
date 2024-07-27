@@ -5,7 +5,6 @@ use crate::ast::TypeHolder;
 use crate::conversion::ScopeItemConversion;
 use crate::ext::item::segment_arguments_to_types;
 use crate::ext::visitor::TypeCollector;
-use crate::formatter::{format_type_holders, format_type_holders_vec};
 
 // pub trait Collector where Self: TypeCollector {
 //     fn collect(&self) -> HashSet<TypeHolder> {
@@ -32,11 +31,11 @@ pub trait GenericCollector where Self: TypeCollector + ToTokens {
         // collect all types with generics and ensure their uniqueness
         // since we don't want to implement interface multiple times for same object
         let mut generics: HashSet<TypeHolder> = HashSet::new();
-        println!("GenericCollector::compositions: {}\n{}", self.to_token_stream(), format_type_holders_vec(&compositions));
+        //println!("GenericCollector::compositions: {}\n{}", self.to_token_stream(), format_type_holders_vec(&compositions));
         compositions
             .iter()
             .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
-        println!("GenericCollector::generics {}\n{}", self.to_token_stream(), format_type_holders(&generics));
+        //println!("GenericCollector::generics {}\n{}", self.to_token_stream(), format_type_holders(&generics));
 
         generics
     }

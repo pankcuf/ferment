@@ -17,18 +17,20 @@ mod r#abstract;
 mod variable;
 mod from_conversion;
 mod to_conversion;
+mod destroy_conversion;
 
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
-use syn::{Field, Generics, Type};
+use syn::{Attribute, Field, Generics, Type};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Semi};
-use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ast::CommaPunctuated;
 use crate::composable::{FieldComposer, FnSignatureContext, NestedArgument};
 use crate::composer::r#abstract::{ContextComposer, SequenceComposer, SequenceMixer};
+use crate::ext::ConversionType;
 use crate::presentable::{Aspect, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, SequenceOutput};
-use crate::presentation::{ArgPresentation, BindingPresentation, Expansion, Name};
+use crate::presentation::{ArgPresentation, BindingPresentation, Name};
 use crate::shared::SharedAccess;
 
 pub use self::r#abstract::*;
@@ -36,6 +38,7 @@ pub use self::attrs::*;
 pub use self::basic::*;
 pub use self::constants::*;
 // pub use self::chain::*;
+pub use self::destroy_conversion::*;
 pub use self::enum_composer::*;
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
@@ -96,13 +99,13 @@ pub type LocalConversionContext = LocalFieldsOwnerContext<Aspect>;
 pub type ConstructorFieldsContext = LocalFieldsOwnerContext<ConstructorPresentableContext>;
 
 
-pub type BindingAccessorContext = (Type, TokenStream2, Type, Depunctuated<Expansion>, Option<Generics>);
-pub type DestructorContext = (Type, Depunctuated<Expansion>, Option<Generics>);
+pub type BindingAccessorContext = (Type, TokenStream2, Type, Vec<Attribute>, Option<Generics>);
+pub type DestructorContext = (Type, Vec<Attribute>, Option<Generics>);
 
 
 
 
-pub type FieldTypeLocalContext = (TokenStream2, Expression);
+pub type FieldTypeLocalContext = (Name, ConversionType);
 pub type FunctionContext = (ConstructorPresentableContext, Vec<OwnedItemPresentablePair>);
 pub type OwnedItemPresentablePair = (OwnedItemPresentableContext, OwnedItemPresentableContext);
 pub type SequenceOutputPair = (SequenceOutput, SequenceOutput);

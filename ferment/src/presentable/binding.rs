@@ -1,10 +1,10 @@
 use quote::ToTokens;
-use syn::{Generics, Type};
-use crate::ast::{DelimiterTrait, Depunctuated, Wrapped};
+use syn::{Attribute, Generics, Type};
+use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composer::{CommaPunctuatedArgs, CommaPunctuatedOwnedItems};
 use crate::context::ScopeContext;
 use crate::presentable::{ConstructorPresentableContext, ScopeContextPresentable};
-use crate::presentation::{BindingPresentation, Expansion};
+use crate::presentation::BindingPresentation;
 
 pub type ConstructorBindingPresentableContext<I> = BindingPresentableContext<CommaPunctuatedOwnedItems, CommaPunctuatedArgs, I>;
 
@@ -13,7 +13,7 @@ pub enum BindingPresentableContext<S, SP, I>
           SP: ToTokens,
           I: DelimiterTrait + ?Sized {
     Constructor(ConstructorPresentableContext, CommaPunctuatedOwnedItems, Wrapped<S, SP, I>),
-    Destructor(Type, Depunctuated<Expansion>, Option<Generics>),
+    Destructor(Type, Vec<Attribute>, Option<Generics>),
 }
 
 impl<S, SP, I> ScopeContextPresentable for BindingPresentableContext<S, SP, I>

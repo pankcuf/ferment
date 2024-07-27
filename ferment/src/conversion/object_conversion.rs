@@ -1,12 +1,13 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, Signature, Type};
+use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Signature, Type};
 use syn::punctuated::Punctuated;
-use crate::ast::PathHolder;
+use crate::ast::{CommaPunctuated, PathHolder};
 use crate::composable::{TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
+use crate::presentation::Name;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectConversion {
@@ -30,19 +31,21 @@ impl ObjectConversion {
             _ => true
         }
     }
+    pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
+        match self {
+            ObjectConversion::Type(tyc) |
+            ObjectConversion::Item(tyc, _) => tyc.maybe_callback(),
+            ObjectConversion::Empty => None
+        }
+    }
+    pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
+        match self.maybe_callback() {
+            Some(ParenthesizedGenericArguments { inputs, ..}) =>
+                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)))),
+            _ => None
+        }
+    }
 }
-
-// impl Opaque for ObjectConversion {
-//     fn is_opaque(&self) -> bool {
-//         let result = match self {
-//             ObjectConversion::Item(_, item) => item.is_opaque(),
-//             ObjectConversion::Type(ty) => ty.is_opaque(),
-//             _ => false
-//         };
-//         println!("ObjectConversion::is_opaque ({result}): {self}");
-//         result
-//     }
-// }
 
 impl ValueReplaceScenario for ObjectConversion {
     fn should_replace_with(&self, other: &Self) -> bool {
@@ -111,13 +114,20 @@ impl ObjectConversion {
             ObjectConversion::Empty => None
         }
     }
-    // pub fn ty(&self) -> Option<&Type> {
-    //     match self {
-    //         ObjectConversion::Type(type_conversion) => Some(type_conversion.ty()),
-    //         ObjectConversion::Item(scope, _) => Some(scope.ty()),
-    //         ObjectConversion::Empty => None
-    //     }
-    // }
+    pub fn ty(&self) -> Option<&Type> {
+        match self {
+            ObjectConversion::Type(type_conversion) |
+            ObjectConversion::Item(type_conversion, ..) => Some(type_conversion.ty()),
+            ObjectConversion::Empty => None
+        }
+    }
+    pub fn maybe_type_composition(&self) -> Option<&TypeComposition> {
+        match self {
+            ObjectConversion::Type(ty) |
+            ObjectConversion::Item(ty, _) => Some(ty.ty_composition()),
+            ObjectConversion::Empty => None
+        }
+    }
     pub fn maybe_type(&self) -> Option<Type> {
         match self {
             ObjectConversion::Type(ty) |

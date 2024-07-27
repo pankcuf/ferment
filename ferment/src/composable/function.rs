@@ -1,14 +1,13 @@
 use std::fmt::{Debug, Formatter};
 use proc_macro2::Ident;
-use syn::{FnArg, ItemFn, parse_quote, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn};
+use syn::{Attribute, FnArg, ItemFn, parse_quote, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, Visibility};
 use quote::{quote, ToTokens};
-use crate::ast::Depunctuated;
 use crate::composable::{CfgAttributes, FieldComposer, FieldTypeConversionKind};
 use crate::composer::{Composer, FromConversionComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::presentable::{Expression, OwnedItemPresentableContext};
-use crate::presentation::{DictionaryName, Expansion, Name};
+use crate::presentation::{DictionaryName, Name};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -50,9 +49,6 @@ pub struct FnReturnTypeComposer {
 
 #[derive(Clone, Debug)]
 pub struct FnArgComposer {
-    // pub name: Option<TokenStream2>,
-    // pub name_type_original: OwnedFieldTypeComposerRef,
-    // pub name_type_conversion: FieldTypePresentationContextPassRef,
     pub name_type_original: OwnedItemPresentableContext,
     pub name_type_conversion: Expression,
 }
@@ -69,15 +65,14 @@ impl<'a> Composer<'a> for PatType {
     fn compose(&self, source: &Self::Source) -> Self::Result {
         let (_ctx, source) = source;
         let PatType { ty, attrs, pat, .. } = self;
-        let from_conversion_composer = FromConversionComposer::from(self);
         FnArgComposer::new(
-            original(Name::Pat(*pat.clone()), ty.to_type(), attrs.cfg_attributes_expanded()),
-            from_conversion_composer.compose(source))
+            original(Name::Pat(*pat.clone()), ty.to_type(), attrs.cfg_attributes()),
+            FromConversionComposer::from(self).compose(source))
     }
 }
 
-fn original(name: Name, ty: Type, attrs: Depunctuated<Expansion>) -> OwnedItemPresentableContext {
-    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeConversionKind::Type(ty), true, attrs), false)
+fn original(name: Name, ty: Type, attrs: Vec<Attribute>) -> OwnedItemPresentableContext {
+    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeConversionKind::Type(ty), true, attrs), Visibility::Inherited)
 }
 
 impl<'a> Composer<'a> for FnArg {
@@ -119,7 +114,7 @@ impl<'a> Composer<'a> for Receiver {
                 let name_type_original = original(
                     Name::Dictionary(DictionaryName::Self_),
                     parse_quote!(* #access #mangled_ident),
-                    attrs.cfg_attributes_expanded()
+                    attrs.cfg_attributes()
                 );
                 let name_type_conversion = if reference.is_some() {
                     Expression::AsRef(name_type_conversion.into())

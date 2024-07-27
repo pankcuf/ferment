@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
-use syn::{Expr, Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, Variant};
+use syn::{Field, Fields, FieldsNamed, FieldsUnnamed, Ident, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, parse_quote, Path, Signature, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject, Variant, Visibility};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
@@ -11,7 +11,7 @@ use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTyp
 use crate::composer::{CommaPunctuatedOwnedItems, EnumComposer, ItemComposer, ItemComposerWrapper, ParentComposer, SigComposer, SourceExpandable, TraitComposer, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{CrateExtension, ItemExtension, Join, ToPath, ToType};
-use crate::presentable::{Aspect, Context, OwnedItemPresentableContext, SequenceOutput};
+use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{DocPresentation, Expansion, Name};
 use crate::tree::ScopeTreeExportID;
 
@@ -196,9 +196,9 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
         variants.iter()
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
                 let (variant_composer, fields_context): (VariantComposerRef, CommaPunctuatedOwnedItems) = match discriminant {
-                    Some((_, Expr::Lit(lit, ..))) => (
+                    Some((_, expr)) => (
                         |local_context| SequenceOutput::EnumUnitFields(local_context.clone()),
-                        Punctuated::from_iter([OwnedItemPresentableContext::Conversion(lit.to_token_stream(), attrs.cfg_attributes_expanded())])),
+                        Punctuated::from_iter([OwnedItemPresentableContext::Expression(Expression::Expr(expr.clone()), attrs.cfg_attributes())])),
                     None => match fields {
                         Fields::Unit => (
                             |(aspect, _)| SequenceOutput::NoFields(aspect.clone()),
@@ -209,7 +209,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                             unnamed
                                 .iter()
                                 .map(|field_type|
-                                    OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone(), field_type.attrs.cfg_attributes_expanded()))
+                                    OwnedItemPresentableContext::DefaultFieldType(field_type.ty.clone(), field_type.attrs.cfg_attributes()))
                                 .collect(),
                         ),
                         Fields::Named(FieldsNamed { named, .. }) => (
@@ -218,18 +218,17 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
                                     OwnedItemPresentableContext::Named(
-                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), true, attrs.cfg_attributes_expanded()), false))
+                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), true, attrs.cfg_attributes()), Visibility::Inherited))
                                 .collect(),
                         ),
                     },
-                    _ => panic!("Error variant discriminant"),
                 };
                 let name_context = Context::EnumVariant {
                     ident: target_name.clone(),
                     variant_ident: variant_name.clone(),
-                    attrs: attrs.cfg_attributes_expanded()
+                    attrs: attrs.cfg_attributes()
                 };
-                let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes_expanded() });
+                let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes() });
                 let attrs = AttrsComposition::from(attrs, variant_name, item_scope);
                 let composer = ItemComposerWrapper::enum_variant(fields, name_context, attrs, context);
                 // let composer = match fields {

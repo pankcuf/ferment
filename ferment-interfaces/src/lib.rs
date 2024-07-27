@@ -1,5 +1,7 @@
 pub mod fermented;
 
+pub use crate as ferment;
+
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::CString;
 use std::hash::Hash;
@@ -56,6 +58,12 @@ pub trait FFIConversion<T> {
 pub fn boxed<T>(obj: T) -> *mut T {
     Box::into_raw(Box::new(obj))
 }
+
+// /// # Safety
+// pub unsafe fn from_opt_box<C, T>(vec: *mut *mut T, count: usize) -> C {
+//
+// }
+
 
 pub fn boxed_vec<T>(vec: Vec<T>) -> *mut T {
     let mut slice = vec.into_boxed_slice();
@@ -177,6 +185,7 @@ pub unsafe fn from_opt_primitive_group<C, T>(vec: *mut *mut T, count: usize) -> 
         .collect()
 }
 
+
 /// # Safety
 pub unsafe fn from_complex_group<C, V, V2>(vec: *mut *mut V2, count: usize) -> C
     where
@@ -257,6 +266,28 @@ pub unsafe fn fold_to_result<T, E, T2, E2>(
         Err(value_converter(error))
     }
 }
+/// # Safety
+pub unsafe fn to_result<T, E, T2, E2>(
+    result: Result<T2, E2>,
+    key_converter: impl Fn(T2) -> *mut T,
+    value_converter: impl Fn(E2) -> *mut E,
+
+) -> (*mut T, *mut E) {
+    match result {
+        Ok(o) => (key_converter(o), std::ptr::null_mut()),
+        Err(o) => (std::ptr::null_mut(), value_converter(o))
+    }
+}
+//     ok: *mut T,
+//     error: *mut E,
+//     key_converter: impl Fn(*mut T) -> T2,
+//     value_converter: impl Fn(*mut E) -> E2) -> Result<T2, E2> {
+//     if error.is_null() {
+//         Ok(key_converter(ok))
+//     } else {
+//         Err(value_converter(error))
+//     }
+// }
 
 // pub trait FFICallback<I, O> {
 //     // unsafe fn apply(&self, args: I) -> O;

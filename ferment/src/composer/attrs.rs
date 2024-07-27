@@ -1,8 +1,7 @@
-use crate::ast::Depunctuated;
+use syn::Attribute;
 use crate::composable::{AttrsComposition, CfgAttributes};
 use crate::composer::{Composer, Linkable, ParentComposer};
 use crate::context::ScopeContext;
-use crate::presentation::Expansion;
 use crate::shared::SharedAccess;
 
 pub struct AttrsComposer<Parent: SharedAccess> {
@@ -23,9 +22,9 @@ impl<Parent: SharedAccess> Linkable<Parent> for AttrsComposer<Parent> {
 
 impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
     type Source = ParentComposer<ScopeContext>;
-    type Result = Depunctuated<Expansion>;
+    type Result = Vec<Attribute>;
     fn compose(&self, _context: &Self::Source) -> Self::Result {
-        self.attrs.cfg_attributes_expanded()
+        self.attrs.cfg_attributes()
         // TODO: currently disable trait expansion via attributes,
         // TODO: migrate onto composable RefinedTree version
         // let attrs_composition = &self.attrs;

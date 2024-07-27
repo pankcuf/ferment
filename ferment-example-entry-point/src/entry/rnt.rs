@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 use tokio::runtime::Runtime;
 use ferment_interfaces::boxed;
 use crate::entry::{BlockHashByHeight, ModelByHeight, SomeModel};
-use crate::entry::processor::Processor;
+use crate::entry::processor::MasternodeProcessor;
 use crate::entry::provider::{FFIPtrCoreProvider, FFITraitCoreProvider};
 
 #[ferment_macro::opaque]
 pub struct DashSharedCoreWithRuntime {
-    pub processor: *mut Processor,
+    pub processor: *mut MasternodeProcessor,
     pub runtime: *mut Runtime,
     pub cache: BTreeMap<String, String>,
     pub context: *const std::os::raw::c_void,
@@ -21,7 +21,8 @@ impl DashSharedCoreWithRuntime {
         runtime: *mut Runtime,
         context: *const std::os::raw::c_void) -> Self {
         Self {
-            processor: boxed(Processor { chain_id: Box::new(FFIPtrCoreProvider { block_hash_by_height, model_by_height }) }),
+            processor: boxed(MasternodeProcessor {
+                provider: Box::new(FFIPtrCoreProvider { block_hash_by_height, model_by_height }) }),
             cache: Default::default(),
             runtime,
             context
@@ -34,8 +35,8 @@ impl DashSharedCoreWithRuntime {
         context: *const std::os::raw::c_void) -> Self
         where {
         Self {
-            processor: boxed(Processor {
-                chain_id: Box::new(FFITraitCoreProvider {
+            processor: boxed(MasternodeProcessor {
+                provider: Box::new(FFITraitCoreProvider {
                     block_hash_by_height: Box::new(block_hash_by_height),
                     model_by_height: Box::new(model_by_height) }) }),
             cache: Default::default(),

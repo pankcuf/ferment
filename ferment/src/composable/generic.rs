@@ -39,7 +39,7 @@ impl Hash for GenericConversion {
 }
 
 impl GenericConversion {
-    pub fn new(object: ObjectConversion/*, attrs: Depunctuated<Expansion>*/) -> Self {
+    pub fn new(object: ObjectConversion/*, attrs: Directives*/) -> Self {
         Self { object/*, attrs*/ }
     }
 

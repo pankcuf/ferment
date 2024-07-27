@@ -2,16 +2,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Generics, ItemFn, Path, ReturnType, Signature, Type, TypeBareFn};
+use syn::{Attribute, BareFnArg, Generics, ItemFn, Pat, Path, ReturnType, Signature, Type, TypeBareFn};
 use syn::__private::TokenStream2;
 use syn::token::RArrow;
 use ferment_macro::BasicComposerOwner;
-use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
+use crate::ast::{CommaPunctuated, ParenWrapped};
 use crate::composable::{AttrsComposition, CfgAttributes, FnArgComposer, FnReturnTypeComposer, FnSignatureContext};
 use crate::composer::{BasicComposable, BasicComposer, BasicComposerOwner, BindingComposer, Composer, constants, DocsComposable, NameContext, Linkable, ParentComposer, SigParentComposer, SourceAccessible, SourceExpandable, CommaPunctuatedOwnedItems, ToConversionComposer, VariableComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::conversion::{GenericTypeConversion, TypeConversion};
-use crate::ext::{Conversion, FFIVarResolve, Mangle, Resolve, ToType};
+use crate::ext::{FFIVarResolve, Mangle, Resolve, ToType};
 use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, Expansion, FFIConversionMethodExpr, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
@@ -31,7 +31,7 @@ impl SigComposer {
         attrs: AttrsComposition,
         binding_composer: BindingComposer<SigParentComposer>,
         context: &ParentComposer<ScopeContext>) -> SigParentComposer {
-        let ty_context = Context::Fn { path, sig_context, attrs: attrs.cfg_attributes_expanded() };
+        let ty_context = Context::Fn { path, sig_context, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(attrs, ty_context, generics, constants::composer_doc(), Rc::clone(context)),
             binding_composer,
@@ -75,8 +75,8 @@ impl DocsComposable for SigComposer {
     }
 }
 
-fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
-    println!("compose_regular_fn: {}", path.to_token_stream());
+fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Vec<Attribute>, generics: Option<Generics>, sig: &Signature, sig_context: &FnSignatureContext, source: &ScopeContext) -> BindingPresentation {
+    // println!("compose_regular_fn: {}", path.to_token_stream());
     let Signature { output, inputs, asyncness, .. } = sig;
     let return_type = match output {
         ReturnType::Default => FnReturnTypeComposer {
@@ -88,7 +88,7 @@ fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>
                 ReturnType::Type(RArrow::default(), Box::new(VariableComposer::from(&**ty).compose(source).to_type()))
             },
             conversion: {
-                ToConversionComposer::new(Name::Dictionary(DictionaryName::Obj), *ty.clone())
+                ToConversionComposer::new(Name::Dictionary(DictionaryName::Obj), *ty.clone(), None)
                     .compose(source)
             }
         }
@@ -98,7 +98,7 @@ fn compose_regular_fn(path: Path, aspect: Aspect, attrs: Depunctuated<Expansion>
         .iter()
         .map(|arg| arg.compose(&(sig_context, &source)))
         .map(|FnArgComposer { name_type_original, name_type_conversion, .. }|
-            (name_type_original, OwnedItemPresentableContext::Expression(name_type_conversion, Depunctuated::new())))
+            (name_type_original, OwnedItemPresentableContext::Expression(name_type_conversion, Vec::new())))
         .unzip();
     BindingPresentation::RegularFunction {
         attrs,
@@ -118,7 +118,7 @@ impl SourceExpandable for SigComposer {
         let source = self.source_ref();
         let binding = match self.name_context_ref() {
             Context::Fn { path: full_fn_path, sig_context, attrs } => {
-                println!("SigComposer::expand: Fn: {:?}", sig_context);
+                // println!("SigComposer::expand: Fn: {:?}", sig_context);
                 match sig_context {
                     FnSignatureContext::ModFn(ItemFn { sig, .. }) => compose_regular_fn(
                         full_fn_path.clone(),
@@ -147,7 +147,7 @@ impl SourceExpandable for SigComposer {
                             },
                             ReturnType::Type(_, ty) => FnReturnTypeComposer {
                                 presentation: ReturnType::Type(RArrow::default(), Box::new(VariableComposer::from(&**ty).compose(&source).to_type())),
-                                conversion: ty.conversion_to(Expression::Obj)
+                                conversion: ToConversionComposer::new(Name::Dictionary(DictionaryName::Obj), (&**ty).clone(), None).compose(&source)
                             },
                         };
                         let argument_comps = inputs
@@ -179,7 +179,7 @@ impl SourceExpandable for SigComposer {
                         };
                         let from_primitive_result = || quote!(ffi_result);
                         let from_opt_primitive_result = || DictionaryExpr::Deref(ffi_result.to_token_stream()).to_token_stream();
-
+                        // println!("FnSignatureContext::Bare: result: {}", output.to_token_stream());
                         let (return_type, ffi_return_type, post_processing) = match output {
                             ReturnType::Type(token, field_type) => (
                                 ReturnType::Type(token.clone(), Box::new(field_type.resolve(&source))),
@@ -212,7 +212,7 @@ impl SourceExpandable for SigComposer {
                                 let conversion = TypeConversion::from(ty);
                                 let name = Name::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
                                 arg_names.push(name.to_token_stream());
-                                arg_target_types.push(ArgPresentation::Simple { ty: ty.to_token_stream() });
+                                arg_target_types.push(ArgPresentation::Pat(Pat::Verbatim(ty.to_token_stream())));
                                 ffi_args.push(match &conversion {
                                     TypeConversion::Primitive(ty) => ty.clone(),
                                     TypeConversion::Complex(ty) => ty.special_or_to_ffi_full_path_variable_type(&source),
