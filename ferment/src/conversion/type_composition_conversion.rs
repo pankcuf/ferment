@@ -8,6 +8,31 @@ pub use crate::composable::{GenericBoundComposition, TypeComposition, TraitDecom
 use crate::ext::{DictionaryType, Pop, ToType};
 
 #[derive(Clone)]
+pub enum DictionaryTypeCompositionConversion {
+    Primitive(TypeComposition),
+    NonPrimitiveFermentable(TypeComposition),
+    NonPrimitiveOpaque(TypeComposition),
+}
+impl Debug for DictionaryTypeCompositionConversion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            DictionaryTypeCompositionConversion::Primitive(ty) =>
+                format!("Primitive({})", ty),
+            DictionaryTypeCompositionConversion::NonPrimitiveFermentable(ty) =>
+                format!("NonPrimitiveFermentable({})", ty),
+            DictionaryTypeCompositionConversion::NonPrimitiveOpaque(ty) =>
+                format!("NonPrimitiveOpaque({})", ty),
+        }.as_str())
+    }
+}
+
+impl Display for DictionaryTypeCompositionConversion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+#[derive(Clone)]
 pub enum TypeCompositionConversion {
     Trait(TypeComposition, TraitDecompositionPart1, Vec<Path>),
     TraitType(TypeComposition),
@@ -15,7 +40,7 @@ pub enum TypeCompositionConversion {
     Object(TypeComposition),
     Optional(TypeComposition),
     Boxed(TypeComposition),
-    Primitive(TypeComposition),
+    // Primitive(TypeComposition),
     FnPointer(TypeComposition),
     LambdaFn(TypeComposition),
     Bounds(GenericBoundComposition),
@@ -30,21 +55,13 @@ pub enum TypeCompositionConversion {
     LocalOrGlobal(TypeComposition),
 
     Imported(TypeComposition, Path),
+    Dictionary(DictionaryTypeCompositionConversion)
 }
+
 
 impl ToTokens for TypeCompositionConversion {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.to_type().to_tokens(tokens)
-        // match self {
-        //     TypeCompositionConversion::Imported(ty, path) => {
-        //         let mut path = path.clone();
-        //         path.segments.pop();
-        //         path.to_tokens(tokens);
-        //         ty.ty.to_tokens(tokens);
-        //         println!("TypeCompositionConversion::Imported::ToTokens: {}", tokens)
-        //     },
-        //     _ => self.to_ty().to_tokens(tokens)
-        // }
     }
 }
 
@@ -81,22 +98,23 @@ impl TypeCompositionConversion {
         match self {
             TypeCompositionConversion::Trait(ty, ..) |
             TypeCompositionConversion::TraitType(ty) |
-            // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
             TypeCompositionConversion::Boxed(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
-            TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
             TypeCompositionConversion::LambdaFn(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
-            // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
             TypeCompositionConversion::LocalOrGlobal(ty, ..) |
             TypeCompositionConversion::Array(ty) |
             TypeCompositionConversion::Slice(ty) |
             TypeCompositionConversion::Tuple(ty) |
             TypeCompositionConversion::Imported(ty, ..) |
-            TypeCompositionConversion::Fn(ty, ..) => ty.ty = with_ty,
+            TypeCompositionConversion::Fn(ty, ..) |
+            TypeCompositionConversion::Dictionary(
+                DictionaryTypeCompositionConversion::Primitive(ty) |
+                DictionaryTypeCompositionConversion::NonPrimitiveFermentable(ty) |
+                DictionaryTypeCompositionConversion::NonPrimitiveOpaque(ty)) => ty.ty = with_ty,
         }
 
     }
@@ -104,22 +122,23 @@ impl TypeCompositionConversion {
         match self {
             TypeCompositionConversion::Trait(ty, ..) |
             TypeCompositionConversion::TraitType(ty) |
-            // TypeCompositionConversion::TraitAssociatedType(ty) |
             TypeCompositionConversion::Object(ty, ..) |
             TypeCompositionConversion::Optional(ty, ..) |
             TypeCompositionConversion::Boxed(ty, ..) |
-            TypeCompositionConversion::Primitive(ty) |
             TypeCompositionConversion::FnPointer(ty) |
             TypeCompositionConversion::LambdaFn(ty) |
             TypeCompositionConversion::Bounds(GenericBoundComposition { type_composition: ty, .. }) |
-            // TypeCompositionConversion::SmartPointer(ty, ..) |
             TypeCompositionConversion::Unknown(ty, ..) |
             TypeCompositionConversion::LocalOrGlobal(ty, ..) |
             TypeCompositionConversion::Array(ty) |
             TypeCompositionConversion::Slice(ty) |
             TypeCompositionConversion::Tuple(ty) |
             TypeCompositionConversion::Imported(ty, ..) |
-            TypeCompositionConversion::Fn(ty, ..) => ty,
+            TypeCompositionConversion::Fn(ty, ..) |
+            TypeCompositionConversion::Dictionary(
+                DictionaryTypeCompositionConversion::Primitive(ty) |
+                DictionaryTypeCompositionConversion::NonPrimitiveFermentable(ty) |
+                DictionaryTypeCompositionConversion::NonPrimitiveOpaque(ty)) => ty,
         }
     }
     pub fn ty(&self) -> &Type {
@@ -168,14 +187,10 @@ impl Debug for TypeCompositionConversion {
                 format!("Boxed({})", ty),
             TypeCompositionConversion::Unknown(ty) =>
                format!("Unknown({})", ty),
-            TypeCompositionConversion::Primitive(ty) =>
-                format!("Primitive({})", ty),
             TypeCompositionConversion::TraitType(ty) =>
                 format!("TraitType({})", ty),
             TypeCompositionConversion::Bounds(gbc) =>
                 format!("Bounds({})", gbc),
-            // TypeCompositionConversion::SmartPointer(ty) =>
-            //     format!("SmartPointer({})", ty),
             TypeCompositionConversion::Fn(ty) =>
                 format!("Fn({})", ty),
             TypeCompositionConversion::Imported(ty, import_path) =>
@@ -192,6 +207,8 @@ impl Debug for TypeCompositionConversion {
                 format!("FnPointer({})", ty),
             TypeCompositionConversion::LambdaFn(ty) =>
                 format!("LambdaFn({})", ty),
+            TypeCompositionConversion::Dictionary(ty) =>
+                format!("Dictionary({})", ty),
         }.as_str())
     }
 }

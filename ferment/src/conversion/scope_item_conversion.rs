@@ -1,12 +1,12 @@
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, ItemTrait, Signature, Type};
+use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature, Type};
 use syn::__private::TokenStream2;
 use crate::ast::PathHolder;
 use crate::composable::{CfgAttributes, TraitDecompositionPart1, TypeComposition};
 use crate::conversion::{TypeCompositionConversion};
-use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToType};
+use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToPath, ToType};
 use crate::formatter::format_token_stream;
 use crate::tree::ScopeTreeExportID;
 
@@ -87,6 +87,7 @@ impl ItemExtension for ScopeItemConversion {
 }
 impl ScopeItemConversion {
     pub fn update_scope_item(&self, ty_to_replace: TypeComposition) -> Option<TypeCompositionConversion> {
+        println!("update_scope_item: {} --- {}", self, ty_to_replace);
         match self {
             ScopeItemConversion::Item(item, ..) => match item {
                 Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
@@ -96,11 +97,13 @@ impl ScopeItemConversion {
                 Item::Enum(..) |
                 Item::Struct(..) |
                 Item::Fn(..) |
-                Item::Impl(..) =>
-                    Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
+                Item::Impl(..) => {
+                    // println!("ScopeItemConversion::update_scope_item NEW_OBJECT.1: {}", ty_to_replace);
+                    Some(TypeCompositionConversion::Object(ty_to_replace))
+                },
                 Item::Type(ty) => match &*ty.ty {
-                    Type::BareFn(..) => Some(TypeCompositionConversion::FnPointer(ty_to_replace.clone())),
-                    _ => Some(TypeCompositionConversion::Object(ty_to_replace.clone())),
+                    Type::BareFn(..) => Some(TypeCompositionConversion::FnPointer(ty_to_replace)),
+                    _ => Some(TypeCompositionConversion::Object(ty_to_replace)),
                 },
                 _ => None
             }
@@ -113,10 +116,19 @@ impl ScopeItemConversion {
             ScopeItemConversion::Fn(.., scope) => scope
         }
     }
+    pub fn path(&self) -> &Path {
+        &self.scope().0
+    }
 }
 
 impl ToType for ScopeItemConversion {
     fn to_type(&self) -> Type {
         self.scope().to_type()
+    }
+}
+
+impl ToPath for ScopeItemConversion {
+    fn to_path(&self) -> Path {
+        self.scope().0.clone()
     }
 }

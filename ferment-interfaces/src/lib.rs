@@ -27,7 +27,7 @@ pub trait FFIConversion<T> {
     unsafe fn ffi_to_const(obj: T) -> *const Self;
     /// # Safety
     unsafe fn ffi_from(ffi: *mut Self) -> T {
-        Self::ffi_from_const(ffi)
+        Self::ffi_from_const(ffi as *const _)
     }
     /// # Safety
     unsafe fn ffi_to(obj: T) -> *mut Self {
@@ -51,7 +51,7 @@ pub trait FFIConversion<T> {
         if ffi.is_null() {
             return;
         }
-        unbox_any(ffi);
+        let _ = unbox_any(ffi);
     }
 }
 
@@ -780,3 +780,49 @@ macro_rules! impl_custom_conversion2 {
 //         }
 //     }
 // }
+// Arc with opaque pointer inside
+// #[repr(C)]
+// #[derive(Clone)]
+// pub struct std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache {
+//     pub obj: *mut dash_sdk::internal_cache::InternalSdkCache
+// }
+// impl ferment_interfaces::FFIConversion<
+//     std::sync::Arc<dash_sdk::internal_cache::InternalSdkCache>,
+// > for std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache
+// {
+//     unsafe fn ffi_from_const(
+//         ffi: *const std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache,
+//     ) -> std::sync::Arc<dash_sdk::internal_cache::InternalSdkCache> {
+//         let ffi_ref = &*ffi;
+//         std::sync::Arc::from_raw(ffi_ref.obj)
+//     }
+//     unsafe fn ffi_to_const(obj: std::sync::Arc<dash_sdk::internal_cache::InternalSdkCache>) -> *const std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache {
+//         ferment_interfaces::boxed(Self { obj: std::sync::Arc::into_raw(obj) as *mut _ })
+//     }
+//     unsafe fn destroy(ffi: *mut std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache) {
+//         let _ = ferment_interfaces::unbox_any(ffi);
+//     }
+// }
+// impl Drop for std_sync_Arc_dash_sdk_internal_cache_InternalSdkCache {
+//     fn drop(&mut self) {
+//         unsafe {
+//             let _ = std::sync::Arc::from_raw(self.obj);
+//         }
+//     }
+// }
+
+/// # Safety
+pub unsafe fn to_arc<T: ?Sized>(obj: std::sync::Arc<T>) -> *mut T {
+    std::sync::Arc::into_raw(obj) as *mut _
+}
+/// # Safety
+pub unsafe fn from_arc<T: ?Sized>(obj: *const T) -> std::sync::Arc<T> {
+    std::sync::Arc::from_raw(obj)
+}
+
+pub trait FFIComposer<T> {
+    type From: Fn(*mut Self) -> T;
+    type To: Fn(T) -> *mut Self;
+    type Destroy: Fn(*mut Self);
+    type Variable: Fn() -> T;
+}

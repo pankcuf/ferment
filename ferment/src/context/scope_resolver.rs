@@ -64,9 +64,9 @@ impl ScopeResolver {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         self.maybe_scope_type_(&TypeHolder::from(&path.to_type()), scope),
                     TypeParamBound::Lifetime(_) =>
-                        panic!("maybe_opaque_object::error")
+                        panic!("maybe_scope_type::error")
                 },
-                _ => panic!("maybe_opaque_object::error")
+                _ => None
             },
             Type::Reference(TypeReference { elem: ty, .. }) |
             Type::Ptr(TypePtr { elem: ty, .. }) =>

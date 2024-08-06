@@ -1,15 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::format_ident;
-use syn::{Attribute, parse_quote, Path, Type, TypePath};
+use quote::{format_ident, ToTokens};
+use syn::{Attribute, parse_quote, Path, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
 use crate::Config;
 use crate::ast::PathHolder;
 use crate::composable::{GenericBoundComposition, GenericConversion, TraitCompositionPart1, TypeComposition};
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{GenericCollector, GenericConstraintCollector, Pop, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
+use crate::ext::{GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
 use crate::formatter::format_global_context;
 
 #[derive(Clone)]
@@ -119,6 +119,7 @@ impl GlobalContext {
             .map(|trait_composition| {
                 let mut composition = trait_composition.clone();
                 // TODO: move to full and replace nested_arguments
+                println!("maybe_trait_scope_pair NEW_OBJECT: {}", scope.fmt_short());
                 let value = TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(trait_composition.item.generics.clone()), Punctuated::new()));
                 // println!("AttrsComposer: {} {} {}", trait_composition.item.ident, trait_scope, conversion);
                 composition.implementors.push(value);
@@ -127,23 +128,10 @@ impl GlobalContext {
 
     }
 
-
-    // pub fn maybe_scope_generic_bounds_or_parent(&self, scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-    //     // println!("maybe_scope_generic_bounds_or_parent: {} in [{}]...", ident, scope);
-    //     self.generics.maybe_generic_bounds(scope, ident)
-    //         .and_then(|generic_bounds| {
-    //             let first_bound = generic_bounds.first().unwrap();
-    //             let first_bound_as_scope = PathHolder::from(first_bound);
-    //             self.maybe_import(scope, &first_bound_as_scope)
-    //         })
-    // }
-
-
-
     fn maybe_obj_or_parent_scope_type(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
         // println!("maybe_obj_or_parent_scope_type: {}", ty.to_token_stream());
         self.maybe_scope_object(ty, self_scope)
-            .or(match parent_chain {
+            .or_else(|| match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
                     self.maybe_scope_object(ty, parent_chain),
                 _ => None,
@@ -151,21 +139,22 @@ impl GlobalContext {
     }
 
     pub fn maybe_fn_type(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ty: &Type) -> Option<&ObjectConversion> {
-        self.maybe_scope_object(ty, fn_scope).or(match parent_scope {
-            ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
-                self.maybe_scope_object(ty, parent_scope),
-            ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_type(parent_scope, parent_scope_chain, ty),
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_scope_object(ty, parent_scope)
-                    .or(match &**parent_scope_chain {
-                        ScopeChain::CrateRoot { .. } |
-                        ScopeChain::Mod { ..} =>
-                            self.maybe_scope_object(ty, &parent_scope_chain),
-                        _ => None,
-                    }),
+        self.maybe_scope_object(ty, fn_scope)
+            .or_else(|| match parent_scope {
+                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
+                    self.maybe_scope_object(ty, parent_scope),
+                ScopeChain::Fn { parent_scope_chain, .. } =>
+                    self.maybe_fn_type(parent_scope, parent_scope_chain, ty),
+                ScopeChain::Trait { parent_scope_chain, .. } |
+                ScopeChain::Object { parent_scope_chain, .. } |
+                ScopeChain::Impl { parent_scope_chain, .. } =>
+                    self.maybe_scope_object(ty, parent_scope)
+                        .or_else(|| match &**parent_scope_chain {
+                            ScopeChain::CrateRoot { .. } |
+                            ScopeChain::Mod { ..} =>
+                                self.maybe_scope_object(ty, &parent_scope_chain),
+                            _ => None,
+                        }),
         })
     }
 
@@ -183,28 +172,24 @@ impl GlobalContext {
     }
 
     pub fn maybe_type_composition_conversion(&self, ty: &Type, scope: &ScopeChain) -> Option<&TypeCompositionConversion> {
-        match self.maybe_object(ty, scope) {
-            Some(ObjectConversion::Type(ty) | ObjectConversion::Item(ty, ..)) =>
-                Some(ty),
-            _ =>
-                None
-        }
+        self.maybe_object(ty, scope)
+            .and_then(|obj| obj.type_conversion())
     }
 
     pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
-            // println!("[INFO] Found scope: {}", scope);
+            //println!("[INFO] Found scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
-                // println!("[INFO] Found item in scope: {}", item);
+                println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
             } else {
-                // println!("[INFO] Scope found [{}] but no item: {}", scope, path.to_token_stream());
+                //println!("[INFO] Scope found {} but no item: {}", scope.fmt_short(), path.to_token_stream());
             }
         } else {
-            // println!("[INFO] No scope found [{}]", path.to_token_stream());
+            //println!("[INFO] No scope found [{}]", path.to_token_stream());
         }
         None
     }
@@ -341,188 +326,88 @@ impl GlobalContext {
         result_opt
     }
 
-    fn traverse_scopes(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
-        let mut new_ty_to_replace = ty_to_replace.clone();
-        let ty = &ty_to_replace.ty;
-        let ty_path = match ty {
-            Type::Reference(type_reference) => type_reference.elem.to_path(),
-            _ => ty.to_path()
-        };
-        // println!("traverse_scope: {} \n--- [{}]", ty_to_replace, scope);
-        match scope {
-            ScopeChain::CrateRoot { info, .. } |
-            ScopeChain::Mod { info, .. } => {
-                // self -> neighbour mod
-                let self_path = &info.self_scope.self_scope.0;
-                let child_scope: Path = parse_quote!(#self_path::#ty_path);
-                // println!("check local scope item (mod)?: {} + {}",
-                //          format_token_stream(&self_path),
-                //          format_token_stream(&ty_path));
-                // child -> self
-                // If it's nested mod?
-                self.maybe_item(&child_scope)
-                    .map(|item| {
-                        new_ty_to_replace.ty = child_scope.to_type();
-                        item
-                    })
-                    .or({
-                        // println!("check child re-export (mod)?:\n\t[{}]", format_token_stream(&child_scope));
-                        // it also can be re-exported in child tree so we should check it
-
-                        match self.maybe_child_reexport(&child_scope) {
-                            Some(child_reexport) => {
-                                // println!("child re-export found (mod)?:\n\t[{}]", format_token_stream(&child_reexport));
-                                self.maybe_item(&child_reexport)
-                                    .map(|item| {
-                                        new_ty_to_replace.ty = child_reexport.to_type();
-                                        item
-                                    })
-                                    .or(self.maybe_item(self_path))
-                            },
-                            None => {
-                                // println!("child re-export not found -> check self_scope: (mod):\n\t[{}]", format_token_stream(self_path));
-                                self.maybe_item(self_path)
-                            }
-                        }
-                })
-            }
-            ScopeChain::Impl { info, parent_scope_chain, .. } |
-            ScopeChain::Trait { info, parent_scope_chain, .. } |
-            ScopeChain::Object { info, parent_scope_chain, .. } => {
-                // self -> parent mod -> neighbour mod
-                let self_path = &info.self_scope.self_scope.0;
-                let parent_path = parent_scope_chain.self_path();
-                // println!("check local first (obj)?: {} + {}",
-                //          format_token_stream(&parent_path),
-                //          format_token_stream(&ty_path));
-
-                // check parent + local
-                let child_scope = parse_quote!(#parent_path::#ty_path);
-                self.maybe_item(&child_scope)
-                    .map(|item| {
-                        new_ty_to_replace.ty = child_scope.to_type();
-                        item
-                    })
-                    .or({
-                        // println!("check child re-export (obj)?:\n\t[{}]", format_token_stream(&child_scope));
-                        // it also can be re-exported in child tree so we should check it
-                        match self.maybe_child_reexport(&child_scope) {
-                            Some(child_reexport) => {
-                                // println!("child re-export found (obj)?:\n\t[{}]", format_token_stream(&child_reexport));
-                                self.maybe_item(&child_reexport)
-                                    .map(|item| {
-                                        new_ty_to_replace.ty = child_reexport.to_type();
-                                        item
-                                    })
-                                    .or(self.maybe_item(self_path))
-                                    .or(self.maybe_item(parent_path).map(|item| {
-                                        new_ty_to_replace.ty = parent_path.to_type();
-                                        item
-                                    }))
-                                    .or({
-                                        let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
-                                        self.maybe_item(&neighbour_scope).map(|item| {
-                                            new_ty_to_replace.ty = neighbour_scope.to_type();
-                                            item
-                                        })
-
-                                    })
-                            },
-                            None => {
-                                // println!("child re-export not found -> check self_scope: (obj):\n\t[{}]", format_token_stream(self_path));
-                                self.maybe_item(self_path).or({
-                                    self.maybe_item(parent_path).map(|item| {
-                                        new_ty_to_replace.ty = parent_path.to_type();
-                                        item
-                                    })
-                                })
-                                    .or({
-                                        let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
-                                        self.maybe_item(&neighbour_scope).map(|item| {
-                                            new_ty_to_replace.ty = neighbour_scope.to_type();
-                                            item
-                                        })
-
-                                    })
-                            }
-                        }
-                    })
-            }
-            ScopeChain::Fn { info, parent_scope_chain, .. } => {
-                // - Check fn scope
-                // - if scope.parent is [mod | crate | impl] then lookup their child mods
-                // - if scope.parent is [object | trait] then check scope.parent.parent
-                let self_path = &info.self_scope.self_scope.0;
-                self.maybe_item(self_path)
-                    .or({
-                        match &**parent_scope_chain {
-                            ScopeChain::CrateRoot { info, .. } |
-                            ScopeChain::Mod { info, .. } => {
-                                let self_path = &info.self_scope.self_scope.0;
-                                let child_scope: Path = parse_quote!(#self_path::#ty_path);
-                                self.maybe_item(&child_scope)
-                                    .map(|item| {
-                                        new_ty_to_replace.ty = child_scope.to_type();
-                                        item
-                                    })
-                            }
-                            ScopeChain::Trait { parent_scope_chain, .. } |
-                            ScopeChain::Object { parent_scope_chain, .. } |
-                            ScopeChain::Impl { parent_scope_chain, .. } => {
-                                let parent_path = parent_scope_chain.self_path();
-                                let neighbour_scope: Path = parse_quote!(#parent_path::#ty_path);
-                                self.maybe_item(&neighbour_scope)
-                                    .map(|item| {
-                                        new_ty_to_replace.ty = neighbour_scope.to_type();
-                                        item
-                                    })
-                            }
-                            ScopeChain::Fn { info, parent_scope_chain, .. } => {
-                                // TODO: support nested function when necessary
-                                println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
-                                None
-                            }
-                        }
-                    })
-            }
-        }.and_then(|scope_item| scope_item.update_scope_item(new_ty_to_replace))
+    pub fn maybe_import_scope_pair(&self, scope_path_last_segment: &PathSegment, scope_path_candidate: &Path) -> Option<(&ScopeChain, &Path)> {
+        self.maybe_imports_scope(scope_path_candidate)
+            .and_then(|reexport_scope| {
+                let path: PathHolder = parse_quote!(#scope_path_last_segment);
+                self.maybe_import(reexport_scope, &path).map(|import| (reexport_scope, import))
+            })
     }
 
-    pub(crate) fn maybe_known_item(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
-        // println!("maybe_known_item: {} in [{}]", ty_to_replace, scope.self_path_holder_ref());
-        // So we found a unknown path chunk in the scope
-        // Here we trying to determine paths where the actual item located (if it's not evidently imported)
-        // before marking this item as "possibly global"
-        // So we build a stack with paths where it could be depending on type of the current scope
-        // It should include now mods nested into parent mods (neighbour mods)
-        // TODO: Support "extern crate", "super::", "self::" (paths kinda Self::AA may also require additional search routes)
-        let new_ty_to_replace = ty_to_replace.clone();
-        let ty = &ty_to_replace.ty;
-        let path = match ty {
-            Type::Reference(type_reference) => type_reference.elem.to_path(),
-            _ => ty.to_path()
-        };
-        // println!("maybe_known_item: {} in [{}]", ty_to_replace, scope.self_path_holder_ref());
-        // Local scopes are prioritized so we should check relative paths first
-        // Then we should check crate-level scopes
-        // let scope_path = scope.self_path_holder_ref();
-        // let local_path = parse_quote!(#scope_path::#path);
 
-        self.maybe_item(&path)
-            .and_then(|scope_item| scope_item.update_scope_item(new_ty_to_replace))
-            .or_else(|| self.traverse_scopes(ty_to_replace, scope))
-    }
 
+    // 1. Check whether the scope with this path exist
+    // If exist then we know the type of the item
+    // If not then:
+    //  a) We check re-exports:
+    //      - We pop last ident
+
+    // pub(crate) fn maybe_known_import_composition(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
+    //     // So we found a unknown path chunk in the scope
+    //     // Here we trying to determine paths where the actual item located (if it's not evidently imported)
+    //     // before marking this item as "possibly global"
+    //     // So we build a stack with paths where it could be depending on type of the current scope
+    //     // It should include now mods nested into parent mods (neighbour mods)
+    //     // TODO: Support "extern crate", "super::", "self::" (paths kinda Self::AA may also require additional search routes)
+    //     let path = ty_to_replace.pointer_less();
+    //     // Local scopes are prioritized so we should check relative paths first
+    //     // Then we should check crate-level scopes
+    //     println!("\nmaybe_known_import_composition (check): {} in {}", ty_to_replace, scope.fmt_short());
+    //     self.maybe_item(&path)
+    //         .and_then(|scope_item| {
+    //             println!("maybe_known_import_composition (found): {} in {}", path.to_token_stream(), scope_item);
+    //             scope_item.update_scope_item(ty_to_replace.clone())
+    //         })
+    //         .or_else(|| {
+    //             // There are 2 cases:
+    //             // 1. it's from non-fermented crate
+    //             // 2. it's not full scope:
+    //             //  - It's reexported somewhere?
+    //             //  - It's child scope?
+    //             //  - It's neighbour scope?
+    //             println!("maybe_known_import_composition (not found): {}", path.to_token_stream());
+    //             self.traverse_scopes(ty_to_replace, scope)
+    //         })
+    // }
+    // pub(crate) fn maybe_known_unknown_composition(&self, ty_to_replace: &TypeComposition, scope: &ScopeChain) -> Option<TypeCompositionConversion> {
+    //     // So we found a unknown path chunk in the scope
+    //     // Here we trying to determine paths where the actual item located (if it's not evidently imported)
+    //     // before marking this item as "possibly global"
+    //     // So we build a stack with paths where it could be depending on type of the current scope
+    //     // It should include now mods nested into parent mods (neighbour mods)
+    //     // TODO: Support "extern crate", "super::", "self::" (paths kinda Self::AA may also require additional search routes)
+    //     let path = ty_to_replace.pointer_less();
+    //     // Local scopes are prioritized so we should check relative paths first
+    //     // Then we should check crate-level scopes
+    //     println!("\nmaybe_known_unknown_composition (check): {} in {}", ty_to_replace, scope.fmt_short());
+    //     self.maybe_item(&path)
+    //         .and_then(|scope_item| {
+    //             println!("maybe_known_unknown_composition (found): {} in {}", path.to_token_stream(), scope_item);
+    //             scope_item.update_scope_item(ty_to_replace.clone())
+    //         })
+    //         .or_else(|| {
+    //             // There are 2 cases:
+    //             // 1. it's from non-fermented crate
+    //             // 2. it's not full scope:
+    //             //  - It's reexported somewhere?
+    //             //  - It's child scope?
+    //             //  - It's neighbour scope?
+    //             println!("maybe_known_unknown_composition (not found): {}", path.to_token_stream());
+    //             self.traverse_scopes(ty_to_replace, scope)
+    //         })
+    // }
+
+    // pub(crate) fn maybe_item
 
 
     // We need to find full qualified paths for involved chunk and bind them to actual items
     pub(crate) fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
-        // println!("maybe_refined_object.1: {} in {}", object, scope.fmt_short());
+        println!("maybe_refined_object --> {} \n\tin {}", object, scope.fmt_short());
         let mut refined = object.clone();
         let result = refined.refine_in_scope(scope, self)
             .then_some(refined);
 
-        // println!("maybe_refined_object.2: {} in {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
+        println!("maybe_refined_object <-- {} \n\tin {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
         result
     }
 
@@ -552,13 +437,33 @@ impl RefineMut for GlobalContext {
                             .iter()
                             .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
                             .for_each(|_ty| {
-                                //println!("--- ADD GENERIC: OBJECT: {}", object);
+                                let skip = match object.type_conversion() {
+                                    Some(conversion) => {
+                                        let nested_args = conversion.nested_arguments();
+                                        let unknown_args = nested_args.iter().filter(|arg| {
+                                            match arg.object().type_conversion() {
+                                                Some(conversion) => {
+                                                    let unknown_but_custom = self.custom.maybe_conversion(conversion.ty()).is_some();
+                                                    conversion.is_unknown() && !unknown_but_custom
+                                                },
+                                                None => false
+                                            }
+
+                                        }).collect::<Vec<_>>();
+                                        !unknown_args.is_empty()
+                                    }
+                                    None => false
+                                };
+                                println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
+
                                 refined_generics
                                     .entry(GenericConversion::new(object.clone()))
                                     .or_insert_with(HashSet::new)
                                     .extend(all_attrs.clone());
                             });
                     }
+
+
 
                     if let Some(TypeCompositionConversion::Bounds(bounds)) = object.type_conversion() {
                         //println!("REFINE_SCOPE_BOUNDS: {}", bounds);
@@ -643,62 +548,6 @@ impl GlobalContext {
     }
 
     // traverses import scope for re-exports (doesn't include re-exports in neighbour scopes)
-    fn maybe_child_reexport(&self, child_scope_candidate: &Path) -> Option<Path> {
-        let mut scope_path_candidate = child_scope_candidate.clone();
-        let mut result: Option<Path> = None;
-        let mut chunk: Option<Path> = None;
-        while let Some(scope_path_last_segment) = child_scope_candidate.segments.last() {
-            scope_path_candidate = scope_path_candidate.popped();
-            match self.maybe_imports_scope(&scope_path_candidate) {
-                Some(reexport_scope) => {
-                    // println!("[INFO: {index}:{}] Child reexport_scope found: \n\t[{}]",
-                    //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
-                    //          format_token_stream(reexport_scope.self_path_holder_ref()));
-                    let path: PathHolder = parse_quote!(#scope_path_last_segment);
-                    match self.maybe_import(reexport_scope, &path) {
-                        Some(reexport_import) => {
-                            let reexport_scope_path = reexport_scope.self_path_holder_ref();
-                            let result_chunk: Path = if chunk.is_some() {
-                                let reexport_chunk = reexport_import.popped();
-                                parse_quote!(#reexport_chunk::#chunk)
-                            } else {
-                                parse_quote!(#reexport_import)
-                            };
-                            // println!("[INFO: {index}:{}] Child Re-export found: \n\t[{}] +\n\t[{}]\n\tsegments: [{}]",
-                            //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
-                            //          format_token_stream(reexport_scope_path),
-                            //          format_token_stream(reexport_import),
-                            //          format_token_stream(&chunk));
-                            result = Some(parse_quote!(#reexport_scope_path::#result_chunk));
-                            chunk = Some(result_chunk);
-                        },
-                        None => {
-                            // println!("[INFO: {index}:{}] Child re-export not found: [{}]",
-                            //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
-                            //          format_token_stream(&path));
-                            if scope_path_candidate.segments.is_empty() {
-                                return result;
-                            } else if let Some(reexport) = self.maybe_child_reexport(&scope_path_candidate) {
-                                result = Some(reexport);
-                            }
-                        }
-                    }
-                },
-                None => {
-                    // println!("[INFO: {index}:{}] Child reexport_scope not found: [{}]",
-                    //          index_for_result.map_or(format!("None"), |index| format!("{}", index)),
-                    //          format_token_stream(&scope_path_candidate));
-                    if scope_path_candidate.segments.is_empty() {
-                        return result;
-                    } else if let Some(reexport) = self.maybe_child_reexport(&scope_path_candidate) {
-                        result = Some(reexport);
-                    }
-                }
-            }
-        }
-        result
-    }
-
 
 }
 

@@ -1,12 +1,13 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
+use quote::ToTokens;
 use syn::{Attribute, ImplItemMethod, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeParamBound, TypePath, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{DictionaryType, extract_trait_names, Join, Opaque, ToObjectConversion, ToType};
+use crate::conversion::{ObjectConversion, TypeCompositionConversion};
+use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, Join, ToObjectConversion, ToType};
 use crate::presentation::FFIFullDictionaryPath;
 use crate::print_phase;
 
@@ -63,17 +64,45 @@ impl ScopeContext {
         lock.custom.maybe_conversion(ty)
     }
     pub fn maybe_opaque_object(&self, ty: &Type) -> Option<Type> {
-        // println!("maybe_opaque_object: {}", ty.to_token_stream());
+        //println!("maybe_opaque_object: {}", ty.to_token_stream());
         let resolve_opaque = |path: &Path| {
             // println!("resolve_opaque: {}", path.to_token_stream());
             let lock = self.context.read().unwrap();
-            let result = lock.maybe_item(path)
-                .filter(|item| item.is_opaque())
-                .map(ScopeItemConversion::to_type)
-                .or_else(|| {
-                    path.segments.last().filter(|last_segment| last_segment.ident.is_void()).map(|_| FFIFullDictionaryPath::Void.to_type())
-                });
-            //println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
+            let result = if path.is_void() {
+                Some(FFIFullDictionaryPath::Void.to_type())
+            } else {
+                match lock.maybe_item(path) {
+                    Some(item) => {
+                        if item.is_fermented() || item.is_custom() {
+                            println!("resolve_opaque: (non opaque) {} ", path.to_token_stream());
+                            None
+                        } else {
+                            println!("resolve_opaque: (opaque by macro) {} ", path.to_token_stream());
+                            Some(item.to_type())
+                        }
+                    },
+                    None => {
+                        println!("resolve_opaque: (unknown: opaque by default) {} ", path.to_token_stream());
+                        // Some(ty.clone())
+                        None
+                    }
+                }
+            };
+            // let result = lock.maybe_item(path)
+            //     .filter(|item| {
+            //         // !item.is_fermented() && !item.is_custom()
+            //         item.is_opaque()
+            //     })
+            //     .map(ScopeItemConversion::to_type)
+            //     .or_else(|| {
+            //         println!("resolve_opaque: (not item) {} ", path.to_token_stream());
+            //
+            //     }).or(|| {
+            //         // It's opaque by default now
+            //     println!("resolve_opaque: (opaque by default) {} ", path.to_token_stream());
+            //     Some(ty.clone())
+            // });
+            // println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
             result
         };
         match ty {
@@ -85,9 +114,9 @@ impl ScopeContext {
                         resolve_opaque(path)
                             .map(|ty| parse_quote!(#dyn_token #ty)),
                     TypeParamBound::Lifetime(_) =>
-                        panic!("maybe_opaque_object::error")
+                        panic!("maybe_opaque_object::error::lifetime")
                 },
-                _ => panic!("maybe_opaque_object::error")
+                _ => None
             },
             _ => None
         }

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, BareFnArg, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundComposition;
@@ -54,6 +54,8 @@ impl Mangle<MangleDefault> for Type {
                 type_reference.mangle_string(context),
             Type::BareFn(type_bare_fn) =>
                 type_bare_fn.mangle_string(context),
+            Type::Ptr(type_ptr) =>
+                type_ptr.mangle_string(context),
             ty =>
                 ty.to_path().get_ident().unwrap().clone().to_string()
         };
@@ -126,7 +128,12 @@ impl Mangle<MangleDefault> for TypeBareFn {
                 ReturnType::Default => String::new(),
                 ReturnType::Type(_, ty) => ty.mangle_string_default()
             })
+    }
+}
 
+impl Mangle<MangleDefault> for TypePtr {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.elem.mangle_string(context)
     }
 }
 

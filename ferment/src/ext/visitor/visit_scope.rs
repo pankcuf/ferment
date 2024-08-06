@@ -49,6 +49,7 @@ impl VisitScope for Item {
                 // TODO: Const scope processing
             }
             Item::Enum(item_enum) => {
+                // println!("add_to_scope (Enum) NEW_OBJECT: {}", scope);
                 let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
@@ -79,6 +80,7 @@ impl VisitScope for Item {
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
+                            // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
                             nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(parse_quote!(#ident), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
@@ -89,6 +91,7 @@ impl VisitScope for Item {
                 } else {
                     scope.to_type()
                 };
+                // println!("add_to_scope (STRUCT) SELF: {}", scope);
                 let self_object = ObjectConversion::new_item(
                     TypeCompositionConversion::Object(TypeComposition::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
                     ScopeItemConversion::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
@@ -111,7 +114,11 @@ impl VisitScope for Item {
                 let self_object = match &*item_type.ty {
                     Type::BareFn(..) =>
                         ObjectConversion::new_item(TypeCompositionConversion::FnPointer(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone())),
-                    _ => ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone()))
+                    _ => {
+                        // println!("add_to_scope (Type) NEW_OBJECT: {}", scope);
+
+                        ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone()))
+                    }
                 };
                 // println!("ADDD TYPE: {}", self_object);
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, self_object.clone());

@@ -403,7 +403,7 @@ fn nested_scope_dict<K, K2, V2, F: Fn(&K, &HashMap<K2, V2>) -> String>(dict: &Ha
 
 fn format_scope_dict<K2, V2, F: Fn(&HashMap<K2, V2>) -> Vec<String>>(dict: &HashMap<ScopeChain, HashMap<K2, V2>>, mapper: F) -> Vec<String>  {
     nested_scope_dict(dict, |scope, sub_dict|
-        format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t")))
+        format!("\t{}:\n\t\t{}", scope.fmt_short(), mapper(sub_dict).join("\n\t\t")))
 }
 
 pub fn scope_imports_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> Vec<String> {

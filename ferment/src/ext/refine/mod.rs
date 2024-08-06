@@ -1,5 +1,5 @@
 mod refine;
-pub use refine::RefineInScope;
+pub use refine::*;
 use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;

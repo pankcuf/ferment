@@ -7,7 +7,7 @@ use crate::presentation::DictionaryName;
 // pub struct Presentable<T: ?Sized + Clone + ToTokens>(pub T);
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
-    Empty,
+    // Empty,
     Conversion {
         attrs: Vec<Attribute>,
         types: (
@@ -42,7 +42,7 @@ pub enum InterfacePresentation {
 impl ToTokens for InterfacePresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Empty => quote!(),
+            // Self::Empty => quote!(),
             Self::Conversion {
                 attrs,
                 types: (

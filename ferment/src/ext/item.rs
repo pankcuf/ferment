@@ -143,6 +143,7 @@ pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
     }
 }
 
+#[allow(unused)]
 pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuatedNestedArguments {
     match arguments {
         PathArguments::None => Punctuated::new(),

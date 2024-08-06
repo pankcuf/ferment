@@ -1,6 +1,6 @@
 use crate::entry::provider::CoreProvider;
 
-#[ferment_macro::opaque]
+// #[ferment_macro::opaque]
 pub struct MasternodeProcessor {
     pub provider: Box<dyn CoreProvider>,
 }

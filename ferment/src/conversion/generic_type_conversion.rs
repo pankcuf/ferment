@@ -7,10 +7,10 @@ use syn::__private::TokenStream2;
 use syn::token::Brace;
 use crate::ast::{AddPunctuated, BraceWrapped, CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{FieldComposer, FieldTypeConversionKind};
-use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM};
+use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM, FromConversionComposer, Composer};
 use crate::context::ScopeContext;
 use crate::conversion::{expand_attributes, TypeConversion};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, SpecialType, Terminated, ToPath, ToType};
 use crate::presentable::{BindingPresentableContext, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, create_callback, create_struct, DictionaryExpr, DictionaryName, DropInterfacePresentation, FFIConversionMethod, FFIConversionMethodExpr, FFIObjectPresentation, FFIVecConversionMethodExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 
@@ -215,39 +215,71 @@ impl GenericTypeConversion {
                         destroy_expr,
                         Expression::MapExpression(Expression::O.into(), from_expr.into()),
                         to_expr);
-                let compose = |arg_name: &Name, ty: &Type| match TypeConversion::from(ty) {
-                    TypeConversion::Primitive(arg_ty) => {
-                        compose_arg(
-                            arg_ty.clone(),
-                            Expression::Deref(DictionaryName::O.to_token_stream()),
-                            Expression::InterfacesExpr(InterfacesMethodExpr::Boxed(DictionaryName::O.to_token_stream())),
-                            Expression::InterfacesExpr(DESTROY_OPT_PRIMITIVE(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
 
-                    }
-                    TypeConversion::Complex(arg_ty) => {
-                        let arg_composer = GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX);
-                        compose_arg(
-                            arg_ty.special_or_to_ffi_full_path_type(&source),
-                            arg_composer.from(DictionaryName::O.to_token_stream()),
-                            arg_composer.to(DictionaryName::O.to_token_stream()),
-                            arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
-                    }
-                    TypeConversion::Generic(generic_arg_ty) => {
-                        let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
-                            match generic_arg_ty.ty() {
-                                None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                                Some(ty) => match TypeConversion::from(ty) {
-                                    TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
-                                    TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
-                                    _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+
+                let compose = |arg_name: &Name, ty: &Type| {
+                    println!("RESULT ARG: {} -- {}", arg_name, ty.to_token_stream());
+                    // let from_composer = FromConversionComposer::new(arg_name.clone(), ty.clone(), Some(Expression::DictionaryName(DictionaryName::O)));
+                    // let from = from_composer.compose(&source);
+                    match TypeConversion::from(ty) {
+                        TypeConversion::Primitive(arg_ty) => {
+                            compose_arg(
+                                arg_ty.clone(),
+                                // from,
+                                Expression::Deref(DictionaryName::O.to_token_stream()),
+                                Expression::InterfacesExpr(InterfacesMethodExpr::Boxed(DictionaryName::O.to_token_stream())),
+                                Expression::InterfacesExpr(DESTROY_OPT_PRIMITIVE(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream())))
+                        }
+                        TypeConversion::Complex(arg_ty) => {
+
+                            let arg_composer = GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX);
+                            compose_arg(
+                                arg_ty.special_or_to_ffi_full_path_type(&source),
+                                // from,
+                                arg_composer.from(DictionaryName::O.to_token_stream()),
+                                arg_composer.to(DictionaryName::O.to_token_stream()),
+                                arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
+                        }
+                        TypeConversion::Generic(generic_arg_ty) => {
+                            let (arg_composer, arg_ty) = match generic_arg_ty {
+                                GenericTypeConversion::Optional(_) => match generic_arg_ty.ty() {
+                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                    Some(ty) => match TypeConversion::from(ty) {
+                                        TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                                        TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                                        _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                                    }
+                                },
+                                GenericTypeConversion::Box(_) => match generic_arg_ty.ty().and_then(|ty| ty.first_nested_type()) {
+                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                    Some(ty) => match TypeConversion::from(ty) {
+                                        TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                                        TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                                        _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                                    }
+                                },
+                                _ => (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)),
+                            };
+
+                            let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
+                                match generic_arg_ty.ty() {
+                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                                    Some(ty) => match TypeConversion::from(ty) {
+                                        TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                                        TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                                        _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                                    }
                                 }
-                            }
-                        } else { (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
-                        compose_arg(
-                            arg_ty,
-                            arg_composer.from(DictionaryName::O.to_token_stream()),
-                            arg_composer.to(DictionaryName::O.to_token_stream()),
-                            arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
+
+
+                            } else { (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)) };
+                            compose_arg(
+                                arg_ty,
+                                // from,
+                                arg_composer.from(DictionaryName::O.to_token_stream()),
+                                arg_composer.to(DictionaryName::O.to_token_stream()),
+                                arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
+                        }
                     }
                 };
 
@@ -617,28 +649,31 @@ impl GenericTypeConversion {
 
                 let arg_to_conversion = match &path.segments.last() {
                     Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
-                        "Arc" | "Rc" => match TypeConversion::from(ty.first_nested_type().unwrap()) {
-                            TypeConversion::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
-                            TypeConversion::Complex(_) => quote!((*#arg_0_name).clone()),
-                            TypeConversion::Generic(nested_generic_ty) => {
-                                println!("GENERIC inside Arc/Rc: {}", nested_generic_ty);
-                                match nested_generic_ty {
-                                    GenericTypeConversion::AnyOther(ty) => {
-                                        println!("GENERIC (AnyOther) inside Arc/Rc: {}", ty.to_token_stream());
-                                        let path = ty.to_path();
-                                        match &path.segments.last() {
-                                            Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
-                                                "RwLock" | "Mutex" => quote!(std::sync::#ident::new(obj.read().expect("Poisoned").clone())),
-                                                _ => quote!((*#arg_0_name).clone())
-                                            },
-                                            None => {
-                                                panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
+                        "Arc" | "Rc" => {
+                            let nested_ty = ty.first_nested_type().unwrap();
+                            match TypeConversion::from(nested_ty) {
+                                TypeConversion::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
+                                TypeConversion::Complex(_) => quote!((*#arg_0_name).clone()),
+                                TypeConversion::Generic(nested_generic_ty) => {
+                                    println!("GENERIC inside Arc/Rc: {}", nested_generic_ty);
+                                    match nested_generic_ty {
+                                        GenericTypeConversion::AnyOther(ty) => {
+                                            println!("GENERIC (AnyOther) inside Arc/Rc: {}", ty.to_token_stream());
+                                            let path = ty.to_path();
+                                            match &path.segments.last() {
+                                                Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+                                                    "RwLock" | "Mutex" => quote!(std::sync::#ident::new(obj.read().expect("Poisoned").clone())),
+                                                    _ => quote!((*#arg_0_name).clone())
+                                                },
+                                                None => {
+                                                    panic!("Error Generic Expansion (AnyOther): {}", ty.to_token_stream())
+                                                }
                                             }
-                                        }
-                                    },
-                                    _ => quote!((*#arg_0_name).clone())
-                                }
-                            },
+                                        },
+                                        _ => quote!((*#arg_0_name).clone())
+                                    }
+                                },
+                            }
                         },
                         "Mutex" | "RwLock" => quote!(#arg_0_name.into_inner().expect("Err")),
                         // "Mutex" | "RwLock" => quote!(#arg_0_name.borrow().clone()),
@@ -719,7 +754,11 @@ impl GenericTypeConversion {
                 // #constructor::new(
                 let nested_ty = ty.first_nested_type().unwrap();
                 let arg_0_presentation = compose(&arg_0_name, nested_ty);
-
+                let nested_obj = source.maybe_object(nested_ty);
+                // println!("AnyOther: {} opaque: {}", nested_ty.to_token_stream(), source.maybe_object(nested_ty).to_token_stream());
+                // if nested_obj.is_none() {
+                //     return FFIObjectPresentation::Empty.to_token_stream();
+                // }
                 compose_generic_presentation(
                     ffi_name,
                     attrs.clone(),

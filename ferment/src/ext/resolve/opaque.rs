@@ -33,5 +33,21 @@ impl Fermented for Vec<Attribute> {
         self.iter().any(ResolveMacro::is_labeled_for_export)
     }
 }
+pub trait Custom {
+    fn is_custom(&self) -> bool;
+}
+
+impl<T> Custom for T where T: ItemExtension {
+    fn is_custom(&self) -> bool {
+        self.maybe_attrs().map_or(false, Custom::is_custom)
+
+    }
+}
+
+impl Custom for Vec<Attribute> {
+    fn is_custom(&self) -> bool {
+        self.iter().any(ResolveMacro::is_labeled_for_register)
+    }
+}
 
 

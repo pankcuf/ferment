@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
@@ -11,6 +11,15 @@ use crate::presentation::FFIFullPath;
 pub enum SpecialType {
     Custom(Type),
     Opaque(Type),
+}
+
+impl Display for SpecialType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SpecialType::Custom(ty) => format!("Custom({})", ty.to_token_stream()),
+            SpecialType::Opaque(ty) => format!("Opaque({})", ty.to_token_stream()),
+        }.as_str())
+    }
 }
 
 impl ToTokens for SpecialType {
@@ -76,12 +85,12 @@ impl FFICompositionResolve for Type {
     }
 }
 
-pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> {
-    fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type where Self: Debug {
-        println!("special_or_to_ffi_full_path_type:: {:?}", self);
+pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> + ToTokens {
+    fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
+        println!("special_or_to_ffi_full_path_type:: {}", self.to_token_stream());
         let res = <Self as Resolve<Option<SpecialType>>>::resolve(self, source)
             .map(|special| {
-                println!("spec:: {:?}", special);
+                println!("spec:: {}", special);
 
                 special.to_type()
             })
@@ -92,7 +101,7 @@ pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> {
         println!("special_or_to_ffi_full_path_type.222:: {}", res.to_type().to_token_stream());
         res
     }
-    fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type where Self: Debug {
+    fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type {
         self.special_or_to_ffi_full_path_type(source)
             .joined_mut()
     }

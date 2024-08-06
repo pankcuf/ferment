@@ -10,6 +10,12 @@ use crate::presentable::Expression;
 use crate::presentation::Name;
 
 #[derive(Clone, Debug)]
+pub struct FromConversionFullComposer {
+    pub name: Name,
+    pub ty: Type,
+    pub expr: Option<Expression>,
+}
+#[derive(Clone, Debug)]
 pub struct FromConversionComposer {
     pub name: Name,
     pub ty: Type,
@@ -56,6 +62,8 @@ impl<'a> Composer<'a> for FromConversionComposer {
 
 
         let full_type = ty.full_type(source);
+
+
         println!("FromConversionComposer:: {} ", full_type.to_token_stream());
         let composition = ty.composition(source);
         let expression = match full_type.maybe_special_type(source) {
@@ -122,8 +130,24 @@ impl<'a> Composer<'a> for FromConversionComposer {
                         _ =>
                             Expression::From(field_path.into())
                     },
+                    TypeCompositionConversion::Unknown(..) => {
+                        println!("FromConversionComposer (Unknown): {}", ty.to_token_stream());
+                        match TypeConversion::from(ty) {
+                            TypeConversion::Primitive(_) =>
+                                field_path,
+                            TypeConversion::Generic(GenericTypeConversion::Optional(ty)) => match TypeConversion::from(ty.first_nested_type().unwrap()) {
+                                TypeConversion::Primitive(_) => Expression::FromOptPrimitive(field_path.into()),
+                                _ => Expression::FromOpt(field_path.into()),
+                            }
+                            TypeConversion::Generic(..) =>
+                                Expression::From(field_path.into()),
+                            _ =>
+                                field_path,
+                                // Expression::From(field_path.into())
+                        }
+                    },
                     _ => {
-                        println!("FromConversionComposer (Regular): {}", ty.to_token_stream());
+                        println!("FromConversionComposer (Regular): {}", composition);
                         match TypeConversion::from(ty) {
                             TypeConversion::Primitive(_) =>
                                 field_path,

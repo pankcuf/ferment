@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{Generics, Type};
+use syn::{Generics, Path, Type, TypePtr, TypeReference};
 use syn::punctuated::Punctuated;
 use crate::composable::nested_arg::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::ext::ToType;
+use crate::ext::{ToPath, ToType};
 
 #[derive(Clone)]
 pub struct TypeComposition {
@@ -22,6 +22,16 @@ impl TypeComposition {
     }
     pub fn nested_argument_at_index(&self, index: usize) -> &NestedArgument {
         &self.nested_arguments[index]
+    }
+
+    pub fn pointer_less(&self) -> Path {
+        match &self.ty {
+            Type::Reference(TypeReference { elem, ..}) |
+            Type::Ptr(TypePtr { elem, ..}) =>
+                elem.to_path(),
+            other =>
+                other.to_path()
+        }
     }
 }
 

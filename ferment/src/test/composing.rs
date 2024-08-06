@@ -50,7 +50,7 @@ fn root_scope_tree() -> ScopeTree {
             (TypeHolder(parse_quote!(Vec<HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
             (TypeHolder(parse_quote!(Vec<Vec<HashID>>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
             (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>))))),
-        ])));
+        ]).into_iter()).inner.into_iter());
     global_context
         .scope_mut(&scope_chain(parse_quote!(crate::example::address)))
         .add_many(TypeChain::from(HashMap::from([
@@ -63,7 +63,7 @@ fn root_scope_tree() -> ScopeTree {
             (TypeHolder(parse_quote!(HashID)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(crate::nested::HashID))))),
             (TypeHolder(parse_quote!(BTreeMap)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap))))),
             (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
-        ])));
+        ]).into_iter()).inner.into_iter());
     let global_context_ptr = Arc::new(RwLock::new(global_context));
 
     create_crate_root_scope_tree(

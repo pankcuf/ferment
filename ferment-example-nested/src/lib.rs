@@ -2,6 +2,7 @@ mod fermented;
 mod model;
 mod gen;
 mod entry;
+mod state_transition;
 
 
 extern crate ferment_macro;

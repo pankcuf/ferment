@@ -6,12 +6,12 @@ use syn::token::Comma;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{DelimiterTrait, Depunctuated};
 use crate::composable::{AttrsComposition, CfgAttributes};
-use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPunctuatedFields, ComposerPresenter, constants, CtorSequenceComposer, DocsComposable, FFIBindingsComposer, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypesContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, ParentComposer, Linkable, SourceAccessible, SourceExpandable};
+use crate::composer::{BasicComposer, BindingComposable, CommaPunctuatedFields, ComposerPresenter, constants, CtorSequenceComposer, DocsComposable, FFIBindingsComposer, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypesContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, ParentComposer, Linkable, SourceAccessible, SourceExpandable};
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, composer_target_binding, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
 use crate::presentable::{Context, SequenceOutput};
-use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation, Name};
+use crate::presentation::{BindingPresentation, DocPresentation, Expansion, Name};
 use crate::shared::SharedAccess;
 
 #[derive(BasicComposerOwner)]
@@ -172,15 +172,16 @@ impl<I> DocsComposable for OpaqueItemComposer<I> where I: DelimiterTrait + ?Size
 impl<I> SourceExpandable for OpaqueItemComposer<I>
     where I: DelimiterTrait + ?Sized {
     fn expand(&self) -> Expansion {
-        Expansion::Full {
-            attrs: self.compose_attributes(),
-            comment: self.compose_docs(),
-            ffi_presentation: FFIObjectPresentation::Empty,
-            conversion: InterfacePresentation::Empty,
-            drop: DropInterfacePresentation::Empty,
-            bindings: self.compose_bindings(),
-            traits: Depunctuated::new()
-        }
+        Expansion::Empty
+        // Expansion::Full {
+        //     attrs: self.compose_attributes(),
+        //     comment: self.compose_docs(),
+        //     ffi_presentation: FFIObjectPresentation::Empty,
+        //     conversion: InterfacePresentation::Empty,
+        //     drop: DropInterfacePresentation::Empty,
+        //     bindings: self.compose_bindings(),
+        //     traits: Depunctuated::new()
+        // }
     }
 }
 impl<I> BindingComposable for OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {

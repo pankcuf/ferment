@@ -6,11 +6,13 @@ use syn::punctuated::Punctuated;
 use crate::ast::PathHolder;
 use crate::composable::{ImportComposition, TypeComposition};
 use crate::context::ScopeContext;
-use crate::conversion::TypeConversion;
-use crate::ext::{path_arguments_to_types, ToPath};
+use crate::conversion::{GenericTypeConversion, TypeConversion};
+use crate::ext::{path_arguments_to_types, Resolve, ToPath};
+use crate::presentation::FFIFullPath;
 
 pub mod composing;
 pub mod mangling;
+mod lookup;
 
 impl ImportComposition {
     pub fn new(ident: Ident, scope: PathHolder) -> Self {
@@ -43,9 +45,9 @@ impl TypeConversion {
             TypeConversion::Primitive(path) =>
                 quote!(#path),
             TypeConversion::Complex(ty) =>
-                ty.maybe_ffi_resolve(source).map_or(quote!(#self), |p| p.to_token_stream()),
+                <Type as Resolve<FFIFullPath>>::resolve(ty, source).to_token_stream(),
             TypeConversion::Generic(conversion) =>
-                conversion.to_ffi_full_path(source).to_token_stream(),
+                <GenericTypeConversion as Resolve<FFIFullPath>>::resolve(conversion, source).to_token_stream(),
         }
     }
 

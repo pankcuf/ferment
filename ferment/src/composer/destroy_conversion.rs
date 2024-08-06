@@ -60,7 +60,7 @@ impl<'a> Composer<'a> for DestroyConversionComposer {
     type Source = ScopeContext;
     type Result = Expression;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, _source: &'a Self::Source) -> Self::Result {
         let Self { name, ty, expr } = self;
 
         println!("DestroyConversionComposer:: {} -- {}", name, ty.to_token_stream());

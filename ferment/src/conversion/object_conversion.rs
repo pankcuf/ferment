@@ -105,6 +105,7 @@ impl ObjectConversion {
         ObjectConversion::Item(ty, item)
     }
     pub fn new_obj_item(ty: TypeComposition, item: ScopeItemConversion) -> ObjectConversion {
+        // println!("new_obj_item: {}", ty);
         ObjectConversion::Item(TypeCompositionConversion::Object(ty), item)
     }
     pub fn type_conversion(&self) -> Option<&TypeCompositionConversion> {

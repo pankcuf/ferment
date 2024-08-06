@@ -76,6 +76,7 @@ pub enum Expression {
     Expr(Expr),
     FromLambda(Box<Expression>, CommaPunctuated<Name>),
     FromPtrClone(Box<Expression>),
+    Boxed(Box<Expression>)
 }
 
 impl ScopeContextPresentable for Expression {
@@ -178,11 +179,13 @@ impl ScopeContextPresentable for Expression {
                         .to_token_stream())
                     .to_token_stream(),
             Self::DestroyOpt(presentable) =>
-                DictionaryExpr::IfNotNull(
-                    presentable.present(source),
-                    Self::UnboxAnyTerminated(presentable.clone())
-                        .present(source))
-                    .to_token_stream(),
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyOpt(presentable.present(source)))
+                    .present(source),
+                // DictionaryExpr::IfNotNull(
+                //     presentable.present(source),
+                //     Self::UnboxAnyTerminated(presentable.clone())
+                //         .present(source))
+                //     .to_token_stream(),
             Self::DestroyOptPrimitive(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(presentable.present(source)))
                     .present(source),
@@ -298,6 +301,9 @@ impl ScopeContextPresentable for Expression {
             }
             Self::Expr(expr) =>
                 expr.to_token_stream(),
+            Self::Boxed(expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source)))
+                    .present(source)
         }
     }
 }

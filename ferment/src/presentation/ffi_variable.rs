@@ -2,11 +2,12 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use ferment_macro::Display;
+use syn::punctuated::Punctuated;
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundComposition, TypeComposition};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, SpecialType, ToPath, ToType};
+use crate::conversion::{DictionaryTypeCompositionConversion, GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
+use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Display, Debug)]
@@ -68,7 +69,7 @@ impl Resolve<FFIVariable> for Path {
 }
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
-    // println!("resolve_type: {}", ty.to_token_stream());
+    // println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
@@ -137,7 +138,7 @@ impl Resolve<FFIVariable> for Type {
 
 impl Resolve<FFIVariable> for TypeCompositionConversion {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        // println!("TypeCompositionConversion::<FFIVariable>::resolve.1({}) in {}", self, source.scope.fmt_short());
+        println!("TypeCompositionConversion::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }, ..) => FFIVariable::Direct {
@@ -149,9 +150,11 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
             TypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..) => FFIVariable::MutPtr {
                 ty: <Type as Resolve::<FFIFullPath>>::resolve(ty, source).to_type()
             },
-            TypeCompositionConversion::Primitive(composition) => FFIVariable::Direct {
+            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(composition)) => FFIVariable::Direct {
                 ty: composition.to_type()
             },
+            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition { ty, .. })) |
+            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(TypeComposition { ty, .. })) |
             TypeCompositionConversion::Trait(TypeComposition { ty, .. }, ..) |
             TypeCompositionConversion::TraitType(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Object(TypeComposition { ty, .. }) |
@@ -161,15 +164,99 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
             TypeCompositionConversion::Tuple(TypeComposition { ty, .. }) |
             TypeCompositionConversion::Unknown(TypeComposition { ty, .. }) |
             TypeCompositionConversion::LocalOrGlobal(TypeComposition { ty, .. }) => {
-                // println!("TypeCompositionConversion::Regular: {}", ty.to_token_stream());
+                println!("TypeCompositionConversion::Regular: {}", ty.to_token_stream());
+                // let ffi_path = match <Type as Resolve<Option<SpecialType>>>::resolve(ty, source) {
+                //     Some(ty) =>
+                //         ty.to_type().resolve(source),
+                //         // FFIFullPath::External { path: ty.to_path() }.res,
+                //     None => {
+                //         let ty = <Type as Resolve<TypeCompositionConversion>>::resolve(ty, source);
+                //         let ffi_path: Option<FFIFullPath> = ty.resolve(source);
+                //         resolve_type_variable(match ffi_path {
+                //             Some(ffi_path) =>
+                //                 ffi_path.to_type(),
+                //             None =>
+                //                 ty.to_type()
+                //                 // FFIFullPath::External { path: ty.to_path() }
+                //         }, source)
+                //     }
+                // };
+
+                // resolve_type_variable(ffi_path.to_type(), source)
+                //
+
+
                 <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
-                    .map(|ty| FFIFullPath::External { path: ty.to_path() })
-                    .or(<Type as Resolve<TypeCompositionConversion>>::resolve(ty, source)
-                        .to_type()
-                        .resolve(source))
-                    .map(|ffi_path| ffi_path.to_type())
-                    .unwrap_or(parse_quote!(#ty))
-                    .resolve(source)
+                    .map(|ty| resolve_type_variable(FFIFullPath::External { path: ty.to_path() }.to_type(), source))
+                    .unwrap_or_else(|| {
+                        resolve_type_variable(<Type as Resolve<Option<ObjectConversion>>>::resolve(ty, source)
+                            .and_then(|external_type| {
+                                match external_type {
+                                    ObjectConversion::Item(.., ScopeItemConversion::Fn(..)) => {
+                                        // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
+                                        let parent_object = &source.scope.parent_object().unwrap();
+                                        // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);
+                                        match parent_object {
+                                            ObjectConversion::Type(ref ty_conversion) |
+                                            ObjectConversion::Item(ref ty_conversion, ..) => {
+                                                match ty_conversion {
+                                                    TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
+                                                        // println!("Type::<TypeCompositionConversion> It's a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                                        ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                                                    },
+                                                    _ => {
+                                                        None
+                                                    },
+                                                }.unwrap_or_else(|| {
+                                                    // println!("Type::<TypeCompositionConversion> Not a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                                    parent_object.type_conversion().cloned()
+                                                })
+                                            },
+                                            ObjectConversion::Empty => {
+                                                // println!("Type::<TypeCompositionConversion> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
+                                                None
+                                            }
+                                        }
+                                    },
+                                    ObjectConversion::Type(ref ty_conversion) |
+                                    ObjectConversion::Item(ref ty_conversion, ..) => {
+                                        match ty_conversion {
+                                            TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
+                                                // println!("Type::<TypeCompositionConversion> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                                                ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                                            },
+                                            _ => {
+                                                None
+                                            },
+                                        }.unwrap_or_else(|| {
+                                            // println!("Type::<TypeCompositionConversion> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                                            external_type.type_conversion().cloned()
+                                        })
+                                    },
+                                    ObjectConversion::Empty => {
+                                        // println!("Type::<TypeCompositionConversion> Has no object --> {}", external_type.type_conversion().to_token_stream());
+                                        None
+                                    }
+                                }
+                            })
+                            .unwrap_or_else(|| {
+                                println!("Type::<TypeCompositionConversion> Default Unknown --> {}", ty.to_token_stream());
+                                TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None, Punctuated::new()))
+                            }).to_type(), source)
+
+
+                        // .map(|ffi_path| ffi_path.to_type())
+                        //     .unwrap_or(parse_quote!(#ty))
+                        //     .resolve(source)
+                    })
+                // <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
+                //     .map(|ty| FFIFullPath::External { path: ty.to_path() }.to_type())
+                //     .or_else(|| <Type as Resolve<TypeCompositionConversion>>::resolve(ty, source)
+                //         .to_type()
+                //         .resolve(source))
+                //     .map(|ffi_path| ffi_path.to_type())
+                //     .unwrap_or(parse_quote!(#ty))
+                //     .resolve(source)
             },
             TypeCompositionConversion::Fn(TypeComposition { ty, .. }, ..) => {
                 // ty.to_path().popped()
