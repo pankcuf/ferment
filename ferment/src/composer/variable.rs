@@ -25,8 +25,20 @@ impl<'a> Composer<'a> for VariableComposer {
     fn compose(&self, source: &Self::Source) -> Self::Result {
         let full_ty: Type = Resolve::resolve(&self.ty, source);
         println!("VariableComposer (compose): {} ({}) in {}", self.ty.to_token_stream(), full_ty.to_token_stream(), source.scope.fmt_short());
+        let maybe_obj = source.maybe_object(&self.ty);
         let result = match <Type as Resolve<Option<SpecialType>>>::resolve(&full_ty, source) {
-            Some(special) => match source.maybe_object(&self.ty) {
+            Some(special) => match maybe_obj {
+                Some(ObjectConversion::Item(fn_ty_conversion, ScopeItemConversion::Fn(..))) => {
+                    println!("VariableComposer (Special Function): {} in {}", fn_ty_conversion.to_token_stream(), source.scope.fmt_short());
+                    FFIVariable::MutPtr {
+                        ty: match &source.scope.parent_object().unwrap() {
+                            ObjectConversion::Type(ref ty_conversion) |
+                            ObjectConversion::Item(ref ty_conversion, ..) =>
+                                ty_conversion.ty().resolve(source),
+                            _ => self.ty.clone()
+                        }
+                    }
+                }
                 Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_), ..) |
                      ObjectConversion::Type(TypeCompositionConversion::FnPointer(_), ..)) => {
                     println!("VariableComposer (Special FnPointer): {}", special.to_token_stream());
@@ -39,6 +51,8 @@ impl<'a> Composer<'a> for VariableComposer {
                     let ty = special.to_type();
                     FFIVariable::MutPtr { ty: parse_quote!(dyn #ty) }
                 },
+                Some(ObjectConversion::Type(TypeCompositionConversion::Bounds(bounds))) =>
+                    bounds.resolve(source),
                 _ => {
                     println!("VariableComposer (Special MutPtr): {}", special.to_token_stream());
                     FFIVariable::MutPtr { ty: special.to_type() }
@@ -46,7 +60,7 @@ impl<'a> Composer<'a> for VariableComposer {
             }
             None => {
                 println!("VariableComposer (NonSpecial): {} in {}", full_ty.to_token_stream(), source.scope.fmt_short());
-                match source.maybe_object(&self.ty) {
+                match maybe_obj {
                     Some(ObjectConversion::Item(fn_ty_conversion, ScopeItemConversion::Fn(..))) => {
                         println!("VariableComposer (Function): {} in {}", fn_ty_conversion.to_token_stream(), source.scope.fmt_short());
                         FFIVariable::MutPtr {

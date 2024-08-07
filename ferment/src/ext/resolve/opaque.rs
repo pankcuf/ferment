@@ -1,5 +1,6 @@
-use syn::Attribute;
-use crate::ext::ResolveMacro;
+use proc_macro2::Ident;
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Path, PathArguments, PathSegment, Type, TypePath};
+use crate::ext::{DictionaryType, ResolveMacro};
 use crate::ext::item::ItemExtension;
 
 pub trait Opaque {
@@ -51,3 +52,80 @@ impl Custom for Vec<Attribute> {
 }
 
 
+pub trait Primitive {
+    fn is_primitive(&self) -> bool;
+}
+
+impl<T> Primitive for T where T: ItemExtension {
+    fn is_primitive(&self) -> bool {
+        self.maybe_ident()
+            .map_or(false, DictionaryType::is_primitive)
+
+    }
+}
+
+impl Primitive for Type {
+    fn is_primitive(&self) -> bool {
+        match self {
+            Type::Path(TypePath { path, .. }) => path.is_primitive(),
+            _ => false
+        }
+    }
+}
+
+pub trait FermentableDictionaryType {
+    fn is_fermentable_dictionary_type(&self) -> bool;
+}
+
+impl FermentableDictionaryType for Ident {
+    fn is_fermentable_dictionary_type(&self) -> bool {
+        self.is_special_generic() || self.is_result() || self.is_smart_ptr() || self.is_string() || self.is_str()
+    }
+}
+impl FermentableDictionaryType for PathSegment {
+    fn is_fermentable_dictionary_type(&self) -> bool {
+        self.is_special_generic() || self.is_result() || self.is_smart_ptr() || self.is_string() || self.is_str() || self.is_optional() || self.is_box()
+    }
+}
+
+impl FermentableDictionaryType for Path {
+    fn is_fermentable_dictionary_type(&self) -> bool {
+        self.segments.last().map_or(false, PathSegment::is_fermentable_dictionary_type)
+    }
+}
+impl FermentableDictionaryType for Type {
+    fn is_fermentable_dictionary_type(&self) -> bool {
+        match self {
+            Type::Path(TypePath { path, .. }) => {
+
+                if path.is_optional() || path.is_box() {
+                    true
+                    // match path.segments.last() {
+                    //     Some(PathSegment { arguments, ident }) => match arguments {
+                    //         PathArguments::None => ident.is_fermentable_dictionary_type(),
+                    //         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, ..}) => {
+                    //             true
+                    //             // args.first().map_or(true, |f| match f {
+                    //             //     GenericArgument::Type(ty) => {
+                    //             //         // match ty {
+                    //             //         //     Type::Path(_) => {}
+                    //             //         // }
+                    //             //         true
+                    //             //         // !ty.is_primitive()
+                    //             //     },
+                    //             //     _ => false
+                    //             //
+                    //             // })
+                    //         }
+                    //         PathArguments::Parenthesized(_) => false
+                    //     },
+                    //     _ => true
+                    // }
+                } else {
+                    path.is_fermentable_dictionary_type()
+                }
+            },
+            _ => false
+        }
+    }
+}

@@ -402,12 +402,12 @@ impl GlobalContext {
 
     // We need to find full qualified paths for involved chunk and bind them to actual items
     pub(crate) fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectConversion) -> Option<ObjectConversion> {
-        println!("maybe_refined_object --> {} \n\tin {}", object, scope.fmt_short());
+        // println!("maybe_refined_object --> {} \n\tin {}", object, scope.fmt_short());
         let mut refined = object.clone();
         let result = refined.refine_in_scope(scope, self)
             .then_some(refined);
 
-        println!("maybe_refined_object <-- {} \n\tin {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
+        // println!("maybe_refined_object <-- {} \n\tin {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
         result
     }
 
@@ -455,11 +455,12 @@ impl RefineMut for GlobalContext {
                                     None => false
                                 };
                                 println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
-
-                                refined_generics
-                                    .entry(GenericConversion::new(object.clone()))
-                                    .or_insert_with(HashSet::new)
-                                    .extend(all_attrs.clone());
+                                if !skip {
+                                    refined_generics
+                                        .entry(GenericConversion::new(object.clone()))
+                                        .or_insert_with(HashSet::new)
+                                        .extend(all_attrs.clone());
+                                }
                             });
                     }
 

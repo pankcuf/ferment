@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
@@ -63,6 +63,7 @@ impl<'a> VisitScopeType<'a> for Type {
             Type::Slice(type_slice) => type_slice.update_nested_generics(source),
             Type::BareFn(type_bare_fn) => type_bare_fn.update_nested_generics(source),
             Type::Reference(type_reference) => type_reference.update_nested_generics(source),
+            Type::Ptr(type_ptr) => type_ptr.update_nested_generics(source),
             ty => ty.clone().to_unknown(Punctuated::new())
         }
     }
@@ -476,6 +477,13 @@ impl<'a> VisitScopeType<'a> for TypeBareFn {
     }
 }
 impl<'a> VisitScopeType<'a> for TypeReference {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = ObjectConversion;
+    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+        self.elem.update_nested_generics(source)
+    }
+}
+impl<'a> VisitScopeType<'a> for TypePtr {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectConversion;
     fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {

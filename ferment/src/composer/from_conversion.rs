@@ -72,6 +72,16 @@ impl<'a> Composer<'a> for FromConversionComposer {
                 match composition {
                     TypeCompositionConversion::FnPointer(..) |
                     TypeCompositionConversion::LambdaFn(..) => field_path,
+                    TypeCompositionConversion::Bounds(bounds) => match bounds.bounds.len() {
+                        0 => field_path,
+                        1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                            Expression::FromLambda(field_path.into(), lambda_args)
+                        } else {
+                            Expression::From(field_path.into())
+                        }
+                        _ =>
+                            Expression::From(field_path.into())
+                    },
                     _ => match ty {
                         Type::Ptr(_) => field_path,
                         _ =>

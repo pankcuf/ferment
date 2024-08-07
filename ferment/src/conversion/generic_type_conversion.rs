@@ -651,6 +651,7 @@ impl GenericTypeConversion {
                     Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
                         "Arc" | "Rc" => {
                             let nested_ty = ty.first_nested_type().unwrap();
+
                             match TypeConversion::from(nested_ty) {
                                 TypeConversion::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
                                 TypeConversion::Complex(_) => quote!((*#arg_0_name).clone()),
@@ -755,7 +756,8 @@ impl GenericTypeConversion {
                 let nested_ty = ty.first_nested_type().unwrap();
                 let arg_0_presentation = compose(&arg_0_name, nested_ty);
                 let nested_obj = source.maybe_object(nested_ty);
-                // println!("AnyOther: {} opaque: {}", nested_ty.to_token_stream(), source.maybe_object(nested_ty).to_token_stream());
+                let nested_opaque_obj = source.maybe_opaque_object(nested_ty);
+                println!("AnyOther: {} obj: {}, opaque: {}", nested_ty.to_token_stream(), nested_obj.to_token_stream(), nested_opaque_obj.to_token_stream());
                 // if nested_obj.is_none() {
                 //     return FFIObjectPresentation::Empty.to_token_stream();
                 // }

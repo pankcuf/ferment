@@ -7,7 +7,7 @@ use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::{Composition, TraitCompositionPart1};
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, Join, ToObjectConversion, ToType};
+use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectConversion, ToType};
 use crate::presentation::FFIFullDictionaryPath;
 use crate::print_phase;
 
@@ -82,9 +82,16 @@ impl ScopeContext {
                         }
                     },
                     None => {
-                        println!("resolve_opaque: (unknown: opaque by default) {} ", path.to_token_stream());
-                        // Some(ty.clone())
-                        None
+                        println!("resolve_opaque: (unknown: ferment: {}) {}", path.is_fermentable_dictionary_type(), path.to_token_stream());
+                        if path.is_fermentable_dictionary_type() {
+                            None
+                        } else if path.is_primitive() {
+                            None
+                        } else {
+                            Some(ty.clone())
+                        }
+                        //
+                        // None
                     }
                 }
             };

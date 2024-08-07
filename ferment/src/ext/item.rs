@@ -183,52 +183,6 @@ pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
     lit.to_token_stream()
 }
 
-// fn cache_fields_in(container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, fields: &Fields, imports: &HashMap<PathHolder, Path>) {
-//     match fields {
-//         Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
-//         Fields::Named(FieldsNamed { named: fields, .. }) =>
-//             fields.iter()
-//                 .for_each(|field| cache_type_in(container, &field.ty, imports)),
-//         Fields::Unit => {}
-//     }
-// }
-//
-// fn cache_type_in(_container: &mut HashMap<ImportConversion, HashSet<ImportComposition>>, _ty: &Type, _imports: &HashMap<PathHolder, Path>) {
-    // Types which are used as a part of types (for generics and composite types)
-    // let involved: HashSet<Type> = ty.nested_items();
-    // involved.iter()
-    //     .for_each(|ty| {
-            // println!("involved: {}", ty.to_token_stream());
-            // match ty {
-            //     Type::Array(type_array) => {
-            //         let path = type_array.elem.to_path();
-            //         cache_path_in(container, &path, imports);
-            //     },
-            //     Type::Slice(type_slice) => {
-            //         let path = type_slice.elem.to_path();
-            //         cache_path_in(container, &path, imports);
-            //     },
-            //     Type::Path(type_path) => {
-            //         cache_path_in(container, &type_path.path, imports);
-            //     }
-            //     Type::Reference(type_reference) => {
-            //         let path = type_reference.elem.to_path();
-            //         cache_path_in(container, &path, imports);
-            //     },
-            //     // Type::Ptr(_) => {}
-            //     // Type::TraitObject(_) => {}
-            //     // Type::Tuple(TypeTuple { elems }) => {
-            //     //
-            //     // }
-            //     _ => {
-            //         let path = ty.to_path();
-            //         cache_path_in(container, &path, imports);
-            //     }
-            // }
-        // });
-// }
-
-
 pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     bounds.iter().filter_map(|bound| match bound {
         TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
