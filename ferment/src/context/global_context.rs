@@ -8,8 +8,8 @@ use crate::Config;
 use crate::ast::PathHolder;
 use crate::composable::{GenericBoundComposition, GenericConversion, TraitCompositionPart1, TypeComposition};
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
-use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
+use crate::conversion::{DictionaryTypeCompositionConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
+use crate::ext::{GenericCollector, GenericConstraintCollector, GenericNestedArg, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
 use crate::formatter::format_global_context;
 
 #[derive(Clone)]
@@ -179,7 +179,24 @@ impl GlobalContext {
     pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
-            //println!("[INFO] Found scope: {}", scope.fmt_short());
+            println!("[INFO] Found scope: {}", scope.fmt_short());
+            let last_ident = &path.segments.last().unwrap().ident;
+            let ty = last_ident.to_type();
+            if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
+                println!("[INFO] Found item in scope: {}", item);
+                return Some(item);
+            } else {
+                //println!("[INFO] Scope found {} but no item: {}", scope.fmt_short(), path.to_token_stream());
+            }
+        } else {
+            //println!("[INFO] No scope found [{}]", path.to_token_stream());
+        }
+        None
+    }
+    pub fn maybe_item_obj_first(&self, path: &Path) -> Option<&ScopeItemConversion> {
+        // println!("maybe_item: {}", path.to_token_stream());
+        if let Some(scope) = self.maybe_scope_obj_first(path) {
+            println!("[INFO] Found obj scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
@@ -410,7 +427,94 @@ impl GlobalContext {
         // println!("maybe_refined_object <-- {} \n\tin {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
         result
     }
+    pub(crate) fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
+        self.custom.maybe_conversion(ty)
+    }
 
+    fn should_skip_from_expanding(&self, object: &ObjectConversion, scope: &ScopeChain) -> bool {
+        // CHECK: Optional($Ty(Option<std::sync::Arc<Box<dyn drive_proof_verifier::ContextProvider>>>, [Object(Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))))]))
+        // CHECK NESTED: Dictionary(NonPrimitiveFermentable($Ty(std::sync::Arc<Box<dyn drive_proof_verifier::ContextProvider>>, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))
+        // --- ADD GENERIC: OBJECT: (skip: false) std::sync::Arc<Box<dyn drive_proof_verifier::ContextProvider>> -- Type(Optional($Ty(Option < std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > > >, [Object(Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))))])))
+
+        // CHECK: Optional($Ty(Option<std::sync::Arc<Box<dyn drive_proof_verifier::ContextProvider>>>, [Object(Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))))]))
+        // CHECK NESTED: Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))
+        // --- ADD GENERIC: OBJECT: (skip: false) Box < dyn drive_proof_verifier :: ContextProvider > -- Type(Optional($Ty(Option < std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > > >, [Object(Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))))])))
+
+        // CHECK: Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))
+        // CHECK NESTED: Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))
+        // --- ADD GENERIC: OBJECT: (skip: false) Box < dyn drive_proof_verifier :: ContextProvider > -- Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))]))))
+
+        // CHECK: Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))])))
+        // CHECK NESTED: Boxed($Ty(Box<dyn drive_proof_verifier::ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))
+        // --- ADD GENERIC: OBJECT: (skip: false) std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > > -- Type(Dictionary(NonPrimitiveFermentable($Ty(std :: sync :: Arc < Box < dyn drive_proof_verifier :: ContextProvider > >, [Object(Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))))]))))
+
+        // CHECK: Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))]))
+        // CHECK NESTED: Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))
+        // --- ADD GENERIC: OBJECT: (skip: true) Box < dyn drive_proof_verifier :: ContextProvider > -- Type(Boxed($Ty(Box < dyn drive_proof_verifier :: ContextProvider >, [Object(Type(Unknown($Ty(dyn drive_proof_verifier :: ContextProvider, []))))])))
+        let skip = match object.type_conversion() {
+            Some(conversion) => {
+                println!("CHECK: {}", conversion);
+                let nested_args = conversion.nested_arguments();
+                let unknown_args = nested_args.iter().filter(|arg| {
+                    match arg.object().type_conversion() {
+                        Some(conversion) => {
+                            let unknown_but_custom = self.maybe_custom_conversion(conversion.ty()).is_some();
+                            println!("CHECK NESTED: {}", conversion);
+                            //conversion.is_unknown() && !unknown_but_custom
+                            let skip = match conversion {
+                                TypeCompositionConversion::Unknown(..) => true,
+                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(TypeComposition { ty, nested_arguments, .. })) => {
+                                    // let nested_types = ty.nested_types();
+                                    println!("CHECK NESTED NonPrimitiveOpaque: {}", ty.to_token_stream());
+                                    // match ty.first_nested_type() {
+                                    //     Some(ty) => {
+                                    //
+                                    //     }
+                                    //     None => {}
+                                    // }
+                                    true
+                                },
+                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition { ty,  nested_arguments, .. })) => {
+                                    println!("CHECK NESTED NonPrimitiveFermentable: {}", ty.to_token_stream());
+                                    let needed_types = nested_arguments.iter().filter_map(|n| match n.object().type_conversion() {
+                                        Some(tyc) => {
+                                            if tyc.is_unknown() && self.maybe_custom_conversion(tyc.ty()).is_none() {
+                                                None
+                                            } else {
+                                                Some(tyc)
+                                            }
+                                        },
+                                        None => None
+                                    }).collect::<Vec<_>>();
+                                    needed_types.len() != nested_arguments.len()
+                                    // nested_types
+                                    // false
+                                }
+                                TypeCompositionConversion::Boxed(TypeComposition { ty, nested_arguments, .. }) |
+                                TypeCompositionConversion::Optional(TypeComposition { ty, nested_arguments, .. }) => match nested_arguments.first() {
+                                    Some(ty) => match ty.object().type_conversion() {
+                                        Some(tyc) => {
+                                            println!("CHECK NESTED OPTIONAL/BOX: {}", tyc);
+                                            tyc.is_unknown() && self.maybe_custom_conversion(tyc.ty()).is_none()
+                                        },
+                                        _ => true
+                                    },
+                                    _ => true
+                                },
+                                _ => false
+                            };
+                            skip && !unknown_but_custom
+                        },
+                        None => false
+                    }
+
+                }).collect::<Vec<_>>();
+                !unknown_args.is_empty()
+            }
+            None => false
+        };
+        skip
+    }
 }
 
 impl RefineMut for GlobalContext {
@@ -431,29 +535,15 @@ impl RefineMut for GlobalContext {
                     if all_attrs.is_empty() {
                         all_attrs.insert(None);
                     }
+
                     if let Some(ty) = object.maybe_type() {
                         //println!("--- FIND GENERICS IN TYPE: {}", ty.to_token_stream());
                         ty.find_generics()
                             .iter()
-                            .filter(|ty| self.custom.maybe_conversion(&ty.0).is_none())
+                            .filter(|ty| self.maybe_custom_conversion(&ty.0).is_none())
                             .for_each(|_ty| {
-                                let skip = match object.type_conversion() {
-                                    Some(conversion) => {
-                                        let nested_args = conversion.nested_arguments();
-                                        let unknown_args = nested_args.iter().filter(|arg| {
-                                            match arg.object().type_conversion() {
-                                                Some(conversion) => {
-                                                    let unknown_but_custom = self.custom.maybe_conversion(conversion.ty()).is_some();
-                                                    conversion.is_unknown() && !unknown_but_custom
-                                                },
-                                                None => false
-                                            }
-
-                                        }).collect::<Vec<_>>();
-                                        !unknown_args.is_empty()
-                                    }
-                                    None => false
-                                };
+                                // println!("CHECK")
+                                let skip = self.should_skip_from_expanding(object, scope);
                                 println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
                                 if !skip {
                                     refined_generics
@@ -544,6 +634,11 @@ impl GlobalContext {
     }
     pub fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         let x = self.scope_register.resolve(path);
+        //println!("maybe_scope: {} --> {}", path.to_token_stream(), x.map(ScopeChain::self_path_holder_ref).to_token_stream());
+        x
+    }
+    pub fn maybe_scope_obj_first(&self, path: &Path) -> Option<&ScopeChain> {
+        let x = self.scope_register.resolve_obj_first(path);
         //println!("maybe_scope: {} --> {}", path.to_token_stream(), x.map(ScopeChain::self_path_holder_ref).to_token_stream());
         x
     }

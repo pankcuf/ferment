@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
@@ -35,12 +36,28 @@ impl ScopeResolver {
     pub(crate) fn resolve(&self, path: &Path) -> Option<&ScopeChain> {
         self.inner
             .keys()
-            .find_map(|scope_chain|
-                          {
-                              // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
-                              path.eq(scope_chain.self_path())
-                                  .then(|| scope_chain)
-                          })
+            .find_map(|scope_chain| {
+                // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
+                path.eq(scope_chain.self_path())
+                    .then(|| scope_chain)
+            })
+    }
+    pub(crate) fn resolve_obj_first(&self, path: &Path) -> Option<&ScopeChain> {
+        let mut scopes = self.inner
+            .keys()
+            .filter(|scope_chain| path.eq(scope_chain.self_path()))
+            .collect::<Vec<_>>();
+
+        scopes.sort_by(|c1, c2| {
+            if c1.obj_scope_priority() == c2.obj_scope_priority() {
+                Ordering::Equal
+            } else if c1.obj_scope_priority() < c2.obj_scope_priority() {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            }
+        });
+        scopes.first().cloned()
     }
     pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.inner
@@ -48,11 +65,12 @@ impl ScopeResolver {
             .or_default()
     }
 
-    fn maybe_scope_type_(&self, tc: &TypeHolder, scope: &ScopeChain) -> Option<&ObjectConversion> {
+    fn maybe_scope_type_(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
         // println!("maybe_scope_type_.1: {} in {}", tc, scope.fmt_short());
+        let tc = TypeHolder::from(ty);
         let result = self.inner
             .get(scope)
-            .and_then(|chain| chain.get(tc));
+            .and_then(|chain| chain.get(&tc));
         // println!("maybe_scope_type_.2: {} --> {}", tc, result.as_ref().map_or("None".to_string(), |r| format!("{}", r)));
         result
     }
@@ -62,7 +80,7 @@ impl ScopeResolver {
             Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
                 1 => match bounds.first().unwrap() {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        self.maybe_scope_type_(&TypeHolder::from(&path.to_type()), scope),
+                        self.maybe_scope_type_(&path.to_type(), scope),
                     TypeParamBound::Lifetime(_) =>
                         panic!("maybe_scope_type::error")
                 },
@@ -70,9 +88,9 @@ impl ScopeResolver {
             },
             Type::Reference(TypeReference { elem: ty, .. }) |
             Type::Ptr(TypePtr { elem: ty, .. }) =>
-                self.maybe_scope_type_(&TypeHolder::from(ty), scope),
+                self.maybe_scope_type_(ty, scope),
             ty =>
-                self.maybe_scope_type_(&TypeHolder::from(ty), scope),
+                self.maybe_scope_type_(ty, scope),
         };
         // println!("maybe_scope_type.2: {} --- [{}]", ty.to_token_stream(), result.to_token_stream());
         result

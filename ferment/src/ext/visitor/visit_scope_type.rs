@@ -25,7 +25,8 @@ impl ToObjectConversion for Type {
     }
 
     fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_composition(self, nested_arguments)))
+        // TODO: make it Unknown
+        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
     }
 }
 
@@ -39,7 +40,8 @@ impl ToObjectConversion for TypePath {
     }
 
     fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::TraitType(handle_type_path_composition(self, nested_arguments)))
+        // TODO: make it Unknown
+        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
     }
 }
 
@@ -279,7 +281,8 @@ impl<'a> VisitScopeType<'a> for Path {
                     ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(TypeComposition::new_non_gen(first_ident.to_type(), None))))
                 },
                 _ if first_ident.is_special_std_trait() => {
-                    ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new_non_gen(nested_import_seg.to_type(), None)))
+                    // TODO: make it Unknown?
+                    ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_non_gen(nested_import_seg.to_type(), None)))
                 },
                 _ if first_ident.is_any_string() => {
                     ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition::new_non_gen(nested_import_seg.to_type(), None))))
@@ -541,12 +544,13 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
                     }
                     ObjectConversion::Empty => {}
                 }
-                nested_arguments.push(NestedArgument::Constraint(object));
+                //nested_arguments.push(NestedArgument::Constraint(object));
             },
             _ => {},
         });
+        // TODO: make it Unknown
         ObjectConversion::Type(
-            TypeCompositionConversion::TraitType(
+            TypeCompositionConversion::Unknown(
                 handle_type_composition(
                     Type::TraitObject(
                         TypeTraitObject {

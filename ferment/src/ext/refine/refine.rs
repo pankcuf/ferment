@@ -85,7 +85,7 @@ impl RefineInScope for ObjectConversion {
 
 impl RefineWithFullPath for Type {
     fn refine_with_full_path(&mut self, full_path: &Path, nested_arguments: &CommaPunctuatedNestedArguments) -> bool {
-        println!("Type::refine_with_full_path --> {}", self.to_token_stream());
+        //println!("Type::refine_with_full_path --> {}", self.to_token_stream());
         let mut refined = self.refine_with_nested_args(nested_arguments);
         match self {
             Type::Path(TypePath { path, .. }) => {
@@ -114,13 +114,186 @@ impl RefineWithFullPath for Type {
             Type::Verbatim(_) => {}
             _ => {}
         }
-        println!("Type::refine_with_full_path ({}) <-- {}", refined, self.to_token_stream());
+        //println!("Type::refine_with_full_path ({}) <-- {}", refined, self.to_token_stream());
         refined
     }
 }
 
-fn scope_item_for_import<'a>(crate_named_import_path: &'a Path, composition: &TypeComposition, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
-    source.maybe_item(crate_named_import_path)
+fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
+    // There are 2 cases:
+    // 1. it's from non-fermented crate
+    // 2. it's not full scope:
+    // - It's reexported somewhere?
+    //     - It's child scope?
+    //     - It's neighbour scope?
+    match scope {
+        ScopeChain::CrateRoot { info, .. } |
+        ScopeChain::Mod { info, .. } => {
+            // self -> neighbour mod
+            let self_path = info.self_path();
+            let child_scope: Path = parse_quote!(#self_path::#ty_path);
+            // child -> self
+            // If it's nested mod?
+            source.maybe_item_obj_first(&child_scope)
+                .map(|item| {
+                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                    item
+                })
+                .or_else(|| {
+                    // it also can be re-exported in child tree so we should check it
+                    println!("\t... (not found -> check reexport): {}", format_token_stream(&child_scope));
+                    ReexportSeek::Relative
+                        .maybe_reexport(&child_scope, source)
+                        .and_then(|reexport| {
+                            println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
+                            //maybe_scope_item_conversion(&mut new_ty_to_replace, &reexport, source)
+                            source.maybe_item_obj_first(&reexport)
+                                .map(|item| {
+                                    println!("\t... (item found -> refine it): {}", format_token_stream(item.path()));
+                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    println!("\t... (item found -> refined): {}", item);
+                                    item
+                                })
+
+                        })
+                        .or_else(|| {
+                            println!("\t\t\t\t... (no: maybe item at self_path?): [{}]", format_token_stream(self_path));
+                            source.maybe_item_obj_first(self_path)
+                        })
+                })
+        }
+        ScopeChain::Impl { info, parent_scope_chain, .. } |
+        ScopeChain::Trait { info, parent_scope_chain, .. } |
+        ScopeChain::Object { info, parent_scope_chain, .. } => {
+            //  -- Import Scope: [ferment_example_entry_point::entry::rnt]
+            //      -- Has Scope?: ferment_example_entry_point::entry::rnt::tokio::runtime::Runtime --- No
+            //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio::runtime --- No
+            //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio --- No
+            //      -- Not a local import, so check globals:
+            //          -- Has Scope? tokio::runtime --- No
+            //          -- Has Scope? tokio --- No
+            //          -- Not a global import, so it's from non-fermented crate -> So it's opaque
+
+            // self -> parent mod -> neighbour mod
+            // let self_path = info.self_path();
+            let parent_path = parent_scope_chain.self_path();
+            // check parent + local
+
+            // println!("... (find import): [{}] in {}", format_token_stream(&ty_path), parent_scope_chain.fmt_short());
+            // maybe_closest_known_scope_for_import_in_scope(&ty_path, parent_scope_chain, source)
+            //     .and_then(|closest_scope| {
+            //         let closest_scope_path = closest_scope.self_path();
+            //         println!("... (closest scope): {}", closest_scope.fmt_short());
+            //         source.maybe_scope_item_conversion(&mut new_ty_to_replace, closest_scope_path)
+            //     })
+
+
+            let child_scope: Path = parse_quote!(#parent_path::#ty_path);
+            //println!("... (check as relative): {}", format_token_stream(&child_scope));
+            source.maybe_item_obj_first(&child_scope)
+                .map(|item| {
+                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                    item
+                })
+                .or_else(|| {
+                    //println!("\t... (not found -> check reexport): {}", format_token_stream(&child_scope));
+                    // it also can be re-exported in child tree so we should check it
+                    ReexportSeek::Relative
+                        .maybe_reexport(&child_scope, source)
+                        .and_then(|reexport| {
+                            //println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
+                            source.maybe_item_obj_first(&reexport)
+                                .map(|item| {
+                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    item
+                                })
+
+                        })
+                        // .or_else(|| {
+                        //     println!("\t\t\t... (reexport not found -> maybe item at self path?): [{}]", format_token_stream(self_path));
+                        //     source.maybe_item(self_path)
+                        // })
+                        .or_else(|| {
+                            //println!("\t\t\t\t... (no: maybe item at parent path?): [{}]", format_token_stream(parent_path));
+                            source.maybe_item_obj_first(parent_path)
+                                .map(|item| {
+                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    item
+                                })
+
+                        })
+                        .or_else(|| {
+                            //println!("\t\t\t\t\t... (no maybe item at parent path + type path): [{}] + [{}]", format_token_stream(parent_path), format_token_stream(&ty_path));
+                            let scope: Path = parse_quote!(#parent_path::#ty_path);
+                            source.maybe_item_obj_first(&scope)
+                                .map(|item| {
+                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    item
+                                })
+                        })
+                })
+        }
+        ScopeChain::Fn { info, parent_scope_chain, .. } => {
+            // - Check fn scope
+            // - if scope.parent is [mod | crate | impl] then lookup their child mods
+            // - if scope.parent is [object | trait] then check scope.parent.parent
+            source.maybe_item_obj_first(info.self_path())
+                .or_else(|| match &**parent_scope_chain {
+                    ScopeChain::CrateRoot { info, .. } |
+                    ScopeChain::Mod { info, .. } => {
+                        let parent_path = info.self_path();
+                        let scope: Path = parse_quote!(#parent_path::#ty_path);
+                        source.maybe_item_obj_first(&scope)
+                            .map(|item| {
+                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                item
+                            })
+
+                    },
+                    ScopeChain::Trait { parent_scope_chain, .. } |
+                    ScopeChain::Object { parent_scope_chain, .. } |
+                    ScopeChain::Impl { parent_scope_chain, .. } => {
+                        let parent_path = parent_scope_chain.self_path();
+                        let scope: Path = parse_quote!(#parent_path::#ty_path);
+                        source.maybe_item_obj_first(&scope)
+                            .map(|item| {
+                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                item
+                            })
+
+                    },
+                    ScopeChain::Fn { info, parent_scope_chain, .. } => {
+                        // TODO: support nested function when necessary
+                        println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
+                        None
+                    }
+                })
+        }
+    }
+}
+
+fn scope_item_for_unknown<'a>(unknown_path: &'a Path, composition: &mut TypeComposition, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
+    source.maybe_item(unknown_path)
+        // .and_then(|scope_item| scope_item.update_scope_item(composition.clone()))
+        .or_else(|| {
+            // There are 2 cases:
+            // 1. it's from non-fermented crate
+            // 2. it's not full scope:
+            //  - It's reexported somewhere?
+            //  - It's child scope?
+            //  - It's neighbour scope?
+            println!("traverse_scopes (check): {} in {}", composition, scope.fmt_short());
+            determine_scope_item(composition, composition.pointer_less(), scope, source)
+                // .and_then(|scope_item| {
+                //     //println!("traverse_scopes (found): {} in {}", new_ty_to_replace, scope_item);
+                //     scope_item.update_scope_item(composition.clone())
+                // })
+        })
+
+}
+fn scope_item_for_import<'a>(crate_named_import_path: &'a Path, composition: &mut TypeComposition, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
+    println!("scope_item_for_import: {} -- {} -- {}", format_token_stream(crate_named_import_path), composition, scope.fmt_short());
+    source.maybe_item_obj_first(crate_named_import_path)
         .or_else(|| {
             // import_path.is_crate_based()
             // There are 2 cases:
@@ -139,155 +312,8 @@ fn scope_item_for_import<'a>(crate_named_import_path: &'a Path, composition: &Ty
             //      "self" => replace "self" with the scope
             //      "super" (can be chained) =>
 
-            // REFINE Import: tokio::runtime::Runtime in ferment_example_entry_point::entry::rnt::DashSharedCoreWithRuntime(Object + Opaque)
-            // ScopeChain::Object
-
             // We should iteratively pop chunks to
-            let ty_path = composition.pointer_less();
-            let mut new_ty_to_replace = composition.clone();
-            match scope {
-                ScopeChain::CrateRoot { info, .. } |
-                ScopeChain::Mod { info, .. } => {
-                    // self -> neighbour mod
-                    let self_path = info.self_path();
-                    let child_scope: Path = parse_quote!(#self_path::#ty_path);
-                    // child -> self
-                    // If it's nested mod?
-                    //println!("... (check as relative): {}", format_token_stream(&child_scope));
-                    source.maybe_item(&child_scope)
-                        .map(|item| {
-                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                            item
-                        })
-                        .or_else(|| {
-                            // it also can be re-exported in child tree so we should check it
-                            //println!("\t... (not found -> check reexport): {}", format_token_stream(&child_scope));
-                            ReexportSeek::Relative
-                                .maybe_reexport(&child_scope, source)
-                                .and_then(|reexport| {
-                                    //println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
-                                    //maybe_scope_item_conversion(&mut new_ty_to_replace, &reexport, source)
-                                    source.maybe_item(&reexport)
-                                        .map(|item| {
-                                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                            item
-                                        })
-
-                                })
-                                .or_else(|| {
-                                    //println!("\t\t\t\t... (no: maybe item at self_path?): [{}]", format_token_stream(self_path));
-                                    source.maybe_item(self_path)
-                                })
-                        })
-                }
-                ScopeChain::Impl { info, parent_scope_chain, .. } |
-                ScopeChain::Trait { info, parent_scope_chain, .. } |
-                ScopeChain::Object { info, parent_scope_chain, .. } => {
-                    //  -- Import Scope: [ferment_example_entry_point::entry::rnt]
-                    //      -- Has Scope?: ferment_example_entry_point::entry::rnt::tokio::runtime::Runtime --- No
-                    //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio::runtime --- No
-                    //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio --- No
-                    //      -- Not a local import, so check globals:
-                    //          -- Has Scope? tokio::runtime --- No
-                    //          -- Has Scope? tokio --- No
-                    //          -- Not a global import, so it's from non-fermented crate -> So it's opaque
-
-                    // self -> parent mod -> neighbour mod
-                    // let self_path = info.self_path();
-                    let parent_path = parent_scope_chain.self_path();
-                    // check parent + local
-
-                    // println!("... (find import): [{}] in {}", format_token_stream(&ty_path), parent_scope_chain.fmt_short());
-                    // maybe_closest_known_scope_for_import_in_scope(&ty_path, parent_scope_chain, source)
-                    //     .and_then(|closest_scope| {
-                    //         let closest_scope_path = closest_scope.self_path();
-                    //         println!("... (closest scope): {}", closest_scope.fmt_short());
-                    //         source.maybe_scope_item_conversion(&mut new_ty_to_replace, closest_scope_path)
-                    //     })
-
-
-                    let child_scope: Path = parse_quote!(#parent_path::#ty_path);
-                    //println!("... (check as relative): {}", format_token_stream(&child_scope));
-                    source.maybe_item(&child_scope)
-                        .map(|item| {
-                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                            item
-                        })
-                        .or_else(|| {
-                            //println!("\t... (not found -> check reexport): {}", format_token_stream(&child_scope));
-                            // it also can be re-exported in child tree so we should check it
-                            ReexportSeek::Relative
-                                .maybe_reexport(&child_scope, source)
-                                .and_then(|reexport| {
-                                    //println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
-                                    source.maybe_item(&reexport)
-                                        .map(|item| {
-                                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                            item
-                                        })
-
-                                })
-                                // .or_else(|| {
-                                //     println!("\t\t\t... (reexport not found -> maybe item at self path?): [{}]", format_token_stream(self_path));
-                                //     source.maybe_item(self_path)
-                                // })
-                                .or_else(|| {
-                                    //println!("\t\t\t\t... (no: maybe item at parent path?): [{}]", format_token_stream(parent_path));
-                                    source.maybe_item(parent_path)
-                                        .map(|item| {
-                                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                            item
-                                        })
-
-                                })
-                                .or_else(|| {
-                                    //println!("\t\t\t\t\t... (no maybe item at parent path + type path): [{}] + [{}]", format_token_stream(parent_path), format_token_stream(&ty_path));
-                                    let scope: Path = parse_quote!(#parent_path::#ty_path);
-                                    source.maybe_item(&scope)
-                                        .map(|item| {
-                                            refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                            item
-                                        })
-                                })
-                        })
-                }
-                ScopeChain::Fn { info, parent_scope_chain, .. } => {
-                    // - Check fn scope
-                    // - if scope.parent is [mod | crate | impl] then lookup their child mods
-                    // - if scope.parent is [object | trait] then check scope.parent.parent
-                    source.maybe_item(info.self_path())
-                        .or_else(|| match &**parent_scope_chain {
-                            ScopeChain::CrateRoot { info, .. } |
-                            ScopeChain::Mod { info, .. } => {
-                                let parent_path = info.self_path();
-                                let scope: Path = parse_quote!(#parent_path::#ty_path);
-                                source.maybe_item(&scope)
-                                    .map(|item| {
-                                        refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                        item
-                                    })
-
-                            },
-                            ScopeChain::Trait { parent_scope_chain, .. } |
-                            ScopeChain::Object { parent_scope_chain, .. } |
-                            ScopeChain::Impl { parent_scope_chain, .. } => {
-                                let parent_path = parent_scope_chain.self_path();
-                                let scope: Path = parse_quote!(#parent_path::#ty_path);
-                                source.maybe_item(&scope)
-                                    .map(|item| {
-                                        refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                        item
-                                    })
-
-                            },
-                            ScopeChain::Fn { info, parent_scope_chain, .. } => {
-                                // TODO: support nested function when necessary
-                                println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
-                                None
-                            }
-                        })
-                }
-            }
+            determine_scope_item(composition, composition.pointer_less(), scope, source)
         })
 }
 
@@ -373,15 +399,15 @@ impl RefineInScope for TypeCompositionConversion {
                     *self = TypeCompositionConversion::Dictionary(dictionary_type);
 
                 } else {
-                    if let Some(found_item) = scope_item_for_import(&crate_named_import_path, &composition, scope, source) {
-                        println!("[INFO] Scope item found: {}", found_item);
+                    if let Some(found_item) = scope_item_for_import(&crate_named_import_path, &mut composition, scope, source) {
+                        println!("[INFO] (Import) Scope item found: {}", found_item);
                         refine_ty_with_import_path(&mut composition.ty, found_item.path());
                         if let Some(updated) = found_item.update_scope_item(composition) {
-                            println!("[INFO] Scope item refined: {}", updated);
+                            println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
                     } else {
-                        println!("[WARN] Unknown import: {}", composition.ty.to_token_stream());
+                        println!("[WARN] (Import) Unknown import: {}", composition.ty.to_token_stream());
                         *self = TypeCompositionConversion::Unknown(composition)
                     }
                 }
@@ -389,25 +415,16 @@ impl RefineInScope for TypeCompositionConversion {
             }
             TypeCompositionConversion::Unknown(composition) => {
                 let path = composition.pointer_less();
-                let item_found = source.maybe_item(&path)
-                    .and_then(|scope_item| scope_item.update_scope_item(composition.clone()))
-                    .or_else(|| {
-                        // There are 2 cases:
-                        // 1. it's from non-fermented crate
-                        // 2. it's not full scope:
-                        //  - It's reexported somewhere?
-                        //  - It's child scope?
-                        //  - It's neighbour scope?
-                        //println!("(Unknown) (not found): {}", path.to_token_stream());
-                        traverse_scopes(&composition, scope, source)
-                    });
-
-                if let Some(known_item) = item_found {
-                    // println!("REFINED UNKNOWN: {}", composition);
-                    *self = known_item;
+                if let Some(found_item) = scope_item_for_unknown(&path, composition, scope, source) {
+                    println!("[INFO] (Unknown) Scope item found: {}", found_item);
+                    refine_ty_with_import_path(&mut composition.ty, found_item.path());
+                    if let Some(updated) = found_item.update_scope_item(composition.clone()) {
+                        println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
+                        *self = updated;
+                    }
                     true
                 } else {
-                    // println!("REFINED UNKNOWN: {}", composition);
+                    println!("[WARN] (Unknown) Unknown import: {}", composition.ty.to_token_stream());
                     false
                 }
             }
@@ -787,14 +804,6 @@ impl ReexportSeek {
                     parse_quote!(#import_path)
                 }
             }
-            // ReexportSeek::Relative => {
-            //     if chunk.is_some() {
-            //         let reexport_chunk = import_path.popped();
-            //         parse_quote!(#reexport_chunk::#chunk)
-            //     } else {
-            //         parse_quote!(#import_path)
-            //     }
-            // }
         }
     }
     pub(crate) fn maybe_reexport(&self, path: &Path, source: &GlobalContext) -> Option<Path> {
@@ -822,171 +831,11 @@ impl ReexportSeek {
         }
         result
     }
-    // pub(crate) fn maybe_reexport(&self, path: &Path, source: &GlobalContext) -> Option<Path> {
-    //     println!("... maybe_reexport: {}", format_token_stream(path));
-    //     let mut candidate = path.clone();
-    //     let mut result: Option<Path> = None;
-    //     let mut chunk: Option<Path> = None;
-    //     while let Some(last_segment) = candidate.segments.last().cloned() {
-    //         candidate = candidate.popped();
-    //         println!("... reexport candidate: {}", format_token_stream(&candidate));
-    //         match source.maybe_import_scope_pair(&last_segment, &candidate) {
-    //             Some((scope, import)) => {
-    //                 let scope_path = scope.self_path();
-    //                 let segments = self.join_reexport(import, scope_path, scope.crate_ident(), chunk.as_ref());
-    //                 result = Some(parse_quote!(#scope_path::#segments));
-    //                 println!("... reexport found: {}", format_token_stream(&result));
-    //                 chunk = Some(segments.to_path());
-    //             }
-    //             None => if candidate.segments.is_empty() {
-    //                 return result;
-    //             } else if let Some(reexport) = self.maybe_reexport(&candidate, source) {
-    //                 result = Some(reexport);
-    //             }
-    //         }
-    //     }
-    //     result
-    // }
 }
 
-pub(crate) fn traverse_scopes(ty_to_replace: &TypeComposition, scope: &ScopeChain, source: &GlobalContext) -> Option<TypeCompositionConversion> {
-    println!("traverse_scopes (check): {} in {}", ty_to_replace, scope.fmt_short());
-    let ty_path = ty_to_replace.pointer_less();
-    let mut new_ty_to_replace = ty_to_replace.clone();
-    match scope {
-        ScopeChain::CrateRoot { info, .. } |
-        ScopeChain::Mod { info, .. } => {
-            // self -> neighbour mod
-            let self_path = info.self_path();
-            let child_scope: Path = parse_quote!(#self_path::#ty_path);
-            // child -> self
-            // If it's nested mod?
-            source.maybe_item(&child_scope)
-                .map(|item| {
-                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                    item
-                })
-                .or_else(||
-                    // it also can be re-exported in child tree so we should check it
-                    ReexportSeek::Relative
-                        .maybe_reexport(&child_scope, source)
-                        .and_then(|reexport| {
-                            source.maybe_item(&reexport)
-                                .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                    item
-                                })
-                        })
-                        .or_else(|| source.maybe_item(self_path))
-                )
-        }
-        ScopeChain::Impl { info, parent_scope_chain, .. } |
-        ScopeChain::Trait { info, parent_scope_chain, .. } |
-        ScopeChain::Object { info, parent_scope_chain, .. } => {
-            // self -> parent mod -> neighbour mod
-            let self_path = info.self_path();
-            let parent_path = parent_scope_chain.self_path();
-
-
-            // check parent + local
-            let child_scope = parse_quote!(#parent_path::#ty_path);
-            source.maybe_item(&child_scope)
-                .map(|item| {
-                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                    item
-                })
-                .or_else(|| {
-                    //println!("traverse_scopes (not found in parent): {}", child_scope.to_token_stream());
-                    // it also can be re-exported in child tree so we should check it
-                    ReexportSeek::Relative
-                        .maybe_reexport(&child_scope, source)
-                        .and_then(|reexport| {
-                            //println!("traverse_scopes (reexport found): {}", reexport.to_token_stream());
-                            source.maybe_item(&reexport)
-                                .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                    item
-                                })
-                        })
-                        .or_else(|| {
-                            //println!("traverse_scopes (222): {}", self_path.to_token_stream());
-                            source.maybe_item(self_path)
-                        })
-                        .or_else(|| {
-                            //println!("traverse_scopes (333): {}", parent_path.to_token_stream());
-                            source.maybe_item(parent_path)
-                                .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                    item
-                                })
-
-                        })
-                        .or_else(|| {
-                            //println!("traverse_scopes (444): {} + {}", parent_path.to_token_stream(), ty_path.to_token_stream());
-                            let scope: Path = parse_quote!(#parent_path::#ty_path);
-                            source.maybe_item(&scope)
-                                .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                    item
-                                })
-
-                        })
-                })
-        }
-        ScopeChain::Fn { info, parent_scope_chain, .. } => {
-            // - Check fn scope
-            // - if scope.parent is [mod | crate | impl] then lookup their child mods
-            // - if scope.parent is [object | trait] then check scope.parent.parent
-            source.maybe_item(info.self_path())
-                .or_else(|| match &**parent_scope_chain {
-                    ScopeChain::CrateRoot { info, .. } |
-                    ScopeChain::Mod { info, .. } => {
-                        let parent_path = info.self_path();
-                        let scope: Path = parse_quote!(#parent_path::#ty_path);
-                        source.maybe_item(&scope)
-                            .map(|item| {
-                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                item
-                            })
-
-                    },
-                    ScopeChain::Trait { parent_scope_chain, .. } |
-                    ScopeChain::Object { parent_scope_chain, .. } |
-                    ScopeChain::Impl { parent_scope_chain, .. } => {
-                        let parent_path = parent_scope_chain.self_path();
-                        let scope: Path = parse_quote!(#parent_path::#ty_path);
-                        source.maybe_item(&scope)
-                            .map(|item| {
-                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
-                                item
-                            })
-
-                    },
-                    ScopeChain::Fn { info, parent_scope_chain, .. } => {
-                        // TODO: support nested function when necessary
-                        println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
-                        None
-                    }
-                })
-        }
-    }.and_then(|scope_item| {
-        //println!("traverse_scopes (found): {} in {}", new_ty_to_replace, scope_item);
-        scope_item.update_scope_item(new_ty_to_replace)
-    })
-}
-
-// pub(crate) fn maybe_child_item(&self, type_composition: TypeComposition, scope: &ScopeChain) -> Option<&ScopeItemConversion> {
-//     let ty_path = type_composition.pointer_less();
+// pub(crate) fn traverse_scopes(ty_to_replace: &TypeComposition, scope: &ScopeChain, source: &GlobalContext) -> Option<TypeCompositionConversion> {
 //
 // }
-//
-// fn maybe_neighbour_item<'a>(new_ty_to_replace: &'a mut TypeComposition, parent_path: &'a Path, ty_path: &'a Path, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
-//     println!("maybe_neighbour_item ... {} in {} + {}", new_ty_to_replace, parent_path.to_token_stream(), ty_path.to_token_stream());
-//     let scope: Path = parse_quote!(#parent_path::#ty_path);
-//     source.maybe_scope_item_conversion(new_ty_to_replace, &scope)
-// }
-
-
 // Try to find the scope where item is actually defined
 // assuming that 'path' is defined at 'scope' and can be shortened
 pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeChain> {

@@ -87,7 +87,7 @@ impl ItemExtension for ScopeItemConversion {
 }
 impl ScopeItemConversion {
     pub fn update_scope_item(&self, ty_to_replace: TypeComposition) -> Option<TypeCompositionConversion> {
-        // println!("update_scope_item: {} --- {}", self, ty_to_replace);
+        println!("update_scope_item: {} --- {}", self, ty_to_replace);
         match self {
             ScopeItemConversion::Item(item, ..) => match item {
                 Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
@@ -98,7 +98,6 @@ impl ScopeItemConversion {
                 Item::Struct(..) |
                 Item::Fn(..) |
                 Item::Impl(..) => {
-                    // println!("ScopeItemConversion::update_scope_item NEW_OBJECT.1: {}", ty_to_replace);
                     Some(TypeCompositionConversion::Object(ty_to_replace))
                 },
                 Item::Type(ty) => match &*ty.ty {

@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{Generics, Path, Type, TypePtr, TypeReference};
+use syn::{Generics, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::composable::nested_arg::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
@@ -25,13 +25,24 @@ impl TypeComposition {
     }
 
     pub fn pointer_less(&self) -> Path {
-        match &self.ty {
-            Type::Reference(TypeReference { elem, ..}) |
-            Type::Ptr(TypePtr { elem, ..}) =>
-                elem.to_path(),
+        let p = match &self.ty {
+            Type::Reference(TypeReference { elem, .. }) |
+            Type::Ptr(TypePtr { elem, .. }) => elem.to_path(),
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+                bounds.iter().find_map(|b| match b {
+                    TypeParamBound::Trait(TraitBound { path, .. }) => {
+                        let mut p = path.clone();
+                        p.segments.last_mut().unwrap().arguments = PathArguments::None;
+                        Some(p)
+                    },
+                    TypeParamBound::Lifetime(_) => None
+                }).unwrap()
+            }
             other =>
                 other.to_path()
-        }
+        };
+        // println!("pointer_less: {} --- {}", self.ty.to_token_stream(), p.to_token_stream());
+        p
     }
 }
 

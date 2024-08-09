@@ -76,6 +76,16 @@ impl ScopeChain {
             parent_scope_chain: Box::new(parent_scope.clone())
         }
     }
+    pub fn obj_scope_priority(&self) -> u8 {
+        match self {
+            ScopeChain::CrateRoot { .. } => 0,
+            ScopeChain::Mod { .. } => 1,
+            ScopeChain::Trait { .. } => 4,
+            ScopeChain::Fn { .. } => 3,
+            ScopeChain::Object { .. } => 5,
+            ScopeChain::Impl { .. } => 2,
+        }
+    }
 }
 
 impl PartialEq<Self> for ScopeChain {

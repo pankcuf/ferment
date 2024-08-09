@@ -71,17 +71,19 @@ impl VisitScope for Item {
                             let mut nested_bounds = CommaPunctuated::new();
                             bounds.iter().for_each(|pp| match pp {
                                 TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                    nested_bounds.push(NestedArgument::Object(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(parse_quote!(#path), None, CommaPunctuated::new())))));
+                                    // TODO: make it Unknown
+                                    nested_bounds.push(NestedArgument::Object(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(path.to_type(), None, CommaPunctuated::new())))));
                                 }
                                 TypeParamBound::Lifetime(Lifetime { .. }) => {}
                             });
-                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(parse_quote!(#ident), Some(item_struct.generics.clone()), nested_bounds)))));
+                            // TODO: make it Unknown
+                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(ident.to_type(), Some(item_struct.generics.clone()), nested_bounds)))));
 
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
                             // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
-                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(parse_quote!(#ident), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
+                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
                             inner_args.push(quote!(#lifetime));

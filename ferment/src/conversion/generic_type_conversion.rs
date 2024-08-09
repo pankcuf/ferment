@@ -7,10 +7,10 @@ use syn::__private::TokenStream2;
 use syn::token::Brace;
 use crate::ast::{AddPunctuated, BraceWrapped, CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{FieldComposer, FieldTypeConversionKind};
-use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM, FromConversionComposer, Composer};
+use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM, Composer};
 use crate::context::ScopeContext;
 use crate::conversion::{expand_attributes, TypeConversion};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, SpecialType, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
 use crate::presentable::{BindingPresentableContext, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, create_callback, create_struct, DictionaryExpr, DictionaryName, DropInterfacePresentation, FFIConversionMethod, FFIConversionMethodExpr, FFIObjectPresentation, FFIVecConversionMethodExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 
