@@ -9,6 +9,8 @@ use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve,
 use crate::presentable::Expression;
 use crate::presentation::Name;
 
+
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub struct FromConversionFullComposer {
     pub name: Name,

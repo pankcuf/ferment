@@ -7,7 +7,7 @@ use syn::__private::TokenStream2;
 use syn::token::Brace;
 use crate::ast::{AddPunctuated, BraceWrapped, CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{FieldComposer, FieldTypeConversionKind};
-use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM, Composer};
+use crate::composer::{ComposerPresenter, struct_composer_ctor_root, ParentComposer, STRUCT_COMPOSER_CTOR_NAMED_ITEM};
 use crate::context::ScopeContext;
 use crate::conversion::{expand_attributes, TypeConversion};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, Terminated, ToPath, ToType};
@@ -241,25 +241,25 @@ impl GenericTypeConversion {
                                 arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()))
                         }
                         TypeConversion::Generic(generic_arg_ty) => {
-                            let (arg_composer, arg_ty) = match generic_arg_ty {
-                                GenericTypeConversion::Optional(_) => match generic_arg_ty.ty() {
-                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                                    Some(ty) => match TypeConversion::from(ty) {
-                                        TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
-                                        TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
-                                        _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
-                                    }
-                                },
-                                GenericTypeConversion::Box(_) => match generic_arg_ty.ty().and_then(|ty| ty.first_nested_type()) {
-                                    None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                                    Some(ty) => match TypeConversion::from(ty) {
-                                        TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
-                                        TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
-                                        _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
-                                    }
-                                },
-                                _ => (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)),
-                            };
+                            // let (arg_composer, arg_ty) = match generic_arg_ty {
+                            //     GenericTypeConversion::Optional(_) => match generic_arg_ty.ty() {
+                            //         None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                            //         Some(ty) => match TypeConversion::from(ty) {
+                            //             TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                            //             TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                            //             _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                            //         }
+                            //     },
+                            //     GenericTypeConversion::Box(_) => match generic_arg_ty.ty().and_then(|ty| ty.first_nested_type()) {
+                            //         None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
+                            //         Some(ty) => match TypeConversion::from(ty) {
+                            //             TypeConversion::Primitive(_) => (GenericArgComposer::new(FROM_OPT_PRIMITIVE, TO_OPT_PRIMITIVE, DESTROY_OPT_PRIMITIVE), ty.special_or_to_ffi_full_path_type(&source)),
+                            //             TypeConversion::Generic(nested_nested) => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), nested_nested.special_or_to_ffi_full_path_type(&source)),
+                            //             _ => (GenericArgComposer::new(FROM_OPT_COMPLEX, TO_OPT_COMPLEX, DESTROY_OPT_COMPLEX), ty.special_or_to_ffi_full_path_type(&source)),
+                            //         }
+                            //     },
+                            //     _ => (GenericArgComposer::new(FROM_COMPLEX, TO_COMPLEX, DESTROY_OPT_COMPLEX), generic_arg_ty.special_or_to_ffi_full_path_type(&source)),
+                            // };
 
                             let (arg_composer, arg_ty) = if let GenericTypeConversion::Optional(..) = generic_arg_ty {
                                 match generic_arg_ty.ty() {

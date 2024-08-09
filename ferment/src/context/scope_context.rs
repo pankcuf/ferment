@@ -71,13 +71,13 @@ impl ScopeContext {
             let result = if path.is_void() {
                 Some(FFIFullDictionaryPath::Void.to_type())
             } else {
-                match lock.maybe_item(path) {
+                match lock.maybe_item_obj_first(path) {
                     Some(item) => {
                         if item.is_fermented() || item.is_custom() {
-                            println!("resolve_opaque: (non opaque) {} ", path.to_token_stream());
+                            // println!("resolve_opaque: (non opaque) {} ", path.to_token_stream());
                             None
                         } else {
-                            println!("resolve_opaque: (opaque by macro) {} ", path.to_token_stream());
+                            // println!("resolve_opaque: (opaque by macro) {} ", path.to_token_stream());
                             Some(item.to_type())
                         }
                     },

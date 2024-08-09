@@ -520,7 +520,7 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
         let (scope, context) = source;
         let TypeTraitObject { dyn_token, bounds } = self;
         let mut bounds = bounds.clone();
-        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
+        let nested_arguments = CommaPunctuatedNestedArguments::new();
 
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {

@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, Path, PathArguments, PathSegment, Type, TypePath};
+use syn::{Attribute, Path, PathSegment, Type, TypePath};
 use crate::ext::{DictionaryType, ResolveMacro};
 use crate::ext::item::ItemExtension;
 
@@ -52,6 +52,7 @@ impl Custom for Vec<Attribute> {
 }
 
 
+#[allow(unused)]
 pub trait Primitive {
     fn is_primitive(&self) -> bool;
 }
@@ -96,35 +97,8 @@ impl FermentableDictionaryType for Path {
 impl FermentableDictionaryType for Type {
     fn is_fermentable_dictionary_type(&self) -> bool {
         match self {
-            Type::Path(TypePath { path, .. }) => {
-
-                if path.is_optional() || path.is_box() {
-                    true
-                    // match path.segments.last() {
-                    //     Some(PathSegment { arguments, ident }) => match arguments {
-                    //         PathArguments::None => ident.is_fermentable_dictionary_type(),
-                    //         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, ..}) => {
-                    //             true
-                    //             // args.first().map_or(true, |f| match f {
-                    //             //     GenericArgument::Type(ty) => {
-                    //             //         // match ty {
-                    //             //         //     Type::Path(_) => {}
-                    //             //         // }
-                    //             //         true
-                    //             //         // !ty.is_primitive()
-                    //             //     },
-                    //             //     _ => false
-                    //             //
-                    //             // })
-                    //         }
-                    //         PathArguments::Parenthesized(_) => false
-                    //     },
-                    //     _ => true
-                    // }
-                } else {
-                    path.is_fermentable_dictionary_type()
-                }
-            },
+            Type::Path(TypePath { path, .. }) =>
+                path.is_optional() || path.is_box() || path.is_fermentable_dictionary_type(),
             _ => false
         }
     }
