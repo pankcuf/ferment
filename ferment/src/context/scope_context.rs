@@ -1,6 +1,5 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use quote::ToTokens;
 use syn::{Attribute, ImplItemMethod, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeParamBound, TypePath, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
@@ -82,7 +81,7 @@ impl ScopeContext {
                         }
                     },
                     None => {
-                        println!("resolve_opaque: (unknown: ferment: {}) {}", path.is_fermentable_dictionary_type(), path.to_token_stream());
+                        //println!("resolve_opaque: (unknown: ferment: {}) {}", path.is_fermentable_dictionary_type(), path.to_token_stream());
                         if path.is_fermentable_dictionary_type() {
                             None
                         } else if path.is_primitive() {

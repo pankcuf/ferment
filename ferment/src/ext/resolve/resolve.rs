@@ -103,7 +103,7 @@ impl Resolve<TypeCompositionConversion> for Type {
 
 impl Resolve<Option<FFIFullPath>> for Type {
     fn resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
-        println!("Type::<Option<FFIFullPath>>::resolve({})",self.to_token_stream());
+        //println!("Type::<Option<FFIFullPath>>::resolve({})",self.to_token_stream());
         let res = match self {
             Type::Path(TypePath{ path, .. }) =>
                 path.resolve(source),

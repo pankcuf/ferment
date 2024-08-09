@@ -30,12 +30,36 @@ impl<'a> Composer<'a> for VariableComposer {
             Some(special) => match maybe_obj {
                 Some(ObjectConversion::Item(fn_ty_conversion, ScopeItemConversion::Fn(..))) => {
                     println!("VariableComposer (Special Function): {} in {}", fn_ty_conversion.to_token_stream(), source.scope.fmt_short());
+
                     FFIVariable::MutPtr {
                         ty: match &source.scope.parent_object().unwrap() {
                             ObjectConversion::Type(ref ty_conversion) |
-                            ObjectConversion::Item(ref ty_conversion, ..) =>
-                                ty_conversion.ty().resolve(source),
-                            _ => self.ty.clone()
+                            ObjectConversion::Item(ref ty_conversion, ..) => {
+                                let parent_scope = source.scope.parent_scope().unwrap();
+                                println!("VariableComposer (Special Function Parent TYC): {} in {}", ty_conversion, parent_scope.fmt_short());
+                                let context = source.context.read().unwrap();
+                                context.maybe_scope_obj_first(parent_scope.self_path())
+                                    .and_then(|parent_obj_scope| {
+                                        println!("VariableComposer (Special Function Parent OBJ SCOPE): {}", parent_obj_scope.fmt_short());
+                                        context.maybe_object(ty_conversion.ty(), parent_obj_scope)
+                                            .and_then(|o| {
+                                                println!("VariableComposer (Special Function Parent OBJ FULL): {} in {}", o, o.maybe_type().to_token_stream());
+                                                o.maybe_type()
+                                            })
+                                    }).unwrap_or(ty_conversion.ty().clone())
+                                // context.maybe_object(ty_conversion.ty(), parent_scope)
+                                //     .and_then(|o| {
+                                //         println!("VariableComposer (Special Function Parent OBJ FULL): {} in {}", o, o.maybe_type().to_token_stream());
+                                //         o.maybe_type()
+                                //     })
+                                //     .unwrap_or(ty_conversion.ty().clone())
+                                // source.maybe_object(ty_conversion.ty(), parent_scope)
+                                // ty_conversion.ty().resolve(source)
+                            },
+                            _ => {
+                                println!("VariableComposer (Special Function Unknown TYC): {} in {}", self.ty.to_token_stream(), source.scope.fmt_short());
+                                self.ty.clone()
+                            }
                         }
                     }
                 }
