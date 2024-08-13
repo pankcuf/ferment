@@ -36,11 +36,11 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         match self {
             OwnedItemPresentableContext::PatLitExpr(expr, attrs) => {
-                println!("OwnedItemPresentableContext::PatLitExpr({})", expr.to_token_stream());
+                // println!("OwnedItemPresentableContext::PatLitExpr({})", expr.to_token_stream());
                 ArgPresentation::Pat(Pat::Lit(PatLit { attrs: attrs.clone(), expr: Box::new(expr.clone()) }))
             },
             OwnedItemPresentableContext::Expression(field_type_context, attrs) => {
-                println!("OwnedItemPresentableContext::Expression({})", field_type_context);
+                // println!("OwnedItemPresentableContext::Expression({})", field_type_context);
                 Self::PatLitExpr(Expr::Verbatim(field_type_context.present(source)), attrs.clone())
                     .present(source)
             },
@@ -50,26 +50,26 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             // }
 
             OwnedItemPresentableContext::SequenceOutput(seq, attrs) => {
-                println!("OwnedItemPresentableContext::SequenceOutput({})", seq);
+                // println!("OwnedItemPresentableContext::SequenceOutput({})", seq);
                 Self::PatLitExpr(Expr::Verbatim(seq.present(source)), attrs.clone())
                     .present(source)
             },
             OwnedItemPresentableContext::DefaultFieldType(field_type, attrs) => {
-                println!("OwnedItemPresentableContext::DefaultFieldType({})", field_type.to_token_stream());
+                // println!("OwnedItemPresentableContext::DefaultFieldType({})", field_type.to_token_stream());
                 Self::PatLitExpr(Expr::Verbatim(<Type as Resolve<FFIVariable>>::resolve(field_type, source).to_token_stream()), attrs.clone())
                     .present(source)
             },
             OwnedItemPresentableContext::BindingFieldName(FieldComposer { name, named, attrs, .. }) => {
-                println!("OwnedItemPresentableContext::BindingFieldName({})", name.to_token_stream());
+                // println!("OwnedItemPresentableContext::BindingFieldName({})", name.to_token_stream());
                 Self::PatLitExpr(Expr::Verbatim(named.then(|| name.to_token_stream()).unwrap_or(anonymous_ident(name).to_token_stream())), attrs.clone())
                     .present(source)
             },
             OwnedItemPresentableContext::DefaultFieldConversion(name, attrs, composer) => {
-                println!("OwnedItemPresentableContext::DefaultFieldConversion.1: {} ({}), {}", name.to_token_stream(), name, composer);
+                // println!("OwnedItemPresentableContext::DefaultFieldConversion.1: {} ({}), {}", name.to_token_stream(), name, composer);
                 let from_conversion_expr = composer.compose(source);
-                println!("OwnedItemPresentableContext::DefaultFieldConversion.2: {} ({}), {}", name.to_token_stream(), name, from_conversion_expr);
+                // println!("OwnedItemPresentableContext::DefaultFieldConversion.2: {} ({}), {}", name.to_token_stream(), name, from_conversion_expr);
                 let from_conversion_presentation = from_conversion_expr.present(source);
-                println!("OwnedItemPresentableContext::DefaultFieldConversion.3: {} ({}), {}", name.to_token_stream(), name, from_conversion_presentation);
+                // println!("OwnedItemPresentableContext::DefaultFieldConversion.3: {} ({}), {}", name.to_token_stream(), name, from_conversion_presentation);
                 ArgPresentation::Field(Field {
                     attrs: attrs.clone(),
                     vis: Visibility::Inherited,
@@ -79,7 +79,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 })
             },
             OwnedItemPresentableContext::BindingArg(FieldComposer { name, kind, named, attrs}) => {
-                println!("OwnedItemPresentableContext::BindingArg: {} ({}), {}", name.to_token_stream(), name, kind.ty().to_token_stream());
+                // println!("OwnedItemPresentableContext::BindingArg: {} ({}), {}", name.to_token_stream(), name, kind.ty().to_token_stream());
                 let (ident, ty) = match kind {
                     FieldTypeConversionKind::Type(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(anonymous_ident(name))),
@@ -98,15 +98,15 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 })
             },
             OwnedItemPresentableContext::Named(FieldComposer { attrs, name, kind, ..}, visibility) => {
-                println!("OwnedItemPresentableContext::Named: {}", kind.ty().to_token_stream());
+                // println!("OwnedItemPresentableContext::Named: {}", kind.ty().to_token_stream());
                 let ty = VariableComposer::from(kind.ty())
                     .compose(source)
                     .to_type();
-                println!("OwnedItemPresentableContext::Named::RESULT: {}", ty.to_token_stream());
+                // println!("OwnedItemPresentableContext::Named::RESULT: {}", ty.to_token_stream());
                 ArgPresentation::Field(Field { attrs: attrs.clone(), vis: visibility.clone(), ident: Some(name.mangle_ident_default()), colon_token: Some(Default::default()), ty })
             },
             OwnedItemPresentableContext::Lambda(name, value, attrs) => {
-                println!("OwnedItemPresentableContext::Lambda({}, {})", name, value);
+                // println!("OwnedItemPresentableContext::Lambda({}, {})", name, value);
                 ArgPresentation::Arm(Arm {
                     attrs: attrs.clone(),
                     pat: Pat::Verbatim(name.clone()),
@@ -117,7 +117,7 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 })
             },
             OwnedItemPresentableContext::Exhaustive(attrs) => {
-                println!("OwnedItemPresentableContext::Exhaustive({})", quote!(#(#attrs)*));
+                // println!("OwnedItemPresentableContext::Exhaustive({})", quote!(#(#attrs)*));
                 ArgPresentation::Arm(Arm {
                     attrs: attrs.clone(),
                     pat: Pat::Wild(PatWild { attrs: vec![], underscore_token: Default::default() }),

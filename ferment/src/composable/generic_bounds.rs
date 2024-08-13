@@ -1,8 +1,9 @@
+use std::cell::Ref;
 use syn::{Attribute, Generics, parse_quote, Type};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
 use crate::composable::{FieldComposer, FieldTypeConversionKind, TypeComposition};
@@ -46,12 +47,18 @@ impl Display for GenericBoundComposition {
 }
 impl PartialEq for GenericBoundComposition {
     fn eq(&self, other: &Self) -> bool {
-        let self_tokens = [self.type_composition.ty.to_token_stream()];
-        let other_tokens = [other.type_composition.ty.to_token_stream()];
+        let self_bounds = self.bounds.iter().map(|b| b.to_token_stream());
+        let other_bounds = other.bounds.iter().map(|b| b.to_token_stream());
+        let self_tokens = [self.type_composition.ty.to_token_stream(), quote!(#(#self_bounds),*)];
+        let other_tokens = [other.type_composition.ty.to_token_stream(), quote!(#(#other_bounds),*)];
         self_tokens.iter()
             .map(|t| t.to_string())
             .zip(other_tokens.iter().map(ToString::to_string))
-            .all(|(a, b)| a == b)
+            .all(|(a, b)| {
+                let x = a == b;
+                // println!("GGGGG:::({}) {} ==== {}", x, a, b);
+                x
+            })
     }
 }
 
@@ -86,14 +93,33 @@ impl GenericBoundComposition {
 
 }
 impl GenericBoundComposition {
+
+    pub fn is_lambda(&self) -> bool {
+        self.bounds.iter().find(|b| {
+            match b {
+                ObjectConversion::Type(ty) |
+                ObjectConversion::Item(ty, _) => ty.is_lambda(),
+                ObjectConversion::Empty => false
+            }
+        }).is_some()
+    }
+
+    pub fn extend_as_lambda(&self, attrs: &HashSet<Option<Attribute>>, source: Ref<ScopeContext>) -> TokenStream2 {
+        quote!()
+    }
     pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, scope_context: &ParentComposer<ScopeContext>) -> TokenStream2 {
-        // println!("Mixin::Expand: {} ---- {:?}", self, attrs);
         let source = scope_context.borrow();
+        if self.is_lambda() {
+            return self.extend_as_lambda(attrs, source);
+        }
+        // println!("Mixin::Expand: {} ---- {:?}", self, attrs);
         let attrs = expand_attributes(attrs);
         let ffi_name = self.mangle_ident_default();
         let self_ty = &self.type_composition.ty;
         let ffi_as_type = ffi_name.to_type();
         println!("Mixin::Expand: {} ---- \n\tattrs: {:?}\n\tname: {}", self, attrs, ffi_name);
+
+
 
         let mixin_items = self.predicates.iter()
             .enumerate()

@@ -70,7 +70,7 @@ impl<'a> Composer<'a> for VariableComposer {
                 }
                 Some(ObjectConversion::Item(TypeCompositionConversion::Trait(..), ..) |
                      ObjectConversion::Type(TypeCompositionConversion::TraitType(..), ..) |
-                     ObjectConversion::Type(TypeCompositionConversion::LambdaFn(..), ..)) => {
+                     ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)), ..)) => {
                     println!("VariableComposer (Special Trait): {}", special.to_token_stream());
                     let ty = special.to_type();
                     FFIVariable::MutPtr { ty: parse_quote!(dyn #ty) }
@@ -141,7 +141,7 @@ impl<'a> Composer<'a> for VariableComposer {
                                             }
                                             Some(ObjectConversion::Item(TypeCompositionConversion::Trait(..), ..) |
                                                  ObjectConversion::Type(TypeCompositionConversion::TraitType(..), ..) |
-                                                 ObjectConversion::Type(TypeCompositionConversion::LambdaFn(..), ..)) => {
+                                                 ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)), ..)) => {
                                                 // println!("VariableComposer (Special Boxed conversion): Nested Special Trait: {}", nested_ty.to_token_stream());
                                                 let ty = special.to_type();
                                                 FFIVariable::MutPtr { ty: parse_quote!(dyn #ty) }
@@ -241,7 +241,7 @@ impl<'a> Composer<'a> for VariableComposer {
                                 println!("VariableComposer (FnPointer Variable): {}", result.to_token_stream());
                                 result
                             },
-                            TypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..) => {
+                            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..)) => {
                                 println!("VariableComposer (LambdaFn Conversion): {}", ty.to_token_stream());
                                 let result = FFIVariable::MutPtr {
                                     ty: <Type as Resolve::<FFIFullPath>>::resolve(&ty, source).to_type()

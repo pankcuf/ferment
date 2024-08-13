@@ -4,8 +4,8 @@ use syn::{PatType, Type};
 use crate::composable::TypeComposition;
 use crate::composer::Composer;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Resolve, SpecialType};
+use crate::conversion::{DictionaryTypeCompositionConversion, GenericTypeConversion, ObjectConversion, TypeCompositionConversion, TypeConversion};
+use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Primitive, Resolve, SpecialType};
 use crate::presentable::Expression;
 use crate::presentation::Name;
 
@@ -73,16 +73,31 @@ impl<'a> Composer<'a> for FromConversionComposer {
                 println!("FromConversionComposer:: Opaque: {}({})", ty.to_token_stream(), full_type.to_token_stream());
                 match composition {
                     TypeCompositionConversion::FnPointer(..) |
-                    TypeCompositionConversion::LambdaFn(..) => field_path,
-                    TypeCompositionConversion::Bounds(bounds) => match bounds.bounds.len() {
-                        0 => field_path,
-                        1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                            Expression::FromLambda(field_path.into(), lambda_args)
+                    TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)) => field_path,
+                    TypeCompositionConversion::Bounds(bounds) => {
+
+                        // match bounds.bounds.len() {
+                        //     0 => field_path,
+                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                        //         Expression::FromLambda(field_path.into(), lambda_args)
+                        //     } else {
+                        //         Expression::From(field_path.into())
+                        //     }
+                        //     _ =>
+                        //         Expression::From(field_path.into())
+                        // }
+                        if bounds.bounds.is_empty() {
+                            field_path
+                        } else  if bounds.is_lambda() {
+                            if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                                Expression::FromLambda(field_path.into(), lambda_args)
+                            } else {
+                                Expression::From(field_path.into())
+                            }
                         } else {
                             Expression::From(field_path.into())
                         }
-                        _ =>
-                            Expression::From(field_path.into())
+
                     },
                     _ => match ty {
                         Type::Ptr(_) => field_path,
@@ -96,13 +111,12 @@ impl<'a> Composer<'a> for FromConversionComposer {
             None => {
                 println!("FromConversionComposer (Non Special): {} ({}) --- {}", ty.to_token_stream(), full_type.to_token_stream(), ty.composition(source));
                 match composition {
-                    TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::LambdaFn(..) =>
+                    TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)) =>
                         field_path,
-                    TypeCompositionConversion::Optional(ty) => match TypeConversion::from(ty.ty.first_nested_type().unwrap()) {
-                        TypeConversion::Primitive(_) =>
-                            Expression::FromOptPrimitive(field_path.into()),
-                        _ =>
-                            Expression::FromOpt(field_path.into()),
+                    TypeCompositionConversion::Optional(ty) => if ty.ty.first_nested_type().unwrap().is_primitive() {
+                        Expression::FromOptPrimitive(field_path.into())
+                    } else {
+                        Expression::FromOpt(field_path.into())
                     }
                     TypeCompositionConversion::Boxed(TypeComposition { ty: ref full_ty, .. }) => {
                         let nested_ty = ty.first_nested_type().unwrap();
@@ -111,8 +125,8 @@ impl<'a> Composer<'a> for FromConversionComposer {
                         match (<Type as Resolve<Option<SpecialType>>>::resolve(full_nested_ty, source),
                                nested_ty.maybe_object(source)) {
                             (Some(SpecialType::Opaque(..)),
-                                Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_) | TypeCompositionConversion::LambdaFn(_),..) |
-                                     ObjectConversion::Type(TypeCompositionConversion::FnPointer(_) | TypeCompositionConversion::LambdaFn(_)))
+                                Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_) | TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)),..) |
+                                     ObjectConversion::Type(TypeCompositionConversion::FnPointer(_) | TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..))))
                             ) =>
                                 Expression::IntoBox(field_path.into()),
                             (Some(SpecialType::Opaque(..)), _any_other) =>
@@ -132,15 +146,30 @@ impl<'a> Composer<'a> for FromConversionComposer {
                                 Expression::IntoBox(Expression::From(field_path.into()).into())
                         }
                     },
-                    TypeCompositionConversion::Bounds(bounds) => match bounds.bounds.len() {
-                        0 => field_path,
-                        1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                            Expression::FromLambda(field_path.into(), lambda_args)
+                    TypeCompositionConversion::Bounds(bounds) => {
+                        println!("FromConversionComposer (Bounds): {}", bounds);
+                        if bounds.bounds.is_empty() {
+                            field_path
+                        } else  if bounds.is_lambda() {
+                            if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                                Expression::FromLambda(field_path.into(), lambda_args)
+                            } else {
+                                Expression::From(field_path.into())
+                            }
                         } else {
                             Expression::From(field_path.into())
                         }
-                        _ =>
-                            Expression::From(field_path.into())
+
+                        // match bounds.bounds.len() {
+                        //     0 => field_path,
+                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
+                        //         Expression::FromLambda(field_path.into(), lambda_args)
+                        //     } else {
+                        //         Expression::From(field_path.into())
+                        //     }
+                        //     _ =>
+                        //         Expression::From(field_path.into())
+                        // }
                     },
                     TypeCompositionConversion::Unknown(..) => {
                         println!("FromConversionComposer (Unknown): {}", ty.to_token_stream());

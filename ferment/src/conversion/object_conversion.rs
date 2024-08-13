@@ -52,11 +52,13 @@ impl ValueReplaceScenario for ObjectConversion {
         // println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             (_, ObjectConversion::Item(..)) => true,
-            (ObjectConversion::Type(self_ty), ObjectConversion::Type(_candidate_ty)) => {
+            (ObjectConversion::Type(self_ty), ObjectConversion::Type(candidate_ty)) => {
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined();
-                let should = !self_ty.is_refined();
+                let should = !self_ty.is_refined() || candidate_ty.is_bounds();
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined() || self_ty.is_tuple();
                 // println!("MERGE? {} [{}]:\n\t {} [{}]: {}", should, self_ty.is_refined(), self_ty, candidate_ty.is_refined(), candidate_ty);
+                // MERGE? false [true]:
+                //     Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: )) [true]: Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: types :: identifier :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: ))
                 should
             }
             _ => false

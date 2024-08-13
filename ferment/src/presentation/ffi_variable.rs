@@ -147,7 +147,7 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
                     .unwrap_or(<Type as Resolve::<FFIFullPath>>::resolve(ty, source)
                         .to_type())
             },
-            TypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..) => FFIVariable::MutPtr {
+            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..)) => FFIVariable::MutPtr {
                 ty: <Type as Resolve::<FFIFullPath>>::resolve(ty, source).to_type()
             },
             TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(composition)) => FFIVariable::Direct {

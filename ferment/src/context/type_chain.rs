@@ -149,14 +149,5 @@ impl TypeChain {
     pub fn add_many<I>(&mut self, types: I) where I: Iterator<Item = (TypeHolder, ObjectConversion)> {
         self.inner.extend_with_policy(types, EnrichScopePolicy);
     }
-
-    // pub fn find_generics_fq<G: GenericCollector>(&self, item: &G) -> HashSet<GenericConversion> {
-    //     item.find_generics()
-    //         .iter()
-    //         .filter_map(|ty| self.get(ty))
-    //         .map(|object| GenericConversion::new(object.clone(), object.resolve_attrs()))
-    //         .collect()
-    // }
-
 }
 

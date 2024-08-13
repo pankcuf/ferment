@@ -30,16 +30,16 @@ pub trait HashMapMergePolicy<K, V>
     fn extend_with_policy<M, P>(&mut self, other: M, policy: P) where M: IntoIterator<Item = (K, V)>, P: MergePolicy<K, V>;
 }
 
-impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V> where K: Eq + Hash + Display, V: Display {
+impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V> where K: Eq + Hash + Display + Debug, V: Display + Debug {
     fn insert_with_policy<P>(&mut self, key: K, value: V, policy: P)
         where P: MergePolicy<K, V> + Clone {
         match self.entry(key) {
             std::collections::hash_map::Entry::Occupied(o) => {
-                // println!("insert_with_policy: (Occupied) holder: {}", value);
+                //println!("insert_with_policy: (Occupied) holder: {}", value);
                 policy.apply(o, value)
             },
             std::collections::hash_map::Entry::Vacant(v) => {
-                // println!("insert_with_policy: (Vacant) holder: {}", value);
+                //println!("insert_with_policy: (Vacant) holder: {}", value);
                 v.insert(value);
             },
         }
@@ -48,11 +48,13 @@ impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V> where K: Eq + Hash + Displ
     fn extend_with_policy<M, P>(&mut self, other: M, policy: P)
         where M: IntoIterator<Item = (K, V)>,
               P: MergePolicy<K, V> {
+
+        // println!("extend_with_policy: {:?}", self);
         for (key, value) in other {
             // println!("extend_with_policy: holder: {}: {}", key, value);
             self.insert_with_policy(key, value, policy);
         }
-
+        // println!("extend_with_policy (RESULT): {:?}", self);
     }
 }
 
@@ -104,6 +106,7 @@ impl<T> MergeInto for HashMap<T, ObjectConversion> where T: Hash + Eq + Clone + 
                         o.insert(object.clone());
                     },
                     (ObjectConversion::Type(occupied_ty), ObjectConversion::Type(candidate_ty)) => {
+                        // println!("MMMMM: {} (refined: {}) ---> {} (refined: {})", occupied_ty, occupied_ty.is_refined(), candidate_ty, candidate_ty.is_refined());
                         if !occupied_ty.is_refined() && candidate_ty.is_refined() {
                             o.insert(object.clone());
                         }
@@ -131,6 +134,7 @@ impl MergeInto for ObjectConversion {
                 *destination = self.clone();
             },
             (ObjectConversion::Type(candidate_ty), ObjectConversion::Type(occupied_ty)) => {
+                //println!("MMMMM: {} (refined: {}) ---> {} (refined: {})", occupied_ty, occupied_ty.is_refined(), candidate_ty, candidate_ty.is_refined());
                 if !occupied_ty.is_refined() && candidate_ty.is_refined() {
                     *destination = self.clone()
                 }

@@ -3,7 +3,7 @@ use syn::Type;
 use crate::composable::TypeComposition;
 use crate::composer::Composer;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
+use crate::conversion::{DictionaryTypeCompositionConversion, GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
 use crate::ext::{FFICompositionResolve, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, Resolve, SpecialType, ToType};
 use crate::presentable::Expression;
 use crate::presentation::{InterfacesMethodExpr, Name};
@@ -72,7 +72,7 @@ impl<'a> Composer<'a> for ToConversionComposer {
                     Some(SpecialType::Custom(..)) =>
                         Expression::To(field_path.into()),
                     None => match ty.composition(source) {
-                        TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::LambdaFn(..) =>
+                        TypeCompositionConversion::FnPointer(..) | TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)) =>
                             field_path,
                         TypeCompositionConversion::Optional(ty) => match TypeConversion::from(ty.ty.first_nested_type().unwrap()) {
                             TypeConversion::Primitive(_) => Expression::ToOptPrimitive(field_path.into()),
@@ -83,11 +83,11 @@ impl<'a> Composer<'a> for ToConversionComposer {
                                    nested_ty.maybe_object(source)) {
                                 (Some(SpecialType::Opaque(..)),
                                     Some(ObjectConversion::Item(TypeCompositionConversion::FnPointer(_) |
-                                                                TypeCompositionConversion::LambdaFn(_) |
+                                                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)) |
                                                                 TypeCompositionConversion::Trait(..) |
                                                                 TypeCompositionConversion::TraitType(..), ..) |
                                          ObjectConversion::Type(TypeCompositionConversion::FnPointer(_) |
-                                                                TypeCompositionConversion::LambdaFn(_) |
+                                                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(..)) |
                                                                 TypeCompositionConversion::Trait(..) |
                                                                 TypeCompositionConversion::TraitType(..)))) =>
                                     Expression::DerefContext(field_path.into()),

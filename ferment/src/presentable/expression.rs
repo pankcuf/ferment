@@ -115,7 +115,7 @@ impl ScopeContextPresentable for Expression {
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFrom, presentable.present(source)))
                     .present(source),
             Self::FromOpt(presentable) =>
-                Self::InterfacesExpr(FROM_OPT_COMPLEX(presentable.present(source)))
+                FROM_OPT_COMPLEX(presentable.present(source))
                     .present(source),
             Self::FromOptPrimitive(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(presentable.present(source)))

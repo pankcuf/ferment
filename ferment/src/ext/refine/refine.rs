@@ -7,7 +7,6 @@ use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{DictionaryTypeCompositionConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{CrateExtension, DictionaryType, Pop, RefineMut, ToPath};
-use crate::formatter::format_token_stream;
 
 #[allow(unused)]
 pub trait RefineInScope {
@@ -29,6 +28,7 @@ pub trait RefineWithFullPath {
 impl RefineInScope for GenericBoundComposition {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         let mut refined = false;
+        //println!("GenericBoundComposition::refine_in_scope: {} --- {}", self, scope.fmt_short());
         self.bounds.iter_mut().for_each(|arg| {
             if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
                 *arg = refined_obj;
@@ -43,6 +43,14 @@ impl RefineInScope for GenericBoundComposition {
                 }
             })
         });
+        self.nested_arguments
+            .iter_mut()
+            .for_each(|nested_arg| {
+                if nested_arg.refine_in_scope(scope, source) {
+                    refined = true;
+                }
+            });
+        //println!("GenericBoundComposition::refine_in_scope: RESULT ({}): {} --- {}", refined, self, scope.fmt_short());
         refined
     }
 }
@@ -317,10 +325,35 @@ fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) -> 
 //      "self" => replace "self" with the scope
 //      "super" (can be chained) =>
 
+fn maybe_dictionary_type(crate_named_import_path: &Path, composition: &mut TypeComposition) -> Option<DictionaryTypeCompositionConversion> {
+    crate_named_import_path.segments.last().and_then(|last_segment| {
+        let ident = &last_segment.ident;
+        if ident.is_primitive() {
+            Some(DictionaryTypeCompositionConversion::Primitive(composition.clone()))
+        } else if ident.is_any_string() {
+            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
+            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+        } else if ident.is_lambda_fn()  {
+            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
+            Some(DictionaryTypeCompositionConversion::LambdaFn(composition.clone()))
+        } else if ident.is_special_std_trait()  {
+            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
+            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+        } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") {
+            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
+            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+        } else if ident.is_map() || ident.is_special_generic() || ident.is_smart_ptr() {
+            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
+            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+        } else {
+            None
+        }
+    })
+}
 
 impl RefineInScope for TypeCompositionConversion {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
-        println!("REFINE --> {} \n\tin {}", self, scope.fmt_short());
+        // println!("REFINE --> {} \n\tin {}", self, scope.fmt_short());
         let result = match self {
             TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(..)) => false,
             TypeCompositionConversion::Imported(ty_composition, import_path) => {
@@ -343,27 +376,8 @@ impl RefineInScope for TypeCompositionConversion {
                 let _ = composition.ty.refine_with_nested_args(&composition.nested_arguments);
                 let _ = refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
 
-                if let Some(dictionary_type) = crate_named_import_path.segments.last().and_then(|last_segment| {
-                    let ident = &last_segment.ident;
-                    if ident.is_primitive() {
-                        Some(DictionaryTypeCompositionConversion::Primitive(composition.clone()))
-                    } else if ident.is_any_string() {
-                        refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
-                        Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
-                    } else if ident.is_special_std_trait()  {
-                        refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
-                        Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
-                    } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") {
-                        refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
-                        Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
-                    } else if ident.is_map() || ident.is_special_generic() || ident.is_smart_ptr() {
-                        refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
-                        Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
-                    } else {
-                        None
-                    }
-                }) {
-                    println!("[INFO] Dictionary item found: {}", dictionary_type);
+                if let Some(dictionary_type) = maybe_dictionary_type(&crate_named_import_path, &mut composition) {
+                    //println!("[INFO] (Import) Dictionary item found: {}", dictionary_type);
                     *self = TypeCompositionConversion::Dictionary(dictionary_type);
 
                 } else {
@@ -371,10 +385,10 @@ impl RefineInScope for TypeCompositionConversion {
                     let scope_path = composition.pointer_less();
                     if let Some(found_item) = source.maybe_item_obj_first(&crate_named_import_path)
                         .or_else(|| determine_scope_item(&mut composition, scope_path, scope, source)) {
-                        println!("[INFO] (Import) Scope item found: {}", found_item);
+                        //println!("[INFO] (Import) Scope item found: {}", found_item);
                         refine_ty_with_import_path(&mut composition.ty, found_item.path());
                         if let Some(updated) = found_item.update_scope_item(composition) {
-                            println!("[INFO] (Import) Scope item refined: {}", updated);
+                            //println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
                     } else {
@@ -386,12 +400,16 @@ impl RefineInScope for TypeCompositionConversion {
             }
             TypeCompositionConversion::Unknown(composition) => {
                 let path = composition.pointer_less();
-                if let Some(found_item) = source.maybe_item_obj_first(&path)
+                if let Some(dictionary_type) = maybe_dictionary_type(&path, composition) {
+                    //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
+                    *self = TypeCompositionConversion::Dictionary(dictionary_type);
+                    true
+                } else if let Some(found_item) = source.maybe_item_obj_first(&path)
                     .or_else(|| determine_scope_item(composition, path, scope, source)){
-                    println!("[INFO] (Unknown) Scope item found: {}", found_item);
+                    //println!("[INFO] (Unknown) Scope item found: {}", found_item);
                     refine_ty_with_import_path(&mut composition.ty, found_item.path());
                     if let Some(updated) = found_item.update_scope_item(composition.clone()) {
-                        println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
+                        //println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
                         *self = updated;
                     }
                     true
@@ -402,9 +420,9 @@ impl RefineInScope for TypeCompositionConversion {
             }
             TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition)) |
             TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(composition)) |
+            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(composition)) |
             TypeCompositionConversion::Boxed(composition) |
             TypeCompositionConversion::FnPointer(composition) |
-            TypeCompositionConversion::LambdaFn(composition) |
             TypeCompositionConversion::Object(composition) |
             TypeCompositionConversion::Optional(composition) |
             TypeCompositionConversion::Trait(composition, ..) |
@@ -422,7 +440,7 @@ impl RefineInScope for TypeCompositionConversion {
                 false
             }
         };
-        println!("REFINE ({}) <-- {} \n\tin {}", result, self, scope.fmt_short());
+        // println!("REFINE ({}) <-- {} \n\tin {}", result, self, scope.fmt_short());
         result
     }
 }
@@ -651,9 +669,9 @@ fn refined_import(import_path: &Path, alias: &Path, source: &GlobalContext) -> O
         last_alias_segment.is_some() &&
         last_import_segment.unwrap().ident == last_alias_segment.unwrap().ident {
         let reexport = ReexportSeek::Absolute.maybe_reexport(import_path, source);
-        if reexport.is_some() {
-            println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
-        }
+        // if reexport.is_some() {
+        //     println!("[INFO] Re-export assigned:\n\t[{}]", format_token_stream(&reexport));
+        // }
         reexport
     } else {
         None

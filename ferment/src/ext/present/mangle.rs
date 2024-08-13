@@ -335,7 +335,8 @@ impl Mangle<MangleDefault> for GenericBoundComposition {
 
         let mut chunks = vec![];
 
-        chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
+        // chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
+        chunks.push(self.bounds.first().unwrap().mangle_string(context));
         chunks.extend(self.predicates.iter()
             .map(|(_predicate, objects)|
                      objects.iter()
@@ -347,8 +348,9 @@ impl Mangle<MangleDefault> for GenericBoundComposition {
                 //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
             )
         );
-        println!("GenericBoundComposition::mangle({}) --> {}", self, chunks.join("_"));
+        //println!("GenericBoundComposition::mangle({}) --> {}", self, chunks.join("_"));
         chunks.join("_")
+
         // format!("Mixin_{}", chunks.join("_"))
 
         // format!("{}", self.bounds.iter().map(|b| {

@@ -89,26 +89,9 @@ impl ScopeContext {
                         } else {
                             Some(ty.clone())
                         }
-                        //
-                        // None
                     }
                 }
             };
-            // let result = lock.maybe_item(path)
-            //     .filter(|item| {
-            //         // !item.is_fermented() && !item.is_custom()
-            //         item.is_opaque()
-            //     })
-            //     .map(ScopeItemConversion::to_type)
-            //     .or_else(|| {
-            //         println!("resolve_opaque: (not item) {} ", path.to_token_stream());
-            //
-            //     }).or(|| {
-            //         // It's opaque by default now
-            //     println!("resolve_opaque: (opaque by default) {} ", path.to_token_stream());
-            //     Some(ty.clone())
-            // });
-            // println!("resolve_opaque: {} --> {}", path.to_token_stream(), result.to_token_stream());
             result
         };
         match ty {

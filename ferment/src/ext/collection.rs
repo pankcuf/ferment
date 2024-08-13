@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
@@ -19,27 +19,27 @@ impl<K, V, T, S> ScopeCollection<K, V> for Punctuated<T, S>
 }
 
 impl<K, V> ScopeCollection<K, V> for AngleBracketedGenericArguments
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.args.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for BareFnArg
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
 }
 impl<K, V> ScopeCollection<K, V> for Binding
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for Constraint
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.bounds.scope_items()
     }
@@ -55,7 +55,7 @@ impl<K, V> ScopeCollection<K, V> for Expr
 }
 
 impl<K, V> ScopeCollection<K, V> for GenericArgument
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             GenericArgument::Type(ty) => ty.scope_items(),
@@ -68,7 +68,7 @@ impl<K, V> ScopeCollection<K, V> for GenericArgument
 }
 
 impl<K, V> ScopeCollection<K, V> for ParenthesizedGenericArguments
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display + Debug {
     fn scope_items(&self) -> HashMap<K, V> {
         let mut involved = HashMap::default();
         involved.extend_with_policy(self.inputs.scope_items(), EnrichScopePolicy);
@@ -78,14 +78,14 @@ impl<K, V> ScopeCollection<K, V> for ParenthesizedGenericArguments
 }
 
 impl<K, V> ScopeCollection<K, V> for Path
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display + Debug {
     fn scope_items(&self) -> HashMap<K, V> {
         self.segments.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for PathArguments
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display + Debug {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             PathArguments::AngleBracketed(args) => args.scope_items(),
@@ -96,21 +96,21 @@ impl<K, V> ScopeCollection<K, V> for PathArguments
 }
 
 impl<K, V> ScopeCollection<K, V> for PathSegment
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.arguments.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for QSelf
-    where K: Eq + Hash + Display , V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug , V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         self.ty.scope_items()
     }
 }
 
 impl<K, V> ScopeCollection<K, V> for ReturnType
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             ReturnType::Type(_, ty) => ty.scope_items(),
@@ -119,7 +119,7 @@ impl<K, V> ScopeCollection<K, V> for ReturnType
     }
 }
 impl<K, V> ScopeCollection<K, V> for Type
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug + std::fmt::Debug + std::fmt::Debug + std::fmt::Debug + std::fmt::Debug + std::fmt::Debug + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         let mut involved = HashMap::default();
         match self {
@@ -151,7 +151,7 @@ impl<K, V> ScopeCollection<K, V> for Type
 }
 
 impl<K, V> ScopeCollection<K, V> for TypeParamBound
-    where K: Eq + Hash + Display, V: ValueReplaceScenario + Display {
+    where K: Eq + Hash + Display + std::fmt::Debug, V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             TypeParamBound::Trait(TraitBound { path, .. }) => path.scope_items(),

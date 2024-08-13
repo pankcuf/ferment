@@ -7,10 +7,11 @@ use syn::punctuated::Punctuated;
 use crate::Config;
 use crate::ast::PathHolder;
 use crate::composable::{GenericBoundComposition, GenericConversion, TraitCompositionPart1, TypeComposition};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, TraitsResolver, TypeChain};
 use crate::conversion::{DictionaryTypeCompositionConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
 use crate::ext::{GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
-use crate::formatter::format_global_context;
+use crate::formatter::{format_global_context, format_scope_refinement};
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -179,11 +180,11 @@ impl GlobalContext {
     pub fn maybe_item(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope(path) {
-            println!("[INFO] Found scope: {}", scope.fmt_short());
+            //println!("[INFO] Found scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
-                println!("[INFO] Found item in scope: {}", item);
+                //println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
             } else {
                 //println!("[INFO] Scope found {} but no item: {}", scope.fmt_short(), path.to_token_stream());
@@ -196,11 +197,11 @@ impl GlobalContext {
     pub fn maybe_item_obj_first(&self, path: &Path) -> Option<&ScopeItemConversion> {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope_obj_first(path) {
-            println!("[INFO] Found obj scope: {}", scope.fmt_short());
+            //println!("[INFO] Found obj scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last().unwrap().ident;
             let ty = last_ident.to_type();
             if let Some(ObjectConversion::Item(_, item)) = self.maybe_object(&ty, scope) {
-                println!("[INFO] Found item in scope: {}", item);
+                //println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
             } else {
                 //println!("[INFO] Scope found {} but no item: {}", scope.fmt_short(), path.to_token_stream());
@@ -431,57 +432,44 @@ impl GlobalContext {
         self.custom.maybe_conversion(ty)
     }
 
+    fn num_of_nested_exposable_types_for_generic<'a>(&'a self, args: &'a CommaPunctuatedNestedArguments) -> usize {
+        args.iter().filter_map(|arg| {
+            let ttt = match arg.object().type_conversion() {
+                Some(tyc) => match tyc {
+                    TypeCompositionConversion::Unknown(..) |
+                    TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(..)) => self.maybe_custom_conversion(tyc.ty()).is_some().then_some(tyc),
+                    TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition { nested_arguments, .. })) |
+                    TypeCompositionConversion::Boxed(TypeComposition { nested_arguments, .. }) |
+                    TypeCompositionConversion::Optional(TypeComposition { nested_arguments, .. }) => {
+                        let is_custom = self.maybe_custom_conversion(tyc.ty());
+                        let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
+                        let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
+                        //println!("TYC: ({}, {}, {}) ---- {}", all_of_them_are_non_fermentable, is_custom.is_some(), nested_arguments.is_empty(), tyc);
+                        (!all_of_them_are_non_fermentable || is_custom.is_some() || nested_arguments.is_empty())
+                            .then_some(tyc)
+                    },
+                        // (self.num_of_nested_fermentable_types_for_generic(nested_arguments) == nested_arguments.len() || self.maybe_custom_conversion(tyc.ty()).is_some())
+                        //     .then_some(tyc),
+                    tyc => Some(tyc)
+                }
+                _ => None
+            };
+            //println!("arg: {} ---- {}", arg, ttt.map_or("None".to_string(), |f| format!("{}", f)));
+            ttt
+        }).collect::<Vec<_>>().len()
+    }
+
     fn should_skip_from_expanding(&self, object: &ObjectConversion) -> bool {
         let skip = match object.type_conversion() {
             Some(conversion) => {
-                //println!("CHECK: {}", conversion);
-                let nested_args = conversion.nested_arguments();
-                let unknown_args = nested_args.iter().filter(|arg| {
-                    match arg.object().type_conversion() {
-                        Some(conversion) => {
-                            let unknown_but_custom = self.maybe_custom_conversion(conversion.ty()).is_some();
-                            //println!("CHECK NESTED: {}", conversion);
-                            //conversion.is_unknown() && !unknown_but_custom
-                            let skip = match conversion {
-                                TypeCompositionConversion::Unknown(..) => true,
-                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(..)) => {
-                                    //println!("CHECK NESTED NonPrimitiveOpaque: {}", ty.to_token_stream());
-                                    true
-                                },
-                                TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition { nested_arguments, .. })) => {
-                                    //println!("CHECK NESTED NonPrimitiveFermentable: {}", ty.to_token_stream());
-                                    let needed_types = nested_arguments.iter().filter_map(|n| match n.object().type_conversion() {
-                                        Some(tyc) => {
-                                            if tyc.is_unknown() && self.maybe_custom_conversion(tyc.ty()).is_none() {
-                                                None
-                                            } else {
-                                                Some(tyc)
-                                            }
-                                        },
-                                        None => None
-                                    }).collect::<Vec<_>>();
-                                    needed_types.len() != nested_arguments.len()
-                                }
-                                TypeCompositionConversion::Boxed(TypeComposition { nested_arguments, .. }) |
-                                TypeCompositionConversion::Optional(TypeComposition { nested_arguments, .. }) => match nested_arguments.first() {
-                                    Some(nested_arg) => match nested_arg.object().type_conversion() {
-                                        Some(tyc) => {
-                                            //println!("CHECK NESTED OPTIONAL/BOX: {}", tyc);
-                                            tyc.is_unknown() && self.maybe_custom_conversion(tyc.ty()).is_none()
-                                        },
-                                        _ => true
-                                    },
-                                    _ => true
-                                },
-                                _ => false
-                            };
-                            skip && !unknown_but_custom
-                        },
-                        None => false
-                    }
-
-                }).collect::<Vec<_>>();
-                !unknown_args.is_empty()
+                let maybe_custom = self.maybe_custom_conversion(conversion.ty());
+                let nested_arguments = conversion.nested_arguments();
+                let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
+                let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
+                let skip = all_of_them_are_non_fermentable && maybe_custom.is_none();
+                // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
+                //println!("SKIP ({}): {}", skip, conversion);
+                skip
             }
             None => false
         };
@@ -529,7 +517,14 @@ impl RefineMut for GlobalContext {
 
 
                     if let Some(TypeCompositionConversion::Bounds(bounds)) = object.type_conversion() {
-                        //println!("REFINE_SCOPE_BOUNDS: {}", bounds);
+                        println!("REFINE_SCOPE_BOUNDS: {}", bounds);
+                        // if bounds.bounds.len() > 1 {
+                        //     refined_generic_constraints
+                        //         .entry(bounds.clone())
+                        //         .or_insert_with(HashSet::new)
+                        //         .extend(all_attrs.clone());
+                        // }
+
                         // refined_generic_constraints
                         //     .entry(bounds.clone())
                         //     .or_insert_with(HashSet::new)
@@ -537,7 +532,7 @@ impl RefineMut for GlobalContext {
                         bounds.find_generic_constraints()
                             .iter()
                             .for_each(|_ty| {
-                                //println!("--- ADD GENERIC: BOUNDS: {}", bounds);
+                                println!("--- ADD GENERIC: BOUNDS: {}", bounds);
                                 refined_generic_constraints
                                     .entry(bounds.clone())
                                     .or_insert_with(HashSet::new)
@@ -577,6 +572,7 @@ impl Unrefined for GlobalContext {
     type Unrefinement = ScopeRefinement;
     fn unrefined(&self) -> Self::Unrefinement {
         let mut scope_updates = vec![];
+        //println!("------- GlobalContext::unrefined ----------");
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_types_to_refine = type_chain.inner.iter()
@@ -588,6 +584,7 @@ impl Unrefined for GlobalContext {
                     scope_updates.push((scope.clone(), scope_types_to_refine));
                 }
             });
+        //println!("------- GlobalContext::unrefined ---------- {}", format_scope_refinement(&scope_updates));
         scope_updates
     }
 }

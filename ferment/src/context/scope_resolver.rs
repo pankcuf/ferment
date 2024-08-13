@@ -6,7 +6,7 @@ use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectConversion;
 use crate::ext::{RefineMut, ToType};
-use crate::formatter::types_dict;
+use crate::formatter::{format_scope_refinement, types_dict};
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
 
 #[derive(Clone, Default)]
@@ -101,24 +101,22 @@ impl ScopeResolver {
             .get(scope)
             .and_then(|chain| chain.get_by_path(path))
     }
-
-    // pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
-    //     self.inner
-    //         .get(scope)
-    //         .map(|chain| item.find_generics_conversions(chain))
-    //         .unwrap_or_default()
-    // }
-
 }
 
 impl RefineMut for ScopeResolver {
     type Refinement = ScopeRefinement;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
+        // println!("ScopeResolver::refine_with:\n{}", format_scope_refinement(&refined));
         refined.into_iter()
-            .for_each(|(scope, updates)|
-                self.scope_register_mut(&scope)
-                    .add_many(updates.into_iter()));
+            .for_each(|(scope, updates)| {
 
+                // println!("ScopeResolver::SCOPE: {} --- {:?}", scope.fmt_short(), updates);
+                self.scope_register_mut(&scope)
+                    .add_many(updates.into_iter());
+                // println!("ScopeResolver::SCOPE (RESULT): {} --- {:?}", scope.fmt_short(), self.inner.get(&scope));
+            });
+
+        // println!("ScopeResolver::refine_with (RESULT):\n{:?}", self.inner);
     }
 }
