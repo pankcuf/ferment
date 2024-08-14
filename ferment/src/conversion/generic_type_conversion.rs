@@ -723,7 +723,7 @@ impl GenericTypeConversion {
                         destroy_expr,
                         from_expr,
                         to_expr);
-                let to_compose = |expr_composer: ExpressionComposer|
+                // let to_compose = |expr_composer: ExpressionComposer|
                 let compose = |arg_name: &Name, ty: &Type| {
                     //let maybe_special = ty.maybe_special_type(&source);
 
