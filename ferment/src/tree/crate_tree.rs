@@ -1,41 +1,38 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
-use quote::{format_ident, quote, ToTokens};
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{ItemUse, UseRename, UseTree};
+use syn::{Attribute, parse_quote};
 use syn::punctuated::Punctuated;
 use crate::{Crate, error, print_phase};
 use crate::ast::{Depunctuated, SemiPunctuated};
-use crate::composable::create_item_use_with_tree;
-use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
-use crate::conversion::{ObjectConversion, TypeConversion};
-use crate::ext::ToType;
+use crate::conversion::{ObjectKind, TypeKind};
+use crate::ext::{RefineUnrefined, ToType};
 use crate::formatter::{format_generic_conversions, format_mixin_conversions};
 use crate::presentation::Expansion;
-use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportItem};
+use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTree, ScopeTreeExportItem};
 
 #[derive(Clone, Debug)]
 pub struct CrateTree {
     pub current_tree: ScopeTree,
     pub external_crates: HashMap<Crate, ScopeTree>,
+    pub generics_tree: ScopeTree
 }
 
 // Main entry point for resulting expansion
 impl ToTokens for CrateTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
+        let directives = self.directives();
+        let attrs: Vec<Attribute> = vec![parse_quote!(#directives)];
         Expansion::Mod {
-            attrs: Depunctuated::new(),
-            directives: self.directives(),
+            attrs: attrs.clone(),
             name: quote!(types),
             imports: Punctuated::new(),
             conversions: self.regular_conversions()
         }.to_tokens(tokens);
         Expansion::Mod {
-            attrs: Depunctuated::new(),
-            directives: self.directives(),
+            attrs,
             name: quote!(generics),
-            imports: self.generic_imports(),
+            imports: SemiPunctuated::from_iter(self.generics_tree.imported.iter().cloned()),
             conversions: self.generic_conversions(),
         }.to_tokens(tokens);
     }
@@ -71,43 +68,35 @@ impl CrateTree {
                     .collect();
                 // print_phase!("PHASE 2: CURRENT CRATE TREE", "\n{:?}", current_tree);
                 // print_phase!("PHASE 2: EXTERNAL CRATES TREE", "\n{:?}", external_crates);
-                current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
-                let mut crate_tree = Self { current_tree, external_crates };
-                crate_tree.current_tree.refine();
-                Ok(crate_tree)
+                // current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
+                let global_context = current_tree.scope_context.borrow().context.clone();
+                print_phase!("PHASE 3: CRATE TREE REFINEMENT", "");
+                global_context
+                    .write()
+                    .unwrap()
+                    .refine();
+                let generics_tree = create_generics_scope_tree(&current_tree.scope, global_context);
+                current_tree.print_scope_tree_with_message("PHASE 3: CRATE TREE REFINED CONTEXT");
+                Ok(Self { current_tree, external_crates, generics_tree })
             }
         }
     }
-    fn directives(&self) -> TokenStream2 {
-        quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_parens, unused_qualifications, unused_unsafe, unused_variables)])
-    }
-
-    fn generic_imports(&self) -> SemiPunctuated<ItemUse> {
-        SemiPunctuated::from_iter([
-            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
-        ])
-    }
-
     fn generic_conversions(&self) -> Depunctuated<TokenStream2> {
         let source = self.current_tree.scope_context.borrow();
         let global = source.context.read().unwrap();
-        let generics_source = Rc::new(RefCell::new(ScopeContext::with(
-            ScopeChain::Mod {
-                info: ScopeInfo {
-                    attrs: vec![],
-                    crate_ident: source.scope.crate_ident().clone(),
-                    self_scope: Scope::new(self.current_tree.scope.self_path_holder_ref().joined(&format_ident!("generics")), ObjectConversion::Empty) },
-                parent_scope_chain: self.current_tree.scope.clone().into() }, source.context.clone())));
+
+        let generics_source = &self.generics_tree.scope_context;
+
         print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_generic_conversions(&global.refined_generics));
         let mut generics = Depunctuated::new();
         generics.extend(global.refined_generics.iter()
             .map(|(generic, attrs)| match &generic.object {
-                ObjectConversion::Type(type_cc) |
-                ObjectConversion::Item(type_cc, _) => match TypeConversion::from(type_cc.to_type()) {
-                    TypeConversion::Generic(generic_c) => generic_c.expand(attrs, &generics_source),
+                ObjectKind::Type(model_kind) |
+                ObjectKind::Item(model_kind, _) => match TypeKind::from(model_kind.to_type()) {
+                    TypeKind::Generic(generic_kind) => generic_kind.expand(attrs, &generics_source),
                     otherwise => unimplemented!("non-generic GenericConversion: {:?}", otherwise)
                 },
-                ObjectConversion::Empty => unimplemented!("expand: ObjectConversion::Empty")
+                ObjectKind::Empty => unimplemented!("expand: ObjectKind::Empty")
         }));
         print_phase!("PHASE 3: MIXINS TO EXPAND", "\t{}", format_mixin_conversions(&global.refined_generic_constraints));
         generics.extend(global.refined_generic_constraints.iter()
@@ -124,4 +113,20 @@ impl CrateTree {
         regular_conversions.push(self.current_tree.to_token_stream());
         regular_conversions
     }
+    fn directives(&self) -> TokenStream2 {
+        quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_parens, unused_qualifications, unused_unsafe, unused_variables)])
+    }
+
+    // fn generic_imports(&self) -> SemiPunctuated<ItemUse> {
+    //     SemiPunctuated::from_iter([
+    //         create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
+    //     ])
+    // }
+    // fn generic_imports_map(&self) -> HashMap<ImportConversion, HashSet<ImportModel>> {
+    //     SemiPunctuated::from_iter([
+    //         Im
+    //         create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: self.current_tree.scope.crate_ident().clone() }))
+    //     ])
+    // }
+
 }

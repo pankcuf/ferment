@@ -1,13 +1,153 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use quote::ToTokens;
 use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 use crate::ext::{RefineMut, ToType};
-use crate::formatter::{format_scope_refinement, types_dict};
-pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectConversion>)>;
+use crate::formatter::types_dict;
+pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectKind>)>;
+
+#[derive(Clone, Debug)]
+pub enum ScopeSearchKey<'a> {
+    PathRef(&'a Path, Option<Box<ScopeSearchKey<'a>>>),
+    TypeRef(&'a Type, Option<Box<ScopeSearchKey<'a>>>),
+    Type(Type, Option<Box<ScopeSearchKey<'a>>>)
+}
+impl<'a> Display for ScopeSearchKey<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::PathRef(path, original) => format!("PathRef({}, {:?})", path.to_token_stream(), original),
+            Self::TypeRef(ty, original) => format!("TypeRef({}, {:?})", ty.to_token_stream(), original),
+            Self::Type(ty, original) => format!("Type({}, {:?})", ty.to_token_stream(), original),
+        }.as_str())
+    }
+}
+
+impl<'a> ToType for ScopeSearchKey<'a> {
+    fn to_type(&self) -> Type {
+       match self {
+           ScopeSearchKey::PathRef(path, ..) => path.to_type(),
+           ScopeSearchKey::TypeRef(ty, ..) => ty.to_type(),
+           ScopeSearchKey::Type(ty, ..) => ty.clone()
+       }
+    }
+}
+
+impl<'a> ScopeSearchKey<'a> {
+    pub fn maybe_original_key(&'a self) -> &'a Option<Box<ScopeSearchKey<'a>>> {
+        match self {
+            ScopeSearchKey::PathRef(_, original) |
+            ScopeSearchKey::TypeRef(_, original) |
+            ScopeSearchKey::Type(_, original) => original
+        }
+    }
+    pub fn maybe_originally_is_const_ptr(&'a self) -> bool {
+        match self.maybe_original_key() {
+            Some(boxed_key) => boxed_key.is_const_ptr(),
+            _ => false
+        }
+    }
+    pub fn maybe_originally_is_mut_ptr(&'a self) -> bool {
+        match self.maybe_original_key() {
+            Some(boxed_key) => boxed_key.is_mut_ptr(),
+            _ => false
+        }
+    }
+    pub fn maybe_ptr(&'a self) -> Option<&'a TypePtr> {
+        match self {
+            ScopeSearchKey::TypeRef(Type::Ptr(type_ptr), ..) |
+            ScopeSearchKey::Type(Type::Ptr(type_ptr), ..) => Some(type_ptr),
+            _ => None
+        }
+    }
+    pub fn is_const_ptr(&self) -> bool {
+        self.maybe_ptr().is_some_and(|ty| ty.const_token.is_some())
+    }
+    pub fn is_mut_ptr(&self) -> bool {
+        self.maybe_ptr().is_some_and(|ty| ty.mutability.is_some())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ScopeSearch<'a> {
+    KeyInScope(ScopeSearchKey<'a>, &'a ScopeChain),
+    // Key(ScopeSearchKey<'a>),
+    Value(ScopeSearchKey<'a>),
+    ValueInScope(ScopeSearchKey<'a>, &'a ScopeChain),
+}
+impl<'a> Display for ScopeSearch<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            // Self::Key(key) => format!("Key({})", key),
+            Self::KeyInScope(key, scope) => format!("KeyInScope({} in {})", key, scope.fmt_short()),
+            Self::Value(key) => format!("Value({})", key),
+            Self::ValueInScope(key, scope) => format!("ValueInScope({} in {})", key, scope.fmt_short()),
+        }.as_str())
+    }
+}
+
+impl<'a> ScopeSearch<'a> {
+    pub fn search_key(&'a self) -> &'a ScopeSearchKey<'a> {
+        match self {
+            // ScopeSearch::Key(search_key) |
+            ScopeSearch::KeyInScope(search_key, _) |
+            ScopeSearch::Value(search_key) |
+            ScopeSearch::ValueInScope(search_key, _) => search_key,
+        }
+    }
+}
+impl<'a> ScopeSearchKey<'a> {
+    pub fn maybe_from_ref(ty: &'a Type) -> Option<Self> {
+        let original = ScopeSearchKey::TypeRef(ty, None);
+        match ty {
+            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
+                1 => match bounds.first().unwrap() {
+                    TypeParamBound::Trait(TraitBound { path, .. }) =>
+                        Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
+                    TypeParamBound::Lifetime(_) =>
+                        panic!("maybe_scope_type::error")
+                },
+                _ => None
+            },
+            Type::Reference(TypeReference { elem: ty, .. }) |
+            Type::Ptr(TypePtr { elem: ty, .. }) =>
+                Some(ScopeSearchKey::TypeRef(ty, Some(Box::new(original)))),
+            ty =>
+                Some(ScopeSearchKey::TypeRef(ty, Some(Box::new(original)))),
+        }
+
+    }
+    pub fn maybe_from(ty: Type) -> Option<Self> {
+        let original = ScopeSearchKey::Type(ty.clone(), None);
+        match ty {
+            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
+                1 => match bounds.first().unwrap() {
+                    TypeParamBound::Trait(TraitBound { path, .. }) =>
+                        Some(ScopeSearchKey::Type(path.to_type(), Some(Box::new(original)))),
+                    TypeParamBound::Lifetime(_) =>
+                        panic!("maybe_scope_type::error")
+                },
+                _ => None
+            },
+            Type::Reference(TypeReference { elem: ty, .. }) |
+            Type::Ptr(TypePtr { elem: ty, .. }) =>
+                Some(ScopeSearchKey::Type(*ty, Some(Box::new(original)))),
+            ty =>
+                Some(ScopeSearchKey::Type(ty, Some(Box::new(original)))),
+        }
+    }
+    pub fn find<K, T: Fn(&Type) -> K>(&self, finder: T) -> K {
+        match self {
+            ScopeSearchKey::PathRef(path, ..) => finder(&path.to_type()),
+            ScopeSearchKey::TypeRef(ty, ..) => finder(ty),
+            ScopeSearchKey::Type(ty, ..) => finder(&ty),
+        }
+    }
+}
+
 
 #[derive(Clone, Default)]
 pub struct ScopeResolver {
@@ -17,9 +157,7 @@ pub struct ScopeResolver {
 impl Debug for ScopeResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut iter = self.inner.iter()
-            .map(|(key, value)|
-                format!("\t{}:\n\t{}", key.fmt_short(), types_dict(&value.inner)
-                    .join("\n\t")))
+            .map(|(key, value)| format!("\t{}:\n\t{}", key.fmt_short(), types_dict(&value.inner).join("\n\t")))
             .collect::<Vec<String>>();
         iter.sort();
         f.write_str( iter.join("\n\n").as_str())
@@ -33,21 +171,16 @@ impl Display for ScopeResolver {
 }
 
 impl ScopeResolver {
-    pub(crate) fn resolve(&self, path: &Path) -> Option<&ScopeChain> {
+    pub(crate) fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         self.inner
             .keys()
-            .find_map(|scope_chain| {
-                // println!("resolve: {} = {} == {}", path.eq(scope_chain.self_path()), scope_chain.self_path().to_token_stream(), path.to_token_stream());
-                path.eq(scope_chain.self_path())
-                    .then(|| scope_chain)
-            })
+            .find_map(|scope_chain| path.eq(scope_chain.self_path()).then_some(scope_chain))
     }
-    pub(crate) fn resolve_obj_first(&self, path: &Path) -> Option<&ScopeChain> {
+    pub(crate) fn maybe_first_obj_scope(&self, path: &Path) -> Option<&ScopeChain> {
         let mut scopes = self.inner
             .keys()
             .filter(|scope_chain| path.eq(scope_chain.self_path()))
             .collect::<Vec<_>>();
-
         scopes.sort_by(|c1, c2| {
             if c1.obj_scope_priority() == c2.obj_scope_priority() {
                 Ordering::Equal
@@ -59,44 +192,33 @@ impl ScopeResolver {
         });
         scopes.first().cloned()
     }
-    pub fn scope_register_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
+    pub fn type_chain_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.inner
             .entry(scope.clone())
             .or_default()
     }
-
-    fn maybe_scope_type_(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
-        // println!("maybe_scope_type_.1: {} in {}", tc, scope.fmt_short());
-        let tc = TypeHolder::from(ty);
-        let result = self.inner
-            .get(scope)
-            .and_then(|chain| chain.get(&tc));
-        // println!("maybe_scope_type_.2: {} --> {}", tc, result.as_ref().map_or("None".to_string(), |r| format!("{}", r)));
-        result
-    }
-    pub fn maybe_scope_type(&self, ty: &Type, scope: &ScopeChain) -> Option<&ObjectConversion> {
-        // println!("maybe_scope_type.1: {} --- [{}]", ty.to_token_stream(), scope.fmt_short());
-        let result = match ty {
-            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
-                1 => match bounds.first().unwrap() {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        self.maybe_scope_type_(&path.to_type(), scope),
-                    TypeParamBound::Lifetime(_) =>
-                        panic!("maybe_scope_type::error")
-                },
-                _ => None
+    pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
+        match predicate {
+            ScopeSearch::KeyInScope(search_key, scope) => {
+                self.inner.get(scope)
+                    .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty)))
             },
-            Type::Reference(TypeReference { elem: ty, .. }) |
-            Type::Ptr(TypePtr { elem: ty, .. }) =>
-                self.maybe_scope_type_(ty, scope),
-            ty =>
-                self.maybe_scope_type_(ty, scope),
-        };
-        // println!("maybe_scope_type.2: {} --- [{}]", ty.to_token_stream(), result.to_token_stream());
-        result
+            ScopeSearch::ValueInScope(search_key, scope) => {
+                self.inner.get(scope)
+                    .and_then(|chain| search_key.find(|ty| chain.get_by_value(ty)))
+            },
+            ScopeSearch::Value(search_key) => {
+                self.inner.values()
+                    .find_map(|chain| search_key.find(|ty| chain.get_by_value(ty)))
+            },
+            // ScopeSearch::Key(search_key) => {
+            //     self.inner.get(scope)
+            //         .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty)))
+            // }
+        }
     }
 
-    pub fn scope_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
+    pub fn scope_key_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
         self.inner
             .get(scope)
             .and_then(|chain| chain.get_by_path(path))
@@ -107,16 +229,10 @@ impl RefineMut for ScopeResolver {
     type Refinement = ScopeRefinement;
 
     fn refine_with(&mut self, refined: Self::Refinement) {
-        // println!("ScopeResolver::refine_with:\n{}", format_scope_refinement(&refined));
         refined.into_iter()
-            .for_each(|(scope, updates)| {
-
-                // println!("ScopeResolver::SCOPE: {} --- {:?}", scope.fmt_short(), updates);
-                self.scope_register_mut(&scope)
-                    .add_many(updates.into_iter());
-                // println!("ScopeResolver::SCOPE (RESULT): {} --- {:?}", scope.fmt_short(), self.inner.get(&scope));
-            });
-
-        // println!("ScopeResolver::refine_with (RESULT):\n{:?}", self.inner);
+            .for_each(|(scope, updates)|
+                self.type_chain_mut(&scope)
+                    .add_many(updates.into_iter())
+            );
     }
 }

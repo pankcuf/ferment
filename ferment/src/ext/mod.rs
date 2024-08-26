@@ -16,6 +16,7 @@ pub use self::resolve::*;
 pub use self::visitor::*;
 
 pub trait CrateExtension {
+    fn arg_less(&self) -> Self;
     fn is_crate_based(&self) -> bool;
     fn crate_named(&self, crate_name: &Self) -> Self where Self: Sized + Clone {
         if self.is_crate_based() {

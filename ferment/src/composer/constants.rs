@@ -4,8 +4,8 @@ use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use syn::{Expr, ExprPath, Field, parse_quote, Visibility, VisPublic};
 use crate::ast::{DelimiterTrait, Depunctuated, Wrapped};
-use crate::composable::{CfgAttributes, FieldComposer, FieldTypeConversionKind};
-use crate::composer::{BasicComposable, BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ContextComposer, CtorSequenceComposer, DropSequenceMixer, FieldsContext, FieldsConversionComposable, FFIComposer, FFIConversionMixer, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, NameContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectWithItems, OwnerIteratorPostProcessingComposer, SharedComposer, EnumComposer, LocalConversionContext, OwnerAspectWithCommaPunctuatedItems, ConstructorFieldsContext, ParentComposer, SequenceOutputPair, CommaPunctuatedOwnedItems, CommaPunctuatedFields, FunctionContext, ConstructorArgComposerRef, FieldsComposerRef, TypeContextComposer, DestructorContext, ParentComposerPresenterByRef, ParentSharedComposer, ParentComposerRef, OwnedItemsPunctuated, LocalFieldsOwnerContext, SequenceComposer, SequenceMixer, SourceAccessible, OwnedStatement, FieldTypeLocalContext, FromConversionComposer, ToConversionComposer, DestroyConversionComposer};
+use crate::composable::{CfgAttributes, FieldComposer, FieldTypeKind};
+use crate::composer::{BasicComposable, BindingDtorComposer, Composer, ComposerPresenter, ComposerPresenterByRef, ContextComposer, CtorSequenceComposer, DropSequenceMixer, FieldsContext, FieldsConversionComposable, FFIComposer, FFIConversionMixer, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, NameContext, OwnedFieldTypeComposerRef, OwnerIteratorConversionComposer, OwnerAspectWithItems, OwnerIteratorPostProcessingComposer, SharedComposer, EnumComposer, LocalConversionContext, OwnerAspectWithCommaPunctuatedItems, ConstructorFieldsContext, ParentComposer, SequenceOutputPair, CommaPunctuatedOwnedItems, CommaPunctuatedFields, FunctionContext, ConstructorArgComposerRef, FieldsComposerRef, TypeContextComposer, DestructorContext, ParentComposerPresenterByRef, ParentSharedComposer, ParentComposerRef, OwnedItemsPunctuated, LocalFieldsOwnerContext, SequenceComposer, SequenceMixer, SourceAccessible, OwnedStatement, FieldTypeLocalContext, ToConversionComposer, DestroyConversionComposer};
 use crate::ext::{ConversionType, ToPath};
 use crate::presentable::{Aspect, BindingPresentableContext, ConstructorBindingPresentableContext, ConstructorPresentableContext, Expression, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{BindingPresentation, DictionaryName, Name};
@@ -268,7 +268,11 @@ pub const STRUCT_COMPOSER_CTOR_NAMED_ITEM: ConstructorArgComposerRef = |composer
 );
 pub const STRUCT_COMPOSER_CTOR_NAMED_OPAQUE_ITEM: ConstructorArgComposerRef = |composer| (
     OwnedItemPresentableContext::Named(composer.clone(), Visibility::Inherited),
-    OwnedItemPresentableContext::DefaultFieldConversion(composer.name.clone(), composer.to_attrs(), FromConversionComposer::new(composer.name.clone(), composer.ty().clone(), None))
+    OwnedItemPresentableContext::DefaultFieldConversion(
+        composer.name.clone(),
+        composer.to_attrs(),
+        composer.ty().clone()
+    )
 );
 
 pub const fn struct_composer_object<C>() -> OwnerIteratorPostProcessingComposer<ParentComposer<C>>
@@ -407,7 +411,7 @@ pub const fn enum_variant_composer_conversion_unit() -> OwnerIteratorConversionC
 pub const ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER: FieldsComposerRef = |fields|
     compose_fields(fields, |index, Field { ty, attrs, .. }| FieldComposer::new(
         Name::UnnamedArg(index),
-        FieldTypeConversionKind::Type(ty.clone()),
+        FieldTypeKind::Type(ty.clone()),
         false,
         attrs.cfg_attributes()));
 
@@ -417,7 +421,7 @@ pub const STRUCT_UNNAMED_FIELDS_COMPOSER: FieldsComposerRef = |fields|
         |index, Field { ty, attrs, .. }|
             FieldComposer::new(
                 Name::UnnamedStructFieldsComp(ty.clone(), index),
-                FieldTypeConversionKind::Type(ty.clone()),
+                FieldTypeKind::Type(ty.clone()),
                 false,
                 attrs.cfg_attributes()));
 
@@ -427,7 +431,7 @@ pub const STRUCT_NAMED_FIELDS_COMPOSER: ComposerPresenterByRef<
     compose_fields(fields, |_index, Field { ident, ty, attrs, .. }|
         FieldComposer::new(
             Name::Optional(ident.clone()),
-            FieldTypeConversionKind::Type(ty.clone()),
+            FieldTypeKind::Type(ty.clone()),
             true,
             attrs.cfg_attributes(),
         ));
@@ -540,9 +544,9 @@ pub const fn composer_target_binding<C>() -> ParentSharedComposer<C, DestructorC
 }
 
 pub const FROM_STRUCT_FIELD_STATEMENT_RESOLVER: FieldPathResolver = |composer |
-    (composer.name.clone(), ConversionType::From(FromConversionComposer::new(composer.name.clone(), composer.ty().clone(), Some(Expression::FfiRefWithName(composer.name.clone())))));
+    (composer.name.clone(), ConversionType::From(composer.name.clone(), composer.ty().clone(), Some(Expression::FfiRefWithName(composer.name.clone()))));
 pub const FROM_ENUM_VARIANT_STATEMENT_RESOLVER: FieldPathResolver = |composer |
-    (composer.name.clone(), ConversionType::From(FromConversionComposer::new(composer.name.clone(), composer.ty().clone(), Some(Expression::DerefName(composer.name.clone())))));
+    (composer.name.clone(), ConversionType::From(composer.name.clone(), composer.ty().clone(), Some(Expression::DerefName(composer.name.clone()))));
     // (composer.name.clone(), composer.conversion_from(Expression::DerefName(composer.name.clone())));
 
 

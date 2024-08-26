@@ -160,7 +160,7 @@ pub mod fermented {
 //             let cast_obj =
 //                 &(*(obj as *const crate::chain::common::chain_type::DevnetType));
 //             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: name (cast_obj ,) ;
-//             ferment_interfaces::FFIConversion::ffi_to(obj)
+//             ferment_interfaces::FFIConversionTo::ffi_to(obj)
 //         }
 //         unsafe extern "C" fn DevnetType_genesis_hash(
 //             obj: *const (),
@@ -168,7 +168,7 @@ pub mod fermented {
 //             let cast_obj =
 //                 &(*(obj as *const crate::chain::common::chain_type::DevnetType));
 //             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: genesis_hash (cast_obj ,) ;
-//             ferment_interfaces::FFIConversion::ffi_to(obj)
+//             ferment_interfaces::FFIConversionTo::ffi_to(obj)
 //         }
 //         unsafe extern "C" fn DevnetType_genesis_height(obj: *const ()) -> u32 {
 //             let cast_obj =
@@ -182,7 +182,7 @@ pub mod fermented {
 //         ) -> bool {
 //             let cast_obj =
 //                 &(*(obj as *const crate::chain::common::chain_type::DevnetType));
-//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: has_genesis_hash (cast_obj , ferment_interfaces :: FFIConversion :: ffi_from (hash) ,) ;
+//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: has_genesis_hash (cast_obj , ferment_interfaces :: FFIConversionFrom :: ffi_from (hash) ,) ;
 //             obj
 //         }
 //         unsafe extern "C" fn DevnetType_get_hash_by_hash(
@@ -191,8 +191,8 @@ pub mod fermented {
 //         ) -> *mut crate::fermented::types::nested::HashID {
 //             let cast_obj =
 //                 &(*(obj as *const crate::chain::common::chain_type::DevnetType));
-//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: get_hash_by_hash (cast_obj , ferment_interfaces :: FFIConversion :: ffi_from (hash) ,) ;
-//             ferment_interfaces::FFIConversion::ffi_to(obj)
+//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: get_hash_by_hash (cast_obj , ferment_interfaces :: FFIConversionFrom :: ffi_from (hash) ,) ;
+//             ferment_interfaces::FFIConversionTo::ffi_to(obj)
 //         }
 //         unsafe extern "C" fn DevnetType_should_process_llmq_of_type(
 //             obj: *const (),
@@ -205,8 +205,8 @@ pub mod fermented {
 //         }                    unsafe extern "C" fn DevnetType_find_masternode_list (obj : * const () , cached_mn_lists : * mut crate :: fermented :: generics :: std_collections_Map_keys_crate_nested_HashID_values_crate_nested_HashID , unknown_mn_lists : * mut crate :: fermented :: generics :: Vec_crate_nested_HashID ,) -> * mut crate :: fermented :: generics :: Result_ok_crate_nested_HashID_err_crate_nested_ProtocolError{
 //             let cast_obj =
 //                 &(*(obj as *const crate::chain::common::chain_type::DevnetType));
-//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: find_masternode_list (cast_obj , & ferment_interfaces :: FFIConversion :: ffi_from (cached_mn_lists) , & mut ferment_interfaces :: FFIConversion :: ffi_from (unknown_mn_lists) ,) ;
-//             ferment_interfaces::FFIConversion::ffi_to(obj)
+//             let obj = < crate :: chain :: common :: chain_type :: DevnetType as crate :: chain :: common :: chain_type :: IHaveChainSettings > :: find_masternode_list (cast_obj , & ferment_interfaces :: FFIConversionFrom :: ffi_from (cached_mn_lists) , & mut ferment_interfaces :: FFIConversionFrom :: ffi_from (unknown_mn_lists) ,) ;
+//             ferment_interfaces::FFIConversionTo::ffi_to(obj)
 //         }
 //         IHaveChainSettings_VTable {
 //             name: DevnetType_name,

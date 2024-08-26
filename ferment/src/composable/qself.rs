@@ -1,8 +1,8 @@
 use syn::QSelf;
-use crate::composable::TypeComposition;
+use crate::composable::TypeModel;
 
-pub struct QSelfComposition {
+pub struct QSelfModel {
     #[allow(unused)]
-    pub qs: TypeComposition,
+    pub qs: TypeModel,
     pub qself: QSelf
 }

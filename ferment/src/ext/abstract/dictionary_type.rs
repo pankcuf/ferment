@@ -23,6 +23,8 @@ pub trait DictionaryType {
     fn is_special_generic(&self) -> bool;
     fn is_result(&self) -> bool;
     fn is_map(&self) -> bool;
+    fn is_btree_set(&self) -> bool;
+    fn is_hash_set(&self) -> bool;
     fn is_box(&self) -> bool;
     fn is_optional(&self) -> bool;
     fn is_lambda_fn(&self) -> bool;
@@ -36,7 +38,7 @@ impl DictionaryType for Ident {
     }
 
     fn is_digit(&self) -> bool {
-        matches!(self.to_string().as_str(), "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" | "isize" | "usize")
+        matches!(self.to_string().as_str(), "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "isize" | "usize")
     }
 
     // 128-bit integers don't currently have a known stable ABI so they aren't FFI-safe, should be exported as [u8/i8; 16] instead
@@ -59,14 +61,18 @@ impl DictionaryType for Ident {
     }
 
     fn is_smart_ptr(&self) -> bool {
-        self.is_box() || matches!(self.to_string().as_str(), "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")
+        self.is_box() ||
+            matches!(self.to_string().as_str(),
+                "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")
     }
 
     fn is_special_std_trait(&self) -> bool {
         matches!(self.to_string().as_str(), "Send" | "Sync" | "Clone" | "Sized")
     }
     fn is_special_generic(&self) -> bool {
-        self.is_map() || self.is_vec() || matches!(self.to_string().as_str(), "IndexMap" | "BTreeSet" | "HashSet")
+        self.is_map() || self.is_vec() ||
+            self.is_btree_set() || self.is_hash_set() ||
+            matches!(self.to_string().as_str(), "IndexMap")
     }
 
     fn is_result(&self) -> bool {
@@ -75,6 +81,14 @@ impl DictionaryType for Ident {
 
     fn is_map(&self) -> bool {
         matches!(self.to_string().as_str(), "BTreeMap" | "HashMap")
+    }
+
+    fn is_btree_set(&self) -> bool {
+        matches!(self.to_string().as_str(), "BTreeSet")
+    }
+
+    fn is_hash_set(&self) -> bool {
+        matches!(self.to_string().as_str(), "HashSet")
     }
 
     fn is_box(&self) -> bool {
@@ -145,6 +159,14 @@ impl DictionaryType for PathSegment {
         self.ident.is_map()
     }
 
+    fn is_btree_set(&self) -> bool {
+        self.ident.is_btree_set()
+    }
+
+    fn is_hash_set(&self) -> bool {
+        self.ident.is_hash_set()
+    }
+
     fn is_box(&self) -> bool {
         self.ident.is_box()
     }
@@ -199,6 +221,14 @@ impl DictionaryType for Colon2Punctuated<PathSegment> {
 
     fn is_map(&self) -> bool {
         self.last().map_or(false, |seg| seg.is_map())
+    }
+
+    fn is_btree_set(&self) -> bool {
+        self.last().map_or(false, |seg| seg.is_btree_set())
+    }
+
+    fn is_hash_set(&self) -> bool {
+        self.last().map_or(false, |seg| seg.is_hash_set())
     }
 
     fn is_box(&self) -> bool {
@@ -256,6 +286,14 @@ impl DictionaryType for Path {
 
     fn is_map(&self) -> bool {
         self.segments.is_map()
+    }
+
+    fn is_btree_set(&self) -> bool {
+        self.segments.is_btree_set()
+    }
+
+    fn is_hash_set(&self) -> bool {
+        self.segments.is_hash_set()
     }
 
     fn is_box(&self) -> bool {

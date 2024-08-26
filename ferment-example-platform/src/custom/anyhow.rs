@@ -5,11 +5,13 @@
 pub struct anyhow_Error {
     raw_err: *mut anyhow::Error,
 }
-impl ferment_interfaces::FFIConversion<anyhow::Error> for anyhow_Error {
+impl ferment_interfaces::FFIConversionFrom<anyhow::Error> for anyhow_Error {
     unsafe fn ffi_from_const(ffi: *const Self) -> anyhow::Error {
         let ffi_ref = &*ffi;
         anyhow::Error::new(&**ffi_ref.raw_err)
     }
+}
+impl ferment_interfaces::FFIConversionTo<anyhow::Error> for anyhow_Error {
     unsafe fn ffi_to_const(obj: anyhow::Error) -> *const Self {
         ferment_interfaces::boxed(anyhow_Error { raw_err: ferment_interfaces::boxed(obj) })
     }

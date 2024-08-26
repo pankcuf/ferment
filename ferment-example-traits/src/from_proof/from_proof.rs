@@ -136,7 +136,7 @@ impl FromProof for Identity {
 //         response: *const Into_GetIdentityByPublicKeyHashResponse,
 //         platform_version: u32,
 //     ) -> *mut crate::fermented::generics::Result_ok_Option_ferment_example_traits_from_proof_from_proof_FromProof_err_ferment_example_traits_nested_ProtocolError {
-//         ferment_interfaces::FFIConversion::ffi_to(
+//         ferment_interfaces::FFIConversionTo::ffi_to(
 //             crate::from_proof::from_proof::FromProof::maybe_from_proof(
 //                 request,
 //                 response,
@@ -149,10 +149,10 @@ impl FromProof for Identity {
 //         response: *const Into_GetIdentityByPublicKeyHashResponse,
 //         platform_version: u32,
 //     ) -> *mut crate::fermented::generics::Result_ok_ferment_example_traits_from_proof_from_proof_FromProof_err_ferment_example_traits_nested_ProtocolError {
-//         ferment_interfaces::FFIConversion::ffi_to(
+//         ferment_interfaces::FFIConversionTo::ffi_to(
 //             crate::from_proof::from_proof::FromProof::from_proof(
-//                 ferment_interfaces::FFIConversion::ffi_from_const(request),
-//                 ferment_interfaces::FFIConversion::ffi_from_const(response),
+//                 ferment_interfaces::FFIConversionFrom::ffi_from_const(request),
+//                 ferment_interfaces::FFIConversionFrom::ffi_from_const(response),
 //                 platform_version)
 //         )
 //     }

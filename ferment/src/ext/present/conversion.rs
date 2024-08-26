@@ -1,33 +1,33 @@
 use quote::{quote, ToTokens};
 use syn::{Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use crate::composable::{FieldComposer, GenericBoundComposition};
-use crate::composer::{Composer, DestroyConversionComposer, FromConversionComposer, ToConversionComposer};
-use crate::context::ScopeContext;
-use crate::conversion::TypeConversion;
+use crate::composable::{FieldComposer, GenericBoundsModel};
+use crate::composer::{Composer, DestroyConversionComposer, FromConversionFullComposer, ToConversionComposer};
+use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::conversion::TypeKind;
 use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
-use crate::presentation::{DictionaryExpr, FFIConversionMethodExpr, Name};
+use crate::presentation::{DictionaryExpr, FFIConversionToMethodExpr, Name};
 
 #[derive(Clone, Debug)]
 pub enum ConversionType {
-    From(FromConversionComposer),
+    From(Name, Type, Option<Expression>),
     To(ToConversionComposer),
     Destroy(DestroyConversionComposer),
     // Variable(VariableComposer)
 }
 
-#[allow(unused)]
-impl ConversionType {
-    pub fn expr(&self) -> &Option<Expression> {
-        match self {
-            ConversionType::From(composer) => &composer.expr,
-            ConversionType::To(composer) => &composer.expr,
-            ConversionType::Destroy(composer) => &composer.expr,
-            // ConversionType::Variable(composer) => &None,
-        }
-    }
-}
+// #[allow(unused)]
+// impl ConversionType {
+//     pub fn expr(&self) -> &Option<Expression> {
+//         match self {
+//             ConversionType::From(composer) => &composer.expr,
+//             ConversionType::To(composer) => &composer.expr,
+//             ConversionType::Destroy(composer) => &composer.expr,
+//             // ConversionType::Variable(composer) => &None,
+//         }
+//     }
+// }
 
 impl<'a> Composer<'a> for ConversionType {
     type Source = ScopeContext;
@@ -35,8 +35,10 @@ impl<'a> Composer<'a> for ConversionType {
 
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
         match self {
-            ConversionType::From(composer) =>
-                composer.compose(source),
+            ConversionType::From(name, ty, expr) => {
+                FromConversionFullComposer::new(name.clone(), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), &source.scope), expr.clone()).compose(source)
+                // composer.compose(source)
+            },
             ConversionType::To(composer) =>
                 composer.compose(source),
             ConversionType::Destroy(composer) =>
@@ -261,7 +263,7 @@ impl ConversionTrait for TypePath {
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 None => unimplemented!("TypePath::conversion_from: Empty Optional: {}", self.to_token_stream()),
-                Some(TypeConversion::Primitive(_)) => Expression::FromOptPrimitive(expr.into()),
+                Some(TypeKind::Primitive(_)) => Expression::FromOptPrimitive(expr.into()),
                 Some(_) => Expression::FromOpt(expr.into()),
             }
         } else if last_ident.is_box() {
@@ -278,8 +280,8 @@ impl ConversionTrait for TypePath {
             expr
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-                Some(TypeConversion::Primitive(_)) => Expression::ToOptPrimitive(expr.into()),
-                Some(TypeConversion::Generic(_)) =>
+                Some(TypeKind::Primitive(_)) => Expression::ToOptPrimitive(expr.into()),
+                Some(TypeKind::Generic(_)) =>
                     // Expression::Expr(Expr::Match(ExprMatch {
                     //     attrs: vec![],
                     //     match_token: Default::default(),
@@ -307,7 +309,7 @@ impl ConversionTrait for TypePath {
 
                     Expression::OwnerIteratorPresentation(
                     SequenceOutput::MatchFields((expr.into(), Punctuated::from_iter([
-                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Vec::new()),
+                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionToMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Vec::new()),
                         OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), Vec::new())
                     ])))),
                 Some(_) => Expression::ToOpt(expr.into()),
@@ -325,7 +327,7 @@ impl ConversionTrait for TypePath {
             Expression::Empty
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-                Some(TypeConversion::Primitive(_)) => Expression::Empty,
+                Some(TypeKind::Primitive(_)) => Expression::Empty,
                 Some(_) => Expression::DestroyOpt(expr.into()),
                 None => unimplemented!("TypePath::conversion_destroy: Empty Optional"),
             }
@@ -385,7 +387,7 @@ impl ConversionTrait for TypeImplTrait {
     }
 }
 
-impl ConversionTrait for GenericBoundComposition {
+impl ConversionTrait for GenericBoundsModel {
     fn conversion_from(&self, expr: Expression) -> Expression {
         expr
     }

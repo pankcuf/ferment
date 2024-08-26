@@ -3,7 +3,7 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Path, PathSegment, Type};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum ScopeTreeExportID {
@@ -45,8 +45,8 @@ impl ScopeTreeExportID {
             ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
                 info: ScopeInfo {
                     attrs,
-                    crate_ident: scope.crate_ident().clone(),
-                    self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectConversion::Empty),
+                    crate_ident: scope.crate_ident_ref().clone(),
+                    self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectKind::Empty),
                 },
                 parent_scope_chain: Box::new(scope.clone())
             },

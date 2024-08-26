@@ -88,17 +88,33 @@ pub trait DropComposable {
 }
 
 pub trait ConversionComposable<Parent> where Parent: SharedAccess {
-    fn compose_conversion(&self) -> InterfacePresentation where Self: BasicComposable<Parent> {
-        InterfacePresentation::Conversion {
-            attrs: self.compose_attributes(),
-            types: (
-                self.compose_ffi_name(),
-                self.compose_target_name()
-            ),
-            conversions: self.compose_interface_aspects()
-        }
+    fn compose_conversions(&self) -> Depunctuated<InterfacePresentation> where Self: BasicComposable<Parent> {
+        let generics = self.compose_generics();
+        let attrs = self.compose_attributes();
+        let types = (self.compose_ffi_name(), self.compose_target_name());
+        Depunctuated::from_iter([
+            InterfacePresentation::ConversionFrom {
+                attrs: attrs.clone(),
+                types: types.clone(),
+                conversions: (self.compose_interface_from(), generics.clone())
+            },
+            InterfacePresentation::ConversionTo {
+                attrs: attrs.clone(),
+                types: types.clone(),
+                conversions: (self.compose_interface_to(), generics.clone())
+            },
+            InterfacePresentation::ConversionDestroy {
+                attrs,
+                types,
+                conversions: (self.compose_interface_destroy(), generics)
+            }
+        ])
     }
-    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>);
+    fn compose_interface_from(&self) -> TokenStream2;
+    fn compose_interface_to(&self) -> TokenStream2;
+    fn compose_interface_destroy(&self) -> TokenStream2;
+    // fn compose_interface_generics(&self) -> Option<Generics>;
+    // fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>);
 }
 
 pub trait FFIObjectComposable {

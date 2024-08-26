@@ -1,7 +1,7 @@
 use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, Meta, NestedMeta, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
 use crate::ast::TypeHolder;
-use crate::composable::GenericBoundComposition;
-use crate::conversion::ScopeItemConversion;
+use crate::composable::GenericBoundsModel;
+use crate::conversion::ScopeItemKind;
 use crate::ext::{UniqueNestedItems, ResolveMacro};
 
 #[allow(unused)]
@@ -33,7 +33,7 @@ fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute]
         )
 }
 
-impl TypeCollector for GenericBoundComposition {
+impl TypeCollector for GenericBoundsModel {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();
         // let mut cache_type = |ty: &Type|
@@ -151,11 +151,11 @@ impl TypeCollector for Path {
     }
 }
 
-impl TypeCollector for ScopeItemConversion {
+impl TypeCollector for ScopeItemKind {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         match self {
-            ScopeItemConversion::Item(item, ..) => item.collect_compositions(),
-            ScopeItemConversion::Fn(sig, ..) => sig.collect_compositions(),
+            ScopeItemKind::Item(item, ..) => item.collect_compositions(),
+            ScopeItemKind::Fn(sig, ..) => sig.collect_compositions(),
         }
     }
 }

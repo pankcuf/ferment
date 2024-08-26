@@ -1,4 +1,4 @@
-mod import_conversion;
+// mod import_conversion;
 mod item_conversion;
 mod type_composition_conversion;
 mod macro_conversion;
@@ -11,7 +11,7 @@ mod opaque_conversion;
 mod dictionary_conversion;
 
 pub use self::generic_type_conversion::*;
-pub use self::import_conversion::*;
+// pub use self::import_conversion::*;
 pub use self::item_conversion::*;
 pub use self::macro_conversion::*;
 pub use self::object_conversion::*;

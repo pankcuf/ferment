@@ -12,7 +12,7 @@ pub trait FFIConversion2<'a, T> {
     }
     /// # Safety
     unsafe fn ffi_to(obj: &'a T) -> *mut Self {
-        Self::ffi_to_const(obj) as *mut _
+        Self::ffi_to_const(obj).cast_mut()
     }
     /// # Safety
     unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
@@ -33,77 +33,46 @@ pub trait FFIConversion2<'a, T> {
 
 pub mod types {
     use std::ffi::{CStr, CString};
+    use std::mem;
     use std::os::raw::c_char;
-    use crate::{boxed, FFIConversion, OpaqueContext, OpaqueContextMut, unbox_string};
+    use crate::{boxed, clone_into_array, FFIConversionDestroy, FFIConversionFrom, FFIConversionTo, unbox_string};
     use crate::fermented::FFIConversion2;
 
-    #[allow(non_camel_case_types)]
-    pub type OpaqueContext_FFI = OpaqueContext;
-    #[allow(non_camel_case_types)]
-    pub type OpaqueContextMut_FFI = OpaqueContextMut;
-
-    impl FFIConversion<OpaqueContext_FFI> for OpaqueContext {
-        unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContext_FFI {
-            *ffi
+    impl FFIConversionFrom<u128> for [u8; 16] {
+        unsafe fn ffi_from_const(ffi: *const Self) -> u128 {
+            let arr = &*ffi;
+            u128::from_le_bytes(*arr)
         }
-
-        unsafe fn ffi_to_const(obj: OpaqueContext_FFI) -> *const Self {
-            obj as *const _
-        }
-
-        unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContext_FFI {
-            *ffi
-        }
-
-        unsafe fn ffi_to(obj: OpaqueContext_FFI) -> *mut Self {
-            // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
-            // behavior if the original memory location wasn't meant to be mutable
-            obj as *mut _
-        }
-
-        unsafe fn destroy(_ffi: *mut Self) {
-            // No destroy no ownership here
+    }
+    impl FFIConversionTo<u128> for [u8; 16] {
+        unsafe fn ffi_to_const(obj: u128) -> *const Self {
+            // let bytes = obj.to_le_bytes();
+            // let mut arr = [0u8; 16];
+            // arr.copy_from_slice(&bytes);
+            boxed(obj.to_le_bytes())
         }
     }
 
-    impl FFIConversion<OpaqueContextMut_FFI> for OpaqueContextMut {
-        unsafe fn ffi_from_const(ffi: *const Self) -> OpaqueContextMut_FFI {
-            *ffi
-        }
-
-        unsafe fn ffi_to_const(obj: OpaqueContextMut_FFI) -> *const Self {
-            obj as *const _
-        }
-
-        unsafe fn ffi_from(ffi: *mut Self) -> OpaqueContextMut_FFI {
-            *ffi
-        }
-
-        unsafe fn ffi_to(obj: OpaqueContextMut_FFI) -> *mut Self {
-            // Converting a const pointer to a mut pointer and then writing to it can lead to undefined
-            // behavior if the original memory location wasn't meant to be mutable
-            boxed(obj)
-        }
-    }
-
-    impl FFIConversion<String> for c_char {
+    impl FFIConversionFrom<String> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> String {
             CStr::from_ptr(ffi).to_str().unwrap().to_string()
         }
+        unsafe fn ffi_from(ffi: *mut Self) -> String {
+            Self::ffi_from_const(ffi.cast_const())
+        }
+    }
 
+    impl FFIConversionTo<String> for c_char {
         unsafe fn ffi_to_const(obj: String) -> *const Self {
             let s = CString::new(obj).unwrap();
             s.as_ptr()
         }
-
-        unsafe fn ffi_from(ffi: *mut Self) -> String {
-            Self::ffi_from_const(ffi as *const _)
-        }
-
         unsafe fn ffi_to(obj: String) -> *mut Self {
             CString::new(obj).unwrap().into_raw()
         }
+    }
 
+    impl FFIConversionDestroy<String> for c_char {
         unsafe fn destroy(ffi: *mut Self) {
             if ffi.is_null() {
                 return;
@@ -111,7 +80,6 @@ pub mod types {
             unbox_string(ffi);
         }
     }
-
 
     #[repr(C)]
     #[derive(Clone, Copy, Debug)]
@@ -121,48 +89,48 @@ pub mod types {
     }
 
 
-    impl FFIConversion<&[u8]> for ByteArray {
+    impl FFIConversionFrom<&[u8]> for ByteArray {
         unsafe fn ffi_from_const(ffi: *const Self) -> &'static [u8] {
             let ffi_ref = &*ffi;
             std::slice::from_raw_parts(ffi_ref.ptr, ffi_ref.len)
         }
-
+        unsafe fn ffi_from(ffi: *mut Self) -> &'static [u8] {
+            Self::ffi_from_const(ffi)
+        }
+    }
+    impl FFIConversionTo<&[u8]> for ByteArray {
         unsafe fn ffi_to_const(obj: &[u8]) -> *const Self {
             &Self { ptr: obj.as_ptr(), len: obj.len(), } as *const _
         }
 
-        unsafe fn ffi_from(ffi: *mut Self) -> &'static [u8] {
-            Self::ffi_from_const(ffi)
-        }
-
         unsafe fn ffi_to(obj: &[u8]) -> *mut Self {
-            Self::ffi_to_const(obj) as *mut _
-            // Self { ptr: obj.as_ptr(), len: obj.len(), } as *mut _
+            Self::ffi_to_const(obj).cast_mut()
         }
-
+    }
+    impl FFIConversionDestroy<&[u8]> for ByteArray {
         unsafe fn destroy(_ffi: *mut Self) {
             // TODO: check
         }
     }
 
-    impl FFIConversion<&str> for c_char {
+    impl FFIConversionFrom<&str> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> &'static str {
             CStr::from_ptr(ffi).to_str().unwrap()
         }
-
+        unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
+            Self::ffi_from_const(ffi)
+        }
+    }
+    impl FFIConversionTo<&str> for c_char {
         unsafe fn ffi_to_const(obj: &str) -> *const Self {
             let s = CString::new(obj).unwrap();
             s.as_ptr()
         }
-
-        unsafe fn ffi_from(ffi: *mut Self) -> &'static str {
-            Self::ffi_from_const(ffi)
-        }
-
         unsafe fn ffi_to(obj: &str) -> *mut Self {
             CString::new(obj).unwrap().into_raw()
         }
-
+    }
+    impl FFIConversionDestroy<&str> for c_char {
         unsafe fn destroy(ffi: *mut Self) {
             if ffi.is_null() {
                 return;
@@ -171,15 +139,17 @@ pub mod types {
         }
     }
 
-    impl<T, FFI> FFIConversion<Box<T>> for FFI where FFI: FFIConversion<T> {
+    impl<T, FFI> FFIConversionFrom<Box<T>> for FFI where FFI: FFIConversionFrom<T> {
         unsafe fn ffi_from_const(ffi: *const Self) -> Box<T> {
-            Box::new(<Self as FFIConversion<T>>::ffi_from_const(ffi))
-        }
-
-        unsafe fn ffi_to_const(obj: Box<T>) -> *const Self {
-            <Self as FFIConversion<T>>::ffi_to_const(*obj)
+            Box::new(<Self as FFIConversionFrom<T>>::ffi_from_const(ffi))
         }
     }
+    impl<T, FFI> FFIConversionTo<Box<T>> for FFI where FFI: FFIConversionTo<T> {
+        unsafe fn ffi_to_const(obj: Box<T>) -> *const Self {
+            <Self as FFIConversionTo<T>>::ffi_to_const(*obj)
+        }
+    }
+    impl<T, FFI> FFIConversionDestroy<Box<T>> for FFI where FFI: FFIConversionDestroy<T> {}
 
     impl<'a, T, FFI> FFIConversion2<'a, T> for FFI where FFI: From<&'a T> + 'a, T: From<&'a FFI> + 'a {
         unsafe fn ffi_from_const(ffi: *const Self) -> T {
@@ -190,14 +160,4 @@ pub mod types {
             boxed(obj.into())
         }
     }
-
-    // impl<E, FFI> FFIConversion<E> for FFI where E: std::error::Error {
-    //     unsafe fn ffi_from_const(ffi: *const Self) -> E {
-    //         <Self as FFIConversion<E>>::ffi_from_const(ffi)
-    //     }
-    //
-    //     unsafe fn ffi_to_const(obj: E) -> *const Self {
-    //         <Self as FFIConversion<E>>::ffi_to_const(*obj)
-    //     }
-    // }
 }

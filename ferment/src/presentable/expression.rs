@@ -8,7 +8,7 @@ use crate::context::ScopeContext;
 use crate::conversion::FROM_OPT_COMPLEX;
 use crate::ext::{ConversionType, Terminated};
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionMethod, FFIConversionMethodExpr, InterfacesMethodExpr, Name};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionDestroyMethod, FFIConversionDestroyMethodExpr, FFIConversionFromMethod, FFIConversionFromMethodExpr, FFIConversionToMethod, FFIConversionToMethodExpr, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug, Display)]
 #[allow(unused)]
@@ -22,7 +22,9 @@ pub enum Expression {
     Name(Name),
     DictionaryExpr(DictionaryExpr),
     FieldPath(DotPunctuated<TokenStream2>),
-    FFIConversionExpr(FFIConversionMethodExpr),
+    FFIConversionFromExpr(FFIConversionFromMethodExpr),
+    FFIConversionToExpr(FFIConversionToMethodExpr),
+    FFIConversionDestroyExpr(FFIConversionDestroyMethodExpr),
     FFICallbackExpr(FFICallbackMethodExpr),
     InterfacesExpr(InterfacesMethodExpr),
     Add(Box<Expression>, TokenStream2),
@@ -53,6 +55,7 @@ pub enum Expression {
     FromRawParts(TokenStream2),
     From(Box<Expression>),
     IntoBox(Box<Expression>),
+    MapIntoBox(Box<Expression>),
     FromRawBox(Box<Expression>),
     CastFrom(Box<Expression>, TokenStream2, TokenStream2),
     CastDestroy(Box<Expression>, TokenStream2, TokenStream2),
@@ -100,7 +103,11 @@ impl ScopeContextPresentable for Expression {
                 expr.to_token_stream(),
             Self::InterfacesExpr(expr) =>
                 expr.to_token_stream(),
-            Self::FFIConversionExpr(expr) =>
+            Self::FFIConversionFromExpr(expr) =>
+                expr.to_token_stream(),
+            Self::FFIConversionToExpr(expr) =>
+                expr.to_token_stream(),
+            Self::FFIConversionDestroyExpr(expr) =>
                 expr.to_token_stream(),
             Self::FFICallbackExpr(expr) =>
                 expr.to_token_stream(),
@@ -112,7 +119,7 @@ impl ScopeContextPresentable for Expression {
                     mapper.present(source))
                     .to_token_stream(),
             Self::From(presentable) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiFrom, presentable.present(source)))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFrom, presentable.present(source)))
                     .present(source),
             Self::FromOpt(presentable) =>
                 FROM_OPT_COMPLEX(presentable.present(source))
@@ -121,10 +128,10 @@ impl ScopeContextPresentable for Expression {
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(presentable.present(source)))
                     .present(source),
             Self::To(presentable) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiTo, presentable.present(source)))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::FfiTo, presentable.present(source)))
                     .present(source),
             Self::ToOpt(presentable) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversion(FFIConversionMethod::FfiToOpt, presentable.present(source)))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::FfiToOpt, presentable.present(source)))
                     .present(source),
             Self::ToPrimitiveGroup(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(presentable.present(source)))
@@ -199,13 +206,13 @@ impl ScopeContextPresentable for Expression {
             Self::CastFrom(presentable, ty, ffi_ty) => {
                 let field_path = presentable.present(source);
                 let package = DictionaryName::Package;
-                let interface = DictionaryName::Interface;
+                let interface = DictionaryName::InterfaceFrom;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::ffi_from(#field_path))
             }
             Self::CastDestroy(args, ty, ffi_ty) => {
                 let package = DictionaryName::Package;
-                let interface = DictionaryName::Interface;
-                let method = FFIConversionMethod::Destroy;
+                let interface = DictionaryName::InterfaceDestroy;
+                let method = FFIConversionDestroyMethod::Destroy;
                 DictionaryExpr::CallMethod(
                     quote!(<#ffi_ty as #package::#interface<#ty>>::#method),
                     args.present(source))
@@ -216,7 +223,7 @@ impl ScopeContextPresentable for Expression {
                     DictionaryExpr::CountRange.to_token_stream(),
                     DictionaryExpr::Mapper(
                         DictionaryName::I.to_token_stream(),
-                        FFIConversionMethodExpr::FfiFrom(DictionaryExpr::Add(quote!(*values), DictionaryName::I.to_token_stream()).to_token_stream()).to_token_stream())
+                        FFIConversionFromMethodExpr::FfiFrom(DictionaryExpr::Add(quote!(*values), DictionaryName::I.to_token_stream()).to_token_stream()).to_token_stream())
                         .to_token_stream())
                     .to_token_stream(),
             Self::AsRef(field_path) =>
@@ -248,6 +255,9 @@ impl ScopeContextPresentable for Expression {
                     .present(source),
             Self::IntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
+                    .present(source),
+            Self::MapIntoBox(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::MapIntoBox(expr.present(source)))
                     .present(source),
             Self::FromRawBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
@@ -293,7 +303,8 @@ impl ScopeContextPresentable for Expression {
             }
             Self::FromLambda(field_path, lambda_args) => {
                 let field_path = field_path.present(source);
-                quote!(move |#lambda_args| unsafe { (&*#field_path).call(#lambda_args) })
+                quote!(move |#lambda_args| unsafe { #field_path.call(#lambda_args) })
+                // quote!(move |#lambda_args| unsafe { (&*#field_path).call(#lambda_args) })
             }
             Self::FromPtrClone(field_path) => {
                 let field_path = field_path.present(source);

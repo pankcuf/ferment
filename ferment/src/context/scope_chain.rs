@@ -7,7 +7,7 @@ use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
 use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
 use crate::context::Scope;
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 use crate::ext::{CrateExtension, Fermented, Opaque, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
@@ -194,24 +194,28 @@ impl ToType for ScopeChain {
 impl ScopeChain {
 
     pub fn crate_root_with_ident(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
-        let self_scope = Scope::new(parse_quote!(#crate_ident), ObjectConversion::Empty);
+        let self_scope = Scope::new(parse_quote!(#crate_ident), ObjectKind::Empty);
         ScopeChain::CrateRoot { info: ScopeInfo { attrs, crate_ident, self_scope }}
     }
     pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
-        let self_scope = Scope::new(PathHolder::crate_root(), ObjectConversion::Empty);
+        let self_scope = Scope::new(PathHolder::crate_root(), ObjectKind::Empty);
         ScopeChain::CrateRoot { info: ScopeInfo { attrs, crate_ident, self_scope }}
     }
+
     pub fn child_mod(crate_ident: Ident, name: &Ident, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
-        ScopeChain::new_mod(crate_ident, Scope::new(parent_scope.self_path_holder_ref().joined(name), ObjectConversion::Empty), parent_scope, attrs)
+        ScopeChain::new_mod(crate_ident, Scope::new(parent_scope.self_path_holder_ref().joined(name), ObjectKind::Empty), parent_scope, attrs)
     }
     fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
         ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident, self_scope }, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
-    pub fn crate_ident(&self) -> &Ident {
+    pub fn crate_ident_ref(&self) -> &Ident {
         &self.info().crate_ident
     }
+    pub fn crate_ident(&self) -> Ident {
+        self.crate_ident_ref().clone()
+    }
     pub fn crate_ident_as_path(&self) -> Path {
-        self.crate_ident().to_path()
+        self.crate_ident_ref().to_path()
     }
     pub fn self_scope(&self) -> &Scope {
         &self.info().self_scope
@@ -221,7 +225,7 @@ impl ScopeChain {
         let scope = self.self_path_holder_ref();
         let mut full_fn_path = scope.joined(ident);
         if scope.is_crate_based() {
-            full_fn_path.replace_first_with(&PathHolder::from(self.crate_ident().to_path()))
+            full_fn_path.replace_first_with(&PathHolder::from(self.crate_ident_ref().to_path()))
         }
         full_fn_path
     }
@@ -251,7 +255,7 @@ impl ScopeChain {
             ScopeChain::Impl { parent_scope_chain, .. } => Some(parent_scope_chain),
         }
     }
-    pub fn parent_object(&self) -> Option<&ObjectConversion> {
+    pub fn parent_object(&self) -> Option<&ObjectKind> {
         self.parent_scope()
             .map(|scope| &scope.self_scope().object)
     }
@@ -280,7 +284,7 @@ impl ScopeChain {
     pub fn has_same_parent(&self, other: &ScopeChain) -> bool {
         match self {
             ScopeChain::CrateRoot { info, .. } |
-            ScopeChain::Mod { info, .. } => info.crate_ident.eq(other.crate_ident()) && info.self_scope.eq(other.self_scope()),
+            ScopeChain::Mod { info, .. } => info.crate_ident.eq(other.crate_ident_ref()) && info.self_scope.eq(other.self_scope()),
             ScopeChain::Trait { parent_scope_chain, .. } |
             ScopeChain::Fn { parent_scope_chain, .. } |
             ScopeChain::Object { parent_scope_chain, .. } |

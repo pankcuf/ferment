@@ -4,40 +4,56 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Signature, Type};
 use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, PathHolder};
-use crate::composable::{TraitDecompositionPart1, TypeComposition};
-use crate::conversion::{ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
+use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel, TypeModeled};
+use crate::composer::CommaPunctuatedNestedArguments;
+use crate::context::ScopeContext;
+use crate::conversion::{ScopeItemKind, TypeModelKind};
+use crate::ext::{AsType, collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
 use crate::presentation::Name;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub enum ObjectConversion {
-    Type(TypeCompositionConversion),
-    Item(TypeCompositionConversion, ScopeItemConversion),
+pub enum ObjectKind {
+    Type(TypeModelKind),
+    Item(TypeModelKind, ScopeItemKind),
     Empty
 }
 
-impl ObjectConversion {
+impl ObjectKind {
     pub fn is_type(&self, ty: &Type) -> bool {
         match self {
-            ObjectConversion::Type(conversion) |
-            ObjectConversion::Item(conversion, _) =>
-                ty.eq(conversion.ty()),
-            ObjectConversion::Empty => false
+            ObjectKind::Type(conversion) |
+            ObjectKind::Item(conversion, _) =>
+                ty.eq(conversion.as_type()),
+            ObjectKind::Empty => false
         }
     }
     pub fn is_refined(&self) -> bool {
         match self {
-            ObjectConversion::Type(conversion) => conversion.is_refined(),
+            ObjectKind::Type(conversion) => conversion.is_refined(),
             _ => true
         }
     }
     pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
         match self {
-            ObjectConversion::Type(tyc) |
-            ObjectConversion::Item(tyc, _) => tyc.maybe_callback(),
-            ObjectConversion::Empty => None
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, _) => tyc.maybe_callback(),
+            ObjectKind::Empty => None
         }
     }
+
+    pub fn maybe_trait_or_regular_model_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
+        match self {
+            ObjectKind::Type(ref ty_conversion) |
+            ObjectKind::Item(ref ty_conversion, ..) => match ty_conversion {
+                TypeModelKind::Trait(ty, _decomposition, _super_bounds) => ty.maybe_trait_object_maybe_model_kind(source),
+                _ => None,
+            }.unwrap_or_else(|| self.maybe_type_model_kind_ref().cloned()),
+            ObjectKind::Empty => {
+                None
+            }
+        }
+    }
+
     pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>
@@ -45,20 +61,27 @@ impl ObjectConversion {
             _ => None
         }
     }
+    pub fn maybe_scope_item(&self) -> Option<&ScopeItemKind> {
+        match self {
+            ObjectKind::Item(_, scope_item) => Some(scope_item),
+            _ => None
+        }
+    }
+
 }
 
-impl ValueReplaceScenario for ObjectConversion {
+impl ValueReplaceScenario for ObjectKind {
     fn should_replace_with(&self, other: &Self) -> bool {
-        // println!("ObjectConversion ::: should_replace_with:::: {}: {}", self, other);
+        // println!("ObjectKind ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
-            (_, ObjectConversion::Item(..)) => true,
-            (ObjectConversion::Type(self_ty), ObjectConversion::Type(candidate_ty)) => {
+            (_, ObjectKind::Item(..)) => true,
+            (ObjectKind::Type(self_ty), ObjectKind::Type(candidate_ty)) => {
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined();
                 let should = !self_ty.is_refined() || candidate_ty.is_bounds();
                 // let should = !self_ty.is_refined() && candidate_ty.is_refined() || self_ty.is_tuple();
                 // println!("MERGE? {} [{}]:\n\t {} [{}]: {}", should, self_ty.is_refined(), self_ty, candidate_ty.is_refined(), candidate_ty);
                 // MERGE? false [true]:
-                //     Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: )) [true]: Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: types :: identifier :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: ))
+                //     Bounds(GenericBoundsModel(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: )) [true]: Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: types :: identifier :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: ))
                 should
             }
             _ => false
@@ -69,130 +92,126 @@ impl ValueReplaceScenario for ObjectConversion {
 
 
 
-impl ToTokens for ObjectConversion {
+impl ToTokens for ObjectKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.maybe_type().to_tokens(tokens)
     }
 }
-impl Debug for ObjectConversion {
+impl Debug for ObjectKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectConversion::Type(tc) =>
+            ObjectKind::Type(tc) =>
                 f.write_str(format!("Type({})", tc).as_str()),
-            ObjectConversion::Item(tc, item) =>
+            ObjectKind::Item(tc, item) =>
                 f.write_str(format!("Item({}, {})", tc, item).as_str()),
-            ObjectConversion::Empty =>
+            ObjectKind::Empty =>
                 f.write_str("Empty"),
         }
     }
 }
 
-impl Display for ObjectConversion {
+impl Display for ObjectKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(self, f)
     }
 }
 
-impl ObjectConversion {
+impl ObjectKind {
     pub fn replace_composition_type(&mut self, with_ty: Type) {
         match self {
-            ObjectConversion::Type(ty) => ty.replace_composition_type(with_ty),
+            ObjectKind::Type(ty) => ty.replace_model_type(with_ty),
             // actually it has no sense since items can never be imported where they are defined
-            ObjectConversion::Item(ty, _) => ty.replace_composition_type(with_ty),
-            ObjectConversion::Empty => {}
+            ObjectKind::Item(ty, _) => ty.replace_model_type(with_ty),
+            ObjectKind::Empty => {}
         }
     }
 
-    pub fn new_item(ty: TypeCompositionConversion, item: ScopeItemConversion) -> ObjectConversion {
-        ObjectConversion::Item(ty, item)
+    pub fn new_item(ty: TypeModelKind, item: ScopeItemKind) -> ObjectKind {
+        ObjectKind::Item(ty, item)
     }
-    pub fn new_obj_item(ty: TypeComposition, item: ScopeItemConversion) -> ObjectConversion {
+    pub fn new_obj_item(ty: TypeModel, item: ScopeItemKind) -> ObjectKind {
         // println!("new_obj_item: {}", ty);
-        ObjectConversion::Item(TypeCompositionConversion::Object(ty), item)
+        ObjectKind::Item(TypeModelKind::Object(ty), item)
     }
-    pub fn type_conversion(&self) -> Option<&TypeCompositionConversion> {
+    pub fn maybe_type_model_kind_ref(&self) -> Option<&TypeModelKind> {
         match self {
-            ObjectConversion::Type(type_conversion) |
-            ObjectConversion::Item(type_conversion, ..) => Some(type_conversion),
-            ObjectConversion::Empty => None
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, ..) => Some(tyc),
+            ObjectKind::Empty => None
         }
     }
-    pub fn ty(&self) -> Option<&Type> {
-        match self {
-            ObjectConversion::Type(type_conversion) |
-            ObjectConversion::Item(type_conversion, ..) => Some(type_conversion.ty()),
-            ObjectConversion::Empty => None
-        }
+    pub fn maybe_type_ref(&self) -> Option<&Type> {
+        self.maybe_type_model_ref()
+            .map(TypeModel::as_type)
     }
-    pub fn maybe_type_composition(&self) -> Option<&TypeComposition> {
-        match self {
-            ObjectConversion::Type(ty) |
-            ObjectConversion::Item(ty, _) => Some(ty.ty_composition()),
-            ObjectConversion::Empty => None
-        }
+    pub fn maybe_type_model_ref(&self) -> Option<&TypeModel> {
+        self.maybe_type_model_kind_ref()
+            .map(TypeModelKind::type_model_ref)
     }
     pub fn maybe_type(&self) -> Option<Type> {
-        match self {
-            ObjectConversion::Type(ty) |
-            ObjectConversion::Item(ty, _) => Some(ty.to_type()),
-            ObjectConversion::Empty => None
-        }
+        self.maybe_type_model_kind_ref()
+            .map(TypeModelKind::to_type)
     }
 }
 
-impl TryFrom<(&Item, &PathHolder)> for ObjectConversion {
+impl TryFrom<(&Item, &PathHolder)> for ObjectKind {
     type Error = ();
 
     fn try_from((value, scope): (&Item, &PathHolder)) -> Result<Self, Self::Error> {
         match value {
             Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) => {
-                Ok(ObjectConversion::new_item(
-                    TypeCompositionConversion::Trait(
-                        TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
+                Ok(ObjectKind::new_item(
+                    TypeModelKind::Trait(
+                        TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
                         TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Struct(ItemStruct { ident, generics, .. }) => {
-                Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                Ok(ObjectKind::new_obj_item(
+                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Enum(ItemEnum { ident, generics, .. }) => {
-                Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                Ok(ObjectKind::new_obj_item(
+                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Type(ItemType { ident, generics, ty, .. }) => {
-                let conversion = ScopeItemConversion::Item(value.clone(), scope.clone());
+                let conversion = ScopeItemKind::Item(value.clone(), scope.clone());
                 let obj = match &**ty {
                     Type::BareFn(..) => {
-                        ObjectConversion::Item(TypeCompositionConversion::FnPointer(TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new())), conversion)
+                        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
+
+                        nested_arguments.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::Fn(TypeModel::new(*ty.clone(), Some(generics.clone()), CommaPunctuated::new())))));
+
+                        ObjectKind::Item(TypeModelKind::FnPointer(TypeModel::new(ident.to_type(), Some(generics.clone()), nested_arguments)/*,
+                            TypeComposition::new(*ty.clone(), Some(generics.clone()), Punctuated::new())*/), conversion)
                     },
-                    _ => ObjectConversion::new_obj_item(TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), conversion)
+                    _ => ObjectKind::new_obj_item(TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), conversion)
                 };
                 Ok(obj)
             },
             Item::Const(ItemConst { ident, .. }) => {
-                Ok(ObjectConversion::new_obj_item(
-                    TypeComposition::new(ident.to_type(), None, Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                Ok(ObjectKind::new_obj_item(
+                    TypeModel::new(ident.to_type(), None, Punctuated::new()),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Impl(ItemImpl { self_ty, generics, .. }) => {
-                Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(*self_ty.clone(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                Ok(ObjectKind::new_obj_item(
+                    TypeModel::new(*self_ty.clone(), Some(generics.clone()), Punctuated::new()),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Fn(ItemFn { sig: Signature { ident, generics, .. }, .. }) => {
-                Ok(ObjectConversion::new_obj_item(
-                        TypeComposition::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
-                    // ScopeItemConversion::Fn(value.clone())))
+                Ok(ObjectKind::new_obj_item(
+                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
+                    // ScopeItemKind::Fn(value.clone())))
             },
             Item::Mod(ItemMod { ident, .. }) => {
-                Ok(ObjectConversion::new_item(
-                    TypeCompositionConversion::Unknown(
-                        TypeComposition::new(ident.to_type(), None, Punctuated::new())),
-                    ScopeItemConversion::Item(value.clone(), scope.clone())))
+                Ok(ObjectKind::new_item(
+                    TypeModelKind::Unknown(
+                        TypeModel::new(ident.to_type(), None, Punctuated::new())),
+                    ScopeItemKind::Item(value.clone(), scope.clone())))
 
             }
             _ => Err(()),
@@ -200,10 +219,10 @@ impl TryFrom<(&Item, &PathHolder)> for ObjectConversion {
     }
 }
 
-impl ResolveAttrs for ObjectConversion {
+impl ResolveAttrs for ObjectKind {
     fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
         match self {
-            ObjectConversion::Item(_, item) =>
+            ObjectKind::Item(_, item) =>
                 item.resolve_attrs(),
             _ => vec![],
         }

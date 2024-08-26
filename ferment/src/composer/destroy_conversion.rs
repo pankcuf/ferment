@@ -44,7 +44,7 @@ impl DestroyConversionComposer {
 //             Expression::DestroyString(expr.into(), quote!(&#self))
 //         } else if last_ident.is_optional() {
 //             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-//                 Some(TypeConversion::Primitive(_)) =>
+//                 Some(TypeKind::Primitive(_)) =>
 //                     Expression::DestroyOptPrimitive(expr.into()),
 //                 _ =>
 //                     Expression::DestroyOpt(expr.into()),

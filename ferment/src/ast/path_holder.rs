@@ -1,5 +1,5 @@
 use quote::{format_ident, ToTokens};
-use syn::{Ident, parse_quote, Path, PathSegment};
+use syn::{Ident, parse_quote, Path, PathArguments, PathSegment};
 use syn::punctuated::Punctuated;
 use crate::ast::{Colon2Punctuated, Holder};
 use crate::ext::CrateExtension;
@@ -23,6 +23,9 @@ impl CrateExtension for Path {
         Path { segments: self.segments.ident_less(), leading_colon: self.leading_colon }
     }
 
+    fn arg_less(&self) -> Self {
+        Path { segments: self.segments.arg_less(), leading_colon: self.leading_colon }
+    }
     fn crate_and_ident_less(&self) -> Self {
         Path { segments: self.segments.crate_and_ident_less(), leading_colon: self.leading_colon }
     }
@@ -52,6 +55,10 @@ impl CrateExtension for Path {
     }
 }
 impl CrateExtension for PathHolder {
+    fn arg_less(&self) -> Self {
+        PathHolder(self.0.arg_less())
+    }
+
     fn is_crate_based(&self) -> bool {
         self.0.is_crate_based()
     }
@@ -94,6 +101,14 @@ impl CrateExtension for PathHolder {
 }
 
 impl CrateExtension for Colon2Punctuated<PathSegment> {
+    fn arg_less(&self) -> Self {
+        let mut s = self.clone();
+        if let Some(last) = s.last_mut() {
+            last.arguments = PathArguments::None;
+        }
+        s
+    }
+
     fn is_crate_based(&self) -> bool {
         self.first().unwrap().ident == format_ident!("crate")
     }

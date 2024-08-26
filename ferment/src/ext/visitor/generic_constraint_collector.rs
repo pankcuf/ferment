@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use crate::ast::TypeHolder;
-use crate::composable::GenericBoundComposition;
+use crate::composable::GenericBoundsModel;
 use crate::ext::visitor::{GenericCollector, TypeCollector};
 
 pub trait GenericConstraintCollector where Self: TypeCollector {
@@ -10,7 +10,7 @@ pub trait GenericConstraintCollector where Self: TypeCollector {
     }
 }
 
-impl GenericConstraintCollector for GenericBoundComposition {
+impl GenericConstraintCollector for GenericBoundsModel {
     fn find_generic_constraints(&self) -> HashSet<TypeHolder> {
         let compositions = self.collect_compositions();
         let mut container: HashSet<TypeHolder> = HashSet::new();

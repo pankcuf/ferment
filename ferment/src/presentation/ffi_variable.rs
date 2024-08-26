@@ -4,10 +4,10 @@ use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeImplTrait, TypePar
 use ferment_macro::Display;
 use syn::punctuated::Punctuated;
 use crate::ast::AddPunctuated;
-use crate::composable::{GenericBoundComposition, TypeComposition};
+use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictionaryTypeCompositionConversion, GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
+use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind, GroupModelKind};
+use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Display, Debug)]
@@ -44,13 +44,13 @@ impl Resolve<FFIVariable> for Path {
             FFIVariable::Direct { ty: self.to_type() }
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-                Some(TypeConversion::Primitive(ty)) => FFIVariable::MutPtr {
+                Some(TypeKind::Primitive(ty)) => FFIVariable::MutPtr {
                     ty: ty.clone()
                 },
-                Some(TypeConversion::Generic(generic_ty)) => FFIVariable::MutPtr {
-                    ty: <GenericTypeConversion as Resolve<FFIFullPath>>::resolve(generic_ty, source).to_type()
+                Some(TypeKind::Generic(generic_ty)) => FFIVariable::MutPtr {
+                    ty: <GenericTypeKind as Resolve<FFIFullPath>>::resolve(generic_ty, source).to_type()
                 },
-                Some(TypeConversion::Complex(Type::Path(TypePath { path, .. }))) =>
+                Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
                     path.resolve(source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
@@ -69,7 +69,7 @@ impl Resolve<FFIVariable> for Path {
 }
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
-    // println!("resolve_type_variable: {}", ty.to_token_stream());
+    println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
@@ -87,12 +87,19 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
                         (_, None, Some(_mut_token)) => FFIVariable::MutPtr { ty: FFIFullDictionaryPath::Void.to_type() },
                         _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                     },
-                    _ => FFIVariable::MutPtr {
-                        ty: path.to_type()
+                    _ => {
+                        if const_token.is_some() {
+                            FFIVariable::ConstPtr { ty: path.to_type() }
+                        } else {
+                            FFIVariable::MutPtr { ty: path.to_type() }
+                        }
                     }
                 },
-                Type::Ptr(..) => FFIVariable::MutPtr {
-                    ty: elem.to_type(),
+                Type::Ptr(..) => {
+
+                    FFIVariable::MutPtr {
+                        ty: elem.to_type(),
+                    }
                 },
                 ty => mutability.as_ref()
                     .map_or( FFIVariable::ConstPtr { ty: ty.clone() }, |_| FFIVariable::MutPtr { ty: ty.clone() })
@@ -126,7 +133,7 @@ impl Resolve<FFIVariable> for Type {
         // println!("Type::<FFIVariable>::resolve.3({})", maybe_special.to_token_stream());
         let refined = maybe_special
             .map(|ty| FFIFullPath::External { path: ty.to_path() })
-            .or(<Type as Resolve<TypeCompositionConversion>>::resolve(self, source)
+            .or(<Type as Resolve<TypeModelKind>>::resolve(self, source)
                 .to_type()
                 .resolve(source))
             .map(|ffi_path| ffi_path.to_type())
@@ -136,41 +143,80 @@ impl Resolve<FFIVariable> for Type {
     }
 }
 
-impl Resolve<FFIVariable> for TypeCompositionConversion {
+impl Resolve<FFIVariable> for TypeModelKind {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable {
-        println!("TypeCompositionConversion::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
+        println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
-            TypeCompositionConversion::FnPointer(TypeComposition { ty, .. }, ..) => FFIVariable::Direct {
+            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::Direct {
                 ty: <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
                     .map(|special| special.to_type())
                     .unwrap_or(<Type as Resolve::<FFIFullPath>>::resolve(ty, source)
                         .to_type())
             },
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(TypeComposition { ty, .. }, ..)) => FFIVariable::MutPtr {
+            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::MutPtr {
                 ty: <Type as Resolve::<FFIFullPath>>::resolve(ty, source).to_type()
             },
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(composition)) => FFIVariable::Direct {
+            TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::Direct {
                 ty: composition.to_type()
             },
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition { ty, .. })) |
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(TypeComposition { ty, .. })) |
-            TypeCompositionConversion::Trait(TypeComposition { ty, .. }, ..) |
-            TypeCompositionConversion::TraitType(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Object(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Optional(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Array(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Slice(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Tuple(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::Unknown(TypeComposition { ty, .. }) |
-            TypeCompositionConversion::LocalOrGlobal(TypeComposition { ty, .. }) => {
-                println!("TypeCompositionConversion::Regular: {}", ty.to_token_stream());
+            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
+                // println!("TypeModelKind::Boxed: {}", ty.to_token_stream());
+                match ty.first_nested_type() {
+                    Some(nested_full_ty) => {
+                        // println!("Nested: {}", nested_full_ty.to_token_stream());
+                        resolve_type_variable(match <Type as Resolve<Option<SpecialType>>>::resolve(nested_full_ty, source) {
+                            Some(special) => special.to_type(),
+                            None => {
+                                let conversion = <Type as Resolve<TypeModelKind>>::resolve(nested_full_ty, source);
+                                <Type as Resolve<Option<FFIFullPath>>>::resolve(&conversion.to_type(), source)
+                                    .map(|full_path| full_path.to_type())
+                                    .unwrap_or_else(|| nested_full_ty.clone())
+                            }
+                        }, source)
+                    }
+                    None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
+                }
+            },
+            TypeModelKind::Dictionary(
+                DictTypeModelKind::NonPrimitiveFermentable(
+                    DictFermentableModelKind::SmartPointer(
+                        SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::Pin(TypeModel { ty, .. })
+                    ) |
+                    DictFermentableModelKind::Group(
+                        GroupModelKind::BTreeSet(TypeModel { ty, .. }) |
+                        GroupModelKind::HashSet(TypeModel { ty, .. }) |
+                        GroupModelKind::Map(TypeModel { ty, .. }) |
+                        GroupModelKind::Result(TypeModel { ty, .. }) |
+                        GroupModelKind::Vec(TypeModel { ty, .. }) |
+                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                    ) |
+                    DictFermentableModelKind::String(TypeModel { ty, .. }) |
+                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                    DictFermentableModelKind::Other(TypeModel { ty, .. })
+                ) |
+                DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })
+            ) |
+            TypeModelKind::Trait(TypeModel { ty, .. }, ..) |
+            TypeModelKind::TraitType(TypeModel { ty, .. }) |
+            TypeModelKind::Object(TypeModel { ty, .. }) |
+            TypeModelKind::Optional(TypeModel { ty, .. }) |
+            TypeModelKind::Array(TypeModel { ty, .. }) |
+            TypeModelKind::Slice(TypeModel { ty, .. }) |
+            TypeModelKind::Tuple(TypeModel { ty, .. }) |
+            TypeModelKind::Unknown(TypeModel { ty, .. })  => {
+                println!("TypeModelKind::Regular: {}", ty.to_token_stream());
                 // let ffi_path = match <Type as Resolve<Option<SpecialType>>>::resolve(ty, source) {
                 //     Some(ty) =>
                 //         ty.to_type().resolve(source),
                 //         // FFIFullPath::External { path: ty.to_path() }.res,
                 //     None => {
-                //         let ty = <Type as Resolve<TypeCompositionConversion>>::resolve(ty, source);
+                //         let ty = <Type as Resolve<TypeModelKind>>::resolve(ty, source);
                 //         let ffi_path: Option<FFIFullPath> = ty.resolve(source);
                 //         resolve_type_variable(match ffi_path {
                 //             Some(ffi_path) =>
@@ -189,59 +235,59 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
                 <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
                     .map(|ty| resolve_type_variable(FFIFullPath::External { path: ty.to_path() }.to_type(), source))
                     .unwrap_or_else(|| {
-                        resolve_type_variable(<Type as Resolve<Option<ObjectConversion>>>::resolve(ty, source)
+                        resolve_type_variable(<Type as Resolve<Option<ObjectKind>>>::resolve(ty, source)
                             .and_then(|external_type| {
                                 match external_type {
-                                    ObjectConversion::Item(.., ScopeItemConversion::Fn(..)) => {
-                                        // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
+                                    ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
+                                        // println!("Type::<TypeModelKind> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
                                         let parent_object = &source.scope.parent_object().unwrap();
-                                        // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);
+                                        // println!("Type::<TypeModelKind> Parent Object: {}", parent_object);
                                         match parent_object {
-                                            ObjectConversion::Type(ref ty_conversion) |
-                                            ObjectConversion::Item(ref ty_conversion, ..) => {
+                                            ObjectKind::Type(ref ty_conversion) |
+                                            ObjectKind::Item(ref ty_conversion, ..) => {
                                                 match ty_conversion {
-                                                    TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
-                                                        // println!("Type::<TypeCompositionConversion> It's a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
-                                                        ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                                                    TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
+                                                        // println!("Type::<TypeModelKind> It's a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                                        ty.as_type().maybe_trait_object_maybe_model_kind(source)
                                                     },
                                                     _ => {
                                                         None
                                                     },
                                                 }.unwrap_or_else(|| {
-                                                    // println!("Type::<TypeCompositionConversion> Not a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
-                                                    parent_object.type_conversion().cloned()
+                                                    // println!("Type::<TypeModelKind> Not a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
+                                                    parent_object.maybe_type_model_kind_ref().cloned()
                                                 })
                                             },
-                                            ObjectConversion::Empty => {
-                                                // println!("Type::<TypeCompositionConversion> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
+                                            ObjectKind::Empty => {
+                                                // println!("Type::<TypeModelKind> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
                                                 None
                                             }
                                         }
                                     },
-                                    ObjectConversion::Type(ref ty_conversion) |
-                                    ObjectConversion::Item(ref ty_conversion, ..) => {
+                                    ObjectKind::Type(ref ty_conversion) |
+                                    ObjectKind::Item(ref ty_conversion, ..) => {
                                         match ty_conversion {
-                                            TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
-                                                // println!("Type::<TypeCompositionConversion> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
-                                                ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
+                                            TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
+                                                // println!("Type::<TypeModelKind> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                                                ty.as_type().maybe_trait_object_maybe_model_kind(source)
                                             },
                                             _ => {
                                                 None
                                             },
                                         }.unwrap_or_else(|| {
-                                            // println!("Type::<TypeCompositionConversion> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
-                                            external_type.type_conversion().cloned()
+                                            // println!("Type::<TypeModelKind> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                                            external_type.maybe_type_model_kind_ref().cloned()
                                         })
                                     },
-                                    ObjectConversion::Empty => {
-                                        // println!("Type::<TypeCompositionConversion> Has no object --> {}", external_type.type_conversion().to_token_stream());
+                                    ObjectKind::Empty => {
+                                        // println!("Type::<TypeModelKind> Has no object --> {}", external_type.type_conversion().to_token_stream());
                                         None
                                     }
                                 }
                             })
                             .unwrap_or_else(|| {
-                                println!("Type::<TypeCompositionConversion> Default Unknown --> {}", ty.to_token_stream());
-                                TypeCompositionConversion::Unknown(TypeComposition::new(ty.clone(), None, Punctuated::new()))
+                                println!("Type::<TypeModelKind> Default Unknown --> {}", ty.to_token_stream());
+                                TypeModelKind::Unknown(TypeModel::new(ty.clone(), None, Punctuated::new()))
                             }).to_type(), source)
 
 
@@ -251,52 +297,39 @@ impl Resolve<FFIVariable> for TypeCompositionConversion {
                     })
                 // <Type as Resolve<Option<SpecialType>>>::resolve(ty, source)
                 //     .map(|ty| FFIFullPath::External { path: ty.to_path() }.to_type())
-                //     .or_else(|| <Type as Resolve<TypeCompositionConversion>>::resolve(ty, source)
+                //     .or_else(|| <Type as Resolve<TypeModelKind>>::resolve(ty, source)
                 //         .to_type()
                 //         .resolve(source))
                 //     .map(|ffi_path| ffi_path.to_type())
                 //     .unwrap_or(parse_quote!(#ty))
                 //     .resolve(source)
             },
-            TypeCompositionConversion::Fn(TypeComposition { ty, .. }, ..) => {
+            TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
                 // ty.to_path().popped()
                 panic!("error: Arg conversion (Fn) ({}) not supported", ty.to_token_stream())
             },
-            TypeCompositionConversion::Boxed(TypeComposition { ty, .. }, ..) => {
-                // println!("TypeCompositionConversion::Boxed: {}", ty.to_token_stream());
-                match ty.first_nested_type() {
-                    Some(nested_full_ty) => {
-                        // println!("Nested: {}", nested_full_ty.to_token_stream());
-                        resolve_type_variable(match <Type as Resolve<Option<SpecialType>>>::resolve(nested_full_ty, source) {
-                            Some(special) => special.to_type(),
-                            None => {
-                                let conversion = <Type as Resolve<TypeCompositionConversion>>::resolve(nested_full_ty, source);
-                                <Type as Resolve<Option<FFIFullPath>>>::resolve(&conversion.to_type(), source)
-                                    .map(|full_path| full_path.to_type())
-                                    .unwrap_or_else(|| nested_full_ty.clone())
-                            }
-                        }, source)
-                    }
-                    None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
-                }
-            },
 
-            TypeCompositionConversion::Bounds(bounds) => {
-                // println!("TypeCompositionConversion::Bounds: {}", bounds);
+            TypeModelKind::Bounds(bounds) => {
+                // println!("TypeModelKind::Bounds: {}", bounds);
                 bounds.resolve(source)
             },
             ty =>
                 panic!("error: Arg conversion ({}) not supported", ty),
         };
-        // println!("TypeCompositionConversion::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
+        // println!("TypeModelKind::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
         result
     }
 }
 
-impl Resolve<FFIVariable> for GenericBoundComposition {
+impl Resolve<FFIVariable> for GenericBoundsModel {
     fn resolve(&self, _source: &ScopeContext) -> FFIVariable {
         let ffi_name = self.mangle_ident_default();
-        // println!("GenericBoundComposition::<FFIVariable>::resolve({})", self);
-        FFIVariable::MutPtr { ty: parse_quote!(crate::fermented::generics::#ffi_name) }
+        if self.is_lambda() {
+            FFIVariable::Direct { ty: parse_quote!(crate::fermented::generics::#ffi_name) }
+
+        } else {
+            FFIVariable::MutPtr { ty: parse_quote!(crate::fermented::generics::#ffi_name) }
+        }
+        // println!("GenericBoundsModel::<FFIVariable>::resolve({})", self);
     }
 }

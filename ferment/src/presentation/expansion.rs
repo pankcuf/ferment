@@ -21,7 +21,7 @@ pub enum Expansion {
         attrs: Vec<Attribute>,
         comment: DocPresentation,
         ffi_presentation: FFIObjectPresentation,
-        conversion: InterfacePresentation,
+        conversions: Depunctuated<InterfacePresentation>,
         drop: DropInterfacePresentation,
         bindings: Depunctuated<BindingPresentation>,
         traits: Directives,
@@ -30,8 +30,9 @@ pub enum Expansion {
         tree: CrateTree,
     },
     Mod {
-        attrs: Directives,
-        directives: TokenStream2,
+        attrs: Vec<Attribute>,
+        // attrs: Directives,
+        // directives: TokenStream2,
         name: TokenStream2,
         imports: SemiPunctuated<ItemUse>,
         conversions: Depunctuated<TokenStream2>
@@ -62,10 +63,10 @@ impl ToTokens for Expansion {
                 vec![comment.to_token_stream(), items.to_token_stream()],
             Self::Function { comment, binding: ffi_presentation } =>
                 vec![comment.to_token_stream(), ffi_presentation.to_token_stream()],
-            Self::Full { attrs, comment, ffi_presentation, conversion, drop, bindings, traits } =>
-                vec![comment.to_token_stream(), quote!(#(#attrs)*), ffi_presentation.to_token_stream(), quote!(#(#attrs)*), conversion.to_token_stream(), quote!(#(#attrs)*), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()],
-            Self::Mod { attrs, directives, name, imports , conversions } =>
-                vec![quote!(#attrs #directives pub mod #name { #imports #conversions })],
+            Self::Full { attrs, comment, ffi_presentation, conversions, drop, bindings, traits } =>
+                vec![comment.to_token_stream(), quote!(#(#attrs)*), ffi_presentation.to_token_stream(), quote!(#(#attrs)*), conversions.to_token_stream(), quote!(#(#attrs)*), drop.to_token_stream(), bindings.to_token_stream(), traits.to_token_stream()],
+            Self::Mod { attrs, name, imports , conversions } =>
+                vec![quote!(#(#attrs)*), quote!(pub mod #name { #imports #conversions })],
             Self::Trait { comment, vtable, trait_object } =>
                 vec![comment.to_token_stream(), vtable.to_token_stream(), trait_object.to_token_stream()],
             Self::Root { tree } =>

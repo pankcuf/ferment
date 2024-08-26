@@ -8,7 +8,7 @@ use syn::token::{Brace, Comma, Paren, Pub};
 use syn::punctuated::Punctuated;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::Depunctuated;
-use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{BasicComposable, BasicComposer, BindingComposable, BINDING_DTOR_COMPOSER, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, DropComposable, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemParentComposer, Linkable, MethodComposer, NameContext, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::ToPath;
@@ -29,7 +29,7 @@ pub enum ItemComposerWrapper {
 
 
 impl ItemComposerWrapper {
-    pub fn enum_variant(fields: &Fields, name_context: Context, attrs: AttrsComposition, context: &ParentComposer<ScopeContext>) -> ItemComposerWrapper {
+    pub fn enum_variant(fields: &Fields, name_context: Context, attrs: AttrsModel, context: &ParentComposer<ScopeContext>) -> ItemComposerWrapper {
         match fields {
             Fields::Unit =>
                 ItemComposerWrapper::EnumVariantUnit(ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context)),
@@ -143,7 +143,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
     }
     pub fn enum_variant_composer_unit(
         name_context: Context,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>
     ) -> ParentComposer<Self> {
@@ -163,7 +163,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
     }
     pub fn enum_variant_composer_unnamed(
         name_context: Context,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>
     ) -> ParentComposer<Self> {
@@ -183,7 +183,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
     }
     pub fn enum_variant_composer_named(
         name_context: Context,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>
     ) -> ParentComposer<Self> {
@@ -215,7 +215,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
                 attrs: attrs.cfg_attributes(),
             },
             Some(generics.clone()),
-            AttrsComposition::from(attrs, target_name, scope),
+            AttrsModel::from(attrs, target_name, scope),
             &Punctuated::from_iter([Field {
                 vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
                 ty: (*ty).clone(),
@@ -253,7 +253,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
                 attrs: attrs.cfg_attributes(),
             },
             Some(generics.clone()),
-            AttrsComposition::from(attrs, target_name, scope),
+            AttrsModel::from(attrs, target_name, scope),
             fields,
             context,
             root_presenter,
@@ -270,7 +270,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
     #[allow(clippy::too_many_arguments)]
     fn enum_variant_composer(
         name_context: Context,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>,
         root_presenter: OwnerIteratorConversionComposer<Comma>,
@@ -302,7 +302,7 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
     fn new<T: SharedAccess + 'static>(
         name_context: Context,
         generics: Option<Generics>,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>,
         root_presenter: ComposerPresenter<OwnerAspectWithCommaPunctuatedItems, SequenceOutput>,
@@ -374,7 +374,7 @@ impl<I> SourceExpandable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
             attrs: self.compose_attributes(),
             comment: self.base.compose_docs(),
             ffi_presentation: self.compose_object(),
-            conversion: ConversionComposable::<ParentComposer<Self>>::compose_conversion(self),
+            conversions: ConversionComposable::<ParentComposer<Self>>::compose_conversions(self),
             drop: self.compose_drop(),
             bindings: self.compose_bindings(),
             traits: Depunctuated::new()
@@ -418,14 +418,17 @@ impl<Parent, I> ConversionComposable<Parent> for ItemComposer<I>
     where
         Parent: SharedAccess,
         I: DelimiterTrait + ?Sized {
-    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>) {
-        let source = self.source_ref();
-        (
-            self.compose_aspect(FFIAspect::From).present(&source),
-            self.compose_aspect(FFIAspect::To).present(&source),
-            self.compose_aspect(FFIAspect::Destroy).present(&source),
-            self.compose_generics()
-        )
+    fn compose_interface_from(&self) -> TokenStream2 {
+        self.compose_aspect(FFIAspect::From)
+            .present(&self.source_ref())
+    }
+    fn compose_interface_to(&self) -> TokenStream2 {
+        self.compose_aspect(FFIAspect::To)
+            .present(&self.source_ref())
+    }
+    fn compose_interface_destroy(&self) -> TokenStream2 {
+        self.compose_aspect(FFIAspect::Destroy)
+            .present(&self.source_ref())
     }
 }
 

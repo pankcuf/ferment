@@ -4,9 +4,9 @@ use quote::quote;
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, Lifetime, LifetimeDef, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
-use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeComposition};
+use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel};
 use crate::context::ScopeChain;
-use crate::conversion::{MacroType, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
+use crate::conversion::{MacroType, ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{Join, ResolveMacro, ToType};
 use crate::ext::item::collect_bounds;
 use crate::tree::Visitor;
@@ -50,7 +50,7 @@ impl VisitScope for Item {
             }
             Item::Enum(item_enum) => {
                 // println!("add_to_scope (Enum) NEW_OBJECT: {}", scope);
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
+                let self_object = ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemKind::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
@@ -72,18 +72,18 @@ impl VisitScope for Item {
                             bounds.iter().for_each(|pp| match pp {
                                 TypeParamBound::Trait(TraitBound { path, .. }) => {
                                     // TODO: make it Unknown
-                                    nested_bounds.push(NestedArgument::Object(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(path.to_type(), None, CommaPunctuated::new())))));
+                                    nested_bounds.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(path.to_type(), None, CommaPunctuated::new())))));
                                 }
                                 TypeParamBound::Lifetime(Lifetime { .. }) => {}
                             });
                             // TODO: make it Unknown
-                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::TraitType(TypeComposition::new(ident.to_type(), Some(item_struct.generics.clone()), nested_bounds)))));
+                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), nested_bounds)))));
 
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
                             // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
-                            nested_arguments.push(NestedArgument::Constraint(ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
+                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
                             inner_args.push(quote!(#lifetime));
@@ -94,9 +94,9 @@ impl VisitScope for Item {
                     scope.to_type()
                 };
                 // println!("add_to_scope (STRUCT) SELF: {}", scope);
-                let self_object = ObjectConversion::new_item(
-                    TypeCompositionConversion::Object(TypeComposition::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
-                    ScopeItemConversion::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
+                let self_object = ObjectKind::new_item(
+                    TypeModelKind::Object(TypeModel::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
+                    ScopeItemKind::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_struct.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
@@ -105,7 +105,7 @@ impl VisitScope for Item {
                     visitor.add_full_qualified_type_match(scope, ty,true));
             }
             Item::Fn(ItemFn { sig, .. }) => {
-                let self_object = ObjectConversion::new_item(TypeCompositionConversion::Fn(TypeComposition::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemConversion::Fn(sig.clone(), self_scope.clone()));
+                let self_object = ObjectKind::new_item(TypeModelKind::Fn(TypeModel::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemKind::Fn(sig.clone(), self_scope.clone()));
                 let sig_ident = &sig.ident;
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, self_object.clone());
                 add_itself_conversion(visitor, scope, sig_ident, self_object);
@@ -115,11 +115,14 @@ impl VisitScope for Item {
             Item::Type(item_type) => {
                 let self_object = match &*item_type.ty {
                     Type::BareFn(..) =>
-                        ObjectConversion::new_item(TypeCompositionConversion::FnPointer(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone())),
+                        ObjectKind::new_item(
+                            TypeModelKind::FnPointer(
+                                TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new()),
+                                /*TypeModel::new(*item_type.ty.clone(), Some(item_type.generics.clone()), Punctuated::new())*/), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone())),
                     _ => {
                         // println!("add_to_scope (Type) NEW_OBJECT: {}", scope);
 
-                        ObjectConversion::new_item(TypeCompositionConversion::Object(TypeComposition::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemConversion::Item(Item::Type(item_type.clone()), self_scope.clone()))
+                        ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
                     }
                 };
                 // println!("ADDD TYPE: {}", self_object);
@@ -178,13 +181,13 @@ impl VisitScope for Item {
 fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope: &ScopeChain) {
     // println!("add_full_qualified_trait: {}: {}", item_trait.ident, scope);
     let ident = &item_trait.ident;
-    let type_compo = TypeComposition::new(scope.to_type(), Some(item_trait.generics.clone()), Punctuated::new());
-    let itself = ObjectConversion::new_item(
-        TypeCompositionConversion::Trait(
+    let type_compo = TypeModel::new(scope.to_type(), Some(item_trait.generics.clone()), Punctuated::new());
+    let itself = ObjectKind::new_item(
+        TypeModelKind::Trait(
             type_compo,
             TraitDecompositionPart1::from_trait_items(ident, &item_trait.items),
             add_bounds(visitor, &item_trait.supertraits, scope, true)),
-        ScopeItemConversion::Item(Item::Trait(item_trait.clone()), scope.self_path_holder()));
+        ScopeItemKind::Item(Item::Trait(item_trait.clone()), scope.self_path_holder()));
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
@@ -280,7 +283,7 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
     //     Some(parent) => {
     //         let ty: TypeHolder = parse_quote!(#ident);
     //         // TODO: wrong here can be non-determined context
-    //         let object = self.update_nested_generics(parent, &ty.0);
+    //         let object = self.visit_scope_type(parent, &ty.0);
     //         self.scope_add_one(ty, object, parent);
     //
     //     },
@@ -367,7 +370,7 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
     generics_chain
 }
 
-fn add_itself_conversion(visitor: &mut Visitor, scope: &ScopeChain, ident: &Ident, object: ObjectConversion) {
+fn add_itself_conversion(visitor: &mut Visitor, scope: &ScopeChain, ident: &Ident, object: ObjectKind) {
     visitor.scope_add_one(parse_quote!(#ident), object, scope);
 }
 

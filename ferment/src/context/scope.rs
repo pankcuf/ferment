@@ -3,13 +3,13 @@ use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use crate::ast::PathHolder;
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 use crate::ext::ItemExtension;
 
 #[derive(Clone, Eq)]
 pub struct Scope {
     pub self_scope: PathHolder,
-    pub object: ObjectConversion,
+    pub object: ObjectKind,
 }
 
 impl Debug for Scope {
@@ -40,7 +40,7 @@ impl Hash for Scope {
 }
 
 impl Scope {
-    pub fn new(self_scope: PathHolder, object: ObjectConversion) -> Self {
+    pub fn new(self_scope: PathHolder, object: ObjectKind) -> Self {
         Scope { self_scope, object }
     }
     pub fn joined(&self, item: &Item) -> Self {
@@ -49,14 +49,14 @@ impl Scope {
             .map(|ident| self.self_scope.joined(ident))
             .unwrap_or(self.self_scope.clone());
         // println!(":::: joined: {} in [{}] --> [{}] ", item.ident_string(), self, child_self_scope);
-        let object = ObjectConversion::try_from((item, &child_self_scope)).unwrap();
+        let object = ObjectKind::try_from((item, &child_self_scope)).unwrap();
         Scope::new(child_self_scope, object)
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
         // println!("Scope::maybe_generic_bound_for_path: {} in [{}]", format_token_stream(path), self);
         match &self.object {
-            ObjectConversion::Item(_, item) => item.maybe_generic_bound_for_path(path),
+            ObjectKind::Item(_, item) => item.maybe_generic_bound_for_path(path),
             _ => None
         }
     }

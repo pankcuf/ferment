@@ -1,15 +1,15 @@
 use syn::Attribute;
-use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{Composer, Linkable, ParentComposer};
 use crate::context::ScopeContext;
 use crate::shared::SharedAccess;
 
 pub struct AttrsComposer<Parent: SharedAccess> {
     pub parent: Option<Parent>,
-    pub attrs: AttrsComposition,
+    pub attrs: AttrsModel,
 }
 impl<Parent: SharedAccess> AttrsComposer<Parent> {
-    pub fn new(attrs: AttrsComposition) -> AttrsComposer<Parent> {
+    pub fn new(attrs: AttrsModel) -> AttrsComposer<Parent> {
         Self { parent: None, attrs }
     }
 }
@@ -37,10 +37,10 @@ impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
     }
 }
 
-// pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsComposition, context: &ParentComposer<ScopeContext>) -> TraitVTablePresentation {
+// pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsModel, context: &ParentComposer<ScopeContext>) -> TraitVTablePresentation {
 //     let (item_trait, trait_scope) = item_trait;
 //     let source = context.borrow();
-//     let AttrsComposition { ident: item_name, scope: item_scope, .. } = attrs_composition;
+//     let AttrsModel { ident: item_name, scope: item_scope, .. } = attrs_composition;
 //     let self_ty = item_name.to_type();
 //     let trait_ident = &item_trait.ident;
 //     let item_full_ty = self_ty.resolve(&source);
@@ -111,10 +111,10 @@ impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
 //         }
 //     }
 // }
-// pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsComposition, context: &ParentComposer<ScopeContext>) -> Expansion {
+// pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsModel, context: &ParentComposer<ScopeContext>) -> Expansion {
 //     let (item_trait, trait_scope) = item_trait;
 //     let source = context.borrow();
-//     let AttrsComposition { ident: item_name, scope: item_scope, .. } = attrs_composition;
+//     let AttrsModel { ident: item_name, scope: item_scope, .. } = attrs_composition;
 //     let self_ty = item_name.to_type();
 //     let trait_ident = &item_trait.ident;
 //     let item_full_ty = self_ty.resolve(&source);

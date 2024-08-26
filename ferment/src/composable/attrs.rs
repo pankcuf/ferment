@@ -5,7 +5,7 @@ use crate::ast::Directives;
 use crate::context::ScopeChain;
 use crate::presentation::Expansion;
 
-pub struct AttrsComposition {
+pub struct AttrsModel {
     pub attrs: Vec<Attribute>,
     #[allow(unused)]
     pub ident: Ident,
@@ -13,7 +13,7 @@ pub struct AttrsComposition {
     pub scope: ScopeChain,
 }
 
-impl AttrsComposition {
+impl AttrsModel {
     pub fn new(attrs: Vec<Attribute>, ident: Ident, scope: ScopeChain) -> Self {
         Self { attrs, ident, scope }
     }
@@ -29,6 +29,7 @@ pub trait CfgAttributes {
         let cfg_attrs = self.cfg_attributes();
         cfg_attrs.iter().map(|attr| Some(attr.clone())).collect()
     }
+    #[allow(unused)]
     fn cfg_attributes_expanded(&self) -> Directives {
         self.cfg_attributes()
             .iter()
@@ -37,7 +38,7 @@ pub trait CfgAttributes {
     }
 }
 
-impl CfgAttributes for AttrsComposition {
+impl CfgAttributes for AttrsModel {
     fn cfg_attributes(&self) -> Vec<Attribute> {
         self.attrs.cfg_attributes()
     }

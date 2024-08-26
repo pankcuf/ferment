@@ -1,12 +1,11 @@
-use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment, Type};
 use syn::punctuated::Punctuated;
 use crate::ast::PathHolder;
-use crate::composable::{ImportComposition, TypeComposition};
+use crate::composable::TypeModel;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, TypeConversion};
+use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
 use crate::presentation::FFIFullPath;
 
@@ -14,17 +13,12 @@ pub mod composing;
 pub mod mangling;
 mod lookup;
 
-impl ImportComposition {
-    pub fn new(ident: Ident, scope: PathHolder) -> Self {
-        Self { ident, scope }
-    }
-}
-impl TypeComposition {
+impl TypeModel {
     pub fn new_default(ty: Type) -> Self {
         Self::new(ty, None, Punctuated::new())
     }
 }
-impl TypeConversion {
+impl TypeKind {
     fn mangled_generic_arguments_types_strings(&self, context: &ScopeContext) -> Vec<String> {
         let path: Path = parse_quote!(#self);
         path
@@ -42,12 +36,12 @@ impl TypeConversion {
 
     pub fn as_generic_arg_type(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
-            TypeConversion::Primitive(path) =>
+            TypeKind::Primitive(path) =>
                 quote!(#path),
-            TypeConversion::Complex(ty) =>
+            TypeKind::Complex(ty) =>
                 <Type as Resolve<FFIFullPath>>::resolve(ty, source).to_token_stream(),
-            TypeConversion::Generic(conversion) =>
-                <GenericTypeConversion as Resolve<FFIFullPath>>::resolve(conversion, source).to_token_stream(),
+            TypeKind::Generic(conversion) =>
+                <GenericTypeKind as Resolve<FFIFullPath>>::resolve(conversion, source).to_token_stream(),
         }
     }
 

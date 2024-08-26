@@ -39,15 +39,14 @@ pub fn create_struct<T: ToTokens>(ident: &Ident, attrs: &Vec<Attribute>, impleme
 }
 
 pub fn create_callback(ident: &Ident, attrs: &Vec<Attribute>, ffi_args: TokenStream2, result: ReturnType) -> TokenStream2 {
-    match result {
-        ReturnType::Default => create_struct(ident, attrs, quote! {{
-            pub context: *const std::os::raw::c_void,
-            caller: fn(#ffi_args),
-        }}),
-        ReturnType::Type(_, ref ty) => create_struct(ident, attrs, quote! {{
-            pub context: *const std::os::raw::c_void,
-            caller: fn(#ffi_args) #result,
-            destructor: fn(result: #ty),
+    //let context = quote! { pub context: *const std::os::raw::c_void, };
+    let result_impl = match result {
+        ReturnType::Default => quote! {},
+        ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
+        // ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(o_0: *const ferment_example_thread_safe::entry::FFIContext, result: #ty) }
+    };
+    create_struct(ident, attrs, quote! {{
+            // #context
+            caller: unsafe extern "C" fn(#ffi_args) #result_impl,
         }})
-    }
 }

@@ -3,13 +3,11 @@ use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Item, ItemMod};
-use crate::composable::ImportComposition;
+use syn::{Attribute, Item, ItemMod, ItemUse};
 use crate::composer::ParentComposer;
 use crate::context::{GlobalContext, ScopeChain, ScopeContext};
-use crate::conversion::ImportConversion;
 use crate::ext::ItemExtension;
-use crate::formatter::{format_imported_dict, format_tree_exported_dict};
+use crate::formatter::{format_imported_set, format_tree_exported_dict};
 use crate::tree::ScopeTreeExportID;
 
 
@@ -17,7 +15,8 @@ use crate::tree::ScopeTreeExportID;
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
     Item(ParentComposer<ScopeContext>, Item),
-    Tree(ParentComposer<ScopeContext>, HashMap<ImportConversion, HashSet<ImportComposition>>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
+    // Tree(ParentComposer<ScopeContext>, HashMap<ImportConversion, HashSet<ImportModel>>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
+    Tree(ParentComposer<ScopeContext>, HashSet<ItemUse>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -28,7 +27,7 @@ impl std::fmt::Debug for ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(context, imported, exported, attrs) =>
                 f.debug_struct("ScopeTreeExportItem::Tree")
                     .field("context", context)
-                    .field("imported", &format_imported_dict(imported))
+                    .field("imported", &format_imported_set(imported))
                     .field("exported", &format_tree_exported_dict(exported))
                     .field("attrs", attrs)
                     .finish()
@@ -56,7 +55,7 @@ impl ScopeTreeExportItem {
         }
     }
     pub fn tree_with_context_and_exports(context: ParentComposer<ScopeContext>, exports: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
-        Self::Tree(context, HashMap::default(), exports, attrs)
+        Self::Tree(context, HashSet::default(), exports, attrs)
     }
     pub fn tree_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
         let context = Rc::new(RefCell::new(ScopeContext::with(scope, context)));

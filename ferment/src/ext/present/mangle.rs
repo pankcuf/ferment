@@ -4,9 +4,9 @@ use quote::{format_ident, ToTokens};
 use syn::{AngleBracketedGenericArguments, BareFnArg, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
-use crate::composable::GenericBoundComposition;
-use crate::conversion::ObjectConversion;
-use crate::ext::ToPath;
+use crate::composable::GenericBoundsModel;
+use crate::conversion::ObjectKind;
+use crate::ext::{AsType, ToPath};
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -320,17 +320,17 @@ impl Mangle<MangleDefault> for Generics {
     }
 }
 
-impl Mangle<MangleDefault> for ObjectConversion {
+impl Mangle<MangleDefault> for ObjectKind {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
-            ObjectConversion::Type(ty) |
-            ObjectConversion::Item(ty, _) => ty.ty().mangle_string(context),
-            ObjectConversion::Empty => panic!("err"),
+            ObjectKind::Type(ty) |
+            ObjectKind::Item(ty, _) => ty.as_type().mangle_string(context),
+            ObjectKind::Empty => panic!("err"),
         }
     }
 }
 
-impl Mangle<MangleDefault> for GenericBoundComposition {
+impl Mangle<MangleDefault> for GenericBoundsModel {
     fn mangle_string(&self, context: MangleDefault) -> String {
 
         let mut chunks = vec![];
@@ -348,16 +348,16 @@ impl Mangle<MangleDefault> for GenericBoundComposition {
                 //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
             )
         );
-        //println!("GenericBoundComposition::mangle({}) --> {}", self, chunks.join("_"));
+        //println!("GenericBoundsModel::mangle({}) --> {}", self, chunks.join("_"));
         chunks.join("_")
 
         // format!("Mixin_{}", chunks.join("_"))
 
         // format!("{}", self.bounds.iter().map(|b| {
         //     match b {
-        //         ObjectConversion::Type(ty) |
-        //         ObjectConversion::Item(ty, _) => ty.ty().mangle_string(context),
-        //         ObjectConversion::Empty => panic!("err"),
+        //         ObjectKind::Type(ty) |
+        //         ObjectKind::Item(ty, _) => ty.ty().mangle_string(context),
+        //         ObjectKind::Empty => panic!("err"),
         //     }
         // }).collect::<Vec<_>>().join("_"))
     }

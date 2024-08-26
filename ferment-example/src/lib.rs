@@ -18,6 +18,14 @@ extern crate tokio;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
+#[ferment_macro::export]
+pub struct Unstable {
+    pub secs: u128,
+    pub nanos: i128,
+}
+
+
+
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(std::time::Duration)]
 #[repr(C)]
@@ -61,10 +69,12 @@ impl Error for std_error_Error_FFI {}
 //         value.into()
 //     }
 // }
-// impl ferment_interfaces::FFIConversion<std_error_Error_FFI> for dyn Error where Self: Sized {
+// impl ferment_interfaces::FFIConversionFrom<std_error_Error_FFI> for dyn Error where Self: Sized {
 //     unsafe fn ffi_from_const(ffi: *const Self) -> std_error_Error_FFI {
 //         Error::from(&*ffi)
 //     }
+// }
+// impl ferment_interfaces::FFIConversionTo<std_error_Error_FFI> for dyn Error where Self: Sized {
 //     unsafe fn ffi_to_const(obj: dyn Error) -> *const Self {
 //         ferment_interfaces::boxed(<std_error_Error_FFI>::from(&obj))
 //     }

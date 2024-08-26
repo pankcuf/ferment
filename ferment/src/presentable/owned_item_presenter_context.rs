@@ -3,9 +3,9 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Arm, Attribute, Expr, Field, Pat, PatLit, PatWild, Type, Visibility};
 use ferment_macro::Display;
-use crate::composable::{FieldComposer, FieldTypeConversionKind};
-use crate::composer::{Composer, FromConversionComposer, VariableComposer};
-use crate::context::ScopeContext;
+use crate::composable::{FieldComposer, FieldTypeKind};
+use crate::composer::{Composer, FromConversionFullComposer, VariableComposer};
+use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::presentable::{Expression, ScopeContextPresentable, SequenceOutput};
 use crate::presentation::{ArgPresentation, FFIVariable, Name};
@@ -16,14 +16,16 @@ pub enum OwnedItemPresentableContext {
     BindingArg(FieldComposer),
     BindingFieldName(FieldComposer),
     Named(FieldComposer, Visibility),
-    DefaultFieldConversion(Name, Vec<Attribute>, FromConversionComposer),
+    // NamedByValue(FieldComposer, Visibility),
+    DefaultFieldConversion(Name, Vec<Attribute>, Type),
     DefaultFieldType(Type, Vec<Attribute>),
     Lambda(TokenStream2, TokenStream2, Vec<Attribute>),
     Exhaustive(Vec<Attribute>),
     SequenceOutput(SequenceOutput, Vec<Attribute>),
     Expression(Expression, Vec<Attribute>),
     // ConversionType(ConversionType, Vec<Attribute>),
-    PatLitExpr(Expr, Vec<Attribute>)
+    PatLitExpr(Expr, Vec<Attribute>),
+    BareArg(Name, Type, Vec<Attribute>),
 }
 
 fn anonymous_ident(name: &Name) -> Ident {
@@ -64,7 +66,11 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                 Self::PatLitExpr(Expr::Verbatim(named.then(|| name.to_token_stream()).unwrap_or(anonymous_ident(name).to_token_stream())), attrs.clone())
                     .present(source)
             },
-            OwnedItemPresentableContext::DefaultFieldConversion(name, attrs, composer) => {
+            OwnedItemPresentableContext::DefaultFieldConversion(name, attrs, ty) => {
+                // FromConversionFullComposer::new(composer.name.clone(), )
+                // FromConversionComposer::new(composer.name.clone(), composer.ty().clone(), None))
+
+                let composer = FromConversionFullComposer::new(name.clone(), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), &source.scope), None);
                 // println!("OwnedItemPresentableContext::DefaultFieldConversion.1: {} ({}), {}", name.to_token_stream(), name, composer);
                 let from_conversion_expr = composer.compose(source);
                 // println!("OwnedItemPresentableContext::DefaultFieldConversion.2: {} ({}), {}", name.to_token_stream(), name, from_conversion_expr);
@@ -81,11 +87,11 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             OwnedItemPresentableContext::BindingArg(FieldComposer { name, kind, named, attrs}) => {
                 // println!("OwnedItemPresentableContext::BindingArg: {} ({}), {}", name.to_token_stream(), name, kind.ty().to_token_stream());
                 let (ident, ty) = match kind {
-                    FieldTypeConversionKind::Type(field_type) => (
+                    FieldTypeKind::Type(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(anonymous_ident(name))),
                         <Type as Resolve<FFIVariable>>::resolve(field_type, source).to_type()
                     ),
-                    FieldTypeConversionKind::Conversion(conversion) => (
+                    FieldTypeKind::Conversion(conversion) => (
                         Some(name.mangle_ident_default()), Type::Verbatim(conversion.clone()))
                 };
 
@@ -99,12 +105,25 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
             },
             OwnedItemPresentableContext::Named(FieldComposer { attrs, name, kind, ..}, visibility) => {
                 // println!("OwnedItemPresentableContext::Named: {}", kind.ty().to_token_stream());
+
+                // let ty = VarComposer::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(kind.ty()).unwrap(), &source.scope)).compose(source).to_type();
                 let ty = VariableComposer::from(kind.ty())
                     .compose(source)
                     .to_type();
                 // println!("OwnedItemPresentableContext::Named::RESULT: {}", ty.to_token_stream());
                 ArgPresentation::Field(Field { attrs: attrs.clone(), vis: visibility.clone(), ident: Some(name.mangle_ident_default()), colon_token: Some(Default::default()), ty })
             },
+            // OwnedItemPresentableContext::NamedByValue(FieldComposer { attrs, name, kind, ..}, visibility) => {
+            //     // println!("OwnedItemPresentableContext::Named: {}", kind.ty().to_token_stream());
+            //
+            //     // let ty = VarComposer::new(ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(kind.ty()).unwrap())).compose(source).to_type();
+            //     let search_key = ScopeSearchKey::maybe_from_ref(kind.ty());
+            //     let ty = VarComposer::new(ScopeSearch::KeyInScope(search_key.unwrap(), &source.scope))
+            //         .compose(source)
+            //         .to_type();
+            //     // println!("OwnedItemPresentableContext::Named::RESULT: {}", ty.to_token_stream());
+            //     ArgPresentation::Field(Field { attrs: attrs.clone(), vis: visibility.clone(), ident: Some(name.mangle_ident_default()), colon_token: Some(Default::default()), ty })
+            // },
             OwnedItemPresentableContext::Lambda(name, value, attrs) => {
                 // println!("OwnedItemPresentableContext::Lambda({}, {})", name, value);
                 ArgPresentation::Arm(Arm {
@@ -125,6 +144,15 @@ impl ScopeContextPresentable for OwnedItemPresentableContext {
                     fat_arrow_token: Default::default(),
                     body: Box::new(Expr::Verbatim(quote!(unreachable!("This is unreachable")))),
                     comma: None,
+                })
+            },
+            OwnedItemPresentableContext::BareArg(name, bare, attrs) => {
+                ArgPresentation::Field(Field {
+                    attrs: attrs.clone(),
+                    vis: Visibility::Inherited,
+                    ident: Some(name.mangle_ident_default()),
+                    colon_token: Default::default(),
+                    ty: bare.clone()
                 })
             }
         }

@@ -3,11 +3,15 @@ use quote::{quote_spanned, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeReference, TypeTraitObject};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use crate::composable::TypeComposition;
-use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion, TypeConversion};
-use crate::ext::{CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath};
+use crate::composable::TypeModel;
+use crate::context::{ScopeContext, ScopeSearchKey};
+use crate::conversion::{GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind};
+use crate::ext::{AsType, CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
+
+// pub trait ResolveByValue<T> {
+//     fn resolve_by_value(&self, source: &ScopeContext) -> T;
+// }
 
 pub trait Resolve<T> {
     fn resolve(&self, source: &ScopeContext) -> T;
@@ -19,10 +23,10 @@ impl Resolve<Type> for Type {
         source.full_type_for(self)
     }
 }
-impl Resolve<Option<ObjectConversion>> for Type {
-    fn resolve(&self, source: &ScopeContext) -> Option<ObjectConversion> {
-        // println!("Type::<Option<ObjectConversion>>::resolve({})", self.to_token_stream());
-        source.maybe_object(self)
+impl Resolve<Option<ObjectKind>> for Type {
+    fn resolve(&self, source: &ScopeContext) -> Option<ObjectKind> {
+        // println!("Type::<Option<ObjectKind>>::resolve({})", self.to_token_stream());
+        source.maybe_object_by_key(self)
     }
 }
 
@@ -39,64 +43,55 @@ impl Resolve<Option<SpecialType>> for Type {
         result
     }
 }
-impl Resolve<TypeCompositionConversion> for Type {
-    fn resolve(&self, source: &ScopeContext) -> TypeCompositionConversion {
-        // println!("Type::<TypeCompositionConversion>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
-        let result = <Type as Resolve<Option<ObjectConversion>>>::resolve(self, source)
-            .and_then(|external_type| {
-                match external_type {
-                    ObjectConversion::Item(.., ScopeItemConversion::Fn(..)) => {
-                        // println!("Type::<TypeCompositionConversion> IT's a FUNCTION --> {} {} {}", sig.ident, path.to_token_stream(), ty_conversion);
-                        let parent_object = &source.scope.parent_object().unwrap();
-                        // println!("Type::<TypeCompositionConversion> Parent Object: {}", parent_object);
-                        match parent_object {
-                            ObjectConversion::Type(ref ty_conversion) |
-                            ObjectConversion::Item(ref ty_conversion, ..) => {
-                                match ty_conversion {
-                                    TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
-                                        // println!("Type::<TypeCompositionConversion> It's a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
-                                        ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
-                                    },
-                                    _ => {
-                                        None
-                                    },
-                                }.unwrap_or_else(|| {
-                                    // println!("Type::<TypeCompositionConversion> Not a Trait So2 --> {}", parent_object.type_conversion().to_token_stream());
-                                    parent_object.type_conversion().cloned()
-                                })
-                            },
-                            ObjectConversion::Empty => {
-                                // println!("Type::<TypeCompositionConversion> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
-                                None
-                            }
-                        }
+
+impl<'a> Resolve<Option<SpecialType>> for ScopeSearchKey<'a> {
+    fn resolve(&self, source: &ScopeContext) -> Option<SpecialType> {
+        let ty = self.to_type();
+        let result = source.maybe_custom_conversion(&ty)
+            .map(SpecialType::Custom)
+            .or_else(|| source.maybe_opaque_object(&ty)
+                .map(SpecialType::Opaque));
+        result
+    }
+}
+
+impl<'a> Resolve<TypeModelKind> for ScopeSearchKey<'a>  {
+    fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
+        self.to_type().resolve(source)
+    }
+}
+
+impl Resolve<TypeModelKind> for Type {
+    fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
+        // println!("Type::<TypeModelKind>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
+        let result = <Type as Resolve<Option<ObjectKind>>>::resolve(self, source)
+            .and_then(|ext_obj_kind| {
+                match ext_obj_kind {
+                    ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
+                        source.scope.parent_object().and_then(|parent_obj| parent_obj.maybe_trait_or_regular_model_kind(source))
                     },
-                    ObjectConversion::Type(ref ty_conversion) |
-                    ObjectConversion::Item(ref ty_conversion, ..) => {
+                    ObjectKind::Type(ref ty_conversion) |
+                    ObjectKind::Item(ref ty_conversion, ..) => {
                         match ty_conversion {
-                            TypeCompositionConversion::Trait(ty, _decomposition, _super_bounds) => {
-                                // println!("Type::<TypeCompositionConversion> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
-                                ty.ty.maybe_trait_object(source).map(|oc| oc.type_conversion().cloned())
-                            },
-                            _ => {
-                                None
-                            },
+                            TypeModelKind::Trait(ty, _decomposition, _super_bounds) =>
+                                ty.maybe_trait_object_maybe_model_kind(source),
+                            _ => None,
                         }.unwrap_or_else(|| {
-                            // println!("Type::<TypeCompositionConversion> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
-                            external_type.type_conversion().cloned()
+                            // println!("Type::<TypeModelKind> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
+                            ext_obj_kind.maybe_type_model_kind_ref().cloned()
                         })
                     },
-                    ObjectConversion::Empty => {
-                        // println!("Type::<TypeCompositionConversion> Has no object --> {}", external_type.type_conversion().to_token_stream());
+                    ObjectKind::Empty => {
+                        // println!("Type::<TypeModelKind> Has no object --> {}", external_type.type_conversion().to_token_stream());
                         None
                     }
                 }
             })
             .unwrap_or_else(|| {
-                // println!("Type::<TypeCompositionConversion> Default Unknown --> {}", self.to_token_stream());
-                TypeCompositionConversion::Unknown(TypeComposition::new(self.clone(), None, Punctuated::new()))
+                // println!("Type::<TypeModelKind> Default Unknown --> {}", self.to_token_stream());
+                TypeModelKind::Unknown(TypeModel::new(self.clone(), None, Punctuated::new()))
             });
-        // println!("Type::<TypeCompositionConversion>::resolve.2({}) in {} --> {}", self.to_token_stream(), source.scope.fmt_short(), result);
+        // println!("Type::<TypeModelKind>::resolve.2({}) in {} --> {}", self.to_token_stream(), source.scope.fmt_short(), result);
         result
     }
 }
@@ -105,7 +100,7 @@ impl Resolve<Option<FFIFullPath>> for Type {
     fn resolve(&self, source: &ScopeContext) -> Option<FFIFullPath> {
         //println!("Type::<Option<FFIFullPath>>::resolve({})",self.to_token_stream());
         let res = match self {
-            Type::Path(TypePath{ path, .. }) =>
+            Type::Path(TypePath { path, .. }) =>
                 path.resolve(source),
             Type::Reference(TypeReference { elem, .. }) =>
                 elem.resolve(source),
@@ -142,39 +137,39 @@ impl Resolve<FFIFullPath> for Type {
     }
 }
 
-impl Resolve<Option<SpecialType>> for GenericTypeConversion {
+impl Resolve<Option<SpecialType>> for GenericTypeKind {
     fn resolve(&self, source: &ScopeContext) -> Option<SpecialType> {
         self.ty()
             .and_then(|ty| ty.resolve(source))
     }
 }
-impl Resolve<FFIFullPath> for GenericTypeConversion {
+impl Resolve<FFIFullPath> for GenericTypeKind {
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath {
-        // println!("GenericTypeConversion::<FFIFullPath>::resolve({})", self.to_token_stream());
-        match self {
-            GenericTypeConversion::Map(ty) |
-            GenericTypeConversion::IndexMap(ty) |
-            GenericTypeConversion::SerdeJsonMap(ty) |
-            GenericTypeConversion::Vec(ty) |
-            GenericTypeConversion::BTreeSet(ty) |
-            GenericTypeConversion::HashSet(ty) |
-            GenericTypeConversion::Result(ty) |
-            GenericTypeConversion::Box(ty) |
-            GenericTypeConversion::AnyOther(ty) =>
+        println!("GenericTypeKind -> FFIFullPath --> {}", self);
+        let result = match self {
+            GenericTypeKind::Map(ty) |
+            GenericTypeKind::IndexMap(ty) |
+            GenericTypeKind::SerdeJsonMap(ty) |
+            GenericTypeKind::Vec(ty) |
+            GenericTypeKind::BTreeSet(ty) |
+            GenericTypeKind::HashSet(ty) |
+            GenericTypeKind::Result(ty) |
+            GenericTypeKind::Box(ty) |
+            GenericTypeKind::AnyOther(ty) =>
                 single_generic_ffi_type(ty),
-            GenericTypeConversion::Callback(ty) |
-            GenericTypeConversion::Array(ty) |
-            GenericTypeConversion::Slice(ty) =>
+            GenericTypeKind::Callback(ty) |
+            GenericTypeKind::Array(ty) |
+            GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
-            GenericTypeConversion::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
+            GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_type(tuple.elems.first().unwrap()),
                 _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
             }
-            GenericTypeConversion::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
+            GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
-                    Some(GenericArgument::Type(ty)) => match TypeConversion::from(ty) {
-                        TypeConversion::Generic(gen) => gen.resolve(source),
+                    Some(GenericArgument::Type(ty)) => match TypeKind::from(ty) {
+                        TypeKind::Generic(gen) => gen.resolve(source),
                         _ => single_generic_ffi_type(ty),
                     },
                     _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
@@ -183,37 +178,47 @@ impl Resolve<FFIFullPath> for GenericTypeConversion {
                     FFIFullPath::Generic { ffi_name: args.mangle_ident_default().to_path() },
                 _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),
             },
-            GenericTypeConversion::Optional(Type::Array(TypeArray { elem, .. })) =>
+            GenericTypeKind::Optional(Type::Array(TypeArray { elem, .. })) =>
                 single_generic_ffi_type(elem),
-            GenericTypeConversion::TraitBounds(bounds) => {
+            GenericTypeKind::TraitBounds(bounds) => {
+                println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
                 match bounds.len() {
-                    1 => FFIFullPath::Generic { ffi_name: {
-                        if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) =  bounds.first() {
-                            let ty: Type = parse_quote!(#path);
-                            match ty.maybe_special_type(source) {
-                                Some(SpecialType::Opaque(..)) => return FFIFullPath::External { path: parse_quote!(#path) },
-                                Some(SpecialType::Custom(..)) => return FFIFullPath::External { path: parse_quote!(#path) },
-                                None => {}
+                    1 => FFIFullPath::Generic {
+                        ffi_name: {
+                            if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) = bounds.first() {
+                                let ty = path.to_type();
+                                match ty.maybe_special_type(source) {
+                                    Some(SpecialType::Opaque(..)) => {
+                                        println!("GenericTypeKind (TraitBounds: Opaque): {}", path.to_token_stream());
+                                        return FFIFullPath::External { path: path.clone() }
+                                    },
+                                    Some(SpecialType::Custom(..)) => {
+                                        println!("GenericTypeKind (TraitBounds: Custom): {}", path.to_token_stream());
+                                        return FFIFullPath::External { path: path.clone() }
+                                    },
+                                    None => {}
+                                }
                             }
-                        }
 
-                        bounds.first().unwrap().mangle_ident_default().to_path()
-                    }
+                            bounds.first().unwrap().mangle_ident_default().to_path()
+                        }
                     },
                     _ => FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }
                 }
             },
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
-        }
+        };
+        println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
+        result
     }
 }
 
 
-impl Resolve<Option<SpecialType>> for TypeCompositionConversion {
+impl Resolve<Option<SpecialType>> for TypeModelKind {
     fn resolve(&self, source: &ScopeContext) -> Option<SpecialType> {
         // println!("Type::<Option<SpecialType>>::resolve({})", self.to_token_stream());
-        self.ty().resolve(source)
+        self.as_type().resolve(source)
     }
 }
 
@@ -247,10 +252,10 @@ impl Resolve<Option<FFIFullPath>> for Path {
             Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
         } else {
             let chunk =  if let Some(
-                ObjectConversion::Type(TypeCompositionConversion::Trait(tc, ..)) |
-                ObjectConversion::Type(TypeCompositionConversion::TraitType(tc))
+                ObjectKind::Type(TypeModelKind::Trait(tc, ..)) |
+                ObjectKind::Type(TypeModelKind::TraitType(tc))
             ) = self.maybe_trait_object(source) {
-                &tc.ty.to_path().segments
+                &tc.as_type().to_path().segments
             } else {
                 segments
             };
@@ -316,7 +321,7 @@ fn single_generic_ffi_type(ty: &Type) -> FFIFullPath {
 fn maybe_crate_ident_replacement<'a>(ident: &'a Ident, source: &'a ScopeContext) -> Option<&'a Ident> {
     let lock = source.context.read().unwrap();
     match ident.to_string().as_str() {
-        "crate" | _ if lock.config.is_current_crate(ident) => Some(source.scope.crate_ident()),
+        "crate" | _ if lock.config.is_current_crate(ident) => Some(source.scope.crate_ident_ref()),
         _ if lock.config.contains_fermented_crate(ident) =>
             Some(ident),
         _ => None

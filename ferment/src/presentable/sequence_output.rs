@@ -148,7 +148,7 @@ impl ScopeContextPresentable for SequenceOutput {
                 }
             },
             SequenceOutput::NoFieldsConversion(aspect) => {
-                println!("SequenceOutput::{}({})", self, aspect);
+                // println!("SequenceOutput::{}({})", self, aspect);
                 aspect.present(source)
                     .to_token_stream()
             },

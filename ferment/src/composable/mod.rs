@@ -1,7 +1,7 @@
 mod field_type;
 mod function;
 mod type_composition;
-mod import;
+// mod import;
 mod qself;
 mod generic;
 mod traits;
@@ -17,7 +17,7 @@ pub use field_type::*;
 pub use function::*;
 pub use generic::*;
 pub use generic_bounds::*;
-pub use import::*;
+// pub use import::*;
 pub use nested_arg::*;
 pub use qself::*;
 pub use traits::*;
@@ -25,8 +25,10 @@ pub use traits::*;
 pub use trait_vtable::*;
 pub use type_composition::*;
 
+#[allow(unused)]
 pub trait CompositionContext {}
 
+#[allow(unused)]
 pub trait Composition: Clone {
     type Context: CompositionContext;
     type Presentation;

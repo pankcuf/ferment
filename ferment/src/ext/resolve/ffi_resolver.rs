@@ -3,7 +3,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeConversion, ObjectConversion, TypeCompositionConversion};
+use crate::conversion::{GenericTypeKind, ObjectKind, TypeModelKind};
 use crate::ext::{Accessory, Resolve, ToPath, ToType};
 use crate::presentation::FFIFullPath;
 
@@ -66,38 +66,35 @@ impl FFISpecialTypeResolve for Type {
 }
 
 pub trait FFIObjectResolve {
-    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectConversion>;
+    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectKind>;
 }
 
 impl FFIObjectResolve for Type {
-    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectConversion> {
-        source.maybe_object(self)
+    fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectKind> {
+        source.maybe_object_by_key(self)
     }
 }
 
-pub trait FFICompositionResolve {
-    fn composition(&self, source: &ScopeContext) -> TypeCompositionConversion;
+pub trait FFITypeModelKindResolve {
+    fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind;
 }
 
-impl FFICompositionResolve for Type {
-    fn composition(&self, source: &ScopeContext) -> TypeCompositionConversion {
+impl FFITypeModelKindResolve for Type {
+    fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind {
         self.resolve(source)
     }
 }
 
 pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> + ToTokens {
+    fn ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath {
+        self.resolve(source)
+    }
     fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
         // println!("special_or_to_ffi_full_path_type:: {}", self.to_token_stream());
-        let res = <Self as Resolve<Option<SpecialType>>>::resolve(self, source)
-            .map(|special| {
-                // println!("spec:: {}", special);
-
-                special.to_type()
-            })
-            .unwrap_or_else(|| {
-                // println!("else:");
-                <Self as Resolve::<FFIFullPath>>::resolve(self, source).to_type()
-            });
+        let maybe_special_type: Option<SpecialType> = self.resolve(source);
+        let res = maybe_special_type
+            .map(|special| special.to_type())
+            .unwrap_or_else(|| self.ffi_full_path(source).to_type());
         // println!("special_or_to_ffi_full_path_type.222:: {}", res.to_type().to_token_stream());
         res
     }
@@ -107,5 +104,5 @@ pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> + T
     }
 }
 impl FFIVarResolve for Type {}
-impl FFIVarResolve for GenericTypeConversion {}
+impl FFIVarResolve for GenericTypeKind {}
 

@@ -85,7 +85,7 @@ impl ToTokens for FFIObjectPresentation {
 // # [doc = r" # Safety"]
 // # [no_mangle]
 // pub unsafe extern "C" fn Status_as_CanRetry_can_retry (obj: * const Status) -> bool {
-//     let obj = ferment_interfaces::FFIConversion::ffi_from_const(obj);
+//     let obj = ferment_interfaces::FFIConversionFrom::ffi_from_const(obj);
 //     let result = <crate::transport::transport_request::Status as crate::transport::transport_request::CanRetry>::can_retry(&obj);
 //     result
 // }

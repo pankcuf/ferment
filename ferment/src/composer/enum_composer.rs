@@ -6,7 +6,7 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{CommaPunctuated, DelimiterTrait, Depunctuated};
-use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{BasicComposable, BasicComposer, BindingComposable, CommaPunctuatedArgs, CommaPunctuatedOwnedItems, Composer, constants, ConversionComposable, DocsComposable, DropComposable, EnumParentComposer, FFIAspect, FFIObjectComposable, ItemComposerWrapper, Linkable, NameContext, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::Terminated;
@@ -37,7 +37,7 @@ impl<I> SourceExpandable for EnumComposer<I>
             attrs: self.compose_attributes(),
             comment: self.compose_docs(),
             ffi_presentation: self.compose_object(),
-            conversion: ConversionComposable::<EnumParentComposer<I>>::compose_conversion(self),
+            conversions: ConversionComposable::<EnumParentComposer<I>>::compose_conversions(self),
             drop: self.compose_drop(),
             bindings: self.compose_bindings(),
             // traits: self.base.compose_attributes()
@@ -99,29 +99,56 @@ impl<I> BindingComposable for EnumComposer<I>
 
 impl<Parent, I> ConversionComposable<Parent> for EnumComposer<I>
     where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
-    fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>) {
-        let (conversions_from_ffi, conversions_to_ffi): (CommaPunctuated<_>, CommaPunctuated<_>) = self.variant_composers.iter().map(|composer| {
-            let source = self.source_ref();
+    fn compose_interface_from(&self) -> TokenStream2 {
+        let source = self.source_ref();
+        let conversions_from_ffi = CommaPunctuated::from_iter(self.variant_composers.iter().map(|composer| {
             let attrs = composer.compose_attributes();
-            (
-                Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::From).present(&source)])
-                    .to_token_stream(),
-                Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::To).present(&source)])
-                    .to_token_stream()
-            )
-        }).unzip();
-        ({
-            let ffi_ref = DictionaryName::FfiRef;
-            DictionaryExpr::FromRoot(DictionaryExpr::Match(quote!(#ffi_ref { #conversions_from_ffi })).to_token_stream())
+            Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::From).present(&source)])
                 .to_token_stream()
-            },
-         InterfacesMethodExpr::Boxed(
-             DictionaryExpr::Match(quote!(obj { #conversions_to_ffi, _ => unreachable!("Enum Variant unreachable") }))
-                 .to_token_stream())
-             .to_token_stream(),
-         InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated(),
-         self.compose_generics())
+        }));
+        let ffi_ref = DictionaryName::FfiRef;
+        DictionaryExpr::FromRoot(DictionaryExpr::Match(quote!(#ffi_ref { #conversions_from_ffi })).to_token_stream())
+            .to_token_stream()
     }
+    fn compose_interface_to(&self) -> TokenStream2 {
+        let source = self.source_ref();
+        let conversions_to_ffi = CommaPunctuated::from_iter(self.variant_composers.iter().map(|composer| {
+            let attrs = composer.compose_attributes();
+            Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::To).present(&source)])
+                .to_token_stream()
+        }));
+
+        InterfacesMethodExpr::Boxed(
+            DictionaryExpr::Match(quote!(obj { #conversions_to_ffi, _ => unreachable!("Enum Variant unreachable") }))
+                .to_token_stream())
+            .to_token_stream()
+    }
+    fn compose_interface_destroy(&self) -> TokenStream2 {
+        InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
+    }
+    // fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>) {
+    //     let (conversions_from_ffi, conversions_to_ffi): (CommaPunctuated<_>, CommaPunctuated<_>) = self.variant_composers.iter().map(|composer| {
+    //         let source = self.source_ref();
+    //         let attrs = composer.compose_attributes();
+    //         (
+    //             Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::From).present(&source)])
+    //                 .to_token_stream(),
+    //             Depunctuated::from_iter([quote!(#(#attrs)*), composer.compose_aspect(FFIAspect::To).present(&source)])
+    //                 .to_token_stream()
+    //         )
+    //     }).unzip();
+    //     ({
+    //         let ffi_ref = DictionaryName::FfiRef;
+    //         DictionaryExpr::FromRoot(DictionaryExpr::Match(quote!(#ffi_ref { #conversions_from_ffi })).to_token_stream())
+    //             .to_token_stream()
+    //         },
+    //      InterfacesMethodExpr::Boxed(
+    //          DictionaryExpr::Match(quote!(obj { #conversions_to_ffi, _ => unreachable!("Enum Variant unreachable") }))
+    //              .to_token_stream())
+    //          .to_token_stream(),
+    //      InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated(),
+    //      self.compose_generics())
+    // }
 }
 
 impl<I> EnumComposer<I> where I: DelimiterTrait + ?Sized {
@@ -135,7 +162,7 @@ impl<I> EnumComposer<I> where I: DelimiterTrait + ?Sized {
     ) -> EnumParentComposer<I> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                AttrsComposition::from(attrs, target_name, scope),
+                AttrsModel::from(attrs, target_name, scope),
                 Context::Enum {
                     ident: target_name.clone(),
                     attrs: attrs.cfg_attributes(),

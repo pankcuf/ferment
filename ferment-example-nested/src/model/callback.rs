@@ -141,9 +141,9 @@ pub fn setup_two_callbacks<
 //
 // impl Fn_ARGS_u32_Arr_u8_32_RTRN_Option_String {
 //     pub unsafe fn call(&self, o_0: u32, o_1: [u8;32]) -> Option<String> {
-//         let ffi_result = (self.caller)(o_0, ferment_interfaces::FFIConversion::ffi_to(o_1));
+//         let ffi_result = (self.caller)(o_0, ferment_interfaces::FFIConversionTo::ffi_to(o_1));
 //         if ffi_result.is_null() {
-//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from_opt(ffi_result);
+//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from_opt(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
 //         } else {
@@ -284,7 +284,7 @@ pub fn setup_two_callbacks<
 //             // let c_: &dyn Fn([u8; 32]) -> *mut std::os::raw::c_char = |block_hash: [u8; 32]| (caller)(ferment_interfaces::boxed(block_hash));
 //             let destructor = self.destructor;
 //             let ffi_result = caller(ferment_interfaces::boxed(block_hash));
-//             let result = unsafe { <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result) };
+//             let result = unsafe { <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result) };
 //             (destructor)(ffi_result);
 //             result
 //         }
@@ -295,7 +295,7 @@ pub fn setup_two_callbacks<
 // impl GetQuorumHash_FFI {
 //     pub unsafe fn _inner(&self, block_hash: [u8; 32]) -> String {
 //         let ffi_result = (self.caller)(ferment_interfaces::boxed(block_hash));
-//         let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//         let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result);
 //         (self.destructor)(ffi_result);
 //         result
 //
@@ -321,7 +321,7 @@ pub fn setup_two_callbacks<
 // pub const GetQuorumHashOpt_C: GetQuorumHashOpt = |block_hash| {
 //     let ffi_result = (self.caller)(ferment_interfaces::boxed(block_hash));
 //     (!ffi_result.is_null()).then(|| {
-//         let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//         let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result);
 //         (self.destructor)(ffi_result);
 //         result
 //     })
@@ -341,7 +341,7 @@ pub fn setup_two_callbacks<
 //         let (o_0,) = args;
 //         let ffi_result = (self.caller)(ferment_interfaces::boxed(o_0));
 //         (!ffi_result.is_null()).then(|| {
-//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//             let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
 //         })
@@ -355,7 +355,7 @@ pub fn setup_two_callbacks<
 //     let result = add_quorum_hash_opt_callback_with_complex_result(
 //         index,
 //         |block_hash| ferment_interfaces::FFICallback2::apply(&_callback, (block_hash,)));
-//     ferment_interfaces::FFIConversion::ffi_to(result)
+//     ferment_interfaces::FFIConversionTo::ffi_to(result)
 // }
 
 ////////
@@ -377,7 +377,7 @@ pub fn setup_two_callbacks<
 //     pub fn call(&self, chain_id: u32, block_hash: [u8; 32]) -> Option<String> {
 //         let ffi_result = (self.caller)(chain_id, ferment_interfaces::boxed(block_hash));
 //         (!ffi_result.is_null()).then(|| {
-//             let result = unsafe { ferment_interfaces::FFIConversion::ffi_from(ffi_result) };
+//             let result = unsafe { ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result) };
 //             (self.destructor)(ffi_result);
 //             result
 //         })
@@ -389,7 +389,7 @@ pub fn setup_two_callbacks<
 //         // let (chain_id, block_hash,) = args;
 //         let ffi_result = (self.caller)(chain_id, ferment_interfaces::boxed(block_hash));
 //         (!ffi_result.is_null()).then(|| {
-//             let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//             let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
 //         })
@@ -402,7 +402,7 @@ pub fn setup_two_callbacks<
 //         Box::new(move |(chain_id, block_hash): (u32, [u8; 32],)| {
 //             let ffi_result = (self.caller)(chain_id, ferment_interfaces::boxed(block_hash));
 //             (!ffi_result.is_null()).then(|| {
-//                 let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//                 let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //                 (self.destructor)(ffi_result);
 //                 result
 //             })
@@ -417,9 +417,9 @@ pub fn setup_two_callbacks<
 //         let (chain_id, block_hash,) = args;
 //         let ffi_result = (self.caller)(
 //             chain_id,
-//             ferment_interfaces::FFIConversion::ffi_to(block_hash));
+//             ferment_interfaces::FFIConversionTo::ffi_to(block_hash));
 //         (!ffi_result.is_null()).then(|| {
-//             let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//             let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
 //         })
@@ -434,7 +434,7 @@ pub fn setup_two_callbacks<
 //         let closure = move |(chain_id, block_hash)| {
 //             let ffi_result = caller(chain_id, ferment_interfaces::boxed(block_hash));
 //             (!ffi_result.is_null()).then(|| {
-//                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result);
 //                 destructor(ffi_result);
 //                 result
 //             })
@@ -451,7 +451,7 @@ pub fn setup_two_callbacks<
 //             let (chain_id, block_hash) = args;
 //             let ffi_result = caller(chain_id, ferment_interfaces::boxed(block_hash));
 //             (!ffi_result.is_null()).then(|| {
-//                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversion<String>>::ffi_from(ffi_result);
+//                 let result = <std::os::raw::c_char as ferment_interfaces::FFIConversionFrom<String>>::ffi_from(ffi_result);
 //                 destructor(ffi_result);
 //                 result
 //             })
@@ -467,7 +467,7 @@ pub fn setup_two_callbacks<
 //         let process = move |chain_id: u32, block_hash: [u8; 32]| -> Option<String> {
 //             let ffi_result = caller(chain_id, ferment_interfaces::boxed(block_hash));
 //             (!ffi_result.is_null()).then(|| {
-//                 let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//                 let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //                 destructor(ffi_result);
 //                 result
 //             })
@@ -477,7 +477,7 @@ pub fn setup_two_callbacks<
 //         // move |chain_id, block_hash| {
 //         //     let ffi_result = caller(chain_id, ferment_interfaces::boxed(block_hash));
 //         //     (!ffi_result.is_null()).then(|| {
-//         //         let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//         //         let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //         //         destructor(ffi_result);
 //         //         result
 //         //     })
@@ -494,7 +494,7 @@ pub fn setup_two_callbacks<
 // impl ferment_interfaces::FFICallback<([u8; 32],), ()> for CallbackExample2FFI {
 //     unsafe fn apply(&self, args: ([u8; 32],)) {
 //         let (block_hash,) = args;
-//         let ffi_result = (self.caller)(ferment_interfaces::FFIConversion::ffi_to(block_hash));
+//         let ffi_result = (self.caller)(ferment_interfaces::FFIConversionTo::ffi_to(block_hash));
 //         ffi_result
 //     }
 // }
@@ -507,7 +507,7 @@ pub fn setup_two_callbacks<
 // impl ferment_interfaces::FFICallback<([u8; 32],), Option<u32>> for CallbackExample3FFI {
 //     unsafe fn apply(&self, args: ([u8; 32],)) -> Option<u32> {
 //         let (block_hash,) = args;
-//         let ffi_result = (self.caller)(ferment_interfaces::FFIConversion::ffi_to(block_hash));
+//         let ffi_result = (self.caller)(ferment_interfaces::FFIConversionTo::ffi_to(block_hash));
 //         (!ffi_result.is_null()).then(|| *ffi_result)
 //     }
 // }
@@ -526,9 +526,9 @@ pub fn setup_two_callbacks<
 // impl ferment_interfaces::FFICallback2<(u32, String), Option<String>> for CallbackExample4FFI {
 //     unsafe fn apply(&self, args: (u32, String,)) -> Option<String> {
 //         let (chain_id, chain_name,) = args;
-//         let ffi_result = (self.caller)(chain_id, ferment_interfaces::FFIConversion::ffi_to(chain_name));
+//         let ffi_result = (self.caller)(chain_id, ferment_interfaces::FFIConversionTo::ffi_to(chain_name));
 //         (!ffi_result.is_null()).then(|| {
-//             let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//             let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //             (self.destructor)(ffi_result);
 //             result
 //         })
@@ -549,31 +549,31 @@ pub fn setup_two_callbacks<
 // pub unsafe fn ffi4_find_current_block_desc(_callback: CallbackExample4FFI) {
 //
 //     // let func: CallbackExample4 = |chain_id, chain_name| {
-//     //     let ffi_result = (_callback.caller)(chain_id, ferment_interfaces::FFIConversion::ffi_to(chain_name));
+//     //     let ffi_result = (_callback.caller)(chain_id, ferment_interfaces::FFIConversionTo::ffi_to(chain_name));
 //     //     (!ffi_result.is_null()).then(|| {
-//     //         let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//     //         let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //     //         (_callback.destructor)(ffi_result);
 //     //         result
 //     //     })
 //     // };
 //
 //     let caller_fn = |chain_id: u32, chain_name: String| {
-//         (_callback.caller)(chain_id, ferment_interfaces::FFIConversion::ffi_to(chain_name))
+//         (_callback.caller)(chain_id, ferment_interfaces::FFIConversionTo::ffi_to(chain_name))
 //     };
 //     // let destroy =
 //
 //     unsafe fn call(chain_id: u32, chain_name: String) -> Option<String> {
 //         let ffi_result = caller_fn(chain_id, chain_name);
 //         (!ffi_result.is_null()).then(|| {
-//             let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//             let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //             (_callback.destructor)(ffi_result);
 //             result
 //         })
 //     }
 //     // let func: fn(u32, String) -> Option<String> = unsafe fn(chain_id, chain_name) -> Option<String> {
-//     //     let ffi_result = (_callback.caller)(chain_id, ferment_interfaces::FFIConversion::ffi_to(chain_name));
+//     //     let ffi_result = (_callback.caller)(chain_id, ferment_interfaces::FFIConversionTo::ffi_to(chain_name));
 //     //     (!ffi_result.is_null()).then(|| {
-//     //         let result = ferment_interfaces::FFIConversion::ffi_from(ffi_result);
+//     //         let result = ferment_interfaces::FFIConversionFrom::ffi_from(ffi_result);
 //     //         (_callback.destructor)(ffi_result);
 //     //         result
 //     //     })
@@ -589,8 +589,8 @@ pub fn setup_two_callbacks<
 // // pub unsafe fn ffi_just_simple_func_to_compare(index: u32, string: *mut std::os::raw::c_char) -> *mut std::os::raw::c_char {
 // //     let result = just_simple_func_to_compare(
 // //         index,
-// //         ferment_interfaces::FFIConversion::ffi_from(string));
-// //     ferment_interfaces::FFIConversion::ffi_to(result)
+// //         ferment_interfaces::FFIConversionFrom::ffi_from(string));
+// //     ferment_interfaces::FFIConversionTo::ffi_to(result)
 // // }
 // // ////////
 // //

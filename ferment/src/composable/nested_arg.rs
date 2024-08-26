@@ -2,45 +2,45 @@ use syn::Type;
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-use crate::conversion::{ObjectConversion, TypeCompositionConversion};
-use crate::ext::ToType;
+use crate::conversion::{ObjectKind, TypeModelKind};
+use crate::ext::{AsType, ToType};
 
 #[derive(Clone)]
 pub enum NestedArgument {
-    Object(ObjectConversion),
-    Constraint(ObjectConversion)
+    Object(ObjectKind),
+    Constraint(ObjectKind)
 }
 
 impl NestedArgument {
     pub fn is_refined(&self) -> bool {
         match self.object() {
-            ObjectConversion::Type(ty) => !ty.is_refined(),
+            ObjectKind::Type(ty) => !ty.is_refined(),
             _ => false
         }
     }
-    pub fn object(&self) -> &ObjectConversion {
+    pub fn object(&self) -> &ObjectKind {
         match self {
             NestedArgument::Object(obj) |
             NestedArgument::Constraint(obj) => obj
         }
     }
-    pub fn object_mut(&mut self) -> &mut ObjectConversion {
+    pub fn object_mut(&mut self) -> &mut ObjectKind {
         match self {
             NestedArgument::Object(obj) |
             NestedArgument::Constraint(obj) => obj
         }
     }
-    pub fn type_conversion(&self) -> Option<&TypeCompositionConversion> {
-        self.object().type_conversion()
+    pub fn maybe_type_model_kind_ref(&self) -> Option<&TypeModelKind> {
+        self.object().maybe_type_model_kind_ref()
     }
 
     pub fn ty(&self) -> Option<&Type> {
-        self.type_conversion()
-            .map(TypeCompositionConversion::ty)
+        self.maybe_type_model_kind_ref()
+            .map(TypeModelKind::as_type)
     }
     pub fn maybe_type(&self) -> Option<Type> {
-        self.type_conversion()
-            .map(TypeCompositionConversion::to_type)
+        self.maybe_type_model_kind_ref()
+            .map(TypeModelKind::to_type)
     }
 }
 

@@ -5,6 +5,7 @@ members = [
     "ferment-example-entry-point",
     "ferment-example-nested",
     "ferment-example-platform",
+    "ferment-example-thread-safe",
     "ferment-example-traits-nested",
     "ferment-example-traits",
     "ferment-interfaces",

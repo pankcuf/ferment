@@ -8,31 +8,31 @@ use crate::presentable::ScopeContextPresentable;
 use crate::presentation::Name;
 
 #[derive(Clone, Debug, Display)]
-pub enum FieldTypeConversionKind {
+pub enum FieldTypeKind {
     Type(Type),
     Conversion(TokenStream2)
 }
 
-// impl Display for FieldTypeConversionKind {
+// impl Display for FieldTypeKind {
 //     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 //         match self {
-//             FieldTypeConversionKind::Type(ty) => {}
-//             FieldTypeConversionKind::Conversion(conv) => {}
+//             FieldTypeKind::Type(ty) => {}
+//             FieldTypeKind::Conversion(conv) => {}
 //         }
 //         f.write_str(format!("Kind::{}({})").as_str())
 //     }
 // }
-impl ToTokens for FieldTypeConversionKind {
+impl ToTokens for FieldTypeKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            FieldTypeConversionKind::Type(ty) => quote!(#ty),
-            FieldTypeConversionKind::Conversion(conversion) => quote!(#conversion),
+            FieldTypeKind::Type(ty) => quote!(#ty),
+            FieldTypeKind::Conversion(conversion) => quote!(#conversion),
         }.to_tokens(tokens)
     }
 }
-impl FieldTypeConversionKind {
+impl FieldTypeKind {
     pub fn ty(&self) -> &Type {
-        if let FieldTypeConversionKind::Type(ty) = self {
+        if let FieldTypeKind::Type(ty) = self {
             ty
         } else {
             panic!("improper use of conversion as type")
@@ -44,7 +44,7 @@ impl FieldTypeConversionKind {
 #[derive(Clone, Debug)]
 pub struct FieldComposer {
     pub name: Name,
-    pub kind: FieldTypeConversionKind,
+    pub kind: FieldTypeKind,
     pub attrs: Vec<Attribute>,
     // pub attrs: Directives,
     pub named: bool,
@@ -67,20 +67,20 @@ impl Display for FieldComposer {
 }
 
 impl FieldComposer {
-    pub fn new(name: Name, kind: FieldTypeConversionKind, named: bool, attrs: Vec<Attribute>) -> Self {
+    pub fn new(name: Name, kind: FieldTypeKind, named: bool, attrs: Vec<Attribute>) -> Self {
         Self { name, kind, named, attrs }
     }
-    pub fn no_attrs(name: Name, kind: FieldTypeConversionKind, named: bool) -> Self {
+    pub fn no_attrs(name: Name, kind: FieldTypeKind, named: bool) -> Self {
         Self { name, kind, named, attrs: Vec::new() }
     }
-    pub fn named(name: Name, kind: FieldTypeConversionKind) -> Self {
+    pub fn named(name: Name, kind: FieldTypeKind) -> Self {
         Self::no_attrs(name, kind, true)
     }
-    pub fn unnamed(name: Name, kind: FieldTypeConversionKind) -> Self {
+    pub fn unnamed(name: Name, kind: FieldTypeKind) -> Self {
         Self { name, kind, named: false, attrs: Vec::new() }
     }
     pub fn ty(&self) -> &Type {
-        if let FieldTypeConversionKind::Type(ty) = &self.kind {
+        if let FieldTypeKind::Type(ty) = &self.kind {
             ty
         } else {
             panic!("improper use of conversion as type")

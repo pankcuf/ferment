@@ -6,7 +6,7 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
-use crate::conversion::{MacroType, ObjectConversion};
+use crate::conversion::{MacroType, ObjectKind};
 use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
@@ -122,7 +122,7 @@ impl Visitor {
         lock.imports.fold_import_tree(scope, use_tree, current_path);
     }
 
-    pub(crate) fn add_full_qualified_trait_match(&mut self, scope: &ScopeChain, item_trait: &ItemTrait, itself: &ObjectConversion) {
+    pub(crate) fn add_full_qualified_trait_match(&mut self, scope: &ScopeChain, item_trait: &ItemTrait, itself: &ObjectKind) {
         let mut lock = self.context.write().unwrap();
         lock.traits.add_trait(scope, item_trait, itself);
     }
@@ -140,7 +140,7 @@ impl Visitor {
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
-    pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectConversion, scope: &ScopeChain) {
+    pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectKind, scope: &ScopeChain) {
         // println!("scope_add_one: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
@@ -170,7 +170,7 @@ impl Visitor {
                 .iter()
                 .map(|ty| (
                     TypeHolder::from(ty),
-                    ty.update_nested_generics(&(scope, &context)))))
+                    ty.visit_scope_type(&(scope, &context)))))
     }
     pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
         type_chains.into_iter().for_each(|(scope, type_chain)| {
@@ -253,7 +253,7 @@ impl Visitor {
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
-        match (MacroType::try_from(&item), ObjectConversion::try_from((&item, &self_scope))) {
+        match (MacroType::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
             (Ok(MacroType::Export | MacroType::Opaque), Ok(_object)) => {
                 // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
                 if let Some(scope) = item.join_scope(&current_scope, self) {
@@ -274,8 +274,12 @@ impl Visitor {
                     scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
                 }
             },
-            (_, Ok(_object)) if ident.eq(&Some(&format_ident!("FFIConversion"))) => if let Item::Impl(..) = item {
-                if let Some(_scope) = item.join_scope(&current_scope, self) {}
+            (_, Ok(_object)) => {
+                if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
+                    if let Item::Impl(..) = item {
+                        if let Some(_scope) = item.join_scope(&current_scope, self) {}
+                    }
+                }
             },
             _ => {}
         }

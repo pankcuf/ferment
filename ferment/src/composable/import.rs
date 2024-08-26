@@ -7,19 +7,18 @@ use crate::conversion::ImportConversion;
 use crate::ext::{CrateExtension, Pop};
 
 #[derive(Clone)]
-pub struct ImportComposition {
+pub struct ImportModel {
     pub ident: Ident,
     pub scope: PathHolder,
 }
 
-
-impl<'a> From<(&'a Ident, &'a PathHolder)> for ImportComposition {
+impl<'a> From<(&'a Ident, &'a PathHolder)> for ImportModel {
     fn from(value: (&'a Ident, &'a PathHolder)) -> Self {
         Self { ident: value.0.clone(), scope: value.1.clone() }
     }
 }
 
-impl std::fmt::Debug for ImportComposition {
+impl std::fmt::Debug for ImportModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("[")?;
         f.write_str(&self.scope.to_string())?;
@@ -28,13 +27,13 @@ impl std::fmt::Debug for ImportComposition {
     }
 }
 
-impl std::fmt::Display for ImportComposition {
+impl std::fmt::Display for ImportModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
 }
 
-impl PartialEq for ImportComposition {
+impl PartialEq for ImportModel {
     fn eq(&self, other: &Self) -> bool {
         let self_tokens = [self.ident.to_token_stream(), self.scope.to_token_stream()];
         let other_tokens = [other.ident.to_token_stream(), other.scope.to_token_stream()];
@@ -45,9 +44,9 @@ impl PartialEq for ImportComposition {
     }
 }
 
-impl Eq for ImportComposition {}
+impl Eq for ImportModel {}
 
-impl Hash for ImportComposition {
+impl Hash for ImportModel {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.ident.to_token_stream().to_string().hash(state);
         self.scope.to_token_stream().to_string().hash(state);
@@ -55,16 +54,6 @@ impl Hash for ImportComposition {
 }
 
 
-pub fn create_item_use_with_tree(tree: UseTree) -> ItemUse {
-    ItemUse {
-        attrs: vec![],
-        vis: syn::Visibility::Inherited,
-        use_token: Default::default(),
-        leading_colon: None,
-        tree,
-        semi_token: Default::default(),
-    }
-}
 
 pub fn create_items_use_from_path(path: &PathHolder) -> ItemUse {
     create_item_use_with_tree(UseTree::Path(UsePath {
@@ -84,7 +73,10 @@ fn build_nested_use_tree(segments: Colon2Punctuated<PathSegment>) -> UseTree {
         })
     }
 }
-impl ImportComposition {
+impl ImportModel {
+    pub fn new(ident: Ident, scope: PathHolder) -> Self {
+        Self { ident, scope }
+    }
     pub fn present(&self, import_type: &ImportConversion) -> ItemUse {
         // UseTree::
         let path = &self.scope;

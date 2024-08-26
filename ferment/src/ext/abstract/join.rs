@@ -1,9 +1,9 @@
 use quote::ToTokens;
 use syn::{ImplItemMethod, Item, Signature, TraitItemMethod};
 use syn::punctuated::Punctuated;
-use crate::composable::TypeComposition;
+use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::conversion::{ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
+use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::item::ItemExtension;
 use crate::ext::ToType;
 
@@ -20,15 +20,15 @@ impl Join<Item> for ScopeChain {
             Item::Type(..) |
             Item::Enum(..) |
             Item::Struct(..) =>
-                ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
             Item::Trait(..) =>
-                ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
             Item::Fn(..) =>
-                ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
             Item::Impl(..) =>
-                ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into(), },
+                ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into(), },
             Item::Mod(..) =>
-                ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident().clone(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
             _ => self.clone()
         }
     }
@@ -41,19 +41,19 @@ impl Join<ImplItemMethod> for ScopeChain {
         let self_scope_holder = &self_scope.self_scope;
         let fn_self_scope = self_scope_holder.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectConversion::new_item(
-            TypeCompositionConversion::Fn(
-                TypeComposition::new(
+        let self_obj = ObjectKind::new_item(
+            TypeModelKind::Fn(
+                TypeModel::new(
                     self_type,
                     Some(generics.clone()),
                     Punctuated::new())),
-            ScopeItemConversion::Fn(
+            ScopeItemKind::Fn(
                 sig.clone(),
                 self_scope_holder.clone()));
         ScopeChain::func(
             Scope::new(fn_self_scope, self_obj),
             attrs,
-            self.crate_ident(),
+            self.crate_ident_ref(),
             self
         )
     }
@@ -66,20 +66,21 @@ impl Join<TraitItemMethod> for ScopeChain {
         let self_scope_holder = &self_scope.self_scope;
         let fn_self_scope = self_scope_holder.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectConversion::new_item(
-            TypeCompositionConversion::Fn(
-                TypeComposition::new(
+        let self_obj = ObjectKind::new_item(
+            TypeModelKind::Fn(
+                TypeModel::new(
                     self_type,
                     Some(generics.clone()),
                     Punctuated::new())),
-            ScopeItemConversion::Fn(
+            ScopeItemKind::Fn(
                 sig.clone(),
                 self_scope_holder.clone()));
         ScopeChain::func(
             Scope::new(fn_self_scope, self_obj),
             attrs,
-            self.crate_ident(),
+            self.crate_ident_ref(),
             self
         )
     }
 }
+

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use crate::context::TypeChain;
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 use crate::tree::ScopeTreeExportItem;
 
 pub trait MergePolicy<K, V>: Clone + Copy + Sized {
@@ -67,7 +67,7 @@ impl ValueReplaceScenario for ScopeTreeExportItem {
     fn should_replace_with(&self, other: &Self) -> bool {
         // println!("ScopeTreeExportItem ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
-            // (ObjectConversion::Type(..), ObjectConversion::Item(..)) => true,
+            // (ObjectKind::Type(..), ObjectKind::Item(..)) => true,
             (ScopeTreeExportItem::Tree(..), ScopeTreeExportItem::Tree(..)) => true,
             _ => false
         }
@@ -97,15 +97,15 @@ impl MergeInto for ScopeTreeExportItem {
 
 
 
-impl<T> MergeInto for HashMap<T, ObjectConversion> where T: Hash + Eq + Clone + Display {
+impl<T> MergeInto for HashMap<T, ObjectKind> where T: Hash + Eq + Clone + Display {
     fn merge_into(&self, destination: &mut Self) {
         for (holder, object) in self {
             match destination.entry(holder.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut o) => match (o.get_mut(), &object) {
-                    (ObjectConversion::Type(..), ObjectConversion::Item(..)) => {
+                    (ObjectKind::Type(..), ObjectKind::Item(..)) => {
                         o.insert(object.clone());
                     },
-                    (ObjectConversion::Type(occupied_ty), ObjectConversion::Type(candidate_ty)) => {
+                    (ObjectKind::Type(occupied_ty), ObjectKind::Type(candidate_ty)) => {
                         // println!("MMMMM: {} (refined: {}) ---> {} (refined: {})", occupied_ty, occupied_ty.is_refined(), candidate_ty, candidate_ty.is_refined());
                         if !occupied_ty.is_refined() && candidate_ty.is_refined() {
                             o.insert(object.clone());
@@ -127,13 +127,13 @@ impl MergeInto for TypeChain {
     }
 }
 
-impl MergeInto for ObjectConversion {
+impl MergeInto for ObjectKind {
     fn merge_into(&self, destination: &mut Self) {
         match (&self, &destination) {
-            (ObjectConversion::Item(..), ObjectConversion::Type(..)) => {
+            (ObjectKind::Item(..), ObjectKind::Type(..)) => {
                 *destination = self.clone();
             },
-            (ObjectConversion::Type(candidate_ty), ObjectConversion::Type(occupied_ty)) => {
+            (ObjectKind::Type(candidate_ty), ObjectKind::Type(occupied_ty)) => {
                 //println!("MMMMM: {} (refined: {}) ---> {} (refined: {})", occupied_ty, occupied_ty.is_refined(), candidate_ty, candidate_ty.is_refined());
                 if !occupied_ty.is_refined() && candidate_ty.is_refined() {
                     *destination = self.clone()

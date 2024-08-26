@@ -1,12 +1,14 @@
 use quote::{quote, TokenStreamExt, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::MethodCall;
-use crate::presentation::FFIConversionMethod;
+use crate::presentation::{FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod};
 
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment_interfaces"]
 pub enum InterfacesMethod {
-    FFIConversion(FFIConversionMethod),
+    FFIConversionFrom(FFIConversionFromMethod),
+    FFIConversionTo(FFIConversionToMethod),
+    FFIConversionDestroy(FFIConversionDestroyMethod),
     FFIVecConversion(TokenStream2),
     FFIMapConversion(TokenStream2),
     Boxed,
@@ -42,7 +44,9 @@ pub enum InterfacesMethod {
 impl ToTokens for InterfacesMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {
-            InterfacesMethod::FFIConversion(method) => quote!(FFIConversion::#method),
+            InterfacesMethod::FFIConversionFrom(method) => quote!(FFIConversionFrom::#method),
+            InterfacesMethod::FFIConversionTo(method) => quote!(FFIConversionTo::#method),
+            InterfacesMethod::FFIConversionDestroy(method) => quote!(FFIConversionDestroy::#method),
             InterfacesMethod::FFIVecConversion(method) => quote!(FFIVecConversion::#method),
             InterfacesMethod::FFIMapConversion(method) => quote!(FFIMapConversion::#method),
             InterfacesMethod::Boxed => quote!(boxed),

@@ -7,7 +7,7 @@ use crate::ast::{CommaPunctuated, Depunctuated, PathHolder};
 use crate::composable::{Composition, FnSignatureContext, GenericsComposition, TraitDecompositionPart2Context};
 use crate::composer::{ParentComposer, SigComposer, SigParentComposer, SourceExpandable};
 use crate::context::ScopeContext;
-use crate::conversion::TypeCompositionConversion;
+use crate::conversion::TypeModelKind;
 use crate::ext::ToType;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::presentation::Expansion;
@@ -24,20 +24,20 @@ impl ToTokens for TraitBoundDecomposition {
 }
 
 #[derive(Clone, Debug)]
-pub struct TraitTypeDecomposition {
+pub struct TraitTypeModel {
     pub ident: Ident,
     pub trait_bounds: Vec<TraitBoundDecomposition>,
     pub generics: GenericsComposition,
 }
 
-impl ToTokens for TraitTypeDecomposition {
+impl ToTokens for TraitTypeModel {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let TraitTypeDecomposition { ident, trait_bounds, generics: _ } = self;
+        let TraitTypeModel { ident, trait_bounds, generics: _ } = self;
         quote!(#ident: #(#trait_bounds),*).to_tokens(tokens)
     }
 }
 
-impl TraitTypeDecomposition {
+impl TraitTypeModel {
     pub fn from_item_type(item_type: &TraitItemType) -> Self {
         Self {
             ident: item_type.ident.clone(),
@@ -59,7 +59,7 @@ pub struct TraitDecompositionPart1 {
     pub ident: Ident,
     pub consts: HashMap<Ident, Type>,
     pub methods: HashMap<Ident, Signature>,
-    pub types: HashMap<Ident, TraitTypeDecomposition>
+    pub types: HashMap<Ident, TraitTypeModel>
 }
 
 impl Display for TraitDecompositionPart1 {
@@ -81,7 +81,7 @@ impl TraitDecompositionPart1 {
                     methods.insert(sig.ident.clone(), sig.clone());
                 },
                 TraitItem::Type(trait_item_type) => {
-                    types.insert(trait_item_type.ident.clone(), TraitTypeDecomposition::from_item_type(trait_item_type));
+                    types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));
                 },
                 TraitItem::Const(trait_item_const) => {
                     consts.insert(trait_item_const.ident.clone(), trait_item_const.ty.clone());
@@ -98,7 +98,7 @@ impl TraitDecompositionPart1 {
 pub struct TraitDecompositionPart2 {
     // pub methods: Vec<FnSignatureComposition>,
     pub method_composers: Depunctuated<SigParentComposer>,
-    pub types: HashMap<Ident, TraitTypeDecomposition>,
+    pub types: HashMap<Ident, TraitTypeModel>,
 }
 
 impl TraitDecompositionPart2 {
@@ -131,7 +131,7 @@ impl TraitDecompositionPart2 {
                     // methods.push(FnSignatureComposition::from_signature(&sig_context, sig, scope, &source));
                 },
                 TraitItem::Type(trait_item_type) => {
-                    types.insert(trait_item_type.ident.clone(), TraitTypeDecomposition::from_item_type(trait_item_type));
+                    types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));
                 },
                 // TraitItem::Const(TraitItemConst { attrs, const_token, ident, colon_token, ty, default, semi_token }) => {
                 //
@@ -160,19 +160,19 @@ impl Composition for TraitDecompositionPart2 {
 }
 
 #[derive(Clone)]
-pub struct TraitCompositionPart1 {
+pub struct TraitModelPart1 {
     pub item: ItemTrait,
-    pub implementors: Vec<TypeCompositionConversion>,
+    pub implementors: Vec<TypeModelKind>,
 }
 
-impl std::fmt::Debug for TraitCompositionPart1 {
+impl std::fmt::Debug for TraitModelPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = self.implementors.iter().map(|i| format_token_stream(i)).collect::<Vec<_>>().join("\n\n");
         f.write_str(format!("{}:\n  {}", format_token_stream(&self.item.ident), s).as_str())
     }
 }
 
-impl TraitCompositionPart1 {
+impl TraitModelPart1 {
     pub fn new(item: ItemTrait) -> Self {
         Self { item, implementors: vec![] }
     }

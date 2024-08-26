@@ -2,11 +2,11 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::{Colon2Punctuated, PathHolder};
-use crate::composable::{GenericBoundComposition, NestedArgument, TypeComposition};
+use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
-use crate::conversion::{DictionaryTypeCompositionConversion, ObjectConversion, ScopeItemConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, Pop, RefineMut, ToPath};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
+use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, RefineMut, ToPath};
 
 #[allow(unused)]
 pub trait RefineInScope {
@@ -25,10 +25,10 @@ pub trait RefineWithFullPath {
     fn refine_with_full_path(&mut self, full_path: &Path, nested_arguments: &CommaPunctuatedNestedArguments) -> bool;
 }
 
-impl RefineInScope for GenericBoundComposition {
+impl RefineInScope for GenericBoundsModel {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         let mut refined = false;
-        //println!("GenericBoundComposition::refine_in_scope: {} --- {}", self, scope.fmt_short());
+        //println!("GenericBoundsModel::refine_in_scope: {} --- {}", self, scope.fmt_short());
         self.bounds.iter_mut().for_each(|arg| {
             if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
                 *arg = refined_obj;
@@ -43,14 +43,13 @@ impl RefineInScope for GenericBoundComposition {
                 }
             })
         });
-        self.nested_arguments
-            .iter_mut()
+        self.nested_arguments_iter_mut()
             .for_each(|nested_arg| {
                 if nested_arg.refine_in_scope(scope, source) {
                     refined = true;
                 }
             });
-        //println!("GenericBoundComposition::refine_in_scope: RESULT ({}): {} --- {}", refined, self, scope.fmt_short());
+        //println!("GenericBoundsModel::refine_in_scope: RESULT ({}): {} --- {}", refined, self, scope.fmt_short());
         refined
     }
 }
@@ -81,10 +80,10 @@ impl RefineInScope for Path {
 
 
 
-impl RefineInScope for ObjectConversion {
+impl RefineInScope for ObjectKind {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         match self {
-            ObjectConversion::Type(tyc) =>
+            ObjectKind::Type(tyc) =>
                 tyc.refine_in_scope(scope, source),
             _ => false
         }
@@ -127,7 +126,7 @@ impl RefineWithFullPath for Type {
     }
 }
 
-fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemConversion> {
+fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
     // There are 2 cases:
     // 1. it's from non-fermented crate
     // 2. it's not full scope:
@@ -142,9 +141,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
             let child_scope: Path = parse_quote!(#self_path::#ty_path);
             // child -> self
             // If it's nested mod?
-            source.maybe_item_obj_first(&child_scope)
+            source.maybe_scope_item_ref_obj_first(&child_scope)
                 .map(|item| {
-                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                     item
                 })
                 .or_else(|| {
@@ -155,10 +154,10 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                         .and_then(|reexport| {
                             //println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
                             //maybe_scope_item_conversion(&mut new_ty_to_replace, &reexport, source)
-                            source.maybe_item_obj_first(&reexport)
+                            source.maybe_scope_item_ref_obj_first(&reexport)
                                 .map(|item| {
                                     //println!("\t... (item found -> refine it): {}", format_token_stream(item.path()));
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                     //println!("\t... (item found -> refined): {}", item);
                                     item
                                 })
@@ -166,7 +165,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                         })
                         .or_else(|| {
                             //println!("\t\t\t\t... (no: maybe item at self_path?): [{}]", format_token_stream(self_path));
-                            source.maybe_item_obj_first(self_path)
+                            source.maybe_scope_item_ref_obj_first(self_path)
                         })
                 })
         }
@@ -189,9 +188,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
 
             let child_scope: Path = parse_quote!(#parent_path::#ty_path);
             //println!("... (check as relative): {}", format_token_stream(&child_scope));
-            source.maybe_item_obj_first(&child_scope)
+            source.maybe_scope_item_ref_obj_first(&child_scope)
                 .map(|item| {
-                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                     item
                 })
                 .or_else(|| {
@@ -201,9 +200,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                         .maybe_reexport(&child_scope, source)
                         .and_then(|reexport| {
                             //println!("\t\t... (reexport found): [{}]", format_token_stream(&reexport));
-                            source.maybe_item_obj_first(&reexport)
+                            source.maybe_scope_item_ref_obj_first(&reexport)
                                 .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                     item
                                 })
 
@@ -214,9 +213,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                         // })
                         .or_else(|| {
                             //println!("\t\t\t\t... (no: maybe item at parent path?): [{}]", format_token_stream(parent_path));
-                            source.maybe_item_obj_first(parent_path)
+                            source.maybe_scope_item_ref_obj_first(parent_path)
                                 .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                     item
                                 })
 
@@ -224,9 +223,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                         .or_else(|| {
                             //println!("\t\t\t\t\t... (no maybe item at parent path + type path): [{}] + [{}]", format_token_stream(parent_path), format_token_stream(&ty_path));
                             let scope: Path = parse_quote!(#parent_path::#ty_path);
-                            source.maybe_item_obj_first(&scope)
+                            source.maybe_scope_item_ref_obj_first(&scope)
                                 .map(|item| {
-                                    refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                    refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                     item
                                 })
                         })
@@ -236,15 +235,15 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
             // - Check fn scope
             // - if scope.parent is [mod | crate | impl] then lookup their child mods
             // - if scope.parent is [object | trait] then check scope.parent.parent
-            source.maybe_item_obj_first(info.self_path())
+            source.maybe_scope_item_ref_obj_first(info.self_path())
                 .or_else(|| match &**parent_scope_chain {
                     ScopeChain::CrateRoot { info, .. } |
                     ScopeChain::Mod { info, .. } => {
                         let parent_path = info.self_path();
                         let scope: Path = parse_quote!(#parent_path::#ty_path);
-                        source.maybe_item_obj_first(&scope)
+                        source.maybe_scope_item_ref_obj_first(&scope)
                             .map(|item| {
-                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                 item
                             })
 
@@ -254,9 +253,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
                     ScopeChain::Impl { parent_scope_chain, .. } => {
                         let parent_path = parent_scope_chain.self_path();
                         let scope: Path = parse_quote!(#parent_path::#ty_path);
-                        source.maybe_item_obj_first(&scope)
+                        source.maybe_scope_item_ref_obj_first(&scope)
                             .map(|item| {
-                                refine_ty_with_import_path(&mut new_ty_to_replace.ty, item.path());
+                                refine_ty_with_import_path(new_ty_to_replace.ty_mut(), item.path());
                                 item
                             })
 
@@ -271,7 +270,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeComposition, ty_path: Pa
     }
 }
 
-fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) -> bool {
+pub fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) -> bool {
     let mut refined = false;
     match ty {
         Type::Path(TypePath { path, .. }) => {
@@ -325,117 +324,154 @@ fn refine_ty_with_import_path(ty: &mut Type, crate_named_import_path: &Path) -> 
 //      "self" => replace "self" with the scope
 //      "super" (can be chained) =>
 
-fn maybe_dictionary_type(crate_named_import_path: &Path, composition: &mut TypeComposition) -> Option<DictionaryTypeCompositionConversion> {
+fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeModel) -> Option<DictTypeModelKind> {
     crate_named_import_path.segments.last().and_then(|last_segment| {
         let ident = &last_segment.ident;
         if ident.is_primitive() {
-            Some(DictionaryTypeCompositionConversion::Primitive(composition.clone()))
+            Some(DictTypeModelKind::Primitive(model.clone()))
+        } else if ident.is_128_digit() {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(model.clone())))
         } else if ident.is_any_string() {
-            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
-            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(model.clone())))
         } else if ident.is_lambda_fn()  {
-            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
-            Some(DictionaryTypeCompositionConversion::LambdaFn(composition.clone()))
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            Some(DictTypeModelKind::LambdaFn(model.clone()))
         } else if ident.is_special_std_trait()  {
-            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
-            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Other(model.clone())))
         } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") {
-            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
-            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
-        } else if ident.is_map() || ident.is_special_generic() || ident.is_smart_ptr() {
-            refine_ty_with_import_path(&mut composition.ty, crate_named_import_path);
-            Some(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition.clone()))
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Other(model.clone())))
+        } else if ident.is_map() || ident.is_special_generic() {
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Other(model.clone())))
+        } else if ident.is_box() {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model.clone()))))
+        // } else if ident.is_smart_ptr() {
+        //     refine_ty_with_import_path(&mut model.ty, crate_named_import_path);
+        //
+        //     Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(model.clone())))
         } else {
-            None
+            refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+            match ident.to_string().as_str() {
+                "Arc" => Some(SmartPointerModelKind::Arc(model.clone())),
+                "Mutex" => Some(SmartPointerModelKind::Mutex(model.clone())),
+                "Pin" => Some(SmartPointerModelKind::Pin(model.clone())),
+                "Rc" => Some(SmartPointerModelKind::Rc(model.clone())),
+                "RefCell" => Some(SmartPointerModelKind::RefCell(model.clone())),
+                "RwLock" => Some(SmartPointerModelKind::RwLock(model.clone())),
+                _ => None
+            }.map(|smart_ptr_model| {
+                refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
+                DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(smart_ptr_model))
+            })
         }
     })
 }
 
-impl RefineInScope for TypeCompositionConversion {
+impl RefineInScope for TypeModelKind {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         // println!("REFINE --> {} \n\tin {}", self, scope.fmt_short());
         let result = match self {
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(..)) => false,
-            TypeCompositionConversion::Imported(ty_composition, import_path) => {
+            TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)) => false,
+            TypeModelKind::Imported(ty_model, import_path) => {
                 let crate_name = scope.crate_ident_as_path();
                 let mut crate_named_import_path = import_path.crate_named(&crate_name);
-                let mut composition = ty_composition.clone();
+                let mut model = ty_model.clone();
                 let mut nested_args_refined = false;
 
                 if !crate_named_import_path.refine_in_scope(scope, source) {
                     // Refine nested arguments first
-                    composition.nested_arguments
-                        .iter_mut()
+                    model.nested_arguments_iter_mut()
                         .for_each(|nested_arg| {
                             if nested_arg.refine_in_scope(scope, source) {
                                 nested_args_refined = true;
                             }
                         });
                 }
+                model.refine(&crate_named_import_path);
 
-                let _ = composition.ty.refine_with_nested_args(&composition.nested_arguments);
-                let _ = refine_ty_with_import_path(&mut composition.ty, &crate_named_import_path);
-
-                if let Some(dictionary_type) = maybe_dictionary_type(&crate_named_import_path, &mut composition) {
+                if let Some(dictionary_type) = maybe_dict_type_model_kind(&crate_named_import_path, &mut model) {
                     //println!("[INFO] (Import) Dictionary item found: {}", dictionary_type);
-                    *self = TypeCompositionConversion::Dictionary(dictionary_type);
+                    *self = TypeModelKind::Dictionary(dictionary_type);
 
                 } else {
 
-                    let scope_path = composition.pointer_less();
-                    if let Some(found_item) = source.maybe_item_obj_first(&crate_named_import_path)
-                        .or_else(|| determine_scope_item(&mut composition, scope_path, scope, source)) {
+                    let scope_path = model.pointer_less();
+                    if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&crate_named_import_path)
+                        .or_else(|| determine_scope_item(&mut model, scope_path, scope, source)) {
                         //println!("[INFO] (Import) Scope item found: {}", found_item);
-                        refine_ty_with_import_path(&mut composition.ty, found_item.path());
-                        if let Some(updated) = found_item.update_scope_item(composition) {
+                        refine_ty_with_import_path(model.ty_mut(), found_item.path());
+                        if let Some(updated) = found_item.update_with(model) {
                             //println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
                     } else {
-                        println!("[WARN] (Import) Unknown import: {}", composition.ty.to_token_stream());
-                        *self = TypeCompositionConversion::Unknown(composition)
+                        println!("[WARN] (Import) Unknown import: {}", model.as_type().to_token_stream());
+                        *self = TypeModelKind::Unknown(model)
                     }
                 }
                 true
             }
-            TypeCompositionConversion::Unknown(composition) => {
-                let path = composition.pointer_less();
-                if let Some(dictionary_type) = maybe_dictionary_type(&path, composition) {
+            TypeModelKind::Unknown(model) => {
+                let path = model.pointer_less();
+                if let Some(dictionary_type) = maybe_dict_type_model_kind(&path, model) {
                     //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
-                    *self = TypeCompositionConversion::Dictionary(dictionary_type);
+                    *self = TypeModelKind::Dictionary(dictionary_type);
                     true
-                } else if let Some(found_item) = source.maybe_item_obj_first(&path)
-                    .or_else(|| determine_scope_item(composition, path, scope, source)){
+                } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
+                    .or_else(|| determine_scope_item(model, path, scope, source)){
                     //println!("[INFO] (Unknown) Scope item found: {}", found_item);
-                    refine_ty_with_import_path(&mut composition.ty, found_item.path());
-                    if let Some(updated) = found_item.update_scope_item(composition.clone()) {
+                    refine_ty_with_import_path(model.ty_mut(), found_item.path());
+                    if let Some(updated) = found_item.update_with(model.clone()) {
                         //println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
                         *self = updated;
                     }
                     true
                 } else {
-                    println!("[WARN] (Unknown) Unknown import: {}", composition.ty.to_token_stream());
+                    println!("[WARN] (Unknown) Unknown import: {}", model.as_type().to_token_stream());
                     false
                 }
             }
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(composition)) |
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveOpaque(composition)) |
-            TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(composition)) |
-            TypeCompositionConversion::Boxed(composition) |
-            TypeCompositionConversion::FnPointer(composition) |
-            TypeCompositionConversion::Object(composition) |
-            TypeCompositionConversion::Optional(composition) |
-            TypeCompositionConversion::Trait(composition, ..) |
-            TypeCompositionConversion::TraitType(composition) =>
-                refine_nested_arguments(composition, scope, source),
-            TypeCompositionConversion::Array(composition) |
-            TypeCompositionConversion::Slice(composition) |
-            TypeCompositionConversion::Tuple(composition) =>
-                refine_nested_ty(composition, scope, source),
-            TypeCompositionConversion::Bounds(composition) =>
-                composition.refine_in_scope(scope, source),
-            TypeCompositionConversion::Fn(_) |
-            TypeCompositionConversion::LocalOrGlobal(_) => {
+            TypeModelKind::Dictionary(
+                DictTypeModelKind::NonPrimitiveFermentable(
+                    DictFermentableModelKind::SmartPointer(
+                        SmartPointerModelKind::Arc(model) |
+                        SmartPointerModelKind::Box(model) |
+                        SmartPointerModelKind::Rc(model) |
+                        SmartPointerModelKind::Mutex(model) |
+                        SmartPointerModelKind::RwLock(model) |
+                        SmartPointerModelKind::RefCell(model) |
+                        SmartPointerModelKind::Pin(model)
+                    ) |
+                    DictFermentableModelKind::Group(
+                        GroupModelKind::BTreeSet(model) |
+                        GroupModelKind::HashSet(model) |
+                        GroupModelKind::Map(model) |
+                        GroupModelKind::Result(model) |
+                        GroupModelKind::Vec(model) |
+                        GroupModelKind::IndexMap(model)
+                    ) |
+                    DictFermentableModelKind::Other(model) |
+                    DictFermentableModelKind::Digit128(model) |
+                    DictFermentableModelKind::Other(model) |
+                    DictFermentableModelKind::String(model)) |
+                DictTypeModelKind::NonPrimitiveOpaque(model) |
+                DictTypeModelKind::LambdaFn(model)) |
+            TypeModelKind::FnPointer(model, ..) |
+            TypeModelKind::Object(model) |
+            TypeModelKind::Optional(model) |
+            TypeModelKind::Trait(model, ..) |
+            TypeModelKind::TraitType(model) =>
+                refine_nested_arguments(model, scope, source),
+            TypeModelKind::Array(model) |
+            TypeModelKind::Slice(model) |
+            TypeModelKind::Tuple(model) =>
+                refine_nested_ty(model, scope, source),
+            TypeModelKind::Bounds(model) =>
+                model.refine_in_scope(scope, source),
+            TypeModelKind::Fn(_) => {
                 // TODO: global generic?
                 false
             }
@@ -606,26 +642,27 @@ impl RefineWithNestedArg for Type {
 }
 
 
-fn refine_nested_arguments(composition: &mut TypeComposition, scope: &ScopeChain, source: &GlobalContext) -> bool {
+fn refine_nested_arguments(model: &mut TypeModel, scope: &ScopeChain, source: &GlobalContext) -> bool {
     let mut refined = false;
-    composition.nested_arguments
-        .iter_mut()
+    model.nested_arguments_iter_mut()
         .for_each(|nested_arg| {
             if nested_arg.refine_in_scope(scope, source) {
                 refined = true;
             }
         });
     if refined {
-        composition.ty.refine_with(composition.nested_arguments.clone());
+        model.refine_with(model.nested_arguments_ref().clone());
+        // model.ty_mut().refine_with(model.nested_arguments_ref().clone());
     }
     refined
 }
-fn refine_nested_ty(new_ty_composition: &mut TypeComposition, scope: &ScopeChain, source: &GlobalContext) -> bool {
+fn refine_nested_ty(new_ty_model: &mut TypeModel, scope: &ScopeChain, source: &GlobalContext) -> bool {
     let mut refined = false;
-    match &mut new_ty_composition.ty {
+    let (ty, nested_arguments) = new_ty_model.type_model_and_nested_arguments_mut();
+    match ty {
         Type::Tuple(type_tuple) => {
             type_tuple.elems.iter_mut().enumerate().for_each(|(index, elem)| {
-                let nested_arg = &mut new_ty_composition.nested_arguments[index];
+                let nested_arg = &mut nested_arguments[index];
                 if nested_arg.refine_in_scope(scope, source) {
                     *elem = nested_arg.maybe_type().unwrap();
                     refined = true;
@@ -636,7 +673,7 @@ fn refine_nested_ty(new_ty_composition: &mut TypeComposition, scope: &ScopeChain
             bounds.iter_mut().enumerate().for_each(|(index, elem)| {
                 match elem {
                     TypeParamBound::Trait(TraitBound { path, .. }) => {
-                        let nested_arg = &mut new_ty_composition.nested_arguments[index];
+                        let nested_arg = &mut nested_arguments[index];
                         if nested_arg.refine_in_scope(scope, source) {
                             *path = nested_arg.maybe_type().unwrap().to_path();
                             refined = true;
@@ -648,11 +685,10 @@ fn refine_nested_ty(new_ty_composition: &mut TypeComposition, scope: &ScopeChain
         }
         Type::Array(TypeArray { elem, .. }) |
         Type::Slice(TypeSlice { elem, .. }) => {
-            if let Some(nested_arg) = new_ty_composition.nested_arguments.first_mut() {
-                if nested_arg.refine_in_scope(scope, source) {
-                    *elem = Box::new(nested_arg.maybe_type().unwrap());
-                    refined = true;
-                }
+            let nested_arg = &mut nested_arguments[0];
+            if nested_arg.refine_in_scope(scope, source) {
+                *elem = Box::new(nested_arg.maybe_type().unwrap());
+                refined = true;
             }
         },
         _ => {
@@ -684,7 +720,7 @@ fn create_mod_chain(path: &Path) -> ScopeChain {
     let segments = &path.segments;
 
     let crate_ident = &segments.first().unwrap().ident;
-    let self_scope = Scope::new(PathHolder::from(path), ObjectConversion::Empty);
+    let self_scope = Scope::new(PathHolder::from(path), ObjectKind::Empty);
     let parent_chunks = path.popped();
     let parent_scope_chain = if parent_chunks.segments.len() > 1 {
         create_mod_chain(&parent_chunks)
@@ -695,7 +731,7 @@ fn create_mod_chain(path: &Path) -> ScopeChain {
                 crate_ident: crate_ident.clone(),
                 self_scope: Scope {
                     self_scope: PathHolder(parent_chunks),
-                    object: ObjectConversion::Empty
+                    object: ObjectKind::Empty
                 }
             }
         }
@@ -804,10 +840,10 @@ impl ReexportSeek {
         while let Some(last_segment) = candidate.segments.last().cloned() {
             candidate = candidate.popped();
             // println!("... reexport candidate: {} --- {}", format_token_stream(&last_segment), format_token_stream(&candidate));
-            match source.maybe_import_scope_pair(&last_segment, &candidate) {
+            match source.maybe_import_scope_pair_ref(&last_segment, &candidate) {
                 Some((scope, import)) => {
                     let scope_path = scope.self_path();
-                    let segments = self.join_reexport(import, scope_path, scope.crate_ident(), chunk.as_ref());
+                    let segments = self.join_reexport(import, scope_path, scope.crate_ident_ref(), chunk.as_ref());
                     result = Some(parse_quote!(#scope_path::#segments));
                     // println!("... reexport found: {}", format_token_stream(&result));
                     chunk = Some(segments.to_path());
@@ -823,9 +859,6 @@ impl ReexportSeek {
     }
 }
 
-// pub(crate) fn traverse_scopes(ty_to_replace: &TypeComposition, scope: &ScopeChain, source: &GlobalContext) -> Option<TypeCompositionConversion> {
-//
-// }
 // Try to find the scope where item is actually defined
 // assuming that 'path' is defined at 'scope' and can be shortened
 #[allow(unused)]
@@ -837,7 +870,7 @@ pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, 
     let mut chunk = path.popped();
     while !chunk.segments.is_empty() {
         let candidate: Path = parse_quote!(#scope_path::#chunk);
-        closest_scope = source.maybe_scope(&candidate);
+        closest_scope = source.maybe_scope_ref(&candidate);
         if closest_scope.is_some() {
             return closest_scope;
         }
@@ -846,7 +879,7 @@ pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, 
     chunk = path.popped();
     // Second assumption that it is global import path;
     while !chunk.segments.is_empty() {
-        closest_scope = source.maybe_scope(&chunk);
+        closest_scope = source.maybe_scope_ref(&chunk);
         if closest_scope.is_some() {
             return closest_scope;
         }

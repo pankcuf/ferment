@@ -19,10 +19,14 @@ pub enum DictionaryName {
     I,
     O,
     Package,
-    Interface,
+    InterfaceFrom,
+    InterfaceTo,
+    InterfaceDestroy,
     Ffi,
     FfiRef,
     FFiResult,
+    Caller,
+    Destructor,
 }
 
 impl std::fmt::Display for DictionaryName {
@@ -42,7 +46,9 @@ impl ToTokens for DictionaryName {
             DictionaryName::Object => quote!(object),
             DictionaryName::Value => quote!(value),
             DictionaryName::Package => quote!(ferment_interfaces),
-            DictionaryName::Interface => quote!(FFIConversion),
+            DictionaryName::InterfaceFrom => quote!(FFIConversionFrom),
+            DictionaryName::InterfaceTo => quote!(FFIConversionTo),
+            DictionaryName::InterfaceDestroy => quote!(FFIConversionDestroy),
             DictionaryName::Self_ => quote!(self_),
             DictionaryName::I => quote!(i),
             DictionaryName::O => quote!(o),
@@ -50,6 +56,8 @@ impl ToTokens for DictionaryName {
             DictionaryName::FfiRef => quote!(ffi_ref),
             DictionaryName::Vtable => quote!(vtable),
             DictionaryName::FFiResult => quote!(ffi_result),
+            DictionaryName::Caller => quote!(caller),
+            DictionaryName::Destructor => quote!(destructor),
         }
             .to_tokens(tokens)
     }

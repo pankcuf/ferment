@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use crate::ast::{AddPunctuated, CommaPunctuated};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::conversion::{type_ident_ref, TypeConversion};
+use crate::conversion::{type_ident_ref, TypeKind};
 use crate::ext::VisitScopeType;
 use crate::tree::ScopeTreeExportID;
 
@@ -150,12 +150,12 @@ pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Typ
         PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
             let mut nested = CommaPunctuated::new();
             inputs.iter().for_each(|arg| {
-                nested.push(NestedArgument::Object(arg.update_nested_generics(source)));
+                nested.push(NestedArgument::Object(arg.visit_scope_type(source)));
             });
             match output {
                 ReturnType::Default => {}
                 ReturnType::Type(_, ty) => {
-                    nested.push(NestedArgument::Object(ty.update_nested_generics(source)));
+                    nested.push(NestedArgument::Object(ty.visit_scope_type(source)));
                 }
             }
             nested
@@ -163,7 +163,7 @@ pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Typ
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
             args.iter().filter_map(|arg| match arg {
                 GenericArgument::Type(inner_type) =>
-                    Some(NestedArgument::Object(inner_type.update_nested_generics(source))),
+                    Some(NestedArgument::Object(inner_type.visit_scope_type(source))),
                 _ => None
             }
             ).collect()
@@ -171,10 +171,10 @@ pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Typ
     }
 }
 
-pub fn path_arguments_to_type_conversions(arguments: &PathArguments) -> Vec<TypeConversion> {
+pub fn path_arguments_to_type_conversions(arguments: &PathArguments) -> Vec<TypeKind> {
     path_arguments_to_types(arguments)
         .into_iter()
-        .map(TypeConversion::from)
+        .map(TypeKind::from)
         .collect()
 }
 

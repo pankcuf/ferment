@@ -85,7 +85,13 @@ impl FermentableDictionaryType for Ident {
 }
 impl FermentableDictionaryType for PathSegment {
     fn is_fermentable_dictionary_type(&self) -> bool {
-        self.is_special_generic() || self.is_result() || self.is_smart_ptr() || self.is_string() || self.is_str() || self.is_optional() || self.is_box()
+        self.is_special_generic() ||
+            self.is_result() ||
+            self.is_smart_ptr() ||
+            self.is_string() ||
+            self.is_str() ||
+            self.is_optional() ||
+            self.is_box() || self.is_lambda_fn()
     }
 }
 

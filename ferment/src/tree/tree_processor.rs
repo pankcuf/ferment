@@ -69,7 +69,7 @@ impl FileTreeProcessor {
         visitor
     }
     fn process_module(&self, mod_name: &Ident, attrs: Vec<Attribute>) -> Result<Visitor, error::Error> {
-        let scope = ScopeChain::child_mod(self.scope.crate_ident().clone(), mod_name, &self.scope, attrs.clone());
+        let scope = ScopeChain::child_mod(self.scope.crate_ident_ref().clone(), mod_name, &self.scope, attrs.clone());
         let file_path = self.path.parent().unwrap().join(mod_name.to_string());
         if file_path.is_file() {
             return FileTreeProcessor::new(file_path, scope, attrs, &self.context).process();

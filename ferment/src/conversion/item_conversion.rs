@@ -7,7 +7,7 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
 use crate::ast::PathHolder;
-use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext};
 use crate::composer::{CommaPunctuatedOwnedItems, EnumComposer, ItemComposer, ItemComposerWrapper, ParentComposer, SigComposer, SourceExpandable, TraitComposer, VariantComposerRef};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{CrateExtension, ItemExtension, Join, ToPath, ToType};
@@ -218,7 +218,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
                                     OwnedItemPresentableContext::Named(
-                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeConversionKind::Type(ty.clone()), true, attrs.cfg_attributes()), Visibility::Inherited))
+                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeKind::Type(ty.clone()), true, attrs.cfg_attributes()), Visibility::Inherited))
                                 .collect(),
                         ),
                     },
@@ -229,7 +229,7 @@ fn enum_expansion(item_enum: &ItemEnum, item_scope: &ScopeChain, context: &Paren
                     attrs: attrs.cfg_attributes()
                 };
                 let aspect = Aspect::FFI(Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.cfg_attributes() });
-                let attrs = AttrsComposition::from(attrs, variant_name, item_scope);
+                let attrs = AttrsModel::from(attrs, variant_name, item_scope);
                 let composer = ItemComposerWrapper::enum_variant(fields, name_context, attrs, context);
                 // let composer = match fields {
                 //     Fields::Unit => Box::new(ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context)),
@@ -274,7 +274,7 @@ fn type_expansion(item_type: &ItemType, scope: &ScopeChain, context: &ParentComp
         Type::BareFn(type_bare_fn) => {
             let full_path = scope.self_path().clone();
             let path = if full_path.is_crate_based() {
-                full_path.replaced_first_with_ident(&scope.crate_ident().to_path())
+                full_path.replaced_first_with_ident(&scope.crate_ident_ref().to_path())
             } else {
                 full_path
             };
@@ -317,7 +317,7 @@ fn trait_expansion(item_trait: &ItemTrait, scope: &ScopeChain, context: &ParentC
 fn fn_expansion(item: &ItemFn, scope: &ScopeChain, context: &ParentComposer<ScopeContext>) -> Expansion {
     let ItemFn { attrs, sig: Signature { ident, generics, ..}, .. } = item;
     let source = context.borrow();
-    let full_path = scope.self_path().crate_named(&source.scope.crate_ident().to_path());
+    let full_path = scope.self_path().crate_named(&source.scope.crate_ident_ref().to_path());
     // println!("fn_expansion: [{}] --- [{}]", scope, source.scope);
     SigComposer::with_context(full_path, ident, FnSignatureContext::ModFn(item.clone()), generics, attrs, scope, context)
         .borrow()
@@ -333,7 +333,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
 
     // let mut full_fn_path = self_scope.joined(ident);
     if full_fn_path.is_crate_based() {
-        full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident().to_path()));
+        full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident_ref().to_path()));
     }
 
     let impl_item_compositions = items.iter().filter_map(|impl_item| {
@@ -374,7 +374,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
     //         // NEED:
     //         // pub unsafe extern "C" fn get_balance(obj: *const ()) -> u64 {
     //         //     let obj = crate::identity::identity::Identity::get_balance(
-    //         //         ferment_interfaces::FFIConversion::ffi_from_const(obj as *const _),
+    //         //         ferment_interfaces::FFIConversionFrom::ffi_from_const(obj as *const _),
     //         //     );
     //         //     obj
     //         // }
@@ -383,7 +383,7 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
     //         // #[no_mangle]
     //         // pub unsafe extern "C" fn get_balance(obj: *const Identity) -> u64 {
     //         //     let obj = crate::identity::identity::Identity::get_balance(
-    //         //         &ferment_interfaces::FFIConversion::ffi_from_const(obj),
+    //         //         &ferment_interfaces::FFIConversionFrom::ffi_from_const(obj),
     //         //     );
     //         //     obj
     //         // }
@@ -428,18 +428,18 @@ fn impl_expansion(item_impl: &ItemImpl, scope: &ScopeChain, scope_context: &Pare
 //         -> *mut crate::fermented::generics::Result_ok_crate_identity_identity_Identity_err_crate_nested_ProtocolError {
 //         let result = crate::identity::identity::Identity::create_basic_identity(
 //             *id,
-//             &ferment_interfaces::FFIConversion::ffi_from_const(_platform_version)
+//             &ferment_interfaces::FFIConversionFrom::ffi_from_const(_platform_version)
 //         );
-//         ferment_interfaces::FFIConversion::ffi_to(result)
+//         ferment_interfaces::FFIConversionTo::ffi_to(result)
 //     }
 //     pub unsafe fn create_basic_identity_v0(id: *mut [u8; 32]) -> *mut Self {
 //         let result = crate::identity::identity::Identity::create_basic_identity_v0(*id);
-//         ferment_interfaces::FFIConversion::ffi_to(result)
+//         ferment_interfaces::FFIConversionTo::ffi_to(result)
 //     }
 //
 //     pub unsafe fn get_balance(&self) -> u64 {
-//         let cast_obj = ferment_interfaces::FFIConversion::ffi_from_const(self);
-//         let result = crate::identity::identity::Identity::get_balance(&ferment_interfaces::FFIConversion::ffi_from_const(&cast_obj));
+//         let cast_obj = ferment_interfaces::FFIConversionFrom::ffi_from_const(self);
+//         let result = crate::identity::identity::Identity::get_balance(&ferment_interfaces::FFIConversionFrom::ffi_from_const(&cast_obj));
 //         result
 //     }
 //

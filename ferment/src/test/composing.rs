@@ -8,10 +8,10 @@ use syn::parse_quote;
 use syn::__private::TokenStream2;
 use crate::{Config, Crate};
 use crate::ast::{PathHolder, TypeHolder};
-use crate::composable::{ImportComposition, TypeComposition};
+use crate::composable::TypeModel;
 use crate::composer::ParentComposer;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo, TypeChain};
-use crate::conversion::{ImportConversion, ObjectConversion, TypeCompositionConversion};
+use crate::conversion::{DictTypeModelKind, ObjectKind, TypeModelKind};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
 
@@ -24,7 +24,7 @@ fn scope_chain(self_scope: PathHolder) -> ScopeChain {
         info: ScopeInfo {
             attrs: vec![],
             crate_ident: format_ident!("crate"),
-            self_scope: Scope::new(self_scope, ObjectConversion::Empty),
+            self_scope: Scope::new(self_scope, ObjectKind::Empty),
         }
     }
 }
@@ -39,46 +39,45 @@ fn root_scope_tree() -> ScopeTree {
     global_context
         .scope_mut(&root_scope)
         .add_many(TypeChain::from(HashMap::from([
-            (TypeHolder(parse_quote!(bool)), ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(bool))))),
-            (TypeHolder(parse_quote!([u8; 20])), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!([u8; 20]))))),
-            (TypeHolder(parse_quote!([u8; 32])), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!([u8; 32]))))),
-            (TypeHolder(parse_quote!([u8; 32])), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!([u8; 32]))))),
-            (TypeHolder(parse_quote!(Vec)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec))))),
-            (TypeHolder(parse_quote!(HashID)), ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new_default(parse_quote!(crate::nested::HashID))))),
-            (TypeHolder(parse_quote!(BTreeMap)), ObjectConversion::Type(TypeCompositionConversion::Object(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap))))),
-            (TypeHolder(parse_quote!(Vec<bool>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<bool>))))),
-            (TypeHolder(parse_quote!(Vec<HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
-            (TypeHolder(parse_quote!(Vec<Vec<HashID>>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
-            (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>))))),
+            (TypeHolder(parse_quote!(bool)), ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_default(parse_quote!(bool)))))),
+            (TypeHolder(parse_quote!([u8; 20])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 20]))))),
+            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 32]))))),
+            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 32]))))),
+            (TypeHolder(parse_quote!(Vec)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec))))),
+            (TypeHolder(parse_quote!(HashID)), ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(parse_quote!(crate::nested::HashID))))),
+            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(parse_quote!(std::collections::BTreeMap))))),
+            (TypeHolder(parse_quote!(Vec<bool>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<bool>))))),
+            (TypeHolder(parse_quote!(Vec<HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
+            (TypeHolder(parse_quote!(Vec<Vec<HashID>>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
+            (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>))))),
         ]).into_iter()).inner.into_iter());
     global_context
         .scope_mut(&scope_chain(parse_quote!(crate::example::address)))
         .add_many(TypeChain::from(HashMap::from([
-            (TypeHolder(parse_quote!(u8)), ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(u8))))),
-            (TypeHolder(parse_quote!(String)),  ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(String))))),
-            (TypeHolder(parse_quote!(Option)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Option))))),
-            (TypeHolder(parse_quote!(Option<String>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Option<String>))))),
-            (TypeHolder(parse_quote!(Vec<u8>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
-            (TypeHolder(parse_quote!(ChainType)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(crate::chain::common::chain_type::ChainType))))),
-            (TypeHolder(parse_quote!(HashID)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(crate::nested::HashID))))),
-            (TypeHolder(parse_quote!(BTreeMap)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap))))),
-            (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
+            (TypeHolder(parse_quote!(u8)), ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_default(parse_quote!(u8)))))),
+            (TypeHolder(parse_quote!(String)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(String))))),
+            (TypeHolder(parse_quote!(Option)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Option))))),
+            (TypeHolder(parse_quote!(Option<String>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Option<String>))))),
+            (TypeHolder(parse_quote!(Vec<u8>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<u8>))))),
+            (TypeHolder(parse_quote!(ChainType)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(crate::chain::common::chain_type::ChainType))))),
+            (TypeHolder(parse_quote!(HashID)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(crate::nested::HashID))))),
+            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap))))),
+            (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
         ]).into_iter()).inner.into_iter());
     let global_context_ptr = Arc::new(RwLock::new(global_context));
 
     create_crate_root_scope_tree(
         format_ident!("crate"),
         scope_ctx(parse_quote!(crate), global_context_ptr.clone()),
-        HashMap::from([]),
+        HashSet::from([]),
         HashMap::from([
             (ScopeTreeExportID::Ident(parse_quote!(RootStruct)), ScopeTreeExportItem::Item(
                 scope_ctx(parse_quote!(crate::RootStruct), global_context_ptr.clone()),
                 parse_quote!(pub struct RootStruct { pub name: String }))),
             (ScopeTreeExportID::Ident(parse_quote!(ffi)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::ffi), global_context_ptr.clone()),
-                HashMap::from([
-                    (ImportConversion::External, HashSet::from([
-                        ImportComposition::new(parse_quote!(BTreeMap), PathHolder(parse_quote!(std::collections)))]))
+                HashSet::from([
+                    parse_quote!(use std::collections::BTreeMap)
                 ]),
                 HashMap::from([
                     (ScopeTreeExportID::Ident(parse_quote!(HashID)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::ffi::HashID), global_context_ptr.clone()), parse_quote!(pub type HashID = [u8; 32];))),
@@ -113,19 +112,17 @@ fn root_scope_tree() -> ScopeTree {
             ),
             (ScopeTreeExportID::Ident(parse_quote!(example)), ScopeTreeExportItem::Tree(
                 scope_ctx(parse_quote!(crate::example), global_context_ptr.clone()),
-                HashMap::from([]),
+                HashSet::from([]),
                 HashMap::from([
                     (ScopeTreeExportID::Ident(parse_quote!(address)), ScopeTreeExportItem::Tree(
                         scope_ctx(parse_quote!(crate::example::address), global_context_ptr.clone()),
                         // HashSet::from([
-                        //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
-                        //     GenericConversion::new(ObjectConversion::Type(TypeCompositionConversion::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
+                        //     GenericConversion::new(ObjectKind::Type(TypeModelKind::Primitive(TypeComposition::new_default(parse_quote!(Vec<u8>))))),
+                        //     GenericConversion::new(ObjectKind::Type(TypeModelKind::Primitive(TypeComposition::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
                         // ]),
-                        HashMap::from([
-                            (ImportConversion::External, HashSet::from([
-                                ImportComposition::new(parse_quote!(BTreeMap), PathHolder(parse_quote!(std::collections)))])),
-                            (ImportConversion::FfiType, HashSet::from([
-                                ImportComposition::new(parse_quote!(ChainType), PathHolder::ffi_types_and(quote!(chain::common::chain_type)))])),
+                        HashSet::from([
+                            parse_quote!(use std::collections::BTreeMap),
+                            parse_quote!(use chain::common::chain_type::ChainType),
                         ]),
                         HashMap::from([
                             (ScopeTreeExportID::Ident(parse_quote!(address_with_script_pubkey)), ScopeTreeExportItem::Item(scope_ctx(parse_quote!(crate::example::address::address_with_script_pubkey), global_context_ptr.clone()), parse_quote!(pub fn address_with_script_pubkey(script: Vec<u8>) -> Option<String> { Some(format_args!("{0:?}", script).to_string()) }))),
@@ -204,18 +201,22 @@ fn import_based_expansion() -> TokenStream2 {
             pub struct RootStruct_FFI {
                 pub name: *mut std::os::raw::c_char,
             }
-            impl ferment_interfaces::FFIConversion<RootStruct> for RootStruct_FFI {
+            impl ferment_interfaces::FFIConversionFrom<RootStruct> for RootStruct_FFI {
                 unsafe fn ffi_from_const(ffi: *const RootStruct_FFI) -> RootStruct {
                     let ffi_ref = &*ffi;
                     RootStruct {
-                        name: ferment_interfaces::FFIConversion::ffi_from(ffi_ref.name),
+                        name: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.name),
                     }
                 }
+            }
+            impl ferment_interfaces::FFIConversionTo<RootStruct> for RootStruct_FFI {
                 unsafe fn ffi_to_const(obj: RootStruct) -> *const RootStruct_FFI {
                     ferment_interfaces::boxed(RootStruct_FFI {
-                        name: ferment_interfaces::FFIConversion::ffi_to(obj.name),
+                        name: ferment_interfaces::FFIConversionTo::ffi_to(obj.name),
                     })
                 }
+            }
+            impl ferment_interfaces::FFIConversionDestroy<RootStruct> for RootStruct_FFI {
                 unsafe fn destroy(ffi: *mut RootStruct_FFI) {
                     ferment_interfaces::unbox_any(ffi);
                 }
@@ -224,7 +225,7 @@ fn import_based_expansion() -> TokenStream2 {
                 fn drop(&mut self) {
                     unsafe {
                         let ffi_ref = self;
-                        <std::os::raw::c_char as ferment_interfaces::FFIConversion<&str>>::destroy(ffi_ref.name);
+                        <std::os::raw::c_char as ferment_interfaces::FFIConversionDestroy<&str>>::destroy(ffi_ref.name);
                     }
                 }
             }
@@ -240,14 +241,18 @@ fn import_based_expansion() -> TokenStream2 {
                 use crate::fermented::generics::Map_keys_HashID_values_HashID_FFI;
 
                 pub struct KeyID_FFI(u32);
-                impl ferment_interfaces::FFIConversion<KeyID> for KeyID_FFI {
+                impl ferment_interfaces::FFIConversionFrom<KeyID> for KeyID_FFI {
                     unsafe fn ffi_from_const(ffi: *const KeyID_FFI) -> KeyID {
                         let ffi_ref = &*ffi;
                         ffi_ref.0
                     }
+                }
+                impl ferment_interfaces::FFIConversionTo<KeyID> for KeyID_FFI {
                     unsafe fn ffi_to_const(obj: KeyID) -> *const KeyID_FFI {
                         ferment_interfaces::boxed(KeyID_FFI(obj))
                     }
+                }
+                impl ferment_interfaces::FFIConversionDestroy<KeyID> for KeyID_FFI {
                     unsafe fn destroy(ffi: *mut KeyID_FFI) {
                         ferment_interfaces::unbox_any(ffi);
                     }
@@ -261,14 +266,18 @@ fn import_based_expansion() -> TokenStream2 {
                     }
                 }
                 pub struct HashID_FFI(*mut [u8; 32]);
-                impl ferment_interfaces::FFIConversion<HashID> for HashID_FFI {
+                impl ferment_interfaces::FFIConversionFrom<HashID> for HashID_FFI {
                     unsafe fn ffi_from_const(ffi: *const HashID_FFI) -> HashID {
                         let ffi_ref = &*ffi;
                         *ffi_ref.0
                     }
+                }
+                impl ferment_interfaces::FFIConversionTo<HashID> for HashID_FFI {
                     unsafe fn ffi_to_const(obj: HashID) -> *const HashID_FFI {
                         ferment_interfaces::boxed(HashID_FFI(ferment_interfaces::boxed(obj)))
                     }
+                }
+                impl ferment_interfaces::FFIConversionDestroy<HashID> for HashID_FFI {
                     unsafe fn destroy(ffi: *mut HashID_FFI) {
                         ferment_interfaces::unbox_any(ffi);
                     }
@@ -282,7 +291,7 @@ fn import_based_expansion() -> TokenStream2 {
                     }
                 }
                 pub struct UsedKeyMatrix_FFI(*mut Vec_bool_FFI);
-                impl ferment_interfaces::FFIConversion<UsedKeyMatrix> for UsedKeyMatrix_FFI {
+                impl ferment_interfaces::FFIConversionFrom<UsedKeyMatrix> for UsedKeyMatrix_FFI {
                     unsafe fn ffi_from_const(ffi: *const UsedKeyMatrix_FFI) -> UsedKeyMatrix {
                         let ffi_ref = &*ffi;
                         {
@@ -293,11 +302,15 @@ fn import_based_expansion() -> TokenStream2 {
                             }
                         }
                     }
+                }
+                impl ferment_interfaces::FFIConversionTo<UsedKeyMatrix> for UsedKeyMatrix_FFI {
                     unsafe fn ffi_to_const(obj: UsedKeyMatrix) -> *const UsedKeyMatrix_FFI {
                         ferment_interfaces::boxed(UsedKeyMatrix_FFI(
-                            ferment_interfaces::FFIConversion::ffi_to(obj),
+                            ferment_interfaces::FFIConversionTo::ffi_to(obj),
                         ))
                     }
+                }
+                impl ferment_interfaces::FFIConversionDestroy<UsedKeyMatrix> for UsedKeyMatrix_FFI {
                     unsafe fn destroy(ffi: *mut UsedKeyMatrix_FFI) {
                         ferment_interfaces::unbox_any(ffi);
                     }
@@ -311,7 +324,7 @@ fn import_based_expansion() -> TokenStream2 {
                     }
                 }
                 pub struct ArrayOfArraysOfHashes_FFI(*mut Vec_Vec_HashID_FFI);
-                impl ferment_interfaces::FFIConversion<ArrayOfArraysOfHashes> for ArrayOfArraysOfHashes_FFI {
+                impl ferment_interfaces::FFIConversionFrom<ArrayOfArraysOfHashes> for ArrayOfArraysOfHashes_FFI {
                     unsafe fn ffi_from_const(
                         ffi: *const ArrayOfArraysOfHashes_FFI,
                     ) -> ArrayOfArraysOfHashes {
@@ -321,15 +334,19 @@ fn import_based_expansion() -> TokenStream2 {
                             let count = vec.count;
                             let values = vec.values;
                             (0..count)
-                                .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i)))
+                                .map(|i| ferment_interfaces::FFIConversionFrom::ffi_from_const(*values.add(i)))
                                 .collect()
                         }
                     }
+                }
+                impl ferment_interfaces::FFIConversionTo<ArrayOfArraysOfHashes> for ArrayOfArraysOfHashes_FFI {
                     unsafe fn ffi_to_const(obj: ArrayOfArraysOfHashes) -> *const ArrayOfArraysOfHashes_FFI {
                         ferment_interfaces::boxed(ArrayOfArraysOfHashes_FFI(
-                            ferment_interfaces::FFIConversion::ffi_to(obj),
+                            ferment_interfaces::FFIConversionTo::ffi_to(obj),
                         ))
                     }
+                }
+                impl ferment_interfaces::FFIConversionDestroy<ArrayOfArraysOfHashes> for ArrayOfArraysOfHashes_FFI {
                     unsafe fn destroy(ffi: *mut ArrayOfArraysOfHashes_FFI) {
                         ferment_interfaces::unbox_any(ffi);
                     }
@@ -343,16 +360,20 @@ fn import_based_expansion() -> TokenStream2 {
                     }
                 }
                 pub struct MapOfHashes_FFI(*mut Map_keys_HashID_values_HashID_FFI);
-                impl ferment_interfaces::FFIConversion<MapOfHashes> for MapOfHashes_FFI {
+                impl ferment_interfaces::FFIConversionFrom<MapOfHashes> for MapOfHashes_FFI {
                     unsafe fn ffi_from_const(ffi: *const MapOfHashes_FFI) -> MapOfHashes {
                         let ffi_ref = &*ffi;
-                        ferment_interfaces::FFIConversion::ffi_from(ffi_ref.0)
+                        ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.0)
                     }
+                }
+                impl ferment_interfaces::FFIConversionTo<MapOfHashes> for MapOfHashes_FFI {
                     unsafe fn ffi_to_const(obj: MapOfHashes) -> *const MapOfHashes_FFI {
-                        ferment_interfaces::boxed(MapOfHashes_FFI(ferment_interfaces::FFIConversion::ffi_to(
+                        ferment_interfaces::boxed(MapOfHashes_FFI(ferment_interfaces::FFIConversionTo::ffi_to(
                             obj,
                         )))
                     }
+                }
+                impl ferment_interfaces::FFIConversionDestroy<MapOfHashes> for MapOfHashes_FFI {
                     unsafe fn destroy(ffi: *mut MapOfHashes_FFI) {
                         ferment_interfaces::unbox_any(ffi);
                     }
@@ -377,14 +398,18 @@ fn import_based_expansion() -> TokenStream2 {
                 pub count: usize,
                 pub values: *mut *mut HashID_FFI,
             }
-            impl ferment_interfaces::FFIConversion<Vec<HashID>> for Vec_HashID_FFI {
+            impl ferment_interfaces::FFIConversionFrom<Vec<HashID>> for Vec_HashID_FFI {
                 unsafe fn ffi_from_const(ffi: *const Vec_HashID_FFI) -> Vec<HashID> {
                     let ffi_ref = &*ffi;
                     ferment_interfaces::FFIVecConversion::decode(ffi_ref)
                 }
+            }
+            impl ferment_interfaces::FFIConversionTo<Vec<HashID>> for Vec_HashID_FFI {
                 unsafe fn ffi_to_const(obj: Vec<HashID>) -> *const Vec_HashID_FFI {
                     ferment_interfaces::FFIVecConversion::encode(obj)
                 }
+            }
+            impl ferment_interfaces::FFIConversionDestroy<Vec<HashID>> for Vec_HashID_FFI {
                 unsafe fn destroy(ffi: *mut Vec_HashID_FFI) {
                     ferment_interfaces::unbox_any(ffi);
                 }
@@ -396,7 +421,7 @@ fn import_based_expansion() -> TokenStream2 {
                         let count = self.count;
                         let values = self.values;
                         (0..count)
-                            .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i)))
+                            .map(|i| ferment_interfaces::FFIConversionFrom::ffi_from_const(*values.add(i)))
                             .collect()
                     }
                 }
@@ -425,14 +450,18 @@ fn import_based_expansion() -> TokenStream2 {
                 pub count: usize,
                 pub values: *mut bool,
             }
-            impl ferment_interfaces::FFIConversion<Vec<bool>> for Vec_bool_FFI {
+            impl ferment_interfaces::FFIConversionFrom<Vec<bool>> for Vec_bool_FFI {
                 unsafe fn ffi_from_const(ffi: *const Vec_bool_FFI) -> Vec<bool> {
                     let ffi_ref = &*ffi;
                     ferment_interfaces::FFIVecConversion::decode(ffi_ref)
                 }
+            }
+            impl ferment_interfaces::FFIConversionTo<Vec<bool>> for Vec_bool_FFI {
                 unsafe fn ffi_to_const(obj: Vec<bool>) -> *const Vec_bool_FFI {
                     ferment_interfaces::FFIVecConversion::encode(obj)
                 }
+            }
+            impl ferment_interfaces::FFIConversionDestroy<Vec<bool>> for Vec_bool_FFI {
                 unsafe fn destroy(ffi: *mut Vec_bool_FFI) {
                     ferment_interfaces::unbox_any(ffi);
                 }
@@ -440,7 +469,7 @@ fn import_based_expansion() -> TokenStream2 {
             impl ferment_interfaces::FFIVecConversion for Vec_bool_FFI {
                 type Value = Vec<bool>;
                 unsafe fn decode(&self) -> Self::Value {
-                    ferment_interfaces::from_primitive_vec(self.values as *const _, self.count)
+                    ferment_interfaces::from_primitive_vec(self.values.cast_const(), self.count)
                 }
                 unsafe fn encode(obj: Self::Value) -> *mut Self {
                     ferment_interfaces::boxed(Self {
@@ -463,14 +492,18 @@ fn import_based_expansion() -> TokenStream2 {
                 pub count: usize,
                 pub values: *mut *mut Vec_HashID_FFI,
             }
-            impl ferment_interfaces::FFIConversion<Vec<Vec<HashID>>> for Vec_Vec_HashID_FFI {
+            impl ferment_interfaces::FFIConversionFrom<Vec<Vec<HashID>>> for Vec_Vec_HashID_FFI {
                 unsafe fn ffi_from_const(ffi: *const Vec_Vec_HashID_FFI) -> Vec<Vec<HashID>> {
                     let ffi_ref = &*ffi;
                     ferment_interfaces::FFIVecConversion::decode(ffi_ref)
                 }
+            }
+            impl ferment_interfaces::FFIConversionTo<Vec<Vec<HashID>>> for Vec_Vec_HashID_FFI {
                 unsafe fn ffi_to_const(obj: Vec<Vec<HashID>>) -> *const Vec_Vec_HashID_FFI {
                     ferment_interfaces::FFIVecConversion::encode(obj)
                 }
+            }
+            impl ferment_interfaces::FFIConversionDestroy<Vec<Vec<HashID>>> for Vec_Vec_HashID_FFI {
                 unsafe fn destroy(ffi: *mut Vec_Vec_HashID_FFI) {
                     ferment_interfaces::unbox_any(ffi);
                 }
@@ -482,7 +515,7 @@ fn import_based_expansion() -> TokenStream2 {
                         let count = self.count;
                         let values = self.values;
                         (0..count)
-                            .map(|i| ferment_interfaces::FFIConversion::ffi_from_const(*values.add(i)))
+                            .map(|i| ferment_interfaces::FFIConversionFrom::ffi_from_const(*values.add(i)))
                             .collect()
                     }
                 }
@@ -512,7 +545,7 @@ fn import_based_expansion() -> TokenStream2 {
                 pub keys: *mut *mut HashID_FFI,
                 pub values: *mut *mut HashID_FFI,
             }
-            impl ferment_interfaces::FFIConversion<BTreeMap<HashID, HashID>> for Map_keys_HashID_values_HashID_FFI
+            impl ferment_interfaces::FFIConversionFrom<BTreeMap<HashID, HashID>> for Map_keys_HashID_values_HashID_FFI
             {
                 unsafe fn ffi_from_const(
                     ffi: *const Map_keys_HashID_values_HashID_FFI,
@@ -520,6 +553,9 @@ fn import_based_expansion() -> TokenStream2 {
                     let ffi_ref = &*ffi;
                     ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)
                 }
+            }
+            impl ferment_interfaces::FFIConversionTo<BTreeMap<HashID, HashID>> for Map_keys_HashID_values_HashID_FFI
+            {
                 unsafe fn ffi_to_const(
                     obj: BTreeMap<HashID, HashID>,
                 ) -> *const Map_keys_HashID_values_HashID_FFI {
@@ -533,6 +569,8 @@ fn import_based_expansion() -> TokenStream2 {
                         ),
                     })
                 }
+            }
+            impl ferment_interfaces::FFIConversionDestroy<BTreeMap<HashID, HashID>> for Map_keys_HashID_values_HashID_FFI {
                 unsafe fn destroy(ffi: *mut Map_keys_HashID_values_HashID_FFI) {
                     ferment_interfaces::unbox_any(ffi);
                 }

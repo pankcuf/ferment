@@ -5,7 +5,7 @@ use proc_macro2::Ident;
 use syn::{Generics, ItemTrait, parse_quote, Path, TraitItem, TraitItemMethod, Type};
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{BraceWrapped, CommaPunctuated};
-use crate::composable::{AttrsComposition, CfgAttributes, FieldComposer, FieldTypeConversionKind, FnSignatureContext, TraitTypeDecomposition};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, TraitTypeModel};
 use crate::composer::{BasicComposable, BasicComposer, Composer, constants, DocsComposable, Linkable, NameContext, ParentComposer, SigComposer, SigParentComposer, SourceAccessible, SourceExpandable, TraitParentComposer};
 use crate::context::{ScopeChain, ScopeContext};
 use crate::ext::{Join, Mangle, ToPath, ToType};
@@ -17,7 +17,7 @@ pub struct TraitComposer {
     pub base: BasicComposer<TraitParentComposer>,
     pub methods: Vec<SigParentComposer>,
     #[allow(unused)]
-    pub types: HashMap<Ident, TraitTypeDecomposition>,
+    pub types: HashMap<Ident, TraitTypeModel>,
 }
 
 impl TraitComposer {
@@ -55,7 +55,7 @@ impl TraitComposer {
                     // methods.push(FnSignatureComposition::from_signature(&sig_context, sig, scope, &source));
                 },
                 TraitItem::Type(trait_item_type) => {
-                    types.insert(trait_item_type.ident.clone(), TraitTypeDecomposition::from_item_type(trait_item_type));
+                    types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));
                 },
                 // TraitItem::Const(TraitItemConst { attrs, const_token, ident, colon_token, ty, default, semi_token }) => {
                 //
@@ -70,16 +70,16 @@ impl TraitComposer {
             types,
             item_trait.ident.to_path(),
             Some(item_trait.generics.clone()),
-            AttrsComposition::from(&item_trait.attrs, &item_trait.ident, scope),
+            AttrsModel::from(&item_trait.attrs, &item_trait.ident, scope),
             scope_context)
     }
 
     fn new(
         methods: Vec<SigParentComposer>,
-        types: HashMap<Ident, TraitTypeDecomposition>,
+        types: HashMap<Ident, TraitTypeModel>,
         self_path: Path,
         generics: Option<Generics>,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         context: &ParentComposer<ScopeContext>
     ) -> TraitParentComposer {
         let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
@@ -107,7 +107,7 @@ impl TraitComposer {
     //         path,
     //         sig_context,
     //         Some(generics.clone()),
-    //         AttrsComposition::from(attrs, target_name, scope),
+    //         AttrsModel::from(attrs, target_name, scope),
     //         constants::composer_doc_default(),
     //         context)
     // }
@@ -147,10 +147,10 @@ impl SourceExpandable for TraitComposer {
                 fields: BraceWrapped::new(CommaPunctuated::from_iter([
                     FieldComposer::named(
                         Name::Dictionary(DictionaryName::Object),
-                        FieldTypeConversionKind::Type(parse_quote!(*const ()))),
+                        FieldTypeKind::Type(parse_quote!(*const ()))),
                     FieldComposer::named(
                         Name::Dictionary(DictionaryName::Vtable),
-                        FieldTypeConversionKind::Type(parse_quote!(*const #vtable_name))),
+                        FieldTypeKind::Type(parse_quote!(*const #vtable_name))),
                 ])).present(&source)
             }
         }

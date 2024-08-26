@@ -5,7 +5,7 @@ use syn::{Attribute, Generics};
 use syn::token::Comma;
 use ferment_macro::BasicComposerOwner;
 use crate::ast::{DelimiterTrait, Depunctuated};
-use crate::composable::{AttrsComposition, CfgAttributes};
+use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{BasicComposer, BindingComposable, CommaPunctuatedFields, ComposerPresenter, constants, CtorSequenceComposer, DocsComposable, FFIBindingsComposer, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypesContext, MethodComposer, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, ParentComposer, Linkable, SourceAccessible, SourceExpandable};
 use crate::composer::constants::{BINDING_DTOR_COMPOSER, composer_target_binding, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
 use crate::context::{ScopeChain, ScopeContext};
@@ -80,7 +80,7 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
         Self::new::<ParentComposer<Self>>(
             Context::Struct { ident: target_name.clone(), attrs: attrs.cfg_attributes() },
             Some(generics.clone()),
-            AttrsComposition::from(attrs, target_name, scope),
+            AttrsModel::from(attrs, target_name, scope),
             fields,
             context,
             root_presenter,
@@ -93,7 +93,7 @@ impl<I> OpaqueItemComposer<I> where I: DelimiterTrait + ?Sized {
     fn new<T: SharedAccess + 'static>(
         name_context: Context,
         generics: Option<Generics>,
-        attrs: AttrsComposition,
+        attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ParentComposer<ScopeContext>,
         root_presenter: ComposerPresenter<OwnerAspectWithCommaPunctuatedItems, SequenceOutput>,

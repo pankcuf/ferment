@@ -1,24 +1,26 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 use proc_macro2::Ident;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
-use crate::composable::{CfgAttributes, create_item_use_with_tree, ImportComposition};
+use crate::composable::CfgAttributes;
 use crate::composer::ParentComposer;
-use crate::context::{ScopeChain, ScopeContext};
-use crate::conversion::ImportConversion;
-use crate::ext::{Join, RefineUnrefined};
+use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo};
+use crate::conversion::ObjectKind;
+use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
 use crate::presentation::Expansion;
-use crate::print_phase;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[derive(Clone)]
 pub struct ScopeTree {
     pub scope: ScopeChain,
-    pub imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
+    pub imported: HashSet<ItemUse>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
     pub attrs: Vec<Attribute>,
     pub scope_context: ParentComposer<ScopeContext>,
@@ -29,20 +31,6 @@ impl Debug for ScopeTree {
     }
 }
 
-impl ScopeTree {
-    pub(crate) fn refine(&mut self) {
-        print_phase!("PHASE 3: CRATE TREE REFINEMENT", "");
-        self.scope_context
-            .borrow()
-            .context
-            .write()
-            .unwrap()
-            .refine();
-
-        self.print_scope_tree_with_message("PHASE 3: CRATE TREE REFINED CONTEXT");
-
-    }
-}
 
 impl ScopeTree {
     // pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
@@ -54,10 +42,7 @@ impl ScopeTree {
     // }
 
     pub(crate) fn imports(&self) -> SemiPunctuated<ItemUse> {
-        self.imported.iter()
-            .flat_map(|(import_type, imports)|
-                imports.iter().map(move |import| import.present(import_type)))
-            .collect()
+        SemiPunctuated::from_iter(self.imported.iter().cloned())
     }
 
     pub(crate) fn exports(&self) -> Depunctuated<TokenStream2> {
@@ -101,15 +86,14 @@ impl ToTokens for ScopeTree {
         // };
 
         let name = if self.scope.is_crate_root() {
-            self.scope.crate_ident().to_token_stream()
+            self.scope.crate_ident_ref().to_token_stream()
         } else {
             self.scope.head().to_token_stream()
         };
         let conversions = self.exports();
         if !conversions.is_empty() {
             Expansion::Mod {
-                attrs: self.attrs.cfg_attributes_expanded(),
-                directives: quote!(),
+                attrs: self.attrs.cfg_attributes(),
                 name,
                 imports,
                 conversions
@@ -118,10 +102,43 @@ impl ToTokens for ScopeTree {
     }
 }
 
+pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
+    let crate_ident =  root_scope_chain.crate_ident_ref();
+    let generics_scope_ident = format_ident!("generics");
+    let generics_scope_chain = ScopeChain::Mod {
+        info: ScopeInfo {
+            attrs: vec![],
+            crate_ident: crate_ident.clone(),
+            self_scope: Scope::new(root_scope_chain.self_path_holder_ref().joined(&generics_scope_ident), ObjectKind::Empty) },
+        parent_scope_chain: root_scope_chain.clone().into() };
+
+    create_scope_tree(
+        generics_scope_chain.clone(),
+        Rc::new(RefCell::new(ScopeContext::with(generics_scope_chain, global_context))),
+        HashSet::from_iter([
+            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: crate_ident.clone() }))
+        ]),
+        HashMap::new(),
+        vec![]
+    )
+}
+
+pub fn create_item_use_with_tree(tree: UseTree) -> ItemUse {
+    ItemUse {
+        attrs: vec![],
+        vis: syn::Visibility::Inherited,
+        use_token: Default::default(),
+        leading_colon: None,
+        tree,
+        semi_token: Default::default(),
+    }
+}
+
+
 pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ParentComposer<ScopeContext>,
-    imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
+    imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
@@ -132,7 +149,7 @@ pub fn create_crate_root_scope_tree(
 pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ParentComposer<ScopeContext>,
-    imported: HashMap<ImportConversion, HashSet<ImportComposition>>,
+    imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {

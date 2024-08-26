@@ -2,12 +2,12 @@ use std::fmt::{Debug, Formatter};
 use proc_macro2::Ident;
 use syn::{Attribute, FnArg, ItemFn, parse_quote, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, Visibility};
 use quote::{quote, ToTokens};
-use crate::composable::{CfgAttributes, FieldComposer, FieldTypeConversionKind};
-use crate::composer::{Composer, FromConversionComposer};
-use crate::context::ScopeContext;
+use crate::composable::{CfgAttributes, FieldComposer, FieldTypeKind};
+use crate::composer::{Composer, FromConversionFullComposer};
+use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::presentable::{Expression, OwnedItemPresentableContext};
-use crate::presentation::{DictionaryName, Name};
+use crate::presentation::{DictionaryName, FFIConversionFromMethod, InterfacesMethodExpr, Name};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -67,12 +67,12 @@ impl<'a> Composer<'a> for PatType {
         let PatType { ty, attrs, pat, .. } = self;
         FnArgComposer::new(
             original(Name::Pat(*pat.clone()), ty.to_type(), attrs.cfg_attributes()),
-            FromConversionComposer::from(self).compose(source))
+            FromConversionFullComposer::expr_less(Name::Pat(*self.pat.clone()), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(&self.ty).unwrap(), &source.scope)).compose(source))
     }
 }
 
 fn original(name: Name, ty: Type, attrs: Vec<Attribute>) -> OwnedItemPresentableContext {
-    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeConversionKind::Type(ty), true, attrs), Visibility::Inherited)
+    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeKind::Type(ty), true, attrs), Visibility::Inherited)
 }
 
 impl<'a> Composer<'a> for FnArg {
@@ -106,7 +106,7 @@ impl<'a> Composer<'a> for Receiver {
                     ),
                     None => (
                         <Type as Resolve<Type>>::resolve(self_ty, &source),
-                        Expression::From(Expression::Self_.into())
+                        Expression::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromConst, DictionaryName::Self_.to_token_stream()))
                     )
                 };
                 let mangled_ident = target_type.mangle_ident_default();

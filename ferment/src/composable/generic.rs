@@ -5,11 +5,11 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
 use crate::ast::PathHolder;
-use crate::conversion::ObjectConversion;
+use crate::conversion::ObjectKind;
 
 #[derive(Clone, Debug)]
 pub struct GenericConversion {
-    pub object: ObjectConversion,
+    pub object: ObjectKind,
 }
 
  impl std::fmt::Display for GenericConversion {
@@ -39,7 +39,7 @@ impl Hash for GenericConversion {
 }
 
 impl GenericConversion {
-    pub fn new(object: ObjectConversion/*, attrs: Directives*/) -> Self {
+    pub fn new(object: ObjectKind/*, attrs: Directives*/) -> Self {
         Self { object/*, attrs*/ }
     }
 

@@ -8,6 +8,7 @@ use crate::presentation::DictionaryName;
 #[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum DictionaryExpr {
+    Simple(TokenStream2),
     Depunctuated(Depunctuated<TokenStream2>),
     SelfDestructuring(TokenStream2),
     ObjLen,
@@ -39,11 +40,17 @@ pub enum DictionaryExpr {
     CountRange,
     Range(TokenStream2),
     NewBox(TokenStream2),
+    MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
     Add(TokenStream2, TokenStream2),
     CastAs(TokenStream2, TokenStream2),
     CallMethod(TokenStream2, TokenStream2),
-    TryIntoUnwrap(TokenStream2)
+    TryIntoUnwrap(TokenStream2),
+    CallbackCaller(TokenStream2, TokenStream2),
+    CallbackDestructor(TokenStream2, TokenStream2),
+    CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
+    CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
+    CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
 }
 
 
@@ -55,6 +62,8 @@ impl std::fmt::Display for DictionaryExpr {
 impl ToTokens for DictionaryExpr {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {
+            Self::Simple(tokens) =>
+                tokens.to_token_stream(),
             Self::Depunctuated(tokens) =>
                 tokens.to_token_stream(),
             Self::ObjLen => {
@@ -126,6 +135,8 @@ impl ToTokens for DictionaryExpr {
                 quote!((0..#expr)),
             Self::NewBox(conversion) =>
                 quote!(Box::new(#conversion)),
+            Self::MapIntoBox(conversion) =>
+                quote!(#conversion.map(Box::new)),
             Self::FromRawBox(conversion) =>
                 quote!(Box::from_raw(#conversion)),
             Self::Add(field_path, index) =>
@@ -190,6 +201,23 @@ impl ToTokens for DictionaryExpr {
                 //     ],
                 // }).to_token_stream()
             },
+            Self::CallbackCaller(args_to_conversion, post_processing) => quote! {
+                let ffi_result = (self.caller)(#args_to_conversion);
+                #post_processing
+            },
+            Self::CallbackDestructor(result_conversion, ffi_result) => quote! {
+                let result = #result_conversion;
+                // (self.destructor)(o_0, #ffi_result);
+                (self.destructor)(#ffi_result);
+                result
+            },
+            Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from(#expr)),
+            Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)),
+            Self::CastedFFIConversionDestroy(ffi_type, target_type, expr) => {
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionDestroy<#target_type>>::destroy(#expr))
+            }
         }.to_tokens(dst)
     }
 }

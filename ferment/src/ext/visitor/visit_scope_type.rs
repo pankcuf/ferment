@@ -1,90 +1,89 @@
 use quote::ToTokens;
 use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
-use syn::token::{Const, Mut};
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
-use crate::composable::{GenericBoundComposition, NestedArgument, QSelfComposition, TypeComposition};
+use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{DictionaryTypeCompositionConversion, ObjectConversion, TypeCompositionConversion};
-use crate::ext::{CrateExtension, DictionaryType, ToPath, ToType};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
+use crate::ext::{AsType, CrateExtension, DictionaryType, ToPath, ToType};
 use crate::nprint;
 
-pub trait ToObjectConversion {
-    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
-    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
-    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion;
+pub trait ToObjectKind {
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind;
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind;
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind;
 }
 
-impl ToObjectConversion for Type {
-    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
+impl ToObjectKind for Type {
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
+        ObjectKind::Type(TypeModelKind::Unknown(handle_type_model(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_composition(self, nested_arguments)))
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
+        ObjectKind::Type(TypeModelKind::Object(handle_type_model(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
         // TODO: make it Unknown
-        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_composition(self, nested_arguments)))
+        ObjectKind::Type(TypeModelKind::Unknown(handle_type_model(self, nested_arguments)))
     }
 }
 
-impl ToObjectConversion for TypePath {
-    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
+impl ToObjectKind for TypePath {
+    fn to_unknown(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
+        ObjectKind::Type(TypeModelKind::Unknown(handle_type_path_model(self, nested_arguments)))
     }
 
-    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
-        ObjectConversion::Type(TypeCompositionConversion::Object(handle_type_path_composition(self, nested_arguments)))
+    fn to_object(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
+        ObjectKind::Type(TypeModelKind::Object(handle_type_path_model(self, nested_arguments)))
     }
 
-    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectConversion {
+    fn to_trait(self, nested_arguments: CommaPunctuatedNestedArguments) -> ObjectKind {
         // TODO: make it Unknown
-        ObjectConversion::Type(TypeCompositionConversion::Unknown(handle_type_path_composition(self, nested_arguments)))
+        ObjectKind::Type(TypeModelKind::Unknown(handle_type_path_model(self, nested_arguments)))
     }
 }
 
 pub trait VisitScopeType<'a> where Self: Sized + 'a {
     type Source;
     type Result;
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result;
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result;
 }
 
 impl<'a> VisitScopeType<'a> for Type {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         nprint!(1, crate::formatter::Emoji::Node, "=== {}", self.to_token_stream());
         match self {
-            Type::Path(type_path) => type_path.update_nested_generics(source),
-            Type::TraitObject(type_trait_object) => type_trait_object.update_nested_generics(source),
-            Type::Tuple(type_tuple) => type_tuple.update_nested_generics(source),
-            Type::Array(type_array) => type_array.update_nested_generics(source),
-            Type::Slice(type_slice) => type_slice.update_nested_generics(source),
-            Type::BareFn(type_bare_fn) => type_bare_fn.update_nested_generics(source),
-            Type::Reference(type_reference) => type_reference.update_nested_generics(source),
-            Type::Ptr(type_ptr) => type_ptr.update_nested_generics(source),
+            Type::Path(type_path) => type_path.visit_scope_type(source),
+            Type::TraitObject(type_trait_object) => type_trait_object.visit_scope_type(source),
+            Type::Tuple(type_tuple) => type_tuple.visit_scope_type(source),
+            Type::Array(type_array) => type_array.visit_scope_type(source),
+            Type::Slice(type_slice) => type_slice.visit_scope_type(source),
+            Type::BareFn(type_bare_fn) => type_bare_fn.visit_scope_type(source),
+            Type::Reference(type_reference) => type_reference.visit_scope_type(source),
+            Type::Ptr(type_ptr) => type_ptr.visit_scope_type(source),
             ty => ty.clone().to_unknown(Punctuated::new())
         }
     }
 }
-fn handle_type_composition(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> TypeComposition {
-    TypeComposition::new(ty, None, nested_arguments)
+fn handle_type_model(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
+    TypeModel::new(ty, None, nested_arguments)
 }
-fn handle_type_path_composition(type_path: TypePath, nested_arguments: CommaPunctuatedNestedArguments) -> TypeComposition {
-    TypeComposition::new(Type::Path(type_path), None, nested_arguments)
+fn handle_type_path_model(type_path: TypePath, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
+    TypeModel::new(Type::Path(type_path), None, nested_arguments)
 }
 
 impl<'a> VisitScopeType<'a> for Path {
-    type Source = (&'a ScopeChain, &'a GlobalContext, Option<QSelfComposition>);
-    type Result = ObjectConversion;
+    type Source = (&'a ScopeChain, &'a GlobalContext, Option<QSelfModel>);
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         let (scope, context, qself) = source;
-        // println!("{}: Path: update_nested_generics {}", scope.fmt_short(), self.to_token_stream());
+        // println!("{}: Path: visit_scope_type {}", scope.fmt_short(), self.to_token_stream());
         let new_qself = qself.as_ref().map(|q| q.qself.clone());
         let mut segments = self.segments.clone();
         let mut nested_arguments = Punctuated::new();
@@ -93,10 +92,10 @@ impl<'a> VisitScopeType<'a> for Path {
                 PathArguments::None => {}
                 PathArguments::AngleBracketed(angle_bracketed_generic_arguments) => {
                     for arg in &mut angle_bracketed_generic_arguments.args {
-                        // println!("PAth: update_nested_generics.2222 {}", arg.to_token_stream());
+                        // println!("Path: visit_scope_type.2222 {}", arg.to_token_stream());
                         match arg {
                             GenericArgument::Type(inner_type) => {
-                                let obj_conversion = inner_type.update_nested_generics(&(scope, context));
+                                let obj_conversion = inner_type.visit_scope_type(&(scope, context));
                                 let ty = obj_conversion.maybe_type().unwrap();
                                 //println!("nested object::::: {}", obj_conversion);
                                 nested_arguments.push(NestedArgument::Object(obj_conversion));
@@ -107,16 +106,16 @@ impl<'a> VisitScopeType<'a> for Path {
                     }
                 }
                 PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                    //println!("Path::Parenthesized::update_nested_generics: {} --- {}", inputs.to_token_stream(), output.to_token_stream());
+                    //println!("Path::Parenthesized::visit_scope_type: {} --- {}", inputs.to_token_stream(), output.to_token_stream());
                     for arg in inputs {
-                        let obj_conversion = arg.update_nested_generics(&(scope, context));
+                        let obj_conversion = arg.visit_scope_type(&(scope, context));
                         let ty = obj_conversion.maybe_type().unwrap();
-                        println!("Path::Parenthesized: {} --- {} --- {}", arg.to_token_stream(), obj_conversion, ty.to_token_stream());
+                        //println!("Path::Parenthesized: {} --- {} --- {}", arg.to_token_stream(), obj_conversion, ty.to_token_stream());
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
                         *arg = ty;
                     }
                     if let ReturnType::Type(_, ret) = output {
-                        let obj_conversion = ret.update_nested_generics(&(scope, context));
+                        let obj_conversion = ret.visit_scope_type(&(scope, context));
                         let ty = obj_conversion.maybe_type().unwrap();
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
                         *ret = Box::new(ty);
@@ -146,7 +145,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         if !has_bound && has {
                             has_bound = true;
                         }
-                        has.then(|| path.update_nested_generics(source))
+                        has.then(|| path.visit_scope_type(source))
                     },
                     TypeParamBound::Lifetime(_) => None
                 }).collect()
@@ -164,9 +163,9 @@ impl<'a> VisitScopeType<'a> for Path {
                         })
                         .collect())
                 .unwrap_or_default();
-            // GenericBoundComposition::new(&import_seg.0, &bound, generics, nested_arguments)
-            ObjectConversion::Type(TypeCompositionConversion::Bounds(GenericBoundComposition::new(ty, bounds, predicates, generics, nested_arguments)))
-        } else if let Some(mut import_path) = context.maybe_import(scope, &import_seg).cloned() {
+            // GenericBoundsModel::new(&import_seg.0, &bound, generics, nested_arguments)
+            ObjectKind::Type(TypeModelKind::Bounds(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments)))
+        } else if let Some(mut import_path) = context.maybe_import_path_ref(scope, &import_seg).cloned() {
             // Can be reevaluated after processing entire scope tree:
             // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
             // We can also determine the type after processing entire scope (if one in fermented crate)
@@ -174,12 +173,12 @@ impl<'a> VisitScopeType<'a> for Path {
             if import_path.is_crate_based() {
                 import_path.replace_first_with(&scope.crate_ident_as_path());
             }
-            ObjectConversion::Type(TypeCompositionConversion::Imported(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
+            ObjectKind::Type(TypeModelKind::Imported(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
         } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_type_path) {
             // TODO: multiple bounds handling
             if let Some(first_bound) = generic_bounds.first() {
                 let first_bound_as_scope = PathHolder::from(first_bound);
-                let new_segments = if let Some(Path { segments, .. }) = context.maybe_import(scope, &first_bound_as_scope) {
+                let new_segments = if let Some(Path { segments, .. }) = context.maybe_import_path_ref(scope, &first_bound_as_scope) {
                     nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
                     segments.clone()
                 } else {
@@ -232,18 +231,21 @@ impl<'a> VisitScopeType<'a> for Path {
                     }
 
                 },
-                "Vec" | "Result" if segments.len() == 1 => {
-                    ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))
+                "Vec" => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Vec(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
+                },
+                "Result" if segments.len() == 1 => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Result(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
 
-                    // println!("update_nested_generics (Option): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    // println!("visit_scope_type (Option): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
                     // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                     //     .to_object(nested_arguments)
                 },
                 "Option" => {
-                    //println!("update_nested_generics (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
-                    ObjectConversion::Type(
-                        TypeCompositionConversion::Optional(
-                            handle_type_path_composition(
+                    //println!("visit_scope_type (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
+                    ObjectKind::Type(
+                        TypeModelKind::Optional(
+                            handle_type_path_model(
                                 TypePath {
                                     qself: new_qself,
                                     path: Path {
@@ -261,40 +263,36 @@ impl<'a> VisitScopeType<'a> for Path {
                         .to_object(nested_arguments)
                 },
                 // _ if first_ident.is_special_generic() => {
-                //     ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))
+                //     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))
                 // },
-                _ if last_ident.is_special_generic() => {
+                _ if last_ident.is_map() =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Map(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                _ if last_ident.is_btree_set() =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::BTreeSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                _ if last_ident.is_hash_set() =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::HashSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
 
-                    ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))
-                    // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                    //     .to_object(nested_arguments)
-                },
+                _ if matches!(last_ident.to_string().as_str(), "IndexMap") =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexMap(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
                 _ if first_ident.is_box() => {
-                    ObjectConversion::Type(TypeCompositionConversion::Boxed(handle_type_path_composition(TypePath {
-                        qself: new_qself,
-                        path: Path { leading_colon: self.leading_colon, segments }
-                    }, nested_arguments)))
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
                 },
                 _ if first_ident.is_primitive() => {
-                    ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::Primitive(TypeComposition::new_non_gen(first_ident.to_type(), None))))
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_non_gen(first_ident.to_type(), None))))
+                },
+                _ if first_ident.is_128_digit() => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
                 },
                 _ if first_ident.is_special_std_trait() => {
                     // TODO: make it Unknown?
-                    ObjectConversion::Type(TypeCompositionConversion::Unknown(TypeComposition::new_non_gen(nested_import_seg.to_type(), None)))
+                    ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))
                 },
                 _ if first_ident.is_any_string() => {
-                    ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::NonPrimitiveFermentable(TypeComposition::new_non_gen(nested_import_seg.to_type(), None))))
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))))
                 },
                 _ if first_ident.is_lambda_fn() => {
                     //println!("first_ident.is_lambda_fn: {}", segments.to_token_stream());
-
-                    // ObjectConversion::Type(TypeCompositionConversion::Bounds(GenericBoundComposition::new(ty, bounds, predicates, generics, nested_arguments)))
-
-                    // ObjectConversion::Type(TypeCompositionConversion::GenericBoundComposition(handle_type_path_composition(self, nested_arguments)))
-                    ObjectConversion::Type(TypeCompositionConversion::Dictionary(DictionaryTypeCompositionConversion::LambdaFn(handle_type_path_composition(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }, nested_arguments))))
-                    //
-                    // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                    //     .to_callback(nested_arguments)
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(handle_type_path_model(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }, nested_arguments))))
                 },
                 _ => {
                     let obj_parent_scope = obj_scope.parent_scope();
@@ -309,7 +307,7 @@ impl<'a> VisitScopeType<'a> for Path {
                             None => {
                                 // Global
                                 if scope.is_crate_root() {
-                                    let scope = scope.crate_ident();
+                                    let scope = scope.crate_ident_ref();
                                     parse_quote!(#scope::#self)
                                 } else {
                                     parse_quote!(#scope::#self)
@@ -346,7 +344,7 @@ impl<'a> VisitScopeType<'a> for Path {
 
                     } else {
                         let tail = segments.crate_less();
-                        if let Some(QSelfComposition { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
+                        if let Some(QSelfModel { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
                             nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
 
                             // println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
@@ -411,112 +409,112 @@ impl<'a> VisitScopeType<'a> for Path {
 
 impl<'a> VisitScopeType<'a> for Option<QSelf> {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = Option<QSelfComposition>;
+    type Result = Option<QSelfModel>;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         self.as_ref().map(|qself| {
             let mut new_qself = qself.clone();
-            let qs = qself.ty.update_nested_generics(source);
-            let qs = qs.type_conversion().unwrap().ty_composition().clone();
-            new_qself.ty = qs.ty.clone().into();
-            QSelfComposition { qs, qself: new_qself }
+            let qs = qself.ty.visit_scope_type(source);
+            let qs = qs.maybe_type_model_kind_ref().unwrap().type_model_ref().clone();
+            new_qself.ty = Box::new(qs.as_type().clone());
+            QSelfModel { qs, qself: new_qself }
         })
     }
 }
 
 impl<'a> VisitScopeType<'a> for TypePath {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         let (scope, context) = source;
-        self.path.update_nested_generics(&(scope, context, self.qself.update_nested_generics(source)))
+        self.path.visit_scope_type(&(scope, context, self.qself.visit_scope_type(source)))
     }
 }
 
 impl<'a> VisitScopeType<'a> for TypeArray {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        ObjectConversion::Type(
-            TypeCompositionConversion::Slice(
-                TypeComposition::new(
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        ObjectKind::Type(
+            TypeModelKind::Slice(
+                TypeModel::new(
                     Type::Array(self.clone()),
                     None,
-                    Punctuated::from_iter([NestedArgument::Object(self.elem.update_nested_generics(source))]))))
+                    Punctuated::from_iter([NestedArgument::Object(self.elem.visit_scope_type(source))]))))
     }
 }
 
 impl<'a> VisitScopeType<'a> for TypeSlice {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        ObjectConversion::Type(
-            TypeCompositionConversion::Slice(
-                TypeComposition::new(
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        ObjectKind::Type(
+            TypeModelKind::Slice(
+                TypeModel::new(
                     Type::Slice(self.clone()),
                     None,
-                    Punctuated::from_iter([NestedArgument::Object(self.elem.update_nested_generics(source))]))))
+                    Punctuated::from_iter([NestedArgument::Object(self.elem.visit_scope_type(source))]))))
 
     }
 }
 impl<'a> VisitScopeType<'a> for TypeBareFn {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        let mut nested = self.inputs.iter().map(|BareFnArg { ty, .. }| NestedArgument::Object(ty.update_nested_generics(source))).collect::<CommaPunctuated<_>>();
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        let mut nested = self.inputs.iter().map(|BareFnArg { ty, .. }| NestedArgument::Object(ty.visit_scope_type(source))).collect::<CommaPunctuated<_>>();
         if let ReturnType::Type(_, ty) = &self.output {
-            nested.push(NestedArgument::Object(ty.update_nested_generics(source)))
+            nested.push(NestedArgument::Object(ty.visit_scope_type(source)))
         }
-        //println!("TypeBareFn::update_nested_generics: {} --- {}", self.to_token_stream(), nested.to_token_stream());
-        ObjectConversion::Type(
-            TypeCompositionConversion::FnPointer(
-                TypeComposition::new(Type::BareFn(self.clone()), None, nested)))
+        println!("TypeBareFn::visit_scope_type: {} --- {}", self.to_token_stream(), nested.to_token_stream());
+        ObjectKind::Type(
+            TypeModelKind::FnPointer(
+                TypeModel::new(Type::BareFn(self.clone()), None, nested)))
     }
 }
 impl<'a> VisitScopeType<'a> for TypeReference {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        let mut obj = self.elem.update_nested_generics(source);
+    type Result = ObjectKind;
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        let mut obj = self.elem.visit_scope_type(source);
         match &mut obj {
-            ObjectConversion::Type(tyc) |
-            ObjectConversion::Item(tyc, _) => {
-                tyc.replace_composition_type(Type::Reference(TypeReference {
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, _) => {
+                tyc.replace_model_type(Type::Reference(TypeReference {
                     and_token: Default::default(),
                     lifetime: self.lifetime.clone(),
                     mutability: self.mutability.clone(),
                     elem: Box::new(tyc.to_type()),
                 }));
             }
-            ObjectConversion::Empty => {}
+            ObjectKind::Empty => {}
         }
         obj
     }
 }
 impl<'a> VisitScopeType<'a> for TypePtr {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        let mut obj = self.elem.update_nested_generics(source);
+    type Result = ObjectKind;
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        let mut obj = self.elem.visit_scope_type(source);
         match &mut obj {
-            ObjectConversion::Type(tyc) |
-            ObjectConversion::Item(tyc, _) => {
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, _) => {
                 let ty = tyc.to_type();
                 match (self.const_token, self.mutability) {
                     (Some(..), _) => {
-                        tyc.replace_composition_type(parse_quote!(*const #ty))
+                        tyc.replace_model_type(parse_quote!(*const #ty))
                     },
                     (_, Some(..)) => {
-                        tyc.replace_composition_type(parse_quote!(*mut #ty))
+                        tyc.replace_model_type(parse_quote!(*mut #ty))
                     },
                     _ => {}
                 }
             }
-            ObjectConversion::Empty => {}
+            ObjectKind::Empty => {}
         }
         obj
     }
@@ -524,37 +522,37 @@ impl<'a> VisitScopeType<'a> for TypePtr {
 
 impl<'a> VisitScopeType<'a> for TypeTuple {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        ObjectConversion::Type(
-            TypeCompositionConversion::Tuple(
-                TypeComposition::new(
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        ObjectKind::Type(
+            TypeModelKind::Tuple(
+                TypeModel::new(
                     Type::Tuple(self.clone()),
                     None,
                     self.elems
                         .iter()
-                        .map(|ty| NestedArgument::Object(ty.update_nested_generics(source)))
+                        .map(|ty| NestedArgument::Object(ty.visit_scope_type(source)))
                         .collect())))
     }
 }
 
 impl<'a> VisitScopeType<'a> for TypeTraitObject {
     type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectConversion;
+    type Result = ObjectKind;
 
-    fn update_nested_generics(&self, source: &Self::Source) -> Self::Result {
-        //println!("update_nested_generics (TypeTraitObject): {}", self.to_token_stream());
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        //println!("visit_scope_type (TypeTraitObject): {}", self.to_token_stream());
         let (scope, context) = source;
         let TypeTraitObject { dyn_token, bounds } = self;
         let mut bounds = bounds.clone();
         let nested_arguments = CommaPunctuatedNestedArguments::new();
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
-                let object = path.update_nested_generics(&(scope, context, None));
+                let object = path.visit_scope_type(&(scope, context, None));
                 match &object {
-                    ObjectConversion::Type(tyc) |
-                    ObjectConversion::Item(tyc, _) => {
+                    ObjectKind::Type(tyc) |
+                    ObjectKind::Item(tyc, _) => {
                         let ty = tyc.to_type();
                         match ty {
                             Type::Path(TypePath { path: ty_path, .. }) => {
@@ -569,16 +567,16 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
                             _ => {}
                         }
                     }
-                    ObjectConversion::Empty => {}
+                    ObjectKind::Empty => {}
                 }
                 //nested_arguments.push(NestedArgument::Constraint(object));
             },
             _ => {},
         });
         // TODO: make it Unknown
-        ObjectConversion::Type(
-            TypeCompositionConversion::Unknown(
-                handle_type_composition(
+        ObjectKind::Type(
+            TypeModelKind::Unknown(
+                handle_type_model(
                     Type::TraitObject(
                         TypeTraitObject {
                             dyn_token: dyn_token.clone(),

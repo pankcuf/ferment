@@ -1,5 +1,5 @@
 use syn::{Attribute, Generics};
-use crate::composable::AttrsComposition;
+use crate::composable::AttrsModel;
 use crate::composer::{AttrsComposer, BasicComposable, Composer, DocsComposable, GenericsComposer, NameContext, ParentComposer, Linkable, SourceAccessible, SourceExpandable, TypeComposer, TypeContextComposer};
 use crate::context::ScopeContext;
 use crate::presentable::Context;
@@ -61,7 +61,7 @@ impl<Parent> BasicComposer<Parent> where Parent: SharedAccess {
         Self { context, attr, doc, ty, generics }
     }
 
-    pub fn from(attrs: AttrsComposition, name_context: Context, generics: Option<Generics>, doc: TypeContextComposer<Parent>, context: ParentComposer<ScopeContext>) -> BasicComposer<Parent> {
+    pub fn from(attrs: AttrsModel, name_context: Context, generics: Option<Generics>, doc: TypeContextComposer<Parent>, context: ParentComposer<ScopeContext>) -> BasicComposer<Parent> {
         Self::new(
             AttrsComposer::new(attrs),
             doc,
