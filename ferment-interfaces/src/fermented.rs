@@ -33,9 +33,8 @@ pub trait FFIConversion2<'a, T> {
 
 pub mod types {
     use std::ffi::{CStr, CString};
-    use std::mem;
     use std::os::raw::c_char;
-    use crate::{boxed, clone_into_array, FFIConversionDestroy, FFIConversionFrom, FFIConversionTo, unbox_string};
+    use crate::{boxed, FFIConversionDestroy, FFIConversionFrom, FFIConversionTo, unbox_any, unbox_string};
     use crate::fermented::FFIConversion2;
 
     impl FFIConversionFrom<u128> for [u8; 16] {
@@ -46,12 +45,32 @@ pub mod types {
     }
     impl FFIConversionTo<u128> for [u8; 16] {
         unsafe fn ffi_to_const(obj: u128) -> *const Self {
-            // let bytes = obj.to_le_bytes();
-            // let mut arr = [0u8; 16];
-            // arr.copy_from_slice(&bytes);
             boxed(obj.to_le_bytes())
         }
     }
+    impl FFIConversionDestroy<u128> for [u8; 16] {
+        unsafe fn destroy(ffi: *mut Self) {
+            unbox_any(ffi);
+        }
+    }
+
+    impl FFIConversionFrom<i128> for [u8; 16] {
+        unsafe fn ffi_from_const(ffi: *const Self) -> i128 {
+            let arr = &*ffi;
+            i128::from_le_bytes(*arr)
+        }
+    }
+    impl FFIConversionTo<i128> for [u8; 16] {
+        unsafe fn ffi_to_const(obj: i128) -> *const Self {
+            boxed(obj.to_le_bytes())
+        }
+    }
+    impl FFIConversionDestroy<i128> for [u8; 16] {
+        unsafe fn destroy(ffi: *mut Self) {
+            unbox_any(ffi);
+        }
+    }
+
 
     impl FFIConversionFrom<String> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> String {

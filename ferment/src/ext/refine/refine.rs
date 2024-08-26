@@ -455,7 +455,6 @@ impl RefineInScope for TypeModelKind {
                     ) |
                     DictFermentableModelKind::Other(model) |
                     DictFermentableModelKind::Digit128(model) |
-                    DictFermentableModelKind::Other(model) |
                     DictFermentableModelKind::String(model)) |
                 DictTypeModelKind::NonPrimitiveOpaque(model) |
                 DictTypeModelKind::LambdaFn(model)) |
