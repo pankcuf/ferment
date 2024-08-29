@@ -131,10 +131,11 @@ impl VisitScope for Item {
                 visitor.add_generic_chain(scope, &item_type.generics, true);
                 visitor.add_full_qualified_type_match(scope, &item_type.ty, true);
             }
-            Item::Impl(ItemImpl { generics, trait_, self_ty: _, items , ..}) => {
+            Item::Impl(ItemImpl { generics, trait_, self_ty, items , ..}) => {
                 if let Some((_, path, _)) = trait_ {
                     visitor.add_full_qualified_type_match(scope, &path.to_type(), true);
                 }
+                visitor.add_full_qualified_type_match(scope, self_ty, false);
                 visitor.add_generic_chain(scope, generics, true);
                 items.iter().for_each(|impl_item| {
                     match impl_item {

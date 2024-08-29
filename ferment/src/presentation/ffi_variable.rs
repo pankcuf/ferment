@@ -69,7 +69,7 @@ impl Resolve<FFIVariable> for Path {
 }
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable {
-    println!("resolve_type_variable: {}", ty.to_token_stream());
+    //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),

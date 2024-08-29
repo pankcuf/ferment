@@ -211,10 +211,6 @@ impl ScopeResolver {
                 self.inner.values()
                     .find_map(|chain| search_key.find(|ty| chain.get_by_value(ty)))
             },
-            // ScopeSearch::Key(search_key) => {
-            //     self.inner.get(scope)
-            //         .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty)))
-            // }
         }
     }
 

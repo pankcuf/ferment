@@ -52,11 +52,12 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
         let Self { name, search, expr } = self;
         let search_key = self.search.search_key();
-        println!("FromConversionComposer:: {}({}) -- {} -- {:?}", name,  name.to_token_stream(), search, expr);
+        println!("FromConversionFullComposer:: {}({}) -- {} -- {:?}", name,  name.to_token_stream(), search, expr);
         // let field_path = Expression::Simple(name.to_token_stream());
         // let field_path = ty.conversion_from(expr.clone().unwrap_or(Expression::Simple(name.to_token_stream())));
         let field_path = expr.clone().unwrap_or(Expression::Simple(name.to_token_stream()));
         //let full_type = ty.full_type(source);
+        // let maybe_object = source.maybe_object_by_predicate(search.clone());
         let maybe_object = source.maybe_object_by_predicate(search.clone());
         let full_type = maybe_object.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
         println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), |o| format!("{o}")));
@@ -89,7 +90,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
 
         let expression = match full_type.maybe_special_type(source) {
             Some(SpecialType::Opaque(..)) => {
-                println!("FromConversionComposer:: Opaque: {}({})", search_key, full_type.to_token_stream());
+                println!("FromConversionFullComposer:: Opaque: {}({})", search_key, full_type.to_token_stream());
                 match composition {
                     TypeModelKind::FnPointer(..) |
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => field_path,
@@ -119,7 +120,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
 
                     },
                     _ => {
-                        println!("FROMPTRCLONE ({}): {}", search_key.maybe_originally_is_const_ptr(), search_key);
+                        println!("FromConversionFullComposer: FROMPTRCLONE ({}): {}", search_key.maybe_originally_is_const_ptr(), search_key);
                         if search_key.maybe_originally_is_const_ptr() {
                             field_path
                         } else if search_key.maybe_originally_is_mut_ptr() {
@@ -133,12 +134,12 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
             Some(SpecialType::Custom(..)) =>
                 Expression::From(field_path.into()),
             None => {
-                println!("FromConversionComposer (Non Special): {} ({})", search_key, full_type.to_token_stream());
+                println!("FromConversionFullComposer (Non Special): {} ({})", search_key, full_type.to_token_stream());
                 match composition {
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
                         field_path,
                     TypeModelKind::FnPointer(..) => {
-                        println!("FromConversionComposer (Non Special FnPointer): {} --- {}", search_key, maybe_object.to_token_stream());
+                        println!("FromConversionFullComposer (Non Special FnPointer): {} --- {}", search_key, maybe_object.to_token_stream());
                         if let Some(bare) = source.maybe_fn_sig(&full_type) {
                             let lambda_args = CommaPunctuated::from_iter(bare.inputs.iter().enumerate().map(|(index, BareFnArg { name, ..})| match name {
                                 Some((ident, ..)) => Name::Ident(ident.clone()),
@@ -176,7 +177,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                             (Some(SpecialType::Custom(..)), _any) =>
                                 Expression::IntoBox(Expression::From(field_path.into()).into()),
                             (_, Some(obj)) => {
-                                println!("FromConversionComposer (Non Special Boxed Lambda): {}", obj);
+                                println!("FromConversionFullComposer (Non Special Boxed Lambda): {}", obj);
                                 Expression::IntoBox(match obj.maybe_lambda_args() {
                                     Some(lambda_args) =>
                                         Expression::FromLambda(field_path.into(), lambda_args),
@@ -189,7 +190,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         }
                     },
                     TypeModelKind::Bounds(bounds) => {
-                        println!("FromConversionComposer (Bounds): {}", bounds);
+                        println!("FromConversionFullComposer (Bounds): {}", bounds);
                         if bounds.bounds.is_empty() {
                             field_path
                         } else  if bounds.is_lambda() {
@@ -214,7 +215,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         // }
                     },
                     TypeModelKind::Unknown(..) => {
-                        println!("FromConversionComposer (Unknown): {}", search_key);
+                        println!("FromConversionFullComposer (Unknown): {}", search_key);
 
                         match TypeKind::from(search_key.to_type()) {
                             TypeKind::Primitive(_) =>
@@ -231,7 +232,7 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         }
                     },
                     _ => {
-                        println!("FromConversionComposer (Regular): {}", composition);
+                        println!("FromConversionFullComposer (Regular): {}", composition);
                         match TypeKind::from(search_key.to_type()) {
                             TypeKind::Primitive(_) =>
                                 field_path,

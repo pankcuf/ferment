@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Formatter};
 use proc_macro2::Ident;
 use syn::{Attribute, FnArg, ItemFn, parse_quote, PatType, Receiver, ReturnType, Signature, Type, TypeBareFn, Visibility};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use crate::composable::{CfgAttributes, FieldComposer, FieldTypeKind};
-use crate::composer::{Composer, FromConversionFullComposer};
+use crate::composer::{Composer, FromConversionComposer, FromConversionFullComposer, VarComposer};
 use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
-use crate::ext::{Mangle, Resolve, ToType};
+use crate::ext::{Resolve, ToType};
 use crate::presentable::{Expression, OwnedItemPresentableContext};
-use crate::presentation::{DictionaryName, FFIConversionFromMethod, InterfacesMethodExpr, Name};
+use crate::presentation::{DictionaryName, Name};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -95,36 +95,39 @@ impl<'a> Composer<'a> for Receiver {
 
     fn compose(&self, source: &'a Self::Source) -> Self::Result {
         let (ctx, source) = source;
-        let Receiver { mutability, reference, attrs, .. } = self;
-        match ctx {
+        let Receiver { mutability: _, reference, attrs, .. } = self;
+        let (ty, name_type_conversion) = match ctx {
             FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
-            FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => {
-                let (target_type, name_type_conversion) = match maybe_trait_ty {
-                    Some(trait_ty) => (
-                        <Type as Resolve<Type>>::resolve(trait_ty, &source),
-                        Expression::SelfAsTrait(<Type as Resolve<Type>>::resolve(self_ty, &source).to_token_stream())
-                    ),
-                    None => (
-                        <Type as Resolve<Type>>::resolve(self_ty, &source),
-                        Expression::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromConst, DictionaryName::Self_.to_token_stream()))
-                    )
-                };
-                let mangled_ident = target_type.mangle_ident_default();
-                let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
-                let name_type_original = original(
-                    Name::Dictionary(DictionaryName::Self_),
-                    parse_quote!(* #access #mangled_ident),
-                    attrs.cfg_attributes()
-                );
-                let name_type_conversion = if reference.is_some() {
-                    Expression::AsRef(name_type_conversion.into())
-                } else {
-                    name_type_conversion
-                };
-                FnArgComposer::new(name_type_original, name_type_conversion)
-            },
+            FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
+                Some(trait_ty) => (
+                    trait_ty,
+                    Expression::SelfAsTrait(<Type as Resolve<Type>>::resolve(self_ty, &source).to_token_stream())
+                ),
+                None => (
+                    self_ty,
+                    FromConversionComposer::new(Name::Dictionary(DictionaryName::Self_), self_ty.clone(), None).compose(source)
+                )
+            }
             _ => panic!("Receiver in regular fn")
-        }
+        };
+
+        let var = VarComposer::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), &source.scope)).compose(source);
+        println!("Receiver Var: {}", var.to_token_stream());
+        // let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
+
+        let name_type_original = original(
+            Name::Dictionary(DictionaryName::Self_),
+            parse_quote!(#var),
+            // parse_quote!(* #access #var),
+            attrs.cfg_attributes()
+        );
+        let name_type_conversion = if reference.is_some() {
+            Expression::AsRef(name_type_conversion.into())
+        } else {
+            name_type_conversion
+        };
+        FnArgComposer::new(name_type_original, name_type_conversion)
+
     }
 }
 

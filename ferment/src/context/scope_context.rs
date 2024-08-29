@@ -175,7 +175,7 @@ impl ScopeContext {
         result
     }
 
-    pub fn maybe_type_conversion(&self, ty: &Type) -> Option<TypeModelKind> {
+    pub fn maybe_type_model_kind(&self, ty: &Type) -> Option<TypeModelKind> {
         let lock = self.context.read().unwrap();
         lock.maybe_type_model_kind_ref_by_key(ty, &self.scope).cloned()
     }
