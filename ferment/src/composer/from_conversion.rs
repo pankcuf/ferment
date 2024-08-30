@@ -366,13 +366,13 @@ impl<'a> Composer<'a> for FromConversionComposer {
 
                     },
                     _ => {
-
-
-                        match ty {
-                            Type::Ptr(_) => field_path,
-                            _ =>
-                                Expression::FromPtrClone(field_path.into())
-                        }
+                        Expression::DerefContext(field_path.into())
+                        // field_path
+                        // match ty {
+                        //     Type::Ptr(_) => field_path,
+                        //     _ =>
+                        //         Expression::FromPtrClone(field_path.into())
+                        // }
                     }
                 }
             },
