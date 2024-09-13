@@ -11,6 +11,7 @@ pub enum MacroType {
     Opaque,
     Register(TypeHolder)
 }
+
 #[allow(unused)]
 pub fn non_cfg_test(attrs: &Vec<Attribute>) -> bool {
     !cfg_test(attrs)
@@ -221,7 +222,7 @@ pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Vec<Attribute> {
         tokens: quote!((#attrs)),
     }]).unwrap_or_default()
     // vec![]
-    // Depunctuated::from_iter([Expansion::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
+    // Depunctuated::from_iter([Fermentate::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
 }
 pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<Meta> {
     if attrs.contains(&None) {

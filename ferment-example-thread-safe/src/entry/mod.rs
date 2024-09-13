@@ -13,7 +13,7 @@ pub trait ContextProvider: Send + Sync {
 #[derive(Clone)]
 #[ferment_macro::opaque]
 pub struct FFIContext {
-    pub caller: Arc<dyn Fn(*const FFIContext, u32, String) -> String>,
+    pub caller: Arc<dyn Fn(*const FFIContext, u32, &String) -> String>,
     // pub destructor: Arc<dyn Fn(*const FFIContext, String)>,
     // pub destructor: Arc<dyn Fn(String)>,
 }
@@ -48,7 +48,7 @@ impl PlatformProvider {
 
 impl ContextProvider for PlatformProvider {
     fn get_quorum_public_key(&self, quorum_type: u32, quorum_hash: String) -> String {
-        (self.context.caller)(self.context_ptr(), quorum_type, quorum_hash)
+        (self.context.caller)(self.context_ptr(), quorum_type, &quorum_hash)
     }
 }
 

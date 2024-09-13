@@ -1,4 +1,5 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
 use quote::ToTokens;
 use syn::{BareFnArg, PatType, Type};
 use syn::punctuated::Punctuated;
@@ -8,62 +9,63 @@ use crate::composer::Composer;
 use crate::context::{ScopeContext, ScopeSearch};
 use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind};
 use crate::ext::{FFITypeModelKindResolve, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Primitive, Resolve, SpecialType, AsType, ToType};
+use crate::lang::LangAttrSpecification;
 use crate::presentable::Expression;
 use crate::presentation::Name;
 
-#[allow(unused)]
-pub struct FromConversionModel {
-    pub name: Name,
-    pub expr: Option<Expression>,
-}
+// #[allow(unused)]
+// pub struct FromConversionModel<LANG, SPEC>
+//     where
+//         LANG: Clone,
+//         SPEC: LangAttrSpecification<LANG> {
+//     pub name: Name,
+//     pub expr: Option<Expression<LANG, SPEC>>,
+// }
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
-pub struct FromConversionFullComposer<'a> {
+pub struct FromConversionFullComposer<'a, LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     pub name: Name,
     pub search: ScopeSearch<'a>,
-    pub expr: Option<Expression>,
+    pub expr: Option<Expression<LANG, SPEC>>,
+    phantom_lang: PhantomData<LANG>,
+    phantom_spec: PhantomData<SPEC>
 }
 
-impl<'a> FromConversionFullComposer<'a> {
-    pub fn new(name: Name, search: ScopeSearch<'a>, expr: Option<Expression>) -> Self {
-        Self { name, search , expr }
+impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub fn new(name: Name, search: ScopeSearch<'a>, expr: Option<Expression<LANG, SPEC>>) -> Self {
+        Self { name, search , expr, phantom_lang: PhantomData::default(), phantom_spec: PhantomData::default() }
     }
     pub fn expr_less(name: Name, search: ScopeSearch<'a>) -> Self {
         Self::new(name, search, None)
     }
 }
-impl<'a> Display for FromConversionFullComposer<'a> {
+impl<'a, LANG, SPEC> Display for FromConversionFullComposer<'a, LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{} --- {} --- {}", self.name, self.search, self.expr.as_ref().map_or("None".to_string(), |e| format!("{}", e))).as_str())
     }
 }
-// impl From<&PatType> for FromConversionComposer {
-//     fn from(value: &PatType) -> Self {
-//         let PatType { ty, pat, .. } = value;
-//         Self { name: Name::Pat(*pat.clone()), ty: *ty.clone(), expr: None }
-//     }
-// }
 
-impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
+impl<'a, LANG, SPEC> Composer<'a> for FromConversionFullComposer<'a, LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
     type Source = ScopeContext;
-    type Result = Expression;
+    type Output = Expression<LANG, SPEC>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
-        let Self { name, search, expr } = self;
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+        let Self { name, search, expr, .. } = self;
         let search_key = self.search.search_key();
         println!("FromConversionFullComposer:: {}({}) -- {} -- {:?}", name,  name.to_token_stream(), search, expr);
-        // let field_path = Expression::Simple(name.to_token_stream());
-        // let field_path = ty.conversion_from(expr.clone().unwrap_or(Expression::Simple(name.to_token_stream())));
         let field_path = expr.clone().unwrap_or(Expression::Simple(name.to_token_stream()));
-        //let full_type = ty.full_type(source);
-        // let maybe_object = source.maybe_object_by_predicate(search.clone());
         let maybe_object = source.maybe_object_by_predicate(search.clone());
         let full_type = maybe_object.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
         println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-
-        // let composition = ty.composition(source);
-        // let maybe_object = <Type as Resolve<Option<ObjectKind>>>::resolve(ty, source);
         let composition = maybe_object.as_ref()
             .and_then(|external_type| {
                 match external_type {
@@ -95,17 +97,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                     TypeModelKind::FnPointer(..) |
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => field_path,
                     TypeModelKind::Bounds(bounds) => {
-
-                        // match bounds.bounds.len() {
-                        //     0 => field_path,
-                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                        //         Expression::FromLambda(field_path.into(), lambda_args)
-                        //     } else {
-                        //         Expression::From(field_path.into())
-                        //     }
-                        //     _ =>
-                        //         Expression::From(field_path.into())
-                        // }
                         if bounds.bounds.is_empty() {
                             field_path
                         } else  if bounds.is_lambda() {
@@ -117,7 +108,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         } else {
                             Expression::From(field_path.into())
                         }
-
                     },
                     _ => {
                         println!("FromConversionFullComposer: FROMPTRCLONE ({}): {}", search_key.maybe_originally_is_const_ptr(), search_key);
@@ -149,12 +139,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         } else {
                             field_path
                         }
-                        //
-                        // if let Some(lambda_args) = composition.maybe_lambda_args() {
-                        //     Expression::FromLambda(field_path.into(), lambda_args)
-                        // } else {
-                        //     field_path
-                        // }
                     },
                     TypeModelKind::Optional(ty) => if ty.as_type().first_nested_type().unwrap().is_primitive() {
                         Expression::FromOptPrimitive(field_path.into())
@@ -162,7 +146,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         Expression::FromOpt(field_path.into())
                     }
                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) => {
-                        // let nested_ty = ty.first_nested_type().unwrap();
                         let full_nested_ty = full_ty.first_nested_type().unwrap();
                         // println!("FromConversionComposer (Non Special Boxed): {} ({}) --- {} ---- {}", nested_ty.to_token_stream(), full_nested_ty.to_token_stream(), <Type as Resolve<Option<SpecialType>>>::resolve(full_nested_ty, source).to_token_stream(), nested_ty.maybe_object(source).to_token_stream());
                         match (<Type as Resolve<Option<SpecialType>>>::resolve(full_nested_ty, source),
@@ -202,17 +185,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                         } else {
                             Expression::From(field_path.into())
                         }
-
-                        // match bounds.bounds.len() {
-                        //     0 => field_path,
-                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                        //         Expression::FromLambda(field_path.into(), lambda_args)
-                        //     } else {
-                        //         Expression::From(field_path.into())
-                        //     }
-                        //     _ =>
-                        //         Expression::From(field_path.into())
-                        // }
                     },
                     TypeModelKind::Unknown(..) => {
                         println!("FromConversionFullComposer (Unknown): {}", search_key);
@@ -228,7 +200,6 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                                 Expression::From(field_path.into()),
                             _ =>
                                 field_path,
-                            // Expression::From(field_path.into())
                         }
                     },
                     _ => {
@@ -247,67 +218,58 @@ impl<'a> Composer<'a> for FromConversionFullComposer<'a> {
                 }
             }
         };
-        // let expression = match ty {
-        //     Type::Reference(_) => {
-        //         println!("FromConversionComposer::RESULT (REF) {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), expression, expression.present(source));
-        //         Expression::AsRef(expression.into())
-        //     },
-        //     _ => {
-        //         println!("FromConversionComposer::RESULT {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), expression, expression.present(source));
-        //         expression
-        //     }
-        // };
-        // println!("FromConversionComposer::RESULT {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), result, result.present(source));
         expression
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct FromConversionComposer {
+pub struct FromConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     pub name: Name,
     pub ty: Type,
-    pub expr: Option<Expression>,
+    pub expr: Option<Expression<LANG, SPEC>>,
+    phantom_lang: PhantomData<LANG>,
+    phantom_spec: PhantomData<SPEC>
 }
 
-impl Display for FromConversionComposer {
+impl<LANG, SPEC> Display for FromConversionComposer<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("{} --- {} --- {}", self.name, self.ty.to_token_stream(), self.expr.as_ref().map_or("None".to_string(), |e| format!("{}", e))).as_str())
     }
 }
 
-// impl From<&FieldComposer> for FromConversionComposer {
-//     fn from(value: &FieldComposer) -> Self {
-//         Self { name: value.name.clone(), ty: value.ty().clone(), expr: None }
-//     }
-// }
-//
 #[allow(unused)]
-impl From<&PatType> for FromConversionComposer {
+impl<LANG, SPEC> From<&PatType> for FromConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     fn from(value: &PatType) -> Self {
         let PatType { ty, pat, .. } = value;
-        Self { name: Name::Pat(*pat.clone()), ty: *ty.clone(), expr: None }
+        Self { name: Name::Pat(*pat.clone()), ty: *ty.clone(), expr: None, phantom_lang: PhantomData::default(), phantom_spec: PhantomData::default() }
     }
 }
-//
-//
-#[allow(unused)]
-impl FromConversionComposer {
-    pub fn new(name: Name, ty: Type, expr: Option<Expression>) -> Self {
-        Self { name, ty, expr }
-    }
-}
-impl<'a> Composer<'a> for FromConversionComposer {
-    type Source = ScopeContext;
-    type Result = Expression;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
-        let Self { name, ty, expr } = self;
+#[allow(unused)]
+impl<LANG, SPEC> FromConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub fn new(name: Name, ty: Type, expr: Option<Expression<LANG, SPEC>>) -> Self {
+        Self { name, ty, expr, phantom_lang: Default::default(), phantom_spec: Default::default() }
+    }
+}
+impl<'a, LANG, SPEC> Composer<'a> for FromConversionComposer<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    type Source = ScopeContext;
+    type Output = Expression<LANG, SPEC>;
+
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+        let Self { name, ty, expr, .. } = self;
         println!("FromConversionComposer:: {}({}) -- {} -- {:?}", name,  name.to_token_stream(), ty.to_token_stream(), expr);
-        // let field_path = Expression::Simple(name.to_token_stream());
-        // let field_path = ty.conversion_from(expr.clone().unwrap_or(Expression::Simple(name.to_token_stream())));
         let field_path = expr.clone().unwrap_or(Expression::Simple(name.to_token_stream()));
         let full_type = ty.full_type(source);
-        // let composition = ty.composition(source);
         let maybe_object = <Type as Resolve<Option<ObjectKind>>>::resolve(ty, source);
         println!("FromConversionComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         let composition = maybe_object.as_ref()
@@ -341,17 +303,6 @@ impl<'a> Composer<'a> for FromConversionComposer {
                     TypeModelKind::FnPointer(..) |
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => field_path,
                     TypeModelKind::Bounds(bounds) => {
-
-                        // match bounds.bounds.len() {
-                        //     0 => field_path,
-                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                        //         Expression::FromLambda(field_path.into(), lambda_args)
-                        //     } else {
-                        //         Expression::From(field_path.into())
-                        //     }
-                        //     _ =>
-                        //         Expression::From(field_path.into())
-                        // }
                         if bounds.bounds.is_empty() {
                             field_path
                         } else  if bounds.is_lambda() {
@@ -367,12 +318,6 @@ impl<'a> Composer<'a> for FromConversionComposer {
                     },
                     _ => {
                         Expression::DerefContext(field_path.into())
-                        // field_path
-                        // match ty {
-                        //     Type::Ptr(_) => field_path,
-                        //     _ =>
-                        //         Expression::FromPtrClone(field_path.into())
-                        // }
                     }
                 }
             },
@@ -394,12 +339,6 @@ impl<'a> Composer<'a> for FromConversionComposer {
                         } else {
                             field_path
                         }
-                        //
-                        // if let Some(lambda_args) = composition.maybe_lambda_args() {
-                        //     Expression::FromLambda(field_path.into(), lambda_args)
-                        // } else {
-                        //     field_path
-                        // }
                     },
                     TypeModelKind::Optional(ty) => if ty.as_type().first_nested_type().unwrap().is_primitive() {
                         Expression::FromOptPrimitive(field_path.into())
@@ -447,17 +386,6 @@ impl<'a> Composer<'a> for FromConversionComposer {
                         } else {
                             Expression::From(field_path.into())
                         }
-
-                        // match bounds.bounds.len() {
-                        //     0 => field_path,
-                        //     1 => if let Some(lambda_args) = bounds.bounds.first().unwrap().maybe_lambda_args() {
-                        //         Expression::FromLambda(field_path.into(), lambda_args)
-                        //     } else {
-                        //         Expression::From(field_path.into())
-                        //     }
-                        //     _ =>
-                        //         Expression::From(field_path.into())
-                        // }
                     },
                     TypeModelKind::Unknown(..) => {
                         println!("FromConversionComposer (Unknown): {}", ty.to_token_stream());
@@ -491,17 +419,6 @@ impl<'a> Composer<'a> for FromConversionComposer {
                 }
             }
         };
-        // let expression = match ty {
-        //     Type::Reference(_) => {
-        //         println!("FromConversionComposer::RESULT (REF) {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), expression, expression.present(source));
-        //         Expression::AsRef(expression.into())
-        //     },
-        //     _ => {
-        //         println!("FromConversionComposer::RESULT {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), expression, expression.present(source));
-        //         expression
-        //     }
-        // };
-        // println!("FromConversionComposer::RESULT {}({}) -- {} === {} == {}", name, name.to_token_stream(), ty.to_token_stream(), result, result.present(source));
         expression
     }
 }

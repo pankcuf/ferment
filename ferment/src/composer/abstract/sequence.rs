@@ -55,8 +55,8 @@ impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a> for Sequen
         Parent: SharedAccess,
         ParentCtx: Clone {
     type Source = ();
-    type Result = Out;
-    fn compose(&self, _: &Self::Source) -> Self::Result {
+    type Output = Out;
+    fn compose(&self, _: &Self::Source) -> Self::Output {
         (self.set_output)(
             self.iterator.compose(&self.parent
                 .as_ref()

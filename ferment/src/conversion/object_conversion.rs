@@ -7,7 +7,7 @@ use crate::ast::{CommaPunctuated, PathHolder};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
-use crate::conversion::{ScopeItemKind, TypeModelKind};
+use crate::conversion::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
 use crate::presentation::Name;
 
@@ -138,6 +138,15 @@ impl ObjectKind {
             ObjectKind::Type(tyc) |
             ObjectKind::Item(tyc, ..) => Some(tyc),
             ObjectKind::Empty => None
+        }
+    }
+    pub fn maybe_generic_type_kind(&self) -> Option<GenericTypeKind> {
+        match self.maybe_type_model_kind_ref() {
+            Some(kind) => match TypeKind::from(kind.to_type()) {
+                TypeKind::Generic(kind) => Some(kind),
+                _ => None
+            }
+            _ => None
         }
     }
     pub fn maybe_type_ref(&self) -> Option<&Type> {

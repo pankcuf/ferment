@@ -1,22 +1,33 @@
 use syn::punctuated::Punctuated;
-use crate::ast::{DelimiterTrait, Depunctuated};
+use crate::ast::Depunctuated;
 use crate::composer::{BindingAccessorContext, Composer, CtorSequenceComposer, DestructorContext, Linkable, LocalConversionContext, MethodComposer};
 use crate::context::ScopeContext;
-use crate::presentable::ScopeContextPresentable;
-use crate::presentation::BindingPresentation;
+use crate::lang::{LangAttrSpecification, LangGenSpecification};
+use crate::presentable::{BindingPresentableContext, OwnedItemPresentableContext, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
-pub struct FFIBindingsComposer<Parent, I>
-    where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
+pub struct FFIBindingsComposer<Parent, LANG, SPEC, Gen>
+    where Parent: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     pub parent: Option<Parent>,
-    pub ctor_composer: CtorSequenceComposer<Parent, I>,
-    pub dtor_composer: MethodComposer<Parent, DestructorContext, DestructorContext>,
-    pub getter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
-    pub setter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
+    pub ctor_composer: CtorSequenceComposer<Parent, LANG, SPEC, Gen>,
+    pub dtor_composer: MethodComposer<Parent, DestructorContext<LANG, SPEC, Gen>, DestructorContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+    pub getter_composer: MethodComposer<Parent, BindingAccessorContext<LANG, SPEC, Gen>, LocalConversionContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+    pub setter_composer: MethodComposer<Parent, BindingAccessorContext<LANG, SPEC, Gen>, LocalConversionContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+    pub get_set: bool
 }
 
-impl<Parent, I> Linkable<Parent> for FFIBindingsComposer<Parent, I>
-    where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
+impl<Parent, LANG, SPEC, Gen> Linkable<Parent> for FFIBindingsComposer<Parent, LANG, SPEC, Gen>
+    where Parent: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     fn link(&mut self, parent: &Parent) {
         self.getter_composer.link(parent);
         self.setter_composer.link(parent);
@@ -26,24 +37,42 @@ impl<Parent, I> Linkable<Parent> for FFIBindingsComposer<Parent, I>
     }
 }
 
-impl<Parent, I> FFIBindingsComposer<Parent, I>
-    where Parent: SharedAccess, I: DelimiterTrait + ?Sized {
-    pub const fn new(
-        ctor_composer: CtorSequenceComposer<Parent, I>,
-        dtor_composer: MethodComposer<Parent, DestructorContext, DestructorContext>,
-        getter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>,
-        setter_composer: MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
-    ) -> Self {
-        Self { parent: None, ctor_composer, dtor_composer, getter_composer, setter_composer }
-    }
-    pub fn compose_bindings(&self, source: &ScopeContext, get_set: bool) -> Depunctuated<BindingPresentation> {
+impl<'a, Parent, LANG, SPEC, Gen> Composer<'a> for FFIBindingsComposer<Parent, LANG, SPEC, Gen>
+    where Parent: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    type Source = ScopeContext;
+    type Output = Depunctuated<BindingPresentableContext<LANG, SPEC, Gen>>;
+
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
         let mut bindings = Punctuated::new();
-        bindings.push(self.ctor_composer.compose(&()).present(source));
+        bindings.push(self.ctor_composer.compose(&()));
         bindings.push(self.dtor_composer.compose(source));
-        if get_set {
+        if self.get_set {
             bindings.extend(self.getter_composer.compose(source));
             bindings.extend(self.setter_composer.compose(source));
         }
         bindings
+    }
+}
+
+impl<Parent, LANG, SPEC, Gen> FFIBindingsComposer<Parent, LANG, SPEC, Gen>
+    where Parent: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    pub const fn new(
+        ctor_composer: CtorSequenceComposer<Parent, LANG, SPEC, Gen>,
+        dtor_composer: MethodComposer<Parent, DestructorContext<LANG, SPEC, Gen>, DestructorContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+        getter_composer: MethodComposer<Parent, BindingAccessorContext<LANG, SPEC, Gen>, LocalConversionContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+        setter_composer: MethodComposer<Parent, BindingAccessorContext<LANG, SPEC, Gen>, LocalConversionContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>,
+        get_set: bool,
+    ) -> Self {
+        Self { parent: None, ctor_composer, dtor_composer, getter_composer, setter_composer, get_set }
     }
 }

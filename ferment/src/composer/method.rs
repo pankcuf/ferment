@@ -1,26 +1,42 @@
+use std::marker::PhantomData;
 use syn::Type;
-use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
+use crate::composer::{BindingAccessorContext, DestructorContext, LocalConversionContext, SharedComposer, ComposerPresenter};
 use crate::composer::r#abstract::{Composer, Linkable};
 use crate::context::ScopeContext;
 use crate::ext::{Resolve, ToType};
-use crate::presentable::ScopeContextPresentable;
-use crate::presentation::{BindingPresentation, FFIVariable};
+use crate::lang::{LangAttrSpecification, LangGenSpecification};
+use crate::presentable::{BindingPresentableContext, OwnedItemPresentableContext, ScopeContextPresentable};
+use crate::presentation::FFIVariable;
 use crate::shared::SharedAccess;
 
-pub struct MethodComposer<Parent, BindingContext, SharedContext>
-    where Parent: SharedAccess, BindingContext: Clone, SharedContext: Clone {
-    parent: Option<Parent>,
-    context: SharedComposer<Parent, SharedContext>,
-    seq_iterator_item: BindingComposer<BindingContext>,
+pub struct MethodComposer<Link, BindingContext, SharedContext, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          BindingContext: Clone,
+          SharedContext: Clone,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    parent: Option<Link>,
+    context: SharedComposer<Link, SharedContext>,
+    // seq_iterator_item: RustBindingComposer<BindingContext>,
+    // seq_iterator_item: BindingComposer<BindingContext, S, SP, I, LANG, SPEC>,
+    seq_iterator_item: ComposerPresenter<BindingContext, BindingPresentableContext<LANG, SPEC, Gen>>
 }
-impl<Parent, BindingContext, SharedContext> MethodComposer<Parent, BindingContext, SharedContext>
+impl<Link, BindingContext, SharedContext, LANG, SPEC, Gen> MethodComposer<Link, BindingContext, SharedContext, LANG, SPEC, Gen>
     where
-        Parent: SharedAccess,
+        Link: SharedAccess,
         BindingContext: Clone,
-        SharedContext: Clone {
+        SharedContext: Clone,
+        // I: DelimiterTrait + ?Sized,
+        LANG: Clone,
+        SPEC: LangAttrSpecification<LANG>,
+        Gen: LangGenSpecification<LANG>,
+        OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     pub const fn new(
-        seq_iterator_item: BindingComposer<BindingContext>,
-        context: SharedComposer<Parent, SharedContext>) -> Self {
+        seq_iterator_item: ComposerPresenter<BindingContext, BindingPresentableContext<LANG, SPEC, Gen>>,
+        context: SharedComposer<Link, SharedContext>) -> Self {
         Self {
             parent: None,
             seq_iterator_item,
@@ -28,46 +44,60 @@ impl<Parent, BindingContext, SharedContext> MethodComposer<Parent, BindingContex
         }
     }
 }
-impl<Parent, BindingContext, SharedContext> Linkable<Parent>
-for MethodComposer<Parent, BindingContext, SharedContext>
+impl<Link, BindingContext, SharedContext, LANG, SPEC, Gen> Linkable<Link>
+for MethodComposer<Link, BindingContext, SharedContext, LANG, SPEC, Gen>
     where
-        Parent: SharedAccess,
+        Link: SharedAccess,
         BindingContext: Clone,
-        SharedContext: Clone {
-    fn link(&mut self, parent: &Parent) {
+        SharedContext: Clone,
+        // I: DelimiterTrait + ?Sized,
+        LANG: Clone,
+        SPEC: LangAttrSpecification<LANG>,
+        Gen: LangGenSpecification<LANG>,
+        OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
-impl<'a, Parent> Composer<'a>
-for MethodComposer<Parent, BindingAccessorContext, LocalConversionContext>
-    where Parent: SharedAccess {
+impl<'a, Link, LANG, SPEC, Gen> Composer<'a>
+for MethodComposer<Link, BindingAccessorContext<LANG, SPEC, Gen>, LocalConversionContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     type Source = ScopeContext;
-    type Result = Vec<BindingPresentation>;
-    fn compose(&self, source: &Self::Source) -> Self::Result {
+    type Output = Vec<BindingPresentableContext<LANG, SPEC, Gen>>;
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         let ((aspect, context), generics) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);
         context.iter()
             .map(|composer| {
-                // println!("MethodComposer::ty: {}", field_type.ty().to_token_stream());
                 (self.seq_iterator_item)((
                     aspect.present(source),
                     composer.tokenized_name(),
                     <Type as Resolve<FFIVariable>>::resolve(composer.ty(), source).to_type(),
-                    composer.to_attrs(),
-                    generics.clone()
+                    composer.attrs.clone(),
+                    generics.clone(),
+                    PhantomData::default()
                 ))
             })
             .collect()
     }
 }
-impl<'a, Parent> Composer<'a>
-for MethodComposer<Parent, DestructorContext, DestructorContext>
-    where Parent: SharedAccess {
+impl<'a, Link, LANG, SPEC, Gen> Composer<'a> for MethodComposer<Link, DestructorContext<LANG, SPEC, Gen>, DestructorContext<LANG, SPEC, Gen>, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          // I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     type Source = ScopeContext;
-    type Result = BindingPresentation;
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
+    type Output = BindingPresentableContext<LANG, SPEC, Gen>;
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         (self.seq_iterator_item)(
             self.parent.as_ref()
                 .expect("no parent")

@@ -10,7 +10,7 @@
 
 - fix: merge imports (when multiple items in one mod)
 - feat: multiple crates support
-- example: nested fermented crates expansion
+- example: nested fermented crates fermentate
 ```rust
 extern crate cbindgen;
 extern crate ferment;

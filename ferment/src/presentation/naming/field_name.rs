@@ -1,13 +1,13 @@
+use std::fmt::{Display, Formatter};
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Pat, Path, Type};
-use ferment_macro::Display;
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
 use crate::presentation::DictionaryName;
 
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum Name {
     Empty,
@@ -30,6 +30,25 @@ pub enum Name {
     Ident(Ident),
     Pat(Pat),
     Underscore,
+}
+
+impl Display for Name {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("Name({})", self.to_token_stream()).as_str())
+    }
+}
+
+impl Name {
+    pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
+        Self::Getter(path, field_name.clone())
+    }
+    pub fn setter(path: Path, field_name: &TokenStream2) -> Self {
+        Self::Setter(path, field_name.clone())
+    }
+
+    pub fn anonymous(&self) -> Ident {
+        format_ident!("o_{}", self.to_token_stream().to_string())
+    }
 }
 
 impl ToTokens for Name {

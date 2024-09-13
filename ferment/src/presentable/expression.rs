@@ -1,18 +1,22 @@
+use std::fmt::{Debug, Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::Expr;
-use ferment_macro::Display;
+use syn::{Attribute, Expr};
 use crate::ast::{CommaPunctuated, DotPunctuated};
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::conversion::FROM_OPT_COMPLEX;
 use crate::ext::{ConversionType, Terminated};
+use crate::lang::LangAttrSpecification;
 use crate::presentable::{ScopeContextPresentable, SequenceOutput};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionDestroyMethod, FFIConversionDestroyMethodExpr, FFIConversionFromMethod, FFIConversionFromMethodExpr, FFIConversionToMethod, FFIConversionToMethodExpr, InterfacesMethodExpr, Name};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFICallbackMethodExpr, FFIConversionDestroyMethod, FFIConversionDestroyMethodExpr, FFIConversionFromMethod, FFIConversionFromMethodExpr, FFIConversionToMethod, FFIConversionToMethodExpr, InterfacesMethodExpr, Name, RustFermentate};
 
-#[derive(Clone, Debug, Display)]
+pub type RustExpression = Expression<RustFermentate, Vec<Attribute>>;
+#[derive(Clone, Debug)]
 #[allow(unused)]
-pub enum Expression {
+pub enum Expression<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     Empty,
     O,
     Obj,
@@ -27,73 +31,83 @@ pub enum Expression {
     FFIConversionDestroyExpr(FFIConversionDestroyMethodExpr),
     FFICallbackExpr(FFICallbackMethodExpr),
     InterfacesExpr(InterfacesMethodExpr),
-    Add(Box<Expression>, TokenStream2),
-    To(Box<Expression>),
-    ToOpt(Box<Expression>),
-    UnwrapOr(Box<Expression>, TokenStream2),
-    MapOr(Box<Expression>, Box<Expression>, Box<Expression>),
-    OwnerIteratorPresentation(SequenceOutput),
-    FromOptPrimitive(Box<Expression>),
-    ToVec(Box<Expression>),
-    ToPrimitiveGroup(Box<Expression>),
-    ToOptPrimitive(Box<Expression>),
-    ToOptPrimitiveGroup(Box<Expression>),
-    ToComplexGroup(Box<Expression>),
-    ToOptComplexGroup(Box<Expression>),
+    Add(Box<Expression<LANG, SPEC>>, TokenStream2),
+    To(Box<Expression<LANG, SPEC>>),
+    ToOpt(Box<Expression<LANG, SPEC>>),
+    UnwrapOr(Box<Expression<LANG, SPEC>>, TokenStream2),
+    MapOr(Box<Expression<LANG, SPEC>>, Box<Expression<LANG, SPEC>>, Box<Expression<LANG, SPEC>>),
+    OwnerIteratorPresentation(SequenceOutput<LANG, SPEC>),
+    FromOptPrimitive(Box<Expression<LANG, SPEC>>),
+    ToVec(Box<Expression<LANG, SPEC>>),
+    ToPrimitiveGroup(Box<Expression<LANG, SPEC>>),
+    ToOptPrimitive(Box<Expression<LANG, SPEC>>),
+    ToOptPrimitiveGroup(Box<Expression<LANG, SPEC>>),
+    ToComplexGroup(Box<Expression<LANG, SPEC>>),
+    ToOptComplexGroup(Box<Expression<LANG, SPEC>>),
     ToVecPtr,
     SelfAsTrait(TokenStream2),
     ObjName(Name),
     ObjFieldName(TokenStream2),
     LineTermination,
-    ConversionType(Box<ConversionType>),
-    Terminated(Box<ConversionType>),
-    UnboxAny(Box<Expression>),
-    UnboxAnyTerminated(Box<Expression>),
-    DestroyOpt(Box<Expression>),
-    DestroyOptPrimitive(Box<Expression>),
-    DestroyString(Box<Expression>, TokenStream2),
+    ConversionType(Box<ConversionType<LANG, SPEC>>),
+    Terminated(Box<ConversionType<LANG, SPEC>>),
+    UnboxAny(Box<Expression<LANG, SPEC>>),
+    UnboxAnyTerminated(Box<Expression<LANG, SPEC>>),
+    DestroyOpt(Box<Expression<LANG, SPEC>>),
+    DestroyOptPrimitive(Box<Expression<LANG, SPEC>>),
+    DestroyString(Box<Expression<LANG, SPEC>>, TokenStream2),
     FromRawParts(TokenStream2),
-    From(Box<Expression>),
-    IntoBox(Box<Expression>),
-    MapIntoBox(Box<Expression>),
-    FromRawBox(Box<Expression>),
-    CastFrom(Box<Expression>, TokenStream2, TokenStream2),
-    CastDestroy(Box<Expression>, TokenStream2, TokenStream2),
+    From(Box<Expression<LANG, SPEC>>),
+    IntoBox(Box<Expression<LANG, SPEC>>),
+    MapIntoBox(Box<Expression<LANG, SPEC>>),
+    FromRawBox(Box<Expression<LANG, SPEC>>),
+    CastFrom(Box<Expression<LANG, SPEC>>, TokenStream2, TokenStream2),
+    CastDestroy(Box<Expression<LANG, SPEC>>, TokenStream2, TokenStream2),
     FromOffsetMap,
-    FromOpt(Box<Expression>),
-    AsRef(Box<Expression>),
-    AsMutRef(Box<Expression>),
-    AsSlice(Box<Expression>),
-    IfThen(Box<Expression>, TokenStream2),
-    Named((TokenStream2, Box<Expression>)),
-    NamedComposer((TokenStream2, Box<ConversionType>)),
+    FromOpt(Box<Expression<LANG, SPEC>>),
+    AsRef(Box<Expression<LANG, SPEC>>),
+    Clone(Box<Expression<LANG, SPEC>>),
+    AsMutRef(Box<Expression<LANG, SPEC>>),
+    AsSlice(Box<Expression<LANG, SPEC>>),
+    IfThen(Box<Expression<LANG, SPEC>>, TokenStream2),
+    Named((TokenStream2, Box<Expression<LANG, SPEC>>)),
+    NamedComposer((TokenStream2, Box<ConversionType<LANG, SPEC>>)),
     Deref(TokenStream2),
     DerefName(Name),
-    DerefContext(Box<Expression>),
+    DerefContext(Box<Expression<LANG, SPEC>>),
     FfiRefWithName(Name),
     FfiRefWithTokenizedName(TokenStream2),
-    Match(Box<Expression>),
-    FromTuple(Box<Expression>, CommaPunctuated<Expression>),
-    MapExpression(Box<Expression>, Box<Expression>),
-    AsMut_(Box<Expression>),
+    Match(Box<Expression<LANG, SPEC>>),
+    FromTuple(Box<Expression<LANG, SPEC>>, CommaPunctuated<Expression<LANG, SPEC>>),
+    MapExpression(Box<Expression<LANG, SPEC>>, Box<Expression<LANG, SPEC>>),
+    AsMut_(Box<Expression<LANG, SPEC>>),
     Expr(Expr),
-    FromLambda(Box<Expression>, CommaPunctuated<Name>),
-    FromPtrClone(Box<Expression>),
-    Boxed(Box<Expression>)
+    FromLambda(Box<Expression<LANG, SPEC>>, CommaPunctuated<Name>),
+    FromPtr(Box<Expression<LANG, SPEC>>),
+    FromPtrClone(Box<Expression<LANG, SPEC>>),
+    Boxed(Box<Expression<LANG, SPEC>>),
 }
 
-impl ScopeContextPresentable for Expression {
+impl<LANG, SPEC> Display for Expression<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+impl ScopeContextPresentable for Expression<RustFermentate, Vec<Attribute>> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
             Self::Empty => quote!(),
             Self::O =>
-                DictionaryName::O.to_token_stream(),
+                Self::DictionaryName(DictionaryName::O).present(source),
             Self::Obj =>
-                DictionaryName::Obj.to_token_stream(),
+                Self::DictionaryName(DictionaryName::Obj).present(source),
             Self::Self_ =>
-                DictionaryName::Self_.to_token_stream(),
+                Self::DictionaryName(DictionaryName::Self_).present(source),
             Self::LineTermination => quote!(;),
             Self::Simple(expr) =>
                 expr.to_token_stream(),
@@ -188,11 +202,6 @@ impl ScopeContextPresentable for Expression {
             Self::DestroyOpt(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyOpt(presentable.present(source)))
                     .present(source),
-                // DictionaryExpr::IfNotNull(
-                //     presentable.present(source),
-                //     Self::UnboxAnyTerminated(presentable.clone())
-                //         .present(source))
-                //     .to_token_stream(),
             Self::DestroyOptPrimitive(presentable) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(presentable.present(source)))
                     .present(source),
@@ -306,6 +315,10 @@ impl ScopeContextPresentable for Expression {
                 quote!(move |#lambda_args| unsafe { #field_path.call(#lambda_args) })
                 // quote!(move |#lambda_args| unsafe { (&*#field_path).call(#lambda_args) })
             }
+            Self::FromPtr(field_path) => {
+                let field_path = field_path.present(source);
+                quote!(*#field_path)
+            }
             Self::FromPtrClone(field_path) => {
                 let field_path = field_path.present(source);
                 quote!((&*#field_path).clone())
@@ -314,7 +327,11 @@ impl ScopeContextPresentable for Expression {
                 expr.to_token_stream(),
             Self::Boxed(expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source)))
-                    .present(source)
+                    .present(source),
+            Self::Clone(expr) => {
+                let expr = expr.present(source);
+                quote! { #expr.clone() }
+            }
         }
     }
 }

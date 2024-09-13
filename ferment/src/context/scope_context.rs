@@ -191,7 +191,6 @@ impl ScopeContext {
     }
 
 
-
     pub fn scope_type_for_path(&self, path: &Path) -> Option<Type> {
         let lock = self.context.read().unwrap();
         lock.scope_register.scope_key_type_for_path(path, &self.scope)

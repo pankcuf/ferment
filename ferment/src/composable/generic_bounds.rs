@@ -1,19 +1,14 @@
-use std::cell::Ref;
-use syn::{Attribute, Generics, parse_quote, Type};
-use std::collections::{HashMap, HashSet};
+use syn::{Generics, parse_quote, Type};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::{quote, ToTokens};
-use syn::__private::TokenStream2;
-use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped};
-use crate::composable::{FieldComposer, FieldTypeKind, TypeModel, TypeModeled};
-use crate::composer::{CommaPunctuatedNestedArguments, ParentComposer};
+use crate::composable::{TypeModel, TypeModeled};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
-use crate::conversion::{compose_generic_presentation, dictionary_generic_arg_pair, expand_attributes, ObjectKind};
-use crate::ext::{AsType, Mangle, Terminated, ToType};
+use crate::conversion::ObjectKind;
+use crate::ext::{AsType, Mangle};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
-use crate::presentable::ScopeContextPresentable;
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(Clone)]
 pub struct GenericBoundsModel {
@@ -108,7 +103,6 @@ impl GenericBoundsModel {
 
 }
 impl GenericBoundsModel {
-
     pub fn is_lambda(&self) -> bool {
         self.bounds.iter().find(|b| {
             match b {
@@ -118,77 +112,16 @@ impl GenericBoundsModel {
             }
         }).is_some()
     }
+    // pub const fn field_presenter<Parent, LANG, SPEC>(&self) -> SharedComposer<Parent, SequenceOutput<LANG, SPEC>>
+    //     where Parent: SharedAccess,
+    //           LANG: Clone,
+    //           SPEC: LangAttrSpecification<LANG> {
+    //     match self {
+    //         GenericTypeKind::Callback(_) =>
+    //             |composer| OwnedItemPresentableContext::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() })),
+    //         _ =>
+    //             |composer| OwnedItemPresentableContext::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() })),
+    //     }
+    // }
 
-    pub fn extend_as_lambda(&self, _attrs: &HashSet<Option<Attribute>>, _source: Ref<ScopeContext>) -> TokenStream2 {
-        quote!()
-    }
-    pub fn expand(&self, attrs: &HashSet<Option<Attribute>>, scope_context: &ParentComposer<ScopeContext>) -> TokenStream2 {
-        let source = scope_context.borrow();
-        if self.is_lambda() {
-            return self.extend_as_lambda(attrs, source);
-        }
-        // println!("Mixin::Expand: {} ---- {:?}", self, attrs);
-        let attrs = expand_attributes(attrs);
-        let ffi_name = self.mangle_ident_default();
-        let self_ty = self.as_type();
-        let ffi_as_type = ffi_name.to_type();
-        println!("Mixin::Expand: {} ---- \n\tattrs: {:?}\n\tname: {}", self, attrs, ffi_name);
-
-
-
-        let mixin_items = self.predicates.iter()
-            .enumerate()
-            .map(|(index, (predicate_ty, _bounds))|
-                dictionary_generic_arg_pair(
-                    Name::UnnamedArg(index),
-                    Name::Index(index),
-                    predicate_ty,
-                    &source))
-            .collect::<Depunctuated<_>>();
-        compose_generic_presentation(
-            ffi_name,
-            attrs.clone(),
-            Depunctuated::from_iter(
-                mixin_items.iter()
-                    .enumerate()
-                    .map(|(index, (root_path, _))| FieldComposer::unnamed(Name::UnnamedArg(index), FieldTypeKind::Type(root_path.clone())))),
-            Depunctuated::from_iter([
-                InterfacePresentation::ConversionFrom {
-                    attrs: attrs.clone(),
-                    types: (ffi_as_type.clone(), parse_quote!(#self_ty)),
-                    conversions: (
-                        DictionaryExpr::FromRoot(
-                            ParenWrapped::new(
-                                CommaPunctuated::from_iter(
-                                    mixin_items.iter()
-                                        .flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.clone()))))
-                                .present(&source))
-                            .to_token_stream(),
-                        None
-                    )
-                },
-                InterfacePresentation::ConversionTo {
-                    attrs: attrs.clone(),
-                    types: (ffi_as_type.clone(), parse_quote!(#self_ty)),
-                    conversions: (
-                        InterfacesMethodExpr::Boxed(
-                            DictionaryExpr::SelfDestructuring(
-                                CommaPunctuated::from_iter(
-                                    mixin_items.iter()
-                                        .flat_map(|(_, args)| args.iter().map(|item| item.from_conversion.present(&source))))
-                                    .to_token_stream())
-                                .to_token_stream())
-                            .to_token_stream(),
-                        None),
-                },
-                InterfacePresentation::ConversionDestroy {
-                    attrs: attrs,
-                    types: (ffi_as_type, parse_quote!(#self_ty)),
-                    conversions: (InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated(), None),
-                }
-            ]),
-            Depunctuated::from_iter(mixin_items.iter().flat_map(|(_, args)| args.iter().map(|item| item.destructor.present(&source).terminated()))),
-            &source
-        ).to_token_stream()
-    }
 }

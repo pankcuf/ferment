@@ -4,18 +4,31 @@ use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, 
 use syn::punctuated::Punctuated;
 use syn::token::RArrow;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{FieldComposer, FieldTypeKind};
+use crate::composable::{FieldTypeKind, RustFieldComposer};
 use crate::composer::CommaPunctuatedArgs;
 use crate::ext::{Accessory, CrateExtension, Mangle, Pop, Terminated, ToPath, ToType};
-use crate::presentable::ConstructorPresentableContext;
-use crate::presentation::{ArgPresentation, create_callback, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum BindingPresentation {
     Empty,
     Constructor {
-        context: ConstructorPresentableContext,
+        attrs: Vec<Attribute>,
+        ty: Type,
+        generics: Option<Generics>,
+        ctor_arguments: CommaPunctuatedArgs,
+        body_presentation: TokenStream2,
+    },
+    // Constructor {
+    //     context: DestructorContext<RustFermentate, Vec<Attribute>>,
+    //     ctor_arguments: CommaPunctuatedArgs,
+    //     body_presentation: TokenStream2,
+    // },
+    VariantConstructor {
+        attrs: Vec<Attribute>,
+        ty: Type,
+        generics: Option<Generics>,
         ctor_arguments: CommaPunctuatedArgs,
         body_presentation: TokenStream2,
     },
@@ -149,37 +162,90 @@ pub fn present_function<T: ToTokens>(
             }
         }
     }
-
 }
+
+pub fn present_struct<T: ToTokens>(
+    ident: &Ident,
+    attrs: &Vec<Attribute>,
+    implementation: T
+) -> TokenStream2 {
+    quote! {
+        #[repr(C)]
+        #[derive(Clone)]
+        #(#attrs)*
+        pub struct #ident #implementation
+    }
+}
+
 
 impl ToTokens for BindingPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Self::Empty =>
                 quote!(),
-            Self::Constructor { context, ctor_arguments, body_presentation} => {
-                match context {
-                    ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics)) => {
-                        let variant_path = ffi_type.to_path();
-                        present_pub_function(
-                            attrs,
-                            Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
-                            ctor_arguments.clone(),
-                            ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
-                            generics.clone(),
-                            InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
-                    }
-                    ConstructorPresentableContext::Default((ffi_type, attrs, generics)) => {
-                        let ffi_path = ffi_type.to_path().arg_less();
-                        present_pub_function(
-                            attrs,
-                            Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
-                            ctor_arguments.clone(),
-                            ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
-                            generics.clone(),
-                            InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
-                    }
-                }
+            // Self::Constructor { context, ctor_arguments, body_presentation} => {
+            //     match context {
+            //         ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics)) => {
+            //             let variant_path = ffi_type.to_path();
+            //             present_pub_function(
+            //                 attrs,
+            //                 Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
+            //                 ctor_arguments.clone(),
+            //                 ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
+            //                 generics.clone(),
+            //                 InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
+            //         }
+            //         ConstructorPresentableContext::Default((ffi_type, attrs, generics)) => {
+            //             let ffi_path = ffi_type.to_path().arg_less();
+            //             present_pub_function(
+            //                 attrs,
+            //                 Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
+            //                 ctor_arguments.clone(),
+            //                 ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
+            //                 generics.clone(),
+            //                 InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
+            //         }
+            //     }
+
+                Self::Constructor { attrs, ty, generics, ctor_arguments, body_presentation} => {
+                let ffi_path = ty.to_path().arg_less();
+                present_pub_function(
+                    attrs,
+                    Name::Constructor(ty.clone()).mangle_tokens_default(),
+                    ctor_arguments.clone(),
+                    ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
+                    generics.clone(),
+                    InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
+                // match context {
+                //     ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics, ..)) => {
+                //     }
+                //     ConstructorPresentableContext::Default((ffi_type, attrs, generics, ..)) => {
+                //     }
+                // }
+            },
+            Self::VariantConstructor { ty, attrs, generics, ctor_arguments, body_presentation} => {
+                let variant_path = ty.to_path();
+                present_pub_function(
+                    attrs,
+                    Name::Constructor(ty.clone()).mangle_tokens_default(),
+                    ctor_arguments.clone(),
+                    ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
+                    generics.clone(),
+                    InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
+
+                // match context {
+                //     ConstructorPresentableContext::EnumVariant((ffi_type, attrs, generics, ..)) => {
+                //     ConstructorPresentableContext::Default((ffi_type, attrs, generics, ..)) => {
+                //         let ffi_path = ffi_type.to_path().arg_less();
+                //         present_pub_function(
+                //             attrs,
+                //             Name::Constructor(ffi_type.clone()).mangle_tokens_default(),
+                //             ctor_arguments.clone(),
+                //             ReturnType::Type(RArrow::default(), ffi_type.joined_mut().into()),
+                //             generics.clone(),
+                //             InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
+                //     }
+                // }
             },
             Self::Destructor { ty, attrs, generics } => {
                 let name = Name::Destructor(ty.clone());
@@ -187,7 +253,7 @@ impl ToTokens for BindingPresentation {
                     attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeKind::Type(ty.joined_mut()))
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Ffi), FieldTypeKind::Type(ty.joined_mut()))
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -196,14 +262,14 @@ impl ToTokens for BindingPresentation {
             },
             Self::ObjAsTrait { name, item_type, trait_type, vtable_name, attrs } => {
                 let fields = CommaPunctuated::from_iter([
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Object), FieldTypeKind::Conversion(quote!(obj as *const ()))),
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeKind::Conversion(quote!(&#vtable_name))),
+                    RustFieldComposer::named(Name::Dictionary(DictionaryName::Object), FieldTypeKind::Conversion(quote!(obj as *const ()))),
+                    RustFieldComposer::named(Name::Dictionary(DictionaryName::Vtable), FieldTypeKind::Conversion(quote!(&#vtable_name))),
                 ]);
                 present_pub_function(
                     attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(item_type.joined_const()))
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(item_type.joined_const()))
                     ]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     None,
@@ -214,7 +280,7 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     attrs,
                     name.mangle_tokens_default(),
-                    Punctuated::from_iter([FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Conversion(trait_type.to_token_stream()))]),
+                    Punctuated::from_iter([RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Conversion(trait_type.to_token_stream()))]),
                     ReturnType::Default,
                     generics.clone(),
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
@@ -225,7 +291,7 @@ impl ToTokens for BindingPresentation {
                     attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_const()))]),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
@@ -237,8 +303,8 @@ impl ToTokens for BindingPresentation {
                     attrs,
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_mut())),
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeKind::Type(field_type.clone())),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_mut())),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -249,7 +315,7 @@ impl ToTokens for BindingPresentation {
                     attrs,
                     name.mangle_tokens_default(),
                     Punctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_const()))]),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_const()))]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
                     quote!((*obj).#field_name)
@@ -261,8 +327,8 @@ impl ToTokens for BindingPresentation {
                     attrs,
                     name.mangle_tokens_default(),
                     CommaPunctuated::from_iter([
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_mut())),
-                        FieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeKind::Type(field_type.clone())),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Obj), FieldTypeKind::Type(obj_type.joined_mut())),
+                        RustFieldComposer::named(Name::Dictionary(DictionaryName::Value), FieldTypeKind::Type(field_type.clone())),
                     ]),
                     ReturnType::Default,
                     generics.clone(),
@@ -301,7 +367,14 @@ impl ToTokens for BindingPresentation {
             // BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
             //     quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
             BindingPresentation::Callback { name, attrs, ffi_args, result, conversion } => {
-                let definition = create_callback(name, attrs, ffi_args.to_token_stream(), result.clone());
+                // let definition = create_callback(name, attrs, ffi_args.to_token_stream(), result.clone());
+
+                let result_impl = match result {
+                    ReturnType::Default => quote! {},
+                    ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
+                };
+                let implementation = quote! {{ caller: unsafe extern "C" fn(#ffi_args) #result_impl, }};
+                let definition = present_struct(name, attrs, implementation);
                 quote! {
                     #definition
                     #conversion

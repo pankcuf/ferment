@@ -21,7 +21,11 @@ impl Default for Void {
 
 pub trait DelimiterTrait {
     fn delimiter() -> Delimiter;
+    // fn wrap<S, SP>(content: S) -> Wrapped<S, SP, Self> where SP: ToTokens {
+    //     Wrapped::new(content)
+    // }
 }
+
 
 impl DelimiterTrait for Brace {
     fn delimiter() -> Delimiter { Delimiter::Brace }
@@ -41,31 +45,29 @@ impl DelimiterTrait for Void {
 
 #[derive(Clone, Debug)]
 pub struct Wrapped<S, SP, I>
-    where
-        S: ScopeContextPresentable<Presentation = SP>,
-        SP: ToTokens,
-        I: DelimiterTrait + ?Sized,
-{
+    where SP: ToTokens,
+          I: DelimiterTrait + ?Sized {
     content: S,
     _marker: PhantomData<I>,
+    _marker2: PhantomData<SP>,
 }
 
 impl<S, SP, I> Wrapped<S, SP, I>
-    where
-        S: ScopeContextPresentable<Presentation = SP>,
-        SP: ToTokens,
-        I: DelimiterTrait + ?Sized,
-{
+    where SP: ToTokens,
+          I: DelimiterTrait + ?Sized {
     pub fn new(content: S) -> Self {
         Wrapped {
             content,
             _marker: PhantomData,
+            _marker2: PhantomData,
         }
     }
 }
 
 impl<S, SP, I> ScopeContextPresentable for Wrapped<S, SP, I>
-    where S: ScopeContextPresentable<Presentation = SP>, SP: ToTokens, I: DelimiterTrait + ?Sized {
+    where S: ScopeContextPresentable<Presentation = SP>,
+          SP: ToTokens,
+          I: DelimiterTrait + ?Sized {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -74,6 +76,12 @@ impl<S, SP, I> ScopeContextPresentable for Wrapped<S, SP, I>
     }
 }
 
-// impl<S, SP, I> ToTokens for Wrapped<S, SP, I> {
-//
-// }
+impl<S, SP, I> ToTokens for Wrapped<S, SP, I>
+    where S: ToTokens,
+          SP: ToTokens,
+          I: DelimiterTrait {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        TokenTree::Group(Group::new(I::delimiter(), self.content.to_token_stream()))
+            .to_tokens(tokens)
+    }
+}

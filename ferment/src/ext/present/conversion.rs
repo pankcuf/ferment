@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::{Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
@@ -6,14 +7,17 @@ use crate::composer::{Composer, DestroyConversionComposer, FromConversionFullCom
 use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::TypeKind;
 use crate::ext::{DictionaryType, Mangle, path_arguments_to_type_conversions};
+use crate::lang::LangAttrSpecification;
 use crate::presentable::{Expression, OwnedItemPresentableContext, SequenceOutput};
 use crate::presentation::{DictionaryExpr, FFIConversionToMethodExpr, Name};
 
 #[derive(Clone, Debug)]
-pub enum ConversionType {
-    From(Name, Type, Option<Expression>),
-    To(ToConversionComposer),
-    Destroy(DestroyConversionComposer),
+pub enum ConversionType<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    From(Name, Type, Option<Expression<LANG, SPEC>>),
+    To(ToConversionComposer<LANG, SPEC>),
+    Destroy(DestroyConversionComposer<LANG, SPEC>),
     // Variable(VariableComposer)
 }
 
@@ -29,11 +33,13 @@ pub enum ConversionType {
 //     }
 // }
 
-impl<'a> Composer<'a> for ConversionType {
+impl<'a, LANG, SPEC> Composer<'a> for ConversionType<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
     type Source = ScopeContext;
-    type Result = Expression;
+    type Output = Expression<LANG, SPEC>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
         match self {
             ConversionType::From(name, ty, expr) => {
                 FromConversionFullComposer::new(name.clone(), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), &source.scope), expr.clone()).compose(source)
@@ -49,28 +55,34 @@ impl<'a> Composer<'a> for ConversionType {
     }
 }
 
-pub trait ConversionTrait {
-    fn conversion_from(&self, expr: Expression) -> Expression;
-    fn conversion_to(&self, expr: Expression) -> Expression;
-    fn conversion_destroy(&self, expr: Expression) -> Expression;
+pub trait ConversionTrait<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>;
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>;
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>;
 }
 
-impl ConversionTrait for FieldComposer {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for FieldComposer<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         self.ty().conversion_from(expr)
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         self.ty().conversion_to(expr)
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         self.ty().conversion_destroy(expr)
     }
 }
 
-impl ConversionTrait for Type {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for Type
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         //println!("Type::conversion_from: {}", expr);
         let resutl = match self {
             Type::Array(ty) =>
@@ -95,7 +107,7 @@ impl ConversionTrait for Type {
         resutl
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match self {
             Type::Array(ty) =>
                 ty.conversion_to(expr),
@@ -117,7 +129,7 @@ impl ConversionTrait for Type {
         }
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match self {
             Type::Array(ty) =>
                 ty.conversion_destroy(expr),
@@ -140,22 +152,26 @@ impl ConversionTrait for Type {
     }
 }
 
-impl ConversionTrait for TypeArray {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeArray
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::From(expr.into())
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }
 
-impl ConversionTrait for TypeSlice {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeSlice
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         let ty = &*self.elem;
         let ffi_type = self.mangle_ident_default();
         Expression::AsSlice(
@@ -165,16 +181,18 @@ impl ConversionTrait for TypeSlice {
                 quote!(crate::fermented::generics::#ffi_type)).into())
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(Expression::ToVec(expr.into()).into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }
-impl ConversionTrait for TypePtr {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypePtr
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         println!("TypePtr::conversion_from: {} === {}", self.to_token_stream(), expr);
         match &*self.elem {
             Type::Ptr(type_ptr) => match &*type_ptr.elem {
@@ -193,7 +211,7 @@ impl ConversionTrait for TypePtr {
         }
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match &*self.elem {
             Type::Array(TypeArray { elem, .. }) => elem.conversion_to(expr),
             Type::Path(type_path) => type_path.conversion_to(expr),
@@ -207,7 +225,7 @@ impl ConversionTrait for TypePtr {
         }
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match &*self.elem {
             Type::Ptr(type_ptr) => type_ptr.conversion_destroy(expr),
             Type::Path(type_path) => type_path.conversion_destroy(expr),
@@ -216,8 +234,10 @@ impl ConversionTrait for TypePtr {
     }
 }
 
-impl ConversionTrait for TypeReference {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeReference
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match &*self.elem {
             Type::Path(type_path) => match type_path.path.segments.last().unwrap().ident.to_string().as_str() {
                 "str" =>
@@ -241,11 +261,11 @@ impl ConversionTrait for TypeReference {
         }
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         self.elem.conversion_to(expr)
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         match &*self.elem {
             Type::Path(type_path) => type_path.conversion_destroy(expr),
             Type::Slice(type_slice) => type_slice.conversion_destroy(expr),
@@ -254,8 +274,11 @@ impl ConversionTrait for TypeReference {
     }
 }
 
-impl ConversionTrait for TypePath {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypePath
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Box<Expression<LANG, SPEC>>: From<Expression<LANG, SPEC>> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         let last_segment = self.path.segments.last().unwrap();
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
@@ -273,7 +296,7 @@ impl ConversionTrait for TypePath {
         }
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         let last_segment = self.path.segments.last().unwrap();
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
@@ -309,8 +332,8 @@ impl ConversionTrait for TypePath {
 
                     Expression::OwnerIteratorPresentation(
                     SequenceOutput::MatchFields((expr.into(), Punctuated::from_iter([
-                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionToMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Vec::new()),
-                        OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), Vec::new())
+                        OwnedItemPresentableContext::Lambda(quote!(Some(vec)), FFIConversionToMethodExpr::FfiTo(quote!(vec)).to_token_stream(), Default::default()),
+                        OwnedItemPresentableContext::Lambda(quote!(None), DictionaryExpr::NullMut.to_token_stream(), Default::default())
                     ])))),
                 Some(_) => Expression::ToOpt(expr.into()),
                 None => unimplemented!("TypePath::conversion_to: Empty Optional"),
@@ -320,7 +343,7 @@ impl ConversionTrait for TypePath {
         }
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         let last_segment = self.path.segments.last().unwrap();
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
@@ -341,8 +364,10 @@ impl ConversionTrait for TypePath {
     }
 }
 
-impl ConversionTrait for TypeTuple {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeTuple
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::FromTuple(expr.into(), self.elems.iter()
             .enumerate()
             .map(|(index, elem)|
@@ -350,53 +375,59 @@ impl ConversionTrait for TypeTuple {
             .collect())
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }
 
-impl ConversionTrait for TypeTraitObject {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeTraitObject
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::AsRef(expr.into())
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }
 
-impl ConversionTrait for TypeImplTrait {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for TypeImplTrait
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::AsRef(expr.into())
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }
 
-impl ConversionTrait for GenericBoundsModel {
-    fn conversion_from(&self, expr: Expression) -> Expression {
+impl<LANG, SPEC> ConversionTrait<LANG, SPEC> for GenericBoundsModel
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn conversion_from(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         expr
     }
 
-    fn conversion_to(&self, expr: Expression) -> Expression {
+    fn conversion_to(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::To(expr.into())
     }
 
-    fn conversion_destroy(&self, expr: Expression) -> Expression {
+    fn conversion_destroy(&self, expr: Expression<LANG, SPEC>) -> Expression<LANG, SPEC> {
         Expression::UnboxAny(expr.into())
     }
 }

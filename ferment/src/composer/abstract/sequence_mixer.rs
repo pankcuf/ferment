@@ -33,8 +33,8 @@ for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, 
         SeqMixOut: ScopeContextPresentable,
         Out: ScopeContextPresentable {
     type Source = ();
-    type Result = Out;
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
+    type Output = Out;
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         (self.post_processor)(&(
             self.parent.as_ref().expect("no parent").access(self.context),
             self.sequence.compose(&())))

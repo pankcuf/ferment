@@ -16,7 +16,6 @@ pub use path_holder::*;
 pub use type_holder::*;
 pub use typepath_holder::*;
 pub use wrapped::*;
-use crate::presentation::Expansion;
 
 #[allow(unused)]
 pub type CommaPunctuated<T> = Punctuated<T, Comma>;
@@ -34,14 +33,17 @@ pub type ParenWrapped<S, SP> = Wrapped<S, SP, Paren>;
 #[allow(unused)]
 pub type SemiPunctuated<T> = Punctuated<T, Semi>;
 #[allow(unused)]
+pub type SemiPunctuatedTokens = SemiPunctuated<TokenStream2>;
+
+#[allow(unused)]
 pub type Colon2Punctuated<T> = Punctuated<T, Colon2>;
 #[allow(unused)]
 pub type AddPunctuated<T> = Punctuated<T, Add>;
 #[allow(unused)]
 pub type DotPunctuated<T> = Punctuated<T, Dot>;
 
-#[allow(unused)]
-pub type Directives = Depunctuated<Expansion>;
+// #[allow(unused)]/*
+// pub type Directives = */Depunctuated<RustFermentate>;
 
 #[allow(unused)]
 pub type Assignment<T1, T2> = Opposed<T1, T2, syn::token::Eq>;

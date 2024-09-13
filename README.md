@@ -48,7 +48,7 @@ fn main() {
                 Ok(status) => println!("Bindings generated into target/example.h with status: {}", status),
                 Err(err) => panic!("Can't generate bindings: {}", err)
             }
-            Err(err) => panic!("Can't create FFI expansion: {}", err)
+            Err(err) => panic!("Can't create FFI fermentate: {}", err)
         }
     }
 }

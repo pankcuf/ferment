@@ -196,6 +196,7 @@ impl Resolve<FFIVariable> for TypeModelKind {
                         GroupModelKind::Vec(TypeModel { ty, .. }) |
                         GroupModelKind::IndexMap(TypeModel { ty, .. })
                     ) |
+                    DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |
                     DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
                     DictFermentableModelKind::Other(TypeModel { ty, .. })

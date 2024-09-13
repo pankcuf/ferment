@@ -1,31 +1,44 @@
-use syn::{GenericParam, Generics, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate};
+use std::marker::PhantomData;
+use syn::{GenericParam, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate};
 use crate::ast::{AddPunctuated, TypePathHolder};
-use crate::composer::{Composer, Linkable, ParentComposer};
+use crate::composable::GenModel;
+use crate::composer::{Composer, Linkable, ComposerLink};
 use crate::context::ScopeContext;
+use crate::lang::LangGenSpecification;
 use crate::shared::SharedAccess;
 
-pub struct GenericsComposer<Parent: SharedAccess> {
-    pub parent: Option<Parent>,
-    pub generics: Option<Generics>,
+pub struct GenericsComposer<Link, LANG, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          Gen: LangGenSpecification<LANG> {
+    pub parent: Option<Link>,
+    pub generics: GenModel,
+    _phantom_data: PhantomData<(LANG, Gen)>,
+
 }
-impl<Parent: SharedAccess> GenericsComposer<Parent> {
-    pub fn new(generics: Option<Generics>) -> GenericsComposer<Parent> {
-        Self { parent: None, generics }
+impl<Link, LANG, Gen> GenericsComposer<Link, LANG, Gen>
+    where Link: SharedAccess, LANG: Clone, Gen: LangGenSpecification<LANG> {
+    pub fn new(generics: GenModel) -> Self {
+        Self { parent: None, generics, _phantom_data: PhantomData }
     }
 }
 
-impl<Parent: SharedAccess> Linkable<Parent> for GenericsComposer<Parent> {
-    fn link(&mut self, parent: &Parent) {
+impl<Link, LANG, Gen> Linkable<Link> for GenericsComposer<Link, LANG, Gen>
+    where Link: SharedAccess, LANG: Clone, Gen: LangGenSpecification<LANG>  {
+    fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<'a, Parent: SharedAccess> Composer<'a> for GenericsComposer<Parent> {
-    type Source = ParentComposer<ScopeContext>;
-    type Result = Option<Generics>;
-    fn compose(&self, context: &Self::Source) -> Self::Result {
+impl<'a, Link, LANG, Gen> Composer<'a> for GenericsComposer<Link, LANG, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          Gen: LangGenSpecification<LANG> {
+    type Source = ComposerLink<ScopeContext>;
+    type Output = Gen;
+    fn compose(&self, context: &Self::Source) -> Self::Output {
         let context = context.borrow();
-        self.generics.as_ref().map(|generics| {
+        Gen::from_generics(self.generics.generics.as_ref().map(|generics| {
             let mut g = generics.clone();
             let update_bound = |type_path: &TypePathHolder, bounds: &mut AddPunctuated<TypeParamBound>| {
                 if let Some(refined_bounds) = context.context.read().unwrap().generics.maybe_generic_bounds(&context.scope, type_path) {
@@ -58,6 +71,6 @@ impl<'a, Parent: SharedAccess> Composer<'a> for GenericsComposer<Parent> {
                 })
             }
             g
-        })
+        }))
     }
 }

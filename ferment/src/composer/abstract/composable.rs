@@ -1,127 +1,171 @@
 use std::cell::Ref;
-use syn::{Attribute, Generics, Type};
-use syn::__private::TokenStream2;
-use crate::ast::Depunctuated;
-use crate::composer::{BasicComposer, Composer, FieldsOwnedSequenceComposer, FieldTypesContext, ParentComposer};
+use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::composer::{BasicComposer, FieldsOwnedSequenceComposer, FieldComposers, ComposerLink};
 use crate::context::ScopeContext;
-use crate::presentable::{Aspect, Context, ScopeContextPresentable};
-use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, InterfacePresentation};
+use crate::lang::{LangAttrSpecification, LangGenSpecification};
+use crate::presentable::{Aspect, BindingPresentableContext, Context, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
+use crate::presentation::{DocPresentation, FFIObjectPresentation, InterfacePresentation};
 use crate::shared::SharedAccess;
 
-pub trait BasicComposerOwner: Sized + 'static {
-    fn base(&self) -> &BasicComposer<ParentComposer<Self>>;
+/// Composer common interfaces
+pub trait BasicComposerOwner<CTX, LANG, SPEC, Gen>: Sized + 'static
+    where CTX: Clone,
+          LANG: Clone,
+          Gen: LangGenSpecification<LANG>,
+          SPEC: LangAttrSpecification<LANG>,
+          Aspect<CTX>: ScopeContextPresentable {
+    fn base(&self) -> &BasicComposer<ComposerLink<Self>, LANG, SPEC, Gen>;
 }
-
-impl<T> NameContext for T where Self: BasicComposerOwner {
-    fn name_context_ref(&self) -> &Context {
-        self.base().name_context_ref()
-    }
-}
-impl<T> SourceAccessible for T where T: BasicComposerOwner {
-    fn context(&self) -> &ParentComposer<ScopeContext> {
-        self.base().context()
-    }
-}
-
-impl<T> BasicComposable<ParentComposer<T>> for T where T: BasicComposerOwner + SourceExpandable + DocsComposable {
-    fn compose_attributes(&self) -> Vec<Attribute> {
-        self.base().compose_attributes()
-    }
-    fn compose_generics(&self) -> Option<Generics> {
-        self.base().generics.compose(self.context())
-    }
-}
-
-
 pub trait SourceAccessible {
-    fn context(&self) -> &ParentComposer<ScopeContext>;
+    fn context(&self) -> &ComposerLink<ScopeContext>;
     fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
 }
-pub trait SourceExpandable: SourceAccessible {
-    fn expand(&self) -> Expansion { Expansion::Empty }
+// pub trait SourceFermentable: SourceAccessible {
+//     fn ferment(&self) -> Depunctuated<Fermentate> { Depunctuated::new() }
+// }
+pub trait SourceFermentable2<LANG>: SourceAccessible {
+    fn ferment(&self) -> Depunctuated<LANG> { Depunctuated::new() }
+}
+pub trait NameContext<CTX>
+    where CTX: Clone,
+          Aspect<CTX>: ScopeContextPresentable {
+    fn name_context(&self) -> CTX { self.name_context_ref().clone() }
+    fn name_context_ref(&self) -> &CTX;
+    fn ffi_name_aspect(&self) -> Aspect<CTX> { Aspect::FFI(self.name_context()) }
+    fn target_name_aspect(&self) -> Aspect<CTX> { Aspect::Target(self.name_context()) }
+    fn raw_target_name_aspect(&self) -> Aspect<CTX> { Aspect::RawTarget(self.name_context()) }
 }
 
-pub trait NameContext {
-    fn name_context(&self) -> Context { self.name_context_ref().clone() }
-    fn name_context_ref(&self) -> &Context;
-    fn ffi_name_aspect(&self) -> Aspect { Aspect::FFI(self.name_context()) }
-    fn target_name_aspect(&self) -> Aspect { Aspect::Target(self.name_context()) }
-    fn raw_target_name_aspect(&self) -> Aspect { Aspect::RawTarget(self.name_context()) }
-
-    fn compose_ffi_name(&self) -> Type where Self: SourceAccessible {
-        self.ffi_name_aspect()
-            .present(&self.source_ref())
-    }
-    fn compose_target_name(&self) -> Type where Self: SourceAccessible {
-        self.target_name_aspect()
-            .present(&self.source_ref())
-    }
-    #[allow(unused)]
-    fn compose_raw_target_name(&self) -> Type where Self: SourceAccessible {
-        self.raw_target_name_aspect()
-            .present(&self.source_ref())
-    }
+pub trait NameComposable<CTX>
+    where CTX: Clone,
+          Aspect<CTX>: ScopeContextPresentable {
+    fn compose_ffi_name(&self) -> <Aspect<CTX> as ScopeContextPresentable>::Presentation;
+    fn compose_target_name(&self) -> <Aspect<CTX> as ScopeContextPresentable>::Presentation;
 }
-pub trait FieldsContext {
-    fn field_types_ref(&self) -> &FieldTypesContext;
-    fn field_types(&self) -> FieldTypesContext {
+pub trait FieldsContext<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn field_types_ref(&self) -> &FieldComposers<LANG, SPEC>;
+    fn field_types(&self) -> FieldComposers<LANG, SPEC> {
         self.field_types_ref()
             .clone()
     }
 }
-pub trait FieldsConversionComposable {
-    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> where Self: Sized + 'static;
-    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> where Self: Sized + 'static;
+pub trait FieldsConversionComposable<LANG, SPEC, Gen>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {
+    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen>
+        where Self: Sized
+            + 'static;
+    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen>
+        where Self: Sized
+            + 'static;
 }
-
 pub trait DocsComposable {
     fn compose_docs(&self) -> DocPresentation;
 }
 
-pub trait BasicComposable<Parent>: SourceExpandable + NameContext + DocsComposable where Parent: SharedAccess {
-    fn compose_attributes(&self) -> Vec<Attribute>;
-    fn compose_generics(&self) -> Option<Generics>;
+pub trait AttrComposable<SPEC> {
+    fn compose_attributes(&self) -> SPEC;
 }
-
-pub trait DropComposable {
-    fn compose_drop(&self) -> DropInterfacePresentation;
+pub trait GenericsComposable<T> {
+    fn compose_generics(&self) -> T;
 }
-
-pub trait ConversionComposable<Parent> where Parent: SharedAccess {
-    fn compose_conversions(&self) -> Depunctuated<InterfacePresentation> where Self: BasicComposable<Parent> {
-        let generics = self.compose_generics();
-        let attrs = self.compose_attributes();
-        let types = (self.compose_ffi_name(), self.compose_target_name());
-        Depunctuated::from_iter([
-            InterfacePresentation::ConversionFrom {
-                attrs: attrs.clone(),
-                types: types.clone(),
-                conversions: (self.compose_interface_from(), generics.clone())
-            },
-            InterfacePresentation::ConversionTo {
-                attrs: attrs.clone(),
-                types: types.clone(),
-                conversions: (self.compose_interface_to(), generics.clone())
-            },
-            InterfacePresentation::ConversionDestroy {
-                attrs,
-                types,
-                conversions: (self.compose_interface_destroy(), generics)
-            }
-        ])
-    }
-    fn compose_interface_from(&self) -> TokenStream2;
-    fn compose_interface_to(&self) -> TokenStream2;
-    fn compose_interface_destroy(&self) -> TokenStream2;
-    // fn compose_interface_generics(&self) -> Option<Generics>;
-    // fn compose_interface_aspects(&self) -> (TokenStream2, TokenStream2, TokenStream2, Option<Generics>);
+pub trait VariantComposable<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn compose_variants(&self) -> CommaPunctuated<SequenceOutput<LANG, SPEC>>;
 }
-
+pub trait ConversionComposable {
+    fn compose_conversions(&self) -> Depunctuated<InterfacePresentation>;
+}
 pub trait FFIObjectComposable {
     fn compose_object(&self) -> FFIObjectPresentation;
 }
-
-pub trait BindingComposable {
-    fn compose_bindings(&self) -> Depunctuated<BindingPresentation>;
+pub trait BindingComposable<LANG, SPEC, Gen>
+    where //I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC, Gen>>;
 }
+pub trait BasicComposable<Link, CTX, LANG, SPEC, Gen>
+// : SourceFermentable2<LANG>
+: NameComposable<CTX>
++ NameContext<CTX>
++ DocsComposable
++ AttrComposable<SPEC>
++ GenericsComposable<Gen>
+    where Link: SharedAccess,
+          CTX: Clone,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Aspect<CTX>: ScopeContextPresentable {}
+
+/// Composer common implementations
+// impl<Link, LANG, SPEC> NameContext<Context> for Link
+//     where Link: BasicComposerOwner<Context, LANG, SPEC>,
+//           LANG: Clone,
+//           SPEC: LangAttrSpecification<LANG> {
+//     fn name_context_ref(&self) -> &Context {
+//         self.base().name_context_ref()
+//     }
+// }
+// impl<Link, LANG, SPEC> SourceAccessible for Link
+//     where Link: BasicComposerOwner<Context, LANG, SPEC>,
+//           LANG: Clone,
+//           SPEC: LangAttrSpecification<LANG> {
+//     fn context(&self) -> &ComposerLink<ScopeContext> {
+//         self.base().context()
+//     }
+// }
+
+// impl<Link, LANG, SPEC> AttrComposable<SPEC> for Link
+//     where Link: BasicComposerOwner<Context, LANG, SPEC>,
+//           LANG: Clone,
+//           SPEC: LangAttrSpecification<LANG> {
+//     fn compose_attributes(&self) -> SPEC {
+//         self.base().compose_attributes()
+//     }
+// }
+// impl<Link, LANG, SPEC> GenericsComposable<Option<Generics>> for Link
+//     where Link: BasicComposerOwner<Context, LANG, SPEC>,
+//           LANG: Clone,
+//           SPEC: LangAttrSpecification<LANG> {
+//     fn compose_generics(&self) -> Option<Generics> {
+//         self.base().compose_generics()
+//     }
+// }
+impl<Link, CTX> NameComposable<CTX> for Link
+    where Link: SourceAccessible + NameContext<CTX>,
+          CTX: Clone,
+          Aspect<CTX>: ScopeContextPresentable {
+    fn compose_ffi_name(&self) -> <Aspect<CTX> as ScopeContextPresentable>::Presentation {
+        self.ffi_name_aspect()
+            .present(&self.source_ref())
+    }
+    fn compose_target_name(&self) -> <Aspect<CTX> as ScopeContextPresentable>::Presentation {
+        self.target_name_aspect()
+            .present(&self.source_ref())
+    }
+    // #[allow(unused)]
+    // fn compose_raw_target_name(&self) -> <Aspect<CTX> as ScopeContextPresentable>::Presentation {
+    //     self.raw_target_name_aspect()
+    //         .present(&self.source_ref())
+    // }
+}
+
+impl<T, LANG, SPEC, Gen> BasicComposable<ComposerLink<T>, Context, LANG, SPEC, Gen> for T
+    where T: BasicComposerOwner<Context, LANG, SPEC, Gen>
+            + SourceFermentable2<LANG>
+            + AttrComposable<SPEC>
+            + GenericsComposable<Gen>
+            + NameContext<Context>
+            + NameComposable<Context>
+            + DocsComposable,
+            LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {}
 

@@ -1,11 +1,11 @@
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeParam, TypeParamBound};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use syn::punctuated::Punctuated;
 use quote::{quote, ToTokens};
 use crate::ast::{AddPunctuated, CommaPunctuated};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::conversion::{type_ident_ref, TypeKind};
+use crate::conversion::TypeKind;
 use crate::ext::VisitScopeType;
 use crate::tree::ScopeTreeExportID;
 
@@ -189,7 +189,27 @@ pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
         TypeParamBound::Lifetime(_lifetime) => None
     }).collect()
 }
+fn path_ident_ref(path: &Path) -> Option<&Ident> {
+    path.segments.last().map(|last_segment| &last_segment.ident)
+}
 
+fn type_ident_ref(ty: &Type) -> Option<&Ident> {
+    match ty {
+        Type::Path(TypePath { path, .. }) =>
+            path_ident_ref(path),
+        Type::Reference(TypeReference { elem, .. }) |
+        Type::Ptr(TypePtr { elem, .. }) =>
+            type_ident_ref(elem),
+        Type::TraitObject(TypeTraitObject { bounds, .. }) => {
+            bounds.iter().find_map(|b| match b {
+                TypeParamBound::Trait(TraitBound { path, ..}) => path_ident_ref(path),
+                _ => None
+            })
+        },
+        Type::Array(TypeArray { elem, .. }) => type_ident_ref(elem),
+        _ => None
+    }
+}
 
 impl ItemExtension for Signature {
     fn scope_tree_export_id(&self) -> ScopeTreeExportID {

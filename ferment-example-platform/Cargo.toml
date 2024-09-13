@@ -33,7 +33,7 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 
 [build-dependencies]
 cbindgen = "0.26.0"
-ferment = { path = "../ferment" }
+ferment = { path = "../ferment", features = ["objc"] }
 toml = "0.8.16"
 
 [features]

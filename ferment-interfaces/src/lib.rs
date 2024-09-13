@@ -39,7 +39,8 @@ pub trait FFIConversionTo<T> {
     unsafe fn ffi_to_const(obj: T) -> *const Self;
     /// # Safety
     unsafe fn ffi_to(obj: T) -> *mut Self {
-        Self::ffi_to_const(obj).cast_mut()
+        Self::ffi_to_const(obj)
+            .cast_mut()
     }
     /// # Safety
     unsafe fn ffi_to_opt(obj: Option<T>) -> *mut Self where Self: Sized {
@@ -49,7 +50,22 @@ pub trait FFIConversionTo<T> {
             std::ptr::null_mut()
         }
     }
-}
+/*    unsafe fn ffi_to_by_ref(obj: &T) -> *mut Self where T: Clone {
+        Self::ffi_to_const(obj.clone())
+            .cast_mut()
+    }
+    unsafe fn ffi_to_const_by_ref(obj: &T) -> *const Self where T: Clone {
+        Self::ffi_to_const(obj.clone())
+            .cast_mut()
+    }
+    unsafe fn ffi_to_opt_by_ref(obj: Option<&T>) -> *mut Self where Self: Sized, T: Clone {
+        if let Some(o) = obj {
+            Self::ffi_to_by_ref(o)
+        } else {
+            std::ptr::null_mut()
+        }
+    }
+*/}
 
 
 pub trait FFIConversionDestroy<T> {
@@ -264,28 +280,29 @@ pub unsafe fn fold_to_vec<M, V: Copy, V2>(count: usize, values: *mut V, value_co
 
 /// # Safety
 pub unsafe fn fold_to_result<T, E, T2, E2>(
-    ok: *mut T,
-    error: *mut E,
-    key_converter: impl Fn(*mut T) -> T2,
-    value_converter: impl Fn(*mut E) -> E2) -> Result<T2, E2> {
+    ok: *mut T, ok_converter: impl Fn(*mut T) -> T2,
+    error: *mut E, error_converter: impl Fn(*mut E) -> E2) -> Result<T2, E2> {
     if error.is_null() {
-        Ok(key_converter(ok))
+        Ok(ok_converter(ok))
     } else {
-        Err(value_converter(error))
+        Err(error_converter(error))
     }
 }
 /// # Safety
 pub unsafe fn to_result<T, E, T2, E2>(
     result: Result<T2, E2>,
-    key_converter: impl Fn(T2) -> *mut T,
-    value_converter: impl Fn(E2) -> *mut E,
-
+    ok_converter: impl Fn(T2) -> *mut T,
+    error_converter: impl Fn(E2) -> *mut E,
 ) -> (*mut T, *mut E) {
     match result {
-        Ok(o) => (key_converter(o), std::ptr::null_mut()),
-        Err(o) => (std::ptr::null_mut(), value_converter(o))
+        Ok(o) => (ok_converter(o), std::ptr::null_mut()),
+        Err(o) => (std::ptr::null_mut(), error_converter(o))
     }
 }
+
+
+
+
 //     ok: *mut T,
 //     error: *mut E,
 //     key_converter: impl Fn(*mut T) -> T2,

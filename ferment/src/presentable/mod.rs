@@ -9,9 +9,8 @@ mod expression;
 mod name;
 mod owned_item_presenter_context;
 mod sequence_output;
-
 pub use binding::*;
-pub use ctor_presentable::*;
+// pub use ctor_presentable::*;
 pub use expression::*;
 pub use name::*;
 pub use owned_item_presenter_context::*;
@@ -32,7 +31,7 @@ impl ScopeContextPresentable for TokenStream2 {
 
 impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
     where T: ScopeContextPresentable, SEP: ToTokens + Default {
-    type Presentation = Punctuated<T::Presentation, SEP>;
+    type Presentation = Punctuated<<T as ScopeContextPresentable>::Presentation, SEP>;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         self.iter().map(|presentable| presentable.present(source)).collect()

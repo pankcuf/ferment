@@ -91,7 +91,9 @@ impl FermentableDictionaryType for PathSegment {
             self.is_string() ||
             self.is_str() ||
             self.is_optional() ||
-            self.is_box() || self.is_lambda_fn()
+            self.is_box() ||
+            self.is_lambda_fn() /*||
+            self.is_128_digit()*/
     }
 }
 

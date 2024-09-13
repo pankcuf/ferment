@@ -148,11 +148,7 @@ impl Resolve<FFIFullPath> for GenericTypeKind {
         println!("GenericTypeKind -> FFIFullPath --> {}", self);
         let result = match self {
             GenericTypeKind::Map(ty) |
-            GenericTypeKind::IndexMap(ty) |
-            GenericTypeKind::SerdeJsonMap(ty) |
-            GenericTypeKind::Vec(ty) |
-            GenericTypeKind::BTreeSet(ty) |
-            GenericTypeKind::HashSet(ty) |
+            GenericTypeKind::Group(ty) |
             GenericTypeKind::Result(ty) |
             GenericTypeKind::Box(ty) |
             GenericTypeKind::AnyOther(ty) =>

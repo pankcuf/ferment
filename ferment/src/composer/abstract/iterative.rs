@@ -19,8 +19,8 @@ impl<In, Ctx, Map, Out> IterativeComposer<In, Ctx, Map, Out>
 impl<'a, In, Ctx, Map, Out> Composer<'a> for IterativeComposer<In, Ctx, Map, Out>
     where In: Clone {
     type Source = In;
-    type Result = Out;
-    fn compose(&self, source: &Self::Source) -> Self::Result {
+    type Output = Out;
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         // TODO: avoid cloning
         (self.set_output)((source.clone(), self.mapper))
     }

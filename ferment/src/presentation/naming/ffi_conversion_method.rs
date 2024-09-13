@@ -16,9 +16,12 @@ impl ToTokens for FFIConversionDestroyMethod {
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment_interfaces::FFIConversionTo"]
 pub enum FFIConversionToMethod {
-    FfiToConst,
     FfiTo,
+    FfiToConst,
     FfiToOpt,
+    // FfiToByRef,
+    // FfiToConstByRef,
+    // FfiToOptByRef,
 }
 impl ToTokens for FFIConversionToMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
@@ -26,6 +29,9 @@ impl ToTokens for FFIConversionToMethod {
             FFIConversionToMethod::FfiToConst => quote!(ffi_to_const),
             FFIConversionToMethod::FfiTo => quote!(ffi_to),
             FFIConversionToMethod::FfiToOpt => quote!(ffi_to_opt),
+            // FFIConversionToMethod::FfiToByRef => quote!(ffi_to_by_ref),
+            // FFIConversionToMethod::FfiToConstByRef => quote!(ffi_to_const_by_ref),
+            // FFIConversionToMethod::FfiToOptByRef => quote!(ffi_to_opt_by_ref),
         }.to_tokens(dst)
     }
 }

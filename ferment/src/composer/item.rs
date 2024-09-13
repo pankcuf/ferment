@@ -1,121 +1,84 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
+use std::vec;
 use proc_macro2::Ident;
-use syn::{Attribute, Field, Fields, Generics, Type, Visibility, VisPublic};
-use syn::__private::TokenStream2;
-use syn::token::{Brace, Comma, Paren, Pub};
-use syn::punctuated::Punctuated;
-use ferment_macro::BasicComposerOwner;
-use crate::ast::Depunctuated;
-use crate::composable::{AttrsModel, CfgAttributes};
-use crate::composer::{BasicComposable, BasicComposer, BindingComposable, BINDING_DTOR_COMPOSER, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, DropComposable, EMPTY_FIELDS_COMPOSER, ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldTypesContext, ItemParentComposer, Linkable, MethodComposer, NameContext, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ParentComposer, SourceAccessible, SourceExpandable, STRUCT_NAMED_FIELDS_COMPOSER, STRUCT_UNNAMED_FIELDS_COMPOSER};
-use crate::context::{ScopeChain, ScopeContext};
-use crate::ext::ToPath;
-use crate::presentable::{ScopeContextPresentable, Context, SequenceOutput, Expression};
-use crate::presentation::{BindingPresentation, DocPresentation, DropInterfacePresentation, Expansion, FFIObjectPresentation, Name};
+use quote::ToTokens;
+use syn::{Attribute, Field, Generics, Type, Visibility, VisPublic};
+use syn::token::{Comma, Pub};
+use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::composable::{AttrsModel, CfgAttributes, GenModel};
+use crate::composer::{BasicComposer, BindingComposable, CommaPunctuatedFields, Composer, ComposerPresenter, constants, ConversionComposable, CtorSequenceComposer, DocsComposable, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldTypePresentationContextPassRef, FieldComposers, Linkable, MethodComposer, OwnedFieldTypeComposerRef, OwnerAspectWithCommaPunctuatedItems, OwnerIteratorConversionComposer, OwnerIteratorPostProcessingComposer, ComposerLink, SourceAccessible, NameComposable, ConstructorArgComposerRef, AttrComposable, GenericsComposable, SourceFermentable2, BasicComposerOwner, NameContext, ConstructorFieldsContext, SharedComposerLink};
+use crate::context::ScopeContext;
+use crate::presentable::{ScopeContextPresentable, Context, SequenceOutput, OwnedItemPresentableContext, BindingPresentableContext};
+use crate::presentation::{DocPresentation, RustFermentate, FFIObjectPresentation, InterfacePresentation};
 use crate::shared::SharedAccess;
 use crate::ast::DelimiterTrait;
+use crate::lang::{LangAttrSpecification, LangGenSpecification};
 
 
-#[allow(unused)]
-pub enum ItemComposerWrapper {
-    EnumVariantNamed(ItemParentComposer<Brace>),
-    EnumVariantUnnamed(ItemParentComposer<Paren>),
-    EnumVariantUnit(ItemParentComposer<Brace>),
-    StructNamed(ItemParentComposer<Brace>),
-    StructUnnamed(ItemParentComposer<Paren>),
+pub struct ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + 'static + ?Sized,
+          LANG: Clone + 'static,
+          SPEC: LangAttrSpecification<LANG> + 'static,
+          Gen: LangGenSpecification<LANG> + 'static,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    pub base: BasicComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ComposerLink<Self>, LANG, SPEC>,
+    pub ffi_conversions_composer: FFIComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+    pub fields_from_composer: FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+    pub fields_to_composer: FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+    pub bindings_composer: FFIBindingsComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+    pub field_types: FieldComposers<LANG, SPEC>,
+    #[cfg(feature = "objc")]
+    pub objc_composer: crate::lang::objc::composer::ItemComposer<ComposerLink<Self>>
 }
-
-
-impl ItemComposerWrapper {
-    pub fn enum_variant(fields: &Fields, name_context: Context, attrs: AttrsModel, context: &ParentComposer<ScopeContext>) -> ItemComposerWrapper {
-        match fields {
-            Fields::Unit =>
-                ItemComposerWrapper::EnumVariantUnit(ItemComposer::enum_variant_composer_unit(name_context, attrs, &Punctuated::new(), context)),
-            Fields::Unnamed(fields) =>
-                ItemComposerWrapper::EnumVariantUnnamed(ItemComposer::enum_variant_composer_unnamed(name_context, attrs, &fields.unnamed, context)),
-            Fields::Named(fields) =>
-                ItemComposerWrapper::EnumVariantUnit(ItemComposer::enum_variant_composer_named(name_context, attrs, &fields.named, context)),
-        }
-    }
-
-    pub fn compose_aspect(&self, aspect: FFIAspect) -> SequenceOutput {
-        match self {
-            ItemComposerWrapper::EnumVariantNamed(composer) =>
-                composer.borrow().compose_aspect(aspect),
-            ItemComposerWrapper::EnumVariantUnnamed(composer) =>
-                composer.borrow().compose_aspect(aspect),
-            ItemComposerWrapper::EnumVariantUnit(composer) =>
-                composer.borrow().compose_aspect(aspect),
-            ItemComposerWrapper::StructNamed(composer) =>
-                composer.borrow().compose_aspect(aspect),
-            ItemComposerWrapper::StructUnnamed(composer) =>
-                composer.borrow().compose_aspect(aspect),
-        }
-    }
-    pub fn compose_ctor(&self, source: &ScopeContext) -> BindingPresentation {
-        match self {
-            ItemComposerWrapper::EnumVariantNamed(composer) =>
-                composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
-            ItemComposerWrapper::EnumVariantUnnamed(composer) =>
-                composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
-            ItemComposerWrapper::EnumVariantUnit(composer) =>
-                composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
-            ItemComposerWrapper::StructNamed(composer) =>
-                composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
-            ItemComposerWrapper::StructUnnamed(composer) =>
-                composer.borrow().bindings_composer.ctor_composer.compose(&()).present(&source),
-        }
-    }
-    pub fn compose_attributes(&self) -> Vec<Attribute> {
-        match self {
-            ItemComposerWrapper::EnumVariantNamed(composer) => composer.borrow().compose_attributes(),
-            ItemComposerWrapper::EnumVariantUnnamed(composer) => composer.borrow().compose_attributes(),
-            ItemComposerWrapper::EnumVariantUnit(composer) => composer.borrow().compose_attributes(),
-            ItemComposerWrapper::StructNamed(composer) => composer.borrow().compose_attributes(),
-            ItemComposerWrapper::StructUnnamed(composer) => composer.borrow().compose_attributes(),
-        }
+impl<I, LANG, SPEC, Gen> BasicComposerOwner<Context, LANG, SPEC, Gen> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn base(&self) -> &BasicComposer<ComposerLink<Self>, LANG, SPEC, Gen> {
+        &self.base
     }
 }
 
-
-#[derive(BasicComposerOwner)]
-pub struct ItemComposer<I>
-    where
-        I: DelimiterTrait + 'static + ?Sized {
-    pub base: BasicComposer<ParentComposer<Self>>,
-    pub ffi_object_composer: OwnerIteratorPostProcessingComposer<ParentComposer<Self>>,
-    pub ffi_conversions_composer: FFIComposer<ParentComposer<Self>>,
-    pub fields_from_composer: FieldsOwnedSequenceComposer<ParentComposer<Self>>,
-    pub fields_to_composer: FieldsOwnedSequenceComposer<ParentComposer<Self>>,
-    pub bindings_composer: FFIBindingsComposer<ParentComposer<Self>, I>,
-    // pub fields_composer: FieldsComposerRef,
-    pub field_types: FieldTypesContext,
-}
-
-impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
+impl<I, LANG, SPEC, Gen> ItemComposer<I, LANG, SPEC, Gen>
+    // where Self: BasicComposable<ComposerLink<Self>, Context, LANG, SPEC, Option<Generics>>,
+    where Self: GenericsComposable<Gen>
+            + AttrComposable<SPEC>
+            + NameContext<Context>,
+          I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     pub fn struct_composer_unnamed(
         target_name: &Ident,
         attrs: &Vec<Attribute>,
         generics: &Generics,
         fields: &CommaPunctuatedFields,
-        scope: &ScopeChain,
-        context: &ParentComposer<ScopeContext>
-    ) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>
+    ) -> ComposerLink<Self> {
         Self::struct_composer(
             target_name,
             generics,
             attrs,
             fields,
-            scope,
             context,
             constants::struct_composer_root_presenter_unnamed(),
             constants::unnamed_struct_field_composer(),
-            constants::ROUND_BRACES_FIELDS_PRESENTER,
-            constants::bypass_field_context(),
-            constants::struct_composer_ctor_unnamed(),
-            STRUCT_UNNAMED_FIELDS_COMPOSER
+            constants::round_braces_fields_presenter(),
+            constants::bypass_field_context::<LANG, SPEC, Gen>(),
+            constants::unnamed_struct_ctor_context_composer(),
+            constants::struct_composer_ctor_unnamed_item(),
+            constants::struct_unnamed_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::constants::OBJC_STRUCT_UNNAMED_FIELDS_COMPOSER
         )
     }
     pub fn struct_composer_named(
@@ -123,82 +86,95 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         attrs: &Vec<Attribute>,
         generics: &Generics,
         fields: &CommaPunctuatedFields,
-        scope: &ScopeChain,
-        context: &ParentComposer<ScopeContext>
-    ) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>
+    ) -> ComposerLink<Self> {
         Self::struct_composer(
             target_name,
             generics,
             attrs,
             fields,
-            scope,
             context,
             constants::struct_composer_root_presenter_named(),
             constants::named_struct_field_composer(),
-            constants::CURLY_BRACES_FIELDS_PRESENTER,
+            constants::curly_braces_fields_presenter(),
             constants::struct_composer_conversion_named(),
-            constants::struct_composer_ctor_named(),
-            STRUCT_NAMED_FIELDS_COMPOSER
+            constants::named_struct_ctor_context_composer(),
+            constants::struct_composer_ctor_named_item(),
+            constants::struct_named_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::constants::OBJC_STRUCT_NAMED_FIELDS_COMPOSER
         )
     }
     pub fn enum_variant_composer_unit(
-        name_context: Context,
+        target_name: &Ident,
+        variant_name: &Ident,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ParentComposer<ScopeContext>
-    ) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>
+    ) -> ComposerLink<Self> {
         Self::enum_variant_composer(
-            name_context,
+            target_name,
+            variant_name,
             attrs,
             fields,
             context,
             constants::enum_variant_composer_conversion_unit(),
             constants::enum_variant_composer_conversion_unit(),
-            constants::bypass_field_context(),
-            constants::ROOT_DESTROY_CONTEXT_COMPOSER,
-            |_field_type_local_context| Expression::Empty,
-            constants::enum_variant_composer_ctor_unit(),
-            EMPTY_FIELDS_COMPOSER
+            constants::bypass_field_context::<LANG, SPEC, Gen>(),
+            constants::empty_field_context::<LANG, SPEC, Gen>(),
+            constants::named_enum_variant_ctor_context_composer(),
+            constants::struct_composer_ctor_named_item(),
+            constants::empty_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::constants::OBJC_EMPTY_FIELDS_COMPOSER
         )
     }
     pub fn enum_variant_composer_unnamed(
-        name_context: Context,
+        target_name: &Ident,
+        variant_name: &Ident,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ParentComposer<ScopeContext>
-    ) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>
+    ) -> ComposerLink<Self> {
         Self::enum_variant_composer(
-            name_context,
+            target_name,
+            variant_name,
             attrs,
             fields,
             context,
-            constants::ROUND_BRACES_FIELDS_PRESENTER,
-            constants::ROUND_BRACES_FIELDS_PRESENTER,
-            constants::bypass_field_context(),
-            constants::ROOT_DESTROY_CONTEXT_COMPOSER,
+            constants::round_braces_fields_presenter(),
+            constants::round_braces_fields_presenter(),
+            constants::bypass_field_context::<LANG, SPEC, Gen>(),
             constants::terminated_field_context(),
-            constants::enum_variant_composer_ctor_unnamed(),
-            ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER
+            constants::unnamed_enum_variant_ctor_context_composer(),
+            constants::struct_composer_ctor_unnamed_item(),
+            constants::enum_variant_unnamed_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::constants::OBJC_ENUM_VARIANT_UNNAMED_FIELDS_COMPOSER
         )
     }
     pub fn enum_variant_composer_named(
-        name_context: Context,
+        target_name: &Ident,
+        variant_name: &Ident,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ParentComposer<ScopeContext>
-    ) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>
+    ) -> ComposerLink<Self> {
         Self::enum_variant_composer(
-            name_context,
+            target_name,
+            variant_name,
             attrs,
             fields,
             context,
-            constants::CURLY_BRACES_FIELDS_PRESENTER,
-            constants::CURLY_BRACES_FIELDS_PRESENTER,
+            constants::curly_braces_fields_presenter(),
+            constants::curly_braces_fields_presenter(),
             constants::struct_composer_conversion_named(),
-            constants::ROOT_DESTROY_CONTEXT_COMPOSER,
             constants::terminated_field_context(),
-            constants::enum_variant_composer_ctor_named(),
-            STRUCT_NAMED_FIELDS_COMPOSER
+            constants::named_enum_variant_ctor_context_composer(),
+            constants::struct_composer_ctor_named_item(),
+            constants::struct_named_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::constants::OBJC_STRUCT_NAMED_FIELDS_COMPOSER
         )
     }
     pub(crate) fn type_alias_composer(
@@ -206,30 +182,38 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         ty: &Type,
         generics: &Generics,
         attrs: &Vec<Attribute>,
-        scope: &ScopeChain,
-        context: &ParentComposer<ScopeContext>,
-    ) -> ParentComposer<Self> {
-        Self::new::<ParentComposer<Self>>(
-            Context::Struct {
-                ident: target_name.clone(),
-                attrs: attrs.cfg_attributes(),
-            },
+        context: &ComposerLink<ScopeContext>,
+    ) -> ComposerLink<Self> {
+        let fields = CommaPunctuated::from_iter([Field {
+            vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
+            ty: (*ty).clone(),
+            attrs: vec![],
+            ident: None,
+            colon_token: None,
+        }]);
+        let name_context = Context::r#struct(target_name, attrs.cfg_attributes());
+        Self::new::<ComposerLink<Self>>(
+            name_context.clone(),
             Some(generics.clone()),
-            AttrsModel::from(attrs, target_name, scope),
-            &Punctuated::from_iter([Field {
-                vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
-                ty: (*ty).clone(),
-                attrs: vec![],
-                ident: None,
-                colon_token: None,
-            }]),
+            AttrsModel::from(attrs),
+            &fields,
             context,
             constants::struct_composer_root_presenter_unnamed(),
             constants::unnamed_struct_field_composer(),
             constants::struct_composer_object(),
             constants::type_alias_composer_ffi_conversions(),
-            constants::struct_composer_ctor_unnamed(),
-            STRUCT_UNNAMED_FIELDS_COMPOSER
+            constants::struct_ctor_sequence_composer(
+                constants::struct_composer_ctor_root(),
+                constants::unnamed_struct_ctor_context_composer(),
+                constants::struct_composer_ctor_unnamed_item()
+            ),
+            constants::struct_unnamed_fields_composer(),
+            #[cfg(feature = "objc")]
+            crate::lang::objc::composer::ItemComposer::new(
+                name_context,
+                &fields,
+                crate::lang::objc::constants::OBJC_STRUCT_UNNAMED_FIELDS_COMPOSER
+            ),
         )
     }
 
@@ -239,49 +223,58 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         generics: &Generics,
         attrs: &Vec<Attribute>,
         fields: &CommaPunctuatedFields,
-        scope: &ScopeChain,
-        context: &ParentComposer<ScopeContext>,
-        root_presenter: OwnerIteratorConversionComposer<Comma>,
-        field_presenter: OwnedFieldTypeComposerRef,
-        root_conversion_presenter: OwnerIteratorConversionComposer<Comma>,
-        conversion_presenter: FieldTypePresentationContextPassRef,
-        ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
-        fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
-        Self::new::<ParentComposer<Self>>(
-            Context::Struct {
-                ident: target_name.clone(),
-                attrs: attrs.cfg_attributes(),
-            },
+        context: &ComposerLink<ScopeContext>,
+        root_presenter: OwnerIteratorConversionComposer<Comma, LANG, SPEC>,
+        field_presenter: OwnedFieldTypeComposerRef<LANG, SPEC>,
+        root_conversion_presenter: OwnerIteratorConversionComposer<Comma, LANG, SPEC>,
+        conversion_presenter: FieldTypePresentationContextPassRef<LANG, SPEC>,
+        ctor_context_composer: SharedComposerLink<Self, ConstructorFieldsContext<LANG, SPEC, Gen>>,
+        ctor_arg_composer: ConstructorArgComposerRef<LANG, SPEC>,
+        fields_composer: FieldsComposerRef<LANG, SPEC>,
+        #[cfg(feature = "objc")]
+        objc_fields_composer: FieldsComposerRef<crate::lang::objc::ObjCFermentate, crate::lang::objc::composers::AttrWrapper>) -> ComposerLink<Self> {
+        let presentation_context = Context::r#struct(target_name, attrs.cfg_attributes());
+        Self::new::<ComposerLink<Self>>(
+            presentation_context.clone(),
             Some(generics.clone()),
-            AttrsModel::from(attrs, target_name, scope),
+            AttrsModel::from(attrs),
             fields,
             context,
             root_presenter,
             field_presenter,
             constants::struct_composer_object(),
-            constants::struct_ffi_composer(
-                root_conversion_presenter,
-                conversion_presenter),
-            ctor_composer,
-            fields_composer
+            constants::struct_ffi_composer(root_conversion_presenter, conversion_presenter),
+            constants::struct_ctor_sequence_composer(
+                constants::struct_composer_ctor_root(),
+                ctor_context_composer,
+                ctor_arg_composer
+            ),
+            fields_composer,
+            #[cfg(feature = "objc")]
+            crate::lang::objc::composer::ItemComposer::new(presentation_context, fields, objc_fields_composer),
         )
     }
 
     #[allow(clippy::too_many_arguments)]
     fn enum_variant_composer(
-        name_context: Context,
+        target_name: &Ident,
+        variant_name: &Ident,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ParentComposer<ScopeContext>,
-        root_presenter: OwnerIteratorConversionComposer<Comma>,
-        root_conversion_presenter: OwnerIteratorConversionComposer<Comma>,
-        conversion_presenter: FieldTypePresentationContextPassRef,
-        destroy_code_context_presenter: ComposerPresenter<SequenceOutput, SequenceOutput>,
-        destroy_presenter: FieldTypePresentationContextPassRef,
-        ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
-        fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
-        Self::new::<ParentComposer<Self>>(
-            name_context,
+        context: &ComposerLink<ScopeContext>,
+        root_presenter: OwnerIteratorConversionComposer<Comma, LANG, SPEC>,
+        root_conversion_presenter: OwnerIteratorConversionComposer<Comma, LANG, SPEC>,
+        conversion_presenter: FieldTypePresentationContextPassRef<LANG, SPEC>,
+        destroy_presenter: FieldTypePresentationContextPassRef<LANG, SPEC>,
+        ctor_context_composer: SharedComposerLink<Self, ConstructorFieldsContext<LANG, SPEC, Gen>>,
+        ctor_arg_composer: ConstructorArgComposerRef<LANG, SPEC>,
+        fields_composer: FieldsComposerRef<LANG, SPEC>,
+        #[cfg(feature = "objc")]
+        objc_fields_composer: FieldsComposerRef<crate::lang::objc::ObjCFermentate, crate::lang::objc::composers::AttrWrapper>,
+    ) -> ComposerLink<Self> {
+        let name_context = Context::EnumVariant { ident: target_name.clone(), variant_ident: variant_name.clone(), attrs: attrs.attrs.cfg_attributes() };
+        Self::new::<ComposerLink<Self>>(
+            name_context.clone(),
             None,
             attrs,
             fields,
@@ -292,10 +285,17 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
             constants::enum_variant_composer_ffi_composer(
                 root_conversion_presenter,
                 conversion_presenter,
-                destroy_code_context_presenter,
+                constants::root_destroy_context_composer(),
                 destroy_presenter),
-            ctor_composer,
-            fields_composer)
+            constants::struct_ctor_sequence_composer(
+                constants::enum_variant_composer_ctor_root(),
+                ctor_context_composer,
+                ctor_arg_composer
+            ),
+            fields_composer,
+            #[cfg(feature = "objc")]
+            crate::lang::objc::composer::ItemComposer::new(name_context, fields, objc_fields_composer),
+        )
     }
 
     #[allow(clippy::too_many_arguments, non_camel_case_types)]
@@ -304,146 +304,245 @@ impl<I> ItemComposer<I> where I: DelimiterTrait + ?Sized {
         generics: Option<Generics>,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ParentComposer<ScopeContext>,
-        root_presenter: ComposerPresenter<OwnerAspectWithCommaPunctuatedItems, SequenceOutput>,
-        field_presenter: OwnedFieldTypeComposerRef,
-        ffi_object_composer: OwnerIteratorPostProcessingComposer<ParentComposer<Self>>,
-        ffi_conversions_composer: FFIComposer<ParentComposer<Self>>,
-        ctor_composer: CtorSequenceComposer<ParentComposer<Self>, I>,
-        fields_composer: FieldsComposerRef) -> ParentComposer<Self> {
+        context: &ComposerLink<ScopeContext>,
+        root_presenter: ComposerPresenter<OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>, SequenceOutput<LANG, SPEC>>,
+        field_presenter: OwnedFieldTypeComposerRef<LANG, SPEC>,
+        ffi_object_composer: OwnerIteratorPostProcessingComposer<ComposerLink<Self>, LANG, SPEC>,
+        ffi_conversions_composer: FFIComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+        ctor_composer: CtorSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen>,
+        fields_composer: FieldsComposerRef<LANG, SPEC>,
+        #[cfg(feature = "objc")]
+        objc_composer: crate::lang::objc::composer::ItemComposer<ComposerLink<Self>>
+    ) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(attrs, name_context, generics, constants::composer_doc(), Rc::clone(context)),
+            base: BasicComposer::<ComposerLink<Self>, LANG, SPEC, Gen>::from(attrs, name_context, GenModel::new(generics.clone()), constants::composer_doc(), Rc::clone(context)),
             fields_from_composer: constants::fields_from_composer(root_presenter, field_presenter),
             fields_to_composer: constants::fields_to_composer(root_presenter, field_presenter),
             bindings_composer: FFIBindingsComposer::new(
                 ctor_composer,
-                MethodComposer::new(
-                    BINDING_DTOR_COMPOSER,
-                    constants::composer_ffi_binding()
-                ),
-                MethodComposer::new(
-                    |(root_obj_type, field_name, field_type, attrs, generics)|
-                        BindingPresentation::Getter {
-                            attrs,
-                            name: Name::Getter(root_obj_type.to_path(), field_name.clone()),
-                            field_name,
-                            obj_type: root_obj_type,
-                            field_type,
-                            generics
-                        },
-                    constants::ffi_aspect_seq_context()),
-                MethodComposer::new(
-                    |(root_obj_type, field_name, field_type, attrs, generics)|
-                        BindingPresentation::Setter {
-                            attrs,
-                            name: Name::Setter(root_obj_type.to_path(), field_name.clone()),
-                            field_name,
-                            obj_type: root_obj_type,
-                            field_type,
-                            generics
-                        },
-                    constants::ffi_aspect_seq_context())
+                MethodComposer::new(constants::binding_dtor_composer(), constants::composer_ffi_binding::<Self, LANG, SPEC, Gen>()),
+                MethodComposer::new(constants::binding_getter_composer(), constants::ffi_aspect_seq_context()),
+                MethodComposer::new(constants::binding_setter_composer(), constants::ffi_aspect_seq_context()),
+                true
             ),
             ffi_conversions_composer,
             ffi_object_composer,
             field_types: fields_composer(fields),
+            #[cfg(feature = "objc")]
+            objc_composer,
         }));
         {
-            let mut composer = root.borrow_mut();
-            composer.setup_composers(&root);
+            root.borrow_mut().setup_composers(&root);
         }
         root
     }
-    fn setup_composers(&mut self, root: &ParentComposer<Self>) {
+    fn setup_composers(&mut self, root: &ComposerLink<Self>) {
         self.base.link(root);
         self.fields_from_composer.link(root);
         self.fields_to_composer.link(root);
         self.bindings_composer.link(root);
         self.ffi_object_composer.link(root);
         self.ffi_conversions_composer.link(root);
+        #[cfg(feature = "objc")]
+        self.objc_composer.link(root);
     }
 
-    pub(crate) fn compose_aspect(&self, aspect: FFIAspect) -> SequenceOutput {
+    pub(crate) fn compose_aspect(&self, aspect: FFIAspect) -> SequenceOutput<LANG, SPEC> {
         self.ffi_conversions_composer.compose_aspect(aspect)
     }
-}
-
-impl<I> SourceExpandable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn expand(&self) -> Expansion {
-        Expansion::Full {
-            attrs: self.compose_attributes(),
-            comment: self.base.compose_docs(),
-            ffi_presentation: self.compose_object(),
-            conversions: ConversionComposable::<ParentComposer<Self>>::compose_conversions(self),
-            drop: self.compose_drop(),
-            bindings: self.compose_bindings(),
-            traits: Depunctuated::new()
-        }
+    pub(crate) fn present_aspect(&self, aspect: FFIAspect) -> <SequenceOutput<LANG, SPEC> as ScopeContextPresentable>::Presentation {
+        self.compose_aspect(aspect)
+            .present(&self.source_ref())
     }
 }
 
-impl<I> DropComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn compose_drop(&self) -> DropInterfacePresentation {
-        DropInterfacePresentation::Full {
-            attrs: self.compose_attributes(),
-            ty: self.compose_ffi_name(),
-            body: self.compose_aspect(FFIAspect::Drop).present(&self.source_ref())
-        }
+impl<I, LANG, SPEC, Gen> AttrComposable<SPEC> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone + 'static,
+          SPEC: LangAttrSpecification<LANG> + 'static,
+          Gen: LangGenSpecification<LANG> + 'static,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn compose_attributes(&self) -> SPEC {
+        self.base().compose_attributes()
+    }
+}
+impl<I, LANG, SPEC, Gen> GenericsComposable<Gen> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone + 'static,
+          SPEC: LangAttrSpecification<LANG> + 'static,
+          Gen: LangGenSpecification<LANG> + 'static,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn compose_generics(&self) -> Gen {
+        self.base().compose_generics()
     }
 }
 
-impl<I> FieldsContext for ItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn field_types_ref(&self) -> &FieldTypesContext {
+impl<I, LANG, SPEC, Gen> FieldsContext<LANG, SPEC> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable{
+    fn field_types_ref(&self) -> &FieldComposers<LANG, SPEC> {
         &self.field_types
     }
 }
 
-impl<I> FieldsConversionComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> {
+impl<I, LANG, SPEC, Gen> FieldsConversionComposable<LANG, SPEC, Gen> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen> {
         &self.fields_from_composer
     }
 
-    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ParentComposer<Self>> {
+    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC, Gen> {
         &self.fields_to_composer
     }
 }
 
-impl<I> DocsComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
+impl<I, LANG, SPEC, Gen> DocsComposable for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait
+            + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     fn compose_docs(&self) -> DocPresentation {
         self.base.compose_docs()
     }
 }
 
-impl<Parent, I> ConversionComposable<Parent> for ItemComposer<I>
-    where
-        Parent: SharedAccess,
-        I: DelimiterTrait + ?Sized {
-    fn compose_interface_from(&self) -> TokenStream2 {
-        self.compose_aspect(FFIAspect::From)
-            .present(&self.source_ref())
-    }
-    fn compose_interface_to(&self) -> TokenStream2 {
-        self.compose_aspect(FFIAspect::To)
-            .present(&self.source_ref())
-    }
-    fn compose_interface_destroy(&self) -> TokenStream2 {
-        self.compose_aspect(FFIAspect::Destroy)
-            .present(&self.source_ref())
+impl<I> ConversionComposable for ItemComposer<I, RustFermentate, Vec<Attribute>, Option<Generics>>
+    // where Self: BasicComposable<ComposerLink<Self>, Context, RustFermentate, Vec<Attribute>, Option<Generics>>,
+    where Self: GenericsComposable<Option<Generics>> + AttrComposable<Vec<Attribute>> + NameContext<Context>,
+          I: DelimiterTrait + ?Sized {
+    fn compose_conversions(&self) -> Depunctuated<InterfacePresentation> {
+        let generics = self.compose_generics();
+        let attrs = self.compose_attributes();
+        let ffi_type = self.compose_ffi_name();
+        let types = (ffi_type.clone(), self.compose_target_name());
+        let from  = self.present_aspect(FFIAspect::From);
+        Depunctuated::from_iter([
+            InterfacePresentation::conversion_from(&attrs, &types, from, &generics),
+            InterfacePresentation::conversion_to(&attrs, &types, self.present_aspect(FFIAspect::To), &generics),
+            InterfacePresentation::conversion_destroy(&attrs, &types, self.present_aspect(FFIAspect::Destroy), &generics),
+            InterfacePresentation::drop(&attrs, ffi_type, self.present_aspect(FFIAspect::Drop))
+        ])
     }
 }
 
-impl<I> FFIObjectComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
+impl<I, LANG, SPEC, Gen> FFIObjectComposable for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
     fn compose_object(&self) -> FFIObjectPresentation {
-        FFIObjectPresentation::Full(
-            self.ffi_object_composer
-                .compose(&())
-                .present(&self.source_ref()))
+        FFIObjectPresentation::Full(self.ffi_object_composer.compose(&())
+            .present(&self.source_ref())
+            .to_token_stream())
     }
 }
 
-impl<I> BindingComposable for ItemComposer<I> where I: DelimiterTrait + ?Sized {
-    fn compose_bindings(&self) -> Depunctuated<BindingPresentation> {
-        self.bindings_composer.compose_bindings(&self.source_ref(), true)
+impl<I, LANG, SPEC, Gen> BindingComposable<LANG, SPEC, Gen> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC, Gen>> {
+        self.bindings_composer.compose(&self.source_ref())
+    }
+}
+
+
+
+// impl<I, LANG, SPEC> SourceFermentable for ItemComposer<I, LANG, SPEC>
+//     where I: DelimiterTrait + ?Sized,
+//           LANG: Clone,
+//           SPEC: LangAttrSpecification<LANG>,
+//           SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+//           OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable,
+// {
+//     fn ferment(&self) -> Depunctuated<Fermentate> {
+//         let mut fermentate = Depunctuated::new();
+//         fermentate.push(Fermentate::Rust(RustFermentate::Item {
+//             attrs: self.compose_attributes(),
+//             comment: self.compose_docs(),
+//             ffi_presentation: self.compose_object(),
+//             conversions: self.compose_conversions(),
+//             bindings: self.compose_bindings(),
+//             traits: Depunctuated::new()
+//         }));
+//         #[cfg(feature = "objc")]
+//         fermentate.extend(self.objc_composer.ferment(&self.context()));
+//         fermentate
+//     }
+// }
+impl<I, LANG, SPEC, Gen> SourceAccessible for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait + ?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn context(&self) -> &ComposerLink<ScopeContext> {
+        self.base().context()
+    }
+}
+impl<I, LANG, SPEC, Gen> NameContext<Context> for ItemComposer<I, LANG, SPEC, Gen>
+    where I: DelimiterTrait +?Sized,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG>,
+          SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable {
+    fn name_context_ref(&self) -> &Context {
+        self.base().name_context_ref()
+    }
+}
+
+
+
+impl<I> SourceFermentable2<RustFermentate> for ItemComposer<I, RustFermentate, Vec<Attribute>, Option<Generics>>
+    where I: DelimiterTrait + ?Sized,
+          // SequenceOutput<LANG, SPEC>: ScopeContextPresentable,
+          // OwnedItemPresentableContext<LANG, SPEC>: ScopeContextPresentable,
+          // Self: BindingComposable<I, LANG, SPEC>
+
+{
+    fn ferment(&self) -> Depunctuated<RustFermentate> {
+        let mut fermentate = Depunctuated::new();
+        fermentate.push(RustFermentate::Item {
+            attrs: self.compose_attributes(),
+            comment: self.compose_docs(),
+            ffi_presentation: self.compose_object(),
+            conversions: self.compose_conversions(),
+            bindings: self.compose_bindings().present(&self.source_ref()),
+            traits: Depunctuated::new()
+        });
+
+        // fermentate.push(Fermentate::Rust(RustFermentate::Item {
+        //     attrs: self.compose_attributes(),
+        //     comment: self.compose_docs(),
+        //     ffi_presentation: self.compose_object(),
+        //     conversions: self.compose_conversions(),
+        //     bindings: self.compose_bindings(),
+        //     traits: Depunctuated::new()
+        // }));
+        // #[cfg(feature = "objc")]
+        // fermentate.extend(self.objc_composer.ferment(&self.context()));
+        fermentate
     }
 }
 

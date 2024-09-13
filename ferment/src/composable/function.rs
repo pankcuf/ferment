@@ -6,8 +6,9 @@ use crate::composable::{CfgAttributes, FieldComposer, FieldTypeKind};
 use crate::composer::{Composer, FromConversionComposer, FromConversionFullComposer, VarComposer};
 use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::ext::{Resolve, ToType};
+use crate::lang::LangAttrSpecification;
 use crate::presentable::{Expression, OwnedItemPresentableContext};
-use crate::presentation::{DictionaryName, Name};
+use crate::presentation::{DictionaryName, Name, RustFermentate};
 
 #[derive(Clone)]
 pub enum FnSignatureContext {
@@ -44,42 +45,42 @@ impl FnSignatureContext {
 #[derive(Clone, Debug)]
 pub struct FnReturnTypeComposer {
     pub presentation: ReturnType,
-    pub conversion: Expression,
+    pub conversion: Expression<RustFermentate, Vec<Attribute>>,
 }
 
 #[derive(Clone, Debug)]
-pub struct FnArgComposer {
-    pub name_type_original: OwnedItemPresentableContext,
-    pub name_type_conversion: Expression,
+pub struct FnArgComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub name_type_original: OwnedItemPresentableContext<LANG, SPEC>,
+    pub name_type_conversion: Expression<RustFermentate, Vec<Attribute>>,
 }
 
-impl FnArgComposer {
-    pub fn new(original: OwnedItemPresentableContext, conversion: Expression) -> Self {
-        Self {name_type_original: original, name_type_conversion: conversion }
+impl<LANG, SPEC> FnArgComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub fn new(original: OwnedItemPresentableContext<LANG, SPEC>, conversion: Expression<RustFermentate, Vec<Attribute>>) -> Self {
+        Self { name_type_original: original, name_type_conversion: conversion }
     }
 }
 
 impl<'a> Composer<'a> for PatType {
     type Source = (&'a FnSignatureContext, &'a ScopeContext);
-    type Result = FnArgComposer;
-    fn compose(&self, source: &Self::Source) -> Self::Result {
+    type Output = FnArgComposer<RustFermentate, Vec<Attribute>>;
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         let (_ctx, source) = source;
         let PatType { ty, attrs, pat, .. } = self;
         FnArgComposer::new(
-            original(Name::Pat(*pat.clone()), ty.to_type(), attrs.cfg_attributes()),
+            OwnedItemPresentableContext::Named(FieldComposer::new(Name::Pat(*pat.clone()), FieldTypeKind::Type(ty.to_type()), true, attrs.cfg_attributes()), Visibility::Inherited),
             FromConversionFullComposer::expr_less(Name::Pat(*self.pat.clone()), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(&self.ty).unwrap(), &source.scope)).compose(source))
     }
 }
 
-fn original(name: Name, ty: Type, attrs: Vec<Attribute>) -> OwnedItemPresentableContext {
-    OwnedItemPresentableContext::Named(FieldComposer::new(name, FieldTypeKind::Type(ty), true, attrs), Visibility::Inherited)
-}
-
 impl<'a> Composer<'a> for FnArg {
     type Source = (&'a FnSignatureContext, &'a ScopeContext);
-    type Result = FnArgComposer;
+    type Output = FnArgComposer<RustFermentate, Vec<Attribute>>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
         match self {
             FnArg::Receiver(receiver) =>
                 receiver.compose(source),
@@ -91,9 +92,9 @@ impl<'a> Composer<'a> for FnArg {
 
 impl<'a> Composer<'a> for Receiver {
     type Source = (&'a FnSignatureContext, &'a ScopeContext);
-    type Result = FnArgComposer;
+    type Output = FnArgComposer<RustFermentate, Vec<Attribute>>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
         let (ctx, source) = source;
         let Receiver { mutability: _, reference, attrs, .. } = self;
         let (ty, name_type_conversion) = match ctx {
@@ -105,6 +106,7 @@ impl<'a> Composer<'a> for Receiver {
                 ),
                 None => (
                     self_ty,
+                    // FromConversionFullComposer::expr_less(Name::Dictionary(DictionaryName::Self_), ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(self_ty)))
                     FromConversionComposer::new(Name::Dictionary(DictionaryName::Self_), self_ty.clone(), None).compose(source)
                 )
             }
@@ -115,12 +117,8 @@ impl<'a> Composer<'a> for Receiver {
         println!("Receiver Var: {}", var.to_token_stream());
         // let access = mutability.as_ref().map_or(quote!(const), ToTokens::to_token_stream);
 
-        let name_type_original = original(
-            Name::Dictionary(DictionaryName::Self_),
-            parse_quote!(#var),
-            // parse_quote!(* #access #var),
-            attrs.cfg_attributes()
-        );
+        let name_type_original = OwnedItemPresentableContext::Named(FieldComposer::new(Name::Dictionary(DictionaryName::Self_), FieldTypeKind::Type(parse_quote!(#var)), true, attrs.cfg_attributes()), Visibility::Inherited);
+
         let name_type_conversion = if reference.is_some() {
             Expression::AsRef(name_type_conversion.into())
         } else {

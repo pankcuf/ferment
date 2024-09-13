@@ -2,15 +2,16 @@ use std::fmt::Formatter;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
-use crate::ext::Terminated;
-use crate::presentation::DictionaryName;
+use crate::presentation::{DictionaryName, InterfacesMethodExpr};
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum DictionaryExpr {
     Simple(TokenStream2),
+    DictionaryName(DictionaryName),
     Depunctuated(Depunctuated<TokenStream2>),
     SelfDestructuring(TokenStream2),
+    BoxedSelfDestructuring(TokenStream2),
     ObjLen,
     ObjIntoIter,
     ObjToVec,
@@ -60,87 +61,126 @@ impl std::fmt::Display for DictionaryExpr {
     }
 }
 impl ToTokens for DictionaryExpr {
-    fn to_tokens(&self, dst: &mut TokenStream2) {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            Self::Simple(tokens) =>
-                tokens.to_token_stream(),
-            Self::Depunctuated(tokens) =>
-                tokens.to_token_stream(),
+            Self::Simple(simple) =>
+                simple.to_tokens(tokens),
+            Self::DictionaryName(name) =>
+                name.to_tokens(tokens),
+            Self::Depunctuated(sequence) =>
+                sequence.to_tokens(tokens),
             Self::ObjLen => {
-                let obj = DictionaryName::Obj;
-                quote!(#obj.len())
+                DictionaryName::Obj.to_tokens(tokens);
+                quote!(.len()).to_tokens(tokens);
             },
-            Self::ObjToVec =>
-                Self::ToVec(DictionaryName::Obj.to_token_stream())
-                    .to_token_stream(),
+            Self::ObjToVec => {
+                DictionaryName::Obj.to_tokens(tokens);
+                quote!(.to_vec()).to_tokens(tokens);
+            }
             Self::ObjIntoIter => {
-                let obj = DictionaryName::Obj;
-                quote!(#obj.into_iter())
+                DictionaryName::Obj.to_tokens(tokens);
+                quote!(.into_iter()).to_tokens(tokens)
             },
-            Self::FfiDeref =>
-                Self::Deref(DictionaryName::Ffi.to_token_stream())
-                    .to_token_stream(),
-            Self::FfiDerefAsRef =>
-                Self::AsRef(Self::FfiDeref.to_token_stream())
-                    .to_token_stream(),
+            Self::FfiDeref => {
+                quote!(*).to_tokens(tokens);
+                DictionaryName::Ffi.to_tokens(tokens);
+            },
+            Self::FfiDerefAsRef => {
+                quote!(&*).to_tokens(tokens);
+                DictionaryName::Ffi.to_tokens(tokens);
+            },
             Self::LetExpr(left, right) =>
-                quote!(let #left = #right),
+                quote!(let #left = #right).to_tokens(tokens),
             Self::LetFfiRef =>
-                Self::LetExpr(
-                    DictionaryName::FfiRef.to_token_stream(),
-                    Self::FfiDerefAsRef.to_token_stream().terminated())
-                    .to_token_stream(),
-            Self::Deref(expr) =>
-                quote!(*#expr),
-            Self::AsRef(expr) =>
-                quote!(&#expr),
-            Self::AsMutRef(expr) =>
-                quote!(&mut #expr),
-            Self::Mapper(context, expr) =>
-                quote!(|#context| #expr),
-            Self::SelfProp(prop) =>
-                quote!(self.#prop),
-            Self::AsMut_(field_path) =>
-                quote!(#field_path as *mut _),
-            Self::IfNotNull(condition, expr) =>
-                quote!(if (!(#condition).is_null()) { #expr }),
-            Self::IfThen(condition, expr) =>
-                quote!(#condition.then(|| #expr)),
-            Self::MapOr(condition, def, mapper) =>
-                quote!(#condition.map_or(#def, #mapper)),
-            Self::NullMut =>
-                quote!(std::ptr::null_mut()),
-            Self::CChar =>
-                quote!(std::os::raw::c_char),
-            Self::AsSlice(expr) =>
-                quote!(#expr.as_slice()),
-            Self::FromRawParts(data, len) =>
-                quote!(std::slice::from_raw_parts(#data, #len)),
-            Self::MapCollect(iter, mapper) =>
-                quote!(#iter.map(#mapper).collect()),
-            Self::ToVec(expr) =>
-                quote!(#expr.to_vec()),
-            Self::Match(expr) =>
-                quote!(match #expr),
-            Self::FromRoot(conversion) => {
-                let let_ffi_ref = Self::LetFfiRef;
-                quote!(#let_ffi_ref #conversion)
+                quote!(let ffi_ref = &*ffi;).to_tokens(tokens),
+            Self::Deref(expr) => {
+                quote!(*).to_tokens(tokens);
+                expr.to_tokens(tokens);
+            }
+            Self::AsRef(expr) => {
+                quote!(&).to_tokens(tokens);
+                expr.to_tokens(tokens);
+            }
+            Self::AsMutRef(expr) => {
+                quote!(&mut).to_tokens(tokens);
+                expr.to_tokens(tokens);
+            }
+            Self::Mapper(context, expr) => {
+                quote!(|#context| ).to_tokens(tokens);
+                expr.to_tokens(tokens);
+            }
+            Self::SelfProp(prop) => {
+                quote!(self.).to_tokens(tokens);
+                prop.to_tokens(tokens);
             },
-            Self::UnwrapOr(field_path, def) =>
-                quote!(#field_path.unwrap_or(#def)),
-            Self::CountRange =>
-                Self::Range(DictionaryName::Count.to_token_stream())
-                    .to_token_stream(),
+            Self::AsMut_(field_path) => {
+                field_path.to_tokens(tokens);
+                quote!( as *mut _).to_tokens(tokens);
+            },
+            Self::IfNotNull(condition, expr) => {
+                quote!(if (!(#condition).is_null()) { #expr }).to_tokens(tokens);
+            },
+            Self::IfThen(condition, expr) => {
+                condition.to_tokens(tokens);
+                quote!(.then(|| #expr)).to_tokens(tokens);
+            }
+            Self::MapOr(condition, def, mapper) => {
+                condition.to_tokens(tokens);
+                quote!(.map_or(#def, #mapper)).to_tokens(tokens);
+            }
+            Self::NullMut =>
+                quote!(std::ptr::null_mut()).to_tokens(tokens),
+            Self::CChar =>
+                quote!(std::os::raw::c_char).to_tokens(tokens),
+            Self::AsSlice(expr) => {
+                expr.to_tokens(tokens);
+                quote!(.as_slice()).to_tokens(tokens);
+            },
+            Self::FromRawParts(data, len) =>
+                quote!(std::slice::from_raw_parts(#data, #len)).to_tokens(tokens),
+            Self::MapCollect(iter, mapper) => {
+                iter.to_tokens(tokens);
+                quote!(.map(#mapper).collect()).to_tokens(tokens);
+            },
+            Self::ToVec(expr) => {
+                expr.to_tokens(tokens);
+                quote!(.to_vec()).to_tokens(tokens);
+            },
+            Self::Match(expr) => {
+                quote!(match ).to_tokens(tokens);
+                expr.to_tokens(tokens);
+            },
+            Self::FromRoot(conversion) => {
+                Self::LetFfiRef.to_tokens(tokens);
+                conversion.to_tokens(tokens);
+            },
+            Self::UnwrapOr(field_path, def) => {
+                field_path.to_tokens(tokens);
+                quote!(.unwrap_or(#def));
+            }
+            Self::CountRange => {
+                quote!((0..count)).to_tokens(tokens)
+                // quote!((0..)).to_tokens(tokens);
+                // quote!((0..)).to_tokens(tokens);
+                // DictionaryName::Count.to_tokens(tokens);
+                //
+                // Self::Range(DictionaryName::Count.to_token_stream())
+                //     .to_token_stream()
+            },
             Self::Range(expr) =>
-                quote!((0..#expr)),
+                quote!((0..#expr)).to_tokens(tokens),
             Self::NewBox(conversion) =>
-                quote!(Box::new(#conversion)),
-            Self::MapIntoBox(conversion) =>
-                quote!(#conversion.map(Box::new)),
+                quote!(Box::new(#conversion)).to_tokens(tokens),
+            Self::MapIntoBox(conversion) => {
+                conversion.to_tokens(tokens);
+                quote!(.map(Box::new)).to_tokens(tokens);
+            },
             Self::FromRawBox(conversion) =>
-                quote!(Box::from_raw(#conversion)),
-            Self::Add(field_path, index) =>
-                quote!(#field_path.add(#index)),
+                quote!(Box::from_raw(#conversion)).to_tokens(tokens),
+            Self::Add(field_path, index) => {
+                field_path.to_tokens(tokens);
+                quote!(.add(#index));
+            }
             Self::CastAs(ty, as_ty) =>
                 // Expr::Cast(ExprCast {
                 //     attrs: vec![],
@@ -148,13 +188,17 @@ impl ToTokens for DictionaryExpr {
                 //     as_token: Default::default(),
                 //     ty: Box::new(Type::__NonExhaustive),
                 // }).to_token_stream()
-                quote!(<#ty as #as_ty>),
-            Self::CallMethod(ns, args) =>
-                quote!(#ns(#args)),
-            Self::SelfDestructuring(tokens) =>
-                quote!(Self { #tokens }),
-            Self::TryIntoUnwrap(expr) =>
-                quote!(#expr.try_into().unwrap()),
+                quote!(<#ty as #as_ty>).to_tokens(tokens),
+            Self::CallMethod(ns, args) => {
+                ns.to_tokens(tokens);
+                quote!((#args)).to_tokens(tokens)
+            }
+            Self::SelfDestructuring(content) =>
+                quote!(Self { #content }).to_tokens(tokens),
+            Self::TryIntoUnwrap(expr) => {
+                expr.to_tokens(tokens);
+                quote!(.try_into().unwrap()).to_tokens(tokens)
+            }
             Self::MatchResult(to_ok_conversion, to_error_conversion) => {
                 let null_mut = DictionaryExpr::NullMut;
                 let field_path = DictionaryName::Obj;
@@ -162,62 +206,28 @@ impl ToTokens for DictionaryExpr {
                 Self::Match(quote!(#field_path {
                     Ok(#arg_path) => (#to_ok_conversion, #null_mut),
                     Err(#arg_path) => (#null_mut, #to_error_conversion)
-                })).to_token_stream()
-
-                // Expr::Match(ExprMatch {
-                //     attrs: vec![],
-                //     match_token: Default::default(),
-                //     expr: Box::new(Expr::Path(ExprPath {
-                //         attrs: vec![],
-                //         qself: None,
-                //         path: DictionaryName::Obj.to_path(),
-                //     })),
-                //     brace_token: Default::default(),
-                //     arms: vec![
-                //         Arm {
-                //             attrs: vec![],
-                //             pat: Pat::TupleStruct(PatTupleStruct {
-                //                 attrs: vec![],
-                //                 path: parse_quote!(Ok),
-                //                 pat: PatTuple {
-                //                     attrs: vec![],
-                //                     paren_token: Default::default(),
-                //                     elems: CommaPunctuated::from_iter([Pat::Path(DictionaryName::O.)]),
-                //                 },
-                //             }),
-                //             guard: None,
-                //             fat_arrow_token: Default::default(),
-                //             body: Box::new(Expr::__NonExhaustive),
-                //             comma: None,
-                //         },
-                //         Arm {
-                //             attrs: vec![],
-                //             pat: Pat::__NonExhaustive,
-                //             guard: None,
-                //             fat_arrow_token: Default::default(),
-                //             body: Box::new(Expr::__NonExhaustive),
-                //             comma: None,
-                //         },
-                //     ],
-                // }).to_token_stream()
+                })).to_tokens(tokens)
             },
-            Self::CallbackCaller(args_to_conversion, post_processing) => quote! {
-                let ffi_result = (self.caller)(#args_to_conversion);
-                #post_processing
+            Self::CallbackCaller(args_to_conversion, post_processing) => {
+                quote!(let ffi_result = (self.caller)(#args_to_conversion);).to_tokens(tokens);
+                post_processing.to_tokens(tokens);
             },
-            Self::CallbackDestructor(result_conversion, ffi_result) => quote! {
-                let result = #result_conversion;
-                // (self.destructor)(o_0, #ffi_result);
-                (self.destructor)(#ffi_result);
-                result
-            },
+            Self::CallbackDestructor(result_conversion, ffi_result) =>
+                quote!(
+                    let result = #result_conversion;
+                    (self.destructor)(#ffi_result);
+                    result
+                ).to_tokens(tokens),
             Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from(#expr)),
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)),
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionDestroy(ffi_type, target_type, expr) => {
-                quote!(<#ffi_type as ferment_interfaces::FFIConversionDestroy<#target_type>>::destroy(#expr))
+                quote!(<#ffi_type as ferment_interfaces::FFIConversionDestroy<#target_type>>::destroy(#expr)).to_tokens(tokens)
             }
-        }.to_tokens(dst)
+            Self::BoxedSelfDestructuring(expr) =>
+                InterfacesMethodExpr::Boxed(DictionaryExpr::SelfDestructuring(expr.to_token_stream()).to_token_stream()).to_tokens(tokens)
+
+        }
     }
 }

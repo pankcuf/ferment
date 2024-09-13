@@ -27,8 +27,8 @@ impl<Context, Result, Parent> Linkable<Parent> for ContextComposer<Context, Resu
 impl<'a, Context, Result, Parent> Composer<'a> for ContextComposer<Context, Result, Parent>
     where Parent: SharedAccess {
     type Source = ();
-    type Result = Result;
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
+    type Output = Result;
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         (self.set_output)(
             self.parent.as_ref()
                 .expect("no parent")

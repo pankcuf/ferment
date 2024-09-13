@@ -1,44 +1,54 @@
+use std::fmt::{Debug, Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Expr, ExprLet, Pat, Path, PatLit};
-use ferment_macro::Display;
 use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Depunctuated, Lambda, ParenWrapped, SemiPunctuated};
 use crate::composer::{CommaPunctuatedOwnedItems, OwnedStatement, OwnerAspectWithCommaPunctuatedItems};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
-use crate::presentable::{Aspect, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, create_struct, DictionaryName, InterfacesMethodExpr};
+use crate::lang::LangAttrSpecification;
+use crate::presentable::{Aspect, Context, Expression, OwnedItemPresentableContext, ScopeContextPresentable};
+use crate::presentation::{ArgPresentation, present_struct, DictionaryName, InterfacesMethodExpr, RustFermentate};
 
 
-#[derive(Clone, Debug, Display)]
-pub enum SequenceOutput {
-    CurlyBracesFields(OwnerAspectWithCommaPunctuatedItems),
-    RoundBracesFields(OwnerAspectWithCommaPunctuatedItems),
-    CurlyVariantFields(OwnerAspectWithCommaPunctuatedItems),
-    RoundVariantFields(OwnerAspectWithCommaPunctuatedItems),
+#[derive(Clone, Debug)]
+pub enum SequenceOutput<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    CurlyBracesFields(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    RoundBracesFields(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    CurlyVariantFields(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    RoundVariantFields(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
 
-    Variants(Aspect, Vec<Attribute>, CommaPunctuated<SequenceOutput>),
-    MatchFields((Box<Expression>, CommaPunctuatedOwnedItems)),
-    NoFields(Aspect),
-    NoFieldsConversion(Aspect),
-    EnumUnitFields(OwnerAspectWithCommaPunctuatedItems),
-    TypeAliasFromConversion(Depunctuated<OwnedItemPresentableContext>),
-    // Struct(VariantIteratorLocalContext, ComposerPresenterByRef<(CommaPunctuated<OwnedItemPresentableContext>, ScopeContext), TokenStream2>),
-    NamedStruct(OwnerAspectWithCommaPunctuatedItems),
-    UnnamedStruct(OwnerAspectWithCommaPunctuatedItems),
-    Enum(Box<SequenceOutput>),
-    FromRoot(Box<SequenceOutput>, Box<SequenceOutput>),
-    Boxed(Box<SequenceOutput>),
-    Lambda(Box<SequenceOutput>, Box<SequenceOutput>),
+    Variants(Aspect<Context>, SPEC, CommaPunctuated<SequenceOutput<LANG, SPEC>>),
+    MatchFields((Box<Expression<LANG, SPEC>>, CommaPunctuatedOwnedItems<LANG, SPEC>)),
+    NoFields(Aspect<Context>),
+    NoFieldsConversion(Aspect<Context>),
+    EnumUnitFields(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    TypeAliasFromConversion(Depunctuated<OwnedItemPresentableContext<LANG, SPEC>>),
+    NamedStruct(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    UnnamedStruct(OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>),
+    Enum(Box<SequenceOutput<LANG, SPEC>>),
+    FromRoot(Box<SequenceOutput<LANG, SPEC>>, Box<SequenceOutput<LANG, SPEC>>),
+    Boxed(Box<SequenceOutput<LANG, SPEC>>),
+    Lambda(Box<SequenceOutput<LANG, SPEC>>, Box<SequenceOutput<LANG, SPEC>>),
     AddrDeref(TokenStream2),
     Obj,
     Empty,
     UnboxedRoot,
-    StructDropBody(OwnedStatement),
-    DropCode(OwnedStatement),
+    StructDropBody(OwnedStatement<LANG, SPEC>),
+    DropCode(OwnedStatement<LANG, SPEC>),
 }
 
-impl ScopeContextPresentable for SequenceOutput {
+impl<LANG, SPEC> Display for SequenceOutput<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
+impl ScopeContextPresentable for SequenceOutput<RustFermentate, Vec<Attribute>> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -94,17 +104,10 @@ impl ScopeContextPresentable for SequenceOutput {
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote!(#name #presentation)
             },
-            // OwnerIteratorPresentationContext::Struct((aspect, fields), composer) => {
-            //     let ffi_type = aspect.present(source);
-            //     create_struct(
-            //         &ffi_type.to_path().segments.last().unwrap().ident,
-            //         aspect.attrs().to_token_stream(),
-            //         composer(&(fields.clone(), source.clone())))
-            // },
             SequenceOutput::UnnamedStruct((aspect, fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
-                create_struct(
+                present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
                     ParenWrapped::new(fields.clone()).present(source).terminated())
@@ -112,7 +115,7 @@ impl ScopeContextPresentable for SequenceOutput {
             SequenceOutput::NamedStruct((aspect, fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
-                create_struct(
+                present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
                     BraceWrapped::new(fields.clone()).present(source))
@@ -185,7 +188,7 @@ impl ScopeContextPresentable for SequenceOutput {
             },
             SequenceOutput::UnboxedRoot => {
                 //println!("SequenceOutput::{}", self);
-                Expression::UnboxAny(Expression::DictionaryName(DictionaryName::Ffi).into()).present(source)
+                Expression::UnboxAny(Expression::<RustFermentate, Vec<Attribute>>::DictionaryName(DictionaryName::Ffi).into()).present(source)
             },
             SequenceOutput::StructDropBody(items) => {
                 //println!("SequenceOutput::{}({:?})", self, items);

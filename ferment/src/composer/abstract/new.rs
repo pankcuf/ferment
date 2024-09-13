@@ -1,5 +1,5 @@
 use crate::composable::{FieldComposer, FnSignatureContext};
-use crate::composer::{Composer, ConstructorFieldsContext, FieldTypeLocalContext, FieldTypesContext, FunctionContext, Linkable, LocalConversionContext, OwnedItemPresentablePair, OwnedStatement, OwnerAspectWithCommaPunctuatedItems};
+use crate::composer::{Composer, ConstructorFieldsContext, FieldTypeLocalContext, FieldComposers, FunctionContext, Linkable, LocalConversionContext, OwnedItemPresentablePair, OwnedStatement, OwnerAspectWithCommaPunctuatedItems};
 use crate::presentable::{BindingPresentableContext, Expression, OwnedItemPresentableContext, ScopeContextPresentable, SequenceOutput};
 use crate::shared::SharedAccess;
 
@@ -12,55 +12,58 @@ use crate::shared::SharedAccess;
 // pub type ComposerPresenterByRef<Context, Presentation> = dyn Fn(&Context) -> Presentation;
 // pub type SharedComposer<Parent, Context> = ComposerPresenterByRef<<Parent as SharedAccess>::ImmutableAccess, Context>;
 
-pub type FieldsSequenceMixer<Parent, Context, Statement> = SequenceMixer<
+pub type FieldsSequenceMixer<Parent, Context, Statement, LANG, SPEC> = SequenceMixer<
     Parent,
     Context,
-    FieldTypeLocalContext,
-    Expression,
+    FieldTypeLocalContext<LANG, SPEC>,
+    Expression<LANG, SPEC>,
     Statement,
-    SequenceOutput,
-    SequenceOutput,
-    SequenceOutput>;
+    SequenceOutput<LANG, SPEC>,
+    SequenceOutput<LANG, SPEC>,
+    SequenceOutput<LANG, SPEC>>;
 
-pub type FFIConversionMixer<Parent> = FieldsSequenceMixer<
+pub type FFIConversionMixer<Parent, LANG, SPEC, Gen> = FieldsSequenceMixer<
     Parent,
-    LocalConversionContext,
-    OwnerAspectWithCommaPunctuatedItems
+    LocalConversionContext<LANG, SPEC, Gen>,
+    OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>,
+    LANG,
+    SPEC
 >;
-pub type DropSequenceMixer<Parent> = FieldsSequenceMixer<
+pub type DropSequenceMixer<Parent, LANG, SPEC> = FieldsSequenceMixer<
     Parent,
-    FieldTypesContext,
-    OwnedStatement
+    FieldComposers<LANG, SPEC>,
+    OwnedStatement<LANG, SPEC>,
+    LANG, SPEC
 >;
-pub type FieldsOwnedComposer<Parent> = SequenceComposer<
+pub type FieldsOwnedComposer<Parent, LANG, SPEC, Gen> = SequenceComposer<
     Parent,
-    LocalConversionContext,
-    FieldComposer,
-    OwnedItemPresentableContext,
-    OwnerAspectWithCommaPunctuatedItems,
-    SequenceOutput
+    LocalConversionContext<LANG, SPEC, Gen>,
+    FieldComposer<LANG, SPEC>,
+    OwnedItemPresentableContext<LANG, SPEC>,
+    OwnerAspectWithCommaPunctuatedItems<LANG, SPEC>,
+    SequenceOutput<LANG, SPEC>
 >;
-pub type CtorSequenceComposer<Parent, S, SP, I> = SequenceComposer<
+pub type CtorSequenceComposer<Parent, LANG, SPEC, Gen> = SequenceComposer<
     Parent,
-    ConstructorFieldsContext,
-    FieldComposer,
-    OwnedItemPresentablePair,
-    FunctionContext,
-    BindingPresentableContext<S, SP, I>,
+    ConstructorFieldsContext<LANG, SPEC, Gen>,
+    FieldComposer<LANG, SPEC>,
+    OwnedItemPresentablePair<LANG, SPEC>,
+    FunctionContext<LANG, SPEC, Gen>,
+    BindingPresentableContext<LANG, SPEC, Gen>,
 >;
 #[allow(unused)]
-pub type FnSignatureSequenceComposer<Parent, S, SP, I> = SequenceComposer<
+pub type FnSignatureSequenceComposer<Parent, LANG, SPEC, Gen> = SequenceComposer<
     Parent,
     FnSignatureContext,
-    FieldComposer,
-    OwnedItemPresentablePair,
-    FunctionContext,
-    BindingPresentableContext<S, SP, I>,
+    FieldComposer<LANG, SPEC>,
+    OwnedItemPresentablePair<LANG, SPEC>,
+    FunctionContext<LANG, SPEC, Gen>,
+    BindingPresentableContext<LANG, SPEC, Gen>,
 >;
-pub type FieldsSequenceComposer<Parent, OwnerAspect, B, C, Presentable> = SequenceComposer<
+pub type FieldsSequenceComposer<Parent, OwnerAspect, B, C, Presentable, LANG, SPEC> = SequenceComposer<
     Parent,
     OwnerAspect,
-    FieldComposer,
+    FieldComposer<LANG, SPEC>,
     B,
     C,
     Presentable>;
@@ -82,9 +85,9 @@ impl<In, Ctx, Map, Out> IterativeComposer<In, Ctx, Map, Out>
 
 impl<'a, In, Ctx, Map, Out> Composer<'a> for IterativeComposer<In, Ctx, Map, Out> {
     type Source = In;
-    type Result = Out;
+    type Output = Out;
 
-    fn compose(&self, source: &Self::Source) -> Self::Result {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         (self.set_output)((source, &self.mapper))
 
     }
@@ -135,8 +138,8 @@ impl<'a, Context, Result, Parent, MapFn, OutFn> Composer<'a> for ContextComposer
         MapFn: Fn(&Parent::ImmutableAccess) -> Context,
         OutFn: Fn(Context) -> Result {
     type Source = ();
-    type Result = Result;
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
+    type Output = Result;
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         (self.set_output)(
             self.parent.as_ref()
                 .expect("no parent")
@@ -198,8 +201,8 @@ impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a> for Sequen
     where
         Parent: SharedAccess {
     type Source = ();
-    type Result = Out;
-    fn compose(&self, _: &Self::Source) -> Self::Result {
+    type Output = Out;
+    fn compose(&self, _: &Self::Source) -> Self::Output {
         (self.set_output)(
             self.iterator.compose(&self.parent
                 .as_ref()
@@ -239,8 +242,8 @@ for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, 
         SeqMixOut: ScopeContextPresentable,
         Out: ScopeContextPresentable {
     type Source = ();
-    type Result = Out;
-    fn compose(&self, _source: &Self::Source) -> Self::Result {
+    type Output = Out;
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         (self.post_processor)(&(
             self.parent.as_ref().expect("no parent").access(&self.context),
             self.sequence.compose(&())))

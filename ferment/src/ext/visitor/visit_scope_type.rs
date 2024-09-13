@@ -287,7 +287,10 @@ impl<'a> VisitScopeType<'a> for Path {
                     // TODO: make it Unknown?
                     ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))
                 },
-                _ if first_ident.is_any_string() => {
+                _ if first_ident.is_str() => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))))
+                },
+                _ if first_ident.is_string() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))))
                 },
                 _ if first_ident.is_lambda_fn() => {

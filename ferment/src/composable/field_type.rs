@@ -1,11 +1,13 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
 use syn::{Attribute, Type};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use ferment_macro::Display;
 use crate::context::ScopeContext;
+use crate::lang::LangAttrSpecification;
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::Name;
+use crate::presentation::{Name, RustFermentate};
 
 #[derive(Clone, Debug, Display)]
 pub enum FieldTypeKind {
@@ -13,15 +15,6 @@ pub enum FieldTypeKind {
     Conversion(TokenStream2)
 }
 
-// impl Display for FieldTypeKind {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             FieldTypeKind::Type(ty) => {}
-//             FieldTypeKind::Conversion(conv) => {}
-//         }
-//         f.write_str(format!("Kind::{}({})").as_str())
-//     }
-// }
 impl ToTokens for FieldTypeKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
@@ -38,21 +31,29 @@ impl FieldTypeKind {
             panic!("improper use of conversion as type")
         }
     }
-
+    pub fn r#type(ty: &Type) -> Self {
+        Self::Type(ty.clone())
+    }
 }
+
+pub type RustFieldComposer = FieldComposer<RustFermentate, Vec<Attribute>>;
 
 #[derive(Clone, Debug)]
-pub struct FieldComposer {
+pub struct FieldComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     pub name: Name,
     pub kind: FieldTypeKind,
-    pub attrs: Vec<Attribute>,
-    // pub attrs: Directives,
+    pub attrs: SPEC,
     pub named: bool,
+    _marker: PhantomData<LANG>,
 }
 
-impl Display for FieldComposer {
+impl<LANG, SPEC> Display for FieldComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> + Display {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let attrs = &self.attrs;
+        // let attrs = &self.attrs;
         f.write_str(
             format!(
                 "FieldComposer({}({}), {}({}), {}, {}",
@@ -61,23 +62,29 @@ impl Display for FieldComposer {
                 self.kind,
                 self.kind.to_token_stream(),
                 self.named,
-                quote!(#(#attrs),*)
+                self.attrs,
+                // quote!(#(#attrs),*)
             ).as_str())
     }
 }
 
-impl FieldComposer {
-    pub fn new(name: Name, kind: FieldTypeKind, named: bool, attrs: Vec<Attribute>) -> Self {
-        Self { name, kind, named, attrs }
-    }
-    pub fn no_attrs(name: Name, kind: FieldTypeKind, named: bool) -> Self {
-        Self { name, kind, named, attrs: Vec::new() }
+impl<LANG, SPEC> FieldComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub fn new(name: Name, kind: FieldTypeKind, named: bool, attrs: SPEC) -> Self {
+        Self { name, kind, named, attrs, _marker: PhantomData::default() }
     }
     pub fn named(name: Name, kind: FieldTypeKind) -> Self {
         Self::no_attrs(name, kind, true)
     }
     pub fn unnamed(name: Name, kind: FieldTypeKind) -> Self {
-        Self { name, kind, named: false, attrs: Vec::new() }
+        Self { name, kind, named: false, attrs: SPEC::default(), _marker: PhantomData::default() }
+    }
+    pub fn no_attrs(name: Name, kind: FieldTypeKind, named: bool) -> Self {
+        Self { name, kind, named, attrs: SPEC::default(), _marker: PhantomData::default() }
+    }
+    pub fn tokenized_name(&self) -> TokenStream2 {
+        self.name.to_token_stream()
     }
     pub fn ty(&self) -> &Type {
         if let FieldTypeKind::Type(ty) = &self.kind {
@@ -86,21 +93,22 @@ impl FieldComposer {
             panic!("improper use of conversion as type")
         }
     }
-    pub fn tokenized_name(&self) -> TokenStream2 {
-        self.name.to_token_stream()
-    }
-    pub fn to_attrs(&self) -> Vec<Attribute> {
-        self.attrs.clone()
-    }
 }
-impl ToTokens for FieldComposer {
+
+impl ToTokens for FieldComposer<RustFermentate, Vec<Attribute>> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let Self { name, kind, attrs, .. } = self;
         let template = quote! { #(#attrs)* #name: #kind };
         template.to_tokens(tokens)
     }
 }
-impl ScopeContextPresentable for FieldComposer {
+
+
+
+impl<LANG, SPEC> ScopeContextPresentable for FieldComposer<LANG, SPEC>
+    where Self: ToTokens,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     type Presentation = TokenStream2;
 
     fn present(&self, _source: &ScopeContext) -> Self::Presentation {

@@ -1,5 +1,5 @@
 use crate::composer::r#abstract::Linkable;
-use crate::presentable::Context;
+use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
@@ -8,19 +8,19 @@ pub enum FFIAspect {
     FFI,
 }
 
-pub struct TypeComposer<Parent> where Parent: SharedAccess {
+pub struct TypeComposer<Parent, CTX> where Parent: SharedAccess, CTX: Clone, Aspect<CTX>: ScopeContextPresentable {
     pub parent: Option<Parent>,
-    pub context: Context,
+    pub context: CTX,
 }
 
-impl<Parent> Linkable<Parent> for TypeComposer<Parent> where Parent: SharedAccess {
+impl<Parent, CTX> Linkable<Parent> for TypeComposer<Parent, CTX> where Parent: SharedAccess, CTX: Clone, Aspect<CTX>: ScopeContextPresentable {
     fn link(&mut self, parent: &Parent) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Parent> TypeComposer<Parent> where Parent: SharedAccess {
-    pub const fn new(context: Context) -> Self {
+impl<Parent, CTX> TypeComposer<Parent, CTX> where Parent: SharedAccess, CTX: Clone, Aspect<CTX>: ScopeContextPresentable {
+    pub const fn new(context: CTX) -> Self {
         Self { context, parent: None }
     }
 

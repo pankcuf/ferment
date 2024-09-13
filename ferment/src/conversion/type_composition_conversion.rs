@@ -151,6 +151,7 @@ pub enum DictFermentableModelKind {
     SmartPointer(SmartPointerModelKind),
     Group(GroupModelKind),
     String(TypeModel),
+    Str(TypeModel),
     Other(TypeModel),
     Digit128(TypeModel),
 }
@@ -160,6 +161,7 @@ impl<'a> AsType<'a> for DictFermentableModelKind {
         match self {
             DictFermentableModelKind::SmartPointer(kind) => kind.as_type(),
             DictFermentableModelKind::Group(kind) => kind.as_type(),
+            DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::Other(model) |
             DictFermentableModelKind::Digit128(model) => model.as_type()
@@ -172,6 +174,7 @@ impl TypeModeled for DictFermentableModelKind {
         match self {
             DictFermentableModelKind::SmartPointer(kind) => kind.type_model_mut(),
             DictFermentableModelKind::Group(kind) => kind.type_model_mut(),
+            DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::Digit128(model) |
             DictFermentableModelKind::Other(model) => model
@@ -181,6 +184,7 @@ impl TypeModeled for DictFermentableModelKind {
         match self {
             DictFermentableModelKind::SmartPointer(kind) => kind.type_model_ref(),
             DictFermentableModelKind::Group(kind) => kind.type_model_ref(),
+            DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::Digit128(model) |
             DictFermentableModelKind::Other(model) => model
@@ -194,6 +198,8 @@ impl Debug for DictFermentableModelKind {
                 format!("SmartPointer({})", model),
             DictFermentableModelKind::Group(model) =>
                 format!("Group({})", model),
+            DictFermentableModelKind::Str(model) =>
+                format!("Str({})", model),
             DictFermentableModelKind::String(model) =>
                 format!("String({})", model),
             DictFermentableModelKind::Other(model) =>

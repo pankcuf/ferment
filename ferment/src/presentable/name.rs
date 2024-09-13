@@ -1,20 +1,22 @@
+use std::fmt::{Display, Formatter};
 use proc_macro2::Ident;
-use syn::{Attribute, parse_quote, Path, Type};
-use ferment_macro::Display;
-use crate::composable::FnSignatureContext;
+use quote::ToTokens;
+use syn::{Attribute, parse_quote, Path, Type, TypeSlice};
+use crate::composable::{FnSignatureContext, TypeModeled};
 use crate::context::ScopeContext;
-use crate::ext::{Mangle, Resolve, ResolveTrait, ToType};
+use crate::conversion::{GenericTypeKind, MixinKind};
+use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
 use crate::presentable::ScopeContextPresentable;
 
 
-#[derive(Clone, Debug, Display)]
-pub enum Aspect {
-    Target(Context),
-    FFI(Context),
-    RawTarget(Context),
+#[derive(Clone, Debug)]
+pub enum Aspect<T> {
+    Target(T),
+    FFI(T),
+    RawTarget(T),
 }
 
-impl Aspect {
+impl Aspect<Context> {
     pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
@@ -23,14 +25,15 @@ impl Aspect {
         }
     }
 }
-
-// #[derive(Clone, Debug)]
-// pub enum ContextID {
-//     Ident(Ident),
-//     Variant(Ident, Ident),
-//     Path(Path),
-//     SignaturePath(FnSignatureContext, Path)
-// }
+impl<T> Display for Aspect<T> where T: ToString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Target(context) => format!("Target({})", context.to_string()),
+            Self::FFI(context) => format!("FFI({})", context.to_string()),
+            Self::RawTarget(context) => format!("RawTarget({})", context.to_string()),
+        }.as_str())
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Context {
@@ -55,22 +58,67 @@ pub enum Context {
     Trait {
         path: Path,
         attrs: Vec<Attribute>,
+    },
+    Impl {
+        path: Path,
+        attrs: Vec<Attribute>,
+    },
+    Mixin {
+        mixin_kind: MixinKind,
+        attrs: Vec<Attribute>,
+    }
+}
+
+impl Display for Context {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Context::Enum { ident, .. } |
+            Context::Struct { ident, .. } =>
+                ident.to_string(),
+            Context::EnumVariant { ident, variant_ident, .. } =>
+                format!("{ident}_{variant_ident}"),
+            Context::Fn { path, .. } |
+            Context::Trait { path, .. } =>
+                path.to_token_stream().to_string(),
+            Context::Impl { path, .. } =>
+                path.to_token_stream().to_string(),
+            Context::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
+                kind.to_token_stream().to_string(),
+            Context::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
+                model.to_string(),
+        }.as_str())
     }
 }
 
 impl Context {
     fn attrs(&self) -> &Vec<Attribute> {
         match self {
-            Context::Enum { attrs, .. } => attrs,
-            Context::EnumVariant { attrs, .. } => attrs,
-            Context::Struct { attrs, .. } => attrs,
-            Context::Fn { attrs, .. } => attrs,
-            Context::Trait { attrs, .. } => attrs
+            Context::Mixin { attrs, .. } |
+            Context::Enum { attrs, .. } |
+            Context::EnumVariant { attrs, .. } |
+            Context::Struct { attrs, .. } |
+            Context::Fn { attrs, .. } |
+            Context::Trait { attrs, .. } |
+            Context::Impl { attrs, .. } => attrs,
         }
+    }
+
+    pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>) -> Self {
+        Self::Struct { ident: ident.clone(), attrs }
+    }
+    pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>) -> Self {
+        Self::Enum { ident: ident.clone(), attrs }
+    }
+    pub fn variant(ident: &Ident, variant: &Ident, attrs: Vec<Attribute>) -> Self {
+        Self::EnumVariant { ident: ident.clone(), variant_ident: variant.clone(), attrs }
+    }
+
+    pub fn mixin(kind: &MixinKind, attrs: Vec<Attribute>) -> Self {
+        Self::Mixin { mixin_kind: kind.clone(), attrs }
     }
 }
 
-impl ScopeContextPresentable for Aspect {
+impl ScopeContextPresentable for Aspect<Context> {
     type Presentation = Type;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -88,11 +136,27 @@ impl ScopeContextPresentable for Aspect {
                     Context::Fn { path, .. } => {
                         path.to_type()
                     }
-                    Context::Trait { path , ..} => path.to_type().resolve(source)
+                    Context::Trait { path , ..} |
+                    Context::Impl { path , ..} =>
+                        path.to_type().resolve(source),
+                    Context::Mixin { mixin_kind: MixinKind::Generic(GenericTypeKind::Slice(ty)), ..} => {
+                        let type_slice: TypeSlice = parse_quote!(#ty);
+                        let elem_type = &type_slice.elem;
+                        parse_quote!(Vec<#elem_type>)
+                    }
+                    Context::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
+                        kind.ty().cloned().unwrap(),
+                    Context::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
+                        model.as_type().clone()
+                    // model.type_model_ref().ty.clone(),
                 }
             },
             Aspect::FFI(context) => {
                 match context {
+                    Context::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
+                        kind.ty().cloned().unwrap().mangle_ident_default().to_type(),
+                    Context::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
+                        model.mangle_ident_default().to_type(),
                     Context::Enum { ident , .. } |
                     Context::Struct { ident , .. } => {
                         <Type as Resolve<Type>>::resolve(&ident.to_type(), source)
@@ -100,6 +164,10 @@ impl ScopeContextPresentable for Aspect {
                             .to_type()
                     }
                     Context::Trait { path , .. } =>
+                        <Type as Resolve<Type>>::resolve(&path.to_type(), source)
+                            .mangle_ident_default()
+                            .to_type(),
+                    Context::Impl { path , .. } =>
                         <Type as Resolve<Type>>::resolve(&path.to_type(), source)
                             .mangle_ident_default()
                             .to_type(),
@@ -145,6 +213,10 @@ impl ScopeContextPresentable for Aspect {
             },
             Aspect::RawTarget(context) => {
                 match context {
+                    Context::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
+                        kind.ty().cloned().unwrap(),
+                    Context::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
+                        model.type_model_ref().ty.clone(),
                     Context::Enum { ident , attrs: _, } |
                     Context::Struct { ident , attrs: _, } =>
                         ident.to_type(),
@@ -153,7 +225,8 @@ impl ScopeContextPresentable for Aspect {
                         parse_quote!(#full_ty::#variant_ident)
                     },
                     Context::Fn { path, .. } => path.to_type(),
-                    Context::Trait { path , attrs: _ } => path.to_type()
+                    Context::Trait { path , attrs: _ } => path.to_type(),
+                    Context::Impl { path , attrs: _ } => path.to_type()
                 }
             }
         }

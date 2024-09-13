@@ -1,13 +1,12 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
 use syn::Attribute;
-use crate::ast::Depunctuated;
 use crate::ext::ToPath;
-use crate::presentation::{BindingPresentation, create_struct, DropInterfacePresentation, InterfacePresentation, Name};
+use crate::presentation::{present_struct, Name};
 
 #[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {
-    Empty,
+    // Empty,
     // StaticVTable {
     //     name: Name,
     //     methods_declarations: Punctuated<TokenStream2, Comma>,
@@ -35,12 +34,12 @@ pub enum FFIObjectPresentation {
         fields: TokenStream2
     },
     Full(TokenStream2),
-    Generic {
-        object_presentation: TokenStream2,
-        interface_presentations: Depunctuated<InterfacePresentation>,
-        drop_presentation: DropInterfacePresentation,
-        bindings: Depunctuated<BindingPresentation>,
-    },
+    // Generic {
+    //     object_presentation: TokenStream2,
+    //     interface_presentations: Depunctuated<InterfacePresentation>,
+    //     drop_presentation: DropInterfacePresentation,
+    //     bindings: Depunctuated<BindingPresentation>,
+    // },
 }
 
 
@@ -49,25 +48,25 @@ impl ToTokens for FFIObjectPresentation {
         match self {
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, attrs, fields } => {
-                create_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
+                present_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
             },
             Self::TraitObject { name, attrs, fields } => {
-                create_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
+                present_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
             },
-            Self::Generic {
-                object_presentation,
-                interface_presentations,
-                drop_presentation,
-                bindings
-            } => quote! {
-                #object_presentation
-                #interface_presentations
-                #drop_presentation
-                #bindings
-            },
-            Self::Empty => { /* Box<T> */
-                quote!()
-            },
+            // Self::Generic {
+            //     object_presentation,
+            //     interface_presentations,
+            //     drop_presentation,
+            //     bindings
+            // } => quote! {
+            //     #object_presentation
+            //     #interface_presentations
+            //     #drop_presentation
+            //     #bindings
+            // },
+            // Self::Empty => { /* Box<T> */
+            //     quote!()
+            // },
 /*            Self::StaticVTable { name, fq_trait_vtable, methods_declarations, methods_implementations } => {
                 println!("FFIObjectPresentation::StaticVTable:: {:?} [{}]", name, fq_trait_vtable);
                 quote! {

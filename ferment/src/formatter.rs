@@ -6,7 +6,7 @@ use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
 use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, GenericConversion, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::ObjectKind;
+use crate::conversion::{MixinKind, ObjectKind};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]
@@ -59,6 +59,13 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
         .map(|(item, attrs)| format!("{}: {}", format_unique_attrs(attrs), item.object.to_token_stream()))
+        .collect::<Vec<_>>()
+        .join("\n\t")
+}
+#[allow(unused)]
+pub fn format_mixin_kinds(dict: &HashMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
+    dict.iter()
+        .map(|(item, attrs)| format!("{}:\n\t {}", item, format_unique_attrs(attrs)))
         .collect::<Vec<_>>()
         .join("\n\t")
 }

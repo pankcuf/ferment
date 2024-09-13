@@ -21,9 +21,9 @@ impl<'a> VarComposer<'a> {
 
 impl<'a> Composer<'a> for VarComposer<'a> {
     type Source = ScopeContext;
-    type Result = FFIVariable;
+    type Output = FFIVariable;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, source: &'a Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
         let is_const_ptr = search_key.maybe_originally_is_const_ptr();
 
@@ -276,6 +276,7 @@ impl<'a> Composer<'a> for VarComposer<'a> {
                                     ) |
                                     DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
+                                    DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
                                 // Dictionary generics and strings should be fermented
                                 // Others should be treated as opaque
@@ -426,9 +427,9 @@ impl From<&Type> for VariableComposer {
 
 impl<'a> Composer<'a> for VariableComposer {
     type Source = ScopeContext;
-    type Result = FFIVariable;
+    type Output = FFIVariable;
 
-    fn compose(&self, source: &Self::Source) -> Self::Result {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         let is_const_ptr = match self.ty {
             Type::Ptr(TypePtr { const_token, .. }) => const_token.is_some(),
             _ => false
@@ -670,6 +671,7 @@ impl<'a> Composer<'a> for VariableComposer {
                                     ) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                                    DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
                                 // Dictionary generics and strings should be fermented
                                 // Others should be treated as opaque

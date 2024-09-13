@@ -9,21 +9,21 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
-use crate::composer::ParentComposer;
+use crate::composer::ComposerLink;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::conversion::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
-use crate::presentation::Expansion;
+use crate::presentation::RustFermentate;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[derive(Clone)]
 pub struct ScopeTree {
+    pub attrs: Vec<Attribute>,
     pub scope: ScopeChain,
     pub imported: HashSet<ItemUse>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
-    pub attrs: Vec<Attribute>,
-    pub scope_context: ParentComposer<ScopeContext>,
+    pub scope_context: ComposerLink<ScopeContext>,
 }
 impl Debug for ScopeTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -33,58 +33,27 @@ impl Debug for ScopeTree {
 
 
 impl ScopeTree {
-    // pub fn generic_conversions(&self) -> HashSet<GenericConversion> {
-    //     let mut generics = self.generics.clone();
-    //     generics.extend(self.exported.values().flat_map(ScopeTreeItem::generic_conversions));
-    //     // TODO: there should be refined generics
-    //     println!("ScopeTree::generic_conversions: {}", format_generic_conversions(&generics));
-    //     generics
-    // }
-
     pub(crate) fn imports(&self) -> SemiPunctuated<ItemUse> {
         SemiPunctuated::from_iter(self.imported.iter().cloned())
     }
 
-    pub(crate) fn exports(&self) -> Depunctuated<TokenStream2> {
-        self.exported.values().map(ScopeTreeItem::to_token_stream).collect()
+    pub(crate) fn exports(&self) -> Depunctuated<RustFermentate> {
+        Depunctuated::from_iter(self.exported.values().map(|item| RustFermentate::TokenStream(item.to_token_stream())))
     }
 
     pub fn print_scope_tree_with_message(&self, message: &str) {
         self.scope_context.borrow().print_with_message(message)
     }
 }
-
-// impl std::fmt::Debug for ScopeTree {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("ScopeTree")
-//             .field("scope", &self.scope)
-//             .field("imported", &format_imported_dict(&self.imported))
-//             .field("exported", &format_tree_item_dict(&self.exported))
-//             .finish()
-//     }
-// }
-
 impl ToTokens for ScopeTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let source = self.scope_context.borrow();
         let ctx = source.context.read().unwrap();
         let rename = ctx.config.current_crate.ident();
-
         let mut imports = SemiPunctuated::from_iter([
             create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename }))
         ]);
         imports.extend(self.imports());
-        // imports
-        // let imports = if source.is_from_current_crate() {
-        //     let mut imports = SemiPunctuated::from_iter([
-        //         create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: source.scope.crate_ident().clone() }))
-        //     ]);
-        //     imports.extend(self.imports());
-        //     imports
-        // } else {
-        //     self.imports()
-        // };
-
         let name = if self.scope.is_crate_root() {
             self.scope.crate_ident_ref().to_token_stream()
         } else {
@@ -92,12 +61,8 @@ impl ToTokens for ScopeTree {
         };
         let conversions = self.exports();
         if !conversions.is_empty() {
-            Expansion::Mod {
-                attrs: self.attrs.cfg_attributes(),
-                name,
-                imports,
-                conversions
-            }.to_tokens(tokens)
+            RustFermentate::mod_with(self.attrs.cfg_attributes(), name, imports, conversions)
+                .to_tokens(tokens)
         }
     }
 }
@@ -137,7 +102,7 @@ pub fn create_item_use_with_tree(tree: UseTree) -> ItemUse {
 
 pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
-    scope_context: ParentComposer<ScopeContext>,
+    scope_context: ComposerLink<ScopeContext>,
     imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
@@ -148,18 +113,17 @@ pub fn create_crate_root_scope_tree(
 
 pub fn create_scope_tree(
     scope: ScopeChain,
-    scope_context: ParentComposer<ScopeContext>,
+    scope_context: ComposerLink<ScopeContext>,
     imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
-    let exported = exported.into_iter()
+    let exported = HashMap::from_iter(exported.into_iter()
         .map(|(scope_id, scope_tree_export_item)| {
             let scope_tree_item = match scope_tree_export_item {
                 ScopeTreeExportItem::Item(
                     scope_context,
-                    item) =>
-                    ScopeTreeItem::Item {
+                    item) => ScopeTreeItem::Item {
                         scope: scope.joined(&item),
                         item,
                         scope_context
@@ -168,17 +132,12 @@ pub fn create_scope_tree(
                     scope_context,
                     imported,
                     exported,
-                    attrs) =>
-                    {
-                        // println!("add (TREE): {}: {}", scope_context.borrow().scope.self_path_holder_ref(), attrs.iter().map(|a| a.to_token_stream()).collect::<Depunctuated<_>>().to_token_stream());
-                        ScopeTreeItem::Tree {
-                            tree: create_scope_tree(scope_id.create_child_scope(&scope, attrs.clone()), scope_context, imported, exported, attrs)
-                        }
+                    attrs) => ScopeTreeItem::Tree {
+                        tree: create_scope_tree(scope_id.create_child_scope(&scope, attrs.clone()), scope_context, imported, exported, attrs)
                     }
             };
             (scope_id, scope_tree_item)
-        })
-        .collect();
+        }));
     // println!("ScopeTree:: {}", format_tree_item_dict(&exported));
     ScopeTree {
         exported,

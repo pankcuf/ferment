@@ -7,7 +7,6 @@ use syn::visit::Visit;
 use crate::Crate;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::{Config, error, print_phase};
-use crate::presentation::Expansion;
 use crate::tree::{CrateTree, ScopeTreeExportItem, Visitor};
 pub struct FileTreeProcessor {
     pub path: PathBuf,
@@ -17,15 +16,14 @@ pub struct FileTreeProcessor {
 }
 
 impl FileTreeProcessor {
-    pub fn expand(config: &Config) -> Result<Expansion, error::Error> {
+    pub fn build(config: &Config) -> Result<CrateTree, error::Error> {
         let Config { current_crate, external_crates, .. } = config;
         let context = Arc::new(RwLock::new(GlobalContext::from(config)));
         print_phase!("PHASE 0: PROCESS CRATES", "{}", config);
         process_crates(external_crates, &context)
             .and_then(|external_crates|
                 current_crate.process(vec![], &context)
-                    .and_then(|current_tree| CrateTree::new(current_crate, current_tree, external_crates))
-                    .map(|tree| Expansion::Root { tree }))
+                    .and_then(|current_tree| CrateTree::new(current_crate, current_tree, external_crates)))
     }
     pub fn process_crate_tree(crate_config: &Crate, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
         let path = crate_config.root_path();
@@ -74,7 +72,7 @@ impl FileTreeProcessor {
         if file_path.is_file() {
             return FileTreeProcessor::new(file_path, scope, attrs, &self.context).process();
         } else {
-            let path = file_path.join(format!("mod.rs"));
+            let path = file_path.join("mod.rs".to_string());
             if path.is_file() {
                 return FileTreeProcessor::new(path, scope, attrs, &self.context).process()
             } else {

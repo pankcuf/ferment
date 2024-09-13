@@ -1,30 +1,49 @@
-use syn::Attribute;
+use std::marker::PhantomData;
 use crate::composable::{AttrsModel, CfgAttributes};
-use crate::composer::{Composer, Linkable, ParentComposer};
+use crate::composer::{Composer, Linkable, ComposerLink};
 use crate::context::ScopeContext;
+use crate::lang::{LangAttrSpecification, LangGenSpecification};
 use crate::shared::SharedAccess;
 
-pub struct AttrsComposer<Parent: SharedAccess> {
-    pub parent: Option<Parent>,
+pub struct AttrsComposer<Link, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {
+    pub parent: Option<Link>,
     pub attrs: AttrsModel,
+    _phantom_data: PhantomData<(LANG, SPEC, Gen)>,
 }
-impl<Parent: SharedAccess> AttrsComposer<Parent> {
-    pub fn new(attrs: AttrsModel) -> AttrsComposer<Parent> {
-        Self { parent: None, attrs }
+impl<Link, LANG, SPEC, Gen> AttrsComposer<Link, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {
+    pub fn new(attrs: AttrsModel) -> AttrsComposer<Link, LANG, SPEC, Gen> {
+        Self { parent: None, attrs, _phantom_data: PhantomData }
     }
 }
 
-impl<Parent: SharedAccess> Linkable<Parent> for AttrsComposer<Parent> {
-    fn link(&mut self, parent: &Parent) {
+impl<Link, LANG, SPEC, Gen> Linkable<Link> for AttrsComposer<Link, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {
+    fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
-    type Source = ParentComposer<ScopeContext>;
-    type Result = Vec<Attribute>;
-    fn compose(&self, _context: &Self::Source) -> Self::Result {
-        self.attrs.cfg_attributes()
+impl<'a, Link, LANG, SPEC, Gen> Composer<'a> for AttrsComposer<Link, LANG, SPEC, Gen>
+    where Link: SharedAccess,
+          LANG: Clone,
+          SPEC: LangAttrSpecification<LANG>,
+          Gen: LangGenSpecification<LANG> {
+    type Source = ComposerLink<ScopeContext>;
+    type Output = SPEC;
+    fn compose(&self, _context: &Self::Source) -> Self::Output {
+        SPEC::from_attrs(self.attrs.cfg_attributes())
+        // self.attrs.cfg_attributes()
         // TODO: currently disable trait expansion via attributes,
         // TODO: migrate onto composable RefinedTree version
         // let attrs_composition = &self.attrs;
@@ -36,6 +55,9 @@ impl<'a, Parent: SharedAccess> Composer<'a> for AttrsComposer<Parent> {
         //     .collect()
     }
 }
+
+
+
 
 // pub fn implement_trait_for_item(item_trait: (&ItemTrait, &ScopeChain), attrs_composition: &AttrsModel, context: &ParentComposer<ScopeContext>) -> TraitVTablePresentation {
 //     let (item_trait, trait_scope) = item_trait;

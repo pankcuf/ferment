@@ -5,8 +5,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Generics, Path, PathArguments, PathSegment, Type, TypePath};
 use quote::{quote, ToTokens};
 use crate::ast::PathHolder;
-use crate::conversion::ObjectKind;
+use crate::conversion::{GenericTypeKind, ObjectKind};
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub struct GenericConversion {
     pub object: ObjectKind,
@@ -38,6 +39,7 @@ impl Hash for GenericConversion {
     }
 }
 
+#[allow(unused)]
 impl GenericConversion {
     pub fn new(object: ObjectKind/*, attrs: Directives*/) -> Self {
         Self { object/*, attrs*/ }
@@ -45,6 +47,9 @@ impl GenericConversion {
 
     pub fn used_imports(&self) -> HashSet<PathHolder> {
         generic_imports(self.object.maybe_type().as_ref())
+    }
+    pub fn maybe_generic_type_kind(&self) -> Option<GenericTypeKind> {
+        self.object.maybe_generic_type_kind()
     }
 }
 

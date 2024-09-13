@@ -1,27 +1,35 @@
+use std::fmt::Debug;
 use quote::ToTokens;
 use syn::Type;
 use crate::composable::FieldComposer;
 use crate::composer::Composer;
 use crate::context::ScopeContext;
 use crate::ext::ConversionTrait;
+use crate::lang::LangAttrSpecification;
 use crate::presentable::Expression;
 use crate::presentation::Name;
 
 // pub type ExprSource<'a> = (&'a Expression, &'a ScopeContext);
 
 #[derive(Clone, Debug)]
-pub struct DestroyConversionComposer {
+pub struct DestroyConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
     pub name: Name,
     pub ty: Type,
-    pub expr: Option<Expression>,
+    pub expr: Option<Expression<LANG, SPEC>>,
 }
-impl From<&FieldComposer> for DestroyConversionComposer {
-    fn from(value: &FieldComposer) -> Self {
+impl<LANG, SPEC> From<&FieldComposer<LANG, SPEC>> for DestroyConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    fn from(value: &FieldComposer<LANG, SPEC>) -> Self {
         Self { name: value.name.clone(), ty: value.ty().clone(), expr: None }
     }
 }
-impl DestroyConversionComposer {
-    pub fn new(name: Name, ty: Type, expr: Option<Expression>) -> Self {
+impl<LANG, SPEC> DestroyConversionComposer<LANG, SPEC>
+    where LANG: Clone,
+          SPEC: LangAttrSpecification<LANG> {
+    pub fn new(name: Name, ty: Type, expr: Option<Expression<LANG, SPEC>>) -> Self {
         Self { name, ty, expr }
     }
 }
@@ -56,11 +64,13 @@ impl DestroyConversionComposer {
 // }
 //
 //
-impl<'a> Composer<'a> for DestroyConversionComposer {
+impl<'a, LANG, SPEC> Composer<'a> for DestroyConversionComposer<LANG, SPEC>
+    where LANG: Clone + Debug,
+          SPEC: LangAttrSpecification<LANG> + Debug {
     type Source = ScopeContext;
-    type Result = Expression;
+    type Output = Expression<LANG, SPEC>;
 
-    fn compose(&self, _source: &'a Self::Source) -> Self::Result {
+    fn compose(&self, _source: &'a Self::Source) -> Self::Output {
         let Self { name, ty, expr } = self;
 
         println!("DestroyConversionComposer:: {} -- {}", name, ty.to_token_stream());

@@ -4,14 +4,14 @@ use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, parse_quote, Path, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
-use crate::Config;
+use crate::{Config, print_phase};
 use crate::ast::PathHolder;
-use crate::composable::{GenericBoundsModel, GenericConversion, TraitModelPart1, TypeModel, TypeModeled};
+use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearch, ScopeSearchKey, TraitsResolver, TypeChain};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
-use crate::formatter::format_global_context;
+use crate::formatter::{format_global_context, format_mixin_kinds};
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -22,8 +22,9 @@ pub struct GlobalContext {
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
     pub imports: ImportResolver,
-    pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>,
-    pub refined_generic_constraints: HashMap<GenericBoundsModel, HashSet<Option<Attribute>>>
+    // pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>,
+    // pub refined_generic_constraints: HashMap<GenericBoundsModel, HashSet<Option<Attribute>>>,
+    pub refined_mixins: HashMap<MixinKind, HashSet<Option<Attribute>>>
 }
 
 impl std::fmt::Debug for GlobalContext {
@@ -45,7 +46,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_generics: HashMap::default(), refined_generic_constraints: HashMap::default() }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_mixins: HashMap::default(), }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -486,8 +487,9 @@ impl RefineMut for GlobalContext {
     type Refinement = ScopeRefinement;
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.scope_register.refine_with(refined);
-        let mut refined_generics = HashMap::<GenericConversion, HashSet<Option<Attribute>>>::new();
-        let mut refined_generic_constraints = HashMap::<GenericBoundsModel, HashSet<Option<Attribute>>>::new();
+        let mut refined_mixins = HashMap::<MixinKind, HashSet<Option<Attribute>>>::new();
+        // let mut refined_generics = HashMap::<GenericConversion, HashSet<Option<Attribute>>>::new();
+        // let mut refined_generic_constraints = HashMap::<GenericBoundsModel, HashSet<Option<Attribute>>>::new();
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
@@ -511,10 +513,12 @@ impl RefineMut for GlobalContext {
                                 let skip = self.should_skip_from_expanding(object);
                                 println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
                                 if !skip {
-                                    refined_generics
-                                        .entry(GenericConversion::new(object.clone()))
-                                        .or_insert_with(HashSet::new)
-                                        .extend(all_attrs.clone());
+                                    if let Some(kind) = object.maybe_generic_type_kind() {
+                                        refined_mixins
+                                            .entry(MixinKind::Generic(kind))
+                                            .or_insert_with(HashSet::new)
+                                            .extend(all_attrs.clone());
+                                    }
                                 }
                             });
                     }
@@ -530,24 +534,19 @@ impl RefineMut for GlobalContext {
                         //         .extend(all_attrs.clone());
                         // }
 
-                        // refined_generic_constraints
-                        //     .entry(bounds.clone())
-                        //     .or_insert_with(HashSet::new)
-                        //     .extend(all_attrs.clone());
                         bounds.find_generic_constraints()
                             .iter()
                             .for_each(|_ty| {
                                 println!("--- ADD GENERIC: BOUNDS: {}", bounds);
-                                refined_generic_constraints
-                                    .entry(bounds.clone())
+                                refined_mixins.entry(MixinKind::Bounds(bounds.clone()))
                                     .or_insert_with(HashSet::new)
                                     .extend(all_attrs.clone());
                             });
                     }
                 })
             });
-        self.refined_generics = refined_generics;
-        self.refined_generic_constraints = refined_generic_constraints;
+        print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_mixin_kinds(&refined_mixins));
+        self.refined_mixins = refined_mixins;
 
         self.generics.inner.iter_mut()
             .for_each(|(scope, generic_chain)| {
