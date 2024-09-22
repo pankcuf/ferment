@@ -4,25 +4,25 @@ Syntax-tree morphing tool for FFI (work in progress)
 Allows to generate an FFI-compliant equivalent for rust types (structures, enums, types, functions).
 
 The project is a rust-workspace consisting several crates:
-1. `ferment-interfaces`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
-2. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
-3. `ferment-example`: provides basic example.
-4. `ferment-example-nested`: provides example with dependent fermented crate.
-5. `ferment`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
+1. `ferment`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
+2. `ferment-sys`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
+3. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
+4. `ferment-example`: provides example of usage.
 
 A procedural macro consists of 2 macros:
 
 1. `export` - for structures / enums / functions / types
 2. `register` - for custom-defined conversions
+3. `opaque` - for opaque pointers (deprecated: now every object considered as opaque by default)
 
 **Usage**
 
 Crate is not published yet, so use it for example locally
 
 ```toml
-ferment-interfaces = { path = "../../ferment/ferment-interfaces" }
-ferment-macro = { path = "../../ferment/ferment-macro" }
 ferment = { path = "../../ferment/ferment" }
+ferment-macro = { path = "../../ferment/ferment-macro" }
+ferment-sys = { path = "../../ferment/ferment-sys" }
 ```
 
 Using the tool implies using `cbindgen` with a configuration like this:
@@ -32,13 +32,13 @@ extern crate cbindgen;
 
 fn main() {
     extern crate cbindgen;
-    extern crate ferment;
+    extern crate ferment_sys;
 
     use std::process::Command;
 
     fn main() {
 
-        match ferment::Builder::new()
+        match ferment_sys::Ferment:
             .with_mod_name("fermented")
             .with_crates(vec![])
             .generate() {
@@ -98,45 +98,45 @@ pub struct LLMQSnapshot {
     pub skip_list_mode: *mut crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode,
     pub option_vec: *mut crate::fermented::generics::Vec_u8,
 }
-impl ferment_interfaces::FFIConversionFrom<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
+impl ferment::FFIConversionFrom<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
     unsafe fn ffi_from_const(ffi: *const LLMQSnapshot) -> crate::model::snapshot::LLMQSnapshot {
         let ffi_ref = &*ffi;
         crate::model::snapshot::LLMQSnapshot {
-            member_list: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.member_list),
-            skip_list: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.skip_list),
-            skip_list_mode: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.skip_list_mode),
-            option_vec: ferment_interfaces::FFIConversionFrom::ffi_from_opt(ffi_ref.option_vec),
+            member_list: ferment::FFIConversionFrom::ffi_from(ffi_ref.member_list),
+            skip_list: ferment::FFIConversionFrom::ffi_from(ffi_ref.skip_list),
+            skip_list_mode: ferment::FFIConversionFrom::ffi_from(ffi_ref.skip_list_mode),
+            option_vec: ferment::FFIConversionFrom::ffi_from_opt(ffi_ref.option_vec),
         }
     }
 }
-impl ferment_interfaces::FFIConversionTo<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
+impl ferment::FFIConversionTo<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
     unsafe fn ffi_to_const(obj: crate::model::snapshot::LLMQSnapshot) -> *const LLMQSnapshot {
-        ferment_interfaces::boxed(LLMQSnapshot {
-            member_list: ferment_interfaces::FFIConversionTo::ffi_to(obj.member_list),
-            skip_list: ferment_interfaces::FFIConversionTo::ffi_to(obj.skip_list),
-            skip_list_mode: ferment_interfaces::FFIConversionTo::ffi_to(obj.skip_list_mode),
+        ferment::boxed(LLMQSnapshot {
+            member_list: ferment::FFIConversionTo::ffi_to(obj.member_list),
+            skip_list: ferment::FFIConversionTo::ffi_to(obj.skip_list),
+            skip_list_mode: ferment::FFIConversionTo::ffi_to(obj.skip_list_mode),
             option_vec: match obj.option_vec {
-                Some(vec) => ferment_interfaces::FFIConversionTo::ffi_to(vec),
+                Some(vec) => ferment::FFIConversionTo::ffi_to(vec),
                 None => std::ptr::null_mut(),
             },
         })
     }
 }
-impl ferment_interfaces::FFIConversionDestroy<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
+impl ferment::FFIConversionDestroy<crate::model::snapshot::LLMQSnapshot> for LLMQSnapshot {
     unsafe fn destroy(ffi: *mut LLMQSnapshot) {
-        ferment_interfaces::unbox_any(ffi);
+       ferment::unbox_any(ffi);
     }
 }
 impl Drop for LLMQSnapshot {
     fn drop(&mut self) {
         unsafe {
             let ffi_ref = self;
-            ferment_interfaces::unbox_any(ffi_ref.member_list);
-            ferment_interfaces::unbox_any(ffi_ref.skip_list);
-            <crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode as ferment_interfaces::FFIConversionDestroy<crate::model::snapshot::LLMQSnapshotSkipMode>>::
+            ferment::unbox_any(ffi_ref.member_list);
+           ferment::unbox_any(ffi_ref.skip_list);
+            <crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode as ferment::FFIConversionDestroy<crate::model::snapshot::LLMQSnapshotSkipMode>>::
             destroy(ffi_ref.skip_list_mode);
             if !ffi_ref.option_vec.is_null() {
-                ferment_interfaces::unbox_any(ffi_ref.option_vec);
+                ferment::unbox_any(ffi_ref.option_vec);
             };
         }
     }
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn LLMQSnapshot_ctor(
     skip_list_mode: *mut crate::fermented::types::model::snapshot::LLMQSnapshotSkipMode,
     option_vec: *mut crate::fermented::generics::Vec_u8)
     -> *mut LLMQSnapshot {
-    ferment_interfaces::boxed(LLMQSnapshot {
+   ferment::boxed(LLMQSnapshot {
         member_list,
         skip_list,
         skip_list_mode,
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn LLMQSnapshot_ctor(
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn LLMQSnapshot_destroy(ffi: *mut LLMQSnapshot) {
-    ferment_interfaces::unbox_any(ffi);
+   ferment::unbox_any(ffi);
 }
 
 ```
@@ -180,9 +180,9 @@ the following code will be generated:
 #[doc = "# Safety"]
 #[no_mangle]
 pub unsafe extern "C" fn ffi_address_with_script_pubkey(script: *mut crate::fermented::generics::Vec_u8) -> *mut std::os::raw::c_char {
-    let conversion = ferment_interfaces::FFIConversionFrom::ffi_from(script);
+    let conversion = ferment::FFIConversionFrom::ffi_from(script);
     let obj = crate::example::address::address_with_script_pubkey(conversion);
-    ferment_interfaces::FFIConversionTo::ffi_to_opt(obj)
+   ferment::FFIConversionTo::ffi_to_opt(obj)
 }
 ```
 
@@ -239,7 +239,7 @@ pub extern "C" fn ChainType_as_IHaveChainSettings_TraitObject(
 #[allow(non_snake_case)]
 #[no_mangle]
 pub unsafe extern "C" fn ChainType_as_IHaveChainSettings_TraitObject_destroy(obj: IHaveChainSettings_TraitObject) {
-    ferment_interfaces::unbox_any(obj.object as *mut crate::chain::common::chain_type::ChainType);
+   ferment::unbox_any(obj.object as *mut crate::chain::common::chain_type::ChainType);
 }
 
 ```
@@ -275,38 +275,38 @@ pub struct std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_
     pub keys: *mut *mut crate::fermented::types::nested::HashID,
     pub values: *mut *mut crate::fermented::generics::Vec_crate_nested_HashID,
 }
-impl ferment_interfaces::FFIConversionFrom<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
+impl ferment::FFIConversionFrom<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
 for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
     unsafe fn ffi_from_const(
         ffi: *const std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID)
         -> std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>> {
         let ffi_ref = &*ffi;
-        ferment_interfaces::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)
+       ferment::from_complex_map(ffi_ref.count, ffi_ref.keys, ffi_ref.values)
     }
 }
-impl ferment_interfaces::FFIConversionTo<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
+impl ferment::FFIConversionTo<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
 for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
     unsafe fn ffi_to_const(
         obj: std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>)
         -> *const std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
-        ferment_interfaces::boxed(Self {
+       ferment::boxed(Self {
             count: obj.len(),
-            keys: ferment_interfaces::to_complex_vec(obj.keys().cloned()),
-            values: ferment_interfaces::to_complex_vec(obj.values().cloned()),
+            keys: ferment::to_complex_group(obj.keys().cloned()),
+            values: ferment::to_complex_group(obj.values().cloned()),
         })
     }
 }
-impl ferment_interfaces::FFIConversionDestroy<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
+impl ferment::FFIConversionDestroy<std::collections::BTreeMap<crate::nested::HashID, Vec<crate::nested::HashID>>>
 for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
     unsafe fn destroy(ffi: *mut std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID) {
-        ferment_interfaces::unbox_any(ffi);
+       ferment::unbox_any(ffi);
     }
 }
 impl Drop for std_collections_Map_keys_crate_nested_HashID_values_Vec_crate_nested_HashID {
     fn drop(&mut self) {
-        unsafe {
-            ferment_interfaces::unbox_any_vec_ptr(self.keys, self.count);
-            ferment_interfaces::unbox_any_vec_ptr(self.values, self.count);
+        unsafe { 
+           ferment::unbox_any_vec_ptr(self.keys, self.count);
+           ferment::unbox_any_vec_ptr(self.values, self.count);
         }
     }
 }
@@ -372,34 +372,34 @@ pub struct OuterStruct {
     pub o1: *mut crate::fermented::types::InnerStruct,
     pub o2: *mut crate::fermented::types::InnerStruct,
 }
-impl ferment_interfaces::FFIConversionFrom<crate::OuterStruct> for OuterStruct {
+impl ferment::FFIConversionFrom<crate::OuterStruct> for OuterStruct {
     unsafe fn ffi_from_const(ffi: *const OuterStruct) -> crate::OuterStruct {
         let ffi_ref = &*ffi;
         crate::OuterStruct {
-            o1: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.o1),
-            o2: ferment_interfaces::FFIConversionFrom::ffi_from(ffi_ref.o2),
+            o1: ferment::FFIConversionFrom::ffi_from(ffi_ref.o1),
+            o2: ferment::FFIConversionFrom::ffi_from(ffi_ref.o2),
         }
     }
 }
-impl ferment_interfaces::FFIConversionTo<crate::OuterStruct> for OuterStruct {
+impl ferment::FFIConversionTo<crate::OuterStruct> for OuterStruct {
     unsafe fn ffi_to_const(obj: crate::OuterStruct) -> *const OuterStruct {
-        ferment_interfaces::boxed(OuterStruct {
-            o1: ferment_interfaces::FFIConversionTo::ffi_to(obj.o1),
-            o2: ferment_interfaces::FFIConversionTo::ffi_to(obj.o2),
+       ferment::boxed(OuterStruct {
+            o1: ferment::FFIConversionTo::ffi_to(obj.o1),
+            o2: ferment::FFIConversionTo::ffi_to(obj.o2),
         })
     }
 }
-impl ferment_interfaces::FFIConversionDestroy<crate::OuterStruct> for OuterStruct {
+impl ferment::FFIConversionDestroy<crate::OuterStruct> for OuterStruct {
     unsafe fn destroy(ffi: *mut OuterStruct) {
-        ferment_interfaces::unbox_any(ffi);
+       ferment::unbox_any(ffi);
     }
 }
 impl Drop for OuterStruct {
     fn drop(&mut self) {
         unsafe {
             let ffi_ref = self;
-            ferment_interfaces::unbox_any(ffi_ref.o1);
-            ferment_interfaces::unbox_any(ffi_ref.o2);
+           ferment::unbox_any(ffi_ref.o1);
+           ferment::unbox_any(ffi_ref.o2);
         }
     }
 }
@@ -410,12 +410,12 @@ pub unsafe extern "C" fn OuterStruct_ctor(
     o1: *mut crate::fermented::types::InnerStruct,
     o2: *mut crate::fermented::types::InnerStruct,
 ) -> *mut OuterStruct {
-    ferment_interfaces::boxed(OuterStruct { o1, o2 })
+   ferment::boxed(OuterStruct { o1, o2 })
 }
 #[doc = r" # Safety"]
 #[no_mangle]
 pub unsafe extern "C" fn OuterStruct_destroy(ffi: *mut OuterStruct) {
-    ferment_interfaces::unbox_any(ffi);
+   ferment::unbox_any(ffi);
 }
 
 #[doc = "FFI-representation of the [`create_outer`]"]
@@ -426,10 +426,10 @@ pub unsafe extern "C" fn create_outer(
     o2: *mut crate::fermented::types::InnerStruct,
 ) -> *mut crate::fermented::types::OuterStruct {
     let obj = crate::create_outer(
-        ferment_interfaces::FFIConversionFrom::ffi_from(o1),
-        ferment_interfaces::FFIConversionFrom::ffi_from(o2),
+       ferment::FFIConversionFrom::ffi_from(o1),
+        ferment::FFIConversionFrom::ffi_from(o2),
     );
-    ferment_interfaces::FFIConversionTo::ffi_to(obj)
+   ferment::FFIConversionTo::ffi_to(obj)
 }
 ```
 This will produce C-bindings like this:

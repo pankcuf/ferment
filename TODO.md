@@ -12,7 +12,7 @@
     ```
 - Now you can't specify field type as full or partially qualified (bug). So use this:
     ```rust
-    use ferment_example::nested::HashID;
+    use example_simple::nested::HashID;
     use crate::model::snapshot::LLMQSnapshot;
     #[ferment_macro::export]
     pub fn get_hash_id_form_snapshot(_snapshot: LLMQSnapshot) -> HashID {
@@ -22,13 +22,13 @@
     instead of
     ```rust
     #[ferment_macro::export]
-    pub fn get_hash_id_form_snapshot(_snapshot: crate::model::snapshot::LLMQSnapshot) -> ferment_example::nested::HashID {
+    pub fn get_hash_id_form_snapshot(_snapshot: crate::model::snapshot::LLMQSnapshot) -> example_simple::nested::HashID {
         [0u8; 32]
     }
     ```
     or
     ```rust
-    use ferment_example::nested;
+    use example_simple::nested;
     use crate::model::snapshot;
     #[ferment_macro::export]
     pub fn get_hash_id_form_snapshot(_snapshot: snapshot::LLMQSnapshot) -> nested::HashID {
@@ -42,7 +42,7 @@
 - Path chunks support (when objects contains paths like this:
 
     ```rust
-    use ferment_example::nested;
+    use example_simple::nested;
     use crate::model::snapshot;
     #[ferment_macro::export]
     pub fn get_hash_id_form_snapshot(snapshot: snapshot::LLMQSnapshot) -> nested::HashID {
