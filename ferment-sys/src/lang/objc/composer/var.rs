@@ -241,7 +241,7 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Path whe
         let last_segment = self.segments.last().unwrap();
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
-            FFIVariable::direct(self.to_token_stream())
+            FFIVariable::direct(objc_primitive_from_path(self))
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 Some(TypeKind::Primitive(ty)) => FFIVariable::mut_ptr(ty.to_token_stream()),
@@ -457,7 +457,8 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                             },
                             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel { ty, .. })) => {
                                 // println!("VariableComposer (Dictionary Primitive): {}", ty.to_token_stream());
-                                FFIVariable::direct(ty.to_token_stream())
+
+                                FFIVariable::direct(objc_primitive(&ty))
                             },
                             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => {
                                 // println!("VariableComposer (FnPointer Conversion): {}", ty.to_token_stream());
@@ -656,26 +657,30 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
 
 pub fn objc_primitive(ty: &Type) -> TokenStream2 {
     match ty {
-        Type::Path(TypePath { ref path , ..}) => {
-            match path.segments.last().unwrap().ident.to_string().as_str() {
-                "i8" => quote!(int8_t),
-                "u8" => quote!(uint8_t),
-                "i16" => quote!(int16_t),
-                "u16" => quote!(uint16_t),
-                "i32" => quote!(int32_t),
-                "u32" => quote!(uint32_t),
-                "i64" => quote!(int32_t),
-                "u64" => quote!(uint32_t),
-                "f64" => quote!(double),
-                "isize" => quote!(intptr_t),
-                "usize" => quote!(uintptr_t),
-                "bool" => quote!(BOOL),
-                _ => quote!(id),
-            }
-        }
+        Type::Path(TypePath { ref path , ..}) =>
+            objc_primitive_from_path(path),
         ty => ty.to_token_stream()
     }
 }
+
+pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
+    match path.segments.last().unwrap().ident.to_string().as_str() {
+        "i8" => quote!(int8_t),
+        "u8" => quote!(uint8_t),
+        "i16" => quote!(int16_t),
+        "u16" => quote!(uint16_t),
+        "i32" => quote!(int32_t),
+        "u32" => quote!(uint32_t),
+        "i64" => quote!(int32_t),
+        "u64" => quote!(uint32_t),
+        "f64" => quote!(double),
+        "isize" => quote!(intptr_t),
+        "usize" => quote!(uintptr_t),
+        "bool" => quote!(BOOL),
+        _ => path.to_token_stream()
+    }
+}
+
 
 // impl<SPEC> Resolve<SPEC::Var> for TypeModelKind where SPEC: ObjCSpecification {
 //     fn resolve(&self, source: &ScopeContext) -> SPEC::Var {
@@ -970,7 +975,8 @@ impl<SPEC> ToType for FFIFullDictionaryPath<ObjCFermentate, SPEC>
     fn to_type(&self) -> Type {
         match self {
             FFIFullDictionaryPath::Void => parse_quote!(void),
-            FFIFullDictionaryPath::CChar => parse_quote!(NSString),
+            FFIFullDictionaryPath::CChar => parse_quote!(char),
+            // FFIFullDictionaryPath::CChar => parse_quote!(NSString),
             FFIFullDictionaryPath::Phantom(_) => panic!("")
         }
     }

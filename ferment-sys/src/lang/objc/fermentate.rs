@@ -31,7 +31,8 @@ pub enum InterfaceImplementation {
     BindingsImplementation {
         objc_name: TokenStream2,
         c_name: TokenStream2,
-        to_conversions: CommaPunctuatedTokens
+        to_conversions: SemiPunctuatedTokens,
+        property_names: CommaPunctuatedTokens
 
 
     },
@@ -141,22 +142,29 @@ impl Display for InterfaceImplementation {
         match self {
             InterfaceImplementation::Default { objc_name, properties } => {
                 f.write_str(format!("@interface {objc_name} : NSObject\n").as_str())?;
-                f.write_str(format!("{}", format_properties(properties)).as_str())?;
+                for property in properties {
+                    f.write_str(format!("{};\n", property.to_token_stream().to_string()).as_str())?;
+                }
+
+                // f.write_str(format!("{}", format_properties(properties)).as_str())?;
                 f.write_str("@end")
             }
             InterfaceImplementation::BindingsDeclaration { objc_name, c_name } => {
                 f.write_str(format!("@interface {objc_name} (Bindings)\n").as_str())?;
                 f.write_str(format!("+ (struct {c_name} *)ffi_ctor:(instancetype)obj;\n").as_str())?;
-                f.write_str(format!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref;").as_str())?;
+                f.write_str(format!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref;\n").as_str())?;
                 f.write_str("@end")
             }
-            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions } => {
+            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions, property_names: properties } => {
                 f.write_str(format!("@implementation {objc_name} (Bindings)\n").as_str())?;
                 f.write_str(format!("+ (struct {c_name} *)ffi_ctor:(instancetype)obj {{\n").as_str())?;
-                f.write_str(format!("return {c_name}_ctor({});\n", to_conversions.to_token_stream().to_string()).as_str())?;
+                for to_conversion in to_conversions {
+                    f.write_str(format!("\t{};\n", to_conversion).as_str())?;
+                }
+                f.write_str(format!("\treturn {c_name}_ctor({});\n", properties.to_token_stream().to_string()).as_str())?;
                 f.write_str("}\n")?;
                 f.write_str(format!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str(format!("{c_name}_destroy(ffi_ref);\n").as_str())?;
+                f.write_str(format!("\t{c_name}_destroy(ffi_ref);\n").as_str())?;
                 f.write_str("}\n")?;
                 f.write_str("@end")
             }
@@ -172,33 +180,33 @@ impl Display for InterfaceImplementation {
             InterfaceImplementation::ConversionsImplementation { objc_name, c_name, from_conversions_statements, to_conversions_statements, destroy_conversions_statements } => {
                 f.write_str(format!("@implementation {objc_name} (Conversions)\n").as_str())?;
                 f.write_str(format!("+ (instancetype)ffi_from:(struct {c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str("id *obj = [[self alloc] init];\n")?;
-                f.write_str("if (obj) {\n")?;
+                f.write_str(format!("\t{objc_name} *obj = [[self alloc] init];\n").as_str())?;
+                f.write_str("\tif (obj) {\n")?;
                 for statement in from_conversions_statements {
-                    f.write_str(format!("{}\n", statement).as_str())?;
+                    f.write_str(format!("\t\t{};\n", statement).as_str())?;
                 }
-                f.write_str("}\n")?;
-                f.write_str("return obj;\n")?;
+                f.write_str("\t}\n")?;
+                f.write_str("\treturn obj;\n")?;
                 f.write_str("}\n")?;
                 f.write_str(format!("+ (instancetype _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str("return ffi_ref ? [self ffi_from:ffi_ref] : nil;\n")?;
+                f.write_str("\treturn ffi_ref ? [self ffi_from:ffi_ref] : nil;\n")?;
                 f.write_str("}\n")?;
                 f.write_str(format!("+ (struct {c_name} *)ffi_to:(instancetype)obj {{\n").as_str())?;
-                f.write_str(format!("{objc_name} *self_ = malloc(sizeof({c_name}));\n").as_str())?;
+                f.write_str(format!("\t{objc_name} *self_ = malloc(sizeof({c_name}));\n").as_str())?;
                 for statement in to_conversions_statements {
-                    f.write_str(format!("{}\n", statement).as_str())?;
+                    f.write_str(format!("\t{};\n", statement).as_str())?;
                 }
-                f.write_str("return self_;\n")?;
+                f.write_str("\treturn self_;\n")?;
                 f.write_str("}\n")?;
                 f.write_str(format!("+ (struct {c_name} *)ffi_to_opt:(instancetype _Nullable)obj {{\n").as_str())?;
-                f.write_str("return obj ? [self ffi_to:obj] : nil;\n")?;
+                f.write_str("\treturn obj ? [self ffi_to:obj] : nil;\n")?;
                 f.write_str("}\n")?;
                 f.write_str(format!("+ (void)ffi_destroy:({c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str("if (!ffi_ref) return;\n")?;
+                f.write_str("\tif (!ffi_ref) return;\n")?;
                 for statement in destroy_conversions_statements {
-                    f.write_str(format!("{}\n", statement).as_str())?;
+                    f.write_str(format!("\t{};\n", statement).as_str())?;
                 }
-                f.write_str("free(ffi_ref);\n")?;
+                f.write_str("\tfree(ffi_ref);\n")?;
                 f.write_str("}\n")?;
                 f.write_str("@end")
 
@@ -233,13 +241,19 @@ impl ToTokens for InterfaceImplementation {
                     @end
                 }
             }
-            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions } => {
+            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions, property_names: properties } => {
                 let ctor_name = format_ident!("{}_ctor", c_name.to_string());
                 let dtor_name = format_ident!("{}_destroy", c_name.to_string());
-                quote! {
+            // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)obj {
+            //     Arr_u8_96 *o_0 = [DSArr_u8_96 ffi_to:obj.o_0];
+            //     return dash_spv_masternode_processor_crypto_byte_util_UInt768_ctor(o_0);
+            // }
+
+            quote! {
                     @implementation #objc_name (Bindings)
                     + (struct #c_name *)ffi_ctor:(instancetype)obj {
-                        return #ctor_name(#to_conversions);
+                        #to_conversions;
+                        return #ctor_name(#properties);
                         //return dash_spv_masternode_processor_crypto_byte_util_UInt768_ctor([DSArr_u8_96 ffi_to:obj.o_0]);
                     }
                     + (void)ffi_dtor:(struct #c_name *)ffi_ref {

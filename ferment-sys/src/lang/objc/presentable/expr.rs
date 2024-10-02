@@ -108,11 +108,13 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             },
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveGroup, expr) => {
                 println!("OBJC: ConversionExprTokens: From: PrimitiveGroup: {}", expr);
-                quote!([DSFerment from_primitive_group:#expr])
+                // quote!([DSFerment from_primitive_group:#expr])
+                quote!([NSArray ffi_from:#expr])
             },
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr) => {
                 println!("OBJC: ConversionExprTokens: From: PrimitiveOptGroup: {}", expr);
-                quote!([DSFerment from_primitive_opt_group:#expr])
+                quote!([NSArray ffi_from:#expr])
+                // quote!([DSFerment from_opt_primitive_group:#expr])
 
                 // Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitiveGroup(expr.to_token_stream()))
                 //     .present(source)
@@ -141,8 +143,10 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitive(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveGroup, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(expr.to_token_stream()))
-                    .present(source),
+                quote!([NSArray ffi_to:#expr]),
+
+                // Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(expr.to_token_stream()))
+                //     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitiveGroup(expr.to_token_stream()))
                     .present(source),
@@ -184,13 +188,15 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::PrimitiveOpt, expr.clone())
                     .present(source),
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveGroup, expr, ..) => {
-                quote!([DSFerment from_primitive_group:#expr])
+                quote!([NSArray ffi_from:#expr])
+                // quote!([DSFerment from_primitive_group:#expr])
             }
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveGroup, expr, ..) => {
-                quote!([DSFerment to_primitive_group:#expr])
+                quote!([NSArray ffi_to:#expr])
+                // quote!([DSFerment to_primitive_group:#expr])
             }
             Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr, ..) => {
-                quote!([DSFerment destroy_primitive_group:#expr])
+                quote!([NSArray ffi_destroy:#expr])
             }
 
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {

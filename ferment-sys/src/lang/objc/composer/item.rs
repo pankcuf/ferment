@@ -8,6 +8,7 @@ use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
 use crate::lang::objc::presentable::TypeContext;
 use crate::lang::{LangFermentable, Specification};
+use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
@@ -164,50 +165,10 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
         // }
 
 
-        // @interface DSdash_spv_masternode_processor_crypto_byte_util_UInt768 : NSObject
-        // @property (nonatomic, readwrite) DSArr_u8_96 *o_0;
-        // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
-        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)self_;
-        // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
-        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)self_;
-        // + (void)ffi_dtor:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
-        // @end
-        //
-        // @implementation DSdash_spv_masternode_processor_crypto_byte_util_UInt768
-        // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
-        //     id *self_ = [[self alloc] init];
-        //     self_.o_0 = [DSArr_u8_96 ffi_from:obj->o_0];
-        //     return self_;
-        // }
-        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)self_ {
-        //     dash_spv_masternode_processor_crypto_byte_util_UInt768 *obj = malloc(sizeof(dash_spv_masternode_processor_crypto_byte_util_UInt768));
-        //     obj->o_0 = [DSArr_u8_96 ffi_to:self_.o_0];
-        //     return obj;
-        // }
-        // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
-        //     if (!obj) return;
-        //     [DSArr_u8_96 ffi_destroy:obj->o_0];
-        //     free(obj);
-        // }
-        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)self_ {
-        //     return dash_spv_masternode_processor_crypto_byte_util_UInt768_ctor([DSArr_u8_96 ffi_to:self.o_0]);
-        // }
-        // + (void)ffi_dtor:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
-        //     dash_spv_masternode_processor_crypto_byte_util_UInt768_destroy(obj);
-        // }
-        // @end
-
-
-        //self.field_composers.iter()
-
-        // let def_impl_properties
-
-        //self.fields_from().compose(&())
-
         let properties = SemiPunctuated::new();
         // let properties_inits = SemiPunctuated::new();
 
-        Depunctuated::from_iter([
+        let interfaces = Depunctuated::from_iter([
             InterfaceImplementation::Default {
                 objc_name: objc_name.clone(),
                 properties
@@ -235,13 +196,12 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
                 c_name,
                 // [DSArr_u8_96 ffi_to:obj.o_0], ..
                 to_conversions: Default::default(),
+                property_names: Default::default(),
             }
+        ]);
 
-            // InterfaceImplementation::default(objc_name.clone(), c_name.clone(), properties, properties_inits),
-            // InterfaceImplementation::c(objc_name.clone(), c_name.clone(), SemiPunctuated::new(), SemiPunctuated::new()),
-            // InterfaceImplementation::rust(objc_name.clone(), c_name.clone(), CommaPunctuatedTokens::new(), SemiPunctuated::new()),
-            // InterfaceImplementation::args(objc_name.clone(), c_name.clone(), Depunctuated::new(), Depunctuated::new()),
-        ])
+        println!("OBJC ITEM => \n{}", format_interface_implementations(&interfaces));
+        interfaces
         // let generics = self.compose_generics();
         // let attrs = self.compose_attributes();
         // let ffi_type = self.present_ffi_aspect();

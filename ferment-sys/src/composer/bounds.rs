@@ -47,7 +47,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         if self.model.is_lambda() {
-            return None;
+            return Self::Output::default();
         }
         let ffi_name = self.model.mangle_tokens_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
