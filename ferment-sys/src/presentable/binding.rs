@@ -1,42 +1,42 @@
 use quote::{quote, ToTokens};
-use syn::{Path, ReturnType, Type};
+use syn::{Path, ReturnType};
 use syn::__private::TokenStream2;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedOwnedItems, DestructorContext, FunctionContext};
+use crate::composer::{BindingAccessorContext, CommaPunctuatedPresentableArguments, DestructorContext, FunctionContext};
 use crate::context::ScopeContext;
-use crate::ext::ToPath;
-use crate::lang::{RustSpecification, Specification};
+use crate::ext::{ToPath, ToType};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{BindingPresentation, Name, RustFermentate};
 
 pub enum BindingPresentableContext<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-    Constructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedOwnedItems<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>),
-    VariantConstructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedOwnedItems<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>),
+    Constructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
+    VariantConstructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
     Destructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen),
-    Getter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, Type, TokenStream2, SPEC::Attr, SPEC::Gen),
-    Setter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, Type, TokenStream2, SPEC::Attr, SPEC::Gen),
-    RegFn(Path, bool, CommaPunctuatedOwnedItems<LANG, SPEC>, ReturnType, PresentableSequence<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
+    Getter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Var, TokenStream2, SPEC::Attr, SPEC::Gen),
+    Setter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Var, TokenStream2, SPEC::Attr, SPEC::Gen),
+    RegFn(Path, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, ReturnType, PresentableSequence<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
     // TraitVTableInnerFn
 }
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
     pub fn ctor(context: FunctionContext<LANG, SPEC>) -> Self {
         let (((ffi_type, attrs, generics, .. ), is_round), field_pairs) = context;
-        let (args, names): (CommaPunctuatedOwnedItems<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::Constructor(ffi_type, attrs, generics, is_round, args, names)
     }
     pub fn variant_ctor(context: FunctionContext<LANG, SPEC>) -> Self {
         let (((ffi_type, attrs, generics, .. ), is_round), field_pairs) = context;
-        let (args, names): (CommaPunctuatedOwnedItems<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::VariantConstructor(ffi_type, attrs, generics, is_round, args, names)
     }
     pub fn dtor(context: DestructorContext<LANG, SPEC>) -> Self {
@@ -116,7 +116,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 name: Name::getter(obj_type.to_path(), &field_name),
                 field_name: field_name.clone(),
                 obj_type: obj_type.clone(),
-                field_type: field_type.clone(),
+                field_type: field_type.to_type(),
                 generics: generics.clone(),
             },
             BindingPresentableContext::Setter(obj_type, field_type, field_name, attrs, generics) => BindingPresentation::Getter {
@@ -124,7 +124,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 name: Name::setter(obj_type.to_path(), &field_name),
                 field_name: field_name.clone(),
                 obj_type: obj_type.clone(),
-                field_type: field_type.clone(),
+                field_type: field_type.to_type(),
                 generics: generics.clone(),
             },
             BindingPresentableContext::RegFn(path, is_async, arguments, return_type, input_conversions, return_type_conversion, attrs, generics) => BindingPresentation::RegularFunction {

@@ -1,56 +1,47 @@
 use quote::ToTokens;
-use crate::ast::{CommaPunctuatedTokens, DelimiterTrait, Depunctuated, SemiPunctuated};
+use crate::ast::{DelimiterTrait, Depunctuated, SemiPunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, CommaPunctuatedFields, FFIAspect, FieldsComposerRef, GenericsComposable, InterfaceComposable, Linkable, SourceAccessible, SourceFermentable, TypeAspect};
+use crate::ext::ToType;
 use crate::lang::objc::ObjCSpecification;
-use crate::lang::objc::composer::{ArgsComposer, ClassNameComposer};
+use crate::lang::objc::composer::ArgsComposer;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
 use crate::lang::objc::presentable::TypeContext;
-use crate::lang::Specification;
+use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
 // #[derive(BasicComposerOwner)]
-pub struct ItemComposer<Parent, LANG, SPEC>
-    where Parent: SharedAccess + 'static,
-          LANG: Clone,
-          SPEC: Specification<LANG>,
+pub struct ItemComposer<Link, LANG, SPEC>
+    where Link: SharedAccess + 'static,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub parent: Option<Parent>,
-    pub objc_class_name_composer: ClassNameComposer,
+    pub parent: Option<Link>,
+    // pub objc_class_name_composer: ClassNameComposer,
     pub args_composer: ArgsComposer<LANG, SPEC>,
     pub context: TypeContext,
 }
-impl<Parent, LANG, SPEC> Linkable<Parent> for ItemComposer<Parent, LANG, SPEC>
-    where Parent: SharedAccess,
-          LANG: Clone,
-          SPEC: Specification<LANG>,
+impl<Link, LANG, SPEC> Linkable<Link> for ItemComposer<Link, LANG, SPEC>
+    where Link: SharedAccess,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn link(&mut self, parent: &Parent) {
+    fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-// impl<Parent, LANG, SPEC> TypeAspect<Context> for ItemComposer<Parent, LANG, SPEC>
-//     where Parent: SharedAccess,
-//           LANG: Clone,
-//           SPEC: Specification<LANG> {
-//     fn type_context_ref(&self) -> &Context {
-//         &self.context
-//     }
-// }
-
-
-impl<Parent, LANG, SPEC> ItemComposer<Parent, LANG, SPEC>
-    where Parent: SharedAccess,
-          LANG: Clone,
-          SPEC: Specification<LANG>,
+impl<Link, LANG, SPEC> ItemComposer<Link, LANG, SPEC>
+    where Link: SharedAccess,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub fn new(context: TypeContext, fields: &CommaPunctuatedFields, fields_composer: FieldsComposerRef<LANG, SPEC>) -> Self {
         Self {
             parent: None,
             context: context.clone(),
-            objc_class_name_composer: ClassNameComposer { aspect: Aspect::FFI(context) },
+            // objc_class_name_composer: ClassNameComposer { aspect: Aspect::FFI(context) },
             args_composer: ArgsComposer { fields: fields_composer(fields) }
             // c_class_name_composer: ClassNameComposer { aspect: Aspect::},
         }
@@ -61,7 +52,7 @@ impl<Parent, LANG, SPEC> ItemComposer<Parent, LANG, SPEC>
 // impl<Parent, SPEC> Ferment for ItemComposer<Parent, ObjCFermentate, SPEC>
 //     where Parent: SharedAccess,
 //           SPEC: Specification<ObjCFermentate, Attr=AttrWrapper, Gen=Option<Generics>> {
-//     fn ferment-sys(&self, scope_context: &ComposerLink<ScopeContext>) -> Depunctuated<Fermentate> {
+//     fn ferment-sys(&self, scope_context: &ScopeContextLink) -> Depunctuated<Fermentate> {
 //         let source = scope_context.borrow();
 //         let global = source.context.read().unwrap();
 //         let config = global.config.maybe_objc_config().unwrap();
@@ -141,6 +132,17 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
         let objc_name = target_type.to_token_stream();
         let c_name = ffi_type.to_token_stream();
 
+        // let mut prop_declarations = SemiPunctuated::new();
+
+        // self.field_composers.iter()
+        //     .for_each(|f| {
+        //         let FieldComposer { name, kind, .. } = f;
+        //         if let FieldTypeKind::Type(ty) = kind {
+        //
+        //         }
+        //         // @property (nonatomic, readwrite) DSArr_u8_96 *o_0;
+        //         prop_declarations.push(quote!(@property (nonatomic, readwrite) DSArr_u8_96 * o_0));
+        //     });
 
         // let mut properties = SemiPunctuated::new();
 
@@ -155,6 +157,47 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
         println!("OBJC:: ITEM ASPECT DESTROY: {}", self.present_aspect(FFIAspect::Destroy));
         println!("OBJC:: ITEM ASPECT DROP: {}", self.present_aspect(FFIAspect::Drop));
 
+        // quote! {
+        //     @interface #objc_name : NSObject
+        //
+        //     @end
+        // }
+
+
+        // @interface DSdash_spv_masternode_processor_crypto_byte_util_UInt768 : NSObject
+        // @property (nonatomic, readwrite) DSArr_u8_96 *o_0;
+        // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
+        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)self_;
+        // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
+        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)self_;
+        // + (void)ffi_dtor:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj;
+        // @end
+        //
+        // @implementation DSdash_spv_masternode_processor_crypto_byte_util_UInt768
+        // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
+        //     id *self_ = [[self alloc] init];
+        //     self_.o_0 = [DSArr_u8_96 ffi_from:obj->o_0];
+        //     return self_;
+        // }
+        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)self_ {
+        //     dash_spv_masternode_processor_crypto_byte_util_UInt768 *obj = malloc(sizeof(dash_spv_masternode_processor_crypto_byte_util_UInt768));
+        //     obj->o_0 = [DSArr_u8_96 ffi_to:self_.o_0];
+        //     return obj;
+        // }
+        // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
+        //     if (!obj) return;
+        //     [DSArr_u8_96 ffi_destroy:obj->o_0];
+        //     free(obj);
+        // }
+        // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)self_ {
+        //     return dash_spv_masternode_processor_crypto_byte_util_UInt768_ctor([DSArr_u8_96 ffi_to:self.o_0]);
+        // }
+        // + (void)ffi_dtor:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
+        //     dash_spv_masternode_processor_crypto_byte_util_UInt768_destroy(obj);
+        // }
+        // @end
+
+
         //self.field_composers.iter()
 
         // let def_impl_properties
@@ -162,13 +205,42 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
         //self.fields_from().compose(&())
 
         let properties = SemiPunctuated::new();
-        let properties_inits = SemiPunctuated::new();
+        // let properties_inits = SemiPunctuated::new();
 
         Depunctuated::from_iter([
-            InterfaceImplementation::default(objc_name.clone(), c_name.clone(), properties, properties_inits),
-            InterfaceImplementation::c(objc_name.clone(), c_name.clone(), SemiPunctuated::new(), SemiPunctuated::new()),
-            InterfaceImplementation::rust(objc_name.clone(), c_name.clone(), CommaPunctuatedTokens::new(), SemiPunctuated::new()),
-            InterfaceImplementation::args(objc_name.clone(), c_name.clone(), Depunctuated::new(), Depunctuated::new()),
+            InterfaceImplementation::Default {
+                objc_name: objc_name.clone(),
+                properties
+            },
+            InterfaceImplementation::ConversionsDeclaration {
+                objc_name: objc_name.clone(),
+                c_name: c_name.clone(),
+            },
+            InterfaceImplementation::BindingsDeclaration {
+                objc_name: objc_name.clone(),
+                c_name: c_name.clone(),
+            },
+            InterfaceImplementation::ConversionsImplementation {
+                objc_name: objc_name.clone(),
+                c_name: c_name.clone(),
+                // obj.o_0 = [DSArr_u8_96 ffi_from:ffi_ref->o_0];
+                from_conversions_statements: Default::default(),
+                // self_->o_0 = [DSArr_u8_96 ffi_to:obj.o_0];
+                to_conversions_statements: Default::default(),
+                // [DSArr_u8_96 ffi_destroy:ffi_ref->o_0];
+                destroy_conversions_statements: Default::default(),
+            },
+            InterfaceImplementation::BindingsImplementation {
+                objc_name,
+                c_name,
+                // [DSArr_u8_96 ffi_to:obj.o_0], ..
+                to_conversions: Default::default(),
+            }
+
+            // InterfaceImplementation::default(objc_name.clone(), c_name.clone(), properties, properties_inits),
+            // InterfaceImplementation::c(objc_name.clone(), c_name.clone(), SemiPunctuated::new(), SemiPunctuated::new()),
+            // InterfaceImplementation::rust(objc_name.clone(), c_name.clone(), CommaPunctuatedTokens::new(), SemiPunctuated::new()),
+            // InterfaceImplementation::args(objc_name.clone(), c_name.clone(), Depunctuated::new(), Depunctuated::new()),
         ])
         // let generics = self.compose_generics();
         // let attrs = self.compose_attributes();

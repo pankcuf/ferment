@@ -9,11 +9,12 @@ mod writer;
 mod xcproj;
 pub(crate) mod presentable;
 mod composable;
+mod formatter;
 
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Generics, Item};
+use syn::{Generics, Item, Type};
 use crate::error;
 use crate::lang::{CrateTreeConsumer, PresentableSpecification, Specification};
 use crate::lang::objc::composers::AttrWrapper;
@@ -26,9 +27,11 @@ pub use writer::Writer as ObjCWriter;
 pub use xcproj::Config as XCodeConfig;
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
-use crate::composer::{Composer, GenericComposer, MaybeComposer, SourceAccessible, SourceFermentable};
+use crate::composer::{SourceComposable, GenericComposer, MaybeComposer, SourceAccessible, SourceFermentable};
 use crate::conversion::expand_attributes;
+use crate::ext::Resolve;
 use crate::presentable::{Expression, ScopeContextPresentable};
+use crate::presentation::FFIVariable;
 
 pub trait ObjCSpecification:
     PresentableSpecification<ObjCFermentate,
@@ -36,8 +39,10 @@ pub trait ObjCSpecification:
         Gen=Option<Generics>,
         Interface=InterfaceImplementation,
         TYC=TypeContext,
-        Expr=Expression<ObjCFermentate, Self>
-    > where <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens {}
+        Expr=Expression<ObjCFermentate, Self>,
+        Var=FFIVariable<TokenStream2, ObjCFermentate, Self>
+    > where <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens,
+            Type: Resolve<Self::Var> {}
 
 impl<T> PresentableSpecification<ObjCFermentate> for T where T: ObjCSpecification {}
 impl<T> Specification<ObjCFermentate> for T where T: ObjCSpecification {
@@ -46,6 +51,7 @@ impl<T> Specification<ObjCFermentate> for T where T: ObjCSpecification {
     type TYC = TypeContext;
     type Interface = InterfaceImplementation;
     type Expr = Expression<ObjCFermentate, T>;
+    type Var = FFIVariable<TokenStream2, ObjCFermentate, T>;
 }
 
 

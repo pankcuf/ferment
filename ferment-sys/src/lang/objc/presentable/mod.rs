@@ -1,8 +1,8 @@
 mod aspect;
 mod expr;
 mod generic;
-mod owned;
-mod sequence;
+mod arg;
+mod seq;
 mod ty_context;
 
 #[allow(unused)]
@@ -12,8 +12,8 @@ pub use self::expr::*;
 #[allow(unused)]
 pub use self::generic::*;
 #[allow(unused)]
-pub use self::owned::*;
+pub use self::arg::*;
 #[allow(unused)]
-pub use self::sequence::*;
+pub use self::seq::*;
 #[allow(unused)]
 pub use self::ty_context::*;

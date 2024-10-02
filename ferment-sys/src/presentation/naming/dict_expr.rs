@@ -32,7 +32,6 @@ pub enum DictionaryExpr {
     NullMut,
     CChar,
     AsSlice(TokenStream2),
-    // FromRawParts(TokenStream2, TokenStream2),
     ToVec(TokenStream2),
     MapCollect(TokenStream2, TokenStream2),
     Match(TokenStream2),
@@ -50,9 +49,13 @@ pub enum DictionaryExpr {
     TryIntoUnwrap(TokenStream2),
     CallbackCaller(TokenStream2, TokenStream2),
     CallbackDestructor(TokenStream2, TokenStream2),
+    CastedFFIConversionMethod(TokenStream2, TokenStream2, TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
+    Clone(TokenStream2),
+    FromPtrClone(TokenStream2),
+    SelfAsTrait(TokenStream2),
 }
 
 
@@ -185,17 +188,19 @@ impl ToTokens for DictionaryExpr {
                 quote!(.add(#index));
             }
             Self::CastAs(ty, as_ty) =>
-                // Expr::Cast(ExprCast {
-                //     attrs: vec![],
-                //     expr: Box::new(Expr::__NonExhaustive),
-                //     as_token: Default::default(),
-                //     ty: Box::new(Type::__NonExhaustive),
-                // }).to_token_stream()
                 quote!(<#ty as #as_ty>).to_tokens(tokens),
             Self::CallMethod(ns, args) => {
                 ns.to_tokens(tokens);
                 quote!((#args)).to_tokens(tokens)
             }
+            Self::Clone(expr) =>
+                quote!(#expr.clone()).to_tokens(tokens),
+
+            Self::FromPtrClone(expr) =>
+                quote!((&*#expr).clone()).to_tokens(tokens),
+            Self::SelfAsTrait(self_ty) =>
+                quote!(*((*self_).object as *const #self_ty)).to_tokens(tokens),
+
             Self::SelfDestructuring(content) =>
                 quote!(Self { #content }).to_tokens(tokens),
             Self::TryIntoUnwrap(expr) => {
@@ -212,6 +217,8 @@ impl ToTokens for DictionaryExpr {
                     (self.destructor)(#ffi_result);
                     result
                 ).to_tokens(tokens),
+            Self::CastedFFIConversionMethod(interface, method, ffi_type, target_type, expr) =>
+                quote!(<#ffi_type as #interface<#target_type>>::#method(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>

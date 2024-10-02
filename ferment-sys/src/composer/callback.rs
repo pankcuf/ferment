@@ -5,29 +5,29 @@ use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, Composer, ComposerLink, constants, GenericComposerInfo, ToConversionComposer, VarComposer};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
+use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct CallbackComposer<LANG, SPEC>
-    where LANG: Clone + 'static,
+    where LANG: LangFermentable + 'static,
           SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable> + 'static,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub ty: Type,
-    base: BasicComposer<ComposerLink<Self>, LANG, SPEC>,
+    base: BasicComposerLink<Self, LANG, SPEC>,
 }
 
 impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
-    where LANG: Clone,
+    where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Self: AspectPresentable<SPEC::TYC> {
-    pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
             ty: ty.clone()
@@ -35,12 +35,12 @@ impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
     }
 }
 
-impl<'a, SPEC> Composer<'a> for CallbackComposer<RustFermentate, SPEC>
+impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { ty, .. } = self;
         let type_path: TypePath = parse_quote!(#ty);
         let PathSegment { arguments, .. } = type_path.path.segments.last().unwrap();
@@ -70,24 +70,24 @@ impl<'a, SPEC> Composer<'a> for CallbackComposer<RustFermentate, SPEC>
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
                     TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                     TypeKind::Complex(ty) => {
-                        let ffi_ty = ty.special_or_to_ffi_full_path_type(source);
+                        let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
                         (ffi_ty.joined_mut(), from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream()))
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
                         GenericTypeKind::Optional(ty) => match TypeKind::from(ty.first_nested_type().unwrap()) {
                             TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                             TypeKind::Complex(ty) => {
-                                let ffi_ty = ty.special_or_to_ffi_full_path_type(source);
+                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), opt_conversion(from_opt_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())))
                             },
                             TypeKind::Generic(ty) => {
-                                let ffi_ty = ty.special_or_to_ffi_full_path_type(source);
+                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), from_opt_complex_result(ty.ty().to_token_stream(), ffi_ty.to_token_stream()))
                             },
                         },
                         GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                         _ => {
-                            let ffi_ty = full_ty.special_or_to_ffi_full_path_type(source);
+                            let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&full_ty, source);
                             (ffi_ty.joined_mut(), from_complex_result(generic_ty.to_token_stream(), ffi_ty.to_token_stream()))
                         }
                     }
@@ -105,13 +105,13 @@ impl<'a, SPEC> Composer<'a> for CallbackComposer<RustFermentate, SPEC>
             .for_each(|(index, ty)| {
                 let name = Name::UnnamedArg(index);
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
-                ffi_args.push(bare_fn_arg(VarComposer::new(ScopeSearch::Value(ScopeSearchKey::TypeRef(ty, None))).compose(source).to_type()));
+                ffi_args.push(bare_fn_arg(VarComposer::<RustFermentate, SPEC>::new(ScopeSearch::Value(ScopeSearchKey::TypeRef(ty, None))).compose(source).to_type()));
                 arg_to_conversions.push(ToConversionComposer::<RustFermentate, SPEC>::new(name, ty.clone(), None).compose(source).present(source));
             });
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
-            ty.mangle_ident_default(),
+            ty.mangle_tokens_default(),
             attrs.clone(),
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([

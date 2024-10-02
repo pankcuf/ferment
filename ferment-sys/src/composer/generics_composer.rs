@@ -2,35 +2,35 @@ use std::marker::PhantomData;
 use syn::{GenericParam, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate};
 use crate::ast::{AddPunctuated, TypePathHolder};
 use crate::composable::GenModel;
-use crate::composer::{Composer, Linkable, ComposerLink};
-use crate::context::ScopeContext;
-use crate::lang::{LangGenSpecification, Specification};
+use crate::composer::{SourceComposable, Linkable};
+use crate::context::ScopeContextLink;
+use crate::lang::{LangFermentable, LangGenSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
 pub struct GenericsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub parent: Option<Link>,
     pub generics: GenModel,
-    _phantom_data: PhantomData<(LANG, SPEC)>,
+    _marker: PhantomData<(LANG, SPEC)>,
 
 }
 impl<Link, LANG, SPEC> GenericsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub fn new(generics: GenModel) -> Self {
-        Self { parent: None, generics, _phantom_data: PhantomData }
+        Self { parent: None, generics, _marker: PhantomData }
     }
 }
 
 impl<Link, LANG, SPEC> Linkable<Link> for GenericsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable  {
     fn link(&mut self, parent: &Link) {
@@ -38,12 +38,12 @@ impl<Link, LANG, SPEC> Linkable<Link> for GenericsComposer<Link, LANG, SPEC>
     }
 }
 
-impl<'a, Link, LANG, SPEC> Composer<'a> for GenericsComposer<Link, LANG, SPEC>
+impl<Link, LANG, SPEC> SourceComposable for GenericsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    type Source = ComposerLink<ScopeContext>;
+    type Source = ScopeContextLink;
     type Output = SPEC::Gen;
     fn compose(&self, context: &Self::Source) -> Self::Output {
         let context = context.borrow();

@@ -336,7 +336,9 @@ impl Mangle<MangleDefault> for GenericBoundsModel {
         let mut chunks = vec![];
 
         // chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
-        chunks.push(self.bounds.first().unwrap().mangle_string(context));
+        if let Some(b) = self.bounds.first() {
+            chunks.push(b.mangle_string(context));
+        }
         chunks.extend(self.predicates.iter()
             .map(|(_predicate, objects)|
                      objects.iter()

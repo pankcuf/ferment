@@ -340,6 +340,14 @@ impl ToTokens for TypeModelKind {
 
 impl TypeModelKind {
 
+    pub fn unknown_type(ty: Type) -> Self {
+        Self::Unknown(TypeModel::from(ty))
+    }
+    pub fn unknown_type_ref(ty: &Type) -> Self {
+        Self::Unknown(TypeModel::from(ty))
+    }
+
+
     pub fn is_unknown(&self) -> bool {
         match self {
             TypeModelKind::Unknown(..) => true,
@@ -381,14 +389,14 @@ impl TypeModelKind {
     pub fn maybe_trait_model_kind_or_same(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
             TypeModelKind::Trait(ty, ..) => {
-                println!("TypeModelKind:: (Trait Conversion): {}", ty);
+                //println!("TypeModelKind:: (Trait Conversion): {}", ty);
                 ty.maybe_trait_object_maybe_model_kind(source)
             },
             _ => {
                 None
             },
         }.unwrap_or_else(|| {
-            println!("TypeModelKind (Non-Trait Conversion): {}", self.to_token_stream());
+            //println!("TypeModelKind (Non-Trait Conversion): {}", self.to_token_stream());
             Some(self.clone())
         })
     }

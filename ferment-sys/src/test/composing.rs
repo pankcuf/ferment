@@ -10,7 +10,7 @@ use crate::{Config, Crate};
 use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::TypeModel;
 use crate::composer::ComposerLink;
-use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo, TypeChain};
+use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo, ScopeContextLink, TypeChain};
 use crate::conversion::{DictTypeModelKind, ObjectKind, TypeModelKind};
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
@@ -29,7 +29,7 @@ fn scope_chain(self_scope: PathHolder) -> ScopeChain {
     }
 }
 
-fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ComposerLink<ScopeContext> {
+fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ScopeContextLink {
     Rc::new(RefCell::new(ScopeContext::with(scope_chain(self_scope), global_context_ptr)))
 }
 

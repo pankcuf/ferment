@@ -41,16 +41,26 @@ impl ObjectKind {
         }
     }
 
+    pub fn maybe_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
+        match self {
+            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+                source.maybe_trait_or_regular_model_kind(),
+            ObjectKind::Type(ref kind) |
+            ObjectKind::Item(ref kind, ..) =>
+                kind.maybe_trait_model_kind_or_same(source),
+            ObjectKind::Empty => None
+        }
+    }
+
     pub fn maybe_trait_or_regular_model_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
-            ObjectKind::Type(ref ty_conversion) |
-            ObjectKind::Item(ref ty_conversion, ..) => match ty_conversion {
-                TypeModelKind::Trait(ty, _decomposition, _super_bounds) => ty.maybe_trait_object_maybe_model_kind(source),
+            ObjectKind::Type(ref kind) |
+            ObjectKind::Item(ref kind, ..) => match kind {
+                TypeModelKind::Trait(ty, ..) =>
+                    ty.maybe_trait_object_maybe_model_kind(source),
                 _ => None,
             }.unwrap_or_else(|| self.maybe_type_model_kind_ref().cloned()),
-            ObjectKind::Empty => {
-                None
-            }
+            ObjectKind::Empty => None
         }
     }
 
@@ -218,8 +228,7 @@ impl TryFrom<(&Item, &PathHolder)> for ObjectKind {
             },
             Item::Mod(ItemMod { ident, .. }) => {
                 Ok(ObjectKind::new_item(
-                    TypeModelKind::Unknown(
-                        TypeModel::new(ident.to_type(), None, Punctuated::new())),
+                    TypeModelKind::unknown_type(ident.to_type()),
                     ScopeItemKind::Item(value.clone(), scope.clone())))
 
             }

@@ -284,8 +284,7 @@ impl<'a> VisitScopeType<'a> for Path {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
                 },
                 _ if first_ident.is_special_std_trait() => {
-                    // TODO: make it Unknown?
-                    ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))
+                    ObjectKind::Type(TypeModelKind::unknown_type(nested_import_seg.to_type()))
                 },
                 _ if first_ident.is_str() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))))

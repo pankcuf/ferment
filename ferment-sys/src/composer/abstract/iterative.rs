@@ -1,22 +1,22 @@
-use crate::composer::{Composer, ComposerPresenter, ComposerPresenterByRef, Linkable};
+use crate::composer::{SourceComposable, Composer, ComposerByRef, Linkable};
 use crate::shared::SharedAccess;
 
 pub struct IterativeComposer<In, Ctx, Map, Out>
     where In: Clone {
-    set_output: ComposerPresenter<(In, ComposerPresenterByRef<Ctx, Map>), Out>,
-    mapper: ComposerPresenterByRef<Ctx, Map>
+    set_output: Composer<(In, ComposerByRef<Ctx, Map>), Out>,
+    mapper: ComposerByRef<Ctx, Map>
 }
 
 impl<In, Ctx, Map, Out> IterativeComposer<In, Ctx, Map, Out>
     where In: Clone {
     pub const fn new(
-        set_output: ComposerPresenter<(In, ComposerPresenterByRef<Ctx, Map>), Out>,
-        mapper: ComposerPresenterByRef<Ctx, Map>,
+        set_output: Composer<(In, ComposerByRef<Ctx, Map>), Out>,
+        mapper: ComposerByRef<Ctx, Map>,
     ) -> Self {
         Self { set_output, mapper }
     }
 }
-impl<'a, In, Ctx, Map, Out> Composer<'a> for IterativeComposer<In, Ctx, Map, Out>
+impl<In, Ctx, Map, Out> SourceComposable for IterativeComposer<In, Ctx, Map, Out>
     where In: Clone {
     type Source = In;
     type Output = Out;
@@ -26,8 +26,8 @@ impl<'a, In, Ctx, Map, Out> Composer<'a> for IterativeComposer<In, Ctx, Map, Out
     }
 }
 
-impl<Parent, In, Ctx, Map, Out> Linkable<Parent> for IterativeComposer<In, Ctx, Map, Out>
-    where Parent: SharedAccess, In: Clone {
-    fn link(&mut self, _parent: &Parent) {}
+impl<Link, In, Ctx, Map, Out> Linkable<Link> for IterativeComposer<In, Ctx, Map, Out>
+    where Link: SharedAccess, In: Clone {
+    fn link(&mut self, _parent: &Link) {}
 }
 

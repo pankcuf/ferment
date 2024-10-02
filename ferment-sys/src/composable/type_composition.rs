@@ -56,7 +56,17 @@ impl RefineMut for TypeModel {
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.ty.refine_with(refined);
+    }
+}
 
+impl From<&Type> for TypeModel {
+    fn from(value: &Type) -> Self {
+        Self::new(value.clone(), None, CommaPunctuatedNestedArguments::new())
+    }
+}
+impl From<Type> for TypeModel {
+    fn from(value: Type) -> Self {
+        Self::new(value, None, CommaPunctuatedNestedArguments::new())
     }
 }
 

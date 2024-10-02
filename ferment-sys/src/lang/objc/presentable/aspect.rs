@@ -1,4 +1,4 @@
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use syn::{Attribute, parse_quote, Type, TypeSlice};
 use crate::composable::{FnSignatureContext, TypeModeled};
 use crate::context::ScopeContext;
@@ -30,7 +30,8 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     TypeContext::Struct { ident , prefix, .. } =>
                         {
                             let ty: Type = ident.to_type().resolve(source);
-                            Name::Ident(format_ident!("{}{}", prefix.to_string(), ty.mangle_ident_default().to_token_stream().to_string())).to_type()
+                            Name::Ident(format_ident!("{}{}", prefix.to_string(), ty.mangle_tokens_default().to_string()))
+                                .to_type()
                         },
                     TypeContext::EnumVariant { parent: _, ident, prefix, variant_ident, attrs: _ } => {
                         let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
@@ -47,8 +48,11 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         let elem_type = &type_slice.elem;
                         parse_quote!(Vec<#elem_type>)
                     }
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
-                        kind.ty().cloned().unwrap(),
+                    TypeContext::Mixin { prefix, mixin_kind: MixinKind::Generic(kind), ..} => {
+                        let objc_name = kind.ty().unwrap().mangle_tokens_default();
+                        Name::Ident(format_ident!("{}{}", prefix.to_string(), objc_name.to_string()))
+                            .to_type()
+                    },
                     TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
                         model.as_type().clone()
                     // model.type_model_ref().ty.clone(),

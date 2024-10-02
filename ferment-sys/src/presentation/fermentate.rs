@@ -4,6 +4,7 @@ use syn::{Attribute, ItemUse};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composer::SourceFermentable;
 use crate::context::ScopeContext;
+use crate::lang::LangFermentable;
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{BindingPresentation, DocPresentation, FFIObjectPresentation, InterfacePresentation};
 use crate::tree::{CrateTree, ScopeTree};
@@ -171,6 +172,8 @@ impl ToTokens for RustFermentate {
         }
     }
 }
+
+impl LangFermentable for RustFermentate {}
 
 impl ScopeContextPresentable for RustFermentate {
     type Presentation = TokenStream2;

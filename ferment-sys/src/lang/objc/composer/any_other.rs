@@ -1,12 +1,12 @@
 use quote::ToTokens;
-use crate::composer::{AnyOtherComposer, Composer, GenericComposerInfo, VarComposer};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::composer::{AnyOtherComposer, SourceComposable, GenericComposerInfo, VarComposer};
+use crate::context::ScopeContext;
 use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::presentable::{PresentableArgument, ScopeContextPresentable, PresentableSequence};
 use crate::presentation::{DictionaryName, Name};
 
-impl<'a, SPEC> Composer<'a> for AnyOtherComposer<ObjCFermentate, SPEC>
+impl<SPEC> SourceComposable for AnyOtherComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification,
           PresentableSequence<ObjCFermentate, SPEC>: ScopeContextPresentable,
           PresentableArgument<ObjCFermentate, SPEC>: ScopeContextPresentable {
@@ -14,7 +14,7 @@ impl<'a, SPEC> Composer<'a> for AnyOtherComposer<ObjCFermentate, SPEC>
     type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
 
     #[allow(unused_variables)]
-    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         let ffi_name = self.ty.mangle_ident_default();
         let ffi_type = ffi_name.to_type();
         let arg_0_name = Name::Dictionary(DictionaryName::Obj);
@@ -29,13 +29,13 @@ impl<'a, SPEC> Composer<'a> for AnyOtherComposer<ObjCFermentate, SPEC>
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
         let obj_by_value = source.maybe_object_by_value(&self.ty);
         let nested_ty = self.ty.first_nested_type().unwrap();
-        let maybe_opaque = source.maybe_opaque_object(nested_ty);
+        let maybe_opaque = source.maybe_opaque_object::<ObjCFermentate, SPEC>(nested_ty);
         let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
-        println!("AnyOther.ty: {}", nested_ty.to_token_stream());
-        println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
-        println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
+        // println!("AnyOther.ty: {}", nested_ty.to_token_stream());
+        // println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
+        // println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        // println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        // println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
 
         // let compose = |arg_name: &Name, ty: &Type| {
         // };
@@ -43,11 +43,11 @@ impl<'a, SPEC> Composer<'a> for AnyOtherComposer<ObjCFermentate, SPEC>
         // let ty = nested_ty;
         // compose(&arg_0_name, nested_ty)
 
-        // let search = ScopeSearch::Value(ScopeSearchKey::TypeRef(ty));
-        let search = ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(nested_ty).unwrap());
-        let ffi_var = VarComposer::new(search.clone()).compose(source).to_type();
+        let ffi_var = VarComposer::<ObjCFermentate, SPEC>::value(nested_ty)
+            .compose(source)
+            .to_token_stream();
         let maybe_obj = source.maybe_object_by_value(nested_ty);
-        let maybe_opaque = source.maybe_opaque_object(nested_ty);
+        let maybe_opaque = source.maybe_opaque_object::<ObjCFermentate, SPEC>(nested_ty);
         // println!("compose ffi_type: {}", ffi_var.to_token_stream());
         // let default_composer_set = maybe_opaque.as_ref()
         //     .map_or((

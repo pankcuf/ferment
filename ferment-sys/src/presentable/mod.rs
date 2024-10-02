@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use quote::ToTokens;
 use syn::punctuated::Punctuated;
 use proc_macro2::{Ident, TokenStream as TokenStream2};
@@ -51,7 +52,9 @@ impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
 //     }
 // }
 
-pub trait NameTreeContext: Clone {
+
+
+pub trait NameTreeContext: Clone + Debug {
     // fn maybe_parent(&self) -> Option<&Box<Self>>;
     fn join_fn(&self, path: Path, sig_context: FnSignatureContext, attrs: Vec<Attribute>) -> Self;
     fn join_variant(&self, ident: Ident, variant_ident: Ident, attrs: Vec<Attribute>) -> Self;

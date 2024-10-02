@@ -4,32 +4,32 @@ use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, Composer, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable};
-use crate::context::{ScopeChain, ScopeContext};
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink};
+use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DocPresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct ImplComposer<LANG, SPEC>
-    where LANG: Clone + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>> + 'static,
+    where LANG: LangFermentable + 'static,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-    pub base: BasicComposer<ComposerLink<Self>, LANG, SPEC>,
+    pub base: BasicComposerLink<Self, LANG, SPEC>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
 }
 impl<LANG, SPEC> ImplComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           Self: AspectPresentable<SPEC::TYC> {
-    pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ComposerLink<ScopeContext>) -> ComposerLink<Self> {
+    pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
         let mut methods = Vec::new();
         let attrs_model = AttrsModel::from(attrs);
@@ -66,8 +66,8 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
 }
 
 impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

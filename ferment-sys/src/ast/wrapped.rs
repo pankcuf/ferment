@@ -48,8 +48,7 @@ pub struct Wrapped<S, SP, I>
     where SP: ToTokens,
           I: DelimiterTrait + ?Sized {
     content: S,
-    _marker: PhantomData<I>,
-    _marker2: PhantomData<SP>,
+    _marker: PhantomData<(SP, I)>,
 }
 
 impl<S, SP, I> Wrapped<S, SP, I>
@@ -59,8 +58,10 @@ impl<S, SP, I> Wrapped<S, SP, I>
         Wrapped {
             content,
             _marker: PhantomData,
-            _marker2: PhantomData,
         }
+    }
+    pub fn token_tree<T: ToTokens>(content: T) -> TokenTree {
+        TokenTree::Group(Group::new(I::delimiter(), content.to_token_stream()))
     }
 }
 
@@ -71,7 +72,7 @@ impl<S, SP, I> ScopeContextPresentable for Wrapped<S, SP, I>
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-        TokenTree::Group(Group::new(I::delimiter(), self.content.present(source).to_token_stream()))
+        Self::token_tree(self.content.present(source))
             .to_token_stream()
     }
 }
@@ -81,7 +82,7 @@ impl<S, SP, I> ToTokens for Wrapped<S, SP, I>
           SP: ToTokens,
           I: DelimiterTrait {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        TokenTree::Group(Group::new(I::delimiter(), self.content.to_token_stream()))
+        Self::token_tree(&self.content)
             .to_tokens(tokens)
     }
 }

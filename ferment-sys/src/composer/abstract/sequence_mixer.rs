@@ -1,27 +1,27 @@
-use crate::composer::{Composer, ComposerPresenter, ComposerPresenterByRef, Linkable, SequenceComposer, SharedComposer};
+use crate::composer::{SourceComposable, Composer, ComposerByRef, Linkable, SequenceComposer, SharedComposer};
 use crate::shared::SharedAccess;
 
-pub struct SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
-    where Parent: SharedAccess,
-          ParentCtx: Clone {
-    parent: Option<Parent>,
-    post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
-    context: SharedComposer<Parent, MixCtx>,
-    sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
+pub struct SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where Link: SharedAccess,
+          LinkCtx: Clone {
+    parent: Option<Link>,
+    post_processor: ComposerByRef<(MixCtx, SeqMixOut), Out>,
+    context: SharedComposer<Link, MixCtx>,
+    sequence: SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
 }
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Linkable<Parent>
-for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
-    where Parent: SharedAccess,
-          ParentCtx: Clone {
-    fn link(&mut self, parent: &Parent) {
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Linkable<Link>
+for SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where Link: SharedAccess,
+          LinkCtx: Clone {
+    fn link(&mut self, parent: &Link) {
         self.sequence.link(parent);
         self.parent = Some(parent.clone_container());
     }
 }
-impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Composer<'a>
-for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
-    where Parent: SharedAccess,
-          ParentCtx: Clone {
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SourceComposable
+for SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where Link: SharedAccess,
+          LinkCtx: Clone {
     type Source = ();
     type Output = Out;
     fn compose(&self, _source: &Self::Source) -> Self::Output {
@@ -30,16 +30,16 @@ for SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, 
             self.sequence.compose(&())))
     }
 }
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
-    where Parent: SharedAccess,
-          ParentCtx: Clone {
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
+    where Link: SharedAccess,
+          LinkCtx: Clone {
     pub const fn new(
-        post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
-        context: SharedComposer<Parent, MixCtx>,
-        seq_root: ComposerPresenter<SeqOut, SeqMixOut>,
-        seq_context: SharedComposer<Parent, ParentCtx>,
-        seq_iterator_item: ComposerPresenterByRef<SeqCtx, SeqMap>,
-        seq_iterator_root: ComposerPresenter<(ParentCtx, ComposerPresenterByRef<SeqCtx, SeqMap>), SeqOut>,
+        post_processor: ComposerByRef<(MixCtx, SeqMixOut), Out>,
+        context: SharedComposer<Link, MixCtx>,
+        seq_root: Composer<SeqOut, SeqMixOut>,
+        seq_context: SharedComposer<Link, LinkCtx>,
+        seq_iterator_item: ComposerByRef<SeqCtx, SeqMap>,
+        seq_iterator_root: Composer<(LinkCtx, ComposerByRef<SeqCtx, SeqMap>), SeqOut>,
     ) -> Self {
         Self {
             parent: None,
@@ -53,16 +53,16 @@ impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> Sequence
             )
         }
     }
-    pub const fn with_sequence(
-        post_processor: ComposerPresenterByRef<(MixCtx, SeqMixOut), Out>,
-        context: SharedComposer<Parent, MixCtx>,
-        sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
-    ) -> Self {
-        Self {
-            parent: None,
-            post_processor,
-            context,
-            sequence
-        }
-    }
+    // pub const fn with_sequence(
+    //     post_processor: ComposerByRef<(MixCtx, SeqMixOut), Out>,
+    //     context: SharedComposer<Parent, MixCtx>,
+    //     sequence: SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
+    // ) -> Self {
+    //     Self {
+    //         parent: None,
+    //         post_processor,
+    //         context,
+    //         sequence
+    //     }
+    // }
 }

@@ -1,3 +1,3 @@
-pub trait Linkable<Parent> {
-    fn link(&mut self, parent: &Parent);
+pub trait Linkable<Link> {
+    fn link(&mut self, parent: &Link);
 }

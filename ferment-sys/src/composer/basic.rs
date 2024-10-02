@@ -1,18 +1,19 @@
 use syn::__private::TokenStream2;
 use crate::composable::{AttrsModel, GenModel};
-use crate::composer::{AttrComposable, AttrsComposer, Composer, ComposerLink, DocsComposable, GenericsComposable, GenericsComposer, Linkable, SourceAccessible, TypeAspect, TypeComposer, TypeContextComposer};
-use crate::context::ScopeContext;
-use crate::lang::Specification;
+use crate::composer::{AttrComposable, AttrsComposer, SourceComposable, ComposerLink, DocsComposable, GenericsComposable, GenericsComposer, Linkable, SourceAccessible, TypeAspect, TypeComposer, TypeContextComposer};
+use crate::context::ScopeContextLink;
+use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::DocPresentation;
 use crate::shared::SharedAccess;
 
+pub type BasicComposerLink<T, LANG, SPEC> = BasicComposer<ComposerLink<T>, LANG, SPEC>;
 pub struct BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub context: ComposerLink<ScopeContext>,
+    pub context: ScopeContextLink,
     pub attr: AttrsComposer<Link, LANG, SPEC>,
     pub doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
     pub ty: TypeComposer<Link, SPEC::TYC>,
@@ -20,7 +21,7 @@ pub struct BasicComposer<Link, LANG, SPEC>
 }
 impl<Link, LANG, SPEC> BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn new(
@@ -28,7 +29,7 @@ impl<Link, LANG, SPEC> BasicComposer<Link, LANG, SPEC>
         doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
         ty: TypeComposer<Link, SPEC::TYC>,
         generics: GenericsComposer<Link, LANG, SPEC>,
-        context: ComposerLink<ScopeContext>
+        context: ScopeContextLink
     ) -> Self {
         Self { context, attr, doc, ty, generics }
     }
@@ -38,7 +39,7 @@ impl<Link, LANG, SPEC> BasicComposer<Link, LANG, SPEC>
         ty_context: SPEC::TYC,
         generics: GenModel,
         doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
-        context: ComposerLink<ScopeContext>) -> Self {
+        context: ScopeContextLink) -> Self {
         Self::new(
             AttrsComposer::new(attrs),
             doc,
@@ -51,7 +52,7 @@ impl<Link, LANG, SPEC> BasicComposer<Link, LANG, SPEC>
 
 impl<Link, LANG, SPEC> Linkable<Link> for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn link(&mut self, parent: &Link) {
@@ -64,7 +65,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for BasicComposer<Link, LANG, SPEC>
 
 impl<Link, LANG, SPEC> DocsComposable for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn compose_docs(&self) -> DocPresentation {
@@ -74,7 +75,7 @@ impl<Link, LANG, SPEC> DocsComposable for BasicComposer<Link, LANG, SPEC>
 
 impl<Link, LANG, SPEC> AttrComposable<SPEC::Attr> for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn compose_attributes(&self) -> SPEC::Attr {
@@ -84,7 +85,7 @@ impl<Link, LANG, SPEC> AttrComposable<SPEC::Attr> for BasicComposer<Link, LANG, 
 
 impl<Link, LANG, SPEC> GenericsComposable<SPEC::Gen> for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn compose_generics(&self) -> SPEC::Gen {
@@ -93,7 +94,7 @@ impl<Link, LANG, SPEC> GenericsComposable<SPEC::Gen> for BasicComposer<Link, LAN
 }
 impl<'a, Link, LANG, SPEC> TypeAspect<SPEC::TYC> for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn type_context_ref(&self) -> &SPEC::TYC {
@@ -103,10 +104,10 @@ impl<'a, Link, LANG, SPEC> TypeAspect<SPEC::TYC> for BasicComposer<Link, LANG, S
 
 impl<Link, LANG, SPEC> SourceAccessible for BasicComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
-          LANG: Clone,
+          LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn context(&self) -> &ComposerLink<ScopeContext> {
+    fn context(&self) -> &ScopeContextLink {
         &self.context
     }
 }

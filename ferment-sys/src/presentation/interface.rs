@@ -6,6 +6,7 @@ use crate::composer::CommaPunctuatedArgs;
 use crate::ext::Terminated;
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum InterfacePresentation {
     Empty,

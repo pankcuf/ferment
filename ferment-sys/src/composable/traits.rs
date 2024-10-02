@@ -5,12 +5,12 @@ use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMet
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, Depunctuated, PathHolder};
 use crate::composable::{CfgAttributes, Composition, FnSignatureContext, GenericsComposition, TraitDecompositionPart2Context};
-use crate::composer::{ComposerLink, SigComposer, SigComposerLink, SourceFermentable};
-use crate::context::ScopeContext;
+use crate::composer::{SigComposer, SigComposerLink, SourceFermentable};
+use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::TypeModelKind;
 use crate::ext::ToType;
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentable::Aspect;
 use crate::presentation::RustFermentate;
@@ -99,8 +99,8 @@ impl TraitDecompositionPart1 {
 #[derive(Clone)]
 #[allow(unused)]
 pub struct TraitDecompositionPart2<LANG, SPEC>
-    where LANG: Clone + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>> + 'static,
+    where LANG: LangFermentable + 'static,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           SPEC::Expr: ScopeContextPresentable {
@@ -110,14 +110,14 @@ pub struct TraitDecompositionPart2<LANG, SPEC>
 }
 
 impl<LANG, SPEC> TraitDecompositionPart2<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
     #[allow(unused)]
-    pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, _scope: &PathHolder, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, _scope: &PathHolder, context: &ScopeContextLink) -> Self {
         let trait_ident = &item_trait.ident;
         let source = context.borrow();
         let mut method_composers = Depunctuated::new();

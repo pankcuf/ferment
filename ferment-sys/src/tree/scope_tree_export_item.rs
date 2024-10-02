@@ -4,8 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemMod, ItemUse};
-use crate::composer::ComposerLink;
-use crate::context::{GlobalContext, ScopeChain, ScopeContext};
+use crate::context::{GlobalContext, ScopeChain, ScopeContext, ScopeContextLink};
 use crate::ext::ItemExtension;
 use crate::formatter::{format_imported_set, format_tree_exported_dict};
 use crate::tree::ScopeTreeExportID;
@@ -14,8 +13,8 @@ use crate::tree::ScopeTreeExportID;
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
-    Item(ComposerLink<ScopeContext>, Item),
-    Tree(ComposerLink<ScopeContext>, HashSet<ItemUse>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
+    Item(ScopeContextLink, Item),
+    Tree(ScopeContextLink, HashSet<ItemUse>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -53,7 +52,7 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(ctx, ..) => ctx.borrow().scope.clone(),
         }
     }
-    pub fn tree_with_context_and_exports(context: ComposerLink<ScopeContext>, exports: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
+    pub fn tree_with_context_and_exports(context: ScopeContextLink, exports: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
         Self::Tree(context, HashSet::default(), exports, attrs)
     }
     pub fn tree_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
@@ -113,7 +112,7 @@ impl ScopeTreeExportItem {
 
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
         let ItemMod { attrs, ident, content, .. } = item_mod;
-        let new_export_item = |context: &mut ComposerLink<ScopeContext>| ScopeTreeExportItem::tree_with_context(scope.clone(), context.borrow().context.clone(), attrs.clone());
+        let new_export_item = |context: &mut ScopeContextLink| ScopeTreeExportItem::tree_with_context(scope.clone(), context.borrow().context.clone(), attrs.clone());
         match content {
             Some((_, items)) => match self {
                 ScopeTreeExportItem::Item(context, _) => {

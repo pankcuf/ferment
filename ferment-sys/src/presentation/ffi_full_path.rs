@@ -1,10 +1,15 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
 use syn::{parse_quote, Path, Type};
-use crate::ext::{ToPath, ToType};
-use crate::presentation::FFIFullDictionaryPath;
+use crate::ext::{SpecialType, ToPath, ToType};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::presentation::{FFIFullDictionaryPath, RustFermentate};
 
-pub enum FFIFullPath {
+pub enum FFIFullPath<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     Type {
         crate_ident: Ident,
         ffi_name: Path,
@@ -16,31 +21,47 @@ pub enum FFIFullPath {
         path: Path,
     },
     Dictionary {
-        path: FFIFullDictionaryPath
+        path: FFIFullDictionaryPath<LANG, SPEC>
     },
 }
 
-impl ToTokens for FFIFullPath {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.to_path().to_tokens(tokens)
+impl<LANG, SPEC> From<SpecialType<LANG, SPEC>> for FFIFullPath<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    fn from(value: SpecialType<LANG, SPEC>) -> Self {
+        FFIFullPath::<LANG, SPEC>::External { path: value.to_path() }
     }
 }
 
-impl ToPath for FFIFullPath {
-    fn to_path(&self) -> Path {
-        match self {
-            FFIFullPath::Type { crate_ident, ffi_name } =>
-                parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
-            FFIFullPath::Generic { ffi_name } =>
-                parse_quote!(crate::fermented::generics::#ffi_name),
-            FFIFullPath::External { path } =>
-                parse_quote!(#path),
-            FFIFullPath::Dictionary { path } =>
-                path.to_path(),
-        }
+impl<LANG, SPEC> ToTokens for FFIFullPath<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable, Self: ToType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.to_type().to_tokens(tokens)
     }
 }
-impl ToType for FFIFullPath {
+
+// impl<LANG, SPEC> ToPath for FFIFullPath<LANG, SPEC>
+//     where LANG: LangFermentable,
+//           SPEC: Specification<LANG>,
+//           Aspect<SPEC::TYC>: ScopeContextPresentable {
+//     fn to_path(&self) -> Path {
+//         match self {
+//             FFIFullPath::Type { crate_ident, ffi_name } =>
+//                 parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
+//             FFIFullPath::Generic { ffi_name } =>
+//                 parse_quote!(crate::fermented::generics::#ffi_name),
+//             FFIFullPath::External { path } =>
+//                 parse_quote!(#path),
+//             FFIFullPath::Dictionary { path } =>
+//                 path.to_path(),
+//         }
+//     }
+// }
+impl<SPEC> ToType for FFIFullPath<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     fn to_type(&self) -> Type {
         match self {
             FFIFullPath::Type { crate_ident, ffi_name } =>

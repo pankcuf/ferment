@@ -2,16 +2,17 @@ use syn::{Attribute, Fields, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
 use crate::ast::Void;
-use crate::composer::{AttrComposable, ComposerLink, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, SourceFermentable, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposerLink};
-use crate::context::{ScopeChain, ScopeContext};
-use crate::lang::{RustSpecification, Specification};
+use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, SourceFermentable, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposerLink};
+use crate::context::{ScopeChain, ScopeContextLink};
+use crate::ext::ToType;
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::RustFermentate;
 
 #[allow(unused)]
 pub enum ItemComposerWrapper<LANG, SPEC>
-    where LANG: Clone + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>> + 'static,
+    where LANG: LangFermentable + 'static,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -31,26 +32,26 @@ pub enum ItemComposerWrapper<LANG, SPEC>
 }
 
 impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
 
-    pub fn r#trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn r#trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::Trait(TraitComposer::from_item_trait(item_trait, ty_context, scope, context))
     }
-    pub fn r#impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn r#impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::Impl(ImplComposer::from_item_impl(item_impl, ty_context, scope, context))
     }
-    pub fn r#fn(item_fn: &ItemFn, ty_context: SPEC::TYC, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn r#fn(item_fn: &ItemFn, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::Sig(SigComposer::from_item_fn(item_fn, ty_context, context))
     }
-    pub fn r#enum(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn r#enum(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::<LANG, SPEC>::Enum(EnumComposer::<LANG, SPEC>::new(item_enum, ty_context, context))
     }
-    pub fn variant(fields: &Fields, ty_context: SPEC::TYC, attrs: &Vec<Attribute>, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn variant(fields: &Fields, ty_context: SPEC::TYC, attrs: &Vec<Attribute>, context: &ScopeContextLink) -> Self {
         match fields {
             Fields::Unit =>
                 ItemComposerWrapper::EnumVariantUnit(EnumVariantComposer::<Void, LANG, SPEC>::new(ty_context, attrs, &Punctuated::new(), context)),
@@ -68,7 +69,7 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
         //         ItemComposerWrapper::EnumVariantNamed(EnumVariantComposer::<Brace, LANG, SPEC>::named(ty_context, attrs, &fields.named, context)),
         // }
     }
-    pub fn r#struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn r#struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
         let ItemStruct { attrs, fields: ref f, generics, .. } = item_struct;
         match f {
             Fields::Unnamed(ref fields) =>
@@ -79,7 +80,7 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
                 ItemComposerWrapper::StructNamed(StructComposer::<Brace, LANG, SPEC>::new(ty_context, attrs, generics, &Punctuated::new(), context)),
         }
     }
-    pub fn opaque_struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ComposerLink<ScopeContext>) -> Self {
+    pub fn opaque_struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
         let ItemStruct { attrs, fields: ref f, generics, .. } = item_struct;
         match f {
             Fields::Unnamed(ref fields) =>
@@ -133,8 +134,8 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
 }
 
 impl<LANG, SPEC> AttrComposable<SPEC::Attr> for ItemComposerWrapper<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

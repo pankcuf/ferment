@@ -27,6 +27,68 @@ pub enum InterfacePresentation {
     // - (uint8_t *)from_values;
     // @end
     Args { name: TokenStream2, c_type: TokenStream2, args: Depunctuated<super::ArgPresentation> },
+
+    // @interface DSdash_spv_masternode_processor_crypto_byte_util_UInt768 : NSObject
+    // @property (nonatomic, readwrite) DSArr_u8_96 *o_0;
+    // @end
+
+    // Properties {
+    //     // @interface DSdash_spv_masternode_processor_crypto_byte_util_UInt768 : NSObject
+    //     // @property (nonatomic, readwrite) DSArr_u8_96 *o_0;
+    //     // @end
+    //
+    // },
+    //
+    // Bindings {
+    //     objc_name: TokenStream2,
+    //     c_name: TokenStream2,
+    //     arg_conversions: CommaPunctuatedTokens
+    //
+    //     // @implementation DSdash_spv_masternode_processor_crypto_byte_util_UInt768 (Bindings)
+    //     // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ctor:(instancetype)obj {
+    //     //     return dash_spv_masternode_processor_crypto_byte_util_UInt768_ctor([DSArr_u8_96 ffi_to:obj.o_0]);
+    //     // }
+    //     // + (void)ffi_dtor:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ref {
+    //     //     dash_spv_masternode_processor_crypto_byte_util_UInt768_destroy(ffi_ref);
+    //     // }
+    //     // @end
+    //
+    // },
+    // Conversions {
+    //     objc_name: TokenStream2,
+    //     c_name: TokenStream2,
+    //     from: Depunctuated<TokenStream2>,
+    //     to: Depunctuated<TokenStream2>,
+    //     destroy: Depunctuated<TokenStream2>,
+    //
+    //     // @interface DSdash_spv_masternode_processor_crypto_byte_util_UInt768 (Conversions)
+    //     // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ref;
+    //     // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)obj;
+    //     // + (void)ffi_destroy:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ref;
+    //     // @end
+    //     // @implementation DSdash_spv_masternode_processor_crypto_byte_util_UInt768 (Conversions)
+    //     //
+    //     // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ref {
+    //     //     id *obj = [[self alloc] init];
+    //     //     if (obj) {
+    //     //         obj.o_0 = [DSArr_u8_96 ffi_from:ffi_ref->o_0];
+    //     //     }
+    //     //     return obj;
+    //     // }
+    //     // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)obj {
+    //     //     dash_spv_masternode_processor_crypto_byte_util_UInt768 *self_ = malloc(sizeof(dash_spv_masternode_processor_crypto_byte_util_UInt768));
+    //     //     self_->o_0 = [DSArr_u8_96 ffi_to:obj.o_0];
+    //     //     return self_;
+    //     // }
+    //     // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_ref {
+    //     //     if (!ffi_ref) return;
+    //     //     [DSArr_u8_96 ffi_destroy:ffi_ref->o_0];
+    //     //     free(ffi_ref);
+    //     // }
+    //     // @end
+    //
+    // },
+
 }
 
 impl ToTokens for InterfacePresentation {
@@ -63,6 +125,17 @@ impl ToTokens for InterfacePresentation {
                 });
                 Interface::args_ext(objc_name.to_token_stream(), body).to_tokens(tokens)
             }
+            // InterfacePresentation::Conversions {
+            //     objc_name,
+            //     c_name,
+            //     from,
+            //     to,
+            //     destroy } => {
+            //
+            // }
+            // InterfacePresentation::Bindings { objc_name, c_name, arg_conversions } => {
+            //
+            // }
         }
     }
 }

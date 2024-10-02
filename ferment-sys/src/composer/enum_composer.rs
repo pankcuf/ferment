@@ -4,49 +4,51 @@ use std::cell::RefCell;
 use quote::{quote, ToTokens};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedOwnedItems, Composer, ComposerLink, constants, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SequenceOutputComposer, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SequenceOutputComposerLink, BasicComposerLink};
 use crate::composer::r#abstract::LinkedContextComposer;
-use crate::context::ScopeContext;
-use crate::lang::{LangAttrSpecification, RustSpecification, Specification};
+use crate::context::ScopeContextLink;
+use crate::ext::ToType;
+use crate::lang::{LangAttrSpecification, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocPresentation, FFIObjectPresentation, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct EnumComposer<LANG, SPEC>
-    where LANG: Clone + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>> + 'static,
+    where LANG: LangFermentable + 'static,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-    pub base: BasicComposer<ComposerLink<Self>, LANG, SPEC>,
-    pub ffi_object_composer: SequenceOutputComposer<ComposerLink<Self>, LANG, SPEC>,
+    pub base: BasicComposerLink<Self, LANG, SPEC>,
+    pub ffi_object_composer: SequenceOutputComposerLink<Self, LANG, SPEC>,
     pub variant_composers: Vec<ItemComposerWrapper<LANG, SPEC>>,
     pub variant_presenters: Vec<(VariantComposerRef<LANG, SPEC>, AspectCommaPunctuatedArguments<LANG, SPEC>)>,
 }
 
 impl<LANG, SPEC> EnumComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           Self: GenericsComposable<SPEC::Gen> + AspectPresentable<SPEC::TYC> {
-    pub fn new(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ComposerLink<ScopeContext>) -> ComposerLink<Self> {
+    pub fn new(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
-        let variant_composers = variants.iter()
+        let variant_composers = variants
+            .iter()
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
-                let (variant_composer, fields_context): (VariantComposerRef<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>) = match discriminant {
+                let (variant_composer, fields_context): (VariantComposerRef<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = match discriminant {
                     Some((_, expr)) => (
                         |local_context| PresentableSequence::EnumUnitFields(local_context.clone()),
                         CommaPunctuated::from_iter([
-                            PresentableArgument::AttrExpression(Expression::expr(expr.clone()), SPEC::Attr::from_attrs(attrs.cfg_attributes()))])
+                            PresentableArgument::AttrName(expr.to_token_stream(), SPEC::Attr::from_attrs(attrs.cfg_attributes())) ])
                     ),
                     None => match fields {
                         Fields::Unit => (
-                            |(aspect, _)| PresentableSequence::NoFields(aspect.clone()),
+                            |((aspect, _), _)| PresentableSequence::NoFields(aspect.clone()),
                             CommaPunctuated::new()
                         ),
                         Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => (
@@ -54,21 +56,19 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
                             CommaPunctuated::from_iter(unnamed
                                 .iter()
                                 .map(|Field { attrs, ty, .. }|
-                                    PresentableArgument::DefaultFieldType(
-                                        FieldComposer::new(Name::Empty, FieldTypeKind::r#type(ty), false, SPEC::Attr::from_attrs(attrs.cfg_attributes()))))),
+                                    PresentableArgument::DefaultFieldType(FieldComposer::typed(Name::Empty, ty, false, attrs)))),
                         ),
                         Fields::Named(FieldsNamed { named, .. }) => (
                             |local_context| PresentableSequence::CurlyVariantFields(local_context.clone()),
                             CommaPunctuated::from_iter(named
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
-                                    PresentableArgument::Named(
-                                        FieldComposer::new(Name::Optional(ident.clone()), FieldTypeKind::r#type(ty), true, SPEC::Attr::from_attrs(attrs.cfg_attributes())), Visibility::Inherited))),
+                                    PresentableArgument::Named(FieldComposer::typed(Name::Optional(ident.clone()), ty, true, attrs), Visibility::Inherited))),
                         ),
                     },
                 };
                 let ty_context = ty_context.join_variant(target_name.clone(), variant_name.clone(), attrs.cfg_attributes());
-                (ItemComposerWrapper::variant(fields, ty_context.clone(), attrs, context), (variant_composer, (Aspect::FFI(ty_context), fields_context)))
+                (ItemComposerWrapper::variant(fields, ty_context.clone(), attrs, context), (variant_composer, ((Aspect::FFI(ty_context), SPEC::Gen::default()), fields_context)))
             }).unzip();
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
@@ -97,8 +97,8 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
 
 
 impl<LANG, SPEC> DocsComposable for EnumComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -108,8 +108,8 @@ impl<LANG, SPEC> DocsComposable for EnumComposer<LANG, SPEC>
     }
 }
 impl<LANG, SPEC> FFIObjectComposable for EnumComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -122,8 +122,8 @@ impl<LANG, SPEC> FFIObjectComposable for EnumComposer<LANG, SPEC>
 }
 
 impl<LANG, SPEC> BindingComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -136,8 +136,8 @@ impl<LANG, SPEC> BindingComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
     }
 }
 impl<LANG, SPEC> VariantComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

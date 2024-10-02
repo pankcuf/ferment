@@ -1,15 +1,16 @@
 use syn::Type;
 use crate::composable::FieldComposer;
-use crate::composer::{Composer, DestroyConversionComposer, FromConversionFullComposer, ToConversionComposer};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
-use crate::lang::Specification;
+use crate::composer::{SourceComposable, DestroyConversionComposer, FromConversionFullComposer, ToConversionComposer};
+use crate::context::ScopeContext;
+use crate::ext::ToType;
+use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::Name;
+use crate::presentation::{FFIFullDictionaryPath, Name};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ConversionType<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Var: ToType>,
           <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     From(Name, Type, Option<SPEC::Expr>),
@@ -19,9 +20,9 @@ pub enum ConversionType<LANG, SPEC>
 }
 
 impl<LANG, SPEC> ConversionType<LANG, SPEC>
-    where LANG: Clone,
+    where LANG: LangFermentable,
           SPEC: Specification<LANG,
-              Expr=Expression<LANG, SPEC>>,
+              Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub fn expr_from(composer: &FieldComposer<LANG, SPEC>, expr: Option<SPEC::Expr>) -> Self {
@@ -35,19 +36,20 @@ impl<LANG, SPEC> ConversionType<LANG, SPEC>
     }
 }
 
-impl<'a, LANG, SPEC> Composer<'a> for ConversionType<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+impl<LANG, SPEC> SourceComposable for ConversionType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          FFIFullDictionaryPath<LANG, SPEC>: ToType
+{
     type Source = ScopeContext;
     type Output = SPEC::Expr;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         match self {
-            ConversionType::From(name, ty, expr) => {
-                FromConversionFullComposer::<LANG, SPEC>::new(name.clone(), ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), &source.scope), expr.clone()).compose(source)
-            },
+            ConversionType::From(name, ty, expr) =>
+                FromConversionFullComposer::<LANG, SPEC>::key_in_scope_with_expr(name.clone(), ty, &source.scope, expr.clone()).compose(source),
             ConversionType::To(composer) =>
                 composer.compose(source),
             ConversionType::Destroy(composer) =>

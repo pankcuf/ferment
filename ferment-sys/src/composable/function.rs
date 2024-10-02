@@ -34,4 +34,14 @@ impl FnSignatureContext {
             _ => false
         }
     }
+
+    pub fn receiver_ty(&self) -> &Type {
+        match self {
+            FnSignatureContext::Impl(_, Some(trait_ty), ..) |
+            FnSignatureContext::TraitInner(_, Some(trait_ty), ..) => trait_ty,
+            FnSignatureContext::Impl(self_ty, ..) |
+            FnSignatureContext::TraitInner(self_ty, ..) => self_ty,
+            _ => panic!("Receiver in mod fn")
+        }
+    }
 }

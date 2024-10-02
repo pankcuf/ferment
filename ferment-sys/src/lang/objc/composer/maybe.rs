@@ -2,8 +2,8 @@ use syn::{Field, Item, Type, Visibility, VisPublic};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder};
 use crate::composable::CfgAttributes;
-use crate::composer::{ComposerLink, ItemComposerWrapper, MaybeComposer, MaybeMacroLabeled, SigComposer, TypeAliasComposer};
-use crate::context::{ScopeChain, ScopeContext};
+use crate::composer::{ItemComposerWrapper, MaybeComposer, MaybeMacroLabeled, SigComposer, TypeAliasComposer};
+use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::MacroType;
 use crate::ext::{CrateExtension, ToPath};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
@@ -11,7 +11,7 @@ use crate::lang::objc::presentable::TypeContext;
 
 impl<SPEC> MaybeComposer<ObjCFermentate, SPEC> for Item
     where SPEC: ObjCSpecification {
-    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ComposerLink<ScopeContext>) -> Option<ItemComposerWrapper<crate::lang::objc::ObjCFermentate, SPEC>> {
+    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<ObjCFermentate, SPEC>> {
         self.maybe_macro_labeled()
             .and_then(|macro_type| {
                 let source = scope_context.borrow();

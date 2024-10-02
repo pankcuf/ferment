@@ -3,12 +3,16 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::{quote, ToTokens};
+use crate::ast::CommaPunctuated;
 use crate::composable::{TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::ObjectKind;
-use crate::ext::{AsType, Mangle};
+use crate::ext::{AsType, Mangle, ToType};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
+use crate::lang::{LangFermentable, Specification};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentation::Name;
 
 #[derive(Clone)]
 pub struct GenericBoundsModel {
@@ -112,16 +116,24 @@ impl GenericBoundsModel {
             }
         }).is_some()
     }
-    // pub const fn field_presenter<Parent, LANG, SPEC>(&self) -> SharedComposer<Parent, SequenceOutput<LANG, SPEC>>
-    //     where Parent: SharedAccess,
-    //           LANG: Clone,
-    //           SPEC: LangAttrSpecification<LANG> {
-    //     match self {
-    //         GenericTypeKind::Callback(_) =>
-    //             |composer| OwnedItemPresentableContext::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() })),
-    //         _ =>
-    //             |composer| OwnedItemPresentableContext::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() })),
-    //     }
-    // }
+    pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
+        if self.is_lambda() {
+            self.bounds.first().unwrap().maybe_lambda_args()
+        } else {
+            None
+        }
+    }
 
+    pub fn expr_from<LANG, SPEC>(&self, field_path: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>
+        where LANG: LangFermentable,
+              SPEC: Specification<LANG, Var: ToType>,
+              Aspect<SPEC::TYC>: ScopeContextPresentable {
+        if self.bounds.is_empty() {
+            Expression::from_primitive(field_path)
+        } else if let Some(lambda_args) = self.maybe_lambda_args() {
+            Expression::from_lambda(field_path, lambda_args)
+        } else {
+            Expression::from_complex(field_path)
+        }
+    }
 }

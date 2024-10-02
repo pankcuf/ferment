@@ -15,7 +15,7 @@
 // #[allow(unused)]
 // #[derive(Clone, Debug)]
 // pub struct FromConversionComposer<'a, LANG, SPEC>
-//     where LANG: Clone,
+//     where LANG: LangFermentable,
 //           SPEC: LangAttrSpecification<LANG>
 //             + Default {
 //     pub name: Name,
@@ -24,7 +24,7 @@
 // }
 //
 // impl<'a, LANG, SPEC> FromConversionComposer<'a, LANG, SPEC>
-//     where LANG: Clone,
+//     where LANG: LangFermentable,
 //           SPEC: LangAttrSpecification<LANG>
 //             + Default {
 //     pub fn new(name: Name, search: ScopeSearch<'a>, expr: Option<Expression<LANG, SPEC>>) -> Self {

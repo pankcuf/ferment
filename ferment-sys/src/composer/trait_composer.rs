@@ -9,29 +9,29 @@ use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, TraitTypeModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, Composer, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable};
-use crate::context::{ScopeChain, ScopeContext};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
+use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, Mangle, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DictionaryName, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct TraitComposer<LANG, SPEC>
-    where LANG: Clone + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>> + 'static,
+    where LANG: LangFermentable + 'static,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-    pub base: BasicComposer<ComposerLink<Self>, LANG, SPEC>,
+    pub base: BasicComposerLink<Self, LANG, SPEC>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
     #[allow(unused)]
     pub types: HashMap<Ident, TraitTypeModel>,
 }
 
 impl<LANG, SPEC> TraitComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -41,7 +41,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         item_trait: &ItemTrait,
         ty_context: SPEC::TYC,
         scope: &ScopeChain,
-        scope_context: &ComposerLink<ScopeContext>) -> ComposerLink<Self> {
+        scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemTrait { ident, .. } = item_trait;
         let self_ty = ident.to_type();
         // let trait_ident = &item_trait.ident;
@@ -87,7 +87,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
         attrs: AttrsModel,
-        context: &ComposerLink<ScopeContext>
+        context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         // let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
@@ -104,8 +104,8 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
 }
 
 impl<LANG, SPEC> DocsComposable for TraitComposer<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

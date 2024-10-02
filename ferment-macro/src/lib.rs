@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, Generics, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -104,50 +104,6 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// #[proc_macro_derive(Parent)]
-// pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
-//     let input = parse_macro_input!(input as DeriveInput);
-//
-//     let name = &input.ident;
-//     let expanded = quote! {
-//         impl<Parent: crate::shared::SharedAccess> crate::shared::HasParent<Parent> for #name<Parent>  {
-//             fn set_parent(&mut self, parent: &Parent) {
-//                 self.parent = Some(parent.clone_container());
-//             }
-//         }
-//     };
-//
-//     TokenStream::from(expanded)
-// }
-
-fn add_trait_bounds(mut generics: Generics) -> Generics {
-    for param in &mut generics.params {
-        if let syn::GenericParam::Type(type_param) = param {
-            type_param.bounds.push(parse_quote!(crate::shared::SharedAccess));
-        }
-    }
-
-    generics
-}
-
-#[proc_macro_derive(Parent)]
-pub fn composer_parent_derive(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-
-    let name = input.ident;
-    let generics = add_trait_bounds(input.generics);
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let expanded = quote! {
-        impl #impl_generics crate::shared::HasParent<Parent> for #name #ty_generics #where_clause {
-            fn set_parent(&mut self, parent: &Parent) {
-                self.parent = Some(parent.clone_container());
-            }
-        }
-    };
-    TokenStream::from(expanded)
-}
-
 #[proc_macro_derive(MethodCall, attributes(namespace))]
 pub fn method_call_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -242,8 +198,12 @@ pub fn to_string_derive(input: TokenStream) -> TokenStream {
         //     Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
         // }
     });
+
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    // impl #impl_generics crate::composer::AttrComposable<SPEC::Attr> for #ident #ty_generics #where_clause {
+
     let expanded = quote! {
-        impl std::fmt::Display for #name {
+        impl #impl_generics std::fmt::Display for #name #ty_generics #where_clause {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str(match self {
                     #(#match_arms)*
@@ -273,7 +233,7 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
         impl #impl_generics crate::composer::BasicComposerOwner<LANG, SPEC> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ComposerLink<Self>, LANG, SPEC> {
+            fn base(&self) -> &crate::composer::BasicComposerLink<Self, LANG, SPEC> {
                 &self.base
             }
         }
@@ -300,19 +260,6 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
-// #[proc_macro_derive(BasicComposerOwner)]
-// pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
-//     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
-//     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-//     let expanded = quote! {
-//         impl #impl_generics crate::composer::BasicComposerOwner<crate::presentable::Context, LANG, SPEC, Gen> for #ident #ty_generics #where_clause {
-//             fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>, LANG> {
-//                 &self.base
-//             }
-//         }
-//     };
-//     TokenStream::from(expanded)
-// }
 
 #[proc_macro_attribute]
 pub fn debug_io(_attr: TokenStream, item: TokenStream) -> TokenStream {

@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::composable::FieldComposer;
@@ -7,8 +8,6 @@ use crate::presentable::{Aspect, ScopeContextPresentable};
 
 #[derive(Clone, Debug)]
 pub enum Property {
-    // Property(),
-    // Method()
     NonatomicReadwrite { ty: TokenStream2, name: TokenStream2 },
     Initializer { field_name: TokenStream2, field_initializer: TokenStream2 }
 }
@@ -16,9 +15,10 @@ pub enum Property {
 impl Property {
     pub fn nonatomic_readwrite<SPEC>(composer: &FieldComposer<ObjCFermentate, SPEC>) -> Self
         where SPEC: ObjCSpecification {
+        let FieldComposer { kind, name, .. } = composer;
         Property::NonatomicReadwrite {
-            ty: composer.ty().to_token_stream(),
-            name: composer.name.to_token_stream()
+            ty: kind.to_token_stream(),
+            name: name.to_token_stream()
         }
     }
     pub fn initializer<SPEC>(composer: &FieldComposer<ObjCFermentate, SPEC>) -> Self
@@ -59,10 +59,21 @@ impl ToTokens for Property {
             }
             Property::Initializer { field_name, field_initializer } => {
                 quote! {
-                    self.#field_name = #field_initializer
+                    obj.#field_name = #field_initializer
                 }
             }
         }.to_tokens(tokens)
+    }
+}
+
+impl Display for Property {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Property::NonatomicReadwrite { ty, name } =>
+                format!("@property (nonatomic, readwrite) {} {}", ty.to_string(), name.to_string()),
+            Property::Initializer { field_name, field_initializer } =>
+                format!("obj.{} = {}", field_name.to_string(), field_initializer.to_string()),
+        }.as_str())
     }
 }
 

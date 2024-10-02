@@ -30,6 +30,13 @@ pub enum ImplementationPresentation {
         objc_name: TokenStream2,
         prop_implementations: Depunctuated<TokenStream2>
     },
+
+    // Bindings {
+    //
+    // },
+    // Conversions {
+    //
+    // },
 }
 
 impl ToTokens for ImplementationPresentation {

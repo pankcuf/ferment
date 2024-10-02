@@ -52,6 +52,11 @@ impl From<Vec<Attribute>> for AttrWrapper {
         AttrWrapper { attrs }
     }
 }
+impl From<&Vec<Attribute>> for AttrWrapper {
+    fn from(attrs: &Vec<Attribute>) -> Self {
+        AttrWrapper { attrs: attrs.clone() }
+    }
+}
 
 // impl LangAttrSpecification<ObjCFermentate> for AttrWrapper {
 //     fn to_attrs(&self) -> AttrWrapper {

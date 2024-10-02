@@ -1,15 +1,15 @@
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
-use crate::composer::{Composer, GenericComposer, GenericComposerInfo};
+use crate::composer::{SourceComposable, GenericComposer, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::presentable::ScopeContextPresentable;
 
-impl<'a, SPEC> Composer<'a> for GenericComposer<ObjCFermentate, SPEC>
+impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     type Source = ScopeContext;
     type Output = Option<ObjCFermentate>;
 
-    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         self.wrapper
             .compose(source)
             .map(|GenericComposerInfo {
@@ -19,8 +19,11 @@ impl<'a, SPEC> Composer<'a> for GenericComposer<ObjCFermentate, SPEC>
                       attrs: _,
                       binding_composer: _,
                       interfaces }| {
+                println!("OBJC GEN1");
                 let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
+                println!("OBJC GEN2");
                 let _implementation = BraceWrapped::new(fields).present(source);
+                println!("OBJC GEN3");
                 // let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name, &attrs, implementation));
                 // let ffi_type = ffi_name.to_type();
                 let global = source.context.read().unwrap();

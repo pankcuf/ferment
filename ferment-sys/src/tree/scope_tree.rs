@@ -8,8 +8,8 @@ use quote::{format_ident, ToTokens};
 use syn::{Attribute, Item, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
-use crate::composer::{ComposerLink, MaybeComposer, SourceAccessible, SourceFermentable};
-use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeInfo};
+use crate::composer::{MaybeComposer, SourceAccessible, SourceFermentable};
+use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeContextLink, ScopeInfo};
 use crate::conversion::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
@@ -23,7 +23,7 @@ pub struct ScopeTree {
     pub scope: ScopeChain,
     pub imported: HashSet<ItemUse>,
     pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
-    pub scope_context: ComposerLink<ScopeContext>,
+    pub scope_context: ScopeContextLink,
 }
 impl Debug for ScopeTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -38,7 +38,7 @@ impl ScopeTree {
 }
 
 impl SourceAccessible for ScopeTree {
-    fn context(&self) -> &ComposerLink<ScopeContext> {
+    fn context(&self) -> &ScopeContextLink {
         &self.scope_context
     }
 }
@@ -112,7 +112,7 @@ pub fn create_item_use_with_tree(tree: UseTree) -> ItemUse {
 
 pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
-    scope_context: ComposerLink<ScopeContext>,
+    scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
@@ -123,7 +123,7 @@ pub fn create_crate_root_scope_tree(
 
 pub fn create_scope_tree(
     scope: ScopeChain,
-    scope_context: ComposerLink<ScopeContext>,
+    scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
     exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>

@@ -1,9 +1,10 @@
 use std::cell::Ref;
 use quote::ToTokens;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composer::{BasicComposer, ComposerLink, FieldComposers, FieldsOwnedSequenceComposer};
-use crate::context::ScopeContext;
-use crate::lang::Specification;
+use crate::composer::{BasicComposerLink, ComposerLinkRef, FieldComposers, FieldsOwnedSequenceComposerLink};
+use crate::context::{ScopeContext, ScopeContextLink};
+use crate::ext::ToType;
+use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
 
@@ -11,14 +12,14 @@ use crate::presentation::{DocPresentation, FFIObjectPresentation};
 /// LANG: Fermentate Type,
 /// SPEC: Language specification providing presenters for particular language
 pub trait BasicComposerOwner<LANG, SPEC>: Sized + 'static
-    where LANG: Clone,
+    where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn base(&self) -> &BasicComposer<ComposerLink<Self>, LANG, SPEC>;
+    fn base(&self) -> &BasicComposerLink<Self, LANG, SPEC>;
 }
 /// Provides access to stack information in scope
 pub trait SourceAccessible {
-    fn context(&self) -> &ComposerLink<ScopeContext>;
+    fn context(&self) -> &ScopeContextLink;
     fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
 }
 /// Ferments to specific language representation using stack information in scope
@@ -44,27 +45,38 @@ pub trait AspectPresentable<TYC>
           Aspect<TYC>: ScopeContextPresentable {
     fn present_ffi_aspect(&self) -> <Aspect<TYC> as ScopeContextPresentable>::Presentation;
     fn present_target_aspect(&self) -> <Aspect<TYC> as ScopeContextPresentable>::Presentation;
+    #[allow(unused)]
+    fn present_ffi_aspect_ref(ref_self: &ComposerLinkRef<Self>) -> <Aspect<TYC> as ScopeContextPresentable>::Presentation {
+        ref_self.present_ffi_aspect()
+    }
+    #[allow(unused)]
+    fn present_target_aspect_ref(ref_self: &ComposerLinkRef<Self>) -> <Aspect<TYC> as ScopeContextPresentable>::Presentation {
+        ref_self.present_target_aspect()
+    }
 }
 /// Access to set of field or arg sequence composers
 pub trait FieldsContext<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn field_composers_ref(&self) -> &FieldComposers<LANG, SPEC>;
     fn field_composers(&self) -> FieldComposers<LANG, SPEC> {
         self.field_composers_ref()
             .clone()
     }
+    fn field_composers_by_ref(by_ref: &ComposerLinkRef<Self>) -> FieldComposers<LANG, SPEC> {
+        by_ref.field_composers()
+    }
 }
 
 pub trait FieldsConversionComposable<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable<Presentation: Clone> {
-    fn fields_from(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC>
+    fn fields_from(&self) -> &FieldsOwnedSequenceComposerLink<Self, LANG, SPEC>
         where Self: Sized + 'static;
-    fn fields_to(&self) -> &FieldsOwnedSequenceComposer<ComposerLink<Self>, LANG, SPEC>
+    fn fields_to(&self) -> &FieldsOwnedSequenceComposerLink<Self, LANG, SPEC>
         where Self: Sized + 'static;
 }
 pub trait DocsComposable {
@@ -78,8 +90,8 @@ pub trait GenericsComposable<T> {
     fn compose_generics(&self) -> T;
 }
 pub trait VariantComposable<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn compose_variants(&self) -> CommaPunctuated<PresentableSequence<LANG, SPEC>>;
@@ -91,8 +103,8 @@ pub trait FFIObjectComposable {
     fn compose_object(&self) -> FFIObjectPresentation;
 }
 pub trait BindingComposable<LANG, SPEC>
-    where LANG: Clone,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

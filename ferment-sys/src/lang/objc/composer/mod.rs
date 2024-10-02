@@ -16,12 +16,14 @@ mod r#impl;
 mod enum_composer;
 mod item_wrapper;
 mod maybe;
+mod var;
 
 #[allow(unused_imports)]
 pub use self::any_other::*;
 pub use self::args::*;
 #[allow(unused_imports)]
 pub use self::callback::*;
+#[allow(unused_imports)]
 pub use self::class_name::*;
 #[allow(unused_imports)]
 pub use self::item::*;

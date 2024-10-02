@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use crate::ast::TypeHolder;
@@ -26,6 +27,16 @@ impl<'a> Display for ScopeSearchKey<'a> {
     }
 }
 
+impl<'a> ToTokens for ScopeSearchKey<'a> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Self::PathRef(path, ..) => path.to_tokens(tokens),
+            Self::TypeRef(ty, ..) => ty.to_tokens(tokens),
+            Self::Type(ty, ..) => ty.to_tokens(tokens)
+        }
+    }
+}
+
 impl<'a> ToType for ScopeSearchKey<'a> {
     fn to_type(&self) -> Type {
        match self {
@@ -42,6 +53,12 @@ impl<'a> ScopeSearchKey<'a> {
             ScopeSearchKey::PathRef(_, original) |
             ScopeSearchKey::TypeRef(_, original) |
             ScopeSearchKey::Type(_, original) => original
+        }
+    }
+    pub fn maybe_originally_is_ptr(&'a self) -> bool {
+        match self.maybe_original_key() {
+            Some(boxed_key) => boxed_key.is_const_ptr() || boxed_key.is_mut_ptr(),
+            _ => false
         }
     }
     pub fn maybe_originally_is_const_ptr(&'a self) -> bool {

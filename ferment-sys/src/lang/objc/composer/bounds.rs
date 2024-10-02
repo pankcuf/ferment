@@ -1,15 +1,15 @@
-use crate::composer::{BoundsComposer, Composer, GenericComposerInfo};
+use crate::composer::{BoundsComposer, SourceComposable, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::ext::{AsType, Mangle, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 
-impl<'a, SPEC> Composer<'a> for BoundsComposer<ObjCFermentate, SPEC>
+impl<SPEC> SourceComposable for BoundsComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
 
     #[allow(unused_variables)]
-    fn compose(&self, source: &'a Self::Source) -> Self::Output {
+    fn compose(&self, source: &Self::Source) -> Self::Output {
         if self.model.is_lambda() {
             return Self::Output::default();
         }

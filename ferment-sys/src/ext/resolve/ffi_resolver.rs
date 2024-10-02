@@ -1,45 +1,67 @@
 use std::fmt::{Debug, Display, Formatter};
+use std::marker::PhantomData;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ObjectKind, TypeModelKind};
 use crate::ext::{Accessory, Resolve, ToPath, ToType};
-use crate::presentation::FFIFullPath;
+use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
 #[derive(Debug)]
-pub enum SpecialType {
+pub enum SpecialType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     Custom(Type),
     Opaque(Type),
+    Phantom(PhantomData<(LANG, SPEC)>)
 }
 
-impl Display for SpecialType {
+impl<LANG, SPEC> Display for SpecialType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             SpecialType::Custom(ty) => format!("Custom({})", ty.to_token_stream()),
             SpecialType::Opaque(ty) => format!("Opaque({})", ty.to_token_stream()),
+            SpecialType::Phantom(..) => "Phantom".to_string(),
         }.as_str())
     }
 }
 
-impl ToTokens for SpecialType {
+impl<LANG, SPEC> ToTokens for SpecialType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.to_type().to_tokens(tokens)
     }
 }
-impl ToType for SpecialType {
+impl<LANG, SPEC> ToType for SpecialType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn to_type(&self) -> Type {
         match self {
             SpecialType::Custom(ty) |
-            SpecialType::Opaque(ty) => ty.clone()
+            SpecialType::Opaque(ty) => ty.clone(),
+            _ => panic!("")
         }
     }
 }
-impl ToPath for SpecialType {
+impl<LANG, SPEC> ToPath for SpecialType<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn to_path(&self) -> Path {
         match self {
             SpecialType::Custom(ty) |
-            SpecialType::Opaque(ty) => ty.to_path()
+            SpecialType::Opaque(ty) => ty.to_path(),
+            _ => panic!()
         }
     }
 }
@@ -54,14 +76,21 @@ impl FFITypeResolve for Type {
     }
 }
 
-pub trait FFISpecialTypeResolve {
+pub trait FFISpecialTypeResolve<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
     /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
-    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType>;
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>>;
 }
-impl FFISpecialTypeResolve for Type {
-    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType> {
-        self.resolve(source)
+impl<LANG, SPEC> FFISpecialTypeResolve<LANG, SPEC> for Type
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          FFIFullDictionaryPath<LANG, SPEC>: ToType {
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
+        self.maybe_resolve(source)
     }
 }
 
@@ -85,13 +114,17 @@ impl FFITypeModelKindResolve for Type {
     }
 }
 
-pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> + ToTokens {
-    fn ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath {
+pub trait FFIVarResolve<LANG, SPEC>: Resolve<FFIFullPath<LANG, SPEC>> + Resolve<SpecialType<LANG, SPEC>> + ToTokens
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          FFIFullPath<LANG, SPEC>: ToType {
+    fn ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
         self.resolve(source)
     }
     fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
         // println!("special_or_to_ffi_full_path_type:: {}", self.to_token_stream());
-        let maybe_special_type: Option<SpecialType> = self.resolve(source);
+        let maybe_special_type: Option<SpecialType<LANG, SPEC>> = self.maybe_resolve(source);
         let res = maybe_special_type
             .map(|special| special.to_type())
             .unwrap_or_else(|| self.ffi_full_path(source).to_type());
@@ -103,6 +136,12 @@ pub trait FFIVarResolve: Resolve<FFIFullPath> + Resolve<Option<SpecialType>> + T
             .joined_mut()
     }
 }
-impl FFIVarResolve for Type {}
-impl FFIVarResolve for GenericTypeKind {}
+impl<LANG, SPEC> FFIVarResolve<LANG, SPEC> for Type
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          FFIFullPath<LANG, SPEC>: ToType,
+          FFIFullDictionaryPath<LANG, SPEC>: ToType{}
+impl<SPEC> FFIVarResolve<RustFermentate, SPEC> for GenericTypeKind
+    where SPEC: RustSpecification {}
 

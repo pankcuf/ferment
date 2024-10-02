@@ -4,8 +4,8 @@ use syn::{Attribute, parse_quote};
 use crate::{Crate, error, print_phase};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
-use crate::composer::{Composer, ComposerLink, GenericComposer, SourceAccessible, SourceFermentable};
-use crate::context::ScopeContext;
+use crate::composer::{SourceComposable, GenericComposer, SourceAccessible, SourceFermentable};
+use crate::context::ScopeContextLink;
 use crate::conversion::expand_attributes;
 use crate::ext::RefineUnrefined;
 use crate::lang::RustSpecification;
@@ -22,7 +22,7 @@ pub struct CrateTree {
 }
 
 impl SourceAccessible for CrateTree {
-    fn context(&self) -> &ComposerLink<ScopeContext> {
+    fn context(&self) -> &ScopeContextLink {
         &self.generics_tree.scope_context
     }
 }
@@ -80,10 +80,11 @@ impl SourceFermentable<RustFermentate> for CrateTree {
                 .iter()
                 .filter_map(|(mixin, attrs)| {
                     let attrs = expand_attributes(attrs);
-                    let cfg_attrs = attrs.cfg_attributes();
-                    GenericComposer::<RustFermentate, CrateTree>::new(mixin, attrs, TypeContext::mixin(mixin, cfg_attrs), self.context())
+                    let tyc = TypeContext::mixin(mixin, attrs.cfg_attributes());
+                    GenericComposer::<RustFermentate, CrateTree>::new(mixin, attrs, tyc, self.context())
                 })
-                .flat_map(|composer| composer.borrow().compose(&source)));
+                .flat_map(|composer|
+                    composer.borrow().compose(&source)));
 
         RustFermentate::Root {
             mods: Depunctuated::from_iter([

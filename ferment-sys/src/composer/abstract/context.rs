@@ -1,4 +1,4 @@
-use crate::composer::{Composer, ComposerPresenter, Linkable, SharedComposer};
+use crate::composer::{SourceComposable, Composer, Linkable, SharedComposer};
 use crate::shared::SharedAccess;
 
 
@@ -6,14 +6,14 @@ use crate::shared::SharedAccess;
 pub struct LinkedContextComposer<Link, Context, Result>
     where Link: SharedAccess {
     parent: Option<Link>,
-    set_output: ComposerPresenter<Context, Result>,
+    set_output: Composer<Context, Result>,
     get_context: SharedComposer<Link, Context>,
 }
 
 impl<Link, Context, Result> LinkedContextComposer<Link, Context, Result>
     where Link: SharedAccess {
     pub const fn new(
-        set_output: ComposerPresenter<Context, Result>,
+        set_output: Composer<Context, Result>,
         get_context: SharedComposer<Link, Context>
     ) -> Self {
         Self { parent: None, set_output, get_context }
@@ -27,7 +27,7 @@ impl<Link, Context, Result> Linkable<Link> for LinkedContextComposer<Link, Conte
     }
 }
 
-impl<'a, Link, Context, Result> Composer<'a> for LinkedContextComposer<Link, Context, Result>
+impl<Link, Context, Result> SourceComposable for LinkedContextComposer<Link, Context, Result>
     where Link: SharedAccess {
     type Source = ();
     type Output = Result;

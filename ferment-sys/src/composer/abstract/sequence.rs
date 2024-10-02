@@ -1,25 +1,26 @@
-use crate::composer::{Composer, ComposerPresenter, ComposerPresenterByRef, IterativeComposer, Linkable, SharedComposer};
+use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer};
 use crate::shared::SharedAccess;
 //pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
-pub struct SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
-    where Parent: SharedAccess, ParentCtx: Clone {
-    parent: Option<Parent>,
-    set_output: ComposerPresenter<SeqOut, Out>,
-    get_context: SharedComposer<Parent, ParentCtx>,
-    iterator: IterativeComposer<ParentCtx, SeqCtx, SeqMap, SeqOut>,
+pub struct SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
+    where Link: SharedAccess,
+          LinkCtx: Clone {
+    parent: Option<Link>,
+    set_output: Composer<SeqOut, Out>,
+    get_context: SharedComposer<Link, LinkCtx>,
+    iterator: IterativeComposer<LinkCtx, SeqCtx, SeqMap, SeqOut>,
 }
 
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
-        Parent: SharedAccess,
-        ParentCtx: Clone {
+        Link: SharedAccess,
+        LinkCtx: Clone {
     #[allow(unused)]
     pub const fn with_iterator_setup(
-        set_output: ComposerPresenter<SeqOut, Out>,
-        get_context: SharedComposer<Parent, ParentCtx>,
-        iterator_post_processor: ComposerPresenter<(ParentCtx, ComposerPresenterByRef<SeqCtx, SeqMap>), SeqOut>,
-        iterator_item: ComposerPresenterByRef<SeqCtx, SeqMap>,
+        set_output: Composer<SeqOut, Out>,
+        get_context: SharedComposer<Link, LinkCtx>,
+        iterator_post_processor: Composer<(LinkCtx, ComposerByRef<SeqCtx, SeqMap>), SeqOut>,
+        iterator_item: ComposerByRef<SeqCtx, SeqMap>,
     ) -> Self {
         Self {
             set_output,
@@ -33,27 +34,27 @@ impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Parent, Pa
     }
     #[allow(unused)]
     pub const fn new(
-        set_output: ComposerPresenter<SeqOut, Out>,
-        get_context: SharedComposer<Parent, ParentCtx>,
-        iterator: IterativeComposer<ParentCtx, SeqCtx, SeqMap, SeqOut>,
+        set_output: Composer<SeqOut, Out>,
+        get_context: SharedComposer<Link, LinkCtx>,
+        iterator: IterativeComposer<LinkCtx, SeqCtx, SeqMap, SeqOut>,
     ) -> Self {
         Self { set_output, get_context, iterator, parent: None }
     }
 }
 
-impl<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Linkable<Parent> for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> Linkable<Link> for SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
-        Parent: SharedAccess,
-        ParentCtx: Clone {
-    fn link(&mut self, parent: &Parent) {
+        Link: SharedAccess,
+        LinkCtx: Clone {
+    fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<'a, Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out> Composer<'a> for SequenceComposer<Parent, ParentCtx, SeqCtx, SeqMap, SeqOut, Out>
+impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
     where
-        Parent: SharedAccess,
-        ParentCtx: Clone {
+        Link: SharedAccess,
+        LinkCtx: Clone {
     type Source = ();
     type Output = Out;
     fn compose(&self, _: &Self::Source) -> Self::Output {

@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use syn::Item;
-use crate::composer::ComposerLink;
-use crate::context::{ScopeChain, ScopeContext};
+use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::ItemExtension;
 use crate::tree::ScopeTree;
 
@@ -10,7 +9,7 @@ pub enum ScopeTreeItem {
     Item {
         item: Item,
         scope: ScopeChain,
-        scope_context: ComposerLink<ScopeContext>,
+        scope_context: ScopeContextLink,
     },
     Tree {
         tree: ScopeTree
@@ -18,7 +17,7 @@ pub enum ScopeTreeItem {
 }
 
 impl ScopeTreeItem {
-    pub fn item(scope: ScopeChain, item: Item, scope_context: ComposerLink<ScopeContext>) -> Self {
+    pub fn item(scope: ScopeChain, item: Item, scope_context: ScopeContextLink) -> Self {
         Self::Item { item, scope, scope_context }
     }
     pub fn tree(tree: ScopeTree) -> Self {

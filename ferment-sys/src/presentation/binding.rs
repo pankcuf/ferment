@@ -2,7 +2,7 @@ use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility};
 use syn::punctuated::Punctuated;
-use syn::token::RArrow;
+use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::CommaPunctuatedArgs;
 use crate::ext::{Accessory, CrateExtension, Mangle, Pop, Terminated, ToPath, ToType};
@@ -19,11 +19,6 @@ pub enum BindingPresentation {
         ctor_arguments: CommaPunctuatedArgs,
         body_presentation: TokenStream2,
     },
-    // Constructor {
-    //     context: DestructorContext<RustFermentate, Vec<Attribute>>,
-    //     ctor_arguments: CommaPunctuatedArgs,
-    //     body_presentation: TokenStream2,
-    // },
     VariantConstructor {
         attrs: Vec<Attribute>,
         ty: Type,
@@ -92,11 +87,6 @@ pub enum BindingPresentation {
         output_conversions: TokenStream2,
         generics: Option<Generics>,
     },
-    // Callback {
-    //     name: TokenStream2,
-    //     arguments: CommaPunctuated<TokenStream2>,
-    //     output_expression: ReturnType,
-    // },
     Callback {
         name: Ident,
         attrs: Vec<Attribute>,
@@ -135,7 +125,7 @@ fn present_pub_function<T: ToTokens>(
     output: ReturnType,
     generics: Option<Generics>,
     body: TokenStream2) -> TokenStream2 {
-    present_function(attrs, quote!(pub), name.mangle_tokens_default(), args, output, generics, body)
+    present_function(attrs, Pub::default().to_token_stream(), name.mangle_tokens_default(), args, output, generics, body)
 }
 pub fn present_function<T: ToTokens>(
     attrs: &Vec<Attribute>,
@@ -163,10 +153,10 @@ pub fn present_function<T: ToTokens>(
     }
 }
 
-pub fn present_struct<T: ToTokens>(
-    ident: &Ident,
+pub fn present_struct<Name: ToTokens, Impl: ToTokens>(
+    ident: Name,
     attrs: &Vec<Attribute>,
-    implementation: T
+    implementation: Impl
 ) -> TokenStream2 {
     quote! {
         #[repr(C)]
@@ -238,7 +228,8 @@ impl ToTokens for BindingPresentation {
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
-            BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, generics } => {
+            BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, generics } |
+            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
                 let var = obj_type.joined_const();
                 present_pub_function(
                     attrs,
@@ -249,7 +240,8 @@ impl ToTokens for BindingPresentation {
                     quote!((*obj).#field_name)
                 )
             },
-            BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, generics } => {
+            BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, generics } |
+            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
                 // println!("BindingPresentation::Setter: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
                 let var = obj_type.joined_mut();
                 present_pub_function(
@@ -263,35 +255,7 @@ impl ToTokens for BindingPresentation {
                     generics.clone(),
                     quote!((*obj).#field_name = value;))
             },
-            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
-                let var = obj_type.joined_const();
-                present_pub_function(
-                    attrs,
-                    name.clone(),
-                    CommaPunctuated::from_iter([
-                        quote!(obj: #var),
-                    ]),
-                    ReturnType::Type(RArrow::default(), field_type.clone().into()),
-                    generics.clone(),
-                    quote!((*obj).#field_name)
-                )
-            },
-            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
-                // println!("BindingPresentation::SetterOpaque: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs.to_token_stream());
-                let var = obj_type.joined_mut();
-                present_pub_function(
-                    attrs,
-                    name.clone(),
-                    CommaPunctuated::from_iter([
-                        quote!(obj: #var),
-                        quote!(value: #field_type),
-                    ]),
-                    ReturnType::Default,
-                    generics.clone(),
-                    quote!((*obj).#field_name = value;))
-            },
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics } => {
-                //println!("BindingPresentation::RegularFunction: {:?}", arguments);
                 if *is_async {
                     let mut args = Punctuated::from_iter([
                         ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) })
@@ -320,11 +284,7 @@ impl ToTokens for BindingPresentation {
                     )
                 }
             },
-            // BindingPresentation::Callback { name, arguments, output_expression: return_type } =>
-            //     quote!(pub type #name = unsafe extern "C" fn(#arguments) #return_type;),
             BindingPresentation::Callback { name, attrs, ffi_args, result, conversion } => {
-                // let definition = create_callback(name, attrs, ffi_args.to_token_stream(), result.clone());
-
                 let result_impl = match result {
                     ReturnType::Default => quote! {},
                     ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
@@ -336,7 +296,6 @@ impl ToTokens for BindingPresentation {
                     #conversion
                 }
             }
-
             BindingPresentation::StaticVTable { name, fq_trait_vtable, methods_declarations, methods_implementations } => {
                 quote! {
                     static #name: #fq_trait_vtable = {
