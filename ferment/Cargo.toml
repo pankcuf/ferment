@@ -3,11 +3,10 @@ name = "ferment"
 version = "0.1.4"
 edition = "2021"
 license = "MIT"
-description = "Syntax tree morphing of FFI-compatible stuff"
+description = "Traits for FFI conversions and some helper methods"
 
 [dependencies]
-syn = { version = "1.0.109", features = ["full", "visit"] }
-quote = "1.0.28"
+indexmap = { version = "2.0.2", features = ["serde"] }
 
 [lib]
 name = "ferment"

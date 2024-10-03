@@ -1,0 +1,2 @@
+pub mod invalid_identity_public_key_type_error;
+pub use invalid_identity_public_key_type_error::InvalidIdentityPublicKeyTypeError;

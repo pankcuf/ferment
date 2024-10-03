@@ -1,0 +1,28 @@
+[package]
+name = "ferment-sys"
+version = "0.1.4"
+edition = "2021"
+license = "MIT"
+description = "Syntax tree morphing of FFI-compatible stuff"
+
+[features]
+default = ["objc"]
+
+objc = []
+java = []
+
+[dependencies]
+ferment-macro = { path = "../ferment-macro" }
+
+syn = { version = "1.0.109", features = ["default", "full", "visit", "extra-traits"] }
+quote = "1.0.28"
+proc-macro2 = "1.0.70"
+cargo_metadata = "0.18.1"
+log = { version = "0.4.20", features = ["std"] }
+ansi_term = "0.12.1"
+env_logger = "0.11.0"
+
+objc = "0.2.7"
+
+[lib]
+name = "ferment_sys"

@@ -1,16 +1,15 @@
 [workspace]
 members = [
     "ferment",
-    "ferment-example",
-    "ferment-example-nested",
-    "ferment-interfaces",
+    "ferment-sys",
     "ferment-macro",
+    "ferment-example/*",
 ]
 resolver = "2"
 
 [workspace.package]
 authors = ["Vladimir Pirogov <vladimir.pirogov@dash.org>"]
-description = "Procedural macro for FFI and its interfaces & helpers"
+description = "FFI bindings orchestrator"
 homepage = "https://github.com/pankcuf/ferment"
 license = "MIT"
 keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]

@@ -10,16 +10,16 @@
 
 - fix: merge imports (when multiple items in one mod)
 - feat: multiple crates support
-- example: nested fermented crates expansion
+- example: nested fermented crates fermentate
 ```rust
 extern crate cbindgen;
 extern crate ferment;
 
 use std::process::Command;
-/// Now we can use `with_crates` to pass names of crates that use `[ferment::export]`
+/// Now we can use `with_crates` to pass names of crates that use `[ferment_macro::export]`
 fn main() {
     match ferment::Builder::new()
-        .with_crates(vec!["ferment_example".to_string()])
+        .with_crates(vec!["example-simple".to_string()])
         .generate() {
         Ok(()) => match Command::new("cbindgen")
             .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
