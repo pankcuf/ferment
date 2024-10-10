@@ -1,5 +1,7 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
+use quote::ToTokens;
 use syn::{Attribute, Field};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
@@ -16,7 +18,7 @@ use crate::presentation::Name;
 pub struct EnumVariantComposer<I, LANG, SPEC>
     where I: DelimiterTrait + 'static + ?Sized,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -27,7 +29,7 @@ pub struct EnumVariantComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> EnumVariantComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -58,7 +60,7 @@ impl<T, I, LANG, SPEC> FFIObjectSpec<ComposerLink<T>, LANG, SPEC> for EnumVarian
     where T: 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -73,8 +75,9 @@ impl<T, I, LANG, SPEC> FFIObjectSpec<ComposerLink<T>, LANG, SPEC> for EnumVarian
 impl<I, LANG, SPEC> FieldPathConversionResolveSpec<LANG, SPEC> for EnumVariantComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -93,7 +96,7 @@ impl<T, I, LANG, SPEC> FFIConversionsSpec<ComposerLink<T>, LANG, SPEC> for EnumV
             + 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -105,7 +108,7 @@ impl<T, I, LANG, SPEC> FFIConversionsSpec<ComposerLink<T>, LANG, SPEC> for EnumV
         constants::ffi_conversions_composer::<T, Self, LANG, SPEC>(
             PresentableSequence::lambda,
             PresentableSequence::fields_from,
-            Self::ROOT_CONVERSION_PRESENTER,
+            // Self::TO_ROOT_CONVERSION_PRESENTER,
             |c| ((T::raw_target_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
 
             PresentableSequence::lambda,
@@ -130,7 +133,7 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for EnumVariantCompose
             + SourceAccessible
             + 'static,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -150,7 +153,7 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for EnumVariantCompose
             + SourceAccessible
             + 'static,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -173,7 +176,7 @@ impl<T, I, LANG, SPEC> FFIBindingsSpec<ComposerLink<T>, LANG, SPEC> for EnumVari
     + 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -192,7 +195,7 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for EnumVariantCompose
             + SourceAccessible
             + 'static,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -209,8 +212,9 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for EnumVariantCompose
 // Variant::Named
 impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Brace, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -218,8 +222,9 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Brace, LAN
         PresentableSequence::CurlyBracesFields;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC> =
         PresentableArgument::attr_name;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::CurlyBracesFields;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> = Self::TO_ROOT_CONVERSION_PRESENTER;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC> =
         constants::struct_named_fields_composer();
 }
@@ -227,8 +232,9 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Brace, LAN
 // Variant::Unnamed
 impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Paren, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -236,8 +242,9 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Paren, LAN
         PresentableSequence::RoundBracesFields;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC> =
         PresentableArgument::attr_name;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::RoundBracesFields;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> = Self::TO_ROOT_CONVERSION_PRESENTER;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC> =
         |fields| constants::field_composers_iterator(fields,
         |index, Field { ty, attrs, .. }| FieldComposer::typed(Name::UnnamedArg(index), ty, false, attrs));
@@ -245,8 +252,9 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Paren, LAN
 // Variant::Unit
 impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Void, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -254,14 +262,15 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for EnumVariantComposer<Void, LANG
         PresentableSequence::no_fields;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC> =
         PresentableArgument::attr_name;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::no_fields;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> = Self::TO_ROOT_CONVERSION_PRESENTER;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC> =
         |_| Punctuated::new();
 }
 impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for EnumVariantComposer<Brace, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -273,7 +282,7 @@ impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for EnumVariantComposer<Brace,
 }
 impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for EnumVariantComposer<Paren, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -285,7 +294,7 @@ impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for EnumVariantComposer<Paren,
 }
 impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for EnumVariantComposer<Void, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,

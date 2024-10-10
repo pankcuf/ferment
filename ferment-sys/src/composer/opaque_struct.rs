@@ -1,5 +1,7 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
+use quote::ToTokens;
 use syn::{Attribute, Generics};
 use syn::token::{Brace, Paren};
 use crate::ast::DelimiterTrait;
@@ -9,11 +11,12 @@ use crate::context::ScopeContextLink;
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentation::Name;
 
 pub struct OpaqueStructComposer<I, LANG, SPEC>
     where I: DelimiterTrait + 'static + ?Sized,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -24,7 +27,7 @@ pub struct OpaqueStructComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> OpaqueStructComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -55,7 +58,7 @@ impl<T, I, LANG, SPEC> FFIConversionsSpec<ComposerLink<T>, LANG, SPEC> for Opaqu
     where T: 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -69,7 +72,7 @@ impl<T, I, LANG, SPEC> FFIObjectSpec<ComposerLink<T>, LANG, SPEC> for OpaqueStru
     where T: FieldsConversionComposable<LANG, SPEC> + 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -85,7 +88,7 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for OpaqueStructCompos
             + SourceAccessible
             + 'static,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -106,7 +109,7 @@ impl<T, LANG, SPEC> CtorSpec<ComposerLink<T>, LANG, SPEC> for OpaqueStructCompos
             + SourceAccessible
             + 'static,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -129,7 +132,7 @@ impl<T, I, LANG, SPEC> FFIBindingsSpec<ComposerLink<T>, LANG, SPEC> for OpaqueSt
     + 'static,
           I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -140,24 +143,27 @@ impl<T, I, LANG, SPEC> FFIBindingsSpec<ComposerLink<T>, LANG, SPEC> for OpaqueSt
 
 impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for OpaqueStructComposer<Brace, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
     const ROOT_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::NamedStruct;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC> =
         PresentableArgument::public_named;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::CurlyBracesFields;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> = Self::TO_ROOT_CONVERSION_PRESENTER;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC> =
         constants::struct_named_fields_composer();
 }
 impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for OpaqueStructComposer<Paren, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -165,15 +171,16 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for OpaqueStructComposer<Paren, LA
         PresentableSequence::UnnamedStruct;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC> =
         PresentableArgument::default_field_type;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> =
         PresentableSequence::RoundBracesFields;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC> = Self::TO_ROOT_CONVERSION_PRESENTER;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC> =
         constants::struct_unnamed_fields_composer();
 }
 
 impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for OpaqueStructComposer<Brace, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -185,7 +192,7 @@ impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for OpaqueStructComposer<Brace
 }
 impl<LANG, SPEC> ItemComposerExprSpec<LANG, SPEC> for OpaqueStructComposer<Paren, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,

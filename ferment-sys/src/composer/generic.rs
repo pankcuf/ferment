@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
 use syn::{Attribute, Type};
 use syn::__private::TokenStream2;
@@ -14,7 +15,7 @@ use crate::presentation::{DocPresentation, FFIObjectPresentation, present_struct
 
 pub struct GenericComposerInfo<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub binding_composer: ConstructorArgComposerRef<LANG, SPEC>,
@@ -28,18 +29,18 @@ pub struct GenericComposerInfo<LANG, SPEC>
 
 impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub const fn callback(
+    pub fn callback(
         ffi_name: TokenStream2,
-        attrs: SPEC::Attr,
+        attrs: &SPEC::Attr,
         field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>
     ) -> Self {
         Self {
             ffi_name,
-            attrs,
+            attrs: attrs.clone(),
             field_composers,
             interfaces,
             binding_composer: PresentableArgument::callback_ctor_pair,
@@ -66,7 +67,7 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
 #[allow(unused)]
 pub enum GenericComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -83,7 +84,7 @@ pub enum GenericComposerWrapper<LANG, SPEC>
 
 impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Expression<LANG, SPEC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -125,7 +126,7 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
 #[allow(unused)]
 pub struct GenericComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -136,7 +137,7 @@ pub struct GenericComposer<LANG, SPEC>
 
 impl<LANG, SPEC> GenericComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

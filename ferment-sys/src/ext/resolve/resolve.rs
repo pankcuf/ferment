@@ -137,7 +137,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
         res
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
-        // println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
+        println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
         <Self as Resolve<FFIFullPath<LANG, SPEC>>>::maybe_resolve(self, source)
             .unwrap_or_else(|| {
                 // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
@@ -207,18 +207,13 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
                                 let ty = path.to_type();
                                 let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
                                 match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Opaque): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
-                                    },
-                                    Some(SpecialType::Custom(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Custom): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
+                                    Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
+                                        println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
+                                        return FFIFullPath::external(path.clone())
                                     },
                                     _ => {}
                                 }
                             }
-
                             bounds.first().unwrap().mangle_ident_default().to_path()
                         }
                     },
@@ -253,6 +248,8 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<LANG, SPEC>> {
+        // let config = &source.context.read().unwrap().config;
+
         let segments = &self.segments;
         let first_segment = segments.first().unwrap();
         let last_segment = segments.last().unwrap();
@@ -305,13 +302,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
                 })
                 .or_else(|| {
                     let segments = chunk.ident_less();
-                    Some(FFIFullPath::External {
-                        path: if segments.is_empty() {
-                            last_ident.to_path()
-                        } else {
-                            parse_quote!(#segments::#last_ident)
-                        }
-                    })
+                    Some(FFIFullPath::external(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) }))
                 })
         }
     }
@@ -332,7 +323,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<RustFermentate, SPEC>
     let last_segment = cloned_segments.iter_mut().last().unwrap();
     let last_ident = &last_segment.ident;
     if last_ident.is_primitive() {
-        FFIFullPath::External { path: last_ident.to_path() }
+        FFIFullPath::external(last_ident.to_path())
     } else if last_ident.is_any_string() {
         FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
     } else if last_ident.is_special_generic() ||
@@ -347,7 +338,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<RustFermentate, SPEC>
             .into_iter()
             .map(|segment| quote_spanned! { segment.span() => #segment })
             .collect::<Vec<_>>();
-        FFIFullPath::External { path: parse_quote!(#(#new_segments)::*) }
+        FFIFullPath::external(parse_quote!(#(#new_segments)::*))
 
     }
 }

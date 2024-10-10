@@ -1,11 +1,13 @@
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
+use std::process::Command;
 use proc_macro2::Ident;
-use crate::{Crate, Lang};
+use crate::{error, Crate, Lang};
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub mod_name: String,
+    pub cbindgen_config: String,
     pub current_crate: Crate,
     pub external_crates: Vec<Crate>,
     pub languages: Vec<Lang>,
@@ -19,8 +21,8 @@ impl Display for Config {
 
 
 impl Config {
-    pub fn new(mod_name: &'static str, current_crate: Crate) -> Self {
-        Self { mod_name: String::from(mod_name), current_crate, external_crates: vec![], languages: vec![] }
+    pub fn new(mod_name: &'static str, current_crate: Crate, cbindgen_config: &str) -> Self {
+        Self { mod_name: String::from(mod_name), cbindgen_config: String::from(cbindgen_config), current_crate, external_crates: vec![], languages: vec![] }
     }
     pub fn expansion_path(&self) -> PathBuf {
         self.current_crate.root_path.join(format!("{}.rs", self.mod_name))
@@ -34,6 +36,9 @@ impl Config {
     pub(crate) fn is_current_crate(&self, crate_name: &Ident) -> bool {
         self.current_crate.ident().eq(crate_name)
     }
+
+
+
 
 }
 

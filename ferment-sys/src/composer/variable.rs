@@ -6,7 +6,7 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
+use crate::ext::{AsType, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullPath, FFIVariable, resolve_type_variable, RustFermentate};
@@ -57,7 +57,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
         let search_key = self.search.search_key();
         let is_const_ptr = search_key.maybe_originally_is_const_ptr();
 
-        let maybe_obj = source.maybe_object_by_predicate(self.search.clone());
+        let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
         // println!("VarComposer:: {} --- {} --- {}", self.search, full_ty.to_token_stream(), maybe_obj.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         let maybe_special = <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(&full_ty, source);
@@ -143,7 +143,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                 // full_ty.first_nested_type()
 
                                 // let nested_ty = self.ty.first_nested_type().unwrap();
-                                let full_nested_ty = ty.first_nested_type().unwrap();
+                                let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
                                 match <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
                                         // println!("VariableComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
@@ -218,6 +218,10 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                 // println!("VarComposer (Dictionary Primitive): {}", ty.to_token_stream());
                                 FFIVariable::direct(ty)
                             },
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!([u8; 16])),
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!([u8; 16])),
                             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => {
                                 // println!("VarComposer (FnPointer Conversion): {}", ty.to_token_stream());
                                 let result = FFIVariable::direct(
@@ -254,7 +258,8 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                         GroupModelKind::Vec(TypeModel { ty, .. }) |
                                         GroupModelKind::IndexMap(TypeModel { ty, .. })
                                     ) |
-                                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::I128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::U128(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
@@ -520,8 +525,8 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                 // println!("VariableComposer (Boxed conversion): {}", conversion);
                                 // let nested_ty = ty.first_nested_type().unwrap();
                                 let ty = model.as_type();
-                                let nested_ty = self.ty.first_nested_type().unwrap();
-                                let full_nested_ty = ty.first_nested_type().unwrap();
+                                let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
+                                let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
                                 match <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
                                         // println!("VariableComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
@@ -595,17 +600,17 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                 // println!("VariableComposer (Dictionary Primitive): {}", ty.to_token_stream());
                                 FFIVariable::direct(ty)
                             },
-                            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => {
-                                // println!("VariableComposer (FnPointer Conversion): {}", ty.to_token_stream());
-                                let result = FFIVariable::direct(
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!([u8; 16])),
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!([u8; 16])),
+                            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
+                                FFIVariable::direct(
                                     <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(&ty, source)
                                         .map(|special| special.to_type())
                                         .unwrap_or(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(&ty, source)
                                             .to_type())
-                                );
-                                // println!("VariableComposer (FnPointer Variable): {}", result.to_token_stream());
-                                result
-                            },
+                                ),
                             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => {
                                 // println!("VariableComposer (LambdaFn Conversion): {}", ty.to_token_stream());
                                 let result = FFIVariable::mut_ptr(
@@ -633,7 +638,8 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                         GroupModelKind::IndexMap(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
-                                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::I128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::U128(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
                                 // Dictionary generics and strings should be fermented

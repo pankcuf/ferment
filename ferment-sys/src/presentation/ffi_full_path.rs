@@ -25,12 +25,21 @@ pub enum FFIFullPath<LANG, SPEC>
     },
 }
 
+impl<LANG, SPEC> FFIFullPath<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    pub fn external(path: Path) -> Self {
+        Self::External { path }
+    }
+}
+
 impl<LANG, SPEC> From<SpecialType<LANG, SPEC>> for FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn from(value: SpecialType<LANG, SPEC>) -> Self {
-        FFIFullPath::<LANG, SPEC>::External { path: value.to_path() }
+        FFIFullPath::<LANG, SPEC>::external(value.to_path())
     }
 }
 
@@ -43,23 +52,6 @@ impl<LANG, SPEC> ToTokens for FFIFullPath<LANG, SPEC>
     }
 }
 
-// impl<LANG, SPEC> ToPath for FFIFullPath<LANG, SPEC>
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG>,
-//           Aspect<SPEC::TYC>: ScopeContextPresentable {
-//     fn to_path(&self) -> Path {
-//         match self {
-//             FFIFullPath::Type { crate_ident, ffi_name } =>
-//                 parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
-//             FFIFullPath::Generic { ffi_name } =>
-//                 parse_quote!(crate::fermented::generics::#ffi_name),
-//             FFIFullPath::External { path } =>
-//                 parse_quote!(#path),
-//             FFIFullPath::Dictionary { path } =>
-//                 path.to_path(),
-//         }
-//     }
-// }
 impl<SPEC> ToType for FFIFullPath<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     fn to_type(&self) -> Type {

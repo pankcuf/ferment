@@ -14,7 +14,7 @@ pub struct Builder {
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
-        Builder { config: Config::new("fermented", current_crate) }
+        Builder { config: Config::new("fermented", current_crate, "cbindgen.toml") }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {
@@ -24,6 +24,11 @@ impl Builder {
     #[allow(unused)]
     pub fn with_default_mod_name(mut self) -> Builder {
         self.config.mod_name = String::from("fermented");
+        self
+    }
+    #[allow(unused)]
+    pub fn with_cbindgen_config(mut self, config: &str) -> Builder {
+        self.config.cbindgen_config = String::from(config);
         self
     }
     #[allow(unused)]
@@ -75,8 +80,8 @@ impl Builder {
     /// # Example
     ///
     /// ```no_run
-    /// # extern crate ferment;
-    /// use ferment::{Crate, Ferment, Lang};
+    /// # extern crate ferment_sys;
+    /// use ferment_sys::{Crate, Ferment, Lang};
     /// let mut languages = vec![];
     /// #[cfg(feature = "objc")]
     /// languages.push(Lang::ObjC(ferment::ObjC::new("DS", "Fermented")));
@@ -108,6 +113,6 @@ impl Builder {
                 Writer::from(self.config)
                     .write(fermentate)
             })
-    }
+        }
 }
 

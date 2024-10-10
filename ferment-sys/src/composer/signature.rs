@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
@@ -252,7 +253,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 }, Visibility::Inherited)
                             })).present(&source);
                         BindingPresentation::TraitVTableInnerFn {
-                            name: Name::VTableInnerFn(sig.ident.clone()),
+                            name: Name::<RustFermentate, SPEC>::VTableInnerFn(sig.ident.clone()).mangle_tokens_default(),
                             name_and_args: quote!(unsafe extern "C" fn (#arguments)),
                             output_expression: return_type
                         }
@@ -300,10 +301,10 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 let var_composer = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope);
                                 let var_ty = var_composer.compose(&source);
                                 let conversion = TypeKind::from(ty);
-                                let ident_name = Name::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
+                                let ident_name = Name::<RustFermentate, SPEC>::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
                                 arg_names.push(ident_name.to_token_stream());
                                 arg_target_types.push(ArgPresentation::Pat(Pat::Verbatim(ty.to_token_stream())));
-                                arg_target_fields.push(ArgPresentation::Field(field(ident_name.clone(), ty, &source)));
+                                arg_target_fields.push(ArgPresentation::Field(field::<RustFermentate, SPEC>(ident_name.clone(), ty, &source)));
                                 let mut bare_fn_arg_replacement = bare_fn_arg.clone();
                                 bare_fn_arg_replacement.ty = var_ty.to_type();
                                 ffi_args.push(bare_fn_arg_replacement);
@@ -340,8 +341,9 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
 }
 pub fn from_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext) -> SPEC::Expr
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     FromConversionComposer::<LANG, SPEC>::new(Name::Dictionary(DictionaryName::Self_), ty.clone(), None)
@@ -350,7 +352,7 @@ pub fn from_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext)
 }
 pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext) -> SPEC::Expr
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     let ty: Type = ty.resolve(source);
@@ -358,7 +360,10 @@ pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeCo
 }
 
 
-fn field(name: Name, ty: &Type, source: &ScopeContext) -> Field {
+fn field<LANG, SPEC>(name: SPEC::Name , ty: &Type, source: &ScopeContext) -> Field
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     Field {
         attrs: vec![],
         vis: Visibility::Inherited,

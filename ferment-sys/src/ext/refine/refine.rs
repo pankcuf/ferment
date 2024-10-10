@@ -329,8 +329,10 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
         let ident = &last_segment.ident;
         if ident.is_primitive() {
             Some(DictTypeModelKind::Primitive(model.clone()))
-        } else if ident.is_128_digit() {
-            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(model.clone())))
+        } else if matches!(ident.to_string().as_str(), "i128") {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(model.clone())))
+        } else if matches!(ident.to_string().as_str(), "u128") {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(model.clone())))
         } else if ident.is_str() {
             refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(model.clone())))
@@ -457,7 +459,8 @@ impl RefineInScope for TypeModelKind {
                         GroupModelKind::IndexMap(model)
                     ) |
                     DictFermentableModelKind::Other(model) |
-                    DictFermentableModelKind::Digit128(model) |
+                    DictFermentableModelKind::I128(model) |
+                    DictFermentableModelKind::U128(model) |
                     DictFermentableModelKind::Str(model) |
                     DictFermentableModelKind::String(model)) |
                 DictTypeModelKind::NonPrimitiveOpaque(model) |

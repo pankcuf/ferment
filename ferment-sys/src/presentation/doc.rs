@@ -2,16 +2,15 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse_quote;
 use crate::formatter::format_token_stream;
-use crate::presentation::Name;
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum DocPresentation {
     Empty,
-    Default(Name),
+    Default(TokenStream2),
     DefaultT(TokenStream2),
     Direct(TokenStream2),
-    Safety(Name),
+    Safety(TokenStream2),
 }
 
 pub fn default_doc<T: ToTokens>(name: T) -> TokenStream2 {

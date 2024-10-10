@@ -145,3 +145,14 @@ impl<LANG, SPEC> FFIVarResolve<LANG, SPEC> for Type
 impl<SPEC> FFIVarResolve<RustFermentate, SPEC> for GenericTypeKind
     where SPEC: RustSpecification {}
 
+#[cfg(feature = "objc")]
+impl<SPEC> FFIVarResolve<crate::lang::objc::ObjCFermentate, SPEC> for GenericTypeKind
+where SPEC: crate::lang::objc::ObjCSpecification {}
+
+// impl<LANG, SPEC> FFIVarResolve<LANG, SPEC> for GenericTypeKind
+// where LANG: LangFermentable,
+//       SPEC: Specification<LANG>,
+//       Aspect<SPEC::TYC>: ScopeContextPresentable,
+//       FFIFullPath<LANG, SPEC>: ToType,
+//       FFIFullDictionaryPath<LANG, SPEC>: ToType {}
+//

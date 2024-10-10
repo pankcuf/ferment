@@ -9,7 +9,8 @@ use crate::presentable::{Aspect, ScopeContextPresentable};
 #[derive(Clone, Debug)]
 pub enum Property {
     NonatomicReadwrite { ty: TokenStream2, name: TokenStream2 },
-    Initializer { field_name: TokenStream2, field_initializer: TokenStream2 }
+    Initializer { field_name: TokenStream2, field_initializer: TokenStream2 },
+    // AccInitialized { field_name: TokenStream2, var: TokenStream2, field_initializer: TokenStream2 }
 }
 
 impl Property {
@@ -62,6 +63,11 @@ impl ToTokens for Property {
                     obj.#field_name = #field_initializer
                 }
             }
+            // Property::AccInitialized { field_name, var, field_initializer } => {
+            //     quote! {
+            //         #var #field_name = #field_initializer
+            //     }
+            // }
         }.to_tokens(tokens)
     }
 }
@@ -73,6 +79,8 @@ impl Display for Property {
                 format!("@property (nonatomic, readwrite) {} {}", ty.to_string(), name.to_string()),
             Property::Initializer { field_name, field_initializer } =>
                 format!("obj.{} = {}", field_name.to_string(), field_initializer.to_string()),
+            // Property::AccInitialized { field_name, var, field_initializer } =>
+            //     format!("{} {} = {}", var.to_string(), field_name.to_string(), field_initializer.to_string()),
         }.as_str())
     }
 }

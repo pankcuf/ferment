@@ -1,4 +1,4 @@
-use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
+use crate::ast::{BraceWrapped, CommaPunctuated};
 use crate::composer::{SourceComposable, GenericComposer, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
@@ -19,11 +19,11 @@ impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
                       attrs: _,
                       binding_composer: _,
                       interfaces }| {
-                println!("OBJC GEN1");
+                // println!("OBJC GEN1");
                 let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
-                println!("OBJC GEN2");
+                // println!("OBJC GEN2");
                 let _implementation = BraceWrapped::new(fields).present(source);
-                println!("OBJC GEN3");
+                // println!("OBJC GEN3");
                 // let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name, &attrs, implementation));
                 // let ffi_type = ffi_name.to_type();
                 let global = source.context.read().unwrap();
@@ -37,8 +37,6 @@ impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
                 //     BindingPresentableContext::dtor((ffi_type, attrs.clone(), SPEC::Gen::default()))
                 // ]);
                 ObjCFermentate::Item {
-                    header_name: config.xcode.framework_name.clone(),
-                    imports: Depunctuated::new(),
                     implementations: interfaces
                 }
             })

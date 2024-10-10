@@ -8,7 +8,7 @@ use crate::context::ScopeContext;
 use crate::ext::{ConversionType, Terminated, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{ScopeContextPresentable, Aspect};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, RustFermentate};
 
 
 #[derive(Clone, Copy, Debug)]
@@ -31,26 +31,29 @@ pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug
 
 impl<LANG, SPEC> ExpressionComposable<LANG, SPEC> for Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Self, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {}
 
 #[derive(Clone, Debug)]
 pub enum Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Self, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>),
     ConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2),
     CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>, /*ffi_type*/Type, /*target_type*/Type),
     CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi_type*/Type, /*target_type*/Type),
 
+    // Allocate(FFIAspect),
 
     Empty,
     Simple(TokenStream2),
     DictionaryName(DictionaryName),
-    Name(Name),
-    FfiRefWithName(Name),
-    ObjName(Name),
+    Name(SPEC::Name),
+    FfiRefWithName(SPEC::Name),
+    ObjName(SPEC::Name),
 
     // CallDictionaryMethod(),
     DictionaryExpr(DictionaryExpr),
@@ -75,24 +78,28 @@ pub enum Expression<LANG, SPEC>
     Named((TokenStream2, Box<Expression<LANG, SPEC>>)),
     NamedComposer((TokenStream2, Box<ConversionType<LANG, SPEC>>)),
 
-    FromLambda(Box<Expression<LANG, SPEC>>, CommaPunctuated<Name>),
-    FromLambdaTokens(TokenStream2, CommaPunctuated<Name>),
+    FromLambda(Box<Expression<LANG, SPEC>>, CommaPunctuated<SPEC::Name>),
+    FromLambdaTokens(TokenStream2, CommaPunctuated<SPEC::Name>),
     Boxed(Box<Expression<LANG, SPEC>>),
 }
 
 impl<LANG, SPEC> Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
     }
+
+    #[allow(unused)]
     fn cast_expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self, ffi_ty: Type, target_ty: Type) -> Self {
         Self::CastConversionExpr(aspect, kind, expr.into(), ffi_ty, target_ty)
     }
     fn tokens<T: ToTokens>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: T) -> Self {
         Self::ConversionExprTokens(aspect, kind, expr.to_token_stream())
     }
+    #[allow(unused)]
     fn cast_tokens<T: ToTokens>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: T, ffi_ty: Type, target_ty: Type) -> Self {
         Self::CastConversionExprTokens(aspect, kind, expr.to_token_stream(), ffi_ty, target_ty)
     }
@@ -127,15 +134,15 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::Terminated(Box::new(conversion_type.clone()))
     }
 
-    pub(crate) fn name(name: &Name) -> Self {
+    pub(crate) fn name(name: &SPEC::Name) -> Self {
         Self::Name(name.clone())
     }
 
-    pub(crate) fn obj_name(name: &Name) -> Self {
+    pub(crate) fn obj_name(name: &SPEC::Name) -> Self {
         Self::ObjName(name.clone())
     }
 
-    pub(crate) fn ffi_ref_with_name(name: &Name) -> Self {
+    pub(crate) fn ffi_ref_with_name(name: &SPEC::Name) -> Self {
         Self::FfiRefWithName(name.clone())
     }
 
@@ -151,7 +158,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::MapExpression(Expression::DictionaryName(DictionaryName::O).into(), mapper.into())
     }
 
-    pub(crate) fn from_lambda(expr: Self, args: CommaPunctuated<Name>) -> Self {
+    pub(crate) fn from_lambda(expr: Self, args: CommaPunctuated<SPEC::Name>) -> Self {
         Self::FromLambda(expr.into(), args)
     }
 
@@ -291,7 +298,15 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::ComplexGroup, expr)
     }
 
-
+    pub(crate) fn cast_from(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
+        Self::CastConversionExpr(FFIAspect::From, kind, expr.into(), ffi_type, target_type)
+    }
+    pub(crate) fn cast_to(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
+        Self::CastConversionExpr(FFIAspect::To, kind, expr.into(), ffi_type, target_type)
+    }
+    pub(crate) fn cast_destroy(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
+        Self::CastConversionExpr(FFIAspect::Destroy, kind, expr.into(), ffi_type, target_type)
+    }
 }
 
 // impl<LANG, SPEC> Display for Expression<LANG, SPEC>
@@ -302,6 +317,8 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
 //         std::fmt::Debug::fmt(self, f)
 //     }
 // }
+
+
 
 impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
     where SPEC: RustSpecification {

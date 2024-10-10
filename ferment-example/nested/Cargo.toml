@@ -19,3 +19,4 @@ toml = "0.8.8"
 
 [lib]
 name = "example_nested"
+crate-type = ["staticlib", "cdylib"]

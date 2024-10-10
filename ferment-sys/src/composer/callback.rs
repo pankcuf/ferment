@@ -43,7 +43,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { ty, .. } = self;
         let type_path: TypePath = parse_quote!(#ty);
-        let PathSegment { arguments, .. } = type_path.path.segments.last().unwrap();
+        let PathSegment { arguments, .. } = type_path.path.segments.last()?;
         let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
         let ffi_result = DictionaryName::FFiResult;
         let opt_conversion = |conversion: TokenStream2| quote! {
@@ -74,7 +74,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                         (ffi_ty.joined_mut(), from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream()))
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
-                        GenericTypeKind::Optional(ty) => match TypeKind::from(ty.first_nested_type().unwrap()) {
+                        GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
                             TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                             TypeKind::Complex(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
@@ -112,7 +112,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
             ty.mangle_tokens_default(),
-            attrs.clone(),
+            &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
                     FieldComposer::named(Name::Dictionary(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),

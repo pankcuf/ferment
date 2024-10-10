@@ -10,7 +10,7 @@ use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait};
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
-use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
 
 pub type ScopeContextLink = ComposerLink<ScopeContext>;
@@ -247,7 +247,9 @@ impl ScopeContext {
         // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
     }
-
+    pub fn maybe_object_by_predicate_ref<'a>(&self, predicate: &'a ScopeSearch<'a>) -> Option<ObjectKind> {
+        self.maybe_object_by_predicate(predicate.clone())
+    }
     pub fn maybe_object_by_predicate<'a>(&self, predicate: ScopeSearch<'a>) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_predicate(predicate).cloned();

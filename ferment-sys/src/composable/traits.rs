@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
@@ -100,7 +100,7 @@ impl TraitDecompositionPart1 {
 #[allow(unused)]
 pub struct TraitDecompositionPart2<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           SPEC::Expr: ScopeContextPresentable {
@@ -111,7 +111,7 @@ pub struct TraitDecompositionPart2<LANG, SPEC>
 
 impl<LANG, SPEC> TraitDecompositionPart2<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

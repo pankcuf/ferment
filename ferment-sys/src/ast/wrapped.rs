@@ -47,7 +47,7 @@ impl DelimiterTrait for Void {
 pub struct Wrapped<S, SP, I>
     where SP: ToTokens,
           I: DelimiterTrait + ?Sized {
-    content: S,
+    pub content: S,
     _marker: PhantomData<(SP, I)>,
 }
 

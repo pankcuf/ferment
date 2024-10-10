@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use syn::Type;
 use crate::ast::Depunctuated;
 use crate::composer::{SourceComposable, CtorSequenceComposer, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer};
@@ -12,7 +13,7 @@ pub type MaybeFFIBindingsComposerLink<T, LANG, SPEC> = Option<FFIBindingsCompose
 pub struct FFIBindingsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -26,7 +27,7 @@ pub struct FFIBindingsComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> FFIBindingsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -48,7 +49,7 @@ impl<Link, LANG, SPEC> FFIBindingsComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> Linkable<Link> for FFIBindingsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -64,7 +65,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for FFIBindingsComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> SourceComposable for FFIBindingsComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,

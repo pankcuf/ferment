@@ -17,6 +17,7 @@ mod enum_composer;
 mod item_wrapper;
 mod maybe;
 mod var;
+mod custom;
 
 #[allow(unused_imports)]
 pub use self::any_other::*;

@@ -48,7 +48,7 @@ pub(crate) fn find_crates_paths(crate_names: Vec<&str>) -> Vec<Crate> {
                 .find_map(|p| {
                     if p.name.as_str() == crate_name {
                         if let Some(target) = p.targets.first() {
-                            return Some(Crate::new(p.name.replace("-", "_").as_str(),PathBuf::from(target.src_path.parent().unwrap())))
+                            return Some(Crate::new(p.name.replace("-", "_").as_str(), PathBuf::from(target.src_path.parent().unwrap())))
                         }
                     }
                     None

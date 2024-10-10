@@ -57,7 +57,10 @@ impl Mangle<MangleDefault> for Type {
             Type::Ptr(type_ptr) =>
                 type_ptr.mangle_string(context),
             ty =>
-                ty.to_path().get_ident().unwrap().clone().to_string()
+                ty.to_path()
+                    .get_ident()
+                    .unwrap()
+                    .to_string()
         };
         // println!("Mangle Type..222: {}", res);
         res

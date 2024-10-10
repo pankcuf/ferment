@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::{Attribute, PathSegment, Type};
@@ -7,7 +8,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
+use crate::ext::{CrateExtension, GenericNestedArg, Mangle, MaybeLambdaArgs, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
@@ -15,7 +16,7 @@ use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation,
 #[derive(ComposerBase)]
 pub struct AnyOtherComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable  {
     pub ty: Type,
@@ -24,7 +25,7 @@ pub struct AnyOtherComposer<LANG, SPEC>
 
 impl<LANG, SPEC> AnyOtherComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Self: AspectPresentable<SPEC::TYC> {
@@ -54,7 +55,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         // Arc<RwLock>>: to: obj.borrow().clone()
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
         // let obj_by_value = source.maybe_object_by_value(&self.ty);
-        let nested_ty = self.ty.first_nested_type().unwrap();
+        let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
         // let maybe_opaque = source.maybe_opaque_object(nested_ty);
         // let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
         // println!("AnyOther.ty: {}", nested_ty.to_token_stream());
@@ -81,7 +82,8 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
                 Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
                     "Arc" | "Rc" => {
                         match TypeKind::from(nested_ty) {
-                            TypeKind::Primitive(_) => DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
+                            TypeKind::Primitive(_) =>
+                                DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
                             TypeKind::Complex(_) => {
                                 if maybe_opaque.is_some() {
                                     quote!(#ctor_path::into_raw(#arg_0_name).cast_mut())
@@ -124,17 +126,16 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
                     Expression::<RustFermentate, SPEC>::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))
                 ),
                 TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => {
-                    if let Some(lambda_args) = ty_model_kind.maybe_lambda_args() {
-                        let field_path = Expression::Simple(quote!((&*ffi_ref.#arg_0_name)));
-                        (Expression::from_lambda(field_path, lambda_args), None, Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
+                    if let Some(lambda_args) = ty_model_kind.maybe_lambda_arg_names() {
+                        (Expression::from_lambda(Expression::Simple(quote!((&*ffi_ref.#arg_0_name))), lambda_args), None, Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
                     } else {
-                        (Expression::from_primitive_tokens(quote!(ffi_ref.#arg_0_name)), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
+                        (Expression::from_primitive(Expression::<RustFermentate, SPEC>::FfiRefWithName(arg_0_name.clone()).into()), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
                     }
                 },
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) =>
                     (Expression::from_primitive_tokens(quote!(ffi_ref.#arg_0_name)), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_complex_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(kind)) => match kind {
-                    DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(..)) => (Expression::from_complex_opt_tokens(quote!(ffi_ref.#arg_0_name)), Some(Expression::ffi_to_complex_opt_tokens(to_expr)), Expression::destroy_complex_opt_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))),
+                    DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(..)) => (Expression::from_complex_opt(Expression::FfiRefWithName(arg_0_name.clone()).into()), Some(Expression::ffi_to_complex_opt_tokens(to_expr)), Expression::destroy_complex_opt_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))),
                     _ if is_opaque => (
                         Expression::from_primitive_tokens(quote!(ffi_ref.#arg_0_name)),
                         Some(Expression::ffi_to_primitive_tokens(to_expr)),

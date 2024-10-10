@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
 use std::rc::Rc;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
@@ -14,7 +15,7 @@ use crate::presentation::{DocPresentation, RustFermentate};
 #[derive(ComposerBase)]
 pub struct ImplComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -23,7 +24,7 @@ pub struct ImplComposer<LANG, SPEC>
 }
 impl<LANG, SPEC> ImplComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -67,7 +68,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
 
 impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

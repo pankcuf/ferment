@@ -1,10 +1,18 @@
 use syn::{Attribute, parse_quote, Type, TypeSlice};
 use std::fmt::Display;
+use proc_macro2::{Group, TokenTree};
+use quote::{quote, ToTokens};
+use syn::__private::TokenStream2;
+use syn::token::Comma;
+use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
+use crate::composer::PresentableArguments;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
+use crate::lang::RustSpecification;
 use crate::presentable::{TypeContext, ScopeContextPresentable};
+use crate::presentation::{DictionaryName, RustFermentate};
 
 #[derive(Clone, Debug)]
 pub enum Aspect<T> {
@@ -13,7 +21,22 @@ pub enum Aspect<T> {
     RawTarget(T),
 }
 
+
+// pub enum AspectAllocator<T> {
+//     Rust(Aspect<T>),
+//     C(Aspect<T>),
+//     ObjC(Aspect<T>),
+// }
+
 impl Aspect<TypeContext> {
+    pub fn alloc_field_name(&self) -> TokenStream2 {
+        match self {
+            Aspect::Target(_) => DictionaryName::Obj.to_token_stream(),
+            Aspect::FFI(_) => DictionaryName::FfiRef.to_token_stream(),
+            Aspect::RawTarget(_) => DictionaryName::Obj.to_token_stream(),
+        }
+    }
+
     pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
@@ -21,6 +44,26 @@ impl Aspect<TypeContext> {
             Aspect::RawTarget(context) => context.attrs(),
         }
     }
+    pub fn allocate<I, SPEC>(&self, fields: Wrapped<PresentableArguments<Comma, RustFermentate, SPEC>, Comma, I>, source: &ScopeContext) -> TokenStream2
+    where I: DelimiterTrait,
+          SPEC: RustSpecification {
+        let aspect_presentation = self.present(source);
+        match self {
+            Aspect::Target(_context) => {
+                let fields_presentation = TokenTree::Group(Group::new(I::delimiter(), fields.content.present(source).to_token_stream()));
+                quote! {
+                    #aspect_presentation #fields_presentation
+                }
+            }
+            Aspect::FFI(_context) | Aspect::RawTarget(_context) => {
+                let fields_presentation = TokenTree::Group(Group::new(I::delimiter(), fields.content.present(source).to_token_stream()));
+                quote! {
+                    #aspect_presentation #fields_presentation
+                }
+            }
+        }
+    }
+
 }
 
 impl<T> Display for Aspect<T> where T: ToString {
@@ -32,6 +75,12 @@ impl<T> Display for Aspect<T> where T: ToString {
         }.as_str())
     }
 }
+
+// impl<T> Aspect<T> {
+    // pub fn allocate<LANG, SPEC>(sequence: PresentableSequence<LANG, SPEC>) -> PresentableSequence<LANG, SPEC> {
+    //     PresentableSequence::Allocate(sequence)
+    // }
+// }
 
 impl ScopeContextPresentable for Aspect<TypeContext> {
     type Presentation = Type;

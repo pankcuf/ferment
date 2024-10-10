@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::composer::{ComposerLink, DropSequenceMixer, FFIConversionsMixer, SequenceOutputComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::ext::ToType;
@@ -19,7 +20,7 @@ pub type MaybeFFIComposerLink<T, LANG, SPEC> = Option<FFIComposerLink<T, LANG, S
 pub struct FFIComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -32,7 +33,7 @@ pub struct FFIComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> FFIComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -50,7 +51,7 @@ impl<Link, LANG, SPEC> FFIComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> Linkable<Link> for FFIComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -66,7 +67,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for FFIComposer<Link, LANG, SPEC>
 impl<Link, LANG, SPEC> SourceComposable for FFIComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {

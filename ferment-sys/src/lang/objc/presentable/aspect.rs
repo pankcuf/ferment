@@ -1,20 +1,64 @@
-use quote::format_ident;
+use quote::{format_ident, quote, ToTokens};
 use syn::{Attribute, parse_quote, Type, TypeSlice};
+use syn::__private::TokenStream2;
+use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
+use crate::composer::PresentableArguments;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
+use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::presentable::ty_context::TypeContext;
 use crate::presentable::{Aspect, ScopeContextPresentable};
-use crate::presentation::Name;
-
+use crate::presentation::DictionaryName;
 
 impl Aspect<TypeContext> {
+
+    pub fn alloc_field_name(&self) -> TokenStream2 {
+        match self {
+            Aspect::Target(_) => DictionaryName::Obj.to_token_stream(),
+            Aspect::FFI(_) => DictionaryName::FfiRef.to_token_stream(),
+            Aspect::RawTarget(_) => DictionaryName::Obj.to_token_stream(),
+        }
+    }
     pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
             Aspect::FFI(context) => context.attrs(),
             Aspect::RawTarget(context) => context.attrs(),
+        }
+    }
+    pub fn allocate<I, SEP, SPEC>(&self, fields: Wrapped<PresentableArguments<SEP, ObjCFermentate, SPEC>, SEP, I>, source: &ScopeContext) -> TokenStream2
+        where I: DelimiterTrait,
+              SEP: ToTokens,
+              SPEC: ObjCSpecification {
+        let name = self.alloc_field_name();
+        let aspect_presentation = self.present(source);
+        match self {
+            Aspect::Target(_context) => {
+
+                let field_allocators = fields.content.iter().map(|f| {
+                    let arg_presentation = f.present(source);
+                    quote!(#name.#arg_presentation)
+                });
+                quote! {
+                    #aspect_presentation *#name = [[self alloc] init];
+                    #(#field_allocators;)*
+                    return #name;
+                }
+            }
+            Aspect::FFI(_context) | Aspect::RawTarget(_context) => {
+                let field_allocators = fields.content.iter().map(|f| {
+                    let arg_presentation = f.present(source);
+                    quote!(#name->#arg_presentation;)
+                });
+
+                quote! {
+                    struct #aspect_presentation *#name = malloc(sizeof(struct #aspect_presentation));
+                    #(#field_allocators)*
+                    return #name;
+                }
+            }
         }
     }
 }
@@ -30,8 +74,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     TypeContext::Struct { ident , prefix, .. } =>
                         {
                             let ty: Type = ident.to_type().resolve(source);
-                            Name::Ident(format_ident!("{}{}", prefix.to_string(), ty.mangle_tokens_default().to_string()))
-                                .to_type()
+                            format_ident!("{}{}", prefix.to_string(), ty.mangle_tokens_default().to_string()).to_type()
                         },
                     TypeContext::EnumVariant { parent: _, ident, prefix, variant_ident, attrs: _ } => {
                         let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
@@ -50,7 +93,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     }
                     TypeContext::Mixin { prefix, mixin_kind: MixinKind::Generic(kind), ..} => {
                         let objc_name = kind.ty().unwrap().mangle_tokens_default();
-                        Name::Ident(format_ident!("{}{}", prefix.to_string(), objc_name.to_string()))
+                        format_ident!("{}{}", prefix.to_string(), objc_name.to_string())
                             .to_type()
                     },
                     TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>

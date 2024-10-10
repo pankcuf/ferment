@@ -16,6 +16,7 @@ mod generics_composer;
 mod r#abstract;
 mod variable;
 mod from_conversion;
+mod ffi_full_path;
 mod to_conversion;
 mod destroy_conversion;
 mod callback;
@@ -33,7 +34,6 @@ mod r#struct;
 mod enum_variant;
 mod type_alias;
 
-
 use std::rc::Rc;
 use syn::__private::TokenStream2;
 use syn::Field;
@@ -45,7 +45,7 @@ use crate::composer::r#abstract::{LinkedContextComposer, SequenceComposer, Seque
 use crate::ext::ConversionType;
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
-use crate::presentation::{ArgPresentation, Name};
+use crate::presentation::ArgPresentation;
 use crate::shared::SharedAccess;
 
 pub use self::r#abstract::*;
@@ -61,6 +61,7 @@ pub use self::enum_variant::*;
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
 pub use self::from_conversion::*;
+// pub use self::ffi_full_path::*;
 pub use self::generic::*;
 pub use self::generics_composer::*;
 pub use self::group::*;
@@ -147,7 +148,7 @@ pub type DestructorContext<LANG, SPEC> = (
     <SPEC as Specification<LANG>>::Attr,
     <SPEC as Specification<LANG>>::Gen
 );
-pub type FieldTypeLocalContext<LANG, SPEC> = (Name, ConversionType<LANG, SPEC>);
+pub type FieldTypeLocalContext<LANG, SPEC> = (<SPEC as Specification<LANG>>::Name, ConversionType<LANG, SPEC>);
 pub type FunctionContext<LANG, SPEC> = ((DestructorContext<LANG, SPEC>, bool), Vec<PresentableArgumentPair<LANG, SPEC>>);
 pub type PresentableArgumentPair<LANG, SPEC> = (PresentableArgument<LANG, SPEC>, PresentableArgument<LANG, SPEC>);
 pub type CommaPunctuatedArgs = CommaPunctuated<ArgPresentation>;

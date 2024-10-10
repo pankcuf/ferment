@@ -5,6 +5,7 @@ mod linked;
 mod sequence;
 mod sequence_mixer;
 
+use std::fmt::Debug;
 use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
@@ -30,7 +31,7 @@ pub trait MaybeMacroLabeled {
 
 pub trait MaybeComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

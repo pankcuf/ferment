@@ -280,8 +280,11 @@ impl<'a> VisitScopeType<'a> for Path {
                 _ if first_ident.is_primitive() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_non_gen(first_ident.to_type(), None))))
                 },
-                _ if first_ident.is_128_digit() => {
-                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
+                _ if matches!(first_ident.to_string().as_str(), "i128") => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
+                },
+                _ if matches!(first_ident.to_string().as_str(), "u128") => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
                 },
                 _ if first_ident.is_special_std_trait() => {
                     ObjectKind::Type(TypeModelKind::unknown_type(nested_import_seg.to_type()))

@@ -65,18 +65,34 @@ impl<SPEC> ScopeContextPresentable for PresentableSequence<ObjCFermentate, SPEC>
         let result = match self {
             PresentableSequence::Empty =>
                 quote!(),
+            PresentableSequence::FromRoot(field_context, conversions) => {
+                let conversions = conversions.present(source);
+                let field_path = field_context.present(source);
+
+
+
+                println!("OBJC SEQ FromRoot ({}, {})", field_path, conversions);
+                quote! {
+                    #conversions
+                }
+            }
+            PresentableSequence::ToRoot(field_context, conversions) => {
+                let c_type = field_context.present(source);
+                let conversions = conversions.present(source);
+                println!("OBJC SEQ ToRoot ({}, {})", c_type, conversions);
+                quote! {
+                    #conversions
+                }
+            }
             PresentableSequence::RoundBracesFields(((aspect, _generics), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
-                let name = aspect.present(source);
-                let presentation = ParenWrapped::new(fields.clone()).present(source);
-                println!("OBJC SEQ RoundBracesFields ({}, {:?})", name.to_token_stream(), presentation.to_token_stream());
-                quote!(#name #presentation)
+                let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
+                println!("OBJC SEQ RoundBracesFields: {}", presentation);
+                presentation
             },
             PresentableSequence::CurlyBracesFields(((aspect, _generics), fields)) => {
-                let name = aspect.present(source);
-                let presentation = BraceWrapped::new(fields.clone()).present(source);
-                println!("OBJC SEQ CurlyBracesFields ({}, {})", name.to_token_stream(), presentation);
-                quote!(#name #presentation)
+                let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
+                println!("OBJC SEQ CurlyBracesFields: {}", presentation);
+                presentation
             },
             PresentableSequence::RoundVariantFields(((aspect, _generics), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
@@ -164,40 +180,6 @@ impl<SPEC> ScopeContextPresentable for PresentableSequence<ObjCFermentate, SPEC>
                 Assignment::new(ffi_name.clone(), fields)
                     .to_token_stream()
             },
-            PresentableSequence::FromRoot(field_context, conversions) => {
-                let conversions = conversions.present(source);
-                let field_path = field_context.present(source);
-                println!("OBJC SEQ FromRoot ({}, {})", field_path, conversions);
-
-            // + (instancetype)ffi_from:(struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
-            //     id *obj = [[self alloc] init];
-            //     obj.o_0 = [DSArr_u8_96 ffi_from:obj->o_0];
-            //     return obj;
-            // }
-                quote! {
-
-                    #field_path *obj = [[#field_path alloc] init];
-                    #conversions
-                    //obj.time = [DSTuple_std_time_Duration_std_time_Duration ffi_from:self_->o_0];
-                    return obj;
-                }
-            }
-            PresentableSequence::ToRoot(field_context, conversions) => {
-                let c_type = field_context.present(source);
-                let conversions = conversions.present(source);
-            // + (struct dash_spv_masternode_processor_crypto_byte_util_UInt768 *)ffi_to:(instancetype)self_ {
-            //     dash_spv_masternode_processor_crypto_byte_util_UInt768 *obj = malloc(sizeof(dash_spv_masternode_processor_crypto_byte_util_UInt768));
-            //     obj->o_0 = [DSArr_u8_96 ffi_to:self_.o_0];
-            //     return obj;
-            // }
-                println!("OBJC SEQ ToRoot ({}, {})", c_type, conversions);
-
-                quote! {
-                    #c_type *obj = malloc(sizeof(#c_type))
-                    #conversions
-                    return obj;
-                }
-            }
             PresentableSequence::Boxed(conversions) => {
                 let conversions = conversions.present(source);
                 println!("OBJC SEQ Boxed ({})", conversions);
@@ -231,19 +213,12 @@ impl<SPEC> ScopeContextPresentable for PresentableSequence<ObjCFermentate, SPEC>
                 presentation
             },
             PresentableSequence::StructDropBody(((tyc, _generics), items)) => {
-                println!("OBJC StructDropBody: {} {:?}", tyc.present(source).to_token_stream(), items);
-                let arg_name = DictionaryName::Obj;
+                println!("OBJC StructDropBody: {} {:?}", tyc.present(source).to_token_stream(), items.present(source).to_token_stream());
+                let arg_name = DictionaryName::FfiRef;
                 let field_dtors = items.present(source);
-
-            // + (void)ffi_destroy:(dash_spv_masternode_processor_crypto_byte_util_UInt768 *)obj {
-            //     if (!obj) return;
-            //     [DSArr_u8_96 ffi_destroy:obj->o_0];
-            //     free(obj);
-            // }
-
                 quote! {
                     if (!#arg_name) return;
-                    #field_dtors
+                    #field_dtors;
                     free(#arg_name);
                 }
             },

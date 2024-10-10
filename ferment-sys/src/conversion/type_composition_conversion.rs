@@ -7,7 +7,9 @@ use crate::ast::CommaPunctuated;
 pub use crate::composable::{GenericBoundsModel, TypeModel, TraitDecompositionPart1};
 use crate::composable::TypeModeled;
 use crate::context::ScopeContext;
-use crate::ext::{AsType, DictionaryType, Pop, ToType};
+use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ToType};
+use crate::lang::{LangFermentable, Specification};
+use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::Name;
 
 #[derive(Clone)]
@@ -153,7 +155,8 @@ pub enum DictFermentableModelKind {
     String(TypeModel),
     Str(TypeModel),
     Other(TypeModel),
-    Digit128(TypeModel),
+    I128(TypeModel),
+    U128(TypeModel),
 }
 
 impl<'a> AsType<'a> for DictFermentableModelKind {
@@ -164,7 +167,8 @@ impl<'a> AsType<'a> for DictFermentableModelKind {
             DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::Other(model) |
-            DictFermentableModelKind::Digit128(model) => model.as_type()
+            DictFermentableModelKind::I128(model) |
+            DictFermentableModelKind::U128(model) => model.as_type()
         }
     }
 }
@@ -176,7 +180,8 @@ impl TypeModeled for DictFermentableModelKind {
             DictFermentableModelKind::Group(kind) => kind.type_model_mut(),
             DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
-            DictFermentableModelKind::Digit128(model) |
+            DictFermentableModelKind::I128(model) |
+            DictFermentableModelKind::U128(model) |
             DictFermentableModelKind::Other(model) => model
         }
     }
@@ -186,7 +191,8 @@ impl TypeModeled for DictFermentableModelKind {
             DictFermentableModelKind::Group(kind) => kind.type_model_ref(),
             DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
-            DictFermentableModelKind::Digit128(model) |
+            DictFermentableModelKind::I128(model) |
+            DictFermentableModelKind::U128(model) |
             DictFermentableModelKind::Other(model) => model
         }
     }
@@ -204,7 +210,9 @@ impl Debug for DictFermentableModelKind {
                 format!("String({})", model),
             DictFermentableModelKind::Other(model) =>
                 format!("Other({})", model),
-            DictFermentableModelKind::Digit128(model) =>
+            DictFermentableModelKind::I128(model) =>
+                format!("Digit128({})", model),
+            DictFermentableModelKind::U128(model) =>
                 format!("Digit128({})", model),
         }.as_str())
     }
@@ -338,6 +346,20 @@ impl ToTokens for TypeModelKind {
     }
 }
 
+impl<LANG, SPEC>  MaybeLambdaArgs<Name<LANG, SPEC> > for TypeModelKind
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Name<LANG, SPEC>: ToTokens,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<Name<LANG, SPEC> >> {
+        match self.maybe_callback() {
+            Some(ParenthesizedGenericArguments { inputs, ..}) =>
+                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)))),
+            _ => None
+        }
+    }
+}
+
 impl TypeModelKind {
 
     pub fn unknown_type(ty: Type) -> Self {
@@ -376,13 +398,6 @@ impl TypeModelKind {
         match self {
             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => true,
             _ => false
-        }
-    }
-    pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
-        match self.maybe_callback() {
-            Some(ParenthesizedGenericArguments { inputs, ..}) =>
-                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)))),
-            _ => None
         }
     }
 

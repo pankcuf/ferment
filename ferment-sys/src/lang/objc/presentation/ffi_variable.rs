@@ -7,16 +7,9 @@ use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
+use crate::ext::{Accessory, AsType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::presentation::{FFIFullPath, FFIVariable};
-
-// #[derive(Clone, Display, Debug)]
-// pub enum FFIVariable {
-//     Direct { ty: TokenStream2 },
-//     ConstPtr { ty: TokenStream2 },
-//     MutPtr { ty: TokenStream2 },
-// }
 
 impl<SPEC> ToType for FFIVariable<TokenStream2, ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
@@ -28,7 +21,6 @@ impl<SPEC> ToType for FFIVariable<TokenStream2, ObjCFermentate, SPEC>
         }
     }
 }
-
 
 impl<SPEC> ToTokens for FFIVariable<TokenStream2, ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -172,7 +164,7 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for TypeMode
                 FFIVariable::direct(composition.to_type().to_token_stream()),
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
                 // println!("TypeModelKind::Boxed: {}", ty.to_token_stream());
-                match ty.first_nested_type() {
+                match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         // println!("Nested: {}", nested_full_ty.to_token_stream());
                         resolve_type_variable(match <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(nested_full_ty, source) {
@@ -207,7 +199,8 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for TypeMode
                     ) |
                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |
-                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                    DictFermentableModelKind::I128(TypeModel { ty, .. }) |
+                    DictFermentableModelKind::U128(TypeModel { ty, .. }) |
                     DictFermentableModelKind::Other(TypeModel { ty, .. })
                 ) |
                 DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })

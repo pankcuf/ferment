@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::rc::Rc;
 use std::vec;
 use proc_macro2::Ident;
@@ -11,7 +12,7 @@ use crate::ast::{BraceWrapped, CommaPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, TraitTypeModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::ext::{Join, Mangle, ToType};
+use crate::ext::{Join, Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DictionaryName, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
@@ -19,7 +20,7 @@ use crate::presentation::{DictionaryName, DocPresentation, FFIObjectPresentation
 #[derive(ComposerBase)]
 pub struct TraitComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -31,7 +32,7 @@ pub struct TraitComposer<LANG, SPEC>
 
 impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -105,7 +106,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
 
 impl<LANG, SPEC> DocsComposable for TraitComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -121,12 +122,12 @@ impl<SPEC> SourceFermentable<RustFermentate> for TraitComposer<RustFermentate, S
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
         let mangled_ty = ffi_type.mangle_ident_default();
-        let vtable_name = Name::Vtable(mangled_ty.clone());
+        let vtable_name = Name::<RustFermentate, SPEC>::Vtable(mangled_ty.clone());
         RustFermentate::Trait {
             comment: DocPresentation::Empty,
             vtable: FFIObjectPresentation::TraitVTable {
                 attrs: attrs.clone(),
-                name: vtable_name.clone(),
+                name: vtable_name.to_path(),
                 fields: BraceWrapped::<_, Comma>::new(
                     CommaPunctuated::from_iter(
                         self.methods.iter()
@@ -135,7 +136,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for TraitComposer<RustFermentate, S
             },
             trait_object: FFIObjectPresentation::TraitObject {
                 attrs,
-                name: Name::TraitObj(mangled_ty),
+                name: Name::<RustFermentate, SPEC>::TraitObj(mangled_ty).to_path(),
                 fields: BraceWrapped::new(
                     CommaPunctuated::from_iter([
                         FieldComposer::<RustFermentate, SPEC>::named(

@@ -1,4 +1,5 @@
 use std::cell::Ref;
+use std::fmt::Debug;
 use quote::ToTokens;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{BasicComposerLink, ComposerLinkRef, FieldComposers, FieldsOwnedSequenceComposerLink};
@@ -71,7 +72,7 @@ pub trait FieldsContext<LANG, SPEC>
 
 pub trait FieldsConversionComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable<Presentation: Clone> {
     fn fields_from(&self) -> &FieldsOwnedSequenceComposerLink<Self, LANG, SPEC>
@@ -91,7 +92,7 @@ pub trait GenericsComposable<T> {
 }
 pub trait VariantComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn compose_variants(&self) -> CommaPunctuated<PresentableSequence<LANG, SPEC>>;
@@ -104,7 +105,7 @@ pub trait FFIObjectComposable {
 }
 pub trait BindingComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

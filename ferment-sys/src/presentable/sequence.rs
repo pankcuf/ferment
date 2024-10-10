@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Expr, ExprLet, Pat, Path, PatLit};
@@ -14,7 +15,8 @@ use crate::presentation::{ArgPresentation, DictionaryName, InterfacesMethodExpr,
 #[derive(Clone, Debug, Display)]
 pub enum PresentableSequence<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     CurlyBracesFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
     RoundBracesFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
@@ -43,7 +45,8 @@ pub enum PresentableSequence<LANG, SPEC>
 
 impl<LANG, SPEC> PresentableSequence<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub fn boxed((_, conversions): &PresentableSequencePair<LANG, SPEC>) -> Self {
         Self::Boxed(conversions.clone().into())
@@ -124,14 +127,14 @@ impl<SPEC> ScopeContextPresentable for PresentableSequence<RustFermentate, SPEC>
             PresentableSequence::RoundBracesFields(((aspect, _generics), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
-                let presentation = ParenWrapped::new(fields.clone()).present(source);
-                quote!(#name #presentation)
+                let presentation = fields.present(source);
+                quote!(#name ( #presentation ) )
             },
             PresentableSequence::CurlyBracesFields(((aspect, _generics), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
-                let presentation = BraceWrapped::new(fields.clone()).present(source);
-                quote!(#name #presentation)
+                let presentation = fields.present(source);
+                quote!(#name { #presentation })
             },
             PresentableSequence::RoundVariantFields(((aspect, _generics), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);

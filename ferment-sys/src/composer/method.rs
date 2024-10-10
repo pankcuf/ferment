@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use syn::Type;
 use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
@@ -15,7 +16,7 @@ pub struct MethodComposer<Link, LinkCtx, CTX, LANG, SPEC>
           CTX: Clone,
           LinkCtx: Clone,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -29,7 +30,7 @@ impl<Link, LinkCtx, CTX, LANG, SPEC> MethodComposer<Link, LinkCtx, CTX, LANG, SP
         CTX: Clone,
         LinkCtx: Clone,
         LANG: LangFermentable,
-        SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+        SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
         SPEC::Expr: ScopeContextPresentable,
         Aspect<SPEC::TYC>: ScopeContextPresentable,
         PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -50,7 +51,7 @@ impl<Link, LinkCtx, CTX, LANG, SPEC> Linkable<Link> for MethodComposer<Link, Lin
         CTX: Clone,
         LinkCtx: Clone,
         LANG: LangFermentable,
-        SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+        SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
         SPEC::Expr: ScopeContextPresentable,
         Aspect<SPEC::TYC>: ScopeContextPresentable,
         PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -61,7 +62,7 @@ impl<Link, LinkCtx, CTX, LANG, SPEC> Linkable<Link> for MethodComposer<Link, Lin
 impl<Link, LANG, SPEC> SourceComposable for AccessorMethodComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -87,7 +88,7 @@ impl<Link, LANG, SPEC> SourceComposable for AccessorMethodComposer<Link, LANG, S
 impl<Link, LANG, SPEC> SourceComposable for DtorMethodComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {

@@ -5,8 +5,8 @@ use syn::punctuated::Punctuated;
 use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::CommaPunctuatedArgs;
-use crate::ext::{Accessory, CrateExtension, Mangle, Pop, Terminated, ToPath, ToType};
-use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::ext::{Accessory, CrateExtension, Pop, Terminated, ToPath, ToType};
+use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -14,6 +14,7 @@ pub enum BindingPresentation {
     Empty,
     Constructor {
         attrs: Vec<Attribute>,
+        name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
         ctor_arguments: CommaPunctuatedArgs,
@@ -21,6 +22,7 @@ pub enum BindingPresentation {
     },
     VariantConstructor {
         attrs: Vec<Attribute>,
+        name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
         ctor_arguments: CommaPunctuatedArgs,
@@ -28,12 +30,13 @@ pub enum BindingPresentation {
     },
     Destructor {
         attrs: Vec<Attribute>,
+        name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
     },
     Getter {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
@@ -41,7 +44,7 @@ pub enum BindingPresentation {
     },
     Setter {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
@@ -49,7 +52,7 @@ pub enum BindingPresentation {
     },
     GetterOpaque {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
@@ -57,7 +60,7 @@ pub enum BindingPresentation {
     },
     SetterOpaque {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
@@ -65,21 +68,21 @@ pub enum BindingPresentation {
     },
     ObjAsTrait {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         item_type: Type,
         trait_type: TokenStream2,
-        vtable_name: Name,
+        vtable_name: TokenStream2,
     },
     ObjAsTraitDestructor {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         item_type: TokenStream2,
         trait_type: TokenStream2,
         generics: Option<Generics>,
     },
     RegularFunction {
         attrs: Vec<Attribute>,
-        name: Name,
+        name: TokenStream2,
         is_async: bool,
         arguments: CommaPunctuatedArgs,
         input_conversions: TokenStream2,
@@ -96,36 +99,36 @@ pub enum BindingPresentation {
     },
 
     TraitVTableInnerFn {
-        name: Name,
+        name: TokenStream2,
         name_and_args: TokenStream2,
         output_expression: ReturnType,
     },
     StaticVTableInnerFnDeclaration {
-        name: Name,
+        name: TokenStream2,
         fn_name: Ident
     },
     StaticVTableInnerFn {
-        name: Name,
+        name: TokenStream2,
         args: CommaPunctuatedArgs,
         output: ReturnType,
         body: TokenStream2,
     },
     StaticVTable {
-        name: Name,
+        name: TokenStream2,
         methods_declarations: CommaPunctuated<BindingPresentation>,
         methods_implementations: Depunctuated<BindingPresentation>,
         fq_trait_vtable: TokenStream2,
     },
 }
 
-fn present_pub_function<T: ToTokens>(
+fn present_pub_function<T: ToTokens, U: ToTokens>(
     attrs: &Vec<Attribute>,
-    name: Name,
+    name: U,
     args: CommaPunctuated<T>,
     output: ReturnType,
     generics: Option<Generics>,
     body: TokenStream2) -> TokenStream2 {
-    present_function(attrs, Pub::default().to_token_stream(), name.mangle_tokens_default(), args, output, generics, body)
+    present_function(attrs, Pub::default().to_token_stream(), name.to_token_stream(), args, output, generics, body)
 }
 pub fn present_function<T: ToTokens>(
     attrs: &Vec<Attribute>,
@@ -172,28 +175,27 @@ impl ToTokens for BindingPresentation {
         match self {
             Self::Empty =>
                 quote!(),
-            Self::Constructor { attrs, ty, generics, ctor_arguments, body_presentation} => {
+            Self::Constructor { attrs, name, ty, generics, ctor_arguments, body_presentation} => {
                 let ffi_path = ty.to_path().arg_less();
                 present_pub_function(
                     attrs,
-                    Name::Constructor(ty.clone()),
+                    name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
                     generics.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
-            Self::VariantConstructor { ty, attrs, generics, ctor_arguments, body_presentation} => {
+            Self::VariantConstructor { attrs, name, ty, generics, ctor_arguments, body_presentation} => {
                 let variant_path = ty.to_path();
                 present_pub_function(
                     attrs,
-                    Name::Constructor(ty.clone()),
+                    name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                     generics.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
-            Self::Destructor { ty, attrs, generics } => {
-                let name = Name::Destructor(ty.clone());
+            Self::Destructor { attrs, name, ty, generics } => {
                 let ty = ty.joined_mut();
                 present_pub_function(
                     attrs,
@@ -208,7 +210,7 @@ impl ToTokens for BindingPresentation {
                 let ty = item_type.joined_const();
                 present_pub_function(
                     attrs,
-                    name.clone(),
+                    name,
                     CommaPunctuated::from_iter([quote!(obj: #ty)]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     None,
@@ -221,7 +223,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs, generics } => {
                 present_pub_function(
                     attrs,
-                    name.clone(),
+                    name,
                     CommaPunctuated::from_iter([quote! { #(#attrs)* obj: #trait_type }]),
                     ReturnType::Default,
                     generics.clone(),
@@ -233,7 +235,7 @@ impl ToTokens for BindingPresentation {
                 let var = obj_type.joined_const();
                 present_pub_function(
                     attrs,
-                    name.clone(),
+                    name,
                     CommaPunctuated::from_iter([quote! { obj: #var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
@@ -246,7 +248,7 @@ impl ToTokens for BindingPresentation {
                 let var = obj_type.joined_mut();
                 present_pub_function(
                     attrs,
-                    name.clone(),
+                    name,
                     CommaPunctuated::from_iter([
                         quote!(obj: #var),
                         quote!(value: #field_type),
@@ -263,7 +265,7 @@ impl ToTokens for BindingPresentation {
                     args.extend(arguments.clone());
                     present_pub_function(
                         attrs,
-                        name.clone(),
+                        name,
                         args,
                         return_type.clone(),
                         generics.clone(),
@@ -276,7 +278,7 @@ impl ToTokens for BindingPresentation {
                 } else {
                     present_pub_function(
                         attrs,
-                        name.clone(),
+                        name,
                         arguments.clone(),
                         return_type.clone(),
                         generics.clone(),

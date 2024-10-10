@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use quote::ToTokens;
 use syn::Field;
 use syn::punctuated::Punctuated;
 use crate::composable::FieldComposer;
@@ -11,7 +13,7 @@ use crate::presentation::Name;
 pub const fn objc_empty_fields_composer<LANG, SPEC>()
     -> FieldsComposerRef<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     |_| Punctuated::new()
@@ -19,8 +21,9 @@ pub const fn objc_empty_fields_composer<LANG, SPEC>()
 pub const fn objc_struct_unnamed_fields_composer<LANG, SPEC>()
     -> FieldsComposerRef<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     |fields|
         field_composers_iterator(
@@ -31,8 +34,9 @@ pub const fn objc_struct_unnamed_fields_composer<LANG, SPEC>()
 pub const fn objc_struct_named_fields_composer<LANG, SPEC>()
     -> FieldsComposerRef<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     |fields|
         field_composers_iterator(fields, |_index, Field { ident, ty, attrs, .. }|
@@ -41,8 +45,9 @@ pub const fn objc_struct_named_fields_composer<LANG, SPEC>()
 pub const fn objc_enum_variant_unnamed_fields_composer<LANG, SPEC>()
     -> FieldsComposerRef<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     |fields|
         field_composers_iterator(fields, |index, Field { ty, attrs, .. }|

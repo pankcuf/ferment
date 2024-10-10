@@ -1,6 +1,7 @@
 use syn::{Field, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, Variant, Visibility};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -16,7 +17,7 @@ use crate::presentation::{DictionaryExpr, DictionaryName, DocPresentation, FFIOb
 #[derive(ComposerBase)]
 pub struct EnumComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -29,8 +30,9 @@ pub struct EnumComposer<LANG, SPEC>
 
 impl<LANG, SPEC> EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -98,7 +100,7 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
 
 impl<LANG, SPEC> DocsComposable for EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -109,7 +111,7 @@ impl<LANG, SPEC> DocsComposable for EnumComposer<LANG, SPEC>
 }
 impl<LANG, SPEC> FFIObjectComposable for EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -123,8 +125,9 @@ impl<LANG, SPEC> FFIObjectComposable for EnumComposer<LANG, SPEC>
 
 impl<LANG, SPEC> BindingComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -137,7 +140,7 @@ impl<LANG, SPEC> BindingComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
 }
 impl<LANG, SPEC> VariantComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

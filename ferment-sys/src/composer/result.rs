@@ -42,7 +42,7 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let compose = |arg_name: &Name, ty: &Type| match TypeKind::from(ty) {
+        let compose = |arg_name: &Name<RustFermentate, SPEC>, ty: &Type| match TypeKind::from(ty) {
             TypeKind::Primitive(arg_ty) => {
                 GenericArgPresentation::new(
                     FFIVariable::direct(arg_ty),

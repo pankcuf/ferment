@@ -1,4 +1,4 @@
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::spanned::Spanned;
@@ -19,7 +19,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
         let search_key = self.search.search_key();
         let is_const_ptr = search_key.maybe_originally_is_const_ptr();
 
-        let maybe_obj = source.maybe_object_by_predicate(self.search.clone());
+        let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
         let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = full_ty.maybe_resolve(source);
 
@@ -62,7 +62,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                     match conversion {
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
                             let ty = model.as_type();
-                            let full_nested_ty = ty.first_nested_type().unwrap();
+                            let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
                             match <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(full_nested_ty, source) {
                                 Some(special) => {
                                     match source.maybe_object_by_value(full_nested_ty) {
@@ -109,6 +109,10 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                         TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel { ty, .. })) => {
                             FFIVariable::direct(objc_primitive(&ty))
                         },
+                        TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
+                            FFIVariable::mut_ptr(parse_quote!(NSData)),
+                        TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
+                            FFIVariable::mut_ptr(parse_quote!(NSData)),
                         TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => {
                             FFIVariable::direct(<Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(&ty, source)
                                 .map(|special| special.to_token_stream())
@@ -135,7 +139,8 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                     GroupModelKind::Vec(TypeModel { ty, .. }) |
                                     GroupModelKind::IndexMap(TypeModel { ty, .. })
                                 ) |
-                                DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                                // DictFermentableModelKind::I128(TypeModel { ty, .. }) |
+                                // DictFermentableModelKind::U128(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
@@ -273,7 +278,8 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
         // println!("VariableComposer (compose): {} ({}) in {}", self.ty.to_token_stream(), full_ty.to_token_stream(), source.scope.fmt_short());
 
         let maybe_obj = source.maybe_object_by_predicate(ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope));
-        let result = match <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(&full_ty, source) {
+        let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = full_ty.maybe_resolve(source);
+        let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
                     // println!("VariableComposer (Special Function): {} in {}", fn_ty_conversion.to_token_stream(), source.scope.fmt_short());
@@ -384,8 +390,8 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 // println!("VariableComposer (Boxed conversion): {}", conversion);
                                 // let nested_ty = ty.first_nested_type().unwrap();
                                 let ty = model.as_type();
-                                let nested_ty = self.ty.first_nested_type().unwrap();
-                                let full_nested_ty = ty.first_nested_type().unwrap();
+                                let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
+                                let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
                                 match <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
                                         // println!("VariableComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
@@ -498,7 +504,8 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                         GroupModelKind::IndexMap(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
-                                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::I128(TypeModel { ty, .. }) |
+                                    // DictFermentableModelKind::U128(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
                                 // Dictionary generics and strings should be fermented
@@ -510,6 +517,10 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 // println!("VariableComposer (Dictionary NonPrimitiveFermentable Variable): {}", result.to_token_stream());
                                 result
                             },
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!(NSData)),
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
+                                FFIVariable::mut_ptr(parse_quote!(NSData)),
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) => {
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
@@ -916,13 +927,9 @@ impl<SPEC> Resolve<FFIFullPath<ObjCFermentate, SPEC>> for GenericTypeKind
                                 let ty = path.to_type();
                                 let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = ty.maybe_special_type(source);
                                 match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Opaque): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
-                                    },
-                                    Some(SpecialType::Custom(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Custom): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
+                                    Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
+                                        println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
+                                        return FFIFullPath::external(path.clone())
                                     },
                                     _ => {}
                                 }
@@ -951,7 +958,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<ObjCFermentate, SPEC>
     let last_segment = cloned_segments.iter_mut().last().unwrap();
     let last_ident = &last_segment.ident;
     if last_ident.is_primitive() {
-        FFIFullPath::External { path: last_ident.to_path() }
+        FFIFullPath::external(last_ident.to_path())
     } else if last_ident.is_any_string() {
         FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
     } else if last_ident.is_special_generic() ||
@@ -966,7 +973,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<ObjCFermentate, SPEC>
             .into_iter()
             .map(|segment| quote_spanned! { segment.span() => #segment })
             .collect::<Vec<_>>();
-        FFIFullPath::External { path: parse_quote!(#(#new_segments)::*) }
+        FFIFullPath::external(parse_quote!(#(#new_segments)::*))
 
     }
 }
@@ -975,8 +982,8 @@ impl<SPEC> ToType for FFIFullDictionaryPath<ObjCFermentate, SPEC>
     fn to_type(&self) -> Type {
         match self {
             FFIFullDictionaryPath::Void => parse_quote!(void),
-            FFIFullDictionaryPath::CChar => parse_quote!(char),
-            // FFIFullDictionaryPath::CChar => parse_quote!(NSString),
+            // FFIFullDictionaryPath::CChar => parse_quote!(char),
+            FFIFullDictionaryPath::CChar => parse_quote!(NSString),
             FFIFullDictionaryPath::Phantom(_) => panic!("")
         }
     }
@@ -985,13 +992,10 @@ impl<SPEC> ToType for FFIFullDictionaryPath<ObjCFermentate, SPEC>
 impl<SPEC> ToType for FFIFullPath<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     fn to_type(&self) -> Type {
+        let prefix = "DS";
         match self {
-            FFIFullPath::Type { ffi_name, .. } =>
-                parse_quote!(#ffi_name),
-            FFIFullPath::Generic { ffi_name } =>
-                parse_quote!(#ffi_name),
-            FFIFullPath::External { path } =>
-                parse_quote!(#path),
+            FFIFullPath::Type { ffi_name, .. } | FFIFullPath::Generic { ffi_name, .. } | FFIFullPath::External { path: ffi_name, .. } =>
+                format_ident!("{}{}", prefix, ffi_name.mangle_tokens_default().to_string()).to_type(),
             FFIFullPath::Dictionary { path } =>
                 path.to_type(),
         }

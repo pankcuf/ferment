@@ -1,15 +1,20 @@
 use std::fmt::{Display, Formatter};
+use std::marker::PhantomData;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Pat, Path, Type};
-use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
-use crate::presentation::DictionaryName;
+use syn::{parse_quote, Pat, Path, Type};
+use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::presentation::{DictionaryName, RustFermentate};
 
 
 #[derive(Clone, Debug)]
-#[allow(unused)]
-pub enum Name {
+pub enum Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
     Empty,
     UnnamedArg(usize),
     Index(usize),
@@ -30,15 +35,43 @@ pub enum Name {
     Ident(Ident),
     Pat(Pat),
     Underscore,
+    _Phantom(PhantomData<(LANG, SPEC)>),
+}
+impl<LANG, SPEC> ToType for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self>,
+          Name<LANG, SPEC>: ToTokens,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    fn to_type(&self) -> Type {
+        parse_quote!(#self)
+    }
+}
+impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Name<LANG, SPEC>: ToTokens,
+          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    fn to_path(&self) -> Path {
+        parse_quote!(#self)
+    }
 }
 
-impl Display for Name {
+
+impl<LANG, SPEC> Display for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          Self: ToTokens {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("Name({})", self.to_token_stream()).as_str())
     }
 }
 
-impl Name {
+impl<LANG, SPEC> Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          Self: ToTokens {
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())
     }
@@ -51,9 +84,11 @@ impl Name {
     }
 }
 
-impl ToTokens for Name {
+impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
+            Name::_Phantom(..) |
             Name::Empty => quote!(),
             Name::Index(index) => usize_to_tokenstream(*index),
             Name::UnnamedArg(..) => self.mangle_tokens_default(),
@@ -77,15 +112,6 @@ impl ToTokens for Name {
                 Type::Ptr(_) => DictionaryName::Obj.to_token_stream(),
                 _ => usize_to_tokenstream(* index)
             },
-            // Name::UnnamedStructFieldsComp(ty, index) => match ty {
-            //     Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-            //         PathConversion::Primitive(..) => usize_to_tokenstream(*index),
-            //         _ => usize_to_tokenstream(*index),
-            //     },
-            //     Type::Array(_type_array) => usize_to_tokenstream(*index),
-            //     Type::Ptr(_type_ptr) => DictionaryName::Obj.to_token_stream(),
-            //     _ => unimplemented!("from_unnamed_struct: not supported {}", quote!(#ty)),
-            // },
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
             }
@@ -112,10 +138,11 @@ impl ToTokens for Name {
     }
 }
 
-impl Mangle<MangleDefault> for Name {
-
+impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
+            Name::_Phantom(..) |
             Name::Empty => String::new(),
             Name::Index(index) => index.to_string(),
             Name::UnnamedArg(index) => format!("o_{}", index),
@@ -155,7 +182,6 @@ impl Mangle<MangleDefault> for Name {
             Name::Optional(ident) => quote!(#ident).to_string(),
             Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
-
             Name::Underscore => quote!(_).to_string(),
         }
     }

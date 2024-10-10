@@ -8,8 +8,8 @@ use crate::composable::CfgAttributes;
 use crate::composer::SourceFermentable;
 use crate::context::ScopeContext;
 use crate::ext::ToType;
-use crate::lang::{LangAttrSpecification, LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::lang::{LangAttrSpecification, LangFermentable, PresentableSpecification, RustSpecification, Specification};
+use crate::presentable::{Aspect, Expression, PresentableArgument, PresentableSequence, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name, RustFermentate};
 
 #[derive(Clone, Debug, Display)]
@@ -89,7 +89,7 @@ pub struct FieldComposer<LANG, SPEC>
           SPEC: Specification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub attrs: SPEC::Attr,
-    pub name: Name,
+    pub name: SPEC::Name,
     pub kind: FieldTypeKind<LANG, SPEC>,
     pub named: bool,
     _marker: PhantomData<LANG>,
@@ -97,7 +97,7 @@ pub struct FieldComposer<LANG, SPEC>
 
 impl<LANG, SPEC> Display for FieldComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: std::fmt::Display, Var: ToType> + Display,
+          SPEC: Specification<LANG, Attr: std::fmt::Display, Name: ToTokens, Var: ToType> + Display,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("FieldComposer({}({}), {}({}), {}, {}",
@@ -107,26 +107,32 @@ impl<LANG, SPEC> Display for FieldComposer<LANG, SPEC>
     }
 }
 
+impl<SPEC> FieldComposer<RustFermentate, SPEC> where SPEC: RustSpecification {
+    pub fn self_typed(ty: Type, attrs: &Vec<Attribute>) -> Self {
+        Self::new(Name::Dictionary(DictionaryName::Self_), FieldTypeKind::Type(ty), true, attrs.cfg_attributes())
+    }
+
+
+}
+
 impl<LANG, SPEC> FieldComposer<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Var: ToType>,
+          SPEC::Name: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub fn typed(name: Name, ty: &Type, named: bool, attrs: &Vec<Attribute>) -> Self {
+    pub fn typed(name: SPEC::Name, ty: &Type, named: bool, attrs: &Vec<Attribute>) -> Self {
         Self { name, kind: FieldTypeKind::r#type(ty), named, attrs: SPEC::Attr::from_attrs(attrs.cfg_attributes()), _marker: PhantomData }
     }
-    pub fn self_typed(ty: Type, attrs: &Vec<Attribute>) -> Self {
-        Self::new(Name::Dictionary(DictionaryName::Self_), FieldTypeKind::Type(ty), true, SPEC::Attr::from_attrs(attrs.cfg_attributes()))
-    }
-    pub fn new(name: Name, kind: FieldTypeKind<LANG, SPEC>, named: bool, attrs: SPEC::Attr) -> Self {
+    pub fn new(name: SPEC::Name, kind: FieldTypeKind<LANG, SPEC>, named: bool, attrs: SPEC::Attr) -> Self {
         Self { name, kind, named, attrs, _marker: PhantomData }
     }
-    pub fn named(name: Name, kind: FieldTypeKind<LANG, SPEC>) -> Self {
+    pub fn named(name: SPEC::Name, kind: FieldTypeKind<LANG, SPEC>) -> Self {
         Self::no_attrs(name, kind, true)
     }
-    pub fn unnamed(name: Name, kind: FieldTypeKind<LANG, SPEC>) -> Self {
+    pub fn unnamed(name: SPEC::Name, kind: FieldTypeKind<LANG, SPEC>) -> Self {
         Self { name, kind, named: false, attrs: SPEC::Attr::default(), _marker: PhantomData }
     }
-    pub fn no_attrs(name: Name, kind: FieldTypeKind<LANG, SPEC>, named: bool) -> Self {
+    pub fn no_attrs(name: SPEC::Name, kind: FieldTypeKind<LANG, SPEC>, named: bool) -> Self {
         Self { name, kind, named, attrs: SPEC::Attr::default(), _marker: PhantomData }
     }
     pub fn tokenized_name(&self) -> TokenStream2 {
@@ -143,8 +149,11 @@ impl<LANG, SPEC> FieldComposer<LANG, SPEC>
 
 impl<LANG, SPEC> ToTokens for FieldComposer<LANG, SPEC>
     where LANG: LangFermentable + ToTokens,
-          SPEC: Specification<LANG, Var: ToType>,
+          SPEC: PresentableSpecification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          Expression<LANG, SPEC>: ScopeContextPresentable,
+          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
+          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           Self: SourceFermentable<LANG> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.ferment().to_tokens(tokens);

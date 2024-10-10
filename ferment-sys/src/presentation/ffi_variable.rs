@@ -7,7 +7,7 @@ use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
 use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind, GroupModelKind};
-use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
+use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
@@ -75,6 +75,8 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC:
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
             FFIVariable::direct(self.to_type())
+        } else if matches!(last_ident.to_string().as_str(), "i128" | "u128") {
+            FFIVariable::mut_ptr(parse_quote!([u8; 16]))
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 Some(TypeKind::Primitive(ty)) =>
@@ -179,9 +181,13 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
                         .to_type())),
             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(ty, source).to_type()),
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::direct(composition.to_type()),
+            TypeModelKind::Dictionary(
+                DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) => {
+                FFIVariable::mut_ptr(parse_quote!([u8; 16]))
+            },
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
                 // println!("TypeModelKind::Boxed: {}", ty.to_token_stream());
-                match ty.first_nested_type() {
+                match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         // println!("Nested: {}", nested_full_ty.to_token_stream());
                         resolve_type_variable(match <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(nested_full_ty, source) {
@@ -196,6 +202,7 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
                     None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
                 }
             },
+
             TypeModelKind::Dictionary(
                 DictTypeModelKind::NonPrimitiveFermentable(
                     DictFermentableModelKind::SmartPointer(
@@ -216,7 +223,6 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
                     ) |
                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |
-                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
                     DictFermentableModelKind::Other(TypeModel { ty, .. })
                 ) |
                 DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })

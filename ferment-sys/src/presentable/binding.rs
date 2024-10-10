@@ -1,16 +1,17 @@
+use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::{Path, ReturnType};
 use syn::__private::TokenStream2;
 use crate::composer::{BindingAccessorContext, CommaPunctuatedPresentableArguments, DestructorContext, FunctionContext};
 use crate::context::ScopeContext;
-use crate::ext::{ToPath, ToType};
+use crate::ext::{Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{BindingPresentation, Name, RustFermentate};
 
 pub enum BindingPresentableContext<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -25,7 +26,7 @@ pub enum BindingPresentableContext<LANG, SPEC>
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -82,6 +83,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 };
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
+                    name: Name::<RustFermentate, SPEC>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone(),
                     ctor_arguments: args.present(&source),
@@ -98,6 +100,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
 
                 BindingPresentation::VariantConstructor {
                     attrs: attrs.clone(),
+                    name: Name::<RustFermentate, SPEC>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone(),
                     ctor_arguments: args.present(&source),
@@ -107,13 +110,14 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
             BindingPresentableContext::Destructor(ty, attrs, generics) => {
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
+                    name: Name::<RustFermentate, SPEC>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone()
                 }
             },
             BindingPresentableContext::Getter(obj_type, field_type, field_name, attrs, generics) => BindingPresentation::Getter {
                 attrs: attrs.clone(),
-                name: Name::getter(obj_type.to_path(), &field_name),
+                name: Name::<RustFermentate, SPEC>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                 field_name: field_name.clone(),
                 obj_type: obj_type.clone(),
                 field_type: field_type.to_type(),
@@ -121,7 +125,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
             },
             BindingPresentableContext::Setter(obj_type, field_type, field_name, attrs, generics) => BindingPresentation::Getter {
                 attrs: attrs.clone(),
-                name: Name::setter(obj_type.to_path(), &field_name),
+                name: Name::<RustFermentate, SPEC>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                 field_name: field_name.clone(),
                 obj_type: obj_type.clone(),
                 field_type: field_type.to_type(),
@@ -131,7 +135,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 attrs: attrs.clone(),
                 is_async: *is_async,
                 arguments: arguments.present(&source),
-                name: Name::ModFn(path.clone()),
+                name: Name::<RustFermentate, SPEC>::ModFn(path.clone()).mangle_tokens_default(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
                 generics: generics.clone(),

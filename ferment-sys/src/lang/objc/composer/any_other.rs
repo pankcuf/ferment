@@ -17,7 +17,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<ObjCFermentate, SPEC>
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let ffi_name = self.ty.mangle_ident_default();
         let ffi_type = ffi_name.to_type();
-        let arg_0_name = Name::Dictionary(DictionaryName::Obj);
+        let arg_0_name = Name::<ObjCFermentate, SPEC>::Dictionary(DictionaryName::Obj);
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();
@@ -28,7 +28,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<ObjCFermentate, SPEC>
         // Arc<RwLock>>: to: obj.borrow().clone()
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
         let obj_by_value = source.maybe_object_by_value(&self.ty);
-        let nested_ty = self.ty.first_nested_type().unwrap();
+        let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
         let maybe_opaque = source.maybe_opaque_object::<ObjCFermentate, SPEC>(nested_ty);
         let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
         // println!("AnyOther.ty: {}", nested_ty.to_token_stream());

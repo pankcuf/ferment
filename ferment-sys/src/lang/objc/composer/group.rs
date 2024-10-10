@@ -1,8 +1,8 @@
 use quote::{quote, ToTokens};
 use syn::parse_quote;
-use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated, SemiPunctuatedTokens};
+use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer};
+use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer, TypeAspect};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle};
@@ -11,8 +11,13 @@ use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentation::Property;
-use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, PresentableArgument, PresentableSequence, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name};
+
+// impl<SPEC> GroupComposer<ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
+//
+//     pub fn compose_arg(&self) -> GenericArgPresentation<ObjCFermentate, SPEC> {}
+// }
 
 impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
@@ -20,7 +25,6 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
     type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let ffi_name = self.ty.mangle_ident_default();
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let arg_0_name = Name::Dictionary(DictionaryName::Values);
@@ -62,7 +66,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
                             }
                         }
                     } else {
-                        (ConversionExpressionKind::ComplexGroup, VarComposer::<ObjCFermentate, SPEC>::value(arg_0_generic_path_conversion.ty().unwrap()).compose(source))
+                        (ConversionExpressionKind::ComplexGroup, VarComposer::<ObjCFermentate, SPEC>::value(arg_0_generic_path_conversion.ty()?).compose(source))
                     }
                 };
                 GenericArgPresentation::<ObjCFermentate, SPEC>::new(
@@ -74,75 +78,73 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
             }
         };
         let attrs = self.compose_attributes();
-        let expr_destroy_iterator = [
-            arg_presentation.destructor.present(source)
-        ];
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let objc_name = target_type.mangle_tokens_default();
         let c_name = ffi_type.to_token_stream();
 
-        let from_conversions_statements = SemiPunctuated::from_iter([
-            Property::Initializer {
-                field_name: count_name.to_token_stream(),
-                field_initializer: quote!(ffi_ref->#count_name),
-            },
-            Property::Initializer {
-                field_name: arg_0_name.to_token_stream(),
-                field_initializer: arg_presentation.from_conversion.present(source),
-            }
-        ]);
+        // let from_conversions_statements = ;
 
         let arg_var: SPEC::Var = arg_presentation.ty.joined_mut();
-
-
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<ObjCFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),
             FieldComposer::<ObjCFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Var(arg_var.clone())),
         ]);
-        let property_names = CommaPunctuatedTokens::from_iter([
-            count_name.to_token_stream(),
-            arg_0_name.to_token_stream()
-        ]);
-        let properties = SemiPunctuated::from_iter(field_composers.iter()
-            .map(Property::nonatomic_readwrite));
         let to_values = arg_presentation.to_conversion.present(source);
-        let to_conversions_statements = SemiPunctuatedTokens::from_iter([
-            quote!(self_->#count_name = obj.#count_name),
-            quote!(self_->#arg_0_name = #to_values)
-        ]);
-        let to_conversions = SemiPunctuated::from_iter([
-            quote!(uintptr_t #count_name = obj.#count_name),
-            quote!(#arg_var #arg_0_name = #to_values),
-        ]);
-        let destroy_conversions_statements = SemiPunctuated::from_iter(expr_destroy_iterator);
-
+        let destroy_value = PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone()).present(source);
+        let from_value = arg_presentation.from_conversion.present(source);
         let interfaces = Depunctuated::from_iter([
-            InterfaceImplementation::Default {
-                objc_name: objc_name.clone(),
-                properties
-            },
-            InterfaceImplementation::ConversionsDeclaration {
-                objc_name: objc_name.clone(),
-                c_name: c_name.clone(),
-            },
-            InterfaceImplementation::BindingsDeclaration {
-                objc_name: objc_name.clone(),
-                c_name: c_name.clone(),
-            },
-            InterfaceImplementation::ConversionsImplementation {
-                objc_name: objc_name.clone(),
-                c_name: c_name.clone(),
-                from_conversions_statements,
-                to_conversions_statements,
-                destroy_conversions_statements,
-            },
-            InterfaceImplementation::BindingsImplementation {
-                objc_name: objc_name.clone(),
-                c_name,
-                to_conversions,
-                property_names,
-            },
+            // InterfaceImplementation::Default {
+            //     objc_name: objc_name.clone(),
+            //     properties: SemiPunctuated::from_iter(field_composers.iter()
+            //         .map(Property::nonatomic_readwrite))
+            // },
+            // InterfaceImplementation::ConversionsDeclaration {
+            //     objc_name: objc_name.clone(),
+            //     c_name: c_name.clone(),
+            // },
+            // InterfaceImplementation::BindingsDeclaration {
+            //     objc_name: objc_name.clone(),
+            //     c_name: c_name.clone(),
+            // },
+            // InterfaceImplementation::ConversionsImplementation {
+            //     objc_name: objc_name.clone(),
+            //     c_name: c_name.clone(),
+            //     from_conversions_statements: SemiPunctuated::from_iter([
+            //         Property::Initializer {
+            //             field_name: count_name.to_token_stream(),
+            //             field_initializer: quote!(ffi_ref->#count_name),
+            //         },
+            //         Property::Initializer {
+            //             field_name: arg_0_name.to_token_stream(),
+            //             field_initializer: arg_presentation.from_conversion.present(source),
+            //         }
+            //     ]).to_token_stream(),
+            //     to_conversions_statements: quote! {
+            //         struct #arg_var *ffi_ref = malloc(sizeof(struct #arg_var));
+            //         ffi_ref->#count_name = obj.#count_name;
+            //         ffi_ref->#arg_0_name = #to_values;
+            //         return ffi_ref;
+            //     },
+            //     destroy_body: PresentableSequence::StructDropBody(
+            //         ((self.ffi_type_aspect(), SPEC::Gen::default()), SemiPunctuated::from_iter([
+            //             PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone())
+            //         ])))
+            //         .present(source),
+            // },
+            // InterfaceImplementation::BindingsImplementation {
+            //     objc_name: objc_name.clone(),
+            //     c_name,
+            //     to_conversions: SemiPunctuated::from_iter([
+            //         quote!(uintptr_t #count_name = obj.#count_name),
+            //         quote!(#arg_var #arg_0_name = #to_values),
+            //     ]),
+            //     property_names: CommaPunctuatedTokens::from_iter([
+            //         count_name.to_token_stream(),
+            //         arg_0_name.to_token_stream()
+            //     ]),
+            // },
+            InterfaceImplementation::MacroCall(quote! { FFIGroupConversion(#c_name, #arg_var, #from_value, #to_values, #destroy_value); })
         ]);
         println!("OBJC GROUP => \n{}", format_interface_implementations(&interfaces));
         Some(GenericComposerInfo::<ObjCFermentate, SPEC>::default(

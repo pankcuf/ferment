@@ -18,7 +18,7 @@ pub type ExprComposer<LANG, SPEC> = dyn Fn(TokenStream2) -> <SPEC as Specificati
 
 pub const fn primitive_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_primitive_opt_tokens), Some(Expression::ffi_to_primitive_opt_tokens), Some(Expression::destroy_primitive_opt_tokens))
@@ -26,21 +26,21 @@ pub const fn primitive_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG
 #[allow(unused)]
 pub const fn complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_tokens))
 }
 pub const fn complex_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_opt_tokens), Some(Expression::ffi_to_complex_opt_tokens), Some(Expression::destroy_complex_opt_tokens))
 }
 pub const fn result_complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_opt_tokens))
@@ -48,7 +48,7 @@ pub const fn result_complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LAN
 
 pub struct GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     // pub ty: Type,
@@ -60,7 +60,7 @@ pub struct GenericArgComposer<LANG, SPEC>
 
 impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub const fn new(
@@ -88,21 +88,21 @@ impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
     }
 }
 
-pub type GenericNestedArgComposer<LANG, SPEC> = fn(arg_name: &Name, arg_ty: &Type) -> GenericArgPresentation<LANG, SPEC>;
+pub type GenericNestedArgComposer<LANG, SPEC> = fn(arg_name: &Name<LANG, SPEC>, arg_ty: &Type) -> GenericArgPresentation<LANG, SPEC>;
 
 #[allow(unused)]
 pub trait GenericNamedArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn compose_with(&self, name: &Name, composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC>;
+    fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC>;
 }
 
 impl<LANG, SPEC> GenericNamedArgComposer<LANG, SPEC> for Type
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn compose_with(&self, name: &Name, composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC> {
+    fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC> {
         composer(name, self)
     }
 }

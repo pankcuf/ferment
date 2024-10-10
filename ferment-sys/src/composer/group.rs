@@ -55,7 +55,7 @@ impl<LANG, SPEC> GroupComposer<LANG, SPEC>
         }
     }
     pub fn default(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
-        let nested_ty = ty.first_nested_type().unwrap();
+        let nested_ty = ty.maybe_first_nested_type_ref().unwrap();
         Self::new(
             ty,
             ty_context,
@@ -68,7 +68,7 @@ impl<LANG, SPEC> GroupComposer<LANG, SPEC>
         )
     }
     pub fn array(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
-        let nested_ty = ty.first_nested_type().unwrap();
+        let nested_ty = ty.maybe_first_nested_type_ref().unwrap();
         Self::new(
             ty,
             ty_context,

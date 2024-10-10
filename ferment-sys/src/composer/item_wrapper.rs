@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use quote::ToTokens;
 use syn::{Attribute, Fields, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
@@ -7,12 +9,12 @@ use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
-use crate::presentation::RustFermentate;
+use crate::presentation::{Name, RustFermentate};
 
 #[allow(unused)]
 pub enum ItemComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -33,8 +35,9 @@ pub enum ItemComposerWrapper<LANG, SPEC>
 
 impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
@@ -135,7 +138,7 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
 
 impl<LANG, SPEC> AttrComposable<SPEC::Attr> for ItemComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,

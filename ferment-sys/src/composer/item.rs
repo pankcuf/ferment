@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
+use std::fmt::Debug;
 use quote::ToTokens;
 use syn::{Generics, Type};
 use ferment_macro::ComposerBase;
@@ -9,7 +10,7 @@ use crate::composable::{AttrsModel, GenModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedFields, SourceComposable, ComposerLink, constants, ConstructorFieldsContext, DocsComposable, FFIAspect, FFIBindingsComposer, FFIComposer, FFIObjectComposable, FieldComposers, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, GenericsComposable, InterfaceComposable, Linkable, SourceAccessible, SourceFermentable, TypeAspect, PresentableArgumentComposerRef, AspectSequenceComposer, BindingCtorComposer, ConstructorArgComposerRef, FieldsComposerRef, PresentableExprComposerRef, SharedComposer, FieldPathResolver, SequenceOutputComposerLink, FieldsOwnedSequenceComposerLink, BasicComposerLink, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposer};
 use crate::context::ScopeContextLink;
 use crate::ext::{Resolve, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{LangFermentable, PresentableSpecification, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentation::{DocPresentation, FFIObjectPresentation, InterfacePresentation, RustFermentate};
 use crate::shared::SharedAccess;
@@ -17,14 +18,15 @@ use crate::shared::SharedAccess;
 pub trait FFIObjectSpec<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     const COMPOSER: MaybeSequenceOutputComposer<Link, LANG, SPEC>;
 }
 pub trait FFIConversionsSpec<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
@@ -33,7 +35,7 @@ pub trait FFIConversionsSpec<Link, LANG, SPEC>
 pub trait FFIBindingsSpec<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -43,7 +45,7 @@ pub trait FFIBindingsSpec<Link, LANG, SPEC>
 pub trait FFIFieldsSpec<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -60,7 +62,7 @@ impl<T, C, LANG, SPEC> FFIFieldsSpec<ComposerLink<T>, LANG, SPEC> for C
             + SourceAccessible
             + 'static,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -77,7 +79,7 @@ impl<T, C, LANG, SPEC> FFIFieldsSpec<ComposerLink<T>, LANG, SPEC> for C
 pub trait CtorSpec<Link, LANG, SPEC>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
@@ -88,14 +90,15 @@ pub trait CtorSpec<Link, LANG, SPEC>
 }
 pub trait ItemComposerSpec<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
     const ROOT_PRESENTER: AspectSequenceComposer<LANG, SPEC>;
     const FIELD_PRESENTER: PresentableArgumentComposerRef<LANG, SPEC>;
-    const ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC>;
+    const FROM_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC>;
+    const TO_ROOT_CONVERSION_PRESENTER: AspectSequenceComposer<LANG, SPEC>;
     const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC>;
 }
 
@@ -111,7 +114,7 @@ pub trait ItemComposerSpec<LANG, SPEC>
 
 pub trait FieldPathConversionResolveSpec<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -135,7 +138,10 @@ pub trait FieldPathConversionResolveSpec<LANG, SPEC>
 
 pub trait ItemComposerExprSpec<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
+          SPEC: PresentableSpecification<LANG>,
+          SPEC::Expr: ScopeContextPresentable,
+          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
+          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     const CONVERSION: PresentableExprComposerRef<LANG, SPEC>;
     const DESTROY: PresentableExprComposerRef<LANG, SPEC>;
@@ -145,7 +151,7 @@ pub trait ItemComposerExprSpec<LANG, SPEC>
 pub struct ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + 'static + ?Sized,
           LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -166,7 +172,7 @@ pub struct ItemComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -234,7 +240,7 @@ impl<I, LANG, SPEC> ItemComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> FieldsContext<LANG, SPEC> for ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -247,7 +253,7 @@ impl<I, LANG, SPEC> FieldsContext<LANG, SPEC> for ItemComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> FieldsConversionComposable<LANG, SPEC> for ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -264,7 +270,7 @@ impl<I, LANG, SPEC> FieldsConversionComposable<LANG, SPEC> for ItemComposer<I, L
 impl<I, LANG, SPEC> DocsComposable for ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -277,7 +283,7 @@ impl<I, LANG, SPEC> DocsComposable for ItemComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> FFIObjectComposable for ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
@@ -296,7 +302,7 @@ impl<I, LANG, SPEC> FFIObjectComposable for ItemComposer<I, LANG, SPEC>
 impl<I, LANG, SPEC> BindingComposable<LANG, SPEC> for ItemComposer<I, LANG, SPEC>
     where I: DelimiterTrait + ?Sized,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
