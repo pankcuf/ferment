@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use quote::ToTokens;
-use syn::{parse_quote, Type};
+use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, FFIAspect};
 use crate::context::ScopeContext;
@@ -74,7 +74,10 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(ty.to_type());
         println!("ToConversionComposer::compose::2:: {}", full_type.to_token_stream());
-
+        let full_type = match &full_type {
+            Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
+            _ => full_type
+        };
 
         let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::maybe_resolve(&full_type, source).map_or(full_type.to_type(), |path| path.to_type());
             // .unwrap_or_else(|| FFIFullPath::External { });

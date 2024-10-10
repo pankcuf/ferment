@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use quote::ToTokens;
-use syn::{parse_quote, PatType, Type};
+use syn::{parse_quote, PatType, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
@@ -69,6 +69,11 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
+
+        let full_type = match &full_type {
+            Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
+            _ => full_type
+        };
 
         let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
