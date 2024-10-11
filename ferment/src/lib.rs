@@ -91,8 +91,7 @@ pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
     }
 }
 /// # Safety
-pub unsafe fn unbox_any_vec_composer<T, U>(vec: Vec<*mut T>, composer: U)
-    where U: Fn(*mut T) {
+pub unsafe fn unbox_any_vec_composer<T, U: Fn(*mut T)>(vec: Vec<*mut T>, composer: U) {
     for &x in vec.iter() {
         composer(x);
     }
@@ -101,6 +100,10 @@ pub unsafe fn unbox_any_vec_composer<T, U>(vec: Vec<*mut T>, composer: U)
 /// # Safety
 pub unsafe fn unbox_any_vec_ptr<T>(ptr: *mut *mut T, count: usize) {
     unbox_any_vec(unbox_vec_ptr(ptr, count));
+}
+/// # Safety
+pub unsafe fn unbox_any_vec_ptr_composer<T, U: Fn(*mut T)>(ptr: *mut *mut T, count: usize, composer: U) {
+    unbox_any_vec_composer(unbox_vec_ptr(ptr, count), composer);
 }
 
 /// # Safety
