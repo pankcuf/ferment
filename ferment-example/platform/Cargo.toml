@@ -23,9 +23,9 @@ dpp = { path = "../../../platform/packages/rs-dpp", features = ["state-transitio
 fancy-regex = "0.13.0"
 ferment = { path = "../../ferment" }
 ferment-macro = { path = "../../ferment-macro" }
-grovedb-version = "1.0.0-rc.2"
+grovedb-version = "2.1.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
-jsonschema = "0.18.0"
+jsonschema = "0.22.3"
 platform-value = { path = "../../../platform/packages/rs-platform-value" }
 platform-version = { path = "../../../platform/packages/rs-platform-version" }
 regex = { version = "1.10.4" }
@@ -63,6 +63,9 @@ state-transition-validation = ["dpp/state-transition-validation"]
 state-transition-signing = ["dpp/state-transition-signing"]
 std = ["platform-value/std"]
 validation = ["dpp/validation"]
+core-types = ["dpp/core-types"]
+system_contracts = ["dpp/system_contracts"]
+
 
 [lib]
 name = "example_platform"

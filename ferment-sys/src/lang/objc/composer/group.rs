@@ -1,8 +1,8 @@
 use quote::{quote, ToTokens};
 use syn::parse_quote;
-use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
+use crate::ast::Depunctuated;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer, TypeAspect};
+use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle};
@@ -10,8 +10,7 @@ use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::lang::objc::presentation::Property;
-use crate::presentable::{ConversionExpressionKind, Expression, PresentableArgument, PresentableSequence, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, PresentableArgument, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name};
 
 // impl<SPEC> GroupComposer<ObjCFermentate, SPEC> where SPEC: ObjCSpecification {

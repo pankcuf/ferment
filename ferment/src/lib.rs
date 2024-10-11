@@ -85,8 +85,16 @@ pub unsafe fn unbox_string(data: *mut c_char) {
 
 /// # Safety
 pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
+    // TODO: that's wrong, need to make unbox_any composable of arbitrary type -> unbox_any_vec_composer
     for &x in vec.iter() {
         unbox_any(x);
+    }
+}
+/// # Safety
+pub unsafe fn unbox_any_vec_composer<T, U>(vec: Vec<*mut T>, composer: U)
+    where U: Fn(*mut T) {
+    for &x in vec.iter() {
+        composer(x);
     }
 }
 
