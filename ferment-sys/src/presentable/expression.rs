@@ -208,15 +208,15 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn from_primitive(expr: Self) -> Self {
         Self::expression(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
     }
-    pub(crate) fn ffi_to_complex(expr: Self) -> Self {
-        Self::expression(FFIAspect::To, ConversionExpressionKind::Complex, expr)
-    }
+    // pub(crate) fn ffi_to_complex(expr: Self) -> Self {
+    //     Self::expression(FFIAspect::To, ConversionExpressionKind::Complex, expr)
+    // }
     pub(crate) fn destroy_complex(expr: Self) -> Self {
         Self::expression(FFIAspect::Destroy, ConversionExpressionKind::Complex, expr)
     }
-    pub(crate) fn destroy_complex_opt(expr: Self) -> Self {
-        Self::expression(FFIAspect::Destroy, ConversionExpressionKind::ComplexOpt, expr)
-    }
+    // pub(crate) fn destroy_complex_opt(expr: Self) -> Self {
+    //     Self::expression(FFIAspect::Destroy, ConversionExpressionKind::ComplexOpt, expr)
+    // }
 
 
 

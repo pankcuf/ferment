@@ -61,6 +61,7 @@ impl TypeContext {
             TypeContext::Impl { attrs, .. } => attrs,
         }
     }
+    #[allow(unused)]
     pub(crate) fn prefix(&self) -> &String {
         match self {
             TypeContext::Mixin { prefix, .. } |

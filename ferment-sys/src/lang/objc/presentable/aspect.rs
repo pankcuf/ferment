@@ -76,7 +76,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                             let ty: Type = ident.to_type().resolve(source);
                             format_ident!("{}{}", prefix.to_string(), ty.mangle_tokens_default().to_string()).to_type()
                         },
-                    TypeContext::EnumVariant { parent: _, ident, prefix, variant_ident, attrs: _ } => {
+                    TypeContext::EnumVariant { ident, variant_ident, .. } => {
                         let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
@@ -121,7 +121,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         <Type as Resolve<Type>>::resolve(&path.to_type(), source)
                             .mangle_ident_default()
                             .to_type(),
-                    TypeContext::EnumVariant { parent: _, ident, prefix, variant_ident, attrs: _ } => {
+                    TypeContext::EnumVariant { ident, variant_ident, .. } => {
                         let mangled_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source).mangle_ident_default();
                         parse_quote!(#mangled_ty::#variant_ident)
                     },
@@ -167,16 +167,16 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         kind.ty().cloned().unwrap(),
                     TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
                         model.type_model_ref().ty.clone(),
-                    TypeContext::Enum { ident , prefix, attrs: _, } |
-                    TypeContext::Struct { ident , prefix, attrs: _, } =>
+                    TypeContext::Enum { ident , .. } |
+                    TypeContext::Struct { ident , .. } =>
                         ident.to_type(),
-                    TypeContext::EnumVariant { parent: _, ident, variant_ident, prefix, attrs: _ } => {
+                    TypeContext::EnumVariant { ident, variant_ident, .. } => {
                         let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
-                    TypeContext::Fn { path, .. } => path.to_type(),
-                    TypeContext::Trait { path , prefix, attrs: _ } => path.to_type(),
-                    TypeContext::Impl { path , prefix, attrs: _ } => path.to_type()
+                    TypeContext::Fn { path, .. } |
+                    TypeContext::Trait { path , .. } |
+                    TypeContext::Impl { path , .. } => path.to_type()
                 }
             }
         }

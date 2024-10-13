@@ -1,3 +1,4 @@
+use std::env::VarError;
 use std::fmt::Debug;
 use std::io;
 use std::process::ExitStatus;
@@ -8,8 +9,10 @@ pub enum Error {
     ExpansionError(&'static str),
     MorphingError(&'static str),
     ParseSyntaxTree(syn::Error),
-    Configuration(&'static str),
+    Configuration(String),
     Exit(ExitStatus),
+    VarError(VarError),
+    Cbindgen(cbindgen::Error),
 }
 
 impl std::fmt::Display for Error {
@@ -19,8 +22,10 @@ impl std::fmt::Display for Error {
             Error::ExpansionError(msg) => write!(f, "{}", msg),
             Error::ParseSyntaxTree(ref err) => std::fmt::Display::fmt(&err, f),
             Error::MorphingError(ref err) => std::fmt::Display::fmt(&err, f),
-            Error::Configuration(ref err) => std::fmt::Display::fmt(&err, f),
-            Error::Exit(ref exit) => std::fmt::Display::fmt(&exit, f)
+            Error::Configuration(err) => std::fmt::Display::fmt(err, f),
+            Error::Exit(exit) => std::fmt::Display::fmt(exit, f),
+            Error::VarError(err) => std::fmt::Display::fmt(err, f),
+            Error::Cbindgen(err) => std::fmt::Display::fmt(err, f),
         }
     }
 }
@@ -36,8 +41,20 @@ impl From<syn::Error> for Error {
         Error::ParseSyntaxTree(value)
     }
 }
-impl From<ExitStatus> for Error {
-    fn from(value: ExitStatus) -> Self {
-        Error::Exit(value)
-    }
-}
+// impl From<ExitStatus> for Error {
+//     fn from(value: ExitStatus) -> Self {
+//         Error::Exit(value)
+//     }
+// }
+
+// impl From<VarError> for Error {
+//     fn from(value: VarError) -> Self {
+//         Error::Configuration(format!("Environment variable error: {value}").as_str())
+//     }
+// }
+//
+// impl From<cbindgen::Error> for Error {
+//     fn from(value: cbindgen::Error) -> Self {
+//         Error::Configuration(format!("cbindgen error: {value}").as_str())
+//     }
+// }

@@ -4,8 +4,8 @@ extern crate ferment_sys;
 use std::process::Command;
 use ferment_sys::{Ferment, Lang, ObjC, XCodeConfig};
 
-pub const SELF_NAME: &str = "example_platform";
 fn main() {
+   const SELF_NAME: &str = "example_platform";
    let languages = vec![
        Lang::ObjC(ObjC::new(XCodeConfig { class_prefix: "DS".to_string(), framework_name: "DSExamplePlatform".to_string(), header_name: SELF_NAME.to_string() }))
    ];

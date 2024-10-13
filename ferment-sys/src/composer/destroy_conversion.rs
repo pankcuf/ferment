@@ -63,7 +63,7 @@ impl<LANG, SPEC> SourceComposable for DestroyConversionComposer<LANG, SPEC>
             Some(SpecialType::Opaque(..)) => {
                 Expression::destroy_complex(expr)
             }
-            Some(SpecialType::Custom(custom_ty)) => {
+            Some(SpecialType::Custom(..)) => {
                 Expression::destroy_complex(expr)
                 // SPEC::Expr::cast_destroy(expr, ConversionExpressionKind::Complex, custom_ty, full_type)
                 // Expression::destroy_complex(expr)

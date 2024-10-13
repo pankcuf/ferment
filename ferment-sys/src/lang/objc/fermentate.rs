@@ -1,9 +1,9 @@
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 use std::ops::Add;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated, SemiPunctuatedTokens};
+use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
 use crate::composer::SourceFermentable;
 use crate::lang::LangFermentable;
 use crate::lang::objc::ObjCFermentate;
@@ -129,7 +129,7 @@ impl ToTokens for InterfaceImplementation {
                     @end
                 }
             }
-            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions, property_names: properties } => {
+            InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions, property_names: _ } => {
                 let ctor_name = format_ident!("{}_ctor", c_name.to_string());
                 let dtor_name = format_ident!("{}_destroy", c_name.to_string());
                 let interface_name = format_ident!("Bindings_{}", c_name.to_string());

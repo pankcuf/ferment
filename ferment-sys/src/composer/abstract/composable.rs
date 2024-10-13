@@ -61,10 +61,12 @@ pub trait FieldsContext<LANG, SPEC>
           SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     fn field_composers_ref(&self) -> &FieldComposers<LANG, SPEC>;
+    #[allow(unused)]
     fn field_composers(&self) -> FieldComposers<LANG, SPEC> {
         self.field_composers_ref()
             .clone()
     }
+    #[allow(unused)]
     fn field_composers_by_ref(by_ref: &ComposerLinkRef<Self>) -> FieldComposers<LANG, SPEC> {
         by_ref.field_composers()
     }

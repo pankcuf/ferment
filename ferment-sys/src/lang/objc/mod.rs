@@ -93,21 +93,21 @@ impl CrateTreeConsumer for Config {
 }
 
 
-#[derive(Clone, Debug)]
-pub enum CategoryKind {
-    C,
-    Rust,
-    Args
-}
-impl ToTokens for CategoryKind {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            CategoryKind::C => quote!(C),
-            CategoryKind::Rust => quote!(Rust),
-            CategoryKind::Args => quote!(Args),
-        }.to_tokens(tokens)
-    }
-}
+// #[derive(Clone, Debug)]
+// pub enum CategoryKind {
+//     C,
+//     Rust,
+//     Args
+// }
+// impl ToTokens for CategoryKind {
+//     fn to_tokens(&self, tokens: &mut TokenStream2) {
+//         match self {
+//             CategoryKind::C => quote!(C),
+//             CategoryKind::Rust => quote!(Rust),
+//             CategoryKind::Args => quote!(Args),
+//         }.to_tokens(tokens)
+//     }
+// }
 
 impl ObjCSpecification for ScopeTree {}
 impl ObjCSpecification for CrateTree {}
@@ -135,7 +135,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
             global.custom
                 .inner
                 .iter()
-                .map(|(mixin, attrs)| {
+                .map(|(_scope_chain, _type_chain)| {
                     quote!()
                     // CustomComposer::<ObjCFermentate, CrateTree>::new()
                     // let attrs = expand_attributes(attrs);

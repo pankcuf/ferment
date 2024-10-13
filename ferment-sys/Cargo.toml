@@ -21,8 +21,7 @@ cargo_metadata = "0.18.1"
 log = { version = "0.4.20", features = ["std"] }
 ansi_term = "0.12.1"
 env_logger = "0.11.0"
-
-objc = "0.2.7"
+cbindgen = "0.27.0"
 
 [lib]
 name = "ferment_sys"

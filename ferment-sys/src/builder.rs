@@ -14,7 +14,8 @@ pub struct Builder {
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
-        Builder { config: Config::new("fermented", current_crate, "cbindgen.toml") }
+        Builder { config: Config::new("fermented", current_crate, cbindgen::Config::default()) }
+        // Builder { config: Config::new("fermented", current_crate, "cbindgen.toml") }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {
@@ -27,8 +28,13 @@ impl Builder {
         self
     }
     #[allow(unused)]
-    pub fn with_cbindgen_config(mut self, config: &str) -> Builder {
-        self.config.cbindgen_config = String::from(config);
+    pub fn with_cbindgen_config(mut self, config: cbindgen::Config) -> Builder {
+        self.config.cbindgen_config = config;
+        self
+    }
+    #[allow(unused)]
+    pub fn with_cbindgen_config_from_file(mut self, config: &'static str) -> Builder {
+        self.config.cbindgen_config_from_file = Some(config.to_string());
         self
     }
     #[allow(unused)]

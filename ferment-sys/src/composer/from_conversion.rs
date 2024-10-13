@@ -145,11 +145,11 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                         Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty))
                     },
                     TypeModelKind::Dictionary(
-                        DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(TypeModel { ty: ref full_ty, .. }))) => {
+                        DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) => {
                         Expression::cast_from(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(i128))
                     },
                     TypeModelKind::Dictionary(
-                        DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(TypeModel { ty: ref full_ty, .. }))) => {
+                        DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) => {
                         Expression::cast_from(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128))
                     },
                     TypeModelKind::Dictionary(

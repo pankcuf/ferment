@@ -27,7 +27,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::InterfacesExpr(expr) => expr.to_token_stream(),
             Self::MapExpression(presentable, mapper) =>
                 DictionaryExpr::Mapper(presentable.present(source).to_token_stream(), mapper.present(source).to_token_stream()).to_token_stream(),
-            Self::DestroyString(presentable, path) => {
+            Self::DestroyString(presentable, _path) => {
                 let expr = presentable.present(source);
                 quote!([NSString ffi_destroy: #expr])
                 // Self::ca
@@ -252,15 +252,15 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 quote!([DSFerment destroy_opt_complex_group:#expr])
             },
 
-            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr, ffi_ty, ty) =>
+            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_from:#expr]),
-            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) =>
+            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_from_opt:#expr]),
-            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr, ffi_ty, ty) =>
+            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_to:#expr]),
-            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) =>
+            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_to_opt:#expr]),
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) =>
+            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_destroy:#expr]),
 
         };

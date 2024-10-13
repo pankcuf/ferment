@@ -52,7 +52,7 @@ build_targets=(
 )
 for target in "${build_targets[@]}"; do
     if [ ! -f "../../target/$target/release/lib${HEADER}.a" ]; then
-        cargo build --target="$target" --release &
+        cargo build --target="$target" --release --no-default-features &
     fi
 done
 wait
