@@ -3,6 +3,7 @@ use ferment::boxed;
 use crate::entry::{BlockHashByHeight, ModelByHeight, SomeModel};
 use crate::entry::processor::Processor;
 use crate::entry::provider::{FFIPtrCoreProvider, FFITraitCoreProvider};
+use crate::model::IndexPath;
 
 #[ferment_macro::opaque]
 pub struct DashSharedCore {
@@ -44,4 +45,7 @@ impl DashSharedCore {
     pub fn test_vec_by_ref(&self, data: &Vec<u8>) -> Result<u32, u32> {
         Ok(data.len() as u32)
     }
+    // pub fn public_key_from_extended_public_key_data(&self, data: &[u8], _index_path: &IndexPath<u32>) -> Result<u32, u32> {
+    //     Ok(data.len() as u32)
+    // }
 }

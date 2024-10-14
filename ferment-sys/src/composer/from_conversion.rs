@@ -25,17 +25,20 @@ impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr: ScopeContextPresentable>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn new(name: Name<LANG, SPEC> , search: ScopeSearch<'a>, field_expr: Option<SPEC::Expr>) -> Self {
+    fn new(name: Name<LANG, SPEC>, search: ScopeSearch<'a>, field_expr: Option<SPEC::Expr>) -> Self {
         Self { name, search , field_expr }
     }
-    pub fn expr_less(name: Name<LANG, SPEC> , search: ScopeSearch<'a>) -> Self {
+    pub fn expr_less(name: Name<LANG, SPEC>, search: ScopeSearch<'a>) -> Self {
         Self::new(name, search, None)
     }
-    pub fn key_in_scope_with_expr(name: Name<LANG, SPEC> , ty: &'a Type, scope: &'a ScopeChain, field_expr: Option<SPEC::Expr>) -> Self {
+    pub fn key_in_scope_with_expr(name: Name<LANG, SPEC>, ty: &'a Type, scope: &'a ScopeChain, field_expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), field_expr)
     }
-    pub fn key_in_scope(name: Name<LANG, SPEC> , ty: &'a Type, scope: &'a ScopeChain) -> Self {
+    pub fn key_in_scope(name: Name<LANG, SPEC>, ty: &'a Type, scope: &'a ScopeChain) -> Self {
         Self::expr_less(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
+    }
+    pub fn value(name: Name<LANG, SPEC>, ty: &'a Type) -> Self {
+        Self::expr_less(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
 }
 // impl<'a, LANG, SPEC> Display for FromConversionFullComposer<'a, LANG, SPEC>

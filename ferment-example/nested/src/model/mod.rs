@@ -75,3 +75,9 @@ pub mod some_inner_2 {
     // }
 }
 
+#[derive(Clone, Debug, Default)]
+// #[ferment_macro::opaque]
+pub struct IndexPath<T> {
+    pub indexes: Vec<T>,
+    pub hardened: Vec<bool>,
+}

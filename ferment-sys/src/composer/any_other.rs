@@ -54,15 +54,15 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         // Mutex/RwLock: primitive/complex arg: to: "obj.into_inner().expect("Err")"
         // Arc<RwLock>>: to: obj.borrow().clone()
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
-        // let obj_by_value = source.maybe_object_by_value(&self.ty);
-        let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
-        // let maybe_opaque = source.maybe_opaque_object(nested_ty);
-        // let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
-        // println!("AnyOther.ty: {}", nested_ty.to_token_stream());
-        // println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
-        // println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        // println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        // println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
+        let obj_by_value = source.maybe_object_by_value(&self.ty);
+        let nested_ty = self.ty.maybe_first_nested_type_ref()?;
+        let maybe_opaque = source.maybe_opaque_object::<RustFermentate, SPEC>(nested_ty);
+        let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
+        println!("AnyOther.ty: {}", nested_ty.to_token_stream());
+        println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
+        println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
 
         // let compose = |arg_name: &Name, ty: &Type| {
         // };

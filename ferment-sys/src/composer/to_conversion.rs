@@ -94,16 +94,13 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
                             Expression::boxed_tokens(name),
                         Some(SpecialType::Custom(custom_ty)) =>
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, custom_ty, full_parent_ty),
-                            // Expression::ffi_to_complex(field_path),
                         _ =>
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_parent_ty),
-                            // Expression::ffi_to_complex(field_path),
                     }
                 },
                 _ => from_external::<LANG, SPEC>(ty, ffi_type, if by_ref { Expression::Clone(field_path.into()) } else { field_path })
             },
             Some(ObjectKind::Item(..) | ObjectKind::Type(..)) => {
-                // let full_type = ty_conversion.to_type();
                 let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
                 match maybe_special {
                     Some(SpecialType::Opaque(..)) =>
@@ -126,10 +123,8 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
                             Expression::cast_to(if by_ref { Expression::Clone(field_path.into()) } else { field_path }, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(i128)),
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
                             Expression::cast_to(if by_ref { Expression::Clone(field_path.into()) } else { field_path }, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128)),
-                            // Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, if by_ref { Expression::Clone(field_path.into()) } else { field_path }.into()),
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty, .. }))) =>
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#ty)),
-                            // Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, field_path.into()),
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ref ty, .. })))) => if let Some(nested_ty) = ty.maybe_first_nested_type_ref() {
                             match (<Type as FFISpecialTypeResolve<LANG, SPEC>>::maybe_special_type(&nested_ty, source),
                                    nested_ty.maybe_object(source)) {
