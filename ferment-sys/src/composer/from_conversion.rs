@@ -214,6 +214,23 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                             // Expression::from_primitive(field_path),
                         }
                     },
+                    TypeModelKind::Slice(TypeModel { ref ty, .. }) => {
+                        let nested_ty = ty.maybe_first_nested_type_ref().unwrap();
+                        println!("FromConversionFullComposer (Slice): {}", search_key);
+
+                        Expression::AsRef(match TypeKind::from(search_key.to_type()) {
+                            TypeKind::Primitive(_) =>
+                                Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                            TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
+                                Some(TypeKind::Primitive(_)) =>
+                                    Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                                _ =>
+                                    Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                            }
+                            _ =>
+                                Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(Vec<#nested_ty>))
+                        }.into())
+                    },
                     _ => {
                         // println!("FromConversionFullComposer (Regular): {}", composition);
                         match TypeKind::from(search_key.to_type()) {

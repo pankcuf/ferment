@@ -37,4 +37,8 @@ impl DashSharedCore {
             context
         }
     }
+
+    pub fn test_by_ref(&self, data: &[u8]) -> Result<u32, u32> {
+        Ok(data.len() as u32)
+    }
 }

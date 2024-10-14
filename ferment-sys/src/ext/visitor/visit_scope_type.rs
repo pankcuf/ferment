@@ -443,7 +443,7 @@ impl<'a> VisitScopeType<'a> for TypeArray {
 
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         ObjectKind::Type(
-            TypeModelKind::Slice(
+            TypeModelKind::Array(
                 TypeModel::new(
                     Type::Array(self.clone()),
                     None,
