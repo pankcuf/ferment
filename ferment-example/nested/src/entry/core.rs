@@ -41,4 +41,7 @@ impl DashSharedCore {
     pub fn test_by_ref(&self, data: &[u8]) -> Result<u32, u32> {
         Ok(data.len() as u32)
     }
+    pub fn test_vec_by_ref(&self, data: &Vec<u8>) -> Result<u32, u32> {
+        Ok(data.len() as u32)
+    }
 }

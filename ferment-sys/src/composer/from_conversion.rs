@@ -70,11 +70,11 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
 
+        let is_ref = search_key.maybe_originally_is_ref();
         let full_type = match &full_type {
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
         };
-
         let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
 
@@ -91,22 +91,18 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                 TypeModelKind::FnPointer(..) |
                 TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
                     Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-                // Expression::from_primitive(field_path),
                 _ if search_key.maybe_originally_is_ptr() =>
                     Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-                // Expression::from_primitive(field_path),
                 _ =>
                     Expression::from_ptr_clone(field_path),
             },
             Some(SpecialType::Custom(custom_ty)) =>
                 Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_type),
-                // Expression::from_complex(field_path),
             _ => {
                 // println!("FromConversionFullComposer (Non Special): {} ({})", search_key, full_type.to_token_stream());
                 match composition {
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
                         Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-                    // Expression::from_primitive(field_path),
                     TypeModelKind::FnPointer(..) => {
                         // println!("FromConversionFullComposer (Non Special FnPointer): {} --- {}", search_key, maybe_object.to_token_stream());
                         if let Some(lambda_args) = source.maybe_fn_sig(&full_type)
@@ -114,7 +110,6 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                             Expression::from_lambda(field_path, lambda_args)
                         } else {
                             Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type)
-                            // Expression::from_primitive(field_path)
                         }
                     },
                     TypeModelKind::Optional(..) => {
@@ -125,20 +120,6 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                             _ =>
                                 Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_nested_ty.to_type())
                         }
-                        // let first_nested_type = full_type.maybe_first_nested_type_kind().unwrap();
-                        // if let Some(first_nested_type) = full_type.maybe_first_nested_type_ref() {
-                        //
-                        // } else {
-                        //
-                        // }
-                        //
-                        // if ty.as_type().maybe_first_nested_type_ref().unwrap().is_primitive() {
-                        //     Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, full_type.maybe_first_nested_type_ref().cloned().unwrap())
-                        //     // Expression::from_primitive_opt(field_path)
-                        // } else {
-                        //     Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_type.maybe_first_nested_type_ref().cloned().unwrap())
-                        //     // Expression::from_complex_opt(field_path)
-                        // }
                     }
                     TypeModelKind::Dictionary(
                         DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) => {
@@ -176,89 +157,69 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                                         Expression::from_lambda(field_path, lambda_args),
                                     None =>
                                         Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())
-
-                                    // Expression::from_complex(field_path)
                                 }),
                             _ =>
                                 Expression::new_box(
                                     Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())),
-
-                                    // Expression::from_complex(field_path)),
                         }
                     },
                     TypeModelKind::Bounds(bounds) => {
-                        // println!("FromConversionFullComposer (Bounds): {}", bounds);
                         bounds.expr_from(field_path)
                     },
                     TypeModelKind::Unknown(..) => {
-                        // println!("FromConversionFullComposer (Unknown): {}", search_key);
-
                         match TypeKind::from(search_key.to_type()) {
                             TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
                                 Some(TypeKind::Primitive(_)) =>
                                     Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, full_type),
-
-                                // Expression::from_primitive_opt(field_path),
                                 _ =>
                                     Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_type),
-
-                                // Expression::from_complex_opt(field_path),
                             }
                             TypeKind::Generic(..) =>
                                 Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_type),
-
-                            // Expression::from_complex(field_path),
                             _ =>
                                 Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type)
-
-                            // Expression::from_primitive(field_path),
                         }
                     },
                     TypeModelKind::Slice(TypeModel { ref ty, .. }) => {
-                        let nested_ty = ty.maybe_first_nested_type_ref().unwrap();
-                        println!("FromConversionFullComposer (Slice): {}", search_key);
-
-                        Expression::AsRef(match TypeKind::from(search_key.to_type()) {
+                        let maybe_nested_ty = ty.maybe_first_nested_type_ref();
+                        let target_type = parse_quote!(Vec<#maybe_nested_ty>);
+                        /*Expression::AsRef(*/match TypeKind::from(search_key.to_type()) {
                             TypeKind::Primitive(_) =>
-                                Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                                Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, target_type),
                             TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
                                 Some(TypeKind::Primitive(_)) =>
-                                    Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                                    Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, target_type),
                                 _ =>
-                                    Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, parse_quote!(Vec<#nested_ty>)),
+                                    Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, target_type),
                             }
                             _ =>
-                                Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(Vec<#nested_ty>))
-                        }.into())
+                                Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, target_type)
+                        }/*.into())*/
                     },
                     _ => {
-                        // println!("FromConversionFullComposer (Regular): {}", composition);
                         match TypeKind::from(search_key.to_type()) {
                             TypeKind::Primitive(_) =>
                                 Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-
-                            // Expression::from_primitive(field_path),
                             TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
                                 Some(TypeKind::Primitive(_)) =>
                                     Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, full_type),
-
-                                // Expression::from_primitive_opt(field_path),
                                 _ =>
                                     Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_type),
-
-                                // Expression::from_complex_opt(field_path),
                             }
                             _ =>
                                 Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_type)
-
-                            // Expression::from_complex(field_path)
                         }
                     }
                 }
             }
         };
         // println!("FromConversionFullComposer ==> {:?}", expression);
-        expression
+        if is_ref {
+            Expression::AsRef(expression.into())
+        } else {
+            expression
+        }
+        // expression
     }
 }
 

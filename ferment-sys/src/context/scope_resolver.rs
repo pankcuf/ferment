@@ -73,10 +73,23 @@ impl<'a> ScopeSearchKey<'a> {
             _ => false
         }
     }
+    pub fn maybe_originally_is_ref(&'a self) -> bool {
+        match self.maybe_original_key() {
+            Some(boxed_key) => boxed_key.is_ref(),
+            _ => false
+        }
+    }
     pub fn maybe_ptr(&'a self) -> Option<&'a TypePtr> {
         match self {
             ScopeSearchKey::TypeRef(Type::Ptr(type_ptr), ..) |
             ScopeSearchKey::Type(Type::Ptr(type_ptr), ..) => Some(type_ptr),
+            _ => None
+        }
+    }
+    pub fn maybe_ref(&'a self) -> Option<&'a TypeReference> {
+        match self {
+            ScopeSearchKey::TypeRef(Type::Reference(type_ref), ..) |
+            ScopeSearchKey::Type(Type::Reference(type_ref), ..) => Some(type_ref),
             _ => None
         }
     }
@@ -85,6 +98,9 @@ impl<'a> ScopeSearchKey<'a> {
     }
     pub fn is_mut_ptr(&self) -> bool {
         self.maybe_ptr().is_some_and(|ty| ty.mutability.is_some())
+    }
+    pub fn is_ref(&self) -> bool {
+        self.maybe_ref().is_some()
     }
 }
 
