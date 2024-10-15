@@ -148,8 +148,8 @@ fn compose_regular_fn<SPEC>(
             match arg {
                 FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
                     let expr_composer = match (mutability, reference) {
-                        (Some(..), Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
-                        (None, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
+                        (Some(..), _) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
+                        (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsRef(expr.into()),
                         (..) => |expr: SPEC::Expr| expr.into(),
                     };
                     let (ty, name_type_conversion) = match sig_context {
