@@ -152,13 +152,12 @@ fn compose_regular_fn<SPEC>(
                         (None, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
                         (..) => |expr: SPEC::Expr| expr.into(),
                     };
-                    let acc = if mutability.is_some() { quote!(mut) } else { quote!(const) };
                     let (ty, name_type_conversion) = match sig_context {
                         FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
                         FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
                             Some(trait_ty) => (
                                 trait_ty,
-                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, acc, source))
+                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, if mutability.is_some() { quote!(mut) } else { quote!(const) }, source))
                             ),
                             None => (
                                 self_ty,
