@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility, Lifetime};
-use syn::token::{And, Mut, Semi};
+use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
+use syn::__private::TokenStream2;
+use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel};
@@ -151,12 +152,13 @@ fn compose_regular_fn<SPEC>(
                         (None, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
                         (..) => |expr: SPEC::Expr| expr.into(),
                     };
+                    let acc = if mutability.is_some() { quote!(mut) } else { quote!(const) };
                     let (ty, name_type_conversion) = match sig_context {
                         FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
                         FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
                             Some(trait_ty) => (
                                 trait_ty,
-                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
+                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, acc, source))
                             ),
                             None => (
                                 self_ty,
@@ -347,13 +349,13 @@ pub fn from_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext)
         .compose(source)
 
 }
-pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext) -> SPEC::Expr
+pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, acc: TokenStream2, source: &ScopeContext) -> SPEC::Expr
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     let ty: Type = ty.resolve(source);
-    Expression::dict_expr(DictionaryExpr::SelfAsTrait(ty.to_token_stream()))
+    Expression::dict_expr(DictionaryExpr::SelfAsTrait(ty.to_token_stream(), acc))
 }
 
 

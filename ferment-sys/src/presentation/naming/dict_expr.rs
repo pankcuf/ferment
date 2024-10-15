@@ -56,7 +56,7 @@ pub enum DictionaryExpr {
     CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
-    SelfAsTrait(TokenStream2),
+    SelfAsTrait(TokenStream2, TokenStream2),
 }
 
 
@@ -203,8 +203,8 @@ impl ToTokens for DictionaryExpr {
 
             Self::FromPtrClone(expr) =>
                 quote!((&*#expr).clone()).to_tokens(tokens),
-            Self::SelfAsTrait(self_ty) =>
-                quote!(*((*self_).object as *const #self_ty)).to_tokens(tokens),
+            Self::SelfAsTrait(self_ty, acc) =>
+                quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 
             Self::SelfDestructuring(content) =>
                 quote!(Self { #content }).to_tokens(tokens),
