@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Write;
 use std::process::Command;
 use quote::ToTokens;
-use crate::{Config, Crate, Error};
+use crate::{Config, Crate, Error, Lang};
 use crate::ast::Depunctuated;
 use crate::presentation::{Fermentate, RustFermentate};
 
@@ -96,7 +96,9 @@ impl Writer {
         //     .unwrap()
         //     .write_to_file(format!("target/include/{framework}.h").as_str())
 
-       let Config { current_crate: Crate { name: framework, .. }, cbindgen_config_from_file, .. } = &self.config;
+        let Config { current_crate: Crate { name: framework, .. }, languages, cbindgen_config_from_file, .. } = &self.config;
+        #[allow(irrefutable_let_patterns)]
+        let framework = languages.iter().find_map(|l| if let Lang::ObjC(conf) = l { Some(&conf.xcode.header_name) } else { None }).unwrap_or(framework);
        //  Command::new("mkdir")
        //      .args(&["-p", "target/include"])
        //      .status()?;
