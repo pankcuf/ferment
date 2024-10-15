@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
-use syn::token::Semi;
+use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility, Lifetime};
+use syn::token::{And, Mut, Semi};
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel};
@@ -145,25 +145,22 @@ fn compose_regular_fn<SPEC>(
         .iter()
         .map(|arg| {
             match arg {
-                FnArg::Receiver(Receiver { mutability: _, reference, attrs, .. }) => {
+                FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
+                    let expr_composer = match (mutability, reference) {
+                        (Some(..), Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
+                        (None, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
+                        (..) => |expr: SPEC::Expr| expr.into(),
+                    };
                     let (ty, name_type_conversion) = match sig_context {
                         FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
                         FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
                             Some(trait_ty) => (
                                 trait_ty,
-                                if reference.is_some() {
-                                    SPEC::Expr::expr_as_ref(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
-                                } else {
-                                    from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source)
-                                }
+                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
                             ),
                             None => (
                                 self_ty,
-                                if reference.is_some() {
-                                    SPEC::Expr::expr_as_ref(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
-                                } else {
-                                    from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source)
-                                }
+                                expr_composer(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
                             )
                         }
                         _ => panic!("Receiver in regular fn")

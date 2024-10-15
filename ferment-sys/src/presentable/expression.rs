@@ -61,6 +61,7 @@ pub enum Expression<LANG, SPEC>
 
     // DictionaryExpr
     AsRef(Box<Expression<LANG, SPEC>>),
+    AsMutRef(Box<Expression<LANG, SPEC>>),
     Clone(Box<Expression<LANG, SPEC>>),
     FromPtrClone(Box<Expression<LANG, SPEC>>),
     DerefExpr(Box<Expression<LANG, SPEC>>),
@@ -345,6 +346,9 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
 
             Self::AsRef(field_path) =>
                 Self::DictionaryExpr(DictionaryExpr::AsRef(field_path.present(source)))
+                    .present(source),
+            Self::AsMutRef(field_path) =>
+                Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
                     .present(source),
             Self::Clone(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::Clone(expr.present(source)))
