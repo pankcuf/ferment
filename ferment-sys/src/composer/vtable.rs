@@ -7,7 +7,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FnSignatureContext, GenModel, TraitVTableComposer};
-use crate::composer::{BasicComposerOwner, constants, AspectPresentable, BasicComposer, BasicComposerLink, ComposerLink, Linkable, SourceAccessible, SourceComposable, TypeAspect, VarComposer, from_trait_receiver_expr_composer, from_receiver_expr_composer, FromConversionFullComposer, ToConversionComposer};
+use crate::composer::{BasicComposerOwner, constants, AspectPresentable, BasicComposer, BasicComposerLink, ComposerLink, Linkable, SourceAccessible, SourceComposable, TypeAspect, VarComposer, from_trait_receiver_expr_composer, from_receiver_expr_composer, FromConversionFullComposer, ToConversionComposer, AttrComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -133,6 +133,7 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC> where SPEC:
         let mut fq_trait_vtable = full_trait_path.to_type().to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);
         BindingPresentation::StaticVTable {
+            attrs: self.compose_attributes(),
             name: name.to_token_stream(),
             fq_trait_vtable: fq_trait_vtable.to_token_stream(),
             methods_declarations,
