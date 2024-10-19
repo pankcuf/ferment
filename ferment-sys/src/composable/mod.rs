@@ -12,6 +12,7 @@ mod trait_vtable;
 mod nested_arg;
 
 pub use attrs::*;
+#[allow(unused)]
 pub use context::*;
 pub use field_type::*;
 pub use function::*;

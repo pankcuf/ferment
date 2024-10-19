@@ -25,6 +25,7 @@ pub enum Name<LANG, SPEC>
     UnnamedStructFieldsComp(Type, usize),
     TraitObj(Ident),
     TraitImplVtable(Ident, Ident),
+    TraitImplVtableFn(Ident, Ident),
     TraitFn(Type, Type),
     TraitDestructor(Type, Type),
     Vtable(Ident),
@@ -115,6 +116,9 @@ impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
             }
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
+                format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
+            }
             Name::VTableInnerFn(ident) => ident.to_token_stream(),
 
             Name::Getter(obj_type, field_name) => format_ident!(
@@ -161,6 +165,9 @@ impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
             Name::ModFn(name) => name.mangle_string(context).to_string().replace("r#", ""),
             Name::TraitObj(ident) => ident.to_string(),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
+                format!("{}_{}", item_name, trait_vtable_ident)
+            }
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
                 format!("{}_{}", item_name, trait_vtable_ident)
             }
             Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name.mangle_ident_default(), trait_name.mangle_ident_default()),

@@ -33,6 +33,7 @@ mod item_wrapper;
 mod r#struct;
 mod enum_variant;
 mod type_alias;
+mod vtable;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -42,6 +43,7 @@ use syn::token::{Comma, Semi};
 use crate::ast::CommaPunctuated;
 use crate::composable::{FieldComposer, NestedArgument};
 use crate::composer::r#abstract::{LinkedContextComposer, SequenceComposer, SequenceMixer};
+use crate::composer::vtable::VTableComposer;
 use crate::ext::ConversionType;
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
@@ -97,6 +99,7 @@ pub type OpaqueStructComposerLink<I, LANG, SPEC> = ComposerLink<OpaqueStructComp
 pub type TypeAliasComposerLink<I, LANG, SPEC> = ComposerLink<TypeAliasComposer<I, LANG, SPEC>>;
 pub type EnumComposerLink<LANG, SPEC> = ComposerLink<EnumComposer<LANG, SPEC>>;
 pub type SigComposerLink<LANG, SPEC> = ComposerLink<SigComposer<LANG, SPEC>>;
+pub type VTableComposerLink<LANG, SPEC> = ComposerLink<VTableComposer<LANG, SPEC>>;
 pub type ImplComposerLink<LANG, SPEC> = ComposerLink<ImplComposer<LANG, SPEC>>;
 pub type TraitComposerLink<LANG, SPEC> = ComposerLink<TraitComposer<LANG, SPEC>>;
 pub type TypeContextComposer<Link, TYC, U> = LinkedContextComposer<Link, <Aspect<TYC> as ScopeContextPresentable>::Presentation, U>;

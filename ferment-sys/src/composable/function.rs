@@ -35,6 +35,15 @@ impl FnSignatureContext {
         }
     }
 
+    pub fn maybe_signature(&self) -> Option<&Signature> {
+        match self {
+            FnSignatureContext::ModFn(ItemFn { sig, .. }) |
+            FnSignatureContext::Impl(_, _, sig) |
+            FnSignatureContext::TraitInner(_, _, sig) => Some(sig),
+            FnSignatureContext::Bare(.., _) => None
+        }
+    }
+
     pub fn receiver_ty(&self) -> &Type {
         match self {
             FnSignatureContext::Impl(_, Some(trait_ty), ..) |
@@ -42,6 +51,15 @@ impl FnSignatureContext {
             FnSignatureContext::Impl(self_ty, ..) |
             FnSignatureContext::TraitInner(self_ty, ..) => self_ty,
             _ => panic!("Receiver in mod fn")
+        }
+    }
+
+    pub fn ident(&self) -> &Ident {
+        match self {
+            FnSignatureContext::ModFn(ItemFn { sig, .. }) |
+            FnSignatureContext::Impl(_, _, sig) |
+            FnSignatureContext::TraitInner(_, _, sig) => &sig.ident,
+            FnSignatureContext::Bare(ident, _) => ident,
         }
     }
 }

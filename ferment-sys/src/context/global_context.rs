@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, parse_quote, Path, PathSegment, Type, TypePath};
+use syn::{Attribute, parse_quote, Path, PathSegment, Type, TypePath, ItemTrait, Item};
 use syn::punctuated::Punctuated;
 use crate::{Config, print_phase};
 use crate::ast::PathHolder;
@@ -90,7 +90,7 @@ impl GlobalContext {
                 match maybe_trait {
                     Some(ObjectKind::Item(TypeModelKind::Trait(_trait_ty, decomposition, _super_bounds), _)) |
                     Some(ObjectKind::Type(TypeModelKind::Trait(_trait_ty, decomposition, _super_bounds))) => {
-                        let ident = &head.0.segments.last().unwrap().ident;
+                        let ident = &head.0.segments.last()?.ident;
                         // println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = decomposition.types.get(ident) {
                             // println!("FFI (first bound) {:?}", trait_type);
@@ -115,14 +115,19 @@ impl GlobalContext {
         maybe_trait
     }
 
-    pub fn maybe_trait_scope_pair(&self, link: &Path, scope: &ScopeChain) -> Option<(TraitModelPart1, ScopeChain)> {
-        let parent_scope = scope.parent_scope().unwrap();
-        let trait_ty = link.to_type();
-        let trait_scope = self.actual_scope_for_type(&trait_ty, parent_scope).unwrap();
-        // println!("find_item_trait_scope_pair: {} -> {}", link.to_token_stream(), trait_scope);
-        let ident = link.get_ident().unwrap();
+    pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<&TraitModelPart1> {
         self.traits
-            .item_trait_with_ident_for(ident, trait_scope)
+            .item_trait_with_ident_for(ident, scope)
+    }
+
+    pub fn maybe_trait_scope_pair(&self, link: &Type, scope: &ScopeChain) -> Option<(TraitModelPart1, ScopeChain)> {
+        let parent_scope = scope.parent_scope()?;
+        let trait_ty = link.to_type();
+        let trait_scope = self.actual_scope_for_type(&trait_ty, parent_scope)?;
+        let trait_path = link.to_path();
+        // println!("find_item_trait_scope_pair: {} -> {}", link.to_token_stream(), trait_scope);
+        let ident = trait_path.get_ident()?;
+        self.item_trait_with_ident_for(ident, trait_scope)
             .map(|trait_model| {
                 let mut model = trait_model.clone();
                 // TODO: move to full and replace nested_arguments
@@ -228,7 +233,7 @@ impl GlobalContext {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope_ref(path) {
             //println!("[INFO] Found scope: {}", scope.fmt_short());
-            let last_ident = &path.segments.last().unwrap().ident;
+            let last_ident = &path.segments.last()?.ident;
             let ty = last_ident.to_type();
 
             if let Some(ObjectKind::Item(_, item)) = self.maybe_object_ref_by_search_key_in_scope(ScopeSearchKey::Type(ty, None), scope) {
@@ -246,7 +251,7 @@ impl GlobalContext {
         // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope_ref_obj_first(path) {
             //println!("[INFO] Found obj scope: {}", scope.fmt_short());
-            let last_ident = &path.segments.last().unwrap().ident;
+            let last_ident = &path.segments.last()?.ident;
             let ty = last_ident.to_type();
             if let Some(search_key) = ScopeSearchKey::maybe_from(ty) {
                 if let Some(ObjectKind::Item(_, item)) = self.maybe_object_ref_by_tree_search_key(search_key, scope) {
@@ -260,12 +265,18 @@ impl GlobalContext {
         None
     }
 
+    pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
+        match self.maybe_scope_item_ref_obj_first(trait_path) {
+            Some(ScopeItemKind::Item(Item::Trait(item_trait), _path)) => Some(item_trait.clone()),
+            _ => None
+        }
+    }
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> Option<&ScopeChain> {
         let p = parse_quote!(#ty);
-        let search_key = ScopeSearchKey::maybe_from_ref(ty).unwrap();
+        let search_key = ScopeSearchKey::maybe_from_ref(ty)?;
         let scope = if let Some(st) = self.maybe_object_ref_by_search_key_in_scope(search_key, current_scope) {
-            let self_ty = st.maybe_type().unwrap();
+            let self_ty = st.maybe_type()?;
             let self_path: Path = self_ty.to_path();
             self.maybe_scope_ref(&self_path)
         } else if let Some(import_path) = self.maybe_scope_import_path(current_scope, &p) {

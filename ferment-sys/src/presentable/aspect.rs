@@ -177,9 +177,9 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
             },
             Aspect::RawTarget(context) => {
                 match context {
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
+                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
                         kind.ty().cloned().unwrap(),
-                    TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
+                    TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
                         model.type_model_ref().ty.clone(),
                     TypeContext::Enum { ident , attrs: _, } |
                     TypeContext::Struct { ident , attrs: _, } =>
@@ -190,7 +190,11 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     },
                     TypeContext::Fn { path, .. } => path.to_type(),
                     TypeContext::Trait { path , attrs: _ } => path.to_type(),
-                    TypeContext::Impl { path , attrs: _ } => path.to_type()
+                    TypeContext::Impl { path , trait_, attrs: _ } =>
+                        trait_.as_ref()
+                            .map(|trait_| trait_.to_type())
+                            .unwrap_or(path.to_type())
+                            .resolve(source)
                 }
             }
         }

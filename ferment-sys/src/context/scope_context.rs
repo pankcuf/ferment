@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
@@ -279,12 +279,22 @@ impl ScopeContext {
     }
 
     pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Depunctuated<(TraitModelPart1, ScopeChain)> {
-        let global = self.context.read().unwrap();
         extract_trait_names(attrs)
             .iter()
-            .filter_map(|link| global.maybe_trait_scope_pair(link, &self.scope))
+            .filter_map(|trait_path| self.maybe_trait_scope_pair(&trait_path.to_type()))
             .collect()
     }
+
+    pub fn maybe_trait_scope_pair(&self, trait_name: &Type) -> Option<(TraitModelPart1, ScopeChain)> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_trait_scope_pair(trait_name, &self.scope)
+    }
+
+    pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_item_trait(trait_path)
+    }
+
 
     // pub fn find_item_trait_in_scope(&self, trait_name: &Path, scope: &ScopeChain) -> (TraitCompositionPart1, ScopeChain) {
     //     let trait_ty = parse_quote!(#trait_name);

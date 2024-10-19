@@ -109,7 +109,8 @@ impl<SPEC> MaybeComposer<RustFermentate, SPEC> for Item
                         if full_fn_path.is_crate_based() {
                             full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident_ref().to_path()));
                         }
-                        Some(ItemComposerWrapper::r#impl(item, TypeContext::r#impl(full_fn_path.0, item.attrs.cfg_attributes()), scope, scope_context))
+                        let trait_path = item.trait_.as_ref().map(|(_, trait_, _)| trait_.clone());
+                        Some(ItemComposerWrapper::r#impl(item, TypeContext::r#impl(full_fn_path.0, trait_path, item.attrs.cfg_attributes()), scope, scope_context))
                     }
                     _ => None
                 }

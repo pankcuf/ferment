@@ -58,8 +58,8 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { name, ty, expr, .. } = self;
-        println!("ToConversionComposer::compose::0:: {:?}", self);
-        println!("ToConversionComposer::compose::1:: {} {}", name, ty.to_token_stream());
+        // println!("ToConversionComposer::compose::0:: {:?}", self);
+        // println!("ToConversionComposer::compose::1:: {} {}", name, ty.to_token_stream());
         let (_by_ptr, by_ref) = match ty {
             Type::Ptr(_) => (true, false),
             Type::Reference(_) => (false, true),
@@ -73,7 +73,7 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(ty.to_type());
-        println!("ToConversionComposer::compose::2:: {}", full_type.to_token_stream());
+        // println!("ToConversionComposer::compose::2:: {}", full_type.to_token_stream());
         let full_type = match &full_type {
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
@@ -81,7 +81,7 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
 
         let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::maybe_resolve(&full_type, source).map_or(full_type.to_type(), |path| path.to_type());
             // .unwrap_or_else(|| FFIFullPath::External { });
-        println!("ToConversionComposer::compose::3:: {}", ffi_type.to_token_stream());
+        // println!("ToConversionComposer::compose::3:: {}", ffi_type.to_token_stream());
 
         match source.maybe_object_by_key(ty) {
             Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object().unwrap() {

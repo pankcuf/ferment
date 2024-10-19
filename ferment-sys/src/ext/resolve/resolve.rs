@@ -137,7 +137,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
         res
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
-        println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
+        //println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
         <Self as Resolve<FFIFullPath<LANG, SPEC>>>::maybe_resolve(self, source)
             .unwrap_or_else(|| {
                 // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());

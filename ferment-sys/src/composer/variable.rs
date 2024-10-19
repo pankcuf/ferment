@@ -59,7 +59,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
 
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
-        // println!("VarComposer:: {} --- {} --- {}", self.search, full_ty.to_token_stream(), maybe_obj.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        println!("VarComposer:: {} --- {} --- {}", self.search, full_ty.to_token_stream(), maybe_obj.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let maybe_special = <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(&full_ty, source);
         // println!("VarComposer:: (Maybe Special?) {}", maybe_special.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         let result = match maybe_special {

@@ -37,6 +37,10 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
                 format!("{}_{}", item_name, trait_vtable_ident)
                     .replace("r#", "")
             }
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
+                format!("{}_{}", item_name, trait_vtable_ident)
+                    .replace("r#", "")
+            }
             Name::TraitFn(item_name, trait_name) =>
                 format!("{}_as_{}", item_name.mangle_ident_default(), trait_name.mangle_ident_default())
                     .replace("r#", ""),
@@ -89,6 +93,8 @@ impl<SPEC> ToTokens for Name<ObjCFermentate, SPEC>
                 _ => format_ident!("_{}", *index).to_tokens(tokens),
             },
             Name::TraitImplVtable(item_name, trait_vtable_ident) =>
+                format_ident!("{}_{}", item_name, trait_vtable_ident).to_tokens(tokens),
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) =>
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_tokens(tokens),
             Name::TraitObj(ident) |
             Name::VTableInnerFn(ident) |

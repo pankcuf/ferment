@@ -117,12 +117,12 @@ impl VisitScope for Item {
                     Type::BareFn(..) =>
                         ObjectKind::new_item(
                             TypeModelKind::FnPointer(
-                                TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new()),
+                                TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone())),
                                 /*TypeModel::new(*item_type.ty.clone(), Some(item_type.generics.clone()), Punctuated::new())*/), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone())),
                     _ => {
                         // println!("add_to_scope (Type) NEW_OBJECT: {}", scope);
 
-                        ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
+                        ObjectKind::new_item(TypeModelKind::Object(TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
                     }
                 };
                 // println!("ADDD TYPE: {}", self_object);

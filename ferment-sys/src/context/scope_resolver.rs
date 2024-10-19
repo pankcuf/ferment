@@ -205,13 +205,11 @@ impl Display for ScopeResolver {
 
 impl ScopeResolver {
     pub(crate) fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
-        self.inner
-            .keys()
+        self.inner.keys()
             .find_map(|scope_chain| path.eq(scope_chain.self_path()).then_some(scope_chain))
     }
     pub(crate) fn maybe_first_obj_scope(&self, path: &Path) -> Option<&ScopeChain> {
-        let mut scopes = self.inner
-            .keys()
+        let mut scopes = self.inner.keys()
             .filter(|scope_chain| path.eq(scope_chain.self_path()))
             .collect::<Vec<_>>();
         scopes.sort_by(|c1, c2| {
@@ -226,9 +224,9 @@ impl ScopeResolver {
         scopes.first().cloned()
     }
     pub fn type_chain_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
-        self.inner
-            .entry(scope.clone())
-            .or_default()
+        let maybe_entry = self.inner.entry(scope.clone());
+        // println!("type_chain_mut: {} {:?}", scope.fmt_short(), maybe_entry);
+        maybe_entry.or_default()
     }
     pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
         match predicate {
@@ -248,8 +246,7 @@ impl ScopeResolver {
     }
 
     pub fn scope_key_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
-        self.inner
-            .get(scope)
+        self.inner.get(scope)
             .and_then(|chain| chain.get_by_path(path))
     }
 }

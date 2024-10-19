@@ -1,19 +1,20 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
-use crate::ast::{CommaPunctuated, Depunctuated, PathHolder};
-use crate::composable::{CfgAttributes, Composition, FnSignatureContext, GenericsComposition, TraitDecompositionPart2Context};
-use crate::composer::{SigComposer, SigComposerLink, SourceFermentable};
-use crate::context::{ScopeContext, ScopeContextLink};
+use crate::ast::Depunctuated;
+use crate::composable::{CfgAttributes, FnSignatureContext, GenericsComposition};
+use crate::composer::{SigComposer, SigComposerLink};
+use crate::context::ScopeContextLink;
 use crate::conversion::TypeModelKind;
-use crate::ext::ToType;
+use crate::ext::{Join, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
 use crate::presentable::Aspect;
-use crate::presentation::RustFermentate;
 
 #[derive(Clone, Debug)]
 pub struct TraitBoundDecomposition {
@@ -98,7 +99,7 @@ impl TraitDecompositionPart1 {
 // For use in Full Context Tree
 #[derive(Clone)]
 #[allow(unused)]
-pub struct TraitDecompositionPart2<LANG, SPEC>
+pub struct TraitVTableComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
@@ -109,7 +110,7 @@ pub struct TraitDecompositionPart2<LANG, SPEC>
     pub types: HashMap<Ident, TraitTypeModel>,
 }
 
-impl<LANG, SPEC> TraitDecompositionPart2<LANG, SPEC>
+impl<LANG, SPEC> TraitVTableComposer<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
@@ -117,7 +118,7 @@ impl<LANG, SPEC> TraitDecompositionPart2<LANG, SPEC>
           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
     #[allow(unused)]
-    pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, _scope: &PathHolder, context: &ScopeContextLink) -> Self {
+    pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, context: &ScopeContextLink) -> Self {
         let trait_ident = &item_trait.ident;
         let source = context.borrow();
         let mut method_composers = Depunctuated::new();
@@ -132,44 +133,15 @@ impl<LANG, SPEC> TraitDecompositionPart2<LANG, SPEC>
                         FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_method.sig.clone()),
                         trait_item_method.attrs.cfg_attributes()
                     );
-                    // let name_context = Context::Fn {
-                    //     path: source.scope.joined_path_holder(&trait_item_method.sig.ident).0,
-                    //     sig_context: FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_method.sig.clone()),
-                    //     attrs: trait_item_method.attrs.cfg_attributes()
-                    // };
-                    method_composers.push(SigComposer::from_trait_item_method(trait_item_method, name_context, context));
-                    // method_composers.push(SigComposer::with_context(
-                    //     source.scope.joined_path_holder(&sig.ident).0,
-                    //     FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), sig.clone()),
-                    //     &sig.generics,
-                    //     attrs,
-                    //     context
-                    // ));
+                    let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
+                    method_composers.push(SigComposer::from_trait_item_method(trait_item_method, name_context, &method_scope_context));
                 },
                 TraitItem::Type(trait_item_type) => {
                     types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));
                 },
                 _ => {}
             });
-        TraitDecompositionPart2 { method_composers, types }
-    }
-}
-
-
-impl<SPEC> Composition for TraitDecompositionPart2<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
-    type Context = TraitDecompositionPart2Context;
-    type Presentation = CommaPunctuated<RustFermentate>;
-
-    fn present(self, composition_context: Self::Context, _source: &ScopeContext) -> Self::Presentation {
-        match composition_context {
-            TraitDecompositionPart2Context::VTableInnerFunctions => self.method_composers
-                .into_iter()
-                .map(|composition|
-                    composition.borrow().ferment())
-                .collect()
-        }
-
+        TraitVTableComposer { method_composers, types }
     }
 }
 
@@ -179,7 +151,7 @@ pub struct TraitModelPart1 {
     pub implementors: Vec<TypeModelKind>,
 }
 
-impl std::fmt::Debug for TraitModelPart1 {
+impl Debug for TraitModelPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = self.implementors.iter().map(|i| format_token_stream(i)).collect::<Vec<_>>().join("\n\n");
         f.write_str(format!("{}:\n  {}", format_token_stream(&self.item.ident), s).as_str())

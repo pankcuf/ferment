@@ -35,6 +35,7 @@ pub enum TypeContext {
     },
     Impl {
         path: Path,
+        trait_: Option<Path>,
         attrs: Vec<Attribute>,
     },
     Mixin {
@@ -42,6 +43,7 @@ pub enum TypeContext {
         attrs: Vec<Attribute>,
     }
 }
+
 impl TypeContext {
     pub(crate) fn attrs(&self) -> &Vec<Attribute> {
         match self {
@@ -62,8 +64,8 @@ impl TypeContext {
         Self::Enum { ident: ident.clone(), attrs }
     }
 
-    pub fn r#impl(path: Path, attrs: Vec<Attribute>) -> Self {
-        Self::Impl { path, attrs }
+    pub fn r#impl(path: Path, trait_: Option<Path>, attrs: Vec<Attribute>) -> Self {
+        Self::Impl { path, attrs, trait_ }
     }
     pub fn mixin(kind: &MixinKind, attrs: Vec<Attribute>) -> Self {
         Self::Mixin { mixin_kind: kind.clone(), attrs }
@@ -77,6 +79,14 @@ impl TypeContext {
     pub fn r#trait(item: &ItemTrait) -> Self {
         Self::Trait { path: item.ident.to_path(), attrs: item.attrs.cfg_attributes() }
     }
+
+    pub(crate) fn sig_context(&self) -> &FnSignatureContext {
+        match self {
+            TypeContext::Fn { sig_context, .. } => sig_context,
+            _ => panic!("Not a function")
+        }
+    }
+
 }
 impl Display for TypeContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

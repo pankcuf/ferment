@@ -113,9 +113,9 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::DictionaryExpr(expr)
     }
 
-    pub(crate) fn expr_as_ref(expr: Self) -> Self {
-        Self::AsRef(expr.into())
-    }
+    // pub(crate) fn expr_as_ref(expr: Self) -> Self {
+    //     Self::AsRef(expr.into())
+    // }
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
         Self::Empty
     }
