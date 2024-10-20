@@ -130,14 +130,32 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC> where SPEC:
         let trait_ident = trait_ty.mangle_ident_default();
         let name = Name::<RustFermentate, SPEC>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ident);
         let full_trait_path: FFIFullPath<RustFermentate, SPEC> = trait_ty.resolve(&source);
-        let mut fq_trait_vtable = full_trait_path.to_type().to_path();
+        let full_trait_type = full_trait_path.to_type();
+        let mut fq_trait_vtable = full_trait_type.to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);
+        let attrs = self.compose_attributes();
         BindingPresentation::StaticVTable {
-            attrs: self.compose_attributes(),
+            attrs: attrs.clone(),
             name: name.to_token_stream(),
             fq_trait_vtable: fq_trait_vtable.to_token_stream(),
             methods_declarations,
             methods_implementations,
+            bindings: Depunctuated::from_iter([
+                BindingPresentation::ObjAsTrait {
+                    attrs: attrs.clone(),
+                    name: Name::<RustFermentate, SPEC>::TraitFn(target_type.clone(), full_trait_type.clone()).to_token_stream(),
+                    item_type: target_type.clone(),
+                    trait_type: full_trait_type.to_token_stream(),
+                    vtable_name: name.to_token_stream(),
+                },
+                BindingPresentation::ObjAsTraitDestructor {
+                    attrs: attrs,
+                    name: Name::<RustFermentate, SPEC>::TraitDestructor(target_type.clone(), full_trait_type.clone()).to_token_stream(),
+                    item_type: target_type.to_token_stream(),
+                    trait_type: full_trait_type.to_token_stream(),
+                    generics: None,
+                }
+            ])
         }
     }
 }

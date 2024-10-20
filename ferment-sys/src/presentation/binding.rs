@@ -118,6 +118,7 @@ pub enum BindingPresentation {
         name: TokenStream2,
         methods_declarations: CommaPunctuated<BindingPresentation>,
         methods_implementations: Depunctuated<BindingPresentation>,
+        bindings: Depunctuated<BindingPresentation>,
         fq_trait_vtable: TokenStream2,
     },
 }
@@ -299,7 +300,7 @@ impl ToTokens for BindingPresentation {
                     #conversion
                 }
             }
-            BindingPresentation::StaticVTable { attrs, name, fq_trait_vtable, methods_declarations, methods_implementations } => {
+            BindingPresentation::StaticVTable { attrs, name, fq_trait_vtable, methods_declarations, methods_implementations, bindings } => {
                 quote! {
                     #[no_mangle]
                     #(#attrs)*
@@ -309,6 +310,7 @@ impl ToTokens for BindingPresentation {
                             #methods_declarations
                         }
                     };
+                    #bindings
                 }
             },
             BindingPresentation::TraitVTableInnerFn { name, name_and_args, output_expression } => {

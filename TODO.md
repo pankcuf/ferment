@@ -31,7 +31,7 @@
 - improve: internal crate reexports with gaps in the middle of hierarchy (like state_transitions::*)
 - improve: support wildcard imports ("*")
 - fix: custom fermented module names (currently no matter what you specified in config – it always expanding in crate::fermented scope)
-- improve: `Self::` processing
+- improve: `Self::`, `&Self` processing
 - improve: Need support for paths containing super or super::super etc
 - fix: minor issue with things like #[doc = "FFI-representation of the # [doc = \"FFI-representation of the crate :: identity :: identity_request :: GetIdentityRequest\"]"]
 - improve: TypeGroup support
@@ -50,3 +50,4 @@
 - improve: refine scope (like trait or object impl when it's defined outside the declaration)
 - improve: algo allowing to export only involved objects (to reduce amount of generated code)
 - improve: if we have a type implementing a trait which has default implementation for some method – we don't have a scope stack to generate bindings (i.e. involved types are unknown, so we can't generate bindings for those methods)
+- improve: support for PartialEq interface & expose it in the FFI
