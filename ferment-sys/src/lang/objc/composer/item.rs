@@ -6,7 +6,7 @@ use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::lang::objc::presentation::Property;
+use crate::lang::objc::presentable::ArgPresentation;
 use crate::presentable::{Expression, ScopeContextPresentable};
 
 impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComposer<I, ObjCFermentate, SPEC>
@@ -46,7 +46,7 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
                     .present(&source);
 
                 property_names.push(name.to_token_stream());
-                properties.push(Property::NonatomicReadwrite { ty: var.to_token_stream(), name: name.to_token_stream() });
+                properties.push(ArgPresentation::NonatomicReadwrite { ty: var.to_token_stream(), name: name.to_token_stream() });
 
                 to_conversions.push(to_conversion.to_token_stream());
                 vars.push(var);

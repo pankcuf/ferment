@@ -7,14 +7,14 @@ use crate::ast::{CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
 use crate::composer::SourceFermentable;
 use crate::lang::LangFermentable;
 use crate::lang::objc::ObjCFermentate;
+use crate::lang::objc::presentable::ArgPresentation;
 use crate::tree::{CrateTree, ScopeTree};
-use super::presentation::Property;
 
 #[derive(Clone, Debug)]
 pub enum InterfaceImplementation {
     Default {
         objc_name: TokenStream2,
-        properties: SemiPunctuated<Property>,
+        properties: SemiPunctuated<ArgPresentation>,
     },
     BindingsDeclaration {
         objc_name: TokenStream2,

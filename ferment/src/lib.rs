@@ -20,8 +20,8 @@ pub trait FFIConversionFrom<T> {
         (!ffi.is_null())
             .then(|| Self::ffi_from(ffi))
     }
-
 }
+
 pub trait FFIConversionTo<T> {
     /// # Safety
     unsafe fn ffi_to_const(obj: T) -> *const Self;
@@ -50,6 +50,13 @@ pub trait FFIConversionDestroy<T> {
         let _ = unbox_any(ffi);
     }
 }
+
+// pub trait FFIPartialEq<T> where Self: FFIConversionFrom<T> {
+//     /// # Safety
+//     unsafe fn ffi_eq(ffi: *const Self, obj: &T) -> bool {
+//
+//     }
+// }
 
 pub fn boxed<T>(obj: T) -> *mut T {
     Box::into_raw(Box::new(obj))

@@ -36,6 +36,7 @@ pub enum Name<LANG, SPEC>
     Ident(Ident),
     Pat(Pat),
     Underscore,
+    EnumTag(Ident),
     _Phantom(PhantomData<(LANG, SPEC)>),
 }
 impl<LANG, SPEC> ToType for Name<LANG, SPEC>
@@ -137,6 +138,8 @@ impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
             Name::Optional(ident) => quote!(#ident),
             Name::Pat(pat) => pat.to_token_stream(),
             Name::Underscore => quote!(_),
+            Name::EnumTag(ident) =>
+                format_ident!("{ident}_Tag").to_token_stream(),
         }
         .to_tokens(tokens)
     }
@@ -190,6 +193,7 @@ impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
             Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
             Name::Underscore => quote!(_).to_string(),
+            Name::EnumTag(ident) => format!("{ident}_Tag").to_string(),
         }
     }
 }

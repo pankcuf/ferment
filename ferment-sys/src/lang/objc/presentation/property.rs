@@ -9,6 +9,7 @@ use crate::presentable::{Aspect, ScopeContextPresentable};
 #[derive(Clone, Debug)]
 pub enum Property {
     NonatomicReadwrite { ty: TokenStream2, name: TokenStream2 },
+    NonatomicAssign { ty: TokenStream2, name: TokenStream2 },
     Initializer { field_name: TokenStream2, field_initializer: TokenStream2 },
     // AccInitialized { field_name: TokenStream2, var: TokenStream2, field_initializer: TokenStream2 }
 }
@@ -18,6 +19,14 @@ impl Property {
         where SPEC: ObjCSpecification {
         let FieldComposer { kind, name, .. } = composer;
         Property::NonatomicReadwrite {
+            ty: kind.to_token_stream(),
+            name: name.to_token_stream()
+        }
+    }
+    pub fn nonatomic_assign<SPEC>(composer: &FieldComposer<ObjCFermentate, SPEC>) -> Self
+        where SPEC: ObjCSpecification {
+        let FieldComposer { kind, name, .. } = composer;
+        Property::NonatomicAssign {
             ty: kind.to_token_stream(),
             name: name.to_token_stream()
         }
@@ -58,6 +67,11 @@ impl ToTokens for Property {
                     @property (nonatomic, readwrite) #ty #name
                 }
             }
+            Property::NonatomicAssign { ty, name } => {
+                quote! {
+                    @property (nonatomic, assign) #ty #name
+                }
+            }
             Property::Initializer { field_name, field_initializer } => {
                 quote! {
                     obj.#field_name = #field_initializer
@@ -77,6 +91,8 @@ impl Display for Property {
         f.write_str(match self {
             Property::NonatomicReadwrite { ty, name } =>
                 format!("@property (nonatomic, readwrite) {} {}", ty.to_string(), name.to_string()),
+            Property::NonatomicAssign { ty, name } =>
+                format!("@property (nonatomic, assign) {} {}", ty.to_string(), name.to_string()),
             Property::Initializer { field_name, field_initializer } =>
                 format!("obj.{} = {}", field_name.to_string(), field_initializer.to_string()),
             // Property::AccInitialized { field_name, var, field_initializer } =>

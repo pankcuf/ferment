@@ -14,6 +14,7 @@ use crate::presentation::FFIVariable;
 #[derive(Clone, Debug)]
 pub enum ArgPresentation {
     NonatomicReadwrite { ty: TokenStream2, name: TokenStream2 },
+    NonatomicAssign { ty: TokenStream2, name: TokenStream2 },
     Initializer { field_name: TokenStream2, field_initializer: TokenStream2 },
     AttrConversion { conversion: TokenStream2 }
 }
@@ -23,6 +24,14 @@ impl ArgPresentation {
         where SPEC: ObjCSpecification {
         let FieldComposer { kind, name, .. } = composer;
         ArgPresentation::NonatomicReadwrite {
+            ty: kind.to_token_stream(),
+            name: name.to_token_stream()
+        }
+    }
+    pub fn nonatomic_assign<SPEC>(composer: &FieldComposer<ObjCFermentate, SPEC>) -> Self
+        where SPEC: ObjCSpecification {
+        let FieldComposer { kind, name, .. } = composer;
+        ArgPresentation::NonatomicAssign {
             ty: kind.to_token_stream(),
             name: name.to_token_stream()
         }
@@ -51,6 +60,11 @@ impl ToTokens for ArgPresentation {
                     @property (nonatomic, readwrite) #ty #name
                 }
             }
+            ArgPresentation::NonatomicAssign { ty, name } => {
+                quote! {
+                    @property (nonatomic, assign) #ty #name
+                }
+            }
             ArgPresentation::Initializer { field_name, field_initializer } => {
                 quote! {
                     obj.#field_name = #field_initializer
@@ -68,6 +82,8 @@ impl Display for ArgPresentation {
         f.write_str(match self {
             ArgPresentation::NonatomicReadwrite { ty, name } =>
                 format!("@property (nonatomic, readwrite) {} {}", ty.to_string(), name.to_string()),
+            ArgPresentation::NonatomicAssign { ty, name } =>
+                format!("@property (nonatomic, assign) {} {}", ty.to_string(), name.to_string()),
             ArgPresentation::Initializer { field_name, field_initializer } =>
                 format!("obj.{} = {}", field_name.to_string(), field_initializer.to_string()),
             ArgPresentation::AttrConversion { conversion } => {
@@ -174,7 +190,7 @@ impl<SPEC> ScopeContextPresentable for PresentableArgument<ObjCFermentate, SPEC>
             },
             PresentableArgument::DefaultFieldType(FieldComposer{ kind, name, attrs, .. }) => {
                 // println!("OwnedItemPresentableContext::DefaultFieldType({})", field_type.to_token_stream());
-                println!("OBJC PresentableArgument::DefaultFieldType: {}", kind);
+                println!("OBJC PresentableArgument::DefaultFieldType: {} -- {}", kind, name);
                 let var = <Type as Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>>>::resolve(kind.ty(), source);
                 ArgPresentation::AttrConversion {
                     conversion: quote! { #var #name }

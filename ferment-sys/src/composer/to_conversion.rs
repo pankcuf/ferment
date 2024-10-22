@@ -143,7 +143,8 @@ impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
                                 (Some(SpecialType::Opaque(..)), _any_other) =>
                                     Expression::deref_expr(field_path),
                                 _ =>
-                                    Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, Expression::deref_expr(field_path).into()),
+                                    Expression::cast_to(Expression::deref_expr(field_path), ConversionExpressionKind::Complex, ffi_type, nested_ty.clone())
+                                    // Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, Expression::deref_expr(field_path).into()),
                             }
                         } else {
                             Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Primitive, field_path.into())

@@ -37,6 +37,10 @@ pub enum DictionaryExpr {
     MapCollect(TokenStream2, TokenStream2),
     Match(TokenStream2),
     MatchFields(TokenStream2, CommaPunctuated<ArgPresentation>),
+    #[cfg(feature = "objc")]
+    SwitchFields(TokenStream2, Depunctuated<crate::lang::objc::presentable::ArgPresentation>),
+    #[cfg(feature = "objc")]
+    Case(TokenStream2, TokenStream2),
     MatchResult(TokenStream2, TokenStream2),
     FromRoot(TokenStream2),
     CountRange,
@@ -57,6 +61,7 @@ pub enum DictionaryExpr {
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
     SelfAsTrait(TokenStream2, TokenStream2),
+
 }
 
 
@@ -162,6 +167,19 @@ impl ToTokens for DictionaryExpr {
             Self::MatchFields(expr, sequences) => {
                 Self::Match(quote!(#expr { #sequences }))
                     .to_tokens(tokens)
+            },
+            #[cfg(feature = "objc")]
+            Self::SwitchFields(expr, sequences) => {
+                quote!(switch (#expr) { #sequences }).to_tokens(tokens);
+            },
+            #[cfg(feature = "objc")]
+            Self::Case(l_value, r_value) => {
+                let case = quote! {
+                    case #l_value: {
+                        #r_value
+                    }
+                };
+                case.to_tokens(tokens);
             },
             Self::MatchResult(to_ok_conversion, to_error_conversion) => {
                 let null_mut = DictionaryExpr::NullMut;

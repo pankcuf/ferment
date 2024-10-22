@@ -64,6 +64,7 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
             Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string().replace("r#", ""),
             Name::Underscore => quote!(_).to_string(),
+            Name::EnumTag(ident) => format!("{ident}_Tag").replace("r#", ""),
         }
     }
 }
@@ -111,6 +112,7 @@ impl<SPEC> ToTokens for Name<ObjCFermentate, SPEC>
             ).to_tokens(tokens),
             Name::Optional(ident) => ident.to_tokens(tokens),
             Name::Pat(pat) => pat.to_tokens(tokens),
+            Name::EnumTag(ident) => format_ident!("{ident}_Tag").to_tokens(tokens),
             _ => {}
         }
     }
