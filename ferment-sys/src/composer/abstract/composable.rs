@@ -6,7 +6,7 @@ use crate::composer::{BasicComposerLink, ComposerLinkRef, FieldComposers, Fields
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
 
 /// Composer common interfaces
@@ -97,7 +97,7 @@ pub trait VariantComposable<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn compose_variants(&self) -> CommaPunctuated<PresentableSequence<LANG, SPEC>>;
+    fn compose_variants(&self) -> CommaPunctuated<SeqKind<LANG, SPEC>>;
 }
 pub trait InterfaceComposable<T> where T: ToTokens {
     fn compose_interfaces(&self) -> Depunctuated<T>;
@@ -110,7 +110,7 @@ pub trait BindingComposable<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC>>;
 }
 

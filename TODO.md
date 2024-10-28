@@ -52,3 +52,4 @@
 - improve: if we have a type implementing a trait which has default implementation for some method – we don't have a scope stack to generate bindings (i.e. involved types are unknown, so we can't generate bindings for those methods)
 - improve: support for PartialEq interface & expose it in the FFI
 - improve: custom conversion ctor/dtor bindings
+- fix: group destructor like `unbox_any_vec_ptr` doesn't work with strings.

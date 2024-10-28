@@ -10,7 +10,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DocPresentation, FFIObjectPresentation, present_struct, RustFermentate};
 
 pub struct GenericComposerInfo<LANG, SPEC>
@@ -43,8 +43,8 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
             attrs: attrs.clone(),
             field_composers,
             interfaces,
-            binding_composer: PresentableArgument::callback_ctor_pair,
-            field_composer: PresentableArgument::callback_arg,
+            binding_composer: ArgKind::callback_ctor_pair,
+            field_composer: ArgKind::callback_arg,
         }
     }
     pub fn default(
@@ -58,8 +58,8 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
             attrs: attrs.clone(),
             field_composers,
             interfaces,
-            binding_composer: PresentableArgument::named_struct_ctor_pair,
-            field_composer: PresentableArgument::public_named,
+            binding_composer: ArgKind::named_struct_ctor_pair,
+            field_composer: ArgKind::public_named,
         }
     }
 }
@@ -70,8 +70,8 @@ pub enum GenericComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     Bounds(BoundsComposer<LANG, SPEC>),
     Callback(CallbackComposer<LANG, SPEC>),
     Group(GroupComposer<LANG, SPEC>),
@@ -87,8 +87,8 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Expression<LANG, SPEC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           BoundsComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           CallbackComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           GroupComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
@@ -129,8 +129,8 @@ pub struct GenericComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable
 {
     pub wrapper: GenericComposerWrapper<LANG, SPEC>,
 }
@@ -140,8 +140,8 @@ impl<LANG, SPEC> GenericComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub fn new(kind: &MixinKind, attrs: Vec<Attribute>, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Option<ComposerLink<Self>> {
         let wrapper = match kind {
             MixinKind::Bounds(model) =>
@@ -199,7 +199,7 @@ impl<SPEC> SourceComposable for GenericComposer<RustFermentate, SPEC>
                 // println!("GG1");
                 let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name, &attrs, BraceWrapped::new(fields).present(source)));
                 let dtor_context = (ffi_name.to_type(), attrs.clone(), SPEC::Gen::default());
-                let ctor_context = ((dtor_context.clone(), false), field_conversions_iterator(field_composers, binding_composer));
+                let ctor_context = ((dtor_context.clone(), false), field_conversions_iterator(&field_composers, binding_composer));
                 let bindings = Depunctuated::from_iter([
                     BindingPresentableContext::ctor(ctor_context),
                     BindingPresentableContext::dtor(dtor_context)

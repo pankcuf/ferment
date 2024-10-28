@@ -144,7 +144,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
                 }));
                 // .flat_map(|composer| composer.borrow().compose(&source)));
 
-        println!("CrateTree:: OBJC: {}", reg_conversions.to_token_stream());
+        // println!("CrateTree:: OBJC: {}", reg_conversions.to_token_stream());
 
         ObjCFermentate::TokenStream(quote! {
             #reg_conversions
@@ -168,7 +168,7 @@ impl SourceFermentable<ObjCFermentate> for ScopeTree {
                 ScopeTreeItem::Tree { tree} =>
                     fermentate.push(tree.ferment())
             });
-        println!("OBJC SCOPE FERMENTATE: {}", fermentate.to_token_stream());
+        //println!("OBJC SCOPE FERMENTATE: {}", fermentate.to_token_stream());
 //         if !fermentate.is_empty() {
 //             let ctx = source.context.read().unwrap();
 //             let rename = ctx.config.current_crate.ident();

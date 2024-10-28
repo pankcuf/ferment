@@ -11,6 +11,7 @@ mod argument;
 mod sequence;
 mod aspect;
 mod ty_context;
+mod interface;
 
 pub use aspect::*;
 pub use binding::*;
@@ -18,6 +19,7 @@ pub use binding::*;
 pub use expression::*;
 pub use name::*;
 pub use argument::*;
+pub use interface::*;
 pub use sequence::*;
 use syn::{Attribute, Path};
 use crate::composable::FnSignatureContext;

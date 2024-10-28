@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{parse_quote, Pat, Path, Type};
+use syn::{parse_quote, Expr, Pat, Path, Type};
 use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
@@ -16,6 +16,7 @@ pub enum Name<LANG, SPEC>
           SPEC: Specification<LANG>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     Empty,
+    Expr(Expr),
     UnnamedArg(usize),
     Index(usize),
     Constructor(Type),
@@ -37,6 +38,7 @@ pub enum Name<LANG, SPEC>
     Pat(Pat),
     Underscore,
     EnumTag(Ident),
+    EnumVariantBody(Ident),
     _Phantom(PhantomData<(LANG, SPEC)>),
 }
 impl<LANG, SPEC> ToType for Name<LANG, SPEC>
@@ -139,7 +141,13 @@ impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
             Name::Pat(pat) => pat.to_token_stream(),
             Name::Underscore => quote!(_),
             Name::EnumTag(ident) =>
-                format_ident!("{ident}_Tag").to_token_stream(),
+                format_ident!("{ident}_Tag")
+                    .to_token_stream(),
+            Name::EnumVariantBody(ident) =>
+                format_ident!("{ident}_Body")
+                    .to_token_stream(),
+            Name::Expr(expr) =>
+                expr.to_token_stream()
         }
         .to_tokens(tokens)
     }
@@ -194,6 +202,8 @@ impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
             Name::Underscore => quote!(_).to_string(),
             Name::EnumTag(ident) => format!("{ident}_Tag").to_string(),
+            Name::EnumVariantBody(ident) => format!("{ident}_Body").to_string(),
+            Name::Expr(expr) => expr.to_token_stream().to_string(),
         }
     }
 }

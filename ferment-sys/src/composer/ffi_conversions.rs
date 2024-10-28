@@ -3,7 +3,7 @@ use crate::composer::{ComposerLink, DropSequenceMixer, FFIConversionsMixer, Sequ
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind, Expression};
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
@@ -23,7 +23,7 @@ pub struct FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable {
     pub parent: Option<Link>,
     pub from_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
     pub to_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
@@ -36,7 +36,7 @@ impl<Link, LANG, SPEC> FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable {
     pub const fn new(
         from_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
         to_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
@@ -54,7 +54,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable {
     fn link(&mut self, parent: &Link) {
         self.from_conversion_composer.link(parent);
         self.to_conversion_composer.link(parent);
@@ -70,9 +70,9 @@ impl<Link, LANG, SPEC> SourceComposable for FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable {
     type Source = FFIAspect;
-    type Output = PresentableSequence<LANG, SPEC>;
+    type Output = SeqKind<LANG, SPEC>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         match source {

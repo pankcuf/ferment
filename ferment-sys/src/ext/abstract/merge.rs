@@ -85,11 +85,11 @@ impl MergeInto for ScopeTreeExportItem {
             for (name, source_tree) in source_exports {
                 match dest_exports.entry(name.clone()) {
                     Entry::Occupied(mut o) => {
-                        println!("•• (Occupied) merge_trees: {}", name);
+                        // println!("•• (Occupied) merge_trees: {}", name);
                         source_tree.merge_into(o.get_mut())
                     },
                     Entry::Vacant(v) => {
-                        println!("•• (Vacant) merge_trees: {}", name);
+                        // println!("•• (Vacant) merge_trees: {}", name);
                         v.insert(source_tree.clone());
                     }
                 }
@@ -131,22 +131,17 @@ impl MergeInto for ScopeTreeExportItem {
 
 impl MergeInto for ObjectKind {
     fn merge_into(&self, destination: &mut Self) {
-        let mut merged = false;
         match (&self, &destination) {
             (ObjectKind::Item(..), ObjectKind::Type(..)) => {
                 *destination = self.clone();
-                merged = true;
             },
             (ObjectKind::Type(candidate_ty), ObjectKind::Type(occupied_ty)) => {
-                //println!("MMMMM: {} (refined: {}) ---> {} (refined: {})", occupied_ty, occupied_ty.is_refined(), candidate_ty, candidate_ty.is_refined());
                 if !occupied_ty.is_refined() && candidate_ty.is_refined() {
                     *destination = self.clone();
-                    merged = true;
                 }
             }
             _ => {}
         }
-        println!("ObjectKind: MERGED? ({merged}) {} ~~~ {}", self, destination)
     }
 }
 

@@ -11,8 +11,8 @@ use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::lang::objc::presentation::Property;
-use crate::presentable::{Expression, PresentableArgument, PresentableSequence, ScopeContextPresentable};
+use crate::lang::objc::presentable::ArgPresentation;
+use crate::presentable::{Expression, ArgKind, SeqKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, Name};
 
 
@@ -163,15 +163,15 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
                 objc_name: objc_name.clone(),
                 c_name: c_name.clone(),
                 from_conversions_statements: SemiPunctuated::from_iter([
-                    Property::Initializer {
+                    ArgPresentation::Initializer {
                         field_name: count_name.to_token_stream(),
                         field_initializer: quote!(ffi_ref->#count_name),
                     },
-                    Property::Initializer {
+                    ArgPresentation::Initializer {
                         field_name: arg_0_name.to_token_stream(),
                         field_initializer: arg_0_presentation.from_conversion.present(source),
                     },
-                    Property::Initializer {
+                    ArgPresentation::Initializer {
                         field_name: arg_1_name.to_token_stream(),
                         field_initializer: arg_1_presentation.from_conversion.present(source),
                     }
@@ -185,10 +185,10 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
                         i++;
                     }
                 },
-                destroy_body: PresentableSequence::StructDropBody(
+                destroy_body: SeqKind::StructDropBody(
                     ((self.ffi_type_aspect(), SPEC::Gen::default()), SemiPunctuated::from_iter([
-                        PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_0_presentation.destructor, attrs.clone()),
-                        PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_1_presentation.destructor, attrs.clone())
+                        ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_0_presentation.destructor, attrs.clone()),
+                        ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_1_presentation.destructor, attrs.clone())
                     ])))
                     .present(source),
             },

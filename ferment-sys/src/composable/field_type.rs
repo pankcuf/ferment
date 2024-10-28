@@ -9,7 +9,7 @@ use crate::composer::SourceFermentable;
 use crate::context::ScopeContext;
 use crate::ext::ToType;
 use crate::lang::{LangAttrSpecification, LangFermentable, PresentableSpecification, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, PresentableArgument, PresentableSequence, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ArgKind, SeqKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name, RustFermentate};
 
 #[derive(Clone, Debug, Display)]
@@ -152,8 +152,8 @@ impl<LANG, SPEC> ToTokens for FieldComposer<LANG, SPEC>
           SPEC: PresentableSpecification<LANG, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Expression<LANG, SPEC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           Self: SourceFermentable<LANG> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.ferment().to_tokens(tokens);

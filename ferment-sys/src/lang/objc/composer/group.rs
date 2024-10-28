@@ -10,7 +10,7 @@ use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::presentable::{ConversionExpressionKind, Expression, PresentableArgument, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ArgKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name};
 
 // impl<SPEC> GroupComposer<ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
@@ -90,7 +90,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
             FieldComposer::<ObjCFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Var(arg_var.clone())),
         ]);
         let to_values = arg_presentation.to_conversion.present(source);
-        let destroy_value = PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone()).present(source);
+        let destroy_value = ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone()).present(source);
         let from_value = arg_presentation.from_conversion.present(source);
         let interfaces = Depunctuated::from_iter([
             // InterfaceImplementation::Default {
@@ -125,9 +125,9 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
             //         ffi_ref->#arg_0_name = #to_values;
             //         return ffi_ref;
             //     },
-            //     destroy_body: PresentableSequence::StructDropBody(
+            //     destroy_body: SeqKind::StructDropBody(
             //         ((self.ffi_type_aspect(), SPEC::Gen::default()), SemiPunctuated::from_iter([
-            //             PresentableArgument::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone())
+            //             ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_presentation.destructor, attrs.clone())
             //         ])))
             //         .present(source),
             // },

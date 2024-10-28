@@ -77,8 +77,8 @@ impl<T> Display for Aspect<T> where T: ToString {
 }
 
 // impl<T> Aspect<T> {
-    // pub fn allocate<LANG, SPEC>(sequence: PresentableSequence<LANG, SPEC>) -> PresentableSequence<LANG, SPEC> {
-    //     PresentableSequence::Allocate(sequence)
+    // pub fn allocate<LANG, SPEC>(sequence: SeqKind<LANG, SPEC>) -> SeqKind<LANG, SPEC> {
+    //     SeqKind::Allocate(sequence)
     // }
 // }
 

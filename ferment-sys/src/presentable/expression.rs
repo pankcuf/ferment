@@ -120,7 +120,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::Empty
     }
 
-    pub(crate) fn bypass_conversion(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn bypass(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
         let (_, conversion_type) = context;
         Self::ConversionType(Box::new(conversion_type.clone()))
     }
@@ -130,7 +130,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::NamedComposer((name.to_token_stream(), Box::new(conversion_type.clone())))
     }
 
-    pub(crate) fn terminated_conversion(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn terminated(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
         let (_, conversion_type) = context;
         Self::Terminated(Box::new(conversion_type.clone()))
     }

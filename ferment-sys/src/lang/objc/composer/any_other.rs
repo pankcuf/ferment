@@ -3,13 +3,13 @@ use crate::composer::{AnyOtherComposer, SourceComposable, GenericComposerInfo, V
 use crate::context::ScopeContext;
 use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
-use crate::presentable::{PresentableArgument, ScopeContextPresentable, PresentableSequence};
+use crate::presentable::{ArgKind, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DictionaryName, Name};
 
 impl<SPEC> SourceComposable for AnyOtherComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification,
-          PresentableSequence<ObjCFermentate, SPEC>: ScopeContextPresentable,
-          PresentableArgument<ObjCFermentate, SPEC>: ScopeContextPresentable {
+          SeqKind<ObjCFermentate, SPEC>: ScopeContextPresentable,
+          ArgKind<ObjCFermentate, SPEC>: ScopeContextPresentable {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
 

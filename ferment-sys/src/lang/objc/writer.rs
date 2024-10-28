@@ -134,7 +134,7 @@ impl IWriter for Writer {
             .add("\nNS_ASSUME_NONNULL_END\n");
 
 
-        println!("OBJC::WRITER: {}", result);
+        //println!("OBJC::WRITER: {}", result);
         let objc_file_name = "objc_wrapper.h";
 
         Command::new("mkdir")

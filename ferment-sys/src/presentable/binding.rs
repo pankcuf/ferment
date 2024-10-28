@@ -6,7 +6,7 @@ use crate::composer::{BindingAccessorContext, CommaPunctuatedPresentableArgument
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{BindingPresentation, Name, RustFermentate};
 
 pub enum BindingPresentableContext<LANG, SPEC>
@@ -14,14 +14,13 @@ pub enum BindingPresentableContext<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     Constructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
     VariantConstructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
     Destructor(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Attr, SPEC::Gen),
     Getter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Var, TokenStream2, SPEC::Attr, SPEC::Gen),
     Setter(<Aspect<SPEC::TYC> as ScopeContextPresentable>::Presentation, SPEC::Var, TokenStream2, SPEC::Attr, SPEC::Gen),
-    RegFn(Path, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, ReturnType, PresentableSequence<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
-    // TraitVTableInnerFn
+    RegFn(Path, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
 }
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
@@ -29,7 +28,7 @@ impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub fn ctor(context: FunctionContext<LANG, SPEC>) -> Self {
         let (((ffi_type, attrs, generics, .. ), is_round), field_pairs) = context;
         let (args, names): (CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = field_pairs.into_iter().unzip();

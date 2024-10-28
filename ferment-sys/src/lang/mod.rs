@@ -14,7 +14,7 @@ use crate::composer::VarComposable;
 use crate::error;
 use crate::ext::{Mangle, MangleDefault, ToType};
 use crate::lang::objc::composers::AttrWrapper;
-use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, TypeContext, Expression, ExpressionComposable};
+use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, TypeContext, Expression, ExpressionComposable};
 use crate::presentation::{FFIVariable, InterfacePresentation, Name, RustFermentate};
 use crate::tree::CrateTree;
 
@@ -43,8 +43,8 @@ pub trait Specification<LANG>: Clone + Debug
 //         SPEC: Specification<LANG>,
 //         Aspect<SPEC::TYC>: ScopeContextPresentable,  // Explicitly require this bound for TYC
 //         SPEC::Expr: ScopeContextPresentable,         // Explicitly require this bound for Expr
-//         PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-//         PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+//         SeqKind<LANG, SPEC>: ScopeContextPresentable,
+//         ArgKind<LANG, SPEC>: ScopeContextPresentable,
 //         <SPEC::Expr as ScopeContextPresentable>::Presentation: ToTokens,
 // {
 //     // You can add additional bounds here if needed.
@@ -56,8 +56,8 @@ pub trait Specification<LANG>: Clone + Debug
 //         SPEC: PresentableSpecification<LANG>,
 //         Aspect<SPEC::TYC>: ScopeContextPresentable,  // Ensure the trait bound is satisfied
 //         SPEC::Expr: ScopeContextPresentable,         // Ensure the trait bound is satisfied
-//         PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-//         PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+//         SeqKind<LANG, SPEC>: ScopeContextPresentable,
+//         ArgKind<LANG, SPEC>: ScopeContextPresentable,
 //         <SPEC::Expr as ScopeContextPresentable>::Presentation: ToTokens,
 // {}
 
@@ -71,8 +71,8 @@ pub trait PresentableSpecification<LANG>
     where LANG: LangFermentable,
           Aspect<Self::TYC>: ScopeContextPresentable,
           Expression<LANG, Self>: ScopeContextPresentable,
-          PresentableSequence<LANG, Self>: ScopeContextPresentable,
-          PresentableArgument<LANG, Self>: ScopeContextPresentable,
+          SeqKind<LANG, Self>: ScopeContextPresentable,
+          ArgKind<LANG, Self>: ScopeContextPresentable,
           <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens {}
 
 impl<LANG, SPEC> PresentableSpecification<LANG> for SPEC
@@ -80,8 +80,8 @@ impl<LANG, SPEC> PresentableSpecification<LANG> for SPEC
           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           Expression<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable {}
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
+          SeqKind<LANG, SPEC>: ScopeContextPresentable {}
 
 
 pub trait RustSpecification:

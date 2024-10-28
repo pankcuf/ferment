@@ -11,7 +11,7 @@ use crate::composer::{BasicComposerOwner, constants, AspectPresentable, BasicCom
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, PresentableArgument, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ArgKind, ScopeContextPresentable};
 use crate::presentation::{BindingPresentation, DictionaryName, FFIFullPath, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -21,7 +21,7 @@ pub struct VTableComposer<LANG, SPEC>
           SPEC::Expr: ScopeContextPresentable,
           Expression<LANG, SPEC>: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub base: BasicComposerLink<Self, LANG, SPEC>,
 }
 
@@ -30,7 +30,7 @@ where LANG: LangFermentable,
       SPEC: Specification<LANG, Expr = Expression<LANG, SPEC>>,
       Expression<LANG, SPEC>: ScopeContextPresentable,
       Aspect<SPEC::TYC>: ScopeContextPresentable,
-      PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+      ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub fn from_trait_path(ty_context: SPEC::TYC, attrs: &Vec<Attribute>, context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
@@ -70,6 +70,7 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC> where SPEC:
                 let sig_source = composer.context().borrow();
                 let sig_type_context = composer.type_context();
                 let signature_context = sig_type_context.sig_context();
+                signature_context.receiver_ty();
                 let Signature { ident, output, inputs, .. } = signature_context.maybe_signature().unwrap();
                 let name = Name::<RustFermentate, SPEC>::TraitImplVtableFn(trait_ty.mangle_ident_default(), sig_source.scope.to_type().mangle_ident_default());
                 let compose_var = |ty: &Type| VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &sig_source.scope).compose(&sig_source).to_type();
@@ -80,13 +81,14 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC> where SPEC:
                         ToConversionComposer::<RustFermentate, SPEC>::new(Name::Dictionary(DictionaryName::Obj), *ty.clone(), None).compose(&sig_source)
                     )
                 };
-                let fn_arg_composer = |arg: &FnArg| PresentableArgument::<RustFermentate, SPEC>::Named(match arg {
+                let fn_arg_composer = |arg: &FnArg| ArgKind::<RustFermentate, SPEC>::Named(match arg {
                     FnArg::Receiver(Receiver { mutability: _, reference: _, attrs, .. }) =>
                         FieldComposer::self_typed(compose_var(signature_context.receiver_ty()), attrs),
                     FnArg::Typed(PatType { ty, attrs, pat, .. }) =>
                         FieldComposer::typed(Name::Pat(*pat.clone()), &compose_var(ty), true, attrs)
                 }, Visibility::Inherited);
-                let fn_arg_conversion_composer = |arg: &FnArg| PresentableArgument::<RustFermentate, SPEC>::AttrExpression(
+
+                let fn_arg_conversion_composer = |arg: &FnArg| ArgKind::<RustFermentate, SPEC>::AttrExpression(
                     match arg {
                         FnArg::Receiver(Receiver { mutability, reference, .. }) => {
                             let expr = match (mutability, reference) {

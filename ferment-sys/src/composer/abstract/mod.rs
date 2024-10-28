@@ -16,7 +16,7 @@ use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::MacroType;
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{TypeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Aspect, Expression};
+use crate::presentable::{TypeContext, ArgKind, ScopeContextPresentable, SeqKind, Aspect, Expression};
 use crate::presentation::RustFermentate;
 pub use self::composable::*;
 pub use self::context::*;
@@ -34,8 +34,8 @@ pub trait MaybeComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<LANG, SPEC>>;
 }
 

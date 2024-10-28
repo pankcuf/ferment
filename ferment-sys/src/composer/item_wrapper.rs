@@ -8,7 +8,7 @@ use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVarian
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{Name, RustFermentate};
 
 #[allow(unused)]
@@ -17,8 +17,8 @@ pub enum ItemComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     Enum(EnumComposerLink<LANG, SPEC>),
     EnumVariantNamed(EnumVariantComposerLink<Brace, LANG, SPEC>),
     EnumVariantUnnamed(EnumVariantComposerLink<Paren, LANG, SPEC>),
@@ -39,8 +39,9 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
           SPEC::Expr: ScopeContextPresentable,
           Name<LANG, SPEC>: ToTokens,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
+{
 
     pub fn r#trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, scope: &ScopeChain, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::Trait(TraitComposer::from_item_trait(item_trait, ty_context, scope, context))
@@ -98,7 +99,7 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
         }
     }
 
-    pub fn compose_aspect(&self, aspect: FFIAspect) -> PresentableSequence<LANG, SPEC> {
+    pub fn compose_aspect(&self, aspect: FFIAspect) -> SeqKind<LANG, SPEC> {
         match self {
             ItemComposerWrapper::EnumVariantNamed(composer) =>
                 composer.borrow().composer.borrow().compose_aspect(aspect),
@@ -112,7 +113,7 @@ impl<LANG, SPEC> ItemComposerWrapper<LANG, SPEC>
                 composer.borrow().composer.borrow().compose_aspect(aspect),
             ItemComposerWrapper::TypeAlias(composer) =>
                 composer.borrow().composer.borrow().compose_aspect(aspect),
-            _ => PresentableSequence::Empty
+            _ => SeqKind::Empty
         }
     }
     pub fn compose_ctor(&self) -> Option<BindingPresentableContext<LANG, SPEC>> {
@@ -141,8 +142,8 @@ impl<LANG, SPEC> AttrComposable<SPEC::Attr> for ItemComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn compose_attributes(&self) -> SPEC::Attr {
         match self {
             ItemComposerWrapper::Enum(composer) =>

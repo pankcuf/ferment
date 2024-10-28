@@ -10,7 +10,7 @@ use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DocPresentation, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -19,7 +19,7 @@ pub struct ImplComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub base: BasicComposerLink<Self, LANG, SPEC>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
     pub vtable: Option<VTableComposerLink<LANG, SPEC>>,
@@ -29,8 +29,8 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           Self: AspectPresentable<SPEC::TYC> {
     pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
@@ -41,6 +41,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
             match impl_item {
                 ImplItem::Method(item) => {
                     let method_scope_context = Rc::new(RefCell::new(source.joined(item)));
+
                     let sig_context = FnSignatureContext::Impl(*self_ty.clone(), trait_.as_ref().map(|(_, path, _)| path.to_type()), item.sig.clone());
                     let ty_context = ty_context.join_fn(
                         scope.joined_path_holder(&item.sig.ident).0,
@@ -76,7 +77,7 @@ impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(&()))
     }
@@ -86,6 +87,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SP
     where SPEC: RustSpecification {
     fn ferment(&self) -> RustFermentate {
         let source = self.source_ref();
+        // println!("ImplComposer::ferment: {}", self.base);
         let mut items = Depunctuated::<RustFermentate>::new();
         self.methods.iter().for_each(|sig_composer| {
             let fermentate = sig_composer.borrow().ferment();

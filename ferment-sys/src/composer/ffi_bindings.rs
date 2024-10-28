@@ -5,7 +5,7 @@ use crate::composer::{SourceComposable, CtorSequenceComposer, Linkable, Composer
 use crate::context::ScopeContext;
 use crate::ext::{Resolve, ToType};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, Expression, PresentableArgument, ScopeContextPresentable};
+use crate::presentable::{Aspect, BindingPresentableContext, Expression, ArgKind, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
 pub type FFIBindingsComposerLink<T, LANG, SPEC> = FFIBindingsComposer<ComposerLink<T>, LANG, SPEC>;
@@ -16,7 +16,7 @@ pub struct FFIBindingsComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub parent: Option<Link>,
     pub ctor_composer: CtorSequenceComposer<Link, LANG, SPEC>,
     pub dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
@@ -30,7 +30,7 @@ impl<Link, LANG, SPEC> FFIBindingsComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub const fn new(
         ctor_composer: CtorSequenceComposer<Link, LANG, SPEC>,
         dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
@@ -52,7 +52,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for FFIBindingsComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn link(&mut self, parent: &Link) {
         self.getter_composer.link(parent);
         self.setter_composer.link(parent);
@@ -68,7 +68,7 @@ impl<Link, LANG, SPEC> SourceComposable for FFIBindingsComposer<Link, LANG, SPEC
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           Type: Resolve<<SPEC as Specification<LANG>>::Var> {
     type Source = ScopeContext;
     type Output = Depunctuated<BindingPresentableContext<LANG, SPEC>>;

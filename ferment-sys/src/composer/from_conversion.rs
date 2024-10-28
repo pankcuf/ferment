@@ -64,7 +64,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { name, search, field_expr: expr, .. } = self;
         let search_key = self.search.search_key();
-        println!("FromConversionFullComposer:: {}({}) -- {}", name,  name.to_token_stream(), search);
+        // println!("FromConversionFullComposer:: {}({}) -- {}", name,  name.to_token_stream(), search);
 
         let field_path = expr.clone().unwrap_or(SPEC::Expr::Simple(name.to_token_stream()));
         let maybe_object = source.maybe_object_by_predicate_ref(search);
@@ -72,7 +72,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
-        println!("FromConversionFullComposer:: {}", full_type.to_token_stream());
+        // println!("FromConversionFullComposer:: {}", full_type.to_token_stream());
 
         let is_ref = search_key.maybe_originally_is_ref();
         let full_type = match &full_type {
@@ -82,7 +82,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
         let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
 
-        println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
+        // println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));

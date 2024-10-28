@@ -13,7 +13,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{FFITypeResolve, ItemExtension, Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, FFIConversionFromMethodExpr, FFIFullDictionaryPath, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -130,9 +130,9 @@ fn compose_regular_fn<SPEC>(
     where SPEC: RustSpecification,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<RustFermentate, SPEC>: ScopeContextPresentable,
-          CommaPunctuatedPresentableArguments<RustFermentate, SPEC>: Extend<PresentableArgument<RustFermentate, SPEC>> {
-
+          ArgKind<RustFermentate, SPEC>: ScopeContextPresentable,
+          CommaPunctuatedPresentableArguments<RustFermentate, SPEC>: Extend<ArgKind<RustFermentate, SPEC>> {
+    println!("compose_regular_fn: {}", path.to_token_stream());
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (ReturnType::Default, SPEC::Expr::Simple(Semi::default().to_token_stream())),
@@ -169,11 +169,11 @@ fn compose_regular_fn<SPEC>(
                     let name = Name::Dictionary(DictionaryName::Self_);
                     let ty = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope).compose(source).to_type();
                     (
-                        PresentableArgument::Named(
+                        ArgKind::Named(
                             FieldComposer::new(name, FieldTypeKind::Type(ty), true, attrs.cfg_attributes()),
                             Visibility::Inherited
                         ),
-                        PresentableArgument::AttrExpression(
+                        ArgKind::AttrExpression(
                             name_type_conversion,
                             SPEC::Attr::default()
                         )
@@ -182,8 +182,8 @@ fn compose_regular_fn<SPEC>(
                 FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
                     let name = Name::Pat(*pat.clone());
                     (
-                        PresentableArgument::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
-                        PresentableArgument::AttrExpression(
+                        ArgKind::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
+                        ArgKind::AttrExpression(
                             FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(name, ty, &source.scope).compose(source),
                             SPEC::Attr::default()
                         )
@@ -192,7 +192,7 @@ fn compose_regular_fn<SPEC>(
             }
         })
         .unzip();
-    let input_conversions = PresentableSequence::RoundBracesFields(((aspect, generics.clone()), argument_conversions));
+    let input_conversions = SeqKind::UnnamedFields(((aspect, generics.clone()), argument_conversions));
 
     BindingPresentableContext::RegFn(
         path,
@@ -243,7 +243,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                         let arguments = CommaPunctuatedPresentableArguments::from_iter(inputs
                             .iter()
                             .map(|arg| {
-                                PresentableArgument::<RustFermentate, SPEC>::Named(match arg {
+                                ArgKind::<RustFermentate, SPEC>::Named(match arg {
                                     FnArg::Receiver(Receiver { mutability: _, reference: _, attrs, .. }) =>
                                         FieldComposer::self_typed(compose_ty(sig_context.receiver_ty()), attrs),
                                     FnArg::Typed(PatType { ty, attrs, pat, .. }) =>

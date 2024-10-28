@@ -14,7 +14,7 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
+use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DictionaryName, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -23,7 +23,7 @@ pub struct TraitComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub base: BasicComposerLink<Self, LANG, SPEC>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
     #[allow(unused)]
@@ -35,8 +35,8 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable,
+          SeqKind<LANG, SPEC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           Self: AspectPresentable<SPEC::TYC> {
     pub fn from_item_trait(
         item_trait: &ItemTrait,
@@ -113,7 +113,7 @@ impl<LANG, SPEC> DocsComposable for TraitComposer<LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          ArgKind<LANG, SPEC>: ScopeContextPresentable {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(&()))
     }

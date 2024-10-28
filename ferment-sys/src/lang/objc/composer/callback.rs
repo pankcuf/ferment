@@ -1,12 +1,12 @@
 use crate::composer::{CallbackComposer, SourceComposable, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
-use crate::presentable::{PresentableArgument, ScopeContextPresentable, PresentableSequence};
+use crate::presentable::{ArgKind, ScopeContextPresentable, SeqKind};
 
 impl<SPEC> SourceComposable for CallbackComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification,
-          PresentableSequence<ObjCFermentate, SPEC>: ScopeContextPresentable,
-          PresentableArgument<ObjCFermentate, SPEC>: ScopeContextPresentable {
+          SeqKind<ObjCFermentate, SPEC>: ScopeContextPresentable,
+          ArgKind<ObjCFermentate, SPEC>: ScopeContextPresentable {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
 

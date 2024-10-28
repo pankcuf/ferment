@@ -15,7 +15,6 @@ impl Join<Item> for ScopeChain {
     fn joined(&self, item: &Item) -> Self {
         let attrs = item.maybe_attrs().cloned().unwrap_or_default();
         let self_scope = self.self_scope().joined(item);
-        println!("ScopeChain::joined {} {}", self.fmt_short(), item.ident_string());
         match item {
             Item::Const(..) |
             Item::Type(..) |
