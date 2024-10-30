@@ -13,7 +13,7 @@ impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
             .map(|GenericComposerInfo {
                       field_composers: _,
                       field_composer: _,
-                      ffi_name: _,
+                      ffi_aspect: _,
                       attrs: _,
                       binding_composer: _,
                       interfaces: implementations }| {

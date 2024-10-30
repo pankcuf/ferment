@@ -10,7 +10,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -49,7 +49,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
         if self.model.is_lambda() {
             return Self::Output::default();
         }
-        let ffi_name = self.model.mangle_tokens_default();
+        let ffi_name = self.model.mangle_ident_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
         let mut from_conversions = CommaPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
@@ -103,6 +103,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
             InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(ffi_name, &attrs, field_composers, interfaces))
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![] });
+        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

@@ -4,7 +4,7 @@ use syn::__private::TokenStream2;
 use syn::{Expr, ExprLet, Pat, Path, PatLit};
 use ferment_macro::Display;
 use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Depunctuated, Lambda, ParenWrapped, SemiPunctuated};
-use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, CommaPunctuatedPresentableArguments, AspectPresentableArguments};
+use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -27,7 +27,7 @@ pub enum SeqKind<LANG, SPEC>
     Variants(Aspect<SPEC::TYC>, SPEC::Attr, CommaPunctuated<SeqKind<LANG, SPEC>>),
     Unit(Aspect<SPEC::TYC>),
     NoFieldsConversion(Aspect<SPEC::TYC>),
-    TypeAliasFromConversion(((Aspect<SPEC::TYC>, SPEC::Gen), CommaPunctuatedPresentableArguments<LANG, SPEC>)),
+    TypeAliasFromConversion(AspectCommaPunctuatedArguments<LANG, SPEC>),
     NamedStruct(AspectCommaPunctuatedArguments<LANG, SPEC>),
     UnnamedStruct(AspectCommaPunctuatedArguments<LANG, SPEC>),
     Enum(Box<SeqKind<LANG, SPEC>>),
@@ -75,13 +75,13 @@ impl<LANG, SPEC> SeqKind<LANG, SPEC>
         right
     }
 
-    pub fn no_fields<SEP: ToTokens>(((aspect, _), _): AspectPresentableArguments<SEP, LANG, SPEC>) -> Self {
+    pub fn no_fields<SEP: ToTokens>(((aspect, ..), _): AspectPresentableArguments<SEP, LANG, SPEC>) -> Self {
         Self::NoFieldsConversion(match &aspect {
             Aspect::Target(context) => Aspect::RawTarget(context.clone()),
             _ => aspect.clone(),
         })
     }
-    pub fn unit(((aspect, _), _): &AspectCommaPunctuatedArguments<LANG, SPEC>) -> Self {
+    pub fn unit(((aspect, ..), _): &AspectCommaPunctuatedArguments<LANG, SPEC>) -> Self {
         Self::Unit(aspect.clone())
     }
     pub fn variants<C>(composer_ref: &ComposerLinkRef<C>) -> Self
@@ -147,19 +147,19 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
         let result = match self {
             SeqKind::Empty =>
                 quote!(),
-            SeqKind::UnnamedFields(((aspect, _generics), fields)) => {
+            SeqKind::UnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name ( #presentation ) )
             },
-            SeqKind::NamedFields(((aspect, _generics), fields)) => {
+            SeqKind::NamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name { #presentation })
             },
-            SeqKind::UnnamedVariantFields(((aspect, _generics), fields)) => {
+            SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path: Path = aspect.present(source).to_path();
@@ -176,7 +176,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     .present(source)
                     .to_token_stream()
             },
-            SeqKind::NamedVariantFields(((aspect, _generics), fields)) => {
+            SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path = aspect.present(source).to_path();
@@ -196,7 +196,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     #name #presentation
                 }
             },
-            SeqKind::UnnamedStruct(((aspect, _generics), fields)) => {
+            SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
                 present_struct(
@@ -204,7 +204,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     aspect.attrs(),
                     ParenWrapped::new(fields.clone()).present(source).terminated())
             },
-            SeqKind::NamedStruct(((aspect, _generics), fields)) => {
+            SeqKind::NamedStruct(((aspect, _attes, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
                 present_struct(
@@ -242,7 +242,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 aspect.present(source)
                     .to_token_stream()
             },
-            SeqKind::EnumUnitFields(((aspect, _generics), fields)) => {
+            SeqKind::EnumUnitFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 Assignment::new(
                     aspect.present(source).to_path().segments.last().unwrap().ident.clone(),

@@ -126,36 +126,40 @@ pub type VariantComposerRef<LANG, SPEC> = ComposerByRef<
     SeqKind<LANG, SPEC>
 >;
 pub type ConstructorArgComposerRef<LANG, SPEC> = FieldComposerProducer<LANG, SPEC, PresentableArgumentPair<LANG, SPEC>>;
-pub type FieldsComposerRef<LANG, SPEC> = ComposerByRef<CommaPunctuatedFields, FieldComposers<LANG, SPEC>>;
+pub type FieldsComposerRef<LANG, SPEC> = ComposerByRef<CommaPunctuatedFields, CommaArgComposers<LANG, SPEC>>;
 pub type PresentableExprComposerRef<LANG, SPEC> = ComposerByRef<FieldTypeLocalContext<LANG, SPEC>, Expression<LANG, SPEC>>;
 pub type PresentableArgumentComposerRef<LANG, SPEC> = FieldComposerProducer<LANG, SPEC, ArgKind<LANG, SPEC>>;
 /// Bindings
 pub type BindingComposer<T, LANG, SPEC> = Composer<T, BindingPresentableContext<LANG, SPEC>>;
-pub type BindingCtorComposer<LANG, SPEC> = BindingComposer<FunctionContext<LANG, SPEC>, LANG, SPEC>;
+pub type BindingCtorComposer<LANG, SPEC> = BindingComposer<AspectMethod<LANG, SPEC>, LANG, SPEC>;
 pub type PresentableArguments<SEP, LANG, SPEC> = Punctuated<ArgKind<LANG, SPEC>, SEP>;
-pub type AspectPresentableArguments<SEP, LANG, SPEC> = (GenericAspect<LANG, SPEC>, PresentableArguments<SEP, LANG, SPEC>);
+
+pub type OwnerAspect<LANG, SPEC> = (Aspect<<SPEC as Specification<LANG>>::TYC>, <SPEC as Specification<LANG>>::Attr, <SPEC as Specification<LANG>>::Gen, NameKind);
+pub type OwnerAspectSequence<LANG, SPEC, T> = (OwnerAspect<LANG, SPEC>, T);
+pub type OwnerAspectSequenceComposer<LANG, SPEC, T, U> = Composer<OwnerAspectSequence<LANG, SPEC, T>, U>;
+
+pub type LocallyOwnedFieldComposers<T, LANG, SPEC> = (T, CommaArgComposers<LANG, SPEC>);
+
+pub type AspectPresentableArguments<SEP, LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, PresentableArguments<SEP, LANG, SPEC>>;
+pub type AspectArgComposers<LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, CommaArgComposers<LANG, SPEC>>;
+pub type AspectMethod<LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, Vec<PresentableArgumentPair<LANG, SPEC>>>;
+
 pub type AspectCommaPunctuatedArguments<LANG, SPEC> = AspectPresentableArguments<Comma, LANG, SPEC>;
 pub type AspectTerminatedArguments<LANG, SPEC> = AspectPresentableArguments<Semi, LANG, SPEC>;
 pub type ArgComposers<SEP, LANG, SPEC> = Punctuated<FieldComposer<LANG, SPEC>, SEP>;
-pub type FieldComposers<LANG, SPEC> = CommaPunctuated<FieldComposer<LANG, SPEC>>;
-pub type LocallyOwnedFieldComposers<T, LANG, SPEC> = (T, FieldComposers<LANG, SPEC>);
-pub type GenericAspect<LANG, SPEC> = (Aspect<<SPEC as Specification<LANG>>::TYC>, <SPEC as Specification<LANG>>::Gen);
-pub type LocalConversionContext<LANG, SPEC> = LocallyOwnedFieldComposers<GenericAspect<LANG, SPEC>, LANG, SPEC>;
-pub type ConstructorFieldsContext<LANG, SPEC> = LocallyOwnedFieldComposers<(DestructorContext<LANG, SPEC>, bool), LANG, SPEC>;
+pub type CommaArgComposers<LANG, SPEC> = ArgComposers<Comma, LANG, SPEC>;
+
 pub type BindingAccessorContext<LANG, SPEC> = (
-    <Aspect<<SPEC as Specification<LANG>>::TYC> as ScopeContextPresentable>::Presentation,
-    TokenStream2,
+    Aspect<<SPEC as Specification<LANG>>::TYC>,
+    <SPEC as Specification<LANG>>::Attr,
+    <SPEC as Specification<LANG>>::Gen,
     <SPEC as Specification<LANG>>::Var,
-    <SPEC as Specification<LANG>>::Attr,
-    <SPEC as Specification<LANG>>::Gen
+    TokenStream2,
 );
-pub type DestructorContext<LANG, SPEC> = (
-    <Aspect<<SPEC as Specification<LANG>>::TYC> as ScopeContextPresentable>::Presentation,
-    <SPEC as Specification<LANG>>::Attr,
-    <SPEC as Specification<LANG>>::Gen
+pub type FieldTypeLocalContext<LANG, SPEC> = (
+    <SPEC as Specification<LANG>>::Name,
+    ConversionType<LANG, SPEC>
 );
-pub type FieldTypeLocalContext<LANG, SPEC> = (<SPEC as Specification<LANG>>::Name, ConversionType<LANG, SPEC>);
-pub type FunctionContext<LANG, SPEC> = ((DestructorContext<LANG, SPEC>, bool), Vec<PresentableArgumentPair<LANG, SPEC>>);
 pub type PresentableArgumentPair<LANG, SPEC> = (ArgKind<LANG, SPEC>, ArgKind<LANG, SPEC>);
 pub type CommaPunctuatedArgs = CommaPunctuated<ArgPresentation>;
 pub type CommaPunctuatedPresentableArguments<LANG, SPEC> = PresentableArguments<Comma, LANG, SPEC>;
@@ -199,7 +203,7 @@ pub type DropSequenceMixer<Link, LANG, SPEC> = InterfaceSequenceMixer<
 
 pub type InterfaceSequenceMixer<Link, LANG, SPEC, SEP> = FieldsSequenceMixer<
     Link,
-    LocalConversionContext<LANG, SPEC>,
+    AspectArgComposers<LANG, SPEC>,
     AspectPresentableArguments<SEP, LANG, SPEC>,
     LANG,
     SPEC,
@@ -214,7 +218,7 @@ pub type FieldsSequenceComposer<Link, A, B, C, Presentable, LANG, SPEC> = Sequen
 >;
 pub type FieldsOwnedSequenceComposer<Link, LANG, SPEC> = FieldsSequenceComposer<
     Link,
-    LocalConversionContext<LANG, SPEC>,
+    AspectArgComposers<LANG, SPEC>,
     ArgKind<LANG, SPEC>,
     AspectCommaPunctuatedArguments<LANG, SPEC>,
     SeqKind<LANG, SPEC>,
@@ -226,26 +230,29 @@ pub type FieldsOwnedSequenceComposerLink<T, LANG, SPEC> = FieldsOwnedSequenceCom
     LANG,
     SPEC
 >;
-pub type FnSequenceComposer<Link, OwnerAspect, LANG, SPEC> = FieldsSequenceComposer<
-    Link,
-    OwnerAspect,
-    PresentableArgumentPair<LANG, SPEC>,
-    FunctionContext<LANG, SPEC>,
-    BindingPresentableContext<LANG, SPEC>,
-    LANG,
-    SPEC
->;
-
-pub type CtorSequenceComposer<Link, LANG, SPEC> = FnSequenceComposer<
-    Link,
-    ConstructorFieldsContext<LANG, SPEC>,
-    LANG,
-    SPEC,
->;
+// pub type FnSequenceComposer<Link, ASPECT, LANG, SPEC> = FieldsSequenceComposer<
+//     Link,
+//     ASPECT,
+//     PresentableArgumentPair<LANG, SPEC>,
+//     AspectMethod<LANG, SPEC>,
+//     BindingPresentableContext<LANG, SPEC>,
+//     LANG,
+//     SPEC
+// >;
+//
+// pub type CtorSequenceComposer<Link, LANG, SPEC> = FnSequenceComposer<
+//     Link,
+//     AspectArgComposers<LANG, SPEC>,
+//     LANG,
+//     SPEC,
+// >;
 // pub type CtorSequenceComposerLink<T, LANG, SPEC> = CtorSequenceComposer<ComposerLink<T>, LANG, SPEC>;
 
-pub type CtorSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, ConstructorFieldsContext<LANG, SPEC>>;
-pub type AspectSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, LocalConversionContext<LANG, SPEC>>;
+// pub type CtorSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, ConstructorFieldsContext<LANG, SPEC>>;
+pub type AspectSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, AspectArgComposers<LANG, SPEC>>;
 pub type SequenceSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, SeqKind<LANG, SPEC>>;
 
 pub type RootSequenceComposer<LANG, SPEC> = SourceComposerByRef<SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>>;
+
+// pub type CtxComposer<'a, T, U> = ComposerByRef<ComposerLinkRef<'a, T>, U>;
+

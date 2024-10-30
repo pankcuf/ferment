@@ -10,7 +10,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, Name, RustFermentate};
 
 
@@ -88,7 +88,6 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let ffi_name = self.ty.mangle_tokens_default();
         let arg_0_name = Name::Dictionary(DictionaryName::Values);
         let count_name = Name::Dictionary(DictionaryName::Count);
         let from_args = CommaPunctuated::from_iter([
@@ -169,7 +168,7 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
             // <SPEC::Expr as ScopeContextPresentable>::present(&arg_presentation.destructor, source).to_token_stream()
         ];
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
-            ffi_name,
+            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![] }),
             &attrs,
             Depunctuated::from_iter([
                 FieldComposer::<RustFermentate, SPEC>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),

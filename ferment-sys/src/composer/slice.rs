@@ -9,7 +9,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{ExpressionComposer, GenericArgPresentation, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -98,6 +98,7 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 
         ]);
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(ffi_name, &attrs, field_composers, interfaces))
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), attrs: vec![] });
+        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

@@ -2,7 +2,7 @@ use std::cell::Ref;
 use std::fmt::Debug;
 use quote::ToTokens;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composer::{BasicComposerLink, ComposerLinkRef, FieldComposers, FieldsOwnedSequenceComposerLink};
+use crate::composer::{BasicComposerLink, ComposerLinkRef, CommaArgComposers, FieldsOwnedSequenceComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
@@ -55,19 +55,33 @@ pub trait AspectPresentable<TYC>
         ref_self.present_target_aspect()
     }
 }
+
+// pub trait ContextPresentable<LANG, SPEC>:
+//     AttrComposable<SPEC::Attr>
+//     + GenericsComposable<SPEC::Gen>
+//     + TypeAspect<SPEC::TYC>
+//     + NameKindComposable
+//     + FieldsContext<LANG, SPEC>
+// where Self: Sized,
+//       LANG: LangFermentable,
+//       SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
+//       Aspect<SPEC::TYC>: ScopeContextPresentable {
+//     fn by_ref(by_ref: &Ref<Self>) -> ConstructorFieldsContext<LANG, SPEC>;
+// }
+
 /// Access to set of field or arg sequence composers
 pub trait FieldsContext<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn field_composers_ref(&self) -> &FieldComposers<LANG, SPEC>;
+    fn field_composers_ref(&self) -> &CommaArgComposers<LANG, SPEC>;
     #[allow(unused)]
-    fn field_composers(&self) -> FieldComposers<LANG, SPEC> {
+    fn field_composers(&self) -> CommaArgComposers<LANG, SPEC> {
         self.field_composers_ref()
             .clone()
     }
     #[allow(unused)]
-    fn field_composers_by_ref(by_ref: &ComposerLinkRef<Self>) -> FieldComposers<LANG, SPEC> {
+    fn field_composers_by_ref(by_ref: &ComposerLinkRef<Self>) -> CommaArgComposers<LANG, SPEC> {
         by_ref.field_composers()
     }
 }
@@ -86,6 +100,15 @@ pub trait DocsComposable {
     fn compose_docs(&self) -> DocPresentation;
 }
 
+#[derive(Clone, Debug)]
+pub enum NameKind {
+    Named,
+    Unnamed,
+    Unit
+}
+pub trait NameKindComposable {
+    fn compose_name_kind(&self) -> NameKind;
+}
 pub trait AttrComposable<T> {
     fn compose_attributes(&self) -> T;
 }

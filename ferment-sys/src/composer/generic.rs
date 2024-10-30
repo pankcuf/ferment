@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::rc::Rc;
+use quote::ToTokens;
 use syn::{Attribute, Type};
-use syn::__private::TokenStream2;
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, ConstructorArgComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, field_conversions_iterator};
+use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, ConstructorArgComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, arg_conversions_iterator, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::ToType;
@@ -21,7 +21,7 @@ pub struct GenericComposerInfo<LANG, SPEC>
     pub binding_composer: ConstructorArgComposerRef<LANG, SPEC>,
     pub field_composer: PresentableArgumentComposerRef<LANG, SPEC>,
 
-    pub ffi_name: TokenStream2,
+    pub ffi_aspect: Aspect<SPEC::TYC>,
     pub attrs: SPEC::Attr,
     pub field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
     pub interfaces: Depunctuated<SPEC::Interface>,
@@ -33,13 +33,13 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable {
     pub fn callback(
-        ffi_name: TokenStream2,
+        ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
         field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>
     ) -> Self {
         Self {
-            ffi_name,
+            ffi_aspect: ffi_name,
             attrs: attrs.clone(),
             field_composers,
             interfaces,
@@ -48,13 +48,13 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
         }
     }
     pub fn default(
-        ffi_name: TokenStream2,
+        ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
         field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>,
         ) -> Self {
         Self {
-            ffi_name,
+            ffi_aspect: ffi_name,
             attrs: attrs.clone(),
             field_composers,
             interfaces,
@@ -189,20 +189,18 @@ impl<SPEC> SourceComposable for GenericComposer<RustFermentate, SPEC>
             .map(|GenericComposerInfo {
                       field_composers,
                       field_composer,
-                      ffi_name,
+                      ffi_aspect,
                       attrs,
                       binding_composer,
                       interfaces }| {
-                // println!("GG1");
-                // field_composers_iterator(field_composers);
                 let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
-                // println!("GG1");
-                let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name, &attrs, BraceWrapped::new(fields).present(source)));
-                let dtor_context = (ffi_name.to_type(), attrs.clone(), SPEC::Gen::default());
-                let ctor_context = ((dtor_context.clone(), false), field_conversions_iterator(&field_composers, binding_composer));
+                let ffi_name_tokens = ffi_aspect.present(source).to_token_stream();
+                let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name_tokens, &attrs, BraceWrapped::new(fields).present(source)));
+                let dtor_context = (ffi_aspect, attrs.clone(), SPEC::Gen::default(), NameKind::Named);
+                let ctor_context = (dtor_context.clone(), arg_conversions_iterator(&field_composers, binding_composer));
                 let bindings = Depunctuated::from_iter([
                     BindingPresentableContext::ctor(ctor_context),
-                    BindingPresentableContext::dtor(dtor_context)
+                    BindingPresentableContext::dtor((dtor_context, Default::default()))
                 ]);
                 RustFermentate::Item {
                     attrs,

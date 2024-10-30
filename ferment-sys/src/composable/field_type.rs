@@ -5,9 +5,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use ferment_macro::Display;
 use crate::composable::CfgAttributes;
-use crate::composer::SourceFermentable;
+use crate::composer::{ComposerByRef, FieldTypeLocalContext, SourceFermentable};
 use crate::context::ScopeContext;
-use crate::ext::ToType;
+use crate::ext::{ConversionType, ToType};
 use crate::lang::{LangAttrSpecification, LangFermentable, PresentableSpecification, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ArgKind, SeqKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name, RustFermentate};
@@ -145,7 +145,31 @@ impl<LANG, SPEC> FieldComposer<LANG, SPEC>
             panic!("improper use of conversion as type")
         }
     }
+
 }
+impl<LANG, SPEC> FieldComposer<LANG, SPEC>
+where LANG: LangFermentable,
+      SPEC: Specification<LANG, Var: ToType, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
+      SPEC::Name: ToTokens,
+      SPEC::Expr: ScopeContextPresentable,
+      Aspect<SPEC::TYC>: ScopeContextPresentable {
+    pub const VARIANT_FROM: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::deref_tokens(&c.name))));
+    pub const VARIANT_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::name(&c.name))));
+    pub const VARIANT_DROP: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (c.name.clone(), ConversionType::expr_destroy(c, Some(Expression::deref_tokens(&c.name))));
+    pub const STRUCT_FROM: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::ffi_ref_with_name(&c.name))));
+    pub const STRUCT_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::obj_name(&c.name))));
+    pub const STRUCT_DROP: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (Name::Empty, ConversionType::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
+    pub const TYPE_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+        |c| (Name::Empty, ConversionType::expr_to(c, Some(Expression::name(&Name::Dictionary(DictionaryName::Obj)))));
+
+}
+
 
 impl<LANG, SPEC> ToTokens for FieldComposer<LANG, SPEC>
     where LANG: LangFermentable + ToTokens,

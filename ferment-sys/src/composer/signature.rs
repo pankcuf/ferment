@@ -8,7 +8,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink};
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{FFITypeResolve, ItemExtension, Mangle, Resolve, ToType};
@@ -192,7 +192,7 @@ fn compose_regular_fn<SPEC>(
             }
         })
         .unzip();
-    let input_conversions = SeqKind::UnnamedFields(((aspect, generics.clone()), argument_conversions));
+    let input_conversions = SeqKind::UnnamedFields(((aspect, attrs.clone(), generics.clone(), NameKind::Named), argument_conversions));
 
     BindingPresentableContext::RegFn(
         path,

@@ -9,7 +9,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{complex_opt_arg_composer, GenericArgComposer, GenericArgPresentation, GenericTypeKind, primitive_opt_arg_composer, result_complex_arg_composer, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, Mangle, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -130,7 +130,7 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
         let attrs = self.compose_attributes();
         let types = (ffi_type.clone(), self.present_target_aspect());
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
-            self.ty.mangle_tokens_default(),
+            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![] }),
             &attrs,
             field_composers,
             Depunctuated::from_iter([

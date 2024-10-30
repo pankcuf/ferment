@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use syn::Type;
-use crate::composer::{BindingAccessorContext, BindingComposer, DestructorContext, LocalConversionContext, SharedComposer};
+use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::context::ScopeContext;
 use crate::ext::{Resolve, ToType};
@@ -8,8 +8,8 @@ use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, Expression, ArgKind, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
-pub type AccessorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, LocalConversionContext<LANG, SPEC>, BindingAccessorContext<LANG, SPEC>, LANG, SPEC>;
-pub type DtorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, DestructorContext<LANG, SPEC>, DestructorContext<LANG, SPEC>, LANG, SPEC>;
+pub type AccessorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, AspectArgComposers<LANG, SPEC>, BindingAccessorContext<LANG, SPEC>, LANG, SPEC>;
+pub type DtorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, AspectArgComposers<LANG, SPEC>, AspectArgComposers<LANG, SPEC>, LANG, SPEC>;
 
 pub struct MethodComposer<Link, LinkCtx, CTX, LANG, SPEC>
     where Link: SharedAccess,
@@ -64,18 +64,19 @@ impl<Link, LANG, SPEC> SourceComposable for AccessorMethodComposer<Link, LANG, S
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let ((aspect, generics), context) = self.parent
+        let ((aspect, attrs, generics, _is_round), context) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);
         context.iter()
             .map(|composer|
                 (self.seq_iterator_item)((
-                    aspect.present(source),
-                    composer.tokenized_name(),
+                    aspect.clone(),
+                    attrs.clone(),
+                    generics.clone(),
                     <Type as Resolve<SPEC::Var>>::resolve(composer.ty(), source),
-                    composer.attrs.clone(),
-                    generics.clone())))
+                    composer.tokenized_name()
+                )))
             .collect()
     }
 }

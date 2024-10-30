@@ -1,6 +1,6 @@
 use quote::{format_ident, quote, ToTokens};
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, ItemComposerWrapper, SourceAccessible, SourceFermentable, TypeAspect};
+use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, ItemComposerWrapper, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect};
 use crate::ext::{Mangle, ToPath};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::fermentate::InterfaceImplementation;
@@ -26,6 +26,7 @@ fn to_snake_case(input: &str) -> String {
 impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<ObjCFermentate, SPEC>
 where SPEC: ObjCSpecification,
       Self: SourceAccessible
+      + NameKindComposable
       + TypeAspect<TypeContext>
       + AttrComposable<SPEC::Attr>
       + GenericsComposable<SPEC::Gen> {
@@ -79,7 +80,7 @@ where SPEC: ObjCSpecification,
             });
 
         self.variant_presenters.iter()
-            .for_each(|(c, ((aspect, _generics), args))| {
+            .for_each(|(c, ((aspect, _attrs, _generics, _is_round), args))| {
 
                 args.iter().for_each(|arg| {
                     let asp = aspect.present(&source);

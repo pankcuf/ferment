@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use syn::Type;
 use crate::ast::Depunctuated;
-use crate::composer::{SourceComposable, CtorSequenceComposer, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer};
+use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, AspectArgComposers, FieldsSequenceComposer, PresentableArgumentPair, AspectMethod, OwnerAspectSequence};
 use crate::context::ScopeContext;
 use crate::ext::{Resolve, ToType};
 use crate::lang::{LangFermentable, Specification};
@@ -18,7 +18,16 @@ pub struct FFIBindingsComposer<Link, LANG, SPEC>
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub parent: Option<Link>,
-    pub ctor_composer: CtorSequenceComposer<Link, LANG, SPEC>,
+
+    pub ctor_composer: FieldsSequenceComposer<
+        Link,
+        AspectArgComposers<LANG, SPEC>,
+        PresentableArgumentPair<LANG, SPEC>,
+        OwnerAspectSequence<LANG, SPEC, Vec<PresentableArgumentPair<LANG, SPEC>>>,
+        BindingPresentableContext<LANG, SPEC>,
+        LANG,
+        SPEC
+    >,
     pub dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
     pub getter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
     pub setter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
@@ -32,7 +41,15 @@ impl<Link, LANG, SPEC> FFIBindingsComposer<Link, LANG, SPEC>
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           ArgKind<LANG, SPEC>: ScopeContextPresentable {
     pub const fn new(
-        ctor_composer: CtorSequenceComposer<Link, LANG, SPEC>,
+        ctor_composer: FieldsSequenceComposer<
+            Link,
+            AspectArgComposers<LANG, SPEC>,
+            PresentableArgumentPair<LANG, SPEC>,
+            AspectMethod<LANG, SPEC>,
+            BindingPresentableContext<LANG, SPEC>,
+            LANG,
+            SPEC
+        >,
         dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
         getter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
         setter_composer: AccessorMethodComposer<Link, LANG, SPEC>,

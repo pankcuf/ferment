@@ -1,9 +1,9 @@
 use std::fmt::Debug;
-use crate::composer::{ComposerLink, DropSequenceMixer, FFIConversionsMixer, SequenceOutputComposer};
+use crate::composer::ComposerLink;
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind, Expression, InterfaceKind, ArgKind};
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
@@ -23,12 +23,16 @@ pub struct FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           SeqKind<LANG, SPEC>: ScopeContextPresentable {
     pub parent: Option<Link>,
-    pub from_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
-    pub to_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
-    pub drop_composer: DropSequenceMixer<Link, LANG, SPEC>,
-    pub destroy_composer: SequenceOutputComposer<Link, LANG, SPEC>,
+    //
+    // pub interface_composers: HashMap<FFIAspect, InterfaceKind<Link, LANG, SPEC>>,
+
+    pub from_conversion_composer: InterfaceKind<Link, LANG, SPEC>,
+    pub to_conversion_composer: InterfaceKind<Link, LANG, SPEC>,
+    pub drop_composer: InterfaceKind<Link, LANG, SPEC>,
+    pub destroy_composer: InterfaceKind<Link, LANG, SPEC>,
 }
 impl<Link, LANG, SPEC> FFIComposer<Link, LANG, SPEC>
     where Link: SharedAccess,
@@ -36,12 +40,14 @@ impl<Link, LANG, SPEC> FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           SeqKind<LANG, SPEC>: ScopeContextPresentable {
     pub const fn new(
-        from_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
-        to_conversion_composer: FFIConversionsMixer<Link, LANG, SPEC>,
-        destroy_composer: SequenceOutputComposer<Link, LANG, SPEC>,
-        drop_composer: DropSequenceMixer<Link, LANG, SPEC>,
+        // composers: HashMap<FFIAspect, InterfaceKind<Link, LANG, SPEC>>,
+        from_conversion_composer: InterfaceKind<Link, LANG, SPEC>,
+        to_conversion_composer: InterfaceKind<Link, LANG, SPEC>,
+        destroy_composer: InterfaceKind<Link, LANG, SPEC>,
+        drop_composer: InterfaceKind<Link, LANG, SPEC>,
     ) -> Self {
         Self { from_conversion_composer, to_conversion_composer, destroy_composer, drop_composer, parent: None }
     }
@@ -54,6 +60,7 @@ impl<Link, LANG, SPEC> Linkable<Link> for FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           SeqKind<LANG, SPEC>: ScopeContextPresentable {
     fn link(&mut self, parent: &Link) {
         self.from_conversion_composer.link(parent);
@@ -70,6 +77,7 @@ impl<Link, LANG, SPEC> SourceComposable for FFIComposer<Link, LANG, SPEC>
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
           SPEC::Expr: ScopeContextPresentable,
           Aspect<SPEC::TYC>: ScopeContextPresentable,
+          ArgKind<LANG, SPEC>: ScopeContextPresentable,
           SeqKind<LANG, SPEC>: ScopeContextPresentable {
     type Source = FFIAspect;
     type Output = SeqKind<LANG, SPEC>;

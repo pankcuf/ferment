@@ -2,10 +2,10 @@ use quote::{quote, ToTokens};
 use syn::parse_quote;
 use crate::ast::Depunctuated;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer};
+use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, AttrComposable, AspectPresentable, FFIAspect, VarComposer, TypeAspect};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, Mangle};
+use crate::ext::{Accessory, FFIVarResolve};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
@@ -77,9 +77,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
             }
         };
         let attrs = self.compose_attributes();
-        let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
-        let objc_name = target_type.mangle_tokens_default();
         let c_name = ffi_type.to_token_stream();
 
         // let from_conversions_statements = ;
@@ -146,8 +144,9 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
             InterfaceImplementation::MacroCall(quote! { FFIGroupConversion(#c_name, #arg_var, #from_value, #to_values, #destroy_value); })
         ]);
         println!("OBJC GROUP => \n{}", format_interface_implementations(&interfaces));
+
         Some(GenericComposerInfo::<ObjCFermentate, SPEC>::default(
-            objc_name,
+            self.target_type_aspect(),
             &attrs,
             field_composers,
             interfaces

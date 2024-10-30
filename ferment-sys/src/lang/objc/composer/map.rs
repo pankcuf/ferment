@@ -1,9 +1,9 @@
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, TypeAspect};
+use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, TypeAspect, NameKind};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
@@ -11,8 +11,8 @@ use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::lang::objc::presentable::ArgPresentation;
-use crate::presentable::{Expression, ArgKind, SeqKind, ScopeContextPresentable};
+use crate::lang::objc::presentable::{ArgPresentation, TypeContext};
+use crate::presentable::{Expression, ArgKind, SeqKind, ScopeContextPresentable, Aspect};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, Name};
 
 
@@ -82,7 +82,9 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let count_name = Name::Dictionary(count.clone());
         let arg_0_name = Name::Dictionary(keys.clone());
         let arg_1_name = Name::Dictionary(values.clone());
-        let objc_name = quote!(NSDictionary);
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: format_ident!("Dictionary"), prefix: "NS".to_string(), attrs: vec![] });
+
+        let objc_name = aspect.present(source);
         // let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
@@ -160,7 +162,7 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
 
         let interfaces = Depunctuated::from_iter([
             InterfaceImplementation::ConversionsImplementation {
-                objc_name: objc_name.clone(),
+                objc_name: objc_name.to_token_stream(),
                 c_name: c_name.clone(),
                 from_conversions_statements: SemiPunctuated::from_iter([
                     ArgPresentation::Initializer {
@@ -186,14 +188,14 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
                     }
                 },
                 destroy_body: SeqKind::StructDropBody(
-                    ((self.ffi_type_aspect(), SPEC::Gen::default()), SemiPunctuated::from_iter([
+                    ((self.ffi_type_aspect(), SPEC::Attr::default(), SPEC::Gen::default(), NameKind::Named), SemiPunctuated::from_iter([
                         ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_0_presentation.destructor, attrs.clone()),
                         ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_1_presentation.destructor, attrs.clone())
                     ])))
                     .present(source),
             },
             InterfaceImplementation::BindingsImplementation {
-                objc_name: objc_name.clone(),
+                objc_name: objc_name.to_token_stream(),
                 c_name,
                 to_conversions:
                 CommaPunctuated::from_iter([
@@ -215,7 +217,7 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         ]);
         println!("OBJC MAP => \n{}", format_interface_implementations(&interfaces));
         Some(GenericComposerInfo::<ObjCFermentate, SPEC>::default(
-            objc_name,
+            aspect,
             &attrs,
             field_composers,
             interfaces

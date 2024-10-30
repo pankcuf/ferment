@@ -10,7 +10,7 @@ use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -111,7 +111,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
-            ty.mangle_tokens_default(),
+            Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), attrs: vec![] }),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([

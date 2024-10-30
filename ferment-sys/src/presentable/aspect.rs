@@ -1,17 +1,17 @@
 use syn::{Attribute, parse_quote, Type, TypeSlice};
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use proc_macro2::{Group, TokenTree};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::token::Comma;
 use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
-use crate::composer::PresentableArguments;
+use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, NameKindComposable, PresentableArguments, TypeAspect};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
-use crate::lang::RustSpecification;
-use crate::presentable::{TypeContext, ScopeContextPresentable};
+use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::presentable::{TypeContext, ScopeContextPresentable, Expression, NameTreeContext};
 use crate::presentation::{DictionaryName, RustFermentate};
 
 #[derive(Clone, Debug)]
@@ -21,12 +21,35 @@ pub enum Aspect<T> {
     RawTarget(T),
 }
 
+impl<T> Aspect<T> where T: NameTreeContext {
+    pub fn ffi<C, LANG, SPEC>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<LANG, SPEC>
+    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<LANG, SPEC> + NameKindComposable,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType, TYC=T>,
+          SPEC::Expr: ScopeContextPresentable,
+          Aspect<T>: ScopeContextPresentable {
+        ((Aspect::FFI(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
+    }
+    pub fn target<C, LANG, SPEC>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<LANG, SPEC>
+    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<LANG, SPEC> + NameKindComposable,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType, TYC=T>,
+          SPEC::Expr: ScopeContextPresentable,
+          Aspect<T>: ScopeContextPresentable {
+        ((Aspect::Target(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
+    }
+}
 
-// pub enum AspectAllocator<T> {
-//     Rust(Aspect<T>),
-//     C(Aspect<T>),
-//     ObjC(Aspect<T>),
+// impl<T, LANG, SPEC> Aspect<T>
+//     where T: NameTreeContext, LANG: LangFermentable, SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType, TYC=T>, SPEC::Expr: ScopeContextPresentable {
+//     pub fn composer<C>(self) -> AspectSharedComposerLink<C, LANG, SPEC>
+//         where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<LANG, SPEC> + NameKindComposable,
+//
+//               Aspect<SPEC::TYC>: ScopeContextPresentable {
+//         move |c| ((self, C::compose_attributes(c), C::compose_generics(c), C::compose_name_kind(c)), C::field_composers(c))
+//     }
 // }
+
 
 impl Aspect<TypeContext> {
     pub fn alloc_field_name(&self) -> TokenStream2 {

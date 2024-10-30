@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use crate::ast::{CommaPunctuated, DelimiterTrait, Depunctuated, SemiPunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, FFIObjectComposable, FieldsConversionComposable, GenericsComposable, InterfaceComposable, SourceAccessible, SourceComposable, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, FFIObjectComposable, FieldsConversionComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceComposable, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
@@ -14,7 +14,8 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
           SPEC: ObjCSpecification,
           Self: GenericsComposable<SPEC::Gen>
             + AttrComposable<SPEC::Attr>
-            + TypeAspect<SPEC::TYC> {
+            + TypeAspect<SPEC::TYC>
+            + NameKindComposable {
     fn compose_interfaces(&self) -> Depunctuated<SPEC::Interface> {
         let source = self.source_ref();
         let target_type = self.present_target_aspect();
@@ -87,7 +88,7 @@ impl<I, SPEC> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
 
 impl<I, SPEC> SourceFermentable<ObjCFermentate> for crate::composer::ItemComposer<I, ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification,
-          I: DelimiterTrait + ?Sized {
+          I: DelimiterTrait + ?Sized, Self: NameKindComposable {
     fn ferment(&self) -> ObjCFermentate {
         let implementations = self.compose_interfaces();
         println!("OBJC: ITEM FERMENT: \n{}", format_interface_implementations(&implementations));

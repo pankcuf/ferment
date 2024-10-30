@@ -6,7 +6,7 @@ use quote::{quote, ToTokens};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SequenceOutputComposerLink, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SequenceOutputComposerLink, BasicComposerLink, NameKindComposable, NameKind};
 use crate::composer::r#abstract::LinkedContextComposer;
 use crate::context::ScopeContextLink;
 use crate::ext::ToType;
@@ -28,6 +28,19 @@ pub struct EnumComposer<LANG, SPEC>
     pub variant_presenters: Vec<(VariantComposerRef<LANG, SPEC>, AspectCommaPunctuatedArguments<LANG, SPEC>)>,
 }
 
+impl<LANG, SPEC> NameKindComposable for EnumComposer<LANG, SPEC>
+where LANG: LangFermentable,
+      SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
+      SPEC::Expr: ScopeContextPresentable,
+      Name<LANG, SPEC>: ToTokens,
+      Aspect<SPEC::TYC>: ScopeContextPresentable,
+      SeqKind<LANG, SPEC>: ScopeContextPresentable,
+      ArgKind<LANG, SPEC>: ScopeContextPresentable {
+    fn compose_name_kind(&self) -> NameKind {
+        NameKind::Named
+    }
+}
+
 impl<LANG, SPEC> EnumComposer<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
@@ -36,7 +49,7 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
           Aspect<SPEC::TYC>: ScopeContextPresentable,
           SeqKind<LANG, SPEC>: ScopeContextPresentable,
           ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          Self: GenericsComposable<SPEC::Gen> + AspectPresentable<SPEC::TYC> {
+          Self: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + NameKindComposable {
     pub fn new(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
         let variant_composers = variants
@@ -68,7 +81,7 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
                         ),
                     },
                 };
-                let aspect_presentable_args = ((ffi_aspect, SPEC::Gen::default()), fields_context);
+                let aspect_presentable_args = ((ffi_aspect, SPEC::Attr::from_attrs(attrs.cfg_attributes()), SPEC::Gen::default(), NameKind::Named), fields_context);
                 let variant_composer_wrapper = ItemComposerWrapper::variant(fields, ty_context, attrs, context);
                 (variant_composer_wrapper, (variant_composer, aspect_presentable_args))
             }).unzip();
@@ -134,7 +147,7 @@ impl<LANG, SPEC> BindingComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC>> {
         let mut bindings = Depunctuated::new();
         bindings.extend(self.variant_composers.iter().filter_map(ItemComposerWrapper::compose_ctor));
-        bindings.push(BindingPresentableContext::<LANG, SPEC>::dtor((self.present_ffi_aspect(), self.compose_attributes(), self.compose_generics())));
+        bindings.push(BindingPresentableContext::<LANG, SPEC>::dtor(((self.ffi_type_aspect(), self.compose_attributes(), self.compose_generics(), NameKind::Named), Default::default())));
         bindings
     }
 }
@@ -160,6 +173,7 @@ impl<LANG, SPEC> VariantComposable<LANG, SPEC> for EnumComposer<LANG, SPEC>
 impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<RustFermentate, SPEC>
     where SPEC: RustSpecification,
           Self: SourceAccessible
+            + NameKindComposable
             + TypeAspect<TypeContext>
             + AttrComposable<SPEC::Attr>
             + GenericsComposable<SPEC::Gen> {
