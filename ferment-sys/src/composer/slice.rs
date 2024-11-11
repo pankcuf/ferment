@@ -4,32 +4,28 @@ use syn::{Attribute, parse_quote, Type, TypeSlice};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{ExpressionComposer, GenericArgPresentation, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct SliceComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static,
-          <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> SliceComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -44,8 +40,8 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
         let Self { ty, .. } = self;
         let ffi_name = ty.mangle_tokens_default();
         let type_slice: TypeSlice = parse_quote!(#ty);
-        let arg_0_name = Name::Dictionary(DictionaryName::Values);
-        let count_name = Name::Dictionary(DictionaryName::Count);
+        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Values);
+        let count_name = SPEC::Name::dictionary_name(DictionaryName::Count);
         let self_props = CommaPunctuated::from_iter([
             DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
             DictionaryExpr::SelfProp(count_name.to_token_stream())]);
@@ -93,7 +89,7 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from(&attrs, &types, FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()), &None),
             InterfacePresentation::conversion_to(&attrs, &types, FFIVecConversionMethodExpr::Encode(DictionaryName::Obj.to_token_stream()), &None),
-            InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
+            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::vec(&attrs, &types, <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.from_conversion, source).to_token_stream(), <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source).to_token_stream()),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 

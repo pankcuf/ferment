@@ -9,31 +9,22 @@ use crate::context::ScopeContext;
 use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind, GroupModelKind};
 use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
-// pub trait FFIVariableCreate<T> where T: ToTokens {
-//     fn direct(ty: T) -> Self;
-//     fn const_ptr(ty: T) -> Self;
-//     fn mut_ptr(ty: T) -> Self;
-// }
-
 #[derive(Clone, Display, Debug)]
-pub enum FFIVariable<T, LANG, SPEC>
+pub enum FFIVariable<LANG, SPEC, T>
     where T: ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Direct { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     ConstPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     MutPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
 }
 
-impl<T, LANG, SPEC> FFIVariable<T, LANG, SPEC>
+impl<LANG, SPEC, T> FFIVariable<LANG, SPEC, T>
     where T: ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub(crate) fn direct(ty: T) -> Self {
         Self::Direct { ty, _marker: PhantomData }
     }
@@ -45,14 +36,14 @@ impl<T, LANG, SPEC> FFIVariable<T, LANG, SPEC>
     }
 }
 
-impl<SPEC> ToTokens for FFIVariable<Type, RustFermentate, SPEC>
+impl<SPEC> ToTokens for FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.to_type().to_tokens(tokens)
     }
 }
 
-impl<SPEC> ToType for FFIVariable<Type, RustFermentate, SPEC>
+impl<SPEC> ToType for FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     fn to_type(&self) -> Type {
         match self {
@@ -63,11 +54,12 @@ impl<SPEC> ToType for FFIVariable<Type, RustFermentate, SPEC>
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Path
+    where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -84,7 +76,7 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC:
                 Some(TypeKind::Generic(generic_ty)) =>
                     FFIVariable::mut_ptr(<GenericTypeKind as Resolve<FFIFullPath<RustFermentate, SPEC>>>::resolve(generic_ty, source).to_type()),
                 Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    <Path as Resolve<FFIVariable<Type, RustFermentate, SPEC>>>::resolve(path, source),
+                    <Path as Resolve<FFIVariable<RustFermentate, SPEC, Type>>>::resolve(path, source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
         } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
@@ -95,7 +87,7 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC:
     }
 }
 
-pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC>
+pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
@@ -135,12 +127,12 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for AddPunctuated<TypeParamBound>
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for AddPunctuated<TypeParamBound>
     where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
@@ -150,11 +142,11 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for AddPunctuated<Ty
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Type where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Type where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("Type::<FFIVariable>::resolve.1({})", self.to_token_stream());
         let full_ty = <Type as Resolve<Type>>::resolve(self, source);
         // println!("Type::<FFIVariable>::resolve.2({})", full_ty.to_token_stream());
@@ -166,12 +158,12 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Type where SPEC:
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
     where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
@@ -303,11 +295,11 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for GenericBoundsModel where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for GenericBoundsModel where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         let ffi_name = self.mangle_ident_default();
         if self.is_lambda() {
             FFIVariable::direct(parse_quote!(crate::fermented::generics::#ffi_name))

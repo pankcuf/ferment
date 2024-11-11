@@ -4,9 +4,8 @@ use quote::ToTokens;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{BasicComposerLink, ComposerLinkRef, CommaArgComposers, FieldsOwnedSequenceComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
 
 /// Composer common interfaces
@@ -14,9 +13,8 @@ use crate::presentation::{DocPresentation, FFIObjectPresentation};
 /// SPEC: Language specification providing presenters for particular language
 pub trait BasicComposerOwner<LANG, SPEC>: Sized + 'static
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn base(&self) -> &BasicComposerLink<Self, LANG, SPEC>;
+          SPEC: Specification<LANG> {
+    fn base(&self) -> &BasicComposerLink<LANG, SPEC, Self>;
 }
 /// Provides access to stack information in scope
 pub trait SourceAccessible {
@@ -29,8 +27,7 @@ pub trait SourceFermentable<LANG> {
 }
 /// Provides different aspects for types
 pub trait TypeAspect<TYC>
-    where TYC: NameTreeContext,
-          Aspect<TYC>: ScopeContextPresentable {
+    where TYC: NameTreeContext {
     fn type_context(&self) -> TYC { self.type_context_ref().clone() }
     fn type_context_ref(&self) -> &TYC;
 
@@ -40,8 +37,7 @@ pub trait TypeAspect<TYC>
 }
 
 /// Presents types using different aspects
-pub trait AspectPresentable<TYC>
-    : TypeAspect<TYC>
+pub trait AspectPresentable<TYC>: TypeAspect<TYC>
     where TYC: NameTreeContext,
           Aspect<TYC>: ScopeContextPresentable {
     fn present_ffi_aspect(&self) -> <Aspect<TYC> as ScopeContextPresentable>::Presentation;
@@ -56,24 +52,10 @@ pub trait AspectPresentable<TYC>
     }
 }
 
-// pub trait ContextPresentable<LANG, SPEC>:
-//     AttrComposable<SPEC::Attr>
-//     + GenericsComposable<SPEC::Gen>
-//     + TypeAspect<SPEC::TYC>
-//     + NameKindComposable
-//     + FieldsContext<LANG, SPEC>
-// where Self: Sized,
-//       LANG: LangFermentable,
-//       SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
-//       Aspect<SPEC::TYC>: ScopeContextPresentable {
-//     fn by_ref(by_ref: &Ref<Self>) -> ConstructorFieldsContext<LANG, SPEC>;
-// }
-
 /// Access to set of field or arg sequence composers
 pub trait FieldsContext<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn field_composers_ref(&self) -> &CommaArgComposers<LANG, SPEC>;
     #[allow(unused)]
     fn field_composers(&self) -> CommaArgComposers<LANG, SPEC> {
@@ -88,12 +70,10 @@ pub trait FieldsContext<LANG, SPEC>
 
 pub trait FieldsConversionComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable<Presentation: Clone> {
-    fn fields_from(&self) -> &FieldsOwnedSequenceComposerLink<Self, LANG, SPEC>
+          SPEC: Specification<LANG> {
+    fn fields_from(&self) -> &FieldsOwnedSequenceComposerLink<LANG, SPEC, Self>
         where Self: Sized + 'static;
-    fn fields_to(&self) -> &FieldsOwnedSequenceComposerLink<Self, LANG, SPEC>
+    fn fields_to(&self) -> &FieldsOwnedSequenceComposerLink<LANG, SPEC, Self>
         where Self: Sized + 'static;
 }
 pub trait DocsComposable {
@@ -117,9 +97,7 @@ pub trait GenericsComposable<T> {
 }
 pub trait VariantComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_variants(&self) -> CommaPunctuated<SeqKind<LANG, SPEC>>;
 }
 pub trait InterfaceComposable<T> where T: ToTokens {
@@ -130,10 +108,7 @@ pub trait FFIObjectComposable {
 }
 pub trait BindingComposable<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC>>;
 }
 

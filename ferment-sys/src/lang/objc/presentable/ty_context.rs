@@ -1,10 +1,10 @@
 use std::fmt::{Display, Formatter};
-use proc_macro2::Ident;
-use quote::ToTokens;
+use proc_macro2::{Ident, TokenStream};
+use quote::{quote, ToTokens};
 use syn::{Attribute, ItemFn, ItemTrait, Path, TypeBareFn};
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::conversion::MixinKind;
-use crate::ext::ToPath;
+use crate::ext::{AsType, ToPath};
 use crate::presentable::NameTreeContext;
 
 #[derive(Clone, Debug)]
@@ -117,6 +117,25 @@ impl Display for TypeContext {
         }.as_str())
     }
 }
+impl ToTokens for TypeContext {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            TypeContext::Enum { ident, .. } |
+            TypeContext::Struct { ident, .. } =>
+                ident.to_tokens(tokens),
+            TypeContext::EnumVariant { ident, variant_ident, .. } =>
+                quote!(#ident::#variant_ident).to_tokens(tokens),
+            TypeContext::Fn { path, .. } |
+            TypeContext::Trait { path, .. } |
+            TypeContext::Impl { path, .. } =>
+                path.to_tokens(tokens),
+            TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
+                kind.to_tokens(tokens),
+            TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
+                model.as_type().to_tokens(tokens),
+        }    }
+}
+
 impl NameTreeContext for TypeContext {
     fn join_fn(&self, path: Path, sig_context: FnSignatureContext, attrs: Vec<Attribute>) -> Self {
         match self {

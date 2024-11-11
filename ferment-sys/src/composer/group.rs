@@ -5,36 +5,31 @@ use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, RustFermentate};
 
 
 
 #[derive(ComposerBase)]
 pub struct GroupComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static,
-          SPEC::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
     pub group_conversion_ty: Type,
     pub nested_type_kind: TypeKind,
     pub from_conversion_presentation: TokenStream2,
     pub to_conversion_presentation: TokenStream2,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> GroupComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new<F: ToTokens, T: ToTokens>(
         ty: &Type,
         ty_context: SPEC::TYC,
@@ -47,7 +42,7 @@ impl<LANG, SPEC> GroupComposer<LANG, SPEC>
     ) -> Self {
         Self {
             ty: ty.clone(),
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
             group_conversion_ty,
             nested_type_kind,
             from_conversion_presentation: from_conversion_presentation.to_token_stream(),
@@ -88,8 +83,8 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let arg_0_name = Name::Dictionary(DictionaryName::Values);
-        let count_name = Name::Dictionary(DictionaryName::Count);
+        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Values);
+        let count_name = SPEC::Name::dictionary_name(DictionaryName::Count);
         let from_args = CommaPunctuated::from_iter([
             DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
             DictionaryExpr::SelfProp(count_name.to_token_stream())
@@ -177,7 +172,7 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from(&attrs, &types, self.from_conversion_presentation.clone(), &None),
                 InterfacePresentation::conversion_to(&attrs, &types, self.to_conversion_presentation.clone(), &None),
-                InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
+                // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::vec(&attrs, &(ffi_type.clone(), self.group_conversion_ty.clone()), <SPEC::Expr as ScopeContextPresentable>::present(&arg_presentation.from_conversion, source).to_token_stream(), <SPEC::Expr as ScopeContextPresentable>::present(&arg_presentation.to_conversion, source).to_token_stream()),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])

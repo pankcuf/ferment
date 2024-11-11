@@ -3,13 +3,11 @@ use quote::ToTokens;
 use syn::{parse_quote, Path, Type};
 use crate::ext::{SpecialType, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, RustFermentate};
 
 pub enum FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Type {
         crate_ident: Ident,
         ffi_name: Path,
@@ -27,8 +25,7 @@ pub enum FFIFullPath<LANG, SPEC>
 
 impl<LANG, SPEC> FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn external(path: Path) -> Self {
         Self::External { path }
     }
@@ -36,8 +33,7 @@ impl<LANG, SPEC> FFIFullPath<LANG, SPEC>
 
 impl<LANG, SPEC> From<SpecialType<LANG, SPEC>> for FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn from(value: SpecialType<LANG, SPEC>) -> Self {
         FFIFullPath::<LANG, SPEC>::external(value.to_path())
     }
@@ -46,7 +42,7 @@ impl<LANG, SPEC> From<SpecialType<LANG, SPEC>> for FFIFullPath<LANG, SPEC>
 impl<LANG, SPEC> ToTokens for FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable, Self: ToType {
+          Self: ToType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.to_type().to_tokens(tokens)
     }

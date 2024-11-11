@@ -3,7 +3,7 @@ use syn::{Attribute, parse_quote, Type, TypeSlice};
 use syn::__private::TokenStream2;
 use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
-use crate::composer::PresentableArguments;
+use crate::composer::PunctuatedArgKinds;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
@@ -28,7 +28,7 @@ impl Aspect<TypeContext> {
             Aspect::RawTarget(context) => context.attrs(),
         }
     }
-    pub fn allocate<I, SEP, SPEC>(&self, fields: Wrapped<PresentableArguments<SEP, ObjCFermentate, SPEC>, SEP, I>, source: &ScopeContext) -> TokenStream2
+    pub fn allocate<I, SEP, SPEC>(&self, fields: Wrapped<PunctuatedArgKinds<ObjCFermentate, SPEC, SEP>, SEP, I>, source: &ScopeContext) -> TokenStream2
         where I: DelimiterTrait,
               SEP: ToTokens,
               SPEC: ObjCSpecification {

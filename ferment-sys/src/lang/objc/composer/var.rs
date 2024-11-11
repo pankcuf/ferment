@@ -13,7 +13,7 @@ use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     type Source = ScopeContext;
-    type Output = FFIVariable<TokenStream2, ObjCFermentate, SPEC>;
+    type Output = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
@@ -151,7 +151,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                             // Dictionary generics should be fermented
                             // Others should be treated as opaque
                             // println!("VarComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
-                            let result: FFIVariable<TokenStream2, ObjCFermentate, SPEC> = conversion.resolve(source);
+                            let result: FFIVariable<ObjCFermentate, SPEC, TokenStream2> = conversion.resolve(source);
                             // println!("VarComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                             result
                         },
@@ -235,11 +235,11 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
 
     }
 }
-impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Path where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for Path where SPEC: ObjCSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
         // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -252,7 +252,7 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Path whe
                 Some(TypeKind::Primitive(ty)) => FFIVariable::mut_ptr(ty.to_token_stream()),
                 Some(TypeKind::Generic(generic_ty)) => FFIVariable::mut_ptr(<GenericTypeKind as Resolve<FFIFullPath<ObjCFermentate, SPEC>>>::resolve(generic_ty, source).to_token_stream()),
                 Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    <Path as Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>>>::resolve(path, source),
+                    <Path as Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>>::resolve(path, source),
                 // path.resolve(source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
@@ -266,7 +266,7 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Path whe
 impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     type Source = ScopeContext;
-    type Output = FFIVariable<TokenStream2, ObjCFermentate, SPEC>;
+    type Output = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let is_const_ptr = match self.ty {
@@ -525,7 +525,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
-                                let result = <TypeModelKind as Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>>>::resolve(&conversion, source);
+                                let result = <TypeModelKind as Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>>::resolve(&conversion, source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                                 result
                             },
@@ -624,7 +624,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
     }
 }
 
-pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC>
+pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2>
     where SPEC: ObjCSpecification {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {

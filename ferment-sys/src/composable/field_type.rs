@@ -1,45 +1,28 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::marker::PhantomData;
-use syn::{Attribute, Type};
+use syn::{Attribute, Field, Type};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use ferment_macro::Display;
 use crate::composable::CfgAttributes;
-use crate::composer::{ComposerByRef, FieldTypeLocalContext, SourceFermentable};
+use crate::composer::{FieldPathResolver, SourceFermentable};
 use crate::context::ScopeContext;
 use crate::ext::{ConversionType, ToType};
-use crate::lang::{LangAttrSpecification, LangFermentable, PresentableSpecification, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ArgKind, SeqKind, ScopeContextPresentable};
+use crate::lang::{FromDictionary, LangAttrSpecification, LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name, RustFermentate};
 
 #[derive(Clone, Debug, Display)]
 pub enum FieldTypeKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Type(Type),
     Conversion(TokenStream2),
     Var(SPEC::Var)
 }
-
-// impl<LANG, SPEC> ToType for FieldTypeKind<LANG, SPEC>
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG>,
-//           Aspect<SPEC::TYC>: ScopeContextPresentable {
-//     fn to_type(&self) -> Type {
-//         match self {
-//             FieldTypeKind::Type(ty) => ty.clone(),
-//             FieldTypeKind::Var(var) => {
-//                 var.to_type()
-//             },
-//             _ => panic!("improper use of conversion as type")
-//         }
-//     }
-// }
 impl<LANG, SPEC> ToTokens for FieldTypeKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             FieldTypeKind::Type(ty) => ty.to_tokens(tokens),
@@ -50,31 +33,21 @@ impl<LANG, SPEC> ToTokens for FieldTypeKind<LANG, SPEC>
 }
 impl<LANG, SPEC> ToType for FieldTypeKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn to_type(&self) -> Type {
         match self {
             FieldTypeKind::Type(ty) => ty.clone(),
             FieldTypeKind::Var(var) => var.to_type(),
-            // FieldTypeKind::Var(var) =>{
-            //     let ty = var.to_type();
-            //     &ty
-            // },// var.to_type()
             _ => panic!("improper use of conversion as type")
         }
     }
 }
 impl<LANG, SPEC> FieldTypeKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn ty(&self) -> &Type {
         match self {
             FieldTypeKind::Type(ty) => ty,
-            // FieldTypeKind::Var(var) =>{
-            //     let ty = var.to_type();
-            //     &ty
-            // },// var.to_type()
             _ => panic!("improper use of conversion as type")
         }
     }
@@ -86,8 +59,7 @@ impl<LANG, SPEC> FieldTypeKind<LANG, SPEC>
 #[derive(Clone, Debug)]
 pub struct FieldComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub attrs: SPEC::Attr,
     pub name: SPEC::Name,
     pub kind: FieldTypeKind<LANG, SPEC>,
@@ -97,19 +69,17 @@ pub struct FieldComposer<LANG, SPEC>
 
 impl<LANG, SPEC> Display for FieldComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: std::fmt::Display, Name: ToTokens, Var: ToType> + Display,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Attr: Display> + Display {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("FieldComposer({}({}), {}({}), {}, {}",
-                            self.name, self.name.to_token_stream(),
-                            self.kind, self.kind.to_token_stream(),
-                            self.named, self.attrs).as_str())
+        let Self { name, kind, named, attrs, .. } = self;
+        f.write_str(format!("FieldComposer({name}({}), {kind}({}), {named}, {attrs}", name.to_token_stream(), kind.to_token_stream()).as_str())
     }
 }
 
-impl<SPEC> FieldComposer<RustFermentate, SPEC> where SPEC: RustSpecification {
+impl<SPEC> FieldComposer<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     pub fn self_typed(ty: Type, attrs: &Vec<Attribute>) -> Self {
-        Self::new(Name::Dictionary(DictionaryName::Self_), FieldTypeKind::Type(ty), true, attrs.cfg_attributes())
+        Self::new(Name::dictionary_name(DictionaryName::Self_), FieldTypeKind::Type(ty), true, attrs.cfg_attributes())
     }
 
 
@@ -117,9 +87,7 @@ impl<SPEC> FieldComposer<RustFermentate, SPEC> where SPEC: RustSpecification {
 
 impl<LANG, SPEC> FieldComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          SPEC::Name: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn typed(name: SPEC::Name, ty: &Type, named: bool, attrs: &Vec<Attribute>) -> Self {
         Self { name, kind: FieldTypeKind::r#type(ty), named, attrs: SPEC::Attr::from_attrs(attrs.cfg_attributes()), _marker: PhantomData }
     }
@@ -149,40 +117,53 @@ impl<LANG, SPEC> FieldComposer<LANG, SPEC>
 }
 impl<LANG, SPEC> FieldComposer<LANG, SPEC>
 where LANG: LangFermentable,
-      SPEC: Specification<LANG, Var: ToType, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
-      SPEC::Name: ToTokens,
-      SPEC::Expr: ScopeContextPresentable,
-      Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub const VARIANT_FROM: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+      SPEC::Expr: ScopeContextPresentable {
+    pub const VARIANT_FROM: FieldPathResolver<LANG, SPEC> =
         |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::deref_tokens(&c.name))));
-    pub const VARIANT_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+    pub const VARIANT_TO: FieldPathResolver<LANG, SPEC> =
         |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::name(&c.name))));
-    pub const VARIANT_DROP: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+    pub const VARIANT_DROP: FieldPathResolver<LANG, SPEC> =
         |c| (c.name.clone(), ConversionType::expr_destroy(c, Some(Expression::deref_tokens(&c.name))));
-    pub const STRUCT_FROM: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+    pub const STRUCT_FROM: FieldPathResolver<LANG, SPEC> =
         |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::ffi_ref_with_name(&c.name))));
-    pub const STRUCT_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
+    pub const STRUCT_TO: FieldPathResolver<LANG, SPEC> =
         |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::obj_name(&c.name))));
-    pub const STRUCT_DROP: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
-        |c| (Name::Empty, ConversionType::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
-    pub const TYPE_TO: ComposerByRef<Self, FieldTypeLocalContext<LANG, SPEC>> =
-        |c| (Name::Empty, ConversionType::expr_to(c, Some(Expression::name(&Name::Dictionary(DictionaryName::Obj)))));
+    pub const STRUCT_DROP: FieldPathResolver<LANG, SPEC> =
+        |c| (SPEC::Name::default(), ConversionType::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
+    pub const TYPE_TO: FieldPathResolver<LANG, SPEC> =
+        |c| (SPEC::Name::default(), ConversionType::expr_to(c, Some(Expression::name(&SPEC::Name::dictionary_name(DictionaryName::Obj)))));
+}
 
+impl<LANG, SPEC> FieldComposer<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Name<LANG, SPEC>> {
+    pub fn unnamed_variant_producer(field: &Field, index: usize) -> Self {
+        let Field { ty, attrs, .. } = field;
+        Self::typed(Name::UnnamedArg(index), ty, false, attrs)
+    }
+    pub fn unnamed_struct_producer(field: &Field, index: usize) -> Self {
+        let Field { ty, attrs, .. } = field;
+        Self::typed(Name::UnnamedStructFieldsComp(ty.clone(), index), ty, false, attrs)
+    }
+    pub fn unit_variant_producer(field: &Field, _index: usize) -> Self {
+        // Actually just a stab
+        let Field { ty, attrs, .. } = field;
+        Self::typed(Name::Empty, ty, false, attrs)
+    }
+    pub fn named_producer(field: &Field, _index: usize) -> Self {
+        let Field { ident, ty, attrs, .. } = field;
+        Self::typed(Name::Optional(ident.clone()), ty, true, attrs)
+    }
 }
 
 
 impl<LANG, SPEC> ToTokens for FieldComposer<LANG, SPEC>
     where LANG: LangFermentable + ToTokens,
-          SPEC: PresentableSpecification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Expression<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
+          SPEC: Specification<LANG>,
           Self: SourceFermentable<LANG> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         self.ferment().to_tokens(tokens);
-        // let Self { name, kind, attrs, .. } = self;
-        // quote!(#(#attrs)* #name: #kind).to_tokens(tokens)
     }
 }
 
@@ -197,8 +178,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for FieldComposer<RustFermentate, S
 impl<LANG, SPEC> ScopeContextPresentable for FieldComposer<LANG, SPEC>
     where Self: ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     type Presentation = TokenStream2;
 
     fn present(&self, _source: &ScopeContext) -> Self::Presentation {

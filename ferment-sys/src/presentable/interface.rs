@@ -1,65 +1,47 @@
 use std::fmt::Debug;
-use quote::ToTokens;
 use syn::token::{Comma, Semi};
 use ferment_macro::Display;
-use crate::composer::{arg_conversion_expressions_iterator, AspectPresentableArguments, AspectSharedComposerLink, AttrComposable, ComposerLink, AspectArgComposers, DropSequenceMixer, FFIConversionsMixer, FFIInterfaceMethodSpec, FieldTypeLocalContext, FieldsContext, FieldsSequenceMixer, GenericsComposable, Linkable, LinkedContextComposer, NameKindComposable, RootSequenceComposer, SequenceSharedComposerLink, SourceComposable, SourceContextComposerByRef, TypeAspect};
-use crate::ext::ToType;
+use crate::composer::{AspectSharedComposerLink, AttrComposable, ComposerLink, DropSequenceMixer, FFIConversionsMixer, FFIInterfaceMethodSpec, FieldsContext, GenericsComposable, InterfaceSequenceMixer, Linkable, NameKindComposable, RootSequenceComposer, SequenceSharedComposerLink, SourceComposable, TypeAspect};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{ArgKind, Aspect, Expression, ScopeContextPresentable, SeqKind};
+use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind};
 use crate::shared::SharedAccess;
 
-pub const fn seq_iterator_root<C, LANG, SPEC, SEP>()
-    -> SourceContextComposerByRef<AspectArgComposers<LANG, SPEC>, FieldTypeLocalContext<LANG, SPEC>, Expression<LANG, SPEC>, AspectPresentableArguments<SEP, LANG, SPEC>>
-where C: FFIInterfaceMethodSpec<LANG, SPEC, SEP>,
-      LANG: LangFermentable,
-      SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-      SPEC::Expr: ScopeContextPresentable,
-      Aspect<SPEC::TYC>: ScopeContextPresentable,
-      SeqKind<LANG, SPEC>: ScopeContextPresentable,
-      ArgKind<LANG, SPEC>: ScopeContextPresentable,
-      SEP: ToTokens + Default {
-    |(aspect, field_composers), expr_composer|
-        (aspect.clone(), arg_conversion_expressions_iterator((field_composers, expr_composer), C::RESOLVER))
-}
 #[derive(Display)]
-pub enum InterfaceKind<Link, LANG, SPEC>
+pub enum InterfaceKind<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
-    From(FFIConversionsMixer<Link, LANG, SPEC>),
-    To(FFIConversionsMixer<Link, LANG, SPEC>),
-    Destroy(LinkedContextComposer<Link, SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>>),
-    Drop(DropSequenceMixer<Link, LANG, SPEC>),
+          SPEC: Specification<LANG> {
+    Ctor(FFIConversionsMixer<LANG, SPEC, Link>),
+    From(FFIConversionsMixer<LANG, SPEC, Link>),
+    To(FFIConversionsMixer<LANG, SPEC, Link>),
+    Drop(DropSequenceMixer<LANG, SPEC, Link>),
 }
 
-impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
+impl<LANG, SPEC, C> InterfaceKind<LANG, SPEC, ComposerLink<C>>
     where C: FFIInterfaceMethodSpec<LANG, SPEC, Comma> + 'static,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
-    pub fn from(
+          SPEC: Specification<LANG> {
+    pub fn ctor(
         root: RootSequenceComposer<LANG, SPEC>,
-        context: SequenceSharedComposerLink<C, LANG, SPEC>,
-        aspect: AspectSharedComposerLink<C, LANG, SPEC>
+        context: SequenceSharedComposerLink<LANG, SPEC, C>,
+        aspect: AspectSharedComposerLink<LANG, SPEC, C>
     ) -> Self {
-        Self::From(FieldsSequenceMixer::new(
-            root,
-            context,
-            C::SEQ,
-            aspect,
-            C::EXPR,
-            seq_iterator_root::<C, LANG, SPEC, Comma>()
-        ))
+        Self::Ctor(InterfaceSequenceMixer::with_aspect(root, context, aspect))
     }
 }
-impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
+impl<LANG, SPEC, C> InterfaceKind<LANG, SPEC, ComposerLink<C>>
+    where C: FFIInterfaceMethodSpec<LANG, SPEC, Comma> + 'static,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    pub fn from(
+        root: RootSequenceComposer<LANG, SPEC>,
+        context: SequenceSharedComposerLink<LANG, SPEC, C>,
+        aspect: AspectSharedComposerLink<LANG, SPEC, C>
+    ) -> Self {
+        Self::From(InterfaceSequenceMixer::with_aspect(root, context, aspect))
+    }
+}
+impl<LANG, SPEC, C> InterfaceKind<LANG, SPEC, ComposerLink<C>>
     where C: FFIInterfaceMethodSpec<LANG, SPEC, Comma>
             + FieldsContext<LANG, SPEC>
             + TypeAspect<SPEC::TYC>
@@ -68,45 +50,15 @@ impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
             + NameKindComposable
             + 'static,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn to(
         root: RootSequenceComposer<LANG, SPEC>,
-        context: SequenceSharedComposerLink<C, LANG, SPEC>
+        context: SequenceSharedComposerLink<LANG, SPEC, C>
     ) -> Self {
-        Self::To(FieldsSequenceMixer::new(
-            root,
-            context,
-            C::SEQ,
-            Aspect::ffi,
-            C::EXPR,
-            seq_iterator_root::<C, LANG, SPEC, Comma>()
-        ))
+        Self::To(InterfaceSequenceMixer::with_aspect(root, context, Aspect::ffi))
     }
 }
-impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
-    where C: FFIInterfaceMethodSpec<LANG, SPEC, Comma>
-            + FieldsContext<LANG, SPEC>
-            + TypeAspect<SPEC::TYC>
-            + GenericsComposable<SPEC::Gen>
-            + 'static,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
-    pub fn destroy(context: SequenceSharedComposerLink<C, LANG, SPEC>) -> Self {
-        Self::Destroy(LinkedContextComposer::new(
-            SeqKind::unboxed_root,
-            context,
-        ))
-    }
-}
-impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
+impl<LANG, SPEC, C> InterfaceKind<LANG, SPEC, ComposerLink<C>>
     where C: FFIInterfaceMethodSpec<LANG, SPEC, Semi>
             + FieldsContext<LANG, SPEC>
             + TypeAspect<SPEC::TYC>
@@ -115,60 +67,41 @@ impl<C, LANG, SPEC> InterfaceKind<ComposerLink<C>, LANG, SPEC>
             + NameKindComposable
             + 'static,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn drop(
         root: RootSequenceComposer<LANG, SPEC>,
-        context: SequenceSharedComposerLink<C, LANG, SPEC>
+        context: SequenceSharedComposerLink<LANG, SPEC, C>
     ) -> Self {
-        Self::Drop(FieldsSequenceMixer::new(
-            root,
-            context,
-            C::SEQ,
-            Aspect::ffi,
-            C::EXPR,
-            seq_iterator_root::<C, LANG, SPEC, Semi>()
-        ))
+        Self::Drop(InterfaceSequenceMixer::with_aspect(root, context, Aspect::ffi))
     }
 }
 
-impl<Link, LANG, SPEC> Linkable<Link> for InterfaceKind<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> Linkable<Link> for InterfaceKind<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn link(&mut self, parent: &Link) {
         match self {
+            InterfaceKind::Ctor(c) => c.link(parent),
             InterfaceKind::From(c) |
             InterfaceKind::To(c) => c.link(parent),
-            InterfaceKind::Destroy(c) => c.link(parent),
             InterfaceKind::Drop(c) => c.link(parent),
         }
     }
 }
 
-impl<Link, LANG, SPEC> SourceComposable for InterfaceKind<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> SourceComposable for InterfaceKind<LANG, SPEC, Link>
     where Link: SharedAccess,
       LANG: LangFermentable,
-      SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-      SPEC::Expr: ScopeContextPresentable,
-      Aspect<SPEC::TYC>: ScopeContextPresentable,
-      ArgKind<LANG, SPEC>: ScopeContextPresentable,
-      SeqKind<LANG, SPEC>: ScopeContextPresentable {
+      SPEC: Specification<LANG> {
     type Source = ();
     type Output = SeqKind<LANG, SPEC>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         match self {
+            InterfaceKind::Ctor(c) => c.compose(source),
             InterfaceKind::From(c) |
             InterfaceKind::To(c) => c.compose(source),
-            InterfaceKind::Destroy(c) => c.compose(source),
             InterfaceKind::Drop(c) => c.compose(source),
         }
     }

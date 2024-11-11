@@ -1,42 +1,35 @@
-use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::{Path, ReturnType};
 use syn::__private::TokenStream2;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedPresentableArguments, AspectArgComposers, AspectMethod, NameKind};
+use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind};
 use crate::presentation::{BindingPresentation, Name, RustFermentate};
 
 pub enum BindingPresentableContext<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
-    Constructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
-    VariantConstructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>),
+          SPEC: Specification<LANG> {
+    Constructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
+    VariantConstructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
     Destructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind),
     Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
     Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
-    RegFn(Path, bool, CommaPunctuatedPresentableArguments<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
+    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
 }
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
-    pub fn ctor(context: AspectMethod<LANG, SPEC>) -> Self {
+          SPEC: Specification<LANG> {
+    pub fn ctor<Iter: IntoIterator<Item=ArgKindPair<LANG, SPEC>>>(context: OwnerAspectSequence<LANG, SPEC, Iter>) -> Self {
         let ((ffi_type, attrs, generics, name_kind, .. ), field_pairs) = context;
-        let (args, names): (CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::Constructor(ffi_type, attrs, generics, name_kind, args, names)
     }
-    pub fn variant_ctor(context: AspectMethod<LANG, SPEC>) -> Self {
+    pub fn variant_ctor<Iter: IntoIterator<Item=ArgKindPair<LANG, SPEC>>>(context: OwnerAspectSequence<LANG, SPEC, Iter>) -> Self {
         let ((aspect, attrs, generics, name_kind, .. ), field_pairs) = context;
-        let (args, names): (CommaPunctuatedPresentableArguments<LANG, SPEC>, CommaPunctuatedPresentableArguments<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::VariantConstructor(aspect, attrs, generics, name_kind, args, names)
     }
     pub fn dtor(context: AspectArgComposers<LANG, SPEC>) -> Self {

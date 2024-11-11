@@ -11,6 +11,7 @@ mod argument;
 mod sequence;
 mod aspect;
 mod ty_context;
+#[allow(unused)]
 mod interface;
 
 pub use aspect::*;
@@ -56,7 +57,7 @@ impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
 
 
 
-pub trait NameTreeContext: Clone + Debug {
+pub trait NameTreeContext: Clone + Debug + ToTokens {
     // fn maybe_parent(&self) -> Option<&Box<Self>>;
     fn join_fn(&self, path: Path, sig_context: FnSignatureContext, attrs: Vec<Attribute>) -> Self;
     fn join_variant(&self, ident: Ident, variant_ident: Ident, attrs: Vec<Attribute>) -> Self;

@@ -233,7 +233,7 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
         impl #impl_generics crate::composer::BasicComposerOwner<LANG, SPEC> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposerLink<Self, LANG, SPEC> {
+            fn base(&self) -> &crate::composer::BasicComposerLink<LANG, SPEC, Self> {
                 &self.base
             }
         }

@@ -46,7 +46,7 @@ use crate::composer::r#abstract::{SequenceComposer, SequenceMixer};
 use crate::composer::vtable::VTableComposer;
 use crate::ext::ConversionType;
 use crate::lang::Specification;
-use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, SeqKind};
 use crate::presentation::ArgPresentation;
 use crate::shared::SharedAccess;
 
@@ -63,7 +63,6 @@ pub use self::enum_variant::*;
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
 pub use self::from_conversion::*;
-// pub use self::ffi_full_path::*;
 pub use self::generic::*;
 pub use self::generics_composer::*;
 pub use self::group::*;
@@ -91,63 +90,57 @@ pub type Composer<T, U> = fn(context: T) -> U;
 pub type ComposerByRef<T, U> = fn(context: &T) -> U;
 pub type SourceComposerByRef<S, T, U> = fn(source: &S, context: T) -> U;
 pub type SourceContextComposerByRef<S, C, M, U> = fn(source: &S, composer: ComposerByRef<C, M>) -> U;
-// set_output: SourceComposerByRef<In, ComposerByRef<Ctx, Map>, Out>,
-
 pub type SharedComposer<Link, U> = ComposerByRef<<Link as SharedAccess>::ImmutableAccess, U>;
+pub type FieldComposerProducer<LANG, SPEC> = SourceComposerByRef<Field, usize, FieldComposer<LANG, SPEC>>;
+pub type AspectArgSourceComposer<LANG, SPEC, Iter> = SourceComposerByRef<AspectArgComposers<LANG, SPEC>, ArgProducerByRef<LANG, SPEC, <Iter as IntoIterator>::Item>, OwnerAspectSequence<LANG, SPEC, Iter>>;
+pub type SharedAspectArgComposer<LANG, SPEC, Link> = SharedComposer<Link, AspectArgComposers<LANG, SPEC>>;
 pub type SharedComposerLink<C, U> = SharedComposer<ComposerLink<C>, U>;
-// pub type ComposerLinkDelegateByRef<'a, C, T> = ComposerByRef<ComposerLinkRef<'a, C>, T>;
-pub type ItemComposerLink<I, LANG, SPEC> = ComposerLink<ItemComposer<I, LANG, SPEC>>;
-pub type EnumVariantComposerLink<I, LANG, SPEC> = ComposerLink<EnumVariantComposer<I, LANG, SPEC>>;
-pub type StructComposerLink<I, LANG, SPEC> = ComposerLink<StructComposer<I, LANG, SPEC>>;
-pub type OpaqueStructComposerLink<I, LANG, SPEC> = ComposerLink<OpaqueStructComposer<I, LANG, SPEC>>;
-pub type TypeAliasComposerLink<I, LANG, SPEC> = ComposerLink<TypeAliasComposer<I, LANG, SPEC>>;
+pub type ItemComposerLink<LANG, SPEC, I> = ComposerLink<ItemComposer<LANG, SPEC, I>>;
+pub type EnumVariantComposerLink<LANG, SPEC, I> = ComposerLink<EnumVariantComposer<LANG, SPEC, I>>;
+pub type StructComposerLink<LANG, SPEC, I> = ComposerLink<StructComposer<LANG, SPEC, I>>;
+pub type OpaqueStructComposerLink<LANG, SPEC, I> = ComposerLink<OpaqueStructComposer<LANG, SPEC, I>>;
+pub type TypeAliasComposerLink<LANG, SPEC, I> = ComposerLink<TypeAliasComposer<LANG, SPEC, I>>;
 pub type EnumComposerLink<LANG, SPEC> = ComposerLink<EnumComposer<LANG, SPEC>>;
 pub type SigComposerLink<LANG, SPEC> = ComposerLink<SigComposer<LANG, SPEC>>;
 pub type VTableComposerLink<LANG, SPEC> = ComposerLink<VTableComposer<LANG, SPEC>>;
 pub type ImplComposerLink<LANG, SPEC> = ComposerLink<ImplComposer<LANG, SPEC>>;
 pub type TraitComposerLink<LANG, SPEC> = ComposerLink<TraitComposer<LANG, SPEC>>;
-pub type TypeContextComposer<Link, TYC, U> = LinkedContextComposer<Link, <Aspect<TYC> as ScopeContextPresentable>::Presentation, U>;
-pub type TypeContextComposerLink<T, TYC, U> = TypeContextComposer<ComposerLink<T>, TYC, U>;
-pub type SequenceOutputComposer<Link, LANG, SPEC> = LinkedContextComposer<
-    Link,
-    SeqKind<LANG, SPEC>,
-    SeqKind<LANG, SPEC>
->;
-pub type MaybeSequenceOutputComposer<Link, LANG, SPEC> = Option<SequenceOutputComposer<Link, LANG, SPEC>>;
-pub type MaybeSequenceOutputComposerLink<T, LANG, SPEC> = Option<SequenceOutputComposer<ComposerLink<T>, LANG, SPEC>>;
-pub type SequenceOutputComposerLink<T, LANG, SPEC> = LinkedContextComposer<
-    ComposerLink<T>,
-    SeqKind<LANG, SPEC>,
-    SeqKind<LANG, SPEC>
->;
-
-pub type VariantComposerRef<LANG, SPEC> = ComposerByRef<
-    AspectCommaPunctuatedArguments<LANG, SPEC>,
-    SeqKind<LANG, SPEC>
->;
-pub type ConstructorArgComposerRef<LANG, SPEC> = FieldComposerProducer<LANG, SPEC, PresentableArgumentPair<LANG, SPEC>>;
+// pub type TypeContextComposer<Link, TYC, U> = LinkedContextComposer<Link, Aspect<TYC>, U>;
+pub type BiLinkedContextComposer<L, T> = LinkedContextComposer<L, T, T>;
+pub type SeqKindComposer<LANG, SPEC, L> = BiLinkedContextComposer<L, SeqKind<LANG, SPEC>>;
+pub type MaybeSequenceOutputComposer<LANG, SPEC, L> = Option<SeqKindComposer<LANG, SPEC, L>>;
+pub type MaybeSequenceOutputComposerLink<LANG, SPEC, T> = Option<SeqKindComposer<LANG, SPEC, ComposerLink<T>>>;
+pub type SeqKindComposerLink<LANG, SPEC, T> = SeqKindComposer<LANG, SPEC, ComposerLink<T>>;
+pub type VariantComposerRef<LANG, SPEC> = ComposerByRef<AspectCommaPunctuatedArguments<LANG, SPEC>, SeqKind<LANG, SPEC>>;
+pub type PresentableArgumentPairComposerRef<LANG, SPEC> = ArgProducerByRef<LANG, SPEC, ArgKindPair<LANG, SPEC>>;
 pub type FieldsComposerRef<LANG, SPEC> = ComposerByRef<CommaPunctuatedFields, CommaArgComposers<LANG, SPEC>>;
-pub type PresentableExprComposerRef<LANG, SPEC> = ComposerByRef<FieldTypeLocalContext<LANG, SPEC>, Expression<LANG, SPEC>>;
-pub type PresentableArgumentComposerRef<LANG, SPEC> = FieldComposerProducer<LANG, SPEC, ArgKind<LANG, SPEC>>;
-/// Bindings
-pub type BindingComposer<T, LANG, SPEC> = Composer<T, BindingPresentableContext<LANG, SPEC>>;
-pub type BindingCtorComposer<LANG, SPEC> = BindingComposer<AspectMethod<LANG, SPEC>, LANG, SPEC>;
-pub type PresentableArguments<SEP, LANG, SPEC> = Punctuated<ArgKind<LANG, SPEC>, SEP>;
+pub type PresentableExprComposerRef<LANG, SPEC> = ComposerByRef<FieldTypeLocalContext<LANG, SPEC>, <SPEC as Specification<LANG>>::Expr>;
+pub type PresentableArgumentComposerRef<LANG, SPEC> = ArgProducerByRef<LANG, SPEC, ArgKind<LANG, SPEC>>;
+#[allow(unused)]
+pub type OwnedFieldsIterator<LANG, SPEC> =
+    IterativeComposer<
+        OwnedArgComposers<
+            LANG,
+            SPEC,
+            OwnerAspect<LANG, SPEC>
+        >,
+        FieldComposer<LANG, SPEC>,
+        ArgKind<LANG, SPEC>,
+        OwnerAspectSequence<LANG, SPEC, CommaPunctuatedArgKinds<LANG, SPEC>>>;
+pub type BindingComposer<LANG, SPEC, T> = Composer<T, BindingPresentableContext<LANG, SPEC>>;
+pub type PunctuatedArgKinds<LANG, SPEC, SEP> = Punctuated<ArgKind<LANG, SPEC>, SEP>;
 
 pub type OwnerAspect<LANG, SPEC> = (Aspect<<SPEC as Specification<LANG>>::TYC>, <SPEC as Specification<LANG>>::Attr, <SPEC as Specification<LANG>>::Gen, NameKind);
 pub type OwnerAspectSequence<LANG, SPEC, T> = (OwnerAspect<LANG, SPEC>, T);
 pub type OwnerAspectSequenceComposer<LANG, SPEC, T, U> = Composer<OwnerAspectSequence<LANG, SPEC, T>, U>;
-
-pub type LocallyOwnedFieldComposers<T, LANG, SPEC> = (T, CommaArgComposers<LANG, SPEC>);
-
-pub type AspectPresentableArguments<SEP, LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, PresentableArguments<SEP, LANG, SPEC>>;
+pub type PresentableArgsSequenceComposer<LANG, SPEC> = OwnerAspectSequenceComposer<LANG, SPEC, CommaPunctuatedArgKinds<LANG, SPEC>, SeqKind<LANG, SPEC>>;
+pub type OwnedArgComposers<LANG, SPEC, T> = (T, CommaArgComposers<LANG, SPEC>);
+pub type AspectPresentableArguments<LANG, SPEC, SEP> = OwnerAspectSequence<LANG, SPEC, PunctuatedArgKinds<LANG, SPEC, SEP>>;
 pub type AspectArgComposers<LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, CommaArgComposers<LANG, SPEC>>;
-pub type AspectMethod<LANG, SPEC> = OwnerAspectSequence<LANG, SPEC, Vec<PresentableArgumentPair<LANG, SPEC>>>;
-
-pub type AspectCommaPunctuatedArguments<LANG, SPEC> = AspectPresentableArguments<Comma, LANG, SPEC>;
-pub type AspectTerminatedArguments<LANG, SPEC> = AspectPresentableArguments<Semi, LANG, SPEC>;
-pub type ArgComposers<SEP, LANG, SPEC> = Punctuated<FieldComposer<LANG, SPEC>, SEP>;
-pub type CommaArgComposers<LANG, SPEC> = ArgComposers<Comma, LANG, SPEC>;
+pub type AspectCommaPunctuatedArguments<LANG, SPEC> = AspectPresentableArguments<LANG, SPEC, Comma>;
+pub type AspectTerminatedArguments<LANG, SPEC> = AspectPresentableArguments<LANG, SPEC, Semi>;
+pub type ArgComposers<LANG, SPEC, SEP> = Punctuated<FieldComposer<LANG, SPEC>, SEP>;
+pub type CommaArgComposers<LANG, SPEC> = ArgComposers<LANG, SPEC, Comma>;
 
 pub type BindingAccessorContext<LANG, SPEC> = (
     Aspect<<SPEC as Specification<LANG>>::TYC>,
@@ -160,25 +153,22 @@ pub type FieldTypeLocalContext<LANG, SPEC> = (
     <SPEC as Specification<LANG>>::Name,
     ConversionType<LANG, SPEC>
 );
-pub type PresentableArgumentPair<LANG, SPEC> = (ArgKind<LANG, SPEC>, ArgKind<LANG, SPEC>);
+pub type ArgKindPair<LANG, SPEC> = (ArgKind<LANG, SPEC>, ArgKind<LANG, SPEC>);
+pub type ArgKindPairs<LANG, SPEC> = Vec<ArgKindPair<LANG, SPEC>>;
 pub type CommaPunctuatedArgs = CommaPunctuated<ArgPresentation>;
-pub type CommaPunctuatedPresentableArguments<LANG, SPEC> = PresentableArguments<Comma, LANG, SPEC>;
+pub type CommaPunctuatedArgKinds<LANG, SPEC> = PunctuatedArgKinds<LANG, SPEC, Comma>;
 pub type CommaPunctuatedFields = CommaPunctuated<Field>;
 pub type CommaPunctuatedNestedArguments = CommaPunctuated<NestedArgument>;
-
-// pub type SeqKindPair<LANG, SPEC> = (SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>);
 pub type FieldPathResolver<LANG, SPEC> = ComposerByRef<FieldComposer<LANG, SPEC>, FieldTypeLocalContext<LANG, SPEC>>;
-
-pub type AspectSequenceComposer<LANG, SPEC, SEP> = Composer<
-    AspectPresentableArguments<SEP, LANG, SPEC>,
+pub type AspectSeqKindComposer<LANG, SPEC, SEP> = Composer<
+    AspectPresentableArguments<LANG, SPEC, SEP>,
     SeqKind<LANG, SPEC>
 >;
-
-pub type ConversionSequenceComposer<LANG, SPEC> = AspectSequenceComposer<LANG, SPEC, Comma>;
-pub type DropSequenceComposer<LANG, SPEC> = AspectSequenceComposer<LANG, SPEC, Semi>;
-pub type FieldComposerProducer<LANG, SPEC, OUT> = ComposerByRef<FieldComposer<LANG, SPEC>, OUT>;
-
-pub type FieldsSequenceMixer<Link, Context, Statement, LANG, SPEC> = SequenceMixer<
+pub type ConversionSeqKindComposer<LANG, SPEC> = AspectSeqKindComposer<LANG, SPEC, Comma>;
+pub type DropSeqKindComposer<LANG, SPEC> = AspectSeqKindComposer<LANG, SPEC, Semi>;
+pub type ArgProducerByRef<LANG, SPEC, OUT> = ComposerByRef<FieldComposer<LANG, SPEC>, OUT>;
+pub type ArgKindProducerByRef<LANG, SPEC> = ArgProducerByRef<LANG, SPEC, ArgKind<LANG, SPEC>>;
+pub type FieldsSequenceMixer<LANG, SPEC, Link, Context, Statement> = SequenceMixer<
     Link,
     Context,
     FieldTypeLocalContext<LANG, SPEC>,
@@ -188,71 +178,42 @@ pub type FieldsSequenceMixer<Link, Context, Statement, LANG, SPEC> = SequenceMix
     SeqKind<LANG, SPEC>,
     SeqKind<LANG, SPEC>
 >;
-pub type FFIConversionsMixer<Link, LANG, SPEC> = InterfaceSequenceMixer<
-    Link,
-    LANG,
-    SPEC,
-    Comma
->;
-pub type DropSequenceMixer<Link, LANG, SPEC> = InterfaceSequenceMixer<
-    Link,
-    LANG,
-    SPEC,
-    Semi
->;
+pub type FFIConversionsMixer<LANG, SPEC, Link> = InterfaceSequenceMixer<LANG, SPEC, Link, Comma>;
+pub type DropSequenceMixer<LANG, SPEC, Link> = InterfaceSequenceMixer<LANG, SPEC, Link, Semi>;
 
-pub type InterfaceSequenceMixer<Link, LANG, SPEC, SEP> = FieldsSequenceMixer<
+pub type InterfaceSequenceMixer<LANG, SPEC, Link, SEP> = FieldsSequenceMixer<
+    LANG,
+    SPEC,
     Link,
     AspectArgComposers<LANG, SPEC>,
-    AspectPresentableArguments<SEP, LANG, SPEC>,
+    AspectPresentableArguments<LANG, SPEC, SEP>,
+>;
+pub type ArgsSequenceComposer<LANG, SPEC, Link, A, B, C, Presentable> = SequenceComposer<Link, A, FieldComposer<LANG, SPEC>, B, C, Presentable>;
+pub type OwnerAspectSequenceSpecComposer<LANG, SPEC, Link, Iter, Out> = ArgsSequenceComposer<
     LANG,
     SPEC,
->;
-pub type FieldsSequenceComposer<Link, A, B, C, Presentable, LANG, SPEC> = SequenceComposer<
     Link,
-    A,
-    FieldComposer<LANG, SPEC>,
-    B,
-    C,
-    Presentable
+    AspectArgComposers<LANG, SPEC>,
+    <Iter as IntoIterator>::Item,
+    OwnerAspectSequence<LANG, SPEC, Iter>,
+    Out
 >;
-pub type FieldsOwnedSequenceComposer<Link, LANG, SPEC> = FieldsSequenceComposer<
+pub type FieldsOwnedSequenceComposer<LANG, SPEC, Link> = ArgsSequenceComposer<
+    LANG,
+    SPEC,
     Link,
     AspectArgComposers<LANG, SPEC>,
     ArgKind<LANG, SPEC>,
     AspectCommaPunctuatedArguments<LANG, SPEC>,
     SeqKind<LANG, SPEC>,
-    LANG,
-    SPEC
 >;
-pub type FieldsOwnedSequenceComposerLink<T, LANG, SPEC> = FieldsOwnedSequenceComposer<
-    ComposerLink<T>,
+pub type FieldsOwnedSequenceComposerLink<LANG, SPEC, T> = FieldsOwnedSequenceComposer<
     LANG,
-    SPEC
+    SPEC,
+    ComposerLink<T>
 >;
-// pub type FnSequenceComposer<Link, ASPECT, LANG, SPEC> = FieldsSequenceComposer<
-//     Link,
-//     ASPECT,
-//     PresentableArgumentPair<LANG, SPEC>,
-//     AspectMethod<LANG, SPEC>,
-//     BindingPresentableContext<LANG, SPEC>,
-//     LANG,
-//     SPEC
-// >;
-//
-// pub type CtorSequenceComposer<Link, LANG, SPEC> = FnSequenceComposer<
-//     Link,
-//     AspectArgComposers<LANG, SPEC>,
-//     LANG,
-//     SPEC,
-// >;
-// pub type CtorSequenceComposerLink<T, LANG, SPEC> = CtorSequenceComposer<ComposerLink<T>, LANG, SPEC>;
-
-// pub type CtorSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, ConstructorFieldsContext<LANG, SPEC>>;
-pub type AspectSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, AspectArgComposers<LANG, SPEC>>;
-pub type SequenceSharedComposerLink<T, LANG, SPEC> = SharedComposerLink<T, SeqKind<LANG, SPEC>>;
+pub type AspectSharedComposerLink<LANG, SPEC, T> = SharedComposerLink<T, AspectArgComposers<LANG, SPEC>>;
+pub type SequenceSharedComposerLink<LANG, SPEC, T> = SharedComposerLink<T, SeqKind<LANG, SPEC>>;
 
 pub type RootSequenceComposer<LANG, SPEC> = SourceComposerByRef<SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>, SeqKind<LANG, SPEC>>;
-
-// pub type CtxComposer<'a, T, U> = ComposerByRef<ComposerLinkRef<'a, T>, U>;
 

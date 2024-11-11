@@ -3,7 +3,6 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{Attribute, Generics, ReturnType, Type};
 use crate::ast::CommaPunctuatedTokens;
 use crate::composer::CommaPunctuatedArgs;
-use crate::ext::Terminated;
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[allow(unused)]
@@ -39,17 +38,17 @@ pub enum InterfacePresentation {
             Option<Generics>
         ),
     },
-    ConversionDestroy {
-        attrs: Vec<Attribute>,
-        types: (
-            Type, // FFI
-            Type // Original
-        ),
-        conversions: (
-            TokenStream2,
-            Option<Generics>
-        ),
-    },
+    // ConversionDestroy {
+    //     attrs: Vec<Attribute>,
+    //     types: (
+    //         Type, // FFI
+    //         Type // Original
+    //     ),
+    //     conversions: (
+    //         TokenStream2,
+    //         Option<Generics>
+    //     ),
+    // },
     VecConversion {
         attrs: Vec<Attribute>,
         types: (
@@ -87,9 +86,9 @@ impl InterfacePresentation {
     pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
         Self::conversion_to_boxed(attrs, types, DictionaryExpr::SelfDestructuring(body.to_token_stream()), generics)
     }
-    pub fn conversion_unbox_any_terminated<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
-        Self::conversion_destroy(attrs, types, InterfacesMethodExpr::UnboxAny(body.to_token_stream()).to_token_stream().terminated(), generics)
-    }
+    // pub fn conversion_unbox_any_terminated<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
+    //     Self::conversion_destroy(attrs, types, InterfacesMethodExpr::UnboxAny(body.to_token_stream()).to_token_stream().terminated(), generics)
+    // }
 
     pub fn conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
         InterfacePresentation::ConversionFrom {
@@ -105,13 +104,13 @@ impl InterfacePresentation {
             conversions: (conversions.to_token_stream(), generics.clone())
         }
     }
-    pub fn conversion_destroy<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
-        InterfacePresentation::ConversionDestroy {
-            attrs: attrs.clone(),
-            types: types.clone(),
-            conversions: (conversions.to_token_stream(), generics.clone())
-        }
-    }
+    // pub fn conversion_destroy<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
+    //     InterfacePresentation::ConversionDestroy {
+    //         attrs: attrs.clone(),
+    //         types: types.clone(),
+    //         conversions: (conversions.to_token_stream(), generics.clone())
+    //     }
+    // }
     pub fn drop<T: ToTokens>(attrs: &Vec<Attribute>, ty: Type, body: T) -> Self {
         InterfacePresentation::Drop { attrs: attrs.clone(), ty, body: body.to_token_stream() }
     }
@@ -206,23 +205,23 @@ impl ToTokens for InterfacePresentation {
                     }
                 }
             },
-            Self::ConversionDestroy {
-                attrs,
-                types: (ffi_type, target_type),
-                conversions: (presentation, generics),
-            } => {
-                let (generic_bounds, where_clause) = generics_presentation(generics);
-                let package = DictionaryName::Package;
-                let interface_destroy = DictionaryName::InterfaceDestroy;
-                quote! {
-                    #(#attrs)*
-                    impl #generic_bounds #package::#interface_destroy<#target_type #generic_bounds> for #ffi_type #where_clause {
-                        unsafe fn destroy(ffi: *mut #ffi_type) {
-                            #presentation;
-                        }
-                    }
-                }
-            },
+            // Self::ConversionDestroy {
+            //     attrs,
+            //     types: (ffi_type, target_type),
+            //     conversions: (presentation, generics),
+            // } => {
+            //     let (generic_bounds, where_clause) = generics_presentation(generics);
+            //     let package = DictionaryName::Package;
+            //     let interface_destroy = DictionaryName::InterfaceDestroy;
+            //     quote! {
+            //         #(#attrs)*
+            //         impl #generic_bounds #package::#interface_destroy<#target_type #generic_bounds> for #ffi_type #where_clause {
+            //             unsafe fn destroy(ffi: *mut #ffi_type) {
+            //                 #presentation;
+            //             }
+            //         }
+            //     }
+            // },
             Self::VecConversion {
                 attrs,
                 types: (ffi_type, target_type),

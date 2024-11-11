@@ -42,7 +42,7 @@ pub trait ObjCSpecification:
         TYC=TypeContext,
         Expr=Expression<ObjCFermentate, Self>,
         Name=Name<ObjCFermentate, Self>,
-        Var=FFIVariable<TokenStream2, ObjCFermentate, Self>
+        Var=FFIVariable<ObjCFermentate, Self, TokenStream2>
     > where <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens,
             Type: Resolve<Self::Var> {}
 
@@ -52,7 +52,7 @@ impl<SPEC> Specification<ObjCFermentate> for SPEC where SPEC: ObjCSpecification 
     type TYC = TypeContext;
     type Interface = InterfaceImplementation;
     type Expr = Expression<ObjCFermentate, SPEC>;
-    type Var = FFIVariable<TokenStream2, ObjCFermentate, SPEC>;
+    type Var = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
     type Name = Name<ObjCFermentate, SPEC>;
 }
 

@@ -1,37 +1,29 @@
 use std::cell::RefCell;
-use std::fmt::Debug;
 use std::rc::Rc;
+use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink, VTableComposerLink, SourceAccessible};
+use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink, VTableComposerLink, SourceAccessible};
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
-use crate::presentation::{DocPresentation, RustFermentate};
+use crate::presentable::NameTreeContext;
+use crate::presentation::{DocComposer, DocPresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct ImplComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
-    pub base: BasicComposerLink<Self, LANG, SPEC>,
+          SPEC: Specification<LANG> + 'static {
+    pub base: BasicComposerLink<LANG, SPEC, Self>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
     pub vtable: Option<VTableComposerLink<LANG, SPEC>>,
 }
 impl<LANG, SPEC> ImplComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
         let source = scope_context.borrow();
@@ -55,10 +47,10 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
         });
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
+                DocComposer::new(ty_context.to_token_stream()),
                 attrs_model,
                 ty_context.clone(),
                 GenModel::new(Some(generics.clone())),
-                constants::composer_doc(),
                 Rc::clone(scope_context)),
             methods,
             vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, scope_context))
@@ -74,12 +66,9 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
 
 impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::Direct(self.base.doc.compose(&()))
+        DocPresentation::Direct(self.base.doc.compose(self.context()))
     }
 }
 

@@ -4,32 +4,28 @@ use syn::{Attribute, parse_quote, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct MapComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static,
-          <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> MapComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -44,9 +40,9 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
-        let count_name = Name::Dictionary(count.clone());
-        let arg_0_name = Name::Dictionary(keys.clone());
-        let arg_1_name = Name::Dictionary(values.clone());
+        let count_name = SPEC::Name::dictionary_name(count.clone());
+        let arg_0_name = SPEC::Name::dictionary_name(keys.clone());
+        let arg_1_name = SPEC::Name::dictionary_name(values.clone());
 
         let arg_context = |arg_name: &Name<RustFermentate, SPEC>| quote!(obj.#arg_name().cloned());
         let arg_args = |arg_name: &Name<RustFermentate, SPEC>| CommaPunctuated::from_iter([
@@ -56,7 +52,7 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         let compose = |arg_name: &Name<RustFermentate, SPEC>, ty: &Type| {
             let from_conversion =
                 Expression::map_o_expr(
-                    FromConversionFullComposer::value(Name::<RustFermentate, SPEC>::Dictionary(DictionaryName::O), ty)
+                    FromConversionFullComposer::<RustFermentate, SPEC>::value(SPEC::Name::dictionary_name(DictionaryName::O), ty)
                         .compose(source));
             let result = match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) =>
@@ -108,8 +104,6 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                         arg_composer.to(arg_context(arg_name)))
                 },
             };
-            // println!("MapArg (New): {}: {} ==> {}", arg_name, ty.to_token_stream(), to_conversion.present(source));
-            // println!("MapArg (Old): {}: {} ==> {}", arg_name, ty.to_token_stream(), result.to_conversion.present(source));
             result
         };
         let ffi_type = self.present_ffi_aspect();
@@ -122,8 +116,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
             quote!(ffi_ref.#count),
             quote!(ffi_ref.#keys),
             quote!(ffi_ref.#values),
-            <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.from_conversion, source).to_token_stream(),
-            <SPEC::Expr as ScopeContextPresentable>::present(&arg_1_presentation.from_conversion, source).to_token_stream(),
+            SPEC::Expr::present(&arg_0_presentation.from_conversion, source),
+            SPEC::Expr::present(&arg_1_presentation.from_conversion, source),
         ];
         let expr_to_iterator = [
             FieldComposer::<RustFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
@@ -132,8 +126,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         ];
 
         let expr_destroy_iterator = [
-            <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.destructor, source),
-            <SPEC::Expr as ScopeContextPresentable>::present(&arg_1_presentation.destructor, source),
+            SPEC::Expr::present(&arg_0_presentation.destructor, source),
+            SPEC::Expr::present(&arg_1_presentation.destructor, source),
         ];
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
@@ -147,7 +141,6 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None),
                 InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, CommaPunctuated::from_iter(expr_to_iterator), &None),
-                InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])
         ))

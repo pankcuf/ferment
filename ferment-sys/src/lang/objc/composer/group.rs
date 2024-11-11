@@ -6,17 +6,13 @@ use crate::composer::{SourceComposable, GenericComposerInfo, GroupComposer, Attr
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve};
+use crate::lang::FromDictionary;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{ConversionExpressionKind, Expression, ArgKind, ScopeContextPresentable};
-use crate::presentation::{DictionaryName, Name};
-
-// impl<SPEC> GroupComposer<ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
-//
-//     pub fn compose_arg(&self) -> GenericArgPresentation<ObjCFermentate, SPEC> {}
-// }
+use crate::presentation::DictionaryName;
 
 impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
@@ -26,8 +22,8 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
-        let arg_0_name = Name::Dictionary(DictionaryName::Values);
-        let count_name = Name::Dictionary(DictionaryName::Count);
+        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Values);
+        let count_name = SPEC::Name::dictionary_name(DictionaryName::Count);
         let from_args = quote! {
             ffi_ref->#arg_0_name #count_name: ffi_ref->#count_name
         };
@@ -36,7 +32,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
                 let kind = ConversionExpressionKind::PrimitiveGroup;
                 GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                     SPEC::Var::direct(objc_primitive(arg_0_target_path).to_token_stream()),
-                    Expression::CastConversionExprTokens(FFIAspect::Destroy, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
@@ -45,7 +41,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
                 let kind = ConversionExpressionKind::ComplexGroup;
                 GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                     SPEC::Var::mut_ptr(FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_type(arg_0_target_ty, source).to_token_stream()),
-                    Expression::CastConversionExprTokens(FFIAspect::Destroy, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
@@ -70,7 +66,7 @@ impl<SPEC> SourceComposable for GroupComposer<ObjCFermentate, SPEC>
                 };
                 GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                     arg_ty,
-                    Expression::CastConversionExprTokens(FFIAspect::Destroy, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )

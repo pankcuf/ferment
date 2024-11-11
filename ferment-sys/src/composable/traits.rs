@@ -13,8 +13,7 @@ use crate::conversion::TypeModelKind;
 use crate::ext::{Join, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
-use crate::presentable::Aspect;
+use crate::presentable::NameTreeContext;
 
 #[derive(Clone, Debug)]
 pub struct TraitBoundDecomposition {
@@ -101,22 +100,14 @@ impl TraitDecompositionPart1 {
 #[allow(unused)]
 pub struct TraitVTableComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          SPEC::Expr: ScopeContextPresentable {
-    // pub methods: Vec<FnSignatureComposition>,
+          SPEC: Specification<LANG> + 'static {
     pub method_composers: Depunctuated<SigComposerLink<LANG, SPEC>>,
     pub types: HashMap<Ident, TraitTypeModel>,
 }
 
 impl<LANG, SPEC> TraitVTableComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     #[allow(unused)]
     pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, context: &ScopeContextLink) -> Self {
         let trait_ident = &item_trait.ident;

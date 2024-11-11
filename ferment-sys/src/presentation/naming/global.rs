@@ -3,7 +3,6 @@ use syn::{parse_quote, Path, Type};
 use ferment_macro::Display;
 use crate::ext::{ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::RustFermentate;
 
 #[allow(unused)]
@@ -45,8 +44,7 @@ pub enum GlobalType {
 
 pub enum FFIFullDictionaryPath<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Void,
     CChar,
     Phantom(PhantomData<(LANG, SPEC)>)
@@ -83,7 +81,6 @@ impl<SPEC> ToType for FFIFullDictionaryPath<RustFermentate, SPEC> where SPEC: Ru
 impl<LANG, SPEC> ToPath for FFIFullDictionaryPath<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn to_path(&self) -> Path {
         self.to_type()

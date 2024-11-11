@@ -11,7 +11,7 @@ use crate::ext::{Accessory, AsType, GenericNestedArg, Mangle, Resolve, ResolveTr
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::presentation::{FFIFullPath, FFIVariable};
 
-impl<SPEC> ToType for FFIVariable<TokenStream2, ObjCFermentate, SPEC>
+impl<SPEC> ToType for FFIVariable<ObjCFermentate, SPEC, TokenStream2>
     where SPEC: ObjCSpecification {
     fn to_type(&self) -> Type {
         match self {
@@ -22,7 +22,7 @@ impl<SPEC> ToType for FFIVariable<TokenStream2, ObjCFermentate, SPEC>
     }
 }
 
-impl<SPEC> ToTokens for FFIVariable<TokenStream2, ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
+impl<SPEC> ToTokens for FFIVariable<ObjCFermentate, SPEC, TokenStream2> where SPEC: ObjCSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             FFIVariable::Direct { ty, .. } => ty.to_tokens(tokens),
@@ -32,7 +32,7 @@ impl<SPEC> ToTokens for FFIVariable<TokenStream2, ObjCFermentate, SPEC> where SP
     }
 }
 
-impl<SPEC> Accessory for FFIVariable<TokenStream2, ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
+impl<SPEC> Accessory for FFIVariable<ObjCFermentate, SPEC, TokenStream2> where SPEC: ObjCSpecification {
     fn joined_mut(&self) -> Self {
         match self {
             FFIVariable::Direct { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
@@ -54,12 +54,12 @@ impl<SPEC> Accessory for FFIVariable<TokenStream2, ObjCFermentate, SPEC> where S
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for GenericBoundsModel where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for GenericBoundsModel where SPEC: ObjCSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
         Some(self.resolve(source))
     }
 
-    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC> {
+    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
         let ffi_name = self.mangle_tokens_default();
         if self.is_lambda() {
             FFIVariable::direct(ffi_name)
@@ -69,12 +69,12 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for GenericB
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Type
+impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for Type
     where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
         let full_ty = <Type as Resolve<Type>>::resolve(self, source);
         let maybe_special = <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(&full_ty, source);
         let refined = maybe_special
@@ -86,12 +86,12 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for Type
         resolve_type_variable(refined, source)
     }
 }
-impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for AddPunctuated<TypeParamBound>
+impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for AddPunctuated<TypeParamBound>
     where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
             TypeParamBound::Lifetime(_) => None
@@ -101,7 +101,7 @@ impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for AddPunct
 }
 
 
-pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC>
+pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2>
     where SPEC: ObjCSpecification {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
@@ -142,13 +142,13 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> for TypeModelKind
+impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for TypeModelKind
     where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<TokenStream2, ObjCFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
         Some(self.resolve(source))
     }
 
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<TokenStream2, ObjCFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
         println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque

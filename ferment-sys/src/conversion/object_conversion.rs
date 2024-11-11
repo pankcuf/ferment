@@ -10,7 +10,6 @@ use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::Name;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -77,8 +76,7 @@ impl ObjectKind {
 impl<LANG, SPEC> MaybeLambdaArgs<Name<LANG, SPEC> > for ObjectKind
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          Name<LANG, SPEC>: ToTokens {
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<Name<LANG, SPEC> >> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>

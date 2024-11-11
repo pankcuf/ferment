@@ -4,8 +4,8 @@ mod iterative;
 mod linked;
 mod sequence;
 mod sequence_mixer;
+mod spec;
 
-use std::fmt::Debug;
 use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
@@ -16,7 +16,7 @@ use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::MacroType;
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{TypeContext, ArgKind, ScopeContextPresentable, SeqKind, Aspect, Expression};
+use crate::presentable::{TypeContext, ScopeContextPresentable, Expression};
 use crate::presentation::RustFermentate;
 pub use self::composable::*;
 pub use self::context::*;
@@ -24,6 +24,7 @@ pub use self::iterative::*;
 pub use self::linked::*;
 pub use self::sequence::*;
 pub use self::sequence_mixer::*;
+pub use self::spec::*;
 
 pub trait MaybeMacroLabeled {
     fn maybe_macro_labeled(&self) -> Option<MacroType>;
@@ -31,11 +32,8 @@ pub trait MaybeMacroLabeled {
 
 pub trait MaybeComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<LANG, SPEC>>;
 }
 

@@ -7,6 +7,7 @@ use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, Aspect
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
+use crate::lang::FromDictionary;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
@@ -79,9 +80,9 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
-        let count_name = Name::Dictionary(count.clone());
-        let arg_0_name = Name::Dictionary(keys.clone());
-        let arg_1_name = Name::Dictionary(values.clone());
+        let count_name = SPEC::Name::dictionary_name(count.clone());
+        let arg_0_name = SPEC::Name::dictionary_name(keys.clone());
+        let arg_1_name = SPEC::Name::dictionary_name(values.clone());
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: format_ident!("Dictionary"), prefix: "NS".to_string(), attrs: vec![] });
 
         let objc_name = aspect.present(source);
@@ -94,8 +95,8 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let arg_0_presentation = compose_arg(&arg_0_name, nested_types[0], source);
         let arg_1_presentation = compose_arg(&arg_1_name, nested_types[1], source);
 
-        let arg_0_var: SPEC::Var = <FFIVariable<TokenStream2, ObjCFermentate, SPEC> as Accessory>::joined_mut(&arg_0_presentation.ty);
-        let arg_1_var: SPEC::Var = <FFIVariable<TokenStream2, ObjCFermentate, SPEC> as Accessory>::joined_mut(&arg_1_presentation.ty);
+        let arg_0_var: SPEC::Var = <FFIVariable<ObjCFermentate, SPEC, TokenStream2> as Accessory>::joined_mut(&arg_0_presentation.ty);
+        let arg_1_var: SPEC::Var = <FFIVariable<ObjCFermentate, SPEC, TokenStream2> as Accessory>::joined_mut(&arg_1_presentation.ty);
 
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<ObjCFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),

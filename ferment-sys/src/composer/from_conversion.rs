@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use quote::ToTokens;
 use syn::{parse_quote, PatType, Type, TypeReference};
 use crate::composable::TypeModel;
@@ -7,37 +6,35 @@ use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind};
 use crate::ext::{FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Primitive, Resolve, SpecialType, AsType, ToType, MaybeLambdaArgs};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
 
 #[allow(unused)]
 #[derive(Clone)]
 pub struct FromConversionFullComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub name: Name<LANG, SPEC> ,
+          SPEC: Specification<LANG> {
+    pub name: SPEC::Name,
     pub search: ScopeSearch<'a>,
     pub field_expr: Option<SPEC::Expr>,
 }
 
 impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    fn new(name: Name<LANG, SPEC>, search: ScopeSearch<'a>, field_expr: Option<SPEC::Expr>) -> Self {
+          SPEC: Specification<LANG> {
+    fn new(name: SPEC::Name, search: ScopeSearch<'a>, field_expr: Option<SPEC::Expr>) -> Self {
         Self { name, search , field_expr }
     }
-    pub fn expr_less(name: Name<LANG, SPEC>, search: ScopeSearch<'a>) -> Self {
+    pub fn expr_less(name: SPEC::Name, search: ScopeSearch<'a>) -> Self {
         Self::new(name, search, None)
     }
-    pub fn key_in_scope_with_expr(name: Name<LANG, SPEC>, ty: &'a Type, scope: &'a ScopeChain, field_expr: Option<SPEC::Expr>) -> Self {
+    pub fn key_in_scope_with_expr(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain, field_expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), field_expr)
     }
-    pub fn key_in_scope(name: Name<LANG, SPEC>, ty: &'a Type, scope: &'a ScopeChain) -> Self {
+    pub fn key_in_scope(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain) -> Self {
         Self::expr_less(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
     }
-    pub fn value(name: Name<LANG, SPEC>, ty: &'a Type) -> Self {
+    pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
         Self::expr_less(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
 }
@@ -52,10 +49,9 @@ impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
 
 impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
           Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullPath<LANG, SPEC>: ToType,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     type Source = ScopeContext;
@@ -230,9 +226,8 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
 #[derive(Clone)]
 pub struct FromConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub name: Name<LANG, SPEC> ,
+          SPEC: Specification<LANG> {
+    pub name: SPEC::Name,
     pub ty: Type,
     pub expr: Option<SPEC::Expr>,
 }
@@ -249,8 +244,7 @@ pub struct FromConversionComposer<LANG, SPEC>
 #[allow(unused)]
 impl<LANG, SPEC> From<&PatType> for FromConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Name=Name<LANG, SPEC>> {
     fn from(value: &PatType) -> Self {
         let PatType { ty, pat, .. } = value;
         Self { name: Name::Pat(*pat.clone()), ty: *ty.clone(), expr: None }
@@ -260,22 +254,16 @@ impl<LANG, SPEC> From<&PatType> for FromConversionComposer<LANG, SPEC>
 #[allow(unused)]
 impl<LANG, SPEC> FromConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub fn new(name: Name<LANG, SPEC> , ty: Type, expr: Option<SPEC::Expr>) -> Self {
+          SPEC: Specification<LANG> {
+    pub fn new(name: SPEC::Name , ty: Type, expr: Option<SPEC::Expr>) -> Self {
         Self { name, ty, expr }
     }
 }
 impl<LANG, SPEC> SourceComposable for FromConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG,
-              Attr: Debug,
-              Expr=Expression<LANG, SPEC>,
-              Name=Name<LANG, SPEC>,
-              Var: ToType>,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
           Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     type Source = ScopeContext;
     type Output = SPEC::Expr;

@@ -1,24 +1,20 @@
 use std::cell::RefCell;
-use std::fmt::Debug;
 use std::rc::Rc;
 use quote::ToTokens;
 use syn::{Attribute, Type};
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, ConstructorArgComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, arg_conversions_iterator, NameKind};
+use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, PresentableArgumentPairComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, arg_conversions_iterator, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, MixinKind};
-use crate::ext::ToType;
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable};
 use crate::presentation::{DocPresentation, FFIObjectPresentation, present_struct, RustFermentate};
 
 pub struct GenericComposerInfo<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub binding_composer: ConstructorArgComposerRef<LANG, SPEC>,
+          SPEC: Specification<LANG> + 'static {
+    pub binding_composer: PresentableArgumentPairComposerRef<LANG, SPEC>,
     pub field_composer: PresentableArgumentComposerRef<LANG, SPEC>,
 
     pub ffi_aspect: Aspect<SPEC::TYC>,
@@ -29,9 +25,7 @@ pub struct GenericComposerInfo<LANG, SPEC>
 
 impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn callback(
         ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
@@ -67,11 +61,7 @@ impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
 #[allow(unused)]
 pub enum GenericComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     Bounds(BoundsComposer<LANG, SPEC>),
     Callback(CallbackComposer<LANG, SPEC>),
     Group(GroupComposer<LANG, SPEC>),
@@ -84,11 +74,7 @@ pub enum GenericComposerWrapper<LANG, SPEC>
 
 impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Expression<LANG, SPEC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
+          SPEC: Specification<LANG>,
           BoundsComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           CallbackComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           GroupComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
@@ -126,22 +112,13 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
 #[allow(unused)]
 pub struct GenericComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable
-{
+          SPEC: Specification<LANG> + 'static {
     pub wrapper: GenericComposerWrapper<LANG, SPEC>,
 }
 
 impl<LANG, SPEC> GenericComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(kind: &MixinKind, attrs: Vec<Attribute>, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Option<ComposerLink<Self>> {
         let wrapper = match kind {
             MixinKind::Bounds(model) =>
@@ -199,7 +176,7 @@ impl<SPEC> SourceComposable for GenericComposer<RustFermentate, SPEC>
                 let dtor_context = (ffi_aspect, attrs.clone(), SPEC::Gen::default(), NameKind::Named);
                 let ctor_context = (dtor_context.clone(), arg_conversions_iterator(&field_composers, binding_composer));
                 let bindings = Depunctuated::from_iter([
-                    BindingPresentableContext::ctor(ctor_context),
+                    BindingPresentableContext::ctor::<Vec<_>>(ctor_context),
                     BindingPresentableContext::dtor((dtor_context, Default::default()))
                 ]);
                 RustFermentate::Item {

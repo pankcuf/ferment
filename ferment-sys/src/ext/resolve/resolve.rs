@@ -6,7 +6,6 @@ use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind};
 use crate::ext::{AsType, CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
 pub trait Resolve<T> {
@@ -35,7 +34,6 @@ impl Resolve<ObjectKind> for Type {
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for Type
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         let result = source.maybe_custom_conversion(self)
@@ -54,7 +52,6 @@ impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for Type
 impl<'a, LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for ScopeSearchKey<'a>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         let ty = self.to_type();
@@ -108,8 +105,7 @@ impl Resolve<TypeModelKind> for Type {
 
 impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<LANG, SPEC>> {
         let res = match self {
             Type::Path(TypePath { path, .. }) =>
@@ -150,7 +146,6 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for GenericTypeKind
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         self.ty()
@@ -232,7 +227,6 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for TypeModelKind
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         self.as_type().maybe_resolve(source)
@@ -245,8 +239,7 @@ impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for TypeModelKind
 
 impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<LANG, SPEC>> {
         // let config = &source.context.read().unwrap().config;
 

@@ -7,33 +7,30 @@ use crate::context::ScopeContext;
 use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind};
 use crate::ext::{FFITypeModelKindResolve, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, Resolve, SpecialType, ToType, AsType, MaybeLambdaArgs};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
 
 #[derive(Clone, Debug)]
 pub struct ToConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub name: Name<LANG, SPEC> ,
+          SPEC: Specification<LANG> {
+    pub name: SPEC::Name,
     pub ty: Type,
     pub expr: Option<SPEC::Expr>,
 }
 
 impl<LANG, SPEC> ToConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub fn new(name: Name<LANG, SPEC> , ty: Type, expr: Option<SPEC::Expr>) -> Self {
+          SPEC: Specification<LANG> {
+    pub fn new(name: SPEC::Name , ty: Type, expr: Option<SPEC::Expr>) -> Self {
         Self { name, ty, expr }
     }
 }
 
 fn from_external<LANG, SPEC>(ty: &Type, ffi_ty: Type, field_path: SPEC::Expr) -> SPEC::Expr
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     let (kind, ty) = match TypeKind::from(ty) {
         TypeKind::Primitive(ty) => (ConversionExpressionKind::Primitive, ty),
         TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
@@ -47,10 +44,9 @@ fn from_external<LANG, SPEC>(ty: &Type, ffi_ty: Type, field_path: SPEC::Expr) ->
 
 impl<LANG, SPEC> SourceComposable for ToConversionComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
           Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullPath<LANG, SPEC>: ToType,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     type Source = ScopeContext;

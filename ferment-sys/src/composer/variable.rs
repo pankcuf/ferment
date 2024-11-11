@@ -8,34 +8,29 @@ use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullPath, FFIVariable, resolve_type_variable, RustFermentate};
 
-pub trait VarComposable<LANG, SPEC>: Clone + Debug + ToTokens
+pub trait VarComposable<LANG, SPEC>: Clone + Debug + ToTokens + ToType
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-}
-impl<T, LANG, SPEC> VarComposable<LANG, SPEC> for FFIVariable<T, LANG, SPEC>
-    where T: Clone + Debug + ToTokens,
+          SPEC: Specification<LANG> {}
+impl<LANG, SPEC, T> VarComposable<LANG, SPEC> for FFIVariable<LANG, SPEC, T>
+    where Self: ToTokens + ToType,
+          T: Clone + Debug + ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable, Self: ToTokens {}
+          SPEC: Specification<LANG> {}
 
 
 #[derive(Clone, Debug)]
 pub struct VarComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub search: ScopeSearch<'a>,
     _marker: PhantomData<(LANG, SPEC)>,
 }
 
 impl<'a, LANG, SPEC> VarComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(search: ScopeSearch<'a>) -> Self {
         Self { search, _marker: PhantomData }
     }
@@ -276,7 +271,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
                                 // println!("VarComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
-                                let result: FFIVariable<Type, RustFermentate, SPEC> = conversion.resolve(source);
+                                let result: FFIVariable<RustFermentate, SPEC, Type> = conversion.resolve(source);
                                 // println!("VarComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                                 result
                             },
@@ -376,24 +371,21 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
 #[derive(Clone, Debug)]
 pub struct VariableComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub ty: Type,
     _marker: PhantomData<(LANG, SPEC)>
 }
 
 impl<LANG, SPEC> VariableComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(ty: Type) -> Self {
         Self { ty, _marker: PhantomData }
     }
 }
 impl<LANG, SPEC> From<&Type> for VariableComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn from(value: &Type) -> Self {
         Self { ty: value.clone(), _marker: PhantomData }
     }
@@ -402,7 +394,7 @@ impl<LANG, SPEC> From<&Type> for VariableComposer<LANG, SPEC>
 impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     type Source = ScopeContext;
-    type Output = FFIVariable<Type, RustFermentate, SPEC>;
+    type Output = FFIVariable<RustFermentate, SPEC, Type>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let is_const_ptr = match self.ty {
@@ -655,7 +647,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
-                                let result = <TypeModelKind as Resolve<FFIVariable<Type, RustFermentate, SPEC>>>::resolve(&conversion, source);
+                                let result = <TypeModelKind as Resolve<FFIVariable<RustFermentate, SPEC, Type>>>::resolve(&conversion, source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                                 result
                             },

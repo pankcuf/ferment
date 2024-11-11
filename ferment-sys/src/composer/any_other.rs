@@ -1,37 +1,31 @@
-use std::fmt::Debug;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
 use syn::{Attribute, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, VarComposer, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{CrateExtension, GenericNestedArg, Mangle, MaybeLambdaArgs, ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct AnyOtherComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable  {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> AnyOtherComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -44,7 +38,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let ffi_name = self.ty.mangle_tokens_default();
-        let arg_0_name = Name::Dictionary(DictionaryName::Obj);
+        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Obj);
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();
@@ -183,7 +177,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
             interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None));
         }
-        interfaces.push(InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None));
+        // interfaces.push(InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None));
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Type(ffi_var))
         ]);

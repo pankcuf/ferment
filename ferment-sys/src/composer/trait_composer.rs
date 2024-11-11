@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::rc::Rc;
 use std::vec;
 use proc_macro2::Ident;
@@ -10,21 +9,18 @@ use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, TraitTypeModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, Mangle, ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
-use crate::presentation::{DictionaryName, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::presentable::{NameTreeContext, ScopeContextPresentable};
+use crate::presentation::{DictionaryName, DocComposer, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct TraitComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType> + 'static,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
-    pub base: BasicComposerLink<Self, LANG, SPEC>,
+          SPEC: Specification<LANG> + 'static {
+    pub base: BasicComposerLink<LANG, SPEC, Self>,
     pub methods: Vec<SigComposerLink<LANG, SPEC>>,
     #[allow(unused)]
     pub types: HashMap<Ident, TraitTypeModel>,
@@ -32,12 +28,9 @@ pub struct TraitComposer<LANG, SPEC>
 
 impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          SeqKind<LANG, SPEC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG>,
+          // Self: AspectPresentable<SPEC::TYC>
+{
     pub fn from_item_trait(
         item_trait: &ItemTrait,
         ty_context: SPEC::TYC,
@@ -96,7 +89,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     ) -> ComposerLink<Self> {
         // let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(attrs, ty_context, GenModel::new(generics.clone()), constants::composer_doc(), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), Rc::clone(context)),
             methods,
             types,
         }));
@@ -110,12 +103,9 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
 
 impl<LANG, SPEC> DocsComposable for TraitComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::Direct(self.base.doc.compose(&()))
+        DocPresentation::Direct(self.base.doc.compose(self.context()))
     }
 }
 
@@ -144,10 +134,10 @@ impl<SPEC> SourceFermentable<RustFermentate> for TraitComposer<RustFermentate, S
                 fields: BraceWrapped::new(
                     CommaPunctuated::from_iter([
                         FieldComposer::<RustFermentate, SPEC>::named(
-                            Name::Dictionary(DictionaryName::Object),
+                            SPEC::Name::dictionary_name(DictionaryName::Object),
                             FieldTypeKind::Type(parse_quote!(*const ()))),
                         FieldComposer::<RustFermentate, SPEC>::named(
-                            Name::Dictionary(DictionaryName::Vtable),
+                            SPEC::Name::dictionary_name(DictionaryName::Vtable),
                             FieldTypeKind::Type(parse_quote!(*const #vtable_name))),
                     ])).present(&self.context().borrow())
                 }

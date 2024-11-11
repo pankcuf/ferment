@@ -5,28 +5,25 @@ use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, BasicComposerLink, FFIAspect};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct BoundsComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable> + 'static,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub model: GenericBoundsModel,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> BoundsComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(
         model: &GenericBoundsModel,
         ty_context: SPEC::TYC,
@@ -35,7 +32,7 @@ impl<LANG, SPEC> BoundsComposer<LANG, SPEC>
     ) -> Self {
         Self {
             model: model.clone(),
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
         }
     }
 }
@@ -84,7 +81,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
                 };
                 let item = GenericArgPresentation::<RustFermentate, SPEC>::new(
                     SPEC::Var::direct(ty.clone()),
-                    Expression::ConversionExpr(FFIAspect::Destroy, kind, destroy_expr.into()),
+                    Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
 
@@ -100,7 +97,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None),
-            InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
+            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![] });

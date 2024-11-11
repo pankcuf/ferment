@@ -8,16 +8,14 @@ use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComp
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{ScopeContextPresentable, SeqKind, Aspect, Expression};
+use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::{ArgPresentation, RustFermentate};
 
 
 #[derive(Clone, Debug, Display)]
 pub enum ArgKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     AttrExhaustive(SPEC::Attr),
     AttrSequence(SeqKind<LANG, SPEC>, SPEC::Attr),
     AttrName(TokenStream2, SPEC::Attr),
@@ -30,22 +28,11 @@ pub enum ArgKind<LANG, SPEC>
     DefaultFieldConversion(FieldComposer<LANG, SPEC>),
     Unnamed(FieldComposer<LANG, SPEC>),
     Named(FieldComposer<LANG, SPEC>, Visibility),
-
 }
-// impl<LANG, SPEC> std::fmt::Display for ArgumentPresentableContext<LANG, SPEC>
-//     where LANG: LangFermentable + Debug,
-//           SPEC: Specification<LANG> + Debug,
-//           <SPEC as Specification<LANG>>::Attr: Debug {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         Debug::fmt(self, f)
-//     }
-// }
 
 impl<LANG, SPEC> ArgKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn binding_arg(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::BindingArg(composer.clone())
     }
@@ -64,9 +51,6 @@ impl<LANG, SPEC> ArgKind<LANG, SPEC>
     pub fn public_named(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() }))
     }
-    // pub fn attr_expr(composer: &FieldComposer<LANG, SPEC>) -> Self {
-    //     Self::AttrExpression(SPEC::Expr::expr(Expr::Path(ExprPath { attrs: vec![], qself: None, path: composer.tokenized_name().to_path() })), composer.attrs.clone())
-    // }
     pub fn attr_name(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::AttrName(composer.tokenized_name(), composer.attrs.clone())
     }

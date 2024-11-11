@@ -1,25 +1,27 @@
 use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Expr, ExprLet, Pat, Path, PatLit};
+use syn::Path;
 use ferment_macro::Display;
-use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Depunctuated, Lambda, ParenWrapped, SemiPunctuated};
+use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Lambda, ParenWrapped};
 use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments};
 use crate::context::ScopeContext;
-use crate::ext::{Mangle, Terminated, ToPath, ToType};
+use crate::ext::{Mangle, ToPath};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, DictionaryName, InterfacesMethodExpr, present_struct, RustFermentate};
+use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::presentation::{DictionaryName, InterfacesMethodExpr, present_struct, RustFermentate};
 
 
 #[derive(Clone, Debug, Display)]
 pub enum SeqKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    NamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
-    UnnamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
+          SPEC: Specification<LANG> {
+    FromStub(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    FromNamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    ToNamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    FromUnnamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    ToUnnamedFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    ToStub(AspectCommaPunctuatedArguments<LANG, SPEC>),
     NamedVariantFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
     UnnamedVariantFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
     EnumUnitFields(AspectCommaPunctuatedArguments<LANG, SPEC>),
@@ -30,8 +32,8 @@ pub enum SeqKind<LANG, SPEC>
     TypeAliasFromConversion(AspectCommaPunctuatedArguments<LANG, SPEC>),
     NamedStruct(AspectCommaPunctuatedArguments<LANG, SPEC>),
     UnnamedStruct(AspectCommaPunctuatedArguments<LANG, SPEC>),
+    StubStruct(AspectCommaPunctuatedArguments<LANG, SPEC>),
     Enum(Box<SeqKind<LANG, SPEC>>),
-    Boxed(Box<SeqKind<LANG, SPEC>>),
 
     StructFrom(Box<SeqKind<LANG, SPEC>>, Box<SeqKind<LANG, SPEC>>),
     StructTo(Box<SeqKind<LANG, SPEC>>, Box<SeqKind<LANG, SPEC>>),
@@ -43,19 +45,15 @@ pub enum SeqKind<LANG, SPEC>
     DerefFFI,
     Obj,
     Empty,
-    UnboxedRoot,
+
+    DropStub(AspectTerminatedArguments<LANG, SPEC>),
     StructDropBody(AspectTerminatedArguments<LANG, SPEC>),
     DropCode(AspectTerminatedArguments<LANG, SPEC>),
 }
 
 impl<LANG, SPEC> SeqKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub fn boxed(_: &SeqKind<LANG, SPEC>, conversions: SeqKind<LANG, SPEC>) -> Self {
-        Self::Boxed(conversions.clone().into())
-    }
+          SPEC: Specification<LANG> {
     pub fn struct_to(field_path: &SeqKind<LANG, SPEC>, conversions: SeqKind<LANG, SPEC>) -> Self {
         Self::StructTo(field_path.clone().into(), conversions.into())
     }
@@ -75,7 +73,7 @@ impl<LANG, SPEC> SeqKind<LANG, SPEC>
         right
     }
 
-    pub fn no_fields<SEP: ToTokens>(((aspect, ..), _): AspectPresentableArguments<SEP, LANG, SPEC>) -> Self {
+    pub fn no_fields<SEP: ToTokens>(((aspect, ..), _): AspectPresentableArguments<LANG, SPEC, SEP>) -> Self {
         Self::NoFieldsConversion(match &aspect {
             Aspect::Target(context) => Aspect::RawTarget(context.clone()),
             _ => aspect.clone(),
@@ -85,8 +83,7 @@ impl<LANG, SPEC> SeqKind<LANG, SPEC>
         Self::Unit(aspect.clone())
     }
     pub fn variants<C>(composer_ref: &ComposerLinkRef<C>) -> Self
-        where C: AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + VariantComposable<LANG, SPEC>,
-              SPEC::Expr: ScopeContextPresentable {
+        where C: AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + VariantComposable<LANG, SPEC> {
         Self::Variants(C::target_type_aspect(composer_ref), C::compose_attributes(composer_ref), C::compose_variants(composer_ref))
     }
     pub fn deref_ffi<C>(_ctx: &ComposerLinkRef<C>) -> Self {
@@ -97,9 +94,6 @@ impl<LANG, SPEC> SeqKind<LANG, SPEC>
     }
     pub fn obj<C>(_ctx: &ComposerLinkRef<C>) -> Self {
         Self::Obj
-    }
-    pub fn unboxed_root(_: SeqKind<LANG, SPEC>) -> Self {
-        Self::UnboxedRoot
     }
     pub fn unit_fields(context: &AspectCommaPunctuatedArguments<LANG, SPEC>) -> Self {
         Self::EnumUnitFields(context.clone())
@@ -120,24 +114,14 @@ impl<LANG, SPEC> SeqKind<LANG, SPEC>
         Self::Enum(Box::new(context))
     }
     pub fn fields_from<C>(ctx: &ComposerLinkRef<C>) -> Self
-        where C: FieldsConversionComposable<LANG, SPEC> + 'static,
-              SPEC::Expr: ScopeContextPresentable {
+        where C: FieldsConversionComposable<LANG, SPEC> + 'static {
         ctx.fields_from().compose(&())
     }
     pub fn fields_to<C>(ctx: &ComposerLinkRef<C>) -> Self
-        where C: FieldsConversionComposable<LANG, SPEC> + 'static,
-              SPEC::Expr: ScopeContextPresentable {
+        where C: FieldsConversionComposable<LANG, SPEC> + 'static {
         ctx.fields_to().compose(&())
     }
 }
-
-// impl<LANG, SPEC> Display for SequenceOutput<LANG, SPEC>
-//     where LANG: LangFermentable + Debug,
-//           SPEC: Specification<LANG> + Debug {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         Debug::fmt(self, f)
-//     }
-// }
 
 impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
     where SPEC: RustSpecification {
@@ -145,19 +129,30 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         let result = match self {
-            SeqKind::Empty =>
+            SeqKind::Empty |
+            SeqKind::FromStub(..) |
+            SeqKind::ToStub(..) |
+            SeqKind::DropStub(..) |
+            SeqKind::StubStruct(..) =>
                 quote!(),
-            SeqKind::UnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) |
+            SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name ( #presentation ) )
             },
-            SeqKind::NamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::FromNamedFields(((aspect, ..), fields)) |
+            SeqKind::ToNamedFields(((aspect, ..), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name { #presentation })
+            },
+            SeqKind::TypeAliasFromConversion((_, fields)) => {
+                //println!("SequenceOutput::{}({:?})", self, fields);
+                fields.present(source)
+                    .to_token_stream()
             },
             SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
@@ -170,12 +165,6 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     #ident #presentation
                 }
             }
-            SeqKind::TypeAliasFromConversion((_, fields)) => {
-                //println!("SequenceOutput::{}({:?})", self, fields);
-                Depunctuated::from_iter(fields.clone())
-                    .present(source)
-                    .to_token_stream()
-            },
             SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
@@ -199,18 +188,20 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
             SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
+                let fields = fields.present(source);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
-                    ParenWrapped::new(fields.clone()).present(source).terminated())
+                    quote!((#fields);))
             },
             SeqKind::NamedStruct(((aspect, _attes, _generics, _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
+                let fields = fields.present(source);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
-                    BraceWrapped::new(fields.clone()).present(source))
+                    quote!({#fields}))
             },
             SeqKind::Enum(context) => {
                 //println!("SequenceOutput::{}({:?})", self, context);
@@ -259,11 +250,11 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 InterfacesMethodExpr::Boxed(conversions.present(source))
                     .to_token_stream()
             }
-            SeqKind::Boxed(conversions) => {
-                //println!("SequenceOutput::{}({})", self, conversions);
-                InterfacesMethodExpr::Boxed(conversions.present(source))
-                    .to_token_stream()
-            }
+            // SeqKind::Boxed(conversions) => {
+            //     //println!("SequenceOutput::{}({})", self, conversions);
+            //     InterfacesMethodExpr::Boxed(conversions.present(source))
+            //         .to_token_stream()
+            // }
             SeqKind::EnumVariantFrom(l_value, r_value) |
             SeqKind::EnumVariantTo(l_value, r_value) |
             SeqKind::EnumVariantDrop(l_value, r_value) => {
@@ -280,30 +271,18 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 //println!("SequenceOutput::{}", self);
                 DictionaryName::Obj.to_token_stream()
             },
-            SeqKind::UnboxedRoot => {
-                //println!("SequenceOutput::{}", self);
-                SPEC::Expr::destroy_complex_tokens(DictionaryName::Ffi)
-                    .present(source)
-                    .to_token_stream()
-            },
-            SeqKind::StructDropBody((_aspect, items)) => {
+            SeqKind::StructDropBody((_, items)) => {
                 //println!("SequenceOutput::{}({:?})", self, items);
-                let mut result = SemiPunctuated::from_iter([
-                    ArgPresentation::Pat(Pat::Lit(PatLit { attrs: vec![], expr: Box::new(Expr::Let(ExprLet {
-                        attrs: vec![],
-                        let_token: Default::default(),
-                        pat: Pat::Verbatim(DictionaryName::FfiRef.to_token_stream()),
-                        eq_token: Default::default(),
-                        expr: Box::new(Expr::Verbatim(quote!(self))),
-                    })) }))
-                ]);
-                result.extend(items.present(source));
-                result.to_token_stream()
+                let destructors = items.present(source);
+                quote! {
+                    let ffi_ref = self;
+                    #destructors
+                }
             },
-            SeqKind::DropCode((_aspect, items)) => {
+            SeqKind::DropCode((_, items)) => {
                 //println!("SequenceOutput::{}({:?})", self, items);
-                BraceWrapped::new(items.clone())
-                    .present(source)
+                let destructors = items.present(source);
+                quote!({ #destructors })
             }
         };
         // println!("SequenceOutput::{}({})", self, result);

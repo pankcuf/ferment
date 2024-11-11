@@ -5,31 +5,28 @@ use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
-use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct CallbackComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable> + 'static,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
             ty: ty.clone()
         }
     }
@@ -115,12 +112,12 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
                 ])
             } else {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
                 ])
             },
             Depunctuated::from_iter([

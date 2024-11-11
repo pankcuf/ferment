@@ -5,16 +5,14 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Expr, Pat, Path, Type};
 use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentation::{DictionaryName, RustFermentate};
 
 
 #[derive(Clone, Debug)]
 pub enum Name<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Empty,
     Expr(Expr),
     UnnamedArg(usize),
@@ -41,11 +39,26 @@ pub enum Name<LANG, SPEC>
     EnumVariantBody(Ident),
     _Phantom(PhantomData<(LANG, SPEC)>),
 }
+
+impl<LANG, SPEC> FromDictionary for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self> {
+    fn dictionary_name(dictionary: DictionaryName) -> Self {
+        Name::Dictionary(dictionary)
+    }
+}
+
+impl<LANG, SPEC> Default for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self> {
+    fn default() -> Self {
+        Name::Empty
+    }
+}
 impl<LANG, SPEC> ToType for Name<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Name=Self>,
-          Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          Self: ToTokens {
     fn to_type(&self) -> Type {
         parse_quote!(#self)
     }
@@ -53,8 +66,7 @@ impl<LANG, SPEC> ToType for Name<LANG, SPEC>
 impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Name<LANG, SPEC>: ToTokens,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          Self: ToTokens {
     fn to_path(&self) -> Path {
         parse_quote!(#self)
     }
@@ -64,7 +76,6 @@ impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
 impl<LANG, SPEC> Display for Name<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Name=Self>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           Self: ToTokens {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("Name({})", self.to_token_stream()).as_str())
@@ -74,7 +85,6 @@ impl<LANG, SPEC> Display for Name<LANG, SPEC>
 impl<LANG, SPEC> Name<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           Self: ToTokens {
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())

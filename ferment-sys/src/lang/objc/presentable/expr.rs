@@ -222,7 +222,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 quote!([NSArray ffi_to:#expr])
                 // quote!([DSFerment to_primitive_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr, ..) => {
                 quote!([NSArray ffi_destroy:#expr])
             }
 
@@ -232,7 +232,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
                 quote!([DSFerment to_opt_primitive_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
                 quote!([DSFerment destroy_opt_primitive_group:#expr])
             }
 
@@ -242,7 +242,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr, ..) => {
                 quote!([DSFerment to_complex_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr, ..) => {
                 quote!([DSFerment destroy_complex_group:#expr])
             }
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOptGroup, expr, ..) => {
@@ -251,7 +251,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOptGroup, expr, ..) => {
                 quote!([DSFerment to_opt_complex_group:#expr])
             },
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::ComplexOptGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOptGroup, expr, ..) => {
                 quote!([DSFerment destroy_opt_complex_group:#expr])
             },
 
@@ -263,7 +263,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 quote!([#ffi_ty ffi_to:#expr]),
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_to_opt:#expr]),
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_destroy:#expr]),
 
         };

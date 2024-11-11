@@ -1,38 +1,31 @@
-use std::fmt::Debug;
 use syn::Type;
 use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::context::ScopeContext;
-use crate::ext::{Resolve, ToType};
+use crate::ext::Resolve;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, Expression, ArgKind, ScopeContextPresentable};
+use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
 
-pub type AccessorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, AspectArgComposers<LANG, SPEC>, BindingAccessorContext<LANG, SPEC>, LANG, SPEC>;
-pub type DtorMethodComposer<Link, LANG, SPEC> = MethodComposer<Link, AspectArgComposers<LANG, SPEC>, AspectArgComposers<LANG, SPEC>, LANG, SPEC>;
+pub type AccessorMethodComposer<LANG, SPEC, Link> = MethodComposer<LANG, SPEC, Link, AspectArgComposers<LANG, SPEC>, BindingAccessorContext<LANG, SPEC>>;
+pub type DtorMethodComposer<LANG, SPEC, Link> = MethodComposer<LANG, SPEC, Link, AspectArgComposers<LANG, SPEC>, AspectArgComposers<LANG, SPEC>>;
 
-pub struct MethodComposer<Link, LinkCtx, CTX, LANG, SPEC>
+pub struct MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     parent: Option<Link>,
     context: SharedComposer<Link, LinkCtx>,
-    seq_iterator_item: BindingComposer<CTX, LANG, SPEC>
+    seq_iterator_item: BindingComposer<LANG, SPEC, CTX>
 }
-impl<Link, LinkCtx, CTX, LANG, SPEC> MethodComposer<Link, LinkCtx, CTX, LANG, SPEC>
+impl<LANG, SPEC, Link, LinkCtx, CTX> MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
     where
         Link: SharedAccess,
         LANG: LangFermentable,
-        SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-        SPEC::Expr: ScopeContextPresentable,
-        Aspect<SPEC::TYC>: ScopeContextPresentable,
-        ArgKind<LANG, SPEC>: ScopeContextPresentable {
+        SPEC: Specification<LANG> {
     pub const fn new(
         context: SharedComposer<Link, LinkCtx>,
-        seq_iterator_item: BindingComposer<CTX, LANG, SPEC>,
+        seq_iterator_item: BindingComposer<LANG, SPEC, CTX>,
     ) -> Self {
         Self {
             parent: None,
@@ -41,33 +34,28 @@ impl<Link, LinkCtx, CTX, LANG, SPEC> MethodComposer<Link, LinkCtx, CTX, LANG, SP
         }
     }
 }
-impl<Link, LinkCtx, CTX, LANG, SPEC> Linkable<Link> for MethodComposer<Link, LinkCtx, CTX, LANG, SPEC>
+impl<LANG, SPEC, Link, LinkCtx, CTX> Linkable<Link> for MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
     where
         Link: SharedAccess,
         LANG: LangFermentable,
-        SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-        SPEC::Expr: ScopeContextPresentable,
-        Aspect<SPEC::TYC>: ScopeContextPresentable,
-        ArgKind<LANG, SPEC>: ScopeContextPresentable {
+        SPEC: Specification<LANG> {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
-impl<Link, LANG, SPEC> SourceComposable for AccessorMethodComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          Type: Resolve<<SPEC as Specification<LANG>>::Var> {
+          SPEC: Specification<LANG>,
+          Type: Resolve<SPEC::Var> {
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let ((aspect, attrs, generics, _is_round), context) = self.parent
+        let ((aspect, attrs, generics, _name_kind), context) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);
+        Vec::from_iter(
         context.iter()
             .map(|composer|
                 (self.seq_iterator_item)((
@@ -77,16 +65,13 @@ impl<Link, LANG, SPEC> SourceComposable for AccessorMethodComposer<Link, LANG, S
                     <Type as Resolve<SPEC::Var>>::resolve(composer.ty(), source),
                     composer.tokenized_name()
                 )))
-            .collect()
+        )
     }
 }
-impl<Link, LANG, SPEC> SourceComposable for DtorMethodComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> SourceComposable for DtorMethodComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     type Source = ScopeContext;
     type Output = BindingPresentableContext<LANG, SPEC>;
     fn compose(&self, _source: &Self::Source) -> Self::Output {

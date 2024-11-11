@@ -1,6 +1,6 @@
 use quote::{format_ident, quote, ToTokens};
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, ItemComposerWrapper, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect};
+use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect};
 use crate::ext::{Mangle, ToPath};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::fermentate::InterfaceImplementation;
@@ -36,23 +36,11 @@ where SPEC: ObjCSpecification,
         let ffi_type = self.present_ffi_aspect();
         let objc_name = target_type.to_token_stream();
         let c_name = ffi_type.to_token_stream();
-        let from_variant_composer = |composer: &ItemComposerWrapper<ObjCFermentate, SPEC>|
-            ArgKind::AttrSequence(
-                composer.compose_aspect(FFIAspect::From),
-                composer.compose_attributes());
-        let to_variant_composer = |composer: &ItemComposerWrapper<ObjCFermentate, SPEC> |
-            ArgKind::AttrSequence(
-                composer.compose_aspect(FFIAspect::To),
-                composer.compose_attributes());
-        let drop_variant_composer = |composer: &ItemComposerWrapper<ObjCFermentate, SPEC>|
-            ArgKind::AttrSequence(
-                composer.compose_aspect(FFIAspect::Drop),
-                composer.compose_attributes());
 
         println!("OBJC:: ENUM FFI ASPECT TYPE: {}", ffi_type.to_token_stream());
         println!("OBJC:: ENUM TARGET ASPECT TYPE: {}", objc_name);
 
-        let mut property_names = CommaPunctuated::new();
+        let property_names = CommaPunctuated::new();
         let mut properties = SemiPunctuated::new();
         let tag_name = Name::<ObjCFermentate, SPEC>::EnumTag(ffi_type.mangle_ident_default());
         properties.push(ArgPresentation::NonatomicAssign {
@@ -60,7 +48,7 @@ where SPEC: ObjCSpecification,
             name: DictionaryName::Tag.to_token_stream()
         });
 
-        let mut body_conversions = Depunctuated::<InterfaceImplementation>::new();
+        let body_conversions = Depunctuated::<InterfaceImplementation>::new();
 
         let mut from_conversions = Depunctuated::new();
         let mut to_conversions = Depunctuated::new();
@@ -68,9 +56,18 @@ where SPEC: ObjCSpecification,
 
         self.variant_composers.iter()
             .for_each(|variant_composer| {
-                let from = from_variant_composer(variant_composer);
-                let to = to_variant_composer(variant_composer);
-                let destroy = drop_variant_composer(variant_composer);
+                let attrs = variant_composer.compose_attributes();
+                //SeqKind::variant_from
+                let from = variant_composer.compose_aspect(FFIAspect::From);
+                //SeqKind::variant_to
+                let to = variant_composer.compose_aspect(FFIAspect::To);
+                //SeqKind::variant_drop
+                let destroy = variant_composer.compose_aspect(FFIAspect::Drop);
+
+                let from = ArgKind::AttrSequence(from, attrs.clone());
+                let to = ArgKind::AttrSequence(to, attrs.clone());
+                let destroy = ArgKind::AttrSequence(destroy, attrs.clone());
+
                 println!("VARIANT: FROM: {}", from.present(&source));
                 println!("VARIANT: TO: {}", to.present(&source));
                 println!("VARIANT: DESTROY: {}", destroy.present(&source));
@@ -80,7 +77,7 @@ where SPEC: ObjCSpecification,
             });
 
         self.variant_presenters.iter()
-            .for_each(|(c, ((aspect, _attrs, _generics, _is_round), args))| {
+            .for_each(|(_c, ((aspect, _attrs, _generics, _is_round), args))| {
 
                 args.iter().for_each(|arg| {
                     let asp = aspect.present(&source);
@@ -105,7 +102,7 @@ where SPEC: ObjCSpecification,
         let to_body = DictionaryExpr::SwitchFields(quote!(obj.tag), to_conversions.present(&source));
         let drop_body = DictionaryExpr::SwitchFields(quote!(ffi_ref->tag), destroy_conversions.present(&source));
 
-        let mut to_conversions = CommaPunctuated::new();
+        let to_conversions = CommaPunctuated::new();
 
         let mut interfaces = Depunctuated::from_iter([
             InterfaceImplementation::Default {
@@ -248,8 +245,7 @@ impl<SPEC> SourceFermentable<ObjCFermentate> for EnumComposer<ObjCFermentate, SP
 // @implementation DSexample_nested_model_quorum_quorum_type_OBJCEnumTest (Conversions)
 // + (DSexample_nested_model_quorum_quorum_type_OBJCEnumTest *)ffi_from:(struct example_nested_model_quorum_quorum_type_OBJCEnumTest *)ffi_ref {
 // DSexample_nested_model_quorum_quorum_type_OBJCEnumTest *obj = [[self alloc] init];
-//      obj.tag = ffi_ref->tag;
-//      switch (obj.tag) {
+//      switch (ffi_ref->tag) {
 //          case example_nested_model_quorum_quorum_type_OBJCEnumTest_Regular: {
 //              break;
 //          }
@@ -262,6 +258,7 @@ impl<SPEC> SourceFermentable<ObjCFermentate> for EnumComposer<ObjCFermentate, SP
 //              break;
 //          }
 //      }
+//      obj.tag = ffi_ref->tag;
 //      return obj;
 // }
 // + (DSexample_nested_model_quorum_quorum_type_OBJCEnumTest *_Nullable)ffi_from_opt:(struct example_nested_model_quorum_quorum_type_OBJCEnumTest *)ffi_ref {

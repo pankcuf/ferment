@@ -9,7 +9,7 @@ use crate::composable::{FieldComposer, GenericBoundsModel};
 use crate::composer::{Composer, SourceComposable, VariableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType, AsType};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{Expression, ScopeContextPresentable};
 use crate::presentation::{RustFermentate, Name};
 
 pub type ExpressionComposer<LANG, SPEC> = Composer<TokenStream2, <SPEC as Specification<LANG>>::Expr>;
@@ -18,39 +18,34 @@ pub type ExprComposer<LANG, SPEC> = dyn Fn(TokenStream2) -> <SPEC as Specificati
 
 pub const fn primitive_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_primitive_opt_tokens), Some(Expression::ffi_to_primitive_opt_tokens), Some(Expression::destroy_primitive_opt_tokens))
 }
 #[allow(unused)]
 pub const fn complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_tokens))
 }
 pub const fn complex_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_opt_tokens), Some(Expression::ffi_to_complex_opt_tokens), Some(Expression::destroy_complex_opt_tokens))
 }
 pub const fn result_complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_opt_tokens))
 }
 
 pub struct GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     // pub ty: Type,
     pub from_composer: Option<ExpressionComposer<LANG, SPEC>>,
     pub to_composer: Option<ExpressionComposer<LANG, SPEC>>,
@@ -60,9 +55,8 @@ pub struct GenericArgComposer<LANG, SPEC>
 
 impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     pub const fn new(
         // ty_composer: TyComposer,
         from_composer: Option<ExpressionComposer<LANG, SPEC>>,
@@ -93,15 +87,13 @@ pub type GenericNestedArgComposer<LANG, SPEC> = fn(arg_name: &Name<LANG, SPEC>, 
 #[allow(unused)]
 pub trait GenericNamedArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC>;
 }
 
 impl<LANG, SPEC> GenericNamedArgComposer<LANG, SPEC> for Type
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC> {
         composer(name, self)
     }
@@ -109,8 +101,7 @@ impl<LANG, SPEC> GenericNamedArgComposer<LANG, SPEC> for Type
 
 pub struct GenericArgPresentation<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub ty: SPEC::Var,
     pub destructor: SPEC::Expr,
     pub from_conversion: SPEC::Expr,
@@ -119,16 +110,14 @@ pub struct GenericArgPresentation<LANG, SPEC>
 
 impl<LANG, SPEC> Debug for GenericArgPresentation<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("GenericArgPresentation({})", self.ty.to_token_stream()))
     }
 }
 impl<LANG, SPEC> Display for GenericArgPresentation<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
@@ -136,8 +125,7 @@ impl<LANG, SPEC> Display for GenericArgPresentation<LANG, SPEC>
 
 impl<LANG, SPEC> GenericArgPresentation<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(ty: SPEC::Var, destructor: SPEC::Expr, from_conversion: SPEC::Expr, to_conversion: SPEC::Expr) -> Self {
         Self { ty, destructor, from_conversion, to_conversion }
     }

@@ -9,7 +9,6 @@ use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
 
@@ -106,7 +105,6 @@ impl ScopeContext {
     pub fn maybe_to_trait_fn_type<LANG, SPEC>(&self) -> Option<Type>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
         match &self.scope.parent_object().unwrap() {
             ObjectKind::Type(ref ty_conversion) |
@@ -138,7 +136,6 @@ impl ScopeContext {
     pub fn maybe_special_or_regular_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
         self.maybe_special_ffi_full_path::<LANG, SPEC>(ty)
             .or_else(|| self.maybe_ffi_full_path(ty))
@@ -146,15 +143,13 @@ impl ScopeContext {
     fn maybe_special_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
         <Type as Resolve<SpecialType<LANG, SPEC>>>::maybe_resolve(ty, self)
             .map(FFIFullPath::from)
     }
     pub fn maybe_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
-              SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable {
+              SPEC: Specification<LANG> {
         <Type as Resolve<TypeModelKind>>::resolve(ty, self)
             .to_type()
             .maybe_resolve(self)
@@ -166,7 +161,6 @@ impl ScopeContext {
     }
     pub fn maybe_opaque_object<LANG, SPEC>(&self, ty: &Type) -> Option<Type>
         where LANG: LangFermentable, SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath::<LANG, SPEC>: ToType {
         let resolve_opaque = |path: &Path| {
             let result = if path.is_void() {

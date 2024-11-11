@@ -7,7 +7,7 @@ use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComp
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
-use crate::presentable::{Aspect, ArgKind, ScopeContextPresentable};
+use crate::presentable::{ArgKind, ScopeContextPresentable};
 use crate::presentation::FFIVariable;
 
 
@@ -93,8 +93,7 @@ impl Display for ArgPresentation {
     }
 }
 impl<SPEC> From<&FieldComposer<ObjCFermentate, SPEC>> for ArgPresentation
-    where SPEC: ObjCSpecification,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+    where SPEC: ObjCSpecification {
     fn from(value: &FieldComposer<ObjCFermentate, SPEC>) -> Self {
         ArgPresentation::NonatomicReadwrite {
             ty: value.ty().to_token_stream(),
@@ -126,7 +125,7 @@ impl<SPEC> ScopeContextPresentable for ArgKind<ObjCFermentate, SPEC>
             },
             ArgKind::Unnamed(FieldComposer{ kind, name, attrs, .. }) => {
                 println!("OBJC ArgKind::DefaultFieldType: {} -- {}", kind, name);
-                let var = <Type as Resolve<FFIVariable<TokenStream2, ObjCFermentate, SPEC>>>::resolve(kind.ty(), source);
+                let var = <Type as Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>>::resolve(kind.ty(), source);
                 ArgPresentation::AttrConversion {
                     conversion: quote! { #var #name }
                 }

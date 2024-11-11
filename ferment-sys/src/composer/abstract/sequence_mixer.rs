@@ -1,4 +1,6 @@
-use crate::composer::{SourceComposable, Composer, ComposerByRef, Linkable, SequenceComposer, SharedComposer, SourceContextComposerByRef, SourceComposerByRef};
+use quote::ToTokens;
+use crate::composer::{SourceComposable, Composer, ComposerByRef, Linkable, SequenceComposer, SharedComposer, SourceContextComposerByRef, SourceComposerByRef, ComposerLink, AspectArgComposers, FFIInterfaceMethodSpec, ComposerLinkRef, SequenceSharedComposerLink, RootSequenceComposer, InterfaceSequenceMixer};
+use crate::lang::{LangFermentable, Specification};
 use crate::shared::SharedAccess;
 
 pub struct SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
@@ -32,6 +34,8 @@ for SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
 }
 impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
     where Link: SharedAccess {
+
+    #[allow(unused)]
     pub const fn new(
         post_processor: SourceComposerByRef<MixCtx, SeqMixOut, Out>,
         context: SharedComposer<Link, MixCtx>,
@@ -52,6 +56,31 @@ impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixe
             )
         }
     }
-
+    #[allow(unused)]
+    pub const fn with_sequence(
+        post_processor: SourceComposerByRef<MixCtx, SeqMixOut, Out>,
+        context: SharedComposer<Link, MixCtx>,
+        sequence: SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut>,
+    ) -> Self {
+        Self {
+            parent: None,
+            post_processor,
+            context,
+            sequence
+        }
+    }
 }
 
+impl<LANG, SPEC, C, SEP> InterfaceSequenceMixer<LANG, SPEC, ComposerLink<C>, SEP>
+    where LANG: LangFermentable,
+        SPEC: Specification<LANG>,
+        C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + 'static,
+        SEP: ToTokens + Default {
+    pub const fn with_aspect(
+        root: RootSequenceComposer<LANG, SPEC>,
+        context: SequenceSharedComposerLink<LANG, SPEC, C>,
+        aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<LANG, SPEC>>
+    ) -> Self {
+        SequenceMixer::with_sequence(root, context, SequenceComposer::new(C::SEQ, aspect, C::ITER))
+    }
+}

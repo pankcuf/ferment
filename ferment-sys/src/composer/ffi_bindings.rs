@@ -1,102 +1,76 @@
-use std::fmt::Debug;
 use syn::Type;
 use crate::ast::Depunctuated;
-use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, AspectArgComposers, FieldsSequenceComposer, PresentableArgumentPair, AspectMethod, OwnerAspectSequence};
+use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer};
 use crate::context::ScopeContext;
-use crate::ext::{Resolve, ToType};
+use crate::ext::Resolve;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, Expression, ArgKind, ScopeContextPresentable};
+use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
 
-pub type FFIBindingsComposerLink<T, LANG, SPEC> = FFIBindingsComposer<ComposerLink<T>, LANG, SPEC>;
-pub type MaybeFFIBindingsComposerLink<T, LANG, SPEC> = Option<FFIBindingsComposerLink<T, LANG, SPEC>>;
-pub struct FFIBindingsComposer<Link, LANG, SPEC>
+pub type FFIBindingsComposerLink<LANG, SPEC, T, Iter> = FFIBindingsComposer<LANG, SPEC, ComposerLink<T>, Iter>;
+pub type MaybeFFIBindingsComposerLink<LANG, SPEC, T, Iter> = Option<FFIBindingsComposerLink<LANG, SPEC, T, Iter>>;
+pub struct FFIBindingsComposer<LANG, SPEC, Link, Iter>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG>,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
     pub parent: Option<Link>,
-
-    pub ctor_composer: FieldsSequenceComposer<
-        Link,
-        AspectArgComposers<LANG, SPEC>,
-        PresentableArgumentPair<LANG, SPEC>,
-        OwnerAspectSequence<LANG, SPEC, Vec<PresentableArgumentPair<LANG, SPEC>>>,
-        BindingPresentableContext<LANG, SPEC>,
-        LANG,
-        SPEC
-    >,
-    pub dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
-    pub getter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
-    pub setter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
+    pub ctor: OwnerAspectSequenceSpecComposer<LANG, SPEC, Link, Iter, BindingPresentableContext<LANG, SPEC>>,
+    pub dtor: DtorMethodComposer<LANG, SPEC, Link>,
+    pub getter: AccessorMethodComposer<LANG, SPEC, Link>,
+    pub setter: AccessorMethodComposer<LANG, SPEC, Link>,
     pub get_set: bool
 }
-impl<Link, LANG, SPEC> FFIBindingsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link, Iter> FFIBindingsComposer<LANG, SPEC, Link, Iter>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG>,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
     pub const fn new(
-        ctor_composer: FieldsSequenceComposer<
-            Link,
-            AspectArgComposers<LANG, SPEC>,
-            PresentableArgumentPair<LANG, SPEC>,
-            AspectMethod<LANG, SPEC>,
-            BindingPresentableContext<LANG, SPEC>,
-            LANG,
-            SPEC
-        >,
-        dtor_composer: DtorMethodComposer<Link, LANG, SPEC>,
-        getter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
-        setter_composer: AccessorMethodComposer<Link, LANG, SPEC>,
+        ctor: OwnerAspectSequenceSpecComposer<LANG, SPEC, Link, Iter, BindingPresentableContext<LANG, SPEC>>,
+        dtor: DtorMethodComposer<LANG, SPEC, Link>,
+        getter: AccessorMethodComposer<LANG, SPEC, Link>,
+        setter: AccessorMethodComposer<LANG, SPEC, Link>,
         get_set: bool,
     ) -> Self {
-        Self { parent: None, ctor_composer, dtor_composer, getter_composer, setter_composer, get_set }
+        Self { parent: None, ctor, dtor, getter, setter, get_set }
     }
 
     pub fn compose_ctor(&self) -> BindingPresentableContext<LANG, SPEC> {
-        self.ctor_composer.compose(&())
+        self.ctor.compose(&())
     }
 }
 
-impl<Link, LANG, SPEC> Linkable<Link> for FFIBindingsComposer<Link, LANG, SPEC>
-    where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable {
+impl<LANG, SPEC, Link, Iter> Linkable<Link> for FFIBindingsComposer<LANG, SPEC, Link, Iter>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Link: SharedAccess,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
     fn link(&mut self, parent: &Link) {
-        self.getter_composer.link(parent);
-        self.setter_composer.link(parent);
-        self.ctor_composer.link(parent);
-        self.dtor_composer.link(parent);
+        self.getter.link(parent);
+        self.setter.link(parent);
+        self.ctor.link(parent);
+        self.dtor.link(parent);
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Link, LANG, SPEC> SourceComposable for FFIBindingsComposer<Link, LANG, SPEC>
-    where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          ArgKind<LANG, SPEC>: ScopeContextPresentable,
-          Type: Resolve<<SPEC as Specification<LANG>>::Var> {
+impl<LANG, SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<LANG, SPEC, Link, Iter>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Link: SharedAccess,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>>,
+          Type: Resolve<SPEC::Var> {
     type Source = ScopeContext;
     type Output = Depunctuated<BindingPresentableContext<LANG, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut bindings = Depunctuated::new();
-        bindings.push(self.ctor_composer.compose(&()));
-        bindings.push(self.dtor_composer.compose(source));
+        bindings.push(self.ctor.compose(&()));
+        bindings.push(self.dtor.compose(source));
         if self.get_set {
-            bindings.extend(self.getter_composer.compose(source));
-            bindings.extend(self.setter_composer.compose(source));
+            bindings.extend(self.getter.compose(source));
+            bindings.extend(self.setter.compose(source));
         }
         bindings
     }

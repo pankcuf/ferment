@@ -7,14 +7,12 @@ use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ObjectKind, TypeModelKind};
 use crate::ext::{Accessory, Resolve, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
 #[derive(Debug)]
 pub enum SpecialType<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Custom(Type),
     Opaque(Type),
     Phantom(PhantomData<(LANG, SPEC)>)
@@ -22,8 +20,7 @@ pub enum SpecialType<LANG, SPEC>
 
 impl<LANG, SPEC> Display for SpecialType<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             SpecialType::Custom(ty) => format!("Custom({})", ty.to_token_stream()),
@@ -35,16 +32,14 @@ impl<LANG, SPEC> Display for SpecialType<LANG, SPEC>
 
 impl<LANG, SPEC> ToTokens for SpecialType<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.to_type().to_tokens(tokens)
     }
 }
 impl<LANG, SPEC> ToType for SpecialType<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn to_type(&self) -> Type {
         match self {
             SpecialType::Custom(ty) |
@@ -55,8 +50,7 @@ impl<LANG, SPEC> ToType for SpecialType<LANG, SPEC>
 }
 impl<LANG, SPEC> ToPath for SpecialType<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn to_path(&self) -> Path {
         match self {
             SpecialType::Custom(ty) |
@@ -78,8 +72,7 @@ impl FFITypeResolve for Type {
 
 pub trait FFISpecialTypeResolve<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
     /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>>;
@@ -87,7 +80,6 @@ pub trait FFISpecialTypeResolve<LANG, SPEC>
 impl<LANG, SPEC> FFISpecialTypeResolve<LANG, SPEC> for Type
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         self.maybe_resolve(source)
@@ -117,7 +109,6 @@ impl FFITypeModelKindResolve for Type {
 pub trait FFIVarResolve<LANG, SPEC>: Resolve<FFIFullPath<LANG, SPEC>> + Resolve<SpecialType<LANG, SPEC>> + ToTokens
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullPath<LANG, SPEC>: ToType {
     fn ffi_full_path(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
         self.resolve(source)
@@ -139,7 +130,6 @@ pub trait FFIVarResolve<LANG, SPEC>: Resolve<FFIFullPath<LANG, SPEC>> + Resolve<
 impl<LANG, SPEC> FFIVarResolve<LANG, SPEC> for Type
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullPath<LANG, SPEC>: ToType,
           FFIFullDictionaryPath<LANG, SPEC>: ToType{}
 impl<SPEC> FFIVarResolve<RustFermentate, SPEC> for GenericTypeKind
@@ -149,10 +139,3 @@ impl<SPEC> FFIVarResolve<RustFermentate, SPEC> for GenericTypeKind
 impl<SPEC> FFIVarResolve<crate::lang::objc::ObjCFermentate, SPEC> for GenericTypeKind
 where SPEC: crate::lang::objc::ObjCSpecification {}
 
-// impl<LANG, SPEC> FFIVarResolve<LANG, SPEC> for GenericTypeKind
-// where LANG: LangFermentable,
-//       SPEC: Specification<LANG>,
-//       Aspect<SPEC::TYC>: ScopeContextPresentable,
-//       FFIFullPath<LANG, SPEC>: ToType,
-//       FFIFullDictionaryPath<LANG, SPEC>: ToType {}
-//

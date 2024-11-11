@@ -7,7 +7,7 @@ use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composers::AttrWrapper;
-use crate::presentable::{ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::DictionaryName;
 
 /*
@@ -63,7 +63,11 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         let result = match self {
-            SeqKind::Empty =>
+            SeqKind::Empty |
+            SeqKind::FromStub(..) |
+            SeqKind::ToStub(..) |
+            SeqKind::DropStub(..) |
+            SeqKind::StubStruct(..) =>
                 quote!(),
             SeqKind::StructFrom(field_context, conversions) => {
                 let conversions = conversions.present(source);
@@ -71,7 +75,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
 
 
 
-                println!("OBJC SEQ FromRoot ({}, {})", field_path, conversions);
+                println!("OBJC SEQ StructFrom ({}, {})", field_path, conversions);
                 quote! {
                     #conversions
                 }
@@ -79,19 +83,39 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
             SeqKind::StructTo(field_context, conversions) => {
                 let c_type = field_context.present(source);
                 let conversions = conversions.present(source);
-                println!("OBJC SEQ ToRoot ({}, {})", c_type, conversions);
+                println!("OBJC SEQ StructTo ({}, {})", c_type, conversions);
                 quote! {
                     #conversions
                 }
             }
-            SeqKind::UnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
-                println!("OBJC SEQ ParenFields: {}", presentation);
+                // presentation
+                let name = aspect.present(source).mangle_ident_default();
+                println!("OBJC SEQ FromUnnamedFields: {}", presentation);
+                println!("OBJC SEQ FromUnnamedFields2: {}", quote!(case #name));
+                quote! {
+                    case #name
+                }
+            }
+            SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+                let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
+                // presentation
+                let name = aspect.present(source).mangle_ident_default();
+                println!("OBJC SEQ ToUnnamedFields: {}", presentation);
+                println!("OBJC SEQ ToUnnamedFields2: {}", quote!(case #name));
+                quote! {
+                    case #name
+                }
+            },
+            SeqKind::FromNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+                let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
+                println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
-            SeqKind::NamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::ToNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
                 let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
-                println!("OBJC SEQ BraceFields: {}", presentation);
+                println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
             SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
@@ -100,7 +124,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let path: Path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = ParenWrapped::new(fields.clone()).present(source);
-                println!("OBJC SEQ ParenVariantFields ({}, {})", ident, presentation);
+                println!("OBJC SEQ UnnamedVariantFields ({}, {})", ident, presentation);
                 SPEC::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
@@ -110,7 +134,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
-                println!("OBJC SEQ BraceVariantFields ({}, {})", ident, presentation);
+                println!("OBJC SEQ NamedVariantFields ({}, {})", ident, presentation);
                 SPEC::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
@@ -182,15 +206,16 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 Assignment::new(ffi_name.clone(), fields)
                     .to_token_stream()
             },
-            SeqKind::Boxed(conversions) => {
-                let conversions = conversions.present(source);
-                println!("OBJC SEQ Boxed ({})", conversions);
-                conversions
-            }
+            // SeqKind::Boxed(conversions) => {
+            //     let conversions = conversions.present(source);
+            //     println!("OBJC SEQ Boxed ({})", conversions);
+            //     conversions
+            // }
             SeqKind::EnumVariantFrom(l_value, r_value) => {
+                println!("OBJC SEQ EnumVariantFrom ({}, {})", l_value, r_value);
                 let left = l_value.present(source);
                 let right = r_value.present(source);
-                println!("OBJC SEQ EnumVariantFrom ({}, {})", left, right);
+                println!("OBJC SEQ EnumVariantFrom2 ({}, {})", left, right);
                 quote! {
                     #left: {
                         #right
@@ -225,12 +250,12 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 println!("OBJC SEQ Obj ({})", DictionaryName::Obj.to_token_stream());
                 DictionaryName::Obj.to_token_stream()
             },
-            SeqKind::UnboxedRoot => {
-                let expr = Expression::<ObjCFermentate, SPEC>::destroy_complex_tokens(DictionaryName::Ffi);
-                let presentation = expr.present(source);
-                println!("OBJC UnboxedRoot ({})", presentation);
-                presentation
-            },
+            // SeqKind::UnboxedRoot => {
+            //     let expr = Expression::<ObjCFermentate, SPEC>::destroy_complex_tokens(DictionaryName::Ffi);
+            //     let presentation = expr.present(source);
+            //     println!("OBJC UnboxedRoot ({})", presentation);
+            //     presentation
+            // },
             SeqKind::StructDropBody(((tyc, _attrs, _generics, _is_round), items)) => {
                 let aspect = tyc.present(source);
                 let field_dtors = items.present(source);

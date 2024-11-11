@@ -5,10 +5,10 @@ use syn::Type;
 use crate::ast::CommaPunctuated;
 use crate::composer::{SourceComposable, FFIAspect, FieldTypeLocalContext};
 use crate::context::ScopeContext;
-use crate::ext::{ConversionType, Terminated, ToType};
+use crate::ext::{ConversionType, Terminated};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{ScopeContextPresentable, Aspect};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, RustFermentate};
+use crate::presentable::ScopeContextPresentable;
+use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, RustFermentate};
 
 
 #[derive(Clone, Copy, Debug)]
@@ -23,24 +23,20 @@ pub enum ConversionExpressionKind {
     ComplexOptGroup,
 }
 
-pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug
+pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug + ScopeContextPresentable
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-}
+          SPEC: Specification<LANG> {}
 
 impl<LANG, SPEC> ExpressionComposable<LANG, SPEC> for Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Self, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {}
+          SPEC: Specification<LANG, Expr=Self>,
+          SPEC::Expr: ScopeContextPresentable {}
 
 #[derive(Clone, Debug)]
 pub enum Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Self, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Self>,
+          Self: ScopeContextPresentable {
     ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>),
     ConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2),
     CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>, /*ffi_type*/Type, /*target_type*/Type),
@@ -86,9 +82,8 @@ pub enum Expression<LANG, SPEC>
 
 impl<LANG, SPEC> Expression<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Attr: Debug, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Self>,
+          SPEC::Expr: ScopeContextPresentable {
     fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
     }
@@ -213,7 +208,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     //     Self::expression(FFIAspect::To, ConversionExpressionKind::Complex, expr)
     // }
     pub(crate) fn destroy_complex(expr: Self) -> Self {
-        Self::expression(FFIAspect::Destroy, ConversionExpressionKind::Complex, expr)
+        Self::expression(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
     }
     // pub(crate) fn destroy_complex_opt(expr: Self) -> Self {
     //     Self::expression(FFIAspect::Destroy, ConversionExpressionKind::ComplexOpt, expr)
@@ -281,22 +276,22 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexOptGroup, expr)
     }
     pub(crate) fn destroy_primitive_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveOpt, expr)
     }
     pub(crate) fn destroy_complex_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::Complex, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
     }
     pub(crate) fn destroy_primitive_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::Primitive, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::Primitive, expr)
     }
     pub(crate) fn destroy_complex_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::ComplexOpt, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr)
     }
     pub(crate) fn destroy_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::PrimitiveGroup, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr)
     }
     pub(crate) fn destroy_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Destroy, ConversionExpressionKind::ComplexGroup, expr)
+        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr)
     }
 
     pub(crate) fn cast_from(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
@@ -306,7 +301,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::CastConversionExpr(FFIAspect::To, kind, expr.into(), ffi_type, target_type)
     }
     pub(crate) fn cast_destroy(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
-        Self::CastConversionExpr(FFIAspect::Destroy, kind, expr.into(), ffi_type, target_type)
+        Self::CastConversionExpr(FFIAspect::Drop, kind, expr.into(), ffi_type, target_type)
     }
 }
 
@@ -374,20 +369,10 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                 Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
                     .present(source),
 
-            Self::DestroyString(presentable, path) => {
-                Self::CastDestroy(
-                    presentable.clone(),
-                    path.to_token_stream(),
-                    DictionaryExpr::CChar.to_token_stream())
-                    .present(source)
+            Self::DestroyString(presentable, _ty) => {
+                InterfacesMethodExpr::UnboxString(presentable.present(source))
+                    .to_token_stream()
             },
-            Self::CastDestroy(args, ty, ffi_ty) => {
-                let package = DictionaryName::Package;
-                let interface = DictionaryName::InterfaceDestroy;
-                let method = FFIConversionDestroyMethod::Destroy;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), args.present(source)))
-                    .present(source)
-            }
             Self::Named((l_value, presentable)) => {
                 let ty = presentable.present(source).to_token_stream();
                 quote!(#l_value: #ty)
@@ -540,12 +525,13 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                 Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
                     .present(source)
             }
-            Self::CastConversionExprTokens(FFIAspect::Destroy | FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) => {
-                let package = DictionaryName::Package;
-                let interface = DictionaryName::InterfaceDestroy;
-                let method = FFIConversionDestroyMethod::Destroy;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
-                    .present(source)
+            Self::CastDestroy(expr, ..) => {
+                InterfacesMethodExpr::UnboxAny(expr.present(source))
+                    .to_token_stream()
+            }
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ..) => {
+                InterfacesMethodExpr::UnboxAny(expr.to_token_stream())
+                    .to_token_stream()
             }
         }
 

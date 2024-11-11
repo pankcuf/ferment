@@ -3,43 +3,38 @@ use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{SourceComposable, Linkable};
 use crate::context::ScopeContextLink;
 use crate::lang::{LangAttrSpecification, LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
-pub struct AttrsComposer<Link, LANG, SPEC>
+pub struct AttrsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub parent: Option<Link>,
     pub attrs: AttrsModel,
     _marker: PhantomData<(LANG, SPEC)>,
 }
-impl<Link, LANG, SPEC> AttrsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> AttrsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub fn new(attrs: AttrsModel) -> AttrsComposer<Link, LANG, SPEC> {
+          SPEC: Specification<LANG> {
+    pub fn new(attrs: AttrsModel) -> Self {
         Self { parent: None, attrs, _marker: PhantomData }
     }
 }
 
-impl<Link, LANG, SPEC> Linkable<Link> for AttrsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> Linkable<Link> for AttrsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Link, LANG, SPEC> SourceComposable for AttrsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> SourceComposable for AttrsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     type Source = ScopeContextLink;
     type Output = SPEC::Attr;
     fn compose(&self, _context: &Self::Source) -> Self::Output {
