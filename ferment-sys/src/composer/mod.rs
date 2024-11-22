@@ -34,10 +34,11 @@ mod r#struct;
 mod enum_variant;
 mod type_alias;
 mod vtable;
+mod scope_search;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
-use syn::Field;
+use syn::{Field, Type};
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Semi};
 use crate::ast::CommaPunctuated;
@@ -154,6 +155,7 @@ pub type FieldTypeLocalContext<LANG, SPEC> = (
     ConversionType<LANG, SPEC>
 );
 pub type ArgKindPair<LANG, SPEC> = (ArgKind<LANG, SPEC>, ArgKind<LANG, SPEC>);
+pub type TypePair = (Type, Type);
 pub type ArgKindPairs<LANG, SPEC> = Vec<ArgKindPair<LANG, SPEC>>;
 pub type CommaPunctuatedArgs = CommaPunctuated<ArgPresentation>;
 pub type CommaPunctuatedArgKinds<LANG, SPEC> = PunctuatedArgKinds<LANG, SPEC, Comma>;

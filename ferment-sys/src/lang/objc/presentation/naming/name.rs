@@ -4,7 +4,6 @@ use syn::Type;
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::presentation::{DictionaryName, Name};
-
 impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
     where SPEC: ObjCSpecification {
     fn mangle_string(&self, context: MangleDefault) -> String {

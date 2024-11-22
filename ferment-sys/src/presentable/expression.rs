@@ -5,7 +5,7 @@ use syn::Type;
 use crate::ast::CommaPunctuated;
 use crate::composer::{SourceComposable, FFIAspect, FieldTypeLocalContext};
 use crate::context::ScopeContext;
-use crate::ext::{ConversionType, Terminated};
+use crate::ext::{ConversionType, Terminated, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, RustFermentate};
@@ -25,12 +25,18 @@ pub enum ConversionExpressionKind {
 
 pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug + ScopeContextPresentable
     where LANG: LangFermentable,
-          SPEC: Specification<LANG> {}
+          SPEC: Specification<LANG> {
+    fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr;
+}
 
 impl<LANG, SPEC> ExpressionComposable<LANG, SPEC> for Expression<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr=Self>,
-          SPEC::Expr: ScopeContextPresentable {}
+          SPEC::Expr: ScopeContextPresentable {
+    fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr {
+        Expression::Simple(tokens.to_token_stream())
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum Expression<LANG, SPEC>
@@ -39,8 +45,8 @@ pub enum Expression<LANG, SPEC>
           Self: ScopeContextPresentable {
     ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>),
     ConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2),
-    CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>, /*ffi_type*/Type, /*target_type*/Type),
-    CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi_type*/Type, /*target_type*/Type),
+    CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>, /*ffi*/Type, /*target*/Type),
+    CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi*/Type, /*target*/Type),
 
     // Allocate(FFIAspect),
 
@@ -66,8 +72,9 @@ pub enum Expression<LANG, SPEC>
     NewBox(Box<Expression<LANG, SPEC>>),
     FromRawBox(Box<Expression<LANG, SPEC>>),
 
-    CastDestroy(Box<Expression<LANG, SPEC>>, TokenStream2, TokenStream2),
+    CastDestroy(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
     DestroyString(Box<Expression<LANG, SPEC>>, TokenStream2),
+    DestroyBigInt(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
 
     ConversionType(Box<ConversionType<LANG, SPEC>>),
     Terminated(Box<ConversionType<LANG, SPEC>>),
@@ -185,6 +192,9 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn destroy_string<T: ToTokens>(expr: Self, token_stream: T) -> Self {
         Self::DestroyString(expr.into(), token_stream.to_token_stream())
     }
+    pub(crate) fn destroy_big_int<F: ToTokens, T: ToTokens>(expr: Self, ffi_ty: F, target_ty: T) -> Self {
+        Self::DestroyBigInt(expr.into(), ffi_ty.to_token_stream(), target_ty.to_token_stream())
+    }
 
 
 
@@ -300,8 +310,8 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn cast_to(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
         Self::CastConversionExpr(FFIAspect::To, kind, expr.into(), ffi_type, target_type)
     }
-    pub(crate) fn cast_destroy(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
-        Self::CastConversionExpr(FFIAspect::Drop, kind, expr.into(), ffi_type, target_type)
+    pub(crate) fn cast_destroy<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
+        Self::CastConversionExpr(FFIAspect::Drop, kind, expr.into(), ffi_type.to_type(), target_type.to_type())
     }
 }
 
@@ -371,6 +381,10 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
 
             Self::DestroyString(presentable, _ty) => {
                 InterfacesMethodExpr::UnboxString(presentable.present(source))
+                    .to_token_stream()
+            },
+            Self::DestroyBigInt(presentable, _target_ty, _ffi_ty) => {
+                InterfacesMethodExpr::UnboxAnyOpt(presentable.present(source))
                     .to_token_stream()
             },
             Self::Named((l_value, presentable)) => {

@@ -1,72 +1,98 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
-use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated, SemiPunctuated};
+use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, TypeAspect, NameKind};
+use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, FromConversionFullComposer, ToConversionFullComposer, DestroyFullConversionComposer, VarComposer, TargetVarComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
+use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
 use crate::lang::FromDictionary;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::lang::objc::presentable::{ArgPresentation, TypeContext};
-use crate::presentable::{Expression, ArgKind, SeqKind, ScopeContextPresentable, Aspect};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, Name};
+use crate::lang::objc::presentable::TypeContext;
+use crate::presentable::{Expression, ScopeContextPresentable, Aspect};
+use crate::presentation::{DictionaryName, FFIVariable, Name};
+// NSMutableDictionary<DSdash_spv_masternode_processor_common_block_Block *, DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey *> *obj = [NSMutableDictionary dictionaryWithCapacity:ffi_ref->count];
+// for (int i = 0; i < ffi_ref->count; i++) {
+//      [obj setObject:[DSdash_spv_masternode_processor_common_block_Block ffi_from:ffi_ref->values[i]]
+//              forKey:[DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_from:ffi_ref->keys[i]]];
+// }
+//    dash_spv_masternode_processor_common_block_Block **keys = malloc(count * sizeof(struct dash_spv_masternode_processor_common_block_Block));
+//     dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey **values = malloc(count * sizeof(struct dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey));
+//     for (DSdash_spv_masternode_processor_common_block_Block *key in obj) {
+//         keys[i] = [DSdash_spv_masternode_processor_common_block_Block ffi_to:key];
+//         values[i] = [DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_to:obj[key]];
+//     }
+//     ffi_ref->count = [obj count];
+//     ffi_ref->keys = keys;
+//     ffi_ref->values = values;
+//     return ffi_ref;
 
-
-fn compose_arg<SPEC>(arg_name: &Name<ObjCFermentate, SPEC>, ty: &Type, source: &ScopeContext) -> GenericArgPresentation<ObjCFermentate, SPEC> where SPEC: ObjCSpecification {
+fn compose_arg<SPEC>(
+    arg_name: &Name<ObjCFermentate, SPEC>,
+    arg_item_name: TokenStream2,
+    ty: &Type,
+    source: &ScopeContext
+) -> (GenericArgPresentation<ObjCFermentate, SPEC>, TokenStream2)
+    where SPEC: ObjCSpecification {
     println!("MapComposer::compose_arg: {} --- {}", arg_name.to_token_stream(), ty.to_token_stream());
-    let arg_context = |arg_name: &Name<ObjCFermentate, SPEC>| quote!(obj.#arg_name().cloned());
-    let arg_args = |arg_name: &Name<ObjCFermentate, SPEC>| CommaPunctuated::from_iter([
-        DictionaryExpr::SelfProp(arg_name.to_token_stream()),
-        DictionaryExpr::SelfProp(DictionaryName::Count.to_token_stream())]);
+    let from_composer = FromConversionFullComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let to_composer = ToConversionFullComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
+    let destroy_composer = DestroyFullConversionComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let var_composer = VarComposer::<ObjCFermentate, SPEC>::value(ty);
+    let target_composer = TargetVarComposer::<ObjCFermentate, SPEC>::value(ty);
+    let from_expr = from_composer.compose(source);
+    let to_expr = to_composer.compose(source);
+    let destroy_expr = destroy_composer.compose(source);
+    let var_expr = var_composer.compose(source);
+    let target_expr = target_composer.compose(source);
+    println!("MapComposer:: OBJC FROM EXPR: {}", from_expr.present(source));
+    println!("MapComposer:: OBJC TO EXPR: {}", to_expr.present(source));
+    println!("MapComposer:: OBJC DESTROY EXPR: {}", destroy_expr.as_ref().map(|e| e.present(source)).unwrap_or(quote!()));
+    println!("MapComposer:: OBJC VAR EXPR: {}", var_expr.to_token_stream());
+    println!("MapComposer:: OBJC TARGET EXPR: {}", target_expr.to_token_stream());
+    // let arg_args = |arg_name: &Name<ObjCFermentate, SPEC>| CommaPunctuated::from_iter([
+    //     DictionaryExpr::SelfProp(arg_name.to_token_stream()),
+    //     DictionaryExpr::SelfProp(DictionaryName::Count.to_token_stream())]);
+
     match TypeKind::from(ty) {
         TypeKind::Primitive(arg_ty) =>
-            GenericArgPresentation::<ObjCFermentate, SPEC>::new(
+            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                 SPEC::Var::direct(objc_primitive(&arg_ty).to_token_stream()),
-                // Expression::CastConversionExprTokens(FFIAspect::Destroy, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-
-                Expression::destroy_primitive_group_tokens(arg_args(arg_name)),
-                Expression::map_o_expr(Expression::DictionaryName(DictionaryName::O)),
-                Expression::ffi_to_primitive_group_tokens(arg_context(arg_name))),
+                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+                from_expr,
+                to_expr,
+            ), objc_primitive(ty)),
         TypeKind::Complex(arg_ty) => {
-            let arg_composer = GenericArgComposer::<ObjCFermentate, SPEC>::new(
-                Some(Expression::from_complex_tokens),
-                Some(Expression::ffi_to_complex_group_tokens),
-                Some(Expression::destroy_complex_group_tokens));
-            GenericArgPresentation::<ObjCFermentate, SPEC>::new(
+            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                 FFIVariable::direct(FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source).to_token_stream()),
-                arg_composer.destroy(arg_args(arg_name).to_token_stream()),
-                Expression::map_o_expr(arg_composer.from(DictionaryName::O.to_token_stream())),
-                arg_composer.to(arg_context(arg_name)))
+                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+                from_expr,
+                to_expr,
+            ), objc_primitive(ty))
         },
         TypeKind::Generic(generic_arg_ty) => {
-            let (arg_composer, arg_ty) = if let GenericTypeKind::Optional(..) = generic_arg_ty {
+            let arg_ty = if let GenericTypeKind::Optional(..) = generic_arg_ty {
                 match generic_arg_ty.ty() {
                     None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                    Some(ty) => (match TypeKind::from(ty) {
-                        TypeKind::Primitive(_) => GenericArgComposer::<ObjCFermentate, SPEC>::new(
-                            Some(Expression::from_primitive_opt_tokens),
-                            Some(Expression::ffi_to_primitive_opt_group_tokens),
-                            Some(Expression::destroy_complex_group_tokens)),
-                        _ => GenericArgComposer::<ObjCFermentate, SPEC>::new(Some(Expression::from_complex_opt_tokens), Some(Expression::ffi_to_complex_opt_group_tokens), Some(Expression::destroy_complex_group_tokens)),
-                    }, FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(ty, source).to_token_stream())
+                    Some(ty) => FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(ty, source).to_token_stream(),
                 }
-            } else { (
-                GenericArgComposer::<ObjCFermentate, SPEC>::new(
-                    Some(Expression::from_complex_tokens),
-                    Some(Expression::ffi_to_complex_group_tokens),
-                    Some(Expression::destroy_complex_group_tokens)),
-                FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source).to_token_stream())
+            } else {
+                // GenericArgComposer::<ObjCFermentate, SPEC>::new(
+                //     Some(Expression::from_complex_tokens),
+                //     Some(Expression::ffi_to_complex_group_tokens),
+                //     Some(Expression::destroy_complex_group_tokens)),
+                FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source).to_token_stream()
             };
-            GenericArgPresentation::<ObjCFermentate, SPEC>::new(
+            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
                 FFIVariable::direct(arg_ty),
-                arg_composer.destroy(arg_args(arg_name).to_token_stream()),
-                Expression::map_o_expr(arg_composer.from(DictionaryName::O.to_token_stream())),
-                arg_composer.to(arg_context(arg_name)))
+                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+                from_expr,
+                to_expr,
+            ), objc_primitive(ty))
         },
     }
 }
@@ -92,11 +118,14 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let c_name = ffi_type.to_token_stream();
 
         let nested_types = self.ty.nested_types();
-        let arg_0_presentation = compose_arg(&arg_0_name, nested_types[0], source);
-        let arg_1_presentation = compose_arg(&arg_1_name, nested_types[1], source);
-
-        let arg_0_var: SPEC::Var = <FFIVariable<ObjCFermentate, SPEC, TokenStream2> as Accessory>::joined_mut(&arg_0_presentation.ty);
-        let arg_1_var: SPEC::Var = <FFIVariable<ObjCFermentate, SPEC, TokenStream2> as Accessory>::joined_mut(&arg_1_presentation.ty);
+        let arg_0_target_ty = nested_types[0];
+        let arg_1_target_ty = nested_types[1];
+        let (arg_0_presentation, c0_type) = compose_arg(&arg_0_name, quote!(key), arg_0_target_ty, source);
+        let (arg_1_presentation, c1_type) = compose_arg(&arg_1_name, quote!(obj[key]), arg_1_target_ty, source);
+        let arg_0_ty = &arg_0_presentation.ty;
+        let arg_1_ty = &arg_1_presentation.ty;
+        let arg_0_var: SPEC::Var = Accessory::joined_mut(arg_0_ty);
+        let arg_1_var: SPEC::Var = Accessory::joined_mut(arg_1_ty);
 
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<ObjCFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),
@@ -161,39 +190,66 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let to_0_values = arg_0_presentation.to_conversion.present(source);
         let to_1_values = arg_1_presentation.to_conversion.present(source);
 
+
+
         let interfaces = Depunctuated::from_iter([
             InterfaceImplementation::ConversionsImplementation {
                 objc_name: objc_name.to_token_stream(),
                 c_name: c_name.clone(),
-                from_conversions_statements: SemiPunctuated::from_iter([
-                    ArgPresentation::Initializer {
-                        field_name: count_name.to_token_stream(),
-                        field_initializer: quote!(ffi_ref->#count_name),
-                    },
-                    ArgPresentation::Initializer {
-                        field_name: arg_0_name.to_token_stream(),
-                        field_initializer: arg_0_presentation.from_conversion.present(source),
-                    },
-                    ArgPresentation::Initializer {
-                        field_name: arg_1_name.to_token_stream(),
-                        field_initializer: arg_1_presentation.from_conversion.present(source),
-                    }
-                ]).to_token_stream(),
-                to_conversions_statements: quote! {
-                    ffi_ref->#count_name = [obj #count_name];
-                    NSUInteger i = 0;
-                    for (#arg_0_var *key in obj) {
-                        ffi_ref->#arg_0_name[i] = key.unsignedIntValue;
-                        ffi_ref->#arg_1_name[i] = obj[key].unsignedIntValue;
-                        i++;
+                from_conversions_statements: {
+                    let from_key = arg_0_presentation.from_conversion.present(source);
+                    let from_value = arg_1_presentation.from_conversion.present(source);
+                    quote! {
+                        uintptr_t count = ffi_ref->count;
+                        NSMutableDictionary *obj = [NSMutableDictionary dictionaryWithCapacity:count];
+                        for (int i = 0; i < count; i++) {
+                            [obj setObject:#from_key forKey:#from_value];
+                        }
+                        return obj;
                     }
                 },
-                destroy_body: SeqKind::StructDropBody(
-                    ((self.ffi_type_aspect(), SPEC::Attr::default(), SPEC::Gen::default(), NameKind::Named), SemiPunctuated::from_iter([
-                        ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_0_presentation.destructor, attrs.clone()),
-                        ArgKind::<ObjCFermentate, SPEC>::AttrExpression(arg_1_presentation.destructor, attrs.clone())
-                    ])))
-                    .present(source),
+                to_conversions_statements: quote! {
+                    NSUInteger count = [obj count];
+                    struct #c_name *ffi_ref = malloc(sizeof(struct #c_name));
+
+                    // ffi_ref->#count_name = [obj #count_name];
+                    // NSUInteger i = 0;
+                    // for (#arg_0_var *key in obj) {
+                    //     ffi_ref->#arg_0_name[i] = key.unsignedIntValue;
+                    //     ffi_ref->#arg_1_name[i] = obj[key].unsignedIntValue;
+                    //     i++;
+                    // }
+
+                    // NSUInteger count = [obj count];
+                    // struct std_collections_Map_keys_dash_spv_masternode_processor_common_block_Block_values_dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey *ffi_ref = malloc(sizeof(struct std_collections_Map_keys_dash_spv_masternode_processor_common_block_Block_values_dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey));
+                    #c0_type *keys = malloc(count * sizeof(#c0_type));
+                    #c1_type *values = malloc(count * sizeof(#c1_type));
+                    for (id key in obj) {
+                        keys[i] = #to_0_values;
+                        values[i] = #to_1_values;
+                    }
+                    ffi_ref->count = count;
+                    ffi_ref->keys = keys;
+                    ffi_ref->values = values;
+                    return ffi_ref;
+
+                },
+                destroy_body: {
+                    let destroy_key = arg_0_presentation.destructor.present(source);
+                    let destroy_value = arg_1_presentation.destructor.present(source);
+                    quote! {
+                        if (!ffi_ref) return;
+                        if (ffi_ref->count > 0) {
+                            for (int i = 0; i < ffi_ref->count; i++) {
+                                #destroy_key
+                                #destroy_value
+                            }
+                            if (ffi_ref->keys) free(ffi_ref->keys);
+                            if (ffi_ref->values) free(ffi_ref->values);
+                        }
+                        free(ffi_ref);
+                    }
+                },
             },
             InterfaceImplementation::BindingsImplementation {
                 objc_name: objc_name.to_token_stream(),
@@ -204,11 +260,6 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
                     quote!(#to_0_values),
                     quote!(#to_1_values),
                 ]),
-                // SemiPunctuated::from_iter([
-                //     quote!(uintptr_t #count_name = obj.#count_name),
-                //     quote!(#arg_0_var #arg_0_name = #to_0_values),
-                //     quote!(#arg_1_var #arg_1_name = #to_1_values),
-                // ]),
                 property_names: CommaPunctuatedTokens::from_iter([
                     count_name.to_token_stream(),
                     arg_0_name.to_token_stream(),

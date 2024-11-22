@@ -81,7 +81,7 @@ impl Resolve<TypeModelKind> for Type {
     }
     fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
         // println!("Type::<TypeModelKind>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
-        let result = <Type as Resolve<ObjectKind>>::maybe_resolve(self, source)
+        let result = Resolve::<ObjectKind>::maybe_resolve(self, source)
             .and_then(|ext_obj_kind| {
                 match ext_obj_kind {
                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
@@ -134,7 +134,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
         //println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
-        <Self as Resolve<FFIFullPath<LANG, SPEC>>>::maybe_resolve(self, source)
+        Resolve::<FFIFullPath<LANG, SPEC>>::maybe_resolve(self, source)
             .unwrap_or_else(|| {
                 // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
 

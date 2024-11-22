@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};

@@ -107,7 +107,6 @@ pub trait ItemComposerSpec<LANG, SPEC>
           SPEC: Specification<LANG> {
     const FROM_ROOT_PRESENTER: PresentableArgsSequenceComposer<LANG, SPEC>;
     const TO_ROOT_PRESENTER: PresentableArgsSequenceComposer<LANG, SPEC>;
-    // const FIELD_ITER: OwnedFieldsIterator<LANG, SPEC>;
     const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC>;
     const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC>;
     const DROP_ROOT_CONVERSION_PRESENTER: DropSeqKindComposer<LANG, SPEC>;

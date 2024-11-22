@@ -94,12 +94,12 @@ impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
-                        <Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type()
+                        Resolve::<SPEC::Var>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Var(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
                         field_type.to_type()
-                        // <Type as Resolve<FFIVariable<Type>>>::resolve(field_type, source).to_type()
+                        // Resolve::<FFIVariable<Type>>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Conversion(conversion) => (
                         Some(name.mangle_ident_default()), Type::Verbatim(conversion.clone()))

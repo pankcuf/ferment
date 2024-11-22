@@ -77,7 +77,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                             format_ident!("{}{}", prefix.to_string(), ty.mangle_tokens_default().to_string()).to_type()
                         },
                     TypeContext::EnumVariant { ident, variant_ident, .. } => {
-                        let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
+                        let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
                     TypeContext::Fn { path, .. } => {
@@ -109,39 +109,39 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         model.mangle_ident_default().to_type(),
                     TypeContext::Enum { ident , .. } |
                     TypeContext::Struct { ident , .. } => {
-                        <Type as Resolve<Type>>::resolve(&ident.to_type(), source)
+                        Resolve::<Type>::resolve(&ident.to_type(), source)
                             .mangle_ident_default()
                             .to_type()
                     }
                     TypeContext::Trait { path , .. } =>
-                        <Type as Resolve<Type>>::resolve(&path.to_type(), source)
+                        Resolve::<Type>::resolve(&path.to_type(), source)
                             .mangle_ident_default()
                             .to_type(),
                     TypeContext::Impl { path , .. } =>
-                        <Type as Resolve<Type>>::resolve(&path.to_type(), source)
+                        Resolve::<Type>::resolve(&path.to_type(), source)
                             .mangle_ident_default()
                             .to_type(),
                     TypeContext::EnumVariant { ident, variant_ident, .. } => {
-                        let mangled_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source).mangle_ident_default();
+                        let mangled_ty = Resolve::<Type>::resolve(&ident.to_type(), source).mangle_ident_default();
                         parse_quote!(#mangled_ty::#variant_ident)
                     },
                     TypeContext::Fn { path, sig_context, .. } => {
                         match sig_context {
                             FnSignatureContext::ModFn(item_fn) => {
-                                <Type as Resolve<Type>>::resolve(&item_fn.sig.ident.to_type(), source)
+                                Resolve::<Type>::resolve(&item_fn.sig.ident.to_type(), source)
                                     .mangle_ident_default()
                                     .to_type()
                             }
                             FnSignatureContext::TraitInner(self_ty, _trait_ty, _sig) => {
-                                <Type as Resolve<Type>>::resolve(self_ty, source)
+                                Resolve::<Type>::resolve(self_ty, source)
                                     .mangle_ident_default()
                                     .to_type()
                             },
                             FnSignatureContext::Impl(self_ty, trait_ty, _sig) => {
-                                let self_ty = <Type as Resolve<Type>>::resolve(&self_ty, source);
+                                let self_ty = Resolve::<Type>::resolve(self_ty, source);
                                 let trait_ty = trait_ty.as_ref()
                                     .and_then(|trait_ty|
-                                        <Type as Resolve<Type>>::resolve(trait_ty, source)
+                                        Resolve::<Type>::resolve(trait_ty, source)
                                             .maybe_trait_ty(source));
 
                                 match trait_ty {
@@ -153,7 +153,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                                 }
                             }
                             FnSignatureContext::Bare(ident, _type_bare_fn) => {
-                                <Type as Resolve<Type>>::resolve(&ident.to_type(), source)
+                                Resolve::<Type>::resolve(&ident.to_type(), source)
                                     .mangle_ident_default()
                                     .to_type()
                             }
@@ -171,7 +171,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     TypeContext::Struct { ident , .. } =>
                         ident.to_type(),
                     TypeContext::EnumVariant { ident, variant_ident, .. } => {
-                        let full_ty = <Type as Resolve<Type>>::resolve(&ident.to_type(), source);
+                        let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);
                         parse_quote!(#full_ty::#variant_ident)
                     },
                     TypeContext::Fn { path, .. } |

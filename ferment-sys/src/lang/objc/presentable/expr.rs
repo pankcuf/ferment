@@ -39,7 +39,12 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 //     quote!(NSString))
                 //     .present(source)
             },
-            Self::CastDestroy(args, ty, ffi_ty) => {
+            Self::DestroyBigInt(presentable, _ffi_ty, _target_ty) => {
+                let field_path = presentable.present(source);
+                quote! { if (#field_path) free(#field_path); }
+            },
+
+            Self::CastDestroy(args, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceDestroy;
                 let method = FFIConversionDestroyMethod::Destroy;
@@ -190,10 +195,13 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
 
             Self::ConversionExprTokens(.., ConversionExpressionKind::Primitive, _expr) =>
                 quote!(),
-            Self::ConversionExprTokens(.., ConversionExpressionKind::PrimitiveOpt, expr) =>
-                panic!("wrong {}", expr),
+            Self::ConversionExprTokens(.., ConversionExpressionKind::PrimitiveOpt, expr) => {
+                // let field_path =
+                quote!(if (#expr) free(#expr);)
+                // panic!("wrong {}", expr),
                 // Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(expr.to_token_stream()))
                 //     .present(source),
+            }
             Self::ConversionExprTokens(.., _, expr) =>
                 expr.to_token_stream(),
                 // panic!("wrong {}", expr),

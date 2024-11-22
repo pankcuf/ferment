@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Attribute, Generics, ReturnType, Type};
 use crate::ast::CommaPunctuatedTokens;
-use crate::composer::CommaPunctuatedArgs;
+use crate::composer::{CommaPunctuatedArgs, TypePair};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[allow(unused)]
@@ -77,34 +77,34 @@ pub enum InterfacePresentation {
 }
 
 impl InterfacePresentation {
-    pub fn conversion_from_root<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
+    pub fn conversion_from_root<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>) -> Self {
         Self::conversion_from(attrs, types, DictionaryExpr::FromRoot(body.to_token_stream()), generics)
     }
-    pub fn conversion_to_boxed<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
+    pub fn conversion_to_boxed<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>) -> Self {
         Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body.to_token_stream()), generics)
     }
-    pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
+    pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>) -> Self {
         Self::conversion_to_boxed(attrs, types, DictionaryExpr::SelfDestructuring(body.to_token_stream()), generics)
     }
     // pub fn conversion_unbox_any_terminated<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), body: T, generics: &Option<Generics>) -> Self {
     //     Self::conversion_destroy(attrs, types, InterfacesMethodExpr::UnboxAny(body.to_token_stream()).to_token_stream().terminated(), generics)
     // }
 
-    pub fn conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
+    pub fn conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, conversions: T, generics: &Option<Generics>) -> Self {
         InterfacePresentation::ConversionFrom {
             attrs: attrs.clone(),
             types: types.clone(),
             conversions: (conversions.to_token_stream(), generics.clone())
         }
     }
-    pub fn conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
+    pub fn conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, conversions: T, generics: &Option<Generics>) -> Self {
         InterfacePresentation::ConversionTo {
             attrs: attrs.clone(),
             types: types.clone(),
             conversions: (conversions.to_token_stream(), generics.clone())
         }
     }
-    // pub fn conversion_destroy<T: ToTokens>(attrs: &Vec<Attribute>, types: &(Type, Type), conversions: T, generics: &Option<Generics>) -> Self {
+    // pub fn conversion_destroy<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, conversions: T, generics: &Option<Generics>) -> Self {
     //     InterfacePresentation::ConversionDestroy {
     //         attrs: attrs.clone(),
     //         types: types.clone(),
@@ -127,7 +127,7 @@ impl InterfacePresentation {
     pub fn send_sync(attrs: &Vec<Attribute>, ffi_type: &Type) -> Self {
         InterfacePresentation::SendAndSync { attrs: attrs.clone(), ffi_type: ffi_type.clone() }
     }
-    pub fn vec(attrs: &Vec<Attribute>, types: &(Type, Type), decode: TokenStream2, encode: TokenStream2) -> Self {
+    pub fn vec(attrs: &Vec<Attribute>, types: &TypePair, decode: TokenStream2, encode: TokenStream2) -> Self {
         InterfacePresentation::VecConversion { attrs: attrs.clone(), types: types.clone(), decode, encode }
     }
 }

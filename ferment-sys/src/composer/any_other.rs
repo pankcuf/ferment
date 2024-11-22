@@ -4,7 +4,7 @@ use syn::{Attribute, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, VarComposer, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer, VarComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{CrateExtension, GenericNestedArg, Mangle, MaybeLambdaArgs, ToPath, ToType};
@@ -57,7 +57,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
-
+        let maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
         // let compose = |arg_name: &Name, ty: &Type| {
         // };
         // let arg_name = &arg_0_name;
@@ -104,7 +104,14 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
                             },
                         }
                     },
-                    "Mutex" | "RwLock" => quote!(#arg_0_name.into_inner().expect("Err")),
+                    "Mutex" | "RwLock" => {
+
+                        let expr = ToConversionFullComposer::<RustFermentate, SPEC>::value(arg_0_name.clone(), nested_ty).compose(source);
+                        println!("RES expr: {}", expr.present(source));
+                        // let pres = expr.present(source);
+                        // Expression::
+                        quote!(#arg_0_name.into_inner().expect("Err"))
+                    },
                     "RefCell" => quote!(#arg_0_name.into_inner()),
                     "Pin" => quote!(&**#arg_0_name),
                     _ => quote!((*#arg_0_name).clone())
@@ -120,7 +127,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
                     Expression::<RustFermentate, SPEC>::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))
                 ),
                 TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => {
-                    if let Some(lambda_args) = ty_model_kind.maybe_lambda_arg_names() {
+                    if let Some(lambda_args) = MaybeLambdaArgs::<RustFermentate, SPEC>::maybe_lambda_arg_names(ty_model_kind) {
                         (Expression::from_lambda(Expression::Simple(quote!((&*ffi_ref.#arg_0_name))), lambda_args), None, Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
                     } else {
                         (Expression::from_primitive(Expression::<RustFermentate, SPEC>::FfiRefWithName(arg_0_name.clone()).into()), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))

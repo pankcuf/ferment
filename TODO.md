@@ -46,3 +46,5 @@
     SingleContractDocumentType { id: Identifier, document_type_name: String } = 1,
   }
   ```
+- improve types wrapped into smart pointers (Box, etc) (in terms of memory use?)
+- fix: Vec<&str> becomes Vec_, also can't use smth like ['a ['a str]]

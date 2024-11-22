@@ -138,7 +138,7 @@ impl IWriter for Writer {
         let objc_file_name = "objc_wrapper.h";
 
         Command::new("mkdir")
-            .args(&["-p", "target/include".to_string().as_str()])
+            .args(&["-p", "target/include"])
             .status()?;
 
         let objc_path= Path::new("target")

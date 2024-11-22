@@ -75,8 +75,8 @@ impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for Type
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
-        let full_ty = <Type as Resolve<Type>>::resolve(self, source);
-        let maybe_special = <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(&full_ty, source);
+        let full_ty = Resolve::<Type>::resolve(self, source);
+        let maybe_special = Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(&full_ty, source);
         let refined = maybe_special
             .map(FFIFullPath::from)
             .or_else(|| source.maybe_ffi_full_path(self))
@@ -117,7 +117,7 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
                     "c_void" => match (star_token, const_token, mutability) {
                         (_, Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
                         (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(quote!(void)),
-                        _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                     },
                     _ => {
                         if const_token.is_some() {
@@ -154,12 +154,12 @@ impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for TypeMode
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
                 FFIVariable::direct(
-                    <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(ty, source)
+                    Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(ty, source)
                         .map(|special| special.to_token_stream())
-                        .unwrap_or(<Type as Resolve::<FFIFullPath<ObjCFermentate, SPEC>>>::resolve(ty, source)
+                        .unwrap_or(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(ty, source)
                             .to_token_stream())),
             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) =>
-                FFIVariable::mut_ptr(<Type as Resolve::<FFIFullPath<ObjCFermentate, SPEC>>>::resolve(ty, source).to_token_stream()),
+                FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(ty, source).to_token_stream()),
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) =>
                 FFIVariable::direct(composition.to_type().to_token_stream()),
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
@@ -167,7 +167,7 @@ impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for TypeMode
                 match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         // println!("Nested: {}", nested_full_ty.to_token_stream());
-                        resolve_type_variable(match <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(nested_full_ty, source) {
+                        resolve_type_variable(match Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(nested_full_ty, source) {
                             Some(special) => special.to_type(),
                             None => {
                                 source.maybe_ffi_full_path::<ObjCFermentate, SPEC>(nested_full_ty)
@@ -213,10 +213,10 @@ impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for TypeMode
             TypeModelKind::Slice(TypeModel { ty, .. }) |
             TypeModelKind::Tuple(TypeModel { ty, .. }) |
             TypeModelKind::Unknown(TypeModel { ty, .. })  => {
-                <Type as Resolve<SpecialType<ObjCFermentate, SPEC>>>::maybe_resolve(ty, source)
+                Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
                     .unwrap_or_else(|| {
-                        resolve_type_variable(<Type as Resolve<ObjectKind>>::maybe_resolve(ty, source)
+                        resolve_type_variable(Resolve::<ObjectKind>::maybe_resolve(ty, source)
                           .and_then(|external_type| {
                               match external_type {
                                   ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {

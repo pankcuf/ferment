@@ -133,8 +133,8 @@
 //                     }
 //                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) => {
 //                         let full_nested_ty = full_ty.first_nested_type().unwrap();
-//                         // println!("FromConversionComposer (Non Special Boxed): {} ({}) --- {} ---- {}", nested_ty.to_token_stream(), full_nested_ty.to_token_stream(), <Type as Resolve<Option<SpecialType>>>::resolve(full_nested_ty, source).to_token_stream(), nested_ty.maybe_object(source).to_token_stream());
-//                         match (<Type as Resolve<Option<SpecialType>>>::resolve(full_nested_ty, source),
+//                         // println!("FromConversionComposer (Non Special Boxed): {} ({}) --- {} ---- {}", nested_ty.to_token_stream(), full_nested_ty.to_token_stream(), Resolve::<Option<SpecialType>>::resolve(full_nested_ty, source).to_token_stream(), nested_ty.maybe_object(source).to_token_stream());
+//                         match (Resolve<Option<SpecialType>>::resolve(full_nested_ty, source),
 //                                source.maybe_object_by_value(full_nested_ty)) {
 //                             (Some(SpecialType::Opaque(..)),
 //                                 Some(ObjectKind::Item(TypeModelKind::FnPointer(..) | TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..) |

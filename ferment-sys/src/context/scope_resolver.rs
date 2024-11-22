@@ -9,6 +9,9 @@ use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectKind;
 use crate::ext::{RefineMut, ToType};
 use crate::formatter::types_dict;
+use crate::lang::{LangFermentable, Specification};
+use crate::presentation::FFIVariable;
+
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectKind>)>;
 
 #[derive(Clone, Debug)]
@@ -46,6 +49,20 @@ impl<'a> ToType for ScopeSearchKey<'a> {
        }
     }
 }
+
+impl<'a> ScopeSearchKey<'a> {
+    pub fn ptr_composer<LANG, SPEC, T>(&self) -> fn(T) -> FFIVariable<LANG, SPEC, T>
+        where LANG: LangFermentable,
+              SPEC: Specification<LANG>,
+              T: ToTokens {
+        if self.maybe_originally_is_const_ptr() {
+            FFIVariable::const_ptr
+        } else {
+            FFIVariable::mut_ptr
+        }
+    }
+}
+
 
 impl<'a> ScopeSearchKey<'a> {
     pub fn maybe_original_key(&'a self) -> &'a Option<Box<ScopeSearchKey<'a>>> {

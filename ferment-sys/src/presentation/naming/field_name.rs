@@ -5,7 +5,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Expr, Pat, Path, Type};
 use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, LangFermentable, NameComposable, RustSpecification, Specification};
 use crate::presentation::{DictionaryName, RustFermentate};
 
 
@@ -95,6 +95,23 @@ impl<LANG, SPEC> Name<LANG, SPEC>
 
     pub fn anonymous(&self) -> Ident {
         format_ident!("o_{}", self.to_token_stream().to_string())
+    }
+
+}
+
+impl<LANG, SPEC> NameComposable<LANG, SPEC> for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Name<LANG, SPEC>> {
+    fn ident(ident: Ident) -> Self {
+        Self::Ident(ident)
+    }
+
+    fn index(ident: usize) -> Self {
+        Self::Index(ident)
+    }
+
+    fn unnamed_arg(index: usize) -> Self {
+        Self::UnnamedArg(index)
     }
 }
 

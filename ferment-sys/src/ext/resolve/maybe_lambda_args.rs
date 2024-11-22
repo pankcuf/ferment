@@ -1,21 +1,20 @@
-use quote::ToTokens;
 use syn::{BareFnArg, TypeBareFn};
 use crate::ast::CommaPunctuated;
-use crate::lang::{LangFermentable, Specification};
-use crate::presentation::Name;
+use crate::lang::{LangFermentable, NameComposable, Specification};
 
-pub trait MaybeLambdaArgs<T: ToTokens> {
-    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<T>>;
+pub trait MaybeLambdaArgs<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>>;
 }
 
-impl<LANG, SPEC> MaybeLambdaArgs<Name<LANG, SPEC>> for TypeBareFn
+impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for TypeBareFn
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Name<LANG, SPEC>: ToTokens {
-    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<Name<LANG, SPEC>>> {
+          SPEC: Specification<LANG> {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         Some(CommaPunctuated::from_iter(self.inputs.iter().enumerate().map(|(index, BareFnArg { name, ..})| match name {
-            Some((ident, ..)) => Name::Ident(ident.clone()),
-            None => Name::UnnamedArg(index)
+            Some((ident, ..)) => SPEC::Name::ident(ident.clone()),
+            None => SPEC::Name::unnamed_arg(index)
         })))
     }
 }

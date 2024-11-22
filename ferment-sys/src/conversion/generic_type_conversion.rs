@@ -103,6 +103,7 @@ pub struct GenericArgPresentation<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG> {
     pub ty: SPEC::Var,
+    // pub alloc: SPEC::Expr,
     pub destructor: SPEC::Expr,
     pub from_conversion: SPEC::Expr,
     pub to_conversion: SPEC::Expr,
@@ -270,7 +271,7 @@ impl<SPEC> Resolve<Field> for FieldComposer<RustFermentate, SPEC>
     }
     fn resolve(&self, source: &ScopeContext) -> Field {
         let FieldComposer { attrs, name, kind, .. } = self;
-        // println!("<FieldComposer as Resolve<Field>>::resolve({:?})", self);
+        // println!("Resolve::<Field>::resolve({:?})", self);
         Field {
             attrs: attrs.clone(),
             vis: Visibility::Public(VisPublic { pub_token: Default::default() }),

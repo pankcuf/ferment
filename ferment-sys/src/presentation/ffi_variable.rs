@@ -6,8 +6,8 @@ use ferment_macro::Display;
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind, GroupModelKind};
-use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToType};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::ext::{path_arguments_to_type_conversions, Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
@@ -74,9 +74,9 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Path
                 Some(TypeKind::Primitive(ty)) =>
                     FFIVariable::mut_ptr(ty.clone()),
                 Some(TypeKind::Generic(generic_ty)) =>
-                    FFIVariable::mut_ptr(<GenericTypeKind as Resolve<FFIFullPath<RustFermentate, SPEC>>>::resolve(generic_ty, source).to_type()),
+                    FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(generic_ty, source).to_type()),
                 Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    <Path as Resolve<FFIVariable<RustFermentate, SPEC, Type>>>::resolve(path, source),
+                    Resolve::<FFIVariable<RustFermentate, SPEC, Type>>::resolve(path, source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
         } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
@@ -103,7 +103,7 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
                     "c_void" => match (star_token, const_token, mutability) {
                         (_, Some(_const_token), None) => FFIVariable::const_ptr(FFIFullDictionaryPath::<RustFermentate, SPEC>::Void.to_type()),
                         (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(FFIFullDictionaryPath::<RustFermentate, SPEC>::Void.to_type()),
-                        _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                     },
                     _ => {
                         if const_token.is_some() {
@@ -148,7 +148,7 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Type where SPEC:
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("Type::<FFIVariable>::resolve.1({})", self.to_token_stream());
-        let full_ty = <Type as Resolve<Type>>::resolve(self, source);
+        let full_ty = Resolve::<Type>::resolve(self, source);
         // println!("Type::<FFIVariable>::resolve.2({})", full_ty.to_token_stream());
         let refined = source.maybe_special_or_regular_ffi_full_path::<RustFermentate, SPEC>(&full_ty)
             .map(|ffi_path| ffi_path.to_type())
@@ -167,11 +167,11 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
         println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
-            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(<Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(ty, source)
+            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|special| special.to_type())
-                    .unwrap_or(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(ty, source)
+                    .unwrap_or(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(ty, source)
                         .to_type())),
-            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(ty, source).to_type()),
+            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(ty, source).to_type()),
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::direct(composition.to_type()),
             TypeModelKind::Dictionary(
                 DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) => {
@@ -182,7 +182,7 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
                 match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         // println!("Nested: {}", nested_full_ty.to_token_stream());
-                        resolve_type_variable(match <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(nested_full_ty, source) {
+                        resolve_type_variable(match Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(nested_full_ty, source) {
                             Some(special) => special.to_type(),
                             None => {
                                 source.maybe_ffi_full_path::<RustFermentate, SPEC>(nested_full_ty)
@@ -227,10 +227,10 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
             TypeModelKind::Slice(TypeModel { ty, .. }) |
             TypeModelKind::Tuple(TypeModel { ty, .. }) |
             TypeModelKind::Unknown(TypeModel { ty, .. })  => {
-                <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(ty, source)
+                Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
                     .unwrap_or_else(|| {
-                        resolve_type_variable(<Type as Resolve<ObjectKind>>::maybe_resolve(ty, source)
+                        resolve_type_variable(Resolve::<ObjectKind>::maybe_resolve(ty, source)
                             .and_then(|external_type| {
                                 match external_type {
                                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {

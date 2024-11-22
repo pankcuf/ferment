@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{parse_quote, AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::{Colon2Punctuated, PathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;

@@ -110,7 +110,7 @@ impl ScopeContext {
             ObjectKind::Type(ref ty_conversion) |
             ObjectKind::Item(ref ty_conversion, ..) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
-                match <Type as Resolve<SpecialType<LANG, SPEC>>>::maybe_resolve(&full_parent_ty, self) {
+                match Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(&full_parent_ty, self) {
                     Some(special) => Some(special.to_type()),
                     None => match ty_conversion {
                         TypeModelKind::Trait(ty, ..) =>
@@ -144,13 +144,13 @@ impl ScopeContext {
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
-        <Type as Resolve<SpecialType<LANG, SPEC>>>::maybe_resolve(ty, self)
+        Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(ty, self)
             .map(FFIFullPath::from)
     }
     pub fn maybe_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
               SPEC: Specification<LANG> {
-        <Type as Resolve<TypeModelKind>>::resolve(ty, self)
+        Resolve::<TypeModelKind>::resolve(ty, self)
             .to_type()
             .maybe_resolve(self)
     }

@@ -12,7 +12,6 @@ use crate::ext::{AsType, Mangle, MaybeLambdaArgs};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::Name;
 
 #[derive(Clone)]
 pub struct GenericBoundsModel {
@@ -107,13 +106,12 @@ impl GenericBoundsModel {
 
 }
 
-impl<LANG, SPEC> MaybeLambdaArgs<Name<LANG, SPEC> > for GenericBoundsModel
+impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for GenericBoundsModel
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Name<LANG, SPEC>: ToTokens {
-    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<Name<LANG, SPEC>>> {
+          SPEC: Specification<LANG> {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         if self.is_lambda() {
-            self.bounds.first()?.maybe_lambda_arg_names()
+            self.bounds.first().map(MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names)?
         } else {
             None
         }
@@ -133,12 +131,11 @@ impl GenericBoundsModel {
 impl GenericBoundsModel {
     pub fn expr_from<LANG, SPEC>(&self, field_path: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>
         where LANG: LangFermentable,
-              SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
-              SPEC::Expr: ScopeContextPresentable,
-              Name<LANG, SPEC>: ToTokens {
+              SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+              SPEC::Expr: ScopeContextPresentable {
         if self.bounds.is_empty() {
             Expression::from_primitive(field_path)
-        } else if let Some(lambda_args) = self.maybe_lambda_arg_names() {
+        } else if let Some(lambda_args) = MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(self) {
             Expression::from_lambda(field_path, lambda_args)
         } else {
             Expression::from_complex(field_path)

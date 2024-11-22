@@ -8,6 +8,7 @@ pub(crate) mod java;
 
 
 use std::fmt::{Debug, Display};
+use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Type};
 use crate::composer::VarComposable;
@@ -27,6 +28,14 @@ pub trait FromDictionary {
     fn dictionary_name(dictionary: DictionaryName) -> Self;
 }
 
+pub trait NameComposable<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    fn ident(ident: Ident) -> Self;
+    fn index(ident: usize) -> Self;
+    fn unnamed_arg(index: usize) -> Self;
+}
+
 pub trait LangFermentable: Clone + Debug {
     // type SPEC: Specification<Self>;
 }
@@ -40,12 +49,12 @@ pub trait Specification<LANG>: Clone + Debug
     type Interface: ToTokens;
     type Expr: ExpressionComposable<LANG, Self>;
     type Var: VarComposable<LANG, Self> + ToType;
-    type Name: Clone + Default + Display + ToTokens + Mangle<MangleDefault> + FromDictionary;
+    type Name: Clone + Default + Display + ToTokens + Mangle<MangleDefault> + FromDictionary + NameComposable<LANG, Self>;
 }
+
 pub trait PresentableSpecification<LANG>:
     Specification<LANG, Expr=Expression<LANG, Self>>
     where LANG: LangFermentable,
-          // Aspect<Self::TYC>: ScopeContextPresentable,
           Expression<LANG, Self>: ScopeContextPresentable,
           <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens {}
 

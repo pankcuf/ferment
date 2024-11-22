@@ -3,11 +3,13 @@ use syn::{parse_quote, PatType, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
-use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind};
-use crate::ext::{FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, Primitive, Resolve, SpecialType, AsType, ToType, MaybeLambdaArgs};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::ext::{AsType, FFIObjectResolve, FFISpecialTypeResolve, FFITypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, SpecialType, ToType};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposable, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
+
+
 
 #[allow(unused)]
 #[derive(Clone)]
@@ -37,6 +39,9 @@ impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
     pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
         Self::expr_less(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
+    pub fn value_expr(name: SPEC::Name, ty: &'a Type, field_expr: SPEC::Expr) -> Self {
+        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(field_expr))
+    }
 }
 // impl<'a, LANG, SPEC> Display for FromConversionFullComposer<'a, LANG, SPEC>
 //     where LANG: LangFermentable + Debug,
@@ -49,9 +54,8 @@ impl<'a, LANG, SPEC> FromConversionFullComposer<'a, LANG, SPEC>
 
 impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
-          Name<LANG, SPEC>: ToTokens,
           FFIFullPath<LANG, SPEC>: ToType,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     type Source = ScopeContext;
@@ -59,31 +63,29 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { name, search, field_expr: expr, .. } = self;
-        let search_key = self.search.search_key();
-        // println!("FromConversionFullComposer:: {}({}) -- {}", name,  name.to_token_stream(), search);
+        let field_path = expr.clone().unwrap_or(SPEC::Expr::simple(name));
 
-        let field_path = expr.clone().unwrap_or(SPEC::Expr::Simple(name.to_token_stream()));
+        let search_key = self.search.search_key();
         let maybe_object = source.maybe_object_by_predicate_ref(search);
         let full_type = maybe_object
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
-        // println!("FromConversionFullComposer:: {}", full_type.to_token_stream());
-
         let is_ref = search_key.maybe_originally_is_ref();
         let full_type = match &full_type {
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
         };
-        let ffi_type = <Type as Resolve::<FFIFullPath<LANG, SPEC>>>::resolve(&full_type, source).to_type();
+        let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
 
-        // println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
+        println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
 
         let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
+        println!("FromConversionFullComposer::maybe_special {} ", maybe_special.as_ref().map_or("None".to_string(), SpecialType::to_string));
         let expression = match maybe_special {
             Some(SpecialType::Opaque(..)) => match composition {
                 TypeModelKind::Bounds(bounds) =>
@@ -106,7 +108,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                     TypeModelKind::FnPointer(..) => {
                         // println!("FromConversionFullComposer (Non Special FnPointer): {} --- {}", search_key, maybe_object.to_token_stream());
                         if let Some(lambda_args) = source.maybe_fn_sig(&full_type)
-                            .and_then(|bare| bare.maybe_lambda_arg_names()) {
+                            .and_then(|ty| MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(&ty)) {
                             Expression::from_lambda(field_path, lambda_args)
                         } else {
                             Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type)
@@ -152,7 +154,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                             (Some(SpecialType::Custom(custom_ty)), _any) =>
                                 Expression::new_box(Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_nested_ty.clone())),
                             (_, Some(obj)) =>
-                                Expression::new_box(match obj.maybe_lambda_arg_names() {
+                                Expression::new_box(match MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(&obj) {
                                     Some(lambda_args) =>
                                         Expression::from_lambda(field_path, lambda_args),
                                     None =>
@@ -296,7 +298,7 @@ impl<LANG, SPEC> SourceComposable for FromConversionComposer<LANG, SPEC>
                     Expression::from_primitive(field_path),
                 TypeModelKind::FnPointer(..) => {
                     if let Some(lambda_args) = source.maybe_fn_sig(&full_type)
-                        .and_then(|bare| bare.maybe_lambda_arg_names()) {
+                        .and_then(|bare| MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(&bare)) {
                         Expression::from_lambda(field_path, lambda_args)
                     } else {
                         Expression::from_primitive(field_path)
@@ -325,7 +327,7 @@ impl<LANG, SPEC> SourceComposable for FromConversionComposer<LANG, SPEC>
                         (Some(SpecialType::Custom(..)), _any) =>
                             Expression::new_box(Expression::from_complex(field_path)),
                         (_, Some(obj)) => {
-                            Expression::new_box(match obj.maybe_lambda_arg_names() {
+                            Expression::new_box(match MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(&obj) {
                                 Some(lambda_args) =>
                                     Expression::from_lambda(field_path, lambda_args),
                                 None =>

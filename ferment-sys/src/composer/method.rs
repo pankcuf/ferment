@@ -62,7 +62,7 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
                     aspect.clone(),
                     attrs.clone(),
                     generics.clone(),
-                    <Type as Resolve<SPEC::Var>>::resolve(composer.ty(), source),
+                    Resolve::<SPEC::Var>::resolve(composer.ty(), source),
                     composer.tokenized_name()
                 )))
         )

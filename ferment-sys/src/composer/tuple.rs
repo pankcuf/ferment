@@ -9,9 +9,9 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
 use crate::ext::{Mangle, Resolve};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{LangFermentable, NameComposable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct TupleComposer<LANG, SPEC>
@@ -49,12 +49,10 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
             .iter()
             .enumerate()
             .for_each(|(index, ty)| {
-                let name = Name::UnnamedArg(index);
-                let field_name = Name::Index(index);
+                let name = SPEC::Name::unnamed_arg(index);
+                let field_name = SPEC::Name::index(index);
                 let ty: Type = ty.resolve(source);
-                let (kind, destroy_expr,
-                    from_expr,
-                    to_expr) = match TypeKind::from(&ty) {
+                let (kind, destroy_expr, from_expr, to_expr) = match TypeKind::from(&ty) {
                     TypeKind::Primitive(..) => (
                         ConversionExpressionKind::Primitive,
                         Expression::empty(),
@@ -73,20 +71,15 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
-
-                // let (ty, item) = dictionary_generic_arg_pair::<RustFermentate, SPEC>(name.clone(), Name::Index(index), ty, source);
-                // args.iter().for_each(|item| {
-                    from_conversions.push(item.from_conversion.present(source));
-                    to_conversions.push(item.to_conversion.present(source));
-                    destroy_conversions.push(item.destructor.present(source));
-                // });
+                from_conversions.push(item.from_conversion.present(source));
+                to_conversions.push(item.to_conversion.present(source));
+                destroy_conversions.push(item.destructor.present(source));
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let attrs = self.compose_attributes();
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions).to_token_stream(), &None),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None),
-            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.type_tuple.mangle_ident_default(), attrs: vec![] });

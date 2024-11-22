@@ -239,8 +239,6 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for UnnamedVariantComposer<LANG, S
         SeqKind::FromUnnamedFields;
     const TO_ROOT_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::ToUnnamedFields;
-    // const FIELD_ITER: OwnedFieldsIterator<LANG, SPEC> =
-    //     IterativeComposer::aspect_fields(Self::PRODUCER);
     const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::FromUnnamedFields;
     const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =

@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
-use syn::Type;
 use syn::__private::TokenStream2;
 use crate::composable::{FieldComposer, FieldTypeKind};
 use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComposer};
@@ -125,7 +124,7 @@ impl<SPEC> ScopeContextPresentable for ArgKind<ObjCFermentate, SPEC>
             },
             ArgKind::Unnamed(FieldComposer{ kind, name, attrs, .. }) => {
                 println!("OBJC ArgKind::DefaultFieldType: {} -- {}", kind, name);
-                let var = <Type as Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>>::resolve(kind.ty(), source);
+                let var = Resolve::<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>::resolve(kind.ty(), source);
                 ArgPresentation::AttrConversion {
                     conversion: quote! { #var #name }
                 }
@@ -147,7 +146,7 @@ impl<SPEC> ScopeContextPresentable for ArgKind<ObjCFermentate, SPEC>
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
-                        <Type as Resolve<SPEC::Var>>::resolve(field_type, source)
+                        Resolve::<SPEC::Var>::resolve(field_type, source)
                     ),
                     FieldTypeKind::Var(var) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),

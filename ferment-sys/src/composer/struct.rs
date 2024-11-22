@@ -6,7 +6,7 @@ use syn::{Attribute, Generics};
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::{DelimiterTrait, Void};
 use crate::composable::{AttrsModel, FieldComposer};
-use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldPathConversionResolveSpec, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, LinkedContextComposer, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, FFIInterfaceMethodSpec, AspectSeqKindComposer, ArgKindPairs, FieldNameSpec, FieldComposerProducer, FieldSpec, ArgKindProducerByRef, AspectArgSourceComposer};
+use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldPathConversionResolveSpec, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, LinkedContextComposer, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, FFIInterfaceMethodSpec, AspectSeqKindComposer, ArgKindPairs, FieldNameSpec, FieldComposerProducer, FieldSpec, ArgKindProducerByRef, AspectArgSourceComposer, ItemAspectsSpec};
 use crate::context::ScopeContextLink;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
@@ -335,4 +335,18 @@ where LANG: LangFermentable,
         SeqKind::StructDropBody;
     const EXPR: PresentableExprComposerRef<LANG, SPEC> =
         SPEC::Expr::bypass;
+}
+
+impl<LANG, SPEC, I> ItemAspectsSpec<LANG, SPEC> for StructComposer<LANG, SPEC, I>
+where LANG: LangFermentable,
+      SPEC: Specification<LANG>,
+      I: DelimiterTrait,
+      FromStruct<I>: FFIInterfaceMethodSpec<LANG, SPEC, Comma>,
+      ToStruct<I>: FFIInterfaceMethodSpec<LANG, SPEC, Comma>,
+      DropStruct<I>: FFIInterfaceMethodSpec<LANG, SPEC, Semi>
+{
+
+    type DTOR = DropStruct<I>;
+    type FROM = FromStruct<I>;
+    type INTO = ToStruct<I>;
 }
