@@ -112,6 +112,7 @@ impl Writer {
             .map(|_| ())
     }
     pub fn write(&self, fermentate: Depunctuated<Fermentate>) -> Result<(), Error> {
+        #[cfg(not(feature = "cbindgen_only"))]
         for f in fermentate {
             match f {
                 Fermentate::Rust(fermentate) =>

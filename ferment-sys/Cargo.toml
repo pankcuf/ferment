@@ -9,6 +9,7 @@ description = "Syntax tree morphing of FFI-compatible stuff"
 default = ["objc"]
 
 objc = []
+cbindgen_only = []
 java = []
 
 [dependencies]
