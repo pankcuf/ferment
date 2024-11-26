@@ -734,6 +734,7 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
         ty => FFIVariable::direct(ty.mangle_tokens_default())
     }
 }
+#[allow(unused)]
 pub fn resolve_target_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2>
     where SPEC: ObjCSpecification {
     //println!("resolve_type_variable: {}", ty.to_token_stream());

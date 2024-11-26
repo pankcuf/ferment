@@ -57,7 +57,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
-        let maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
+        let _maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
         // let compose = |arg_name: &Name, ty: &Type| {
         // };
         // let arg_name = &arg_0_name;

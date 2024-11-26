@@ -36,3 +36,7 @@ pub fn get_tuple_complex_complex(tuple: (u32, HashID)) -> u32 {
 pub struct TransUser {
     pub transition: DataContractCreateTransition,
 }
+#[ferment_macro::export]
+pub struct VecofArr {
+    pub v: Vec<[u8; 32]>,
+}

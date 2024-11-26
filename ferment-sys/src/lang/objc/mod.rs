@@ -24,7 +24,9 @@ use crate::lang::objc::presentable::TypeContext;
 use crate::tree::{CrateTree, ScopeTree, ScopeTreeItem};
 
 pub use fermentate::Fermentate as ObjCFermentate;
+#[cfg(feature = "objc")]
 pub use writer::Writer as ObjCWriter;
+#[cfg(feature = "objc")]
 pub use xcproj::Config as XCodeConfig;
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;

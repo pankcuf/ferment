@@ -1,7 +1,11 @@
 use crate::{Config, Crate, error, Lang};
+#[cfg(not(feature = "cbindgen_only"))]
 use crate::ast::Depunctuated;
-use crate::tree::{FileTreeProcessor, Writer};
+#[cfg(not(feature = "cbindgen_only"))]
+use crate::tree::FileTreeProcessor;
+use crate::tree::Writer;
 use crate::lang::rust::find_crates_paths;
+#[cfg(not(feature = "cbindgen_only"))]
 use crate::presentation::{Fermentate, RustFermentate};
 
 extern crate env_logger;
@@ -109,16 +113,19 @@ impl Builder {
     /// The resulting module will only contain the necessary imports and types suitable for FFI conversion.
     ///
     pub fn generate(self) -> Result<(), error::Error> {
-        FileTreeProcessor::build(&self.config)
-            .and_then(|crate_tree| {
-                let fermentate = Depunctuated::from_iter([
-                    Fermentate::Rust(RustFermentate::CrateTree(crate_tree.clone())),
-                    #[cfg(feature = "objc")]
-                    Fermentate::ObjC(crate::lang::objc::ObjCFermentate::CrateTree(crate_tree))
-                ]);
-                Writer::from(self.config)
-                    .write(fermentate)
-            })
-        }
+        #[cfg(not(feature = "cbindgen_only"))]
+        let fermentate = {
+            let crate_tree = FileTreeProcessor::build(&self.config)?;
+            Depunctuated::from_iter([
+                Fermentate::Rust(RustFermentate::CrateTree(crate_tree.clone())),
+                #[cfg(feature = "objc")]
+                Fermentate::ObjC(crate::lang::objc::ObjCFermentate::CrateTree(crate_tree))
+            ])
+        };
+        let writer = Writer::from(self.config);
+        #[cfg(not(feature = "cbindgen_only"))]
+        writer.write(fermentate)?;
+        writer.write_headers()
+    }
 }
 

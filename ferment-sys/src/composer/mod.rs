@@ -34,6 +34,7 @@ mod r#struct;
 mod enum_variant;
 mod type_alias;
 mod vtable;
+#[allow(unused)]
 mod scope_search;
 
 use std::rc::Rc;

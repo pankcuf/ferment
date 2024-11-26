@@ -57,10 +57,10 @@ where LANG: LangFermentable,
             _ => full_type
         };
         let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
-        let composition = maybe_object.as_ref()
+        let _composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
-        let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
+        let _maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
         match maybe_object {
             Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object().unwrap() {
                 ObjectKind::Type(ref ty_conversion) |

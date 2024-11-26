@@ -3,8 +3,11 @@ use std::io::Write;
 use std::process::Command;
 use quote::ToTokens;
 use crate::{Config, Crate, Error, Lang};
+#[cfg(not(feature = "cbindgen_only"))]
 use crate::ast::Depunctuated;
-use crate::presentation::{Fermentate, RustFermentate};
+#[cfg(not(feature = "cbindgen_only"))]
+use crate::presentation::Fermentate;
+use crate::presentation::RustFermentate;
 
 pub trait IWriter {
     type Fermentate: ToTokens;
@@ -111,8 +114,8 @@ impl Writer {
             .map_err(Error::from)
             .map(|_| ())
     }
+    #[cfg(not(feature = "cbindgen_only"))]
     pub fn write(&self, fermentate: Depunctuated<Fermentate>) -> Result<(), Error> {
-        #[cfg(not(feature = "cbindgen_only"))]
         for f in fermentate {
             match f {
                 Fermentate::Rust(fermentate) =>
@@ -126,7 +129,7 @@ impl Writer {
                 _ => {}
             }
         }
-        self.write_headers()
+        Ok(())
     }
 }
 

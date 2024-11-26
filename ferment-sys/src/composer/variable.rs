@@ -56,6 +56,7 @@ impl<'a, LANG, SPEC> TargetVarComposer<'a, LANG, SPEC>
     pub fn new(search: ScopeSearch<'a>) -> Self {
         Self { search, _marker: PhantomData }
     }
+    #[allow(unused)]
     pub fn key_in_scope(ty: &'a Type, scope: &'a ScopeChain) -> Self {
         Self::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
     }

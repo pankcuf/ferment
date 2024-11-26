@@ -15,6 +15,7 @@ dpp = { path = "../../../platform/packages/rs-dpp" }
 [build-dependencies]
 cbindgen = "0.27.0"
 ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
+#ferment-sys = { path = "../../ferment-sys", features = ["objc", "cbindgen_only"] }
 toml = "0.8.8"
 
 [lib]

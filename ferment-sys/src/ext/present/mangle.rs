@@ -164,7 +164,7 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
             if is_map || is_result {
                 format!("{mangled_type_path}_arr_{}", self.len.to_token_stream().to_string())
             } else {
-                mangled_type_path
+                format!("{mangled_type_path}_{}", self.len.to_token_stream().to_string())
             }
         } else {
             String::default()
