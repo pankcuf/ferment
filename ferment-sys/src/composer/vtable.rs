@@ -96,6 +96,9 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
                                     Some(..) => from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, if mutability.is_some() { quote!(mut) } else { quote!(const) }, &sig_source),
                                     None => from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, &sig_source)
                                 }),
+                                FnSignatureContext::TraitAsType(self_ty, .., _) =>
+                                    expr(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, if mutability.is_some() { quote!(mut) } else { quote!(const) }, &sig_source)),
+
                                 _ => panic!("Receiver in regular fn")
                             }
                         },

@@ -151,7 +151,11 @@ fn compose_regular_fn<SPEC>(
                                 self_ty,
                                 expr_composer(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
                             )
-                        }
+                        },
+                        FnSignatureContext::TraitAsType(self_ty, _, _) => (
+                            self_ty,
+                            expr_composer(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
+                        ),
                         _ => panic!("Receiver in regular fn")
                     };
                     let name = SPEC::Name::dictionary_name(DictionaryName::Self_);
@@ -212,7 +216,35 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                             sig_context,
                             &source
                         ).present(&source),
-                    FnSignatureContext::Impl(_, _, sig) => compose_regular_fn::<SPEC>(
+                    FnSignatureContext::Impl(_, maybe_trait, sig) => {
+                        if let Some(trait_) = maybe_trait {
+                            let mut path = full_fn_path.clone();
+                            let last = path.segments.pop().unwrap();
+                            let last_segment = last.value();
+                            // path.segments
+                            let path = parse_quote!(#path<#trait_>::#last_segment);
+                            compose_regular_fn::<SPEC>(
+                                path,
+                                self.ffi_type_aspect(),
+                                attrs.clone(),
+                                None,
+                                sig,
+                                sig_context,
+                                &source
+                            )
+                        } else {
+                            compose_regular_fn::<SPEC>(
+                                full_fn_path.clone(),
+                                self.ffi_type_aspect(),
+                                attrs.clone(),
+                                None,
+                                sig,
+                                sig_context,
+                                &source
+                            )
+                        }.present(&source)
+                    },
+                    FnSignatureContext::TraitAsType(_, _, sig) => compose_regular_fn::<SPEC>(
                         full_fn_path.clone(),
                         self.ffi_type_aspect(),
                         attrs.clone(),

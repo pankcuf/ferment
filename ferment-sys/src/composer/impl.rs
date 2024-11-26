@@ -33,14 +33,36 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
             match impl_item {
                 ImplItem::Method(item) => {
                     let method_scope_context = Rc::new(RefCell::new(source.joined(item)));
+                    // TMP strategy to provide both trait vtable based and implementor based bindings
+                    match trait_.as_ref() {
+                        Some((_, path, _)) => {
 
-                    let sig_context = FnSignatureContext::Impl(*self_ty.clone(), trait_.as_ref().map(|(_, path, _)| path.to_type()), item.sig.clone());
-                    let ty_context = ty_context.join_fn(
-                        scope.joined_path_holder(&item.sig.ident).0,
-                        sig_context,
-                        item.attrs.cfg_attributes()
-                    );
-                    methods.push(SigComposer::from_impl_item_method(item, ty_context, &method_scope_context));
+                            let trait_ty_context = ty_context.join_fn(
+                                scope.joined_path_holder(&item.sig.ident).0,
+                                FnSignatureContext::Impl(*self_ty.clone(), Some(path.to_type()), item.sig.clone()),
+                                item.attrs.cfg_attributes()
+                            );
+                            methods.push(SigComposer::from_impl_item_method(item, trait_ty_context, &method_scope_context));
+
+                            let impl_ty_context = ty_context.join_fn(
+                                scope.joined_path_holder(&item.sig.ident).0,
+                                FnSignatureContext::TraitAsType(*self_ty.clone(), path.to_type(), item.sig.clone()),
+                                item.attrs.cfg_attributes()
+                            );
+                            methods.push(SigComposer::from_impl_item_method(item, impl_ty_context, &method_scope_context));
+                        }
+                        None => {
+                            let sig_context = FnSignatureContext::Impl(*self_ty.clone(), None, item.sig.clone());
+                            let ty_context = ty_context.join_fn(
+                                scope.joined_path_holder(&item.sig.ident).0,
+                                sig_context,
+                                item.attrs.cfg_attributes()
+                            );
+
+                            methods.push(SigComposer::from_impl_item_method(item, ty_context, &method_scope_context));
+
+                        }
+                    }
                 },
                 _ => {},
             }

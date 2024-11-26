@@ -170,6 +170,19 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                                     None => path.to_type()
                                 }
                             }
+                            FnSignatureContext::TraitAsType(self_ty, trait_ty, _sig) => {
+                                let self_ty = Resolve::<Type>::resolve(self_ty, source);
+                                let trait_ty = Resolve::<Type>::resolve(trait_ty, source)
+                                    .maybe_trait_ty(source);
+
+                                match trait_ty {
+                                    Some(trait_ty) => {
+                                        let fn_name = &path.segments.last().unwrap().ident;
+                                        parse_quote!(<#self_ty as #trait_ty>::#fn_name)
+                                    }
+                                    None => path.to_type()
+                                }
+                            }
                             FnSignatureContext::Bare(ident, _type_bare_fn) => {
                                 Resolve::<Type>::resolve(&ident.to_type(), source)
                                     .mangle_ident_default()
