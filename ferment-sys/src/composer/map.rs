@@ -7,7 +7,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, ToType};
+use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, Mangle, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
@@ -65,7 +65,11 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                     let arg_composer = GenericArgComposer::<RustFermentate, SPEC>::new(
                         Some(Expression::from_complex_tokens),
                         Some(Expression::ffi_to_complex_group_tokens),
-                        Some(Expression::destroy_complex_group_tokens));
+                        Some(if arg_ty.is_fermentable_string() {
+                            Expression::destroy_string_group_tokens
+                        } else {
+                            Expression::destroy_complex_group_tokens
+                        }));
 
                     GenericArgPresentation::<RustFermentate, SPEC>::new(
                         FFIVariable::direct(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),

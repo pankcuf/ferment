@@ -8,7 +8,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, ToType};
+use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, Mangle, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, RustFermentate};
@@ -108,7 +108,11 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
             TypeKind::Complex(arg_0_target_ty) => {
                 GenericArgPresentation::<RustFermentate, SPEC>::new(
                     FFIVariable::mut_ptr(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(arg_0_target_ty, source)),
-                    Expression::destroy_complex_group_tokens(from_args.to_token_stream()),
+                    if arg_0_target_ty.is_fermentable_string() {
+                        Expression::DestroyStringGroup(from_args.to_token_stream())
+                    } else {
+                        Expression::destroy_complex_group_tokens(from_args.to_token_stream())
+                    },
                     Expression::from_complex_group_tokens(from_args.to_token_stream()),
                     arg_0_to(Expression::ffi_to_complex_group_tokens(DictionaryExpr::ObjIntoIter.to_token_stream()))
                 )

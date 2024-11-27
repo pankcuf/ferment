@@ -109,8 +109,10 @@ pub unsafe fn unbox_any_vec_ptr<T>(ptr: *mut *mut T, count: usize) {
     unbox_any_vec(unbox_vec_ptr(ptr, count));
 }
 /// # Safety
-pub unsafe fn unbox_any_vec_ptr_composer<T, U: Fn(*mut T)>(ptr: *mut *mut T, count: usize, composer: U) {
-    unbox_any_vec_composer(unbox_vec_ptr(ptr, count), composer);
+pub unsafe fn unbox_any_vec_ptr_composer<T>(ptr: *mut *mut T, count: usize, composer: unsafe fn(*mut T)) {
+    for &x in unbox_vec_ptr(ptr, count).iter() {
+        composer(x);
+    }
 }
 
 /// # Safety

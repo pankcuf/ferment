@@ -74,6 +74,7 @@ pub enum Expression<LANG, SPEC>
 
     CastDestroy(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
     DestroyString(Box<Expression<LANG, SPEC>>, TokenStream2),
+    DestroyStringGroup(TokenStream2),
     DestroyBigInt(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
 
     ConversionType(Box<ConversionType<LANG, SPEC>>),
@@ -303,6 +304,9 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn destroy_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr)
     }
+    pub(crate) fn destroy_string_group_tokens<T: ToTokens>(expr: T) -> Self {
+        Expression::DestroyStringGroup(expr.to_token_stream())
+    }
 
     pub(crate) fn cast_from(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
         Self::CastConversionExpr(FFIAspect::From, kind, expr.into(), ffi_type, target_type)
@@ -485,6 +489,8 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxVecPtr(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(.., ConversionExpressionKind::ComplexGroup, expr) =>
+
+
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyVecPtr(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(.., _, expr) =>
@@ -547,6 +553,11 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                 InterfacesMethodExpr::UnboxAny(expr.to_token_stream())
                     .to_token_stream()
             }
+            Self::DestroyStringGroup(expr) => {
+                let pres = expr.present(source);
+                InterfacesMethodExpr::UnboxAnyVecPtrComposer(quote!(#pres, ferment::unbox_string)).to_token_stream()
+            },
+
         }
 
     }

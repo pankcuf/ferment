@@ -250,7 +250,8 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr, ..) => {
                 quote!([DSFerment to_complex_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr, ..) |
+            Self::DestroyStringGroup(expr) => {
                 quote!([DSFerment destroy_complex_group:#expr])
             }
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOptGroup, expr, ..) => {
