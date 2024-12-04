@@ -464,6 +464,7 @@ impl GlobalContext {
                         (!all_of_them_are_non_fermentable || is_custom.is_some() || nested_arguments.is_empty())
                             .then_some(tyc)
                     },
+                    TypeModelKind::Trait(..) | TypeModelKind::TraitType(..) => None,
                         // (self.num_of_nested_fermentable_types_for_generic(nested_arguments) == nested_arguments.len() || self.maybe_custom_conversion(tyc.ty()).is_some())
                         //     .then_some(tyc),
                     tyc => Some(tyc)
@@ -483,8 +484,9 @@ impl GlobalContext {
                 let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
                 let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
                 let skip = all_of_them_are_non_fermentable && maybe_custom.is_none();
+
                 // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
-                //println!("SKIP ({}): {}", skip, conversion);
+                println!("SKIP ({}): {}", skip, conversion);
                 skip
             }
             None => false

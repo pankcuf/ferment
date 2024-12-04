@@ -48,5 +48,6 @@
   ```
 - improve types wrapped into smart pointers (Box, etc) (in terms of memory use?)
 - fix: Vec<&str> becomes Vec_, also can't use smth like ['a ['a str]]
-- static methods for impls are broken, so currently it's possible to use only instance methods
-- fix: HashSet<[u8; 32]> becomes std_collections_HashSet_u8 instead of std_collections_HashSet_Arr_u8_32
+- static methods for impls are broken (if they are non-opaque), so currently it's possible to use only instance methods
+- fix: HashSet<[u8; 32]> becomes std_collections_HashSet_u8 instead of std_collections_HashSet_Arr_u8_32 (+)
+- fix: opaque types which impl are exported can't use `fn some_fn(self)` (trying to dereference it)
