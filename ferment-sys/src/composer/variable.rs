@@ -226,7 +226,8 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                         GroupModelKind::Map(TypeModel { ty, .. }) |
                                         GroupModelKind::Result(TypeModel { ty, .. }) |
                                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                                     ) |
                                     // DictFermentableModelKind::I128(TypeModel { ty, .. }) |
                                     // DictFermentableModelKind::U128(TypeModel { ty, .. }) |
@@ -576,7 +577,8 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                         GroupModelKind::Map(TypeModel { ty, .. }) |
                                         GroupModelKind::Result(TypeModel { ty, .. }) |
                                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                     // DictFermentableModelKind::I128(TypeModel { ty, .. }) |

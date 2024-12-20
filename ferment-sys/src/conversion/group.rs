@@ -10,7 +10,8 @@ pub enum GroupModelKind {
     Map(TypeModel),
     BTreeSet(TypeModel),
     HashSet(TypeModel),
-    IndexMap(TypeModel)
+    IndexMap(TypeModel),
+    IndexSet(TypeModel)
 }
 
 impl<'a> AsType<'a> for GroupModelKind {
@@ -27,7 +28,8 @@ impl TypeModeled for GroupModelKind {
             GroupModelKind::Map(model) |
             GroupModelKind::BTreeSet(model) |
             GroupModelKind::HashSet(model) |
-            GroupModelKind::IndexMap(model) => model,
+            GroupModelKind::IndexMap(model) |
+            GroupModelKind::IndexSet(model) => model,
         }
     }
 
@@ -38,7 +40,8 @@ impl TypeModeled for GroupModelKind {
             GroupModelKind::Map(model) |
             GroupModelKind::BTreeSet(model) |
             GroupModelKind::HashSet(model) |
-            GroupModelKind::IndexMap(model) => model
+            GroupModelKind::IndexMap(model) |
+            GroupModelKind::IndexSet(model) => model
         }
     }
 }
@@ -58,6 +61,8 @@ impl Debug for GroupModelKind {
                 format!("HashSet({})", model),
             GroupModelKind::IndexMap(model) =>
                 format!("IndexMap({})", model),
+            GroupModelKind::IndexSet(model) =>
+                format!("IndexSet({})", model),
         }.as_str())
     }
 }

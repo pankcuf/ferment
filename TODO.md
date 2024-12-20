@@ -51,3 +51,4 @@
 - static methods for impls are broken (if they are non-opaque), so currently it's possible to use only instance methods
 - fix: HashSet<[u8; 32]> becomes std_collections_HashSet_u8 instead of std_collections_HashSet_Arr_u8_32 (+)
 - fix: opaque types which impl are exported can't use `fn some_fn(self)` (trying to dereference it)
+- fix: Fn without non-receiver arguments is not supported

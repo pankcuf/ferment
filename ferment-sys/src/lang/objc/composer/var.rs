@@ -100,7 +100,8 @@ where SPEC: ObjCSpecification {
                                     GroupModelKind::Map(TypeModel { ty, .. }) |
                                     GroupModelKind::Result(TypeModel { ty, .. }) |
                                     GroupModelKind::Vec(TypeModel { ty, .. }) |
-                                    GroupModelKind::IndexMap(TypeModel { ty, .. })
+                                    GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                                    GroupModelKind::IndexSet(TypeModel { ty, .. })
                                 ) |
                                 DictFermentableModelKind::Other(TypeModel { ty, .. }))) => {
 
@@ -252,7 +253,8 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                     GroupModelKind::Map(TypeModel { ty, .. }) |
                                     GroupModelKind::Result(TypeModel { ty, .. }) |
                                     GroupModelKind::Vec(TypeModel { ty, .. }) |
-                                    GroupModelKind::IndexMap(TypeModel { ty, .. })
+                                    GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                                    GroupModelKind::IndexSet(TypeModel { ty, .. })
                                 ) |
                                 DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::Str(TypeModel { ty, .. }) |
@@ -570,7 +572,8 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                         GroupModelKind::Map(TypeModel { ty, .. }) |
                                         GroupModelKind::Result(TypeModel { ty, .. }) |
                                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                     // DictFermentableModelKind::I128(TypeModel { ty, .. }) |

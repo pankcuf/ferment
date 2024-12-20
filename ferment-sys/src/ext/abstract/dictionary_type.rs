@@ -72,7 +72,7 @@ impl DictionaryType for Ident {
     fn is_special_generic(&self) -> bool {
         self.is_map() || self.is_vec() ||
             self.is_btree_set() || self.is_hash_set() ||
-            matches!(self.to_string().as_str(), "IndexMap")
+            matches!(self.to_string().as_str(), "IndexMap" | "IndexSet")
     }
 
     fn is_result(&self) -> bool {

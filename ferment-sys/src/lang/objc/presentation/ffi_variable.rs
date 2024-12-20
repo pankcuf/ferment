@@ -195,7 +195,8 @@ impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for TypeMode
                         GroupModelKind::Map(TypeModel { ty, .. }) |
                         GroupModelKind::Result(TypeModel { ty, .. }) |
                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                     ) |
                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |

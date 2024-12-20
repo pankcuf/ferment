@@ -453,7 +453,8 @@ impl GlobalContext {
                                 GroupModelKind::Map(TypeModel { nested_arguments, .. }) |
                                 GroupModelKind::Result(TypeModel { nested_arguments, .. }) |
                                 GroupModelKind::Vec(TypeModel { nested_arguments, .. }) |
-                                GroupModelKind::IndexMap(TypeModel { nested_arguments, .. })
+                                GroupModelKind::IndexMap(TypeModel { nested_arguments, .. }) |
+                                GroupModelKind::IndexSet(TypeModel { nested_arguments, .. })
                             ) |
                             DictFermentableModelKind::Other(TypeModel { nested_arguments, .. }))) |
                     TypeModelKind::Optional(TypeModel { nested_arguments, .. }) => {

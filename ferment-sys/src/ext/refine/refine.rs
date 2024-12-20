@@ -456,7 +456,8 @@ impl RefineInScope for TypeModelKind {
                         GroupModelKind::Map(model) |
                         GroupModelKind::Result(model) |
                         GroupModelKind::Vec(model) |
-                        GroupModelKind::IndexMap(model)
+                        GroupModelKind::IndexMap(model) |
+                        GroupModelKind::IndexSet(model)
                     ) |
                     DictFermentableModelKind::Other(model) |
                     DictFermentableModelKind::I128(model) |

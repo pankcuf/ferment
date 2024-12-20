@@ -274,6 +274,8 @@ impl<'a> VisitScopeType<'a> for Path {
 
                 _ if matches!(last_ident.to_string().as_str(), "IndexMap") =>
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexMap(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                _ if matches!(last_ident.to_string().as_str(), "IndexSet") =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
                 _ if first_ident.is_box() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
                 },

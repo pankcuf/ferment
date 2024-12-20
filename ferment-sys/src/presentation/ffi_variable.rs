@@ -211,7 +211,8 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
                         GroupModelKind::Map(TypeModel { ty, .. }) |
                         GroupModelKind::Result(TypeModel { ty, .. }) |
                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                     ) |
                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |

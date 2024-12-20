@@ -3,6 +3,7 @@ pub mod quorum;
 pub mod callback;
 pub mod tuples;
 pub mod many_scopes;
+pub mod indexmap;
 
 pub use snapshot::LLMQSnapshot;
 pub use snapshot::LLMQSnapshotSkipMode;

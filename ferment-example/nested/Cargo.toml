@@ -10,7 +10,7 @@ ferment-macro = { path = "../../ferment-macro" }
 example-simple = { path = "../simple" }
 platform-value = { path = "../../../platform/packages/rs-platform-value" }
 dpp = { path = "../../../platform/packages/rs-dpp" }
-
+indexmap = "2.7.0"
 
 [build-dependencies]
 cbindgen = "0.27.0"
