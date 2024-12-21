@@ -52,7 +52,11 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
         let trait_ty = self.raw_target_type_aspect().present(&source);
         // TODO: External traits
         let full_type = source.full_type_for(&trait_ty);
-        let item_trait = source.maybe_item_trait(&full_type.to_path()).unwrap();
+        let maybe_item_trait = source.maybe_item_trait(&full_type.to_path());
+        if maybe_item_trait.is_none() {
+            return BindingPresentation::Empty;
+        }
+        let item_trait = maybe_item_trait.unwrap();
         let trait_vtable_composer = TraitVTableComposer::<RustFermentate, SPEC>::from_item_trait(&item_trait, self.type_context(), target_type.clone(), self.context());
         let mut methods_declarations = CommaPunctuated::new();
         let mut methods_implementations = Depunctuated::new();
