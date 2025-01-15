@@ -5,18 +5,68 @@ edition = "2021"
 build = "build.rs"
 
 [dependencies]
+anyhow = "1.0.95"
+dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
+    "std",
+    "secp-recovery",
+    "rand",
+    "signer",
+    "serde",
+], default-features = false, tag = "0.34.0" }
+
 ferment = { path = "../../ferment" }
 ferment-macro = { path = "../../ferment-macro" }
 example-simple = { path = "../simple" }
 platform-value = { path = "../../../platform/packages/rs-platform-value" }
+platform-version = { path = "../../../platform/packages/rs-platform-version" }
 dpp = { path = "../../../platform/packages/rs-dpp" }
 indexmap = "2.7.0"
+regex = "1.11.1"
+serde = { version = "1.0.215", features = ["derive"], optional = true }
+serde_json = "1.0.85"
+versioned-feature-core = "1.0.0"
 
 [build-dependencies]
 cbindgen = "0.27.0"
-ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
+ferment-sys = { path = "../../ferment-sys" }
+#ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
 #ferment-sys = { path = "../../ferment-sys", features = ["objc", "cbindgen_only"] }
 toml = "0.8.8"
+
+[features]
+default = ["state-transitions"]
+
+bls-signatures = ["dpp/bls-signatures"]
+cbor = ["platform-value/cbor", "dpp/cbor", "dpp/ciborium"]
+core-types = ["dpp/core-types"]
+data-contract-cbor-conversion = ["dpp/data-contract-cbor-conversion"]
+data-contract-json-conversion = ["dpp/data-contract-json-conversion"]
+data-contract-value-conversion = ["dpp/data-contract-value-conversion"]
+document-cbor-conversion = ["dpp/document-cbor-conversion"]
+document-json-conversion = ["dpp/document-json-conversion"]
+document-value-conversion = ["dpp/document-value-conversion"]
+extended-document = ["dpp/extended-document"]
+factories = ["dpp/factories"]
+fee-distribution = ["dpp/fee-distribution"]
+fixtures-and-mocks = ["dpp/fixtures-and-mocks"]
+identity-cbor-conversion = ["dpp/identity-cbor-conversion"]
+identity-json-conversion = ["dpp/identity-json-conversion"]
+identity-value-conversion = ["dpp/identity-value-conversion"]
+json = ["platform-value/serde_json"]
+json-object = ["dpp/json-object"]
+json-schema-validation = ["dpp/json-schema-validation"]
+message-signing = ["dpp/message-signing"]
+mock-versions = ["platform-version/mock-versions"]
+objc = ["ferment-sys/objc"]
+cbindgen_only = ["ferment-sys/cbindgen_only"]
+platform-value = ["dpp/platform-value"]
+state-transitions = ["dpp/state-transitions"]
+state-transition-json-conversion = ["dpp/state-transition-json-conversion"]
+state-transition-validation = ["dpp/state-transition-validation"]
+state-transition-signing = ["dpp/state-transition-signing"]
+std = ["platform-value/std"]
+system_contracts = ["dpp/system_contracts"]
+validation = ["dpp/validation"]
 
 [lib]
 name = "example_nested"

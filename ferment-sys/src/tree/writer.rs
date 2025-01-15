@@ -102,9 +102,9 @@ impl Writer {
         let Config { current_crate: Crate { name: framework, .. }, languages, cbindgen_config_from_file, .. } = &self.config;
         #[allow(irrefutable_let_patterns)]
         let framework = languages.iter().find_map(|l| if let Lang::ObjC(conf) = l { Some(&conf.xcode.header_name) } else { None }).unwrap_or(framework);
-       //  Command::new("mkdir")
-       //      .args(&["-p", "target/include"])
-       //      .status()?;
+        Command::new("mkdir")
+            .args(&["-p", "target/include"])
+            .status()?;
         Command::new("cbindgen")
             .args([
                 "--config", cbindgen_config_from_file.as_ref().map(String::as_str).unwrap_or("cbindgen.toml"),

@@ -487,7 +487,7 @@ impl GlobalContext {
                 let skip = all_of_them_are_non_fermentable && maybe_custom.is_none();
 
                 // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
-                println!("SKIP ({}): {}", skip, conversion);
+                println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), conversion);
                 skip
             }
             None => false
