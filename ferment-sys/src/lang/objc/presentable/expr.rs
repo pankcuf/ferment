@@ -24,7 +24,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 expr.to_token_stream(),
 
 
-            Self::InterfacesExpr(expr) => expr.to_token_stream(),
+                        Self::InterfacesExpr(expr) => expr.to_token_stream(),
             Self::MapExpression(presentable, mapper) =>
                 DictionaryExpr::Mapper(presentable.present(source).to_token_stream(), mapper.present(source).to_token_stream()).to_token_stream(),
             Self::DestroyString(presentable, _path) => {
@@ -52,6 +52,9 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             }
             Self::AsRef(field_path) =>
                 DictionaryExpr::AsRef(field_path.present(source))
+                    .to_token_stream(),
+            Self::LeakBox(field_path) =>
+                DictionaryExpr::LeakBox(field_path.present(source))
                     .to_token_stream(),
             Self::AsMutRef(field_path) =>
                 DictionaryExpr::AsMutRef(field_path.present(source))

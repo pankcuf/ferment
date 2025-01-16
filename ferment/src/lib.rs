@@ -174,6 +174,19 @@ impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
     fn insert(&mut self, key: K, value: V) { indexmap::IndexMap::insert(self, key, value); }
 }
 
+impl FFIMapConversion for serde_json::Map<String, serde_json::Value> {
+    type Key = String;
+    type Value = serde_json::Value;
+
+    fn new() -> Self {
+        serde_json::Map::new()
+    }
+
+    fn insert(&mut self, key: Self::Key, value: Self::Value) {
+        serde_json::Map::insert(self, key, value);
+    }
+}
+
 /// # Safety
 pub unsafe fn from_primitive_group<C, T: Copy>(vec: *mut T, count: usize) -> C
     where

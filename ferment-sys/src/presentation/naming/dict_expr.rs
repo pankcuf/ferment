@@ -46,6 +46,7 @@ pub enum DictionaryExpr {
     CountRange,
     Range(TokenStream2),
     NewBox(TokenStream2),
+    LeakBox(TokenStream2),
     MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
     Add(TokenStream2, TokenStream2),
@@ -112,6 +113,9 @@ impl ToTokens for DictionaryExpr {
                 expr.to_tokens(tokens)
             }
             Self::AsRef(expr) => {
+
+                // let result = quote!(Box::leak(Box::new(#expr)));
+                // result.to_tokens(tokens);
                 quote!(&).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
@@ -200,6 +204,8 @@ impl ToTokens for DictionaryExpr {
                 quote!((0..#expr)).to_tokens(tokens),
             Self::NewBox(conversion) =>
                 quote!(Box::new(#conversion)).to_tokens(tokens),
+            Self::LeakBox(conversion) =>
+                quote!(Box::leak(Box::new(#conversion))).to_tokens(tokens),
             Self::MapIntoBox(conversion) => {
                 conversion.to_tokens(tokens);
                 quote!(.map(Box::new)).to_tokens(tokens);

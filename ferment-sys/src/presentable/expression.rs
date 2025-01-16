@@ -86,6 +86,7 @@ pub enum Expression<LANG, SPEC>
     FromLambda(Box<Expression<LANG, SPEC>>, CommaPunctuated<SPEC::Name>),
     FromLambdaTokens(TokenStream2, CommaPunctuated<SPEC::Name>),
     Boxed(Box<Expression<LANG, SPEC>>),
+    LeakBox(Box<Expression<LANG, SPEC>>),
 }
 
 impl<LANG, SPEC> Expression<LANG, SPEC>
@@ -353,9 +354,15 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
             Self::Name(name) => name
                 .to_token_stream(),
 
-            Self::AsRef(field_path) =>
+            Self::AsRef(field_path) => {
+
                 Self::DictionaryExpr(DictionaryExpr::AsRef(field_path.present(source)))
-                    .present(source),
+                    .present(source)
+            },
+            Self::LeakBox(field_path) => {
+                Self::DictionaryExpr(DictionaryExpr::LeakBox(field_path.present(source)))
+                    .present(source)
+            },
             Self::AsMutRef(field_path) =>
                 Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
                     .present(source),
@@ -397,18 +404,23 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
             }
             Self::NamedComposer((l_value, composer)) => {
                 let expression = composer.compose(source);
+                println!("NamedComposer: {} {:?}", l_value, expression);
                 Self::Named((l_value.clone(), expression.into()))
                     .present(source)
             },
 
-            Self::ConversionType(expr) =>
+            Self::ConversionType(expr) => {
+                println!("ConversionType: {:?}", expr);
                 expr.compose(source)
-                    .present(source),
-            Self::Terminated(expr) =>
+                    .present(source)
+            },
+            Self::Terminated(expr) => {
+                println!("Terminated: {:?}", expr);
                 expr.compose(source)
                     .present(source)
                     .to_token_stream()
-                    .terminated(),
+                    .terminated()
+            },
             Self::FromLambda(field_path, lambda_args) =>
                 Self::FromLambdaTokens(field_path.present(source), lambda_args.clone())
                     .present(source),

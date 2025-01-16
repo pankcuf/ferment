@@ -27,7 +27,7 @@ serde_json = "1.0.85"
 versioned-feature-core = "1.0.0"
 
 [build-dependencies]
-cbindgen = "0.27.0"
+cbindgen = "0.28.0"
 ferment-sys = { path = "../../ferment-sys" }
 #ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
 #ferment-sys = { path = "../../ferment-sys", features = ["objc", "cbindgen_only"] }
@@ -37,6 +37,7 @@ toml = "0.8.8"
 default = ["state-transitions"]
 
 bls-signatures = ["dpp/bls-signatures"]
+blsful = ["dashcore/blsful"]
 cbor = ["platform-value/cbor", "dpp/cbor", "dpp/ciborium"]
 core-types = ["dpp/core-types"]
 data-contract-cbor-conversion = ["dpp/data-contract-cbor-conversion"]

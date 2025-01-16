@@ -117,7 +117,8 @@ impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
                     Visibility::Inherited,
                     Some(name.mangle_ident_default()),
                     kind.ty().clone()),
-            ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) =>
+            ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) => {
+                print!("DefaultFieldConversion: {} {}", name, kind);
                 ArgPresentation::field(
                     attrs,
                     Visibility::Inherited,
@@ -125,7 +126,8 @@ impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
                     Type::Verbatim(
                         FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(name.clone(), kind.ty(), &source.scope)
                             .compose(source)
-                            .present(source))),
+                            .present(source)))
+            },
             ArgKind::Unnamed(composer) =>
                 ArgPresentation::expr(
                     &composer.attrs,

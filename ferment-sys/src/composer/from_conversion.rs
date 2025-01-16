@@ -215,9 +215,9 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                 }
             }
         };
-        // println!("FromConversionFullComposer ==> {:?}", expression);
+        println!("FromConversionFullComposer ==> {:?}", expression);
         if is_ref {
-            Expression::AsRef(expression.into())
+            Expression::LeakBox(expression.into())
         } else {
             expression
         }

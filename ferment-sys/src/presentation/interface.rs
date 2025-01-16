@@ -3,6 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{Attribute, Generics, ReturnType, Type};
 use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{CommaPunctuatedArgs, TypePair};
+use crate::ext::LifetimeCleaner;
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[allow(unused)]
@@ -178,10 +179,12 @@ impl ToTokens for InterfacePresentation {
                 let (generic_bounds, where_clause) = generics_presentation(generics);
                 let package = DictionaryName::Package;
                 let interface_from = DictionaryName::InterfaceFrom;
+                let target_cleaned = target_type.lifetimes_cleaned();
+
                 quote! {
                     #(#attrs)*
-                    impl #generic_bounds #package::#interface_from<#target_type #generic_bounds> for #ffi_type #where_clause {
-                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_type #generic_bounds {
+                    impl #generic_bounds #package::#interface_from<#target_cleaned #generic_bounds> for #ffi_type #where_clause {
+                        unsafe fn ffi_from_const(ffi: *const #ffi_type) -> #target_cleaned #generic_bounds {
                             #presentation
                         }
                     }
@@ -196,10 +199,12 @@ impl ToTokens for InterfacePresentation {
                 let package = DictionaryName::Package;
                 let interface_to = DictionaryName::InterfaceTo;
                 let obj = DictionaryName::Obj;
+                let target_cleaned = target_type.lifetimes_cleaned();
+
                 quote! {
                     #(#attrs)*
-                    impl #generic_bounds #package::#interface_to<#target_type #generic_bounds> for #ffi_type #where_clause {
-                        unsafe fn ffi_to_const(#obj: #target_type #generic_bounds) -> *const #ffi_type {
+                    impl #generic_bounds #package::#interface_to<#target_cleaned #generic_bounds> for #ffi_type #where_clause {
+                        unsafe fn ffi_to_const(#obj: #target_cleaned #generic_bounds) -> *const #ffi_type {
                             #presentation
                         }
                     }

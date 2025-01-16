@@ -584,8 +584,27 @@ impl RefineWithNestedArgs for PathArguments {
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
                 args.iter_mut()
+                    .filter_map(|arg| {
+                        match arg {
+                            GenericArgument::Type(inner_ty) => Some(inner_ty),
+                            _ => None
+                        }
+                    })
                     .enumerate()
                     .for_each(|(index, generic_argument)| {
+
+                        // match generic_argument {
+                        //     GenericArgument::Type(inner_ty) => {
+                        //         if let Some(ty) = nested_argument.object().maybe_type() {
+                        //             *inner_ty = ty;
+                        //             true
+                        //         } else {
+                        //             false
+                        //         }
+                        //     },
+                        //     _ => false
+                        // }
+
                         if generic_argument.refine_with_nested_arg(&nested_arguments[index]) {
                             did_refine = true;
                         }

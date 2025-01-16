@@ -159,3 +159,31 @@ impl Drop for versioned_feature_core_FeatureVersion {
         }
     }
 }
+#[allow(non_camel_case_types)]
+#[derive(Clone)]
+#[ferment_macro::register(serde_json::Value)]
+pub struct serde_json_Value {
+    raw: *mut serde_json::Value,
+}
+impl ferment::FFIConversionFrom<serde_json::Value> for serde_json_Value {
+    unsafe fn ffi_from_const(ffi: *const Self) -> serde_json::Value {
+        ferment::FFIConversionFrom::ffi_from(ffi.cast_mut())
+    }
+
+    unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Value {
+        *ferment::unbox_any((&*ffi).raw)
+    }
+}
+impl ferment::FFIConversionTo<serde_json::Value> for serde_json_Value {
+    unsafe fn ffi_to_const(obj: serde_json::Value) -> *const Self {
+        ferment::boxed(serde_json_Value { raw: ferment::boxed(obj) })
+    }
+}
+
+impl Drop for serde_json_Value {
+    fn drop(&mut self) {
+        unsafe {
+            ferment::unbox_any(self.raw);
+        }
+    }
+}
