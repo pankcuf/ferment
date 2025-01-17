@@ -6,7 +6,7 @@ use ferment_macro::Display;
 use crate::ast::{Assignment, BraceWrapped, CommaPunctuated, Lambda, ParenWrapped};
 use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments};
 use crate::context::ScopeContext;
-use crate::ext::{LifetimeCleaner, Mangle, ToPath};
+use crate::ext::{LifetimeProcessor, Mangle, ToPath};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, InterfacesMethodExpr, present_struct, RustFermentate};

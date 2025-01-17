@@ -15,7 +15,7 @@ mod dictionary;
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Generics, Item, Type};
+use syn::{Generics, Item, Lifetime, Type};
 use crate::error;
 use crate::lang::{CrateTreeConsumer, PresentableSpecification, Specification};
 use crate::lang::objc::composers::AttrWrapper;
@@ -51,6 +51,7 @@ pub trait ObjCSpecification:
 impl<SPEC> Specification<ObjCFermentate> for SPEC where SPEC: ObjCSpecification {
     type Attr = AttrWrapper;
     type Gen = Option<Generics>;
+    type Lt = Vec<Lifetime>;
     type TYC = TypeContext;
     type Interface = InterfaceImplementation;
     type Expr = Expression<ObjCFermentate, SPEC>;

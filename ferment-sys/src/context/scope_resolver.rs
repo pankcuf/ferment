@@ -7,7 +7,7 @@ use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTr
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectKind;
-use crate::ext::{RefineMut, ToType};
+use crate::ext::{LifetimeProcessor, RefineMut, ToType};
 use crate::formatter::types_dict;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentation::FFIVariable;
@@ -154,7 +154,7 @@ impl<'a> ScopeSearchKey<'a> {
         let original = ScopeSearchKey::TypeRef(ty, None);
         match ty {
             Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
-                1 => match bounds.first().unwrap() {
+                1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
                     TypeParamBound::Lifetime(_) =>
@@ -174,7 +174,7 @@ impl<'a> ScopeSearchKey<'a> {
         let original = ScopeSearchKey::Type(ty.clone(), None);
         match ty {
             Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
-                1 => match bounds.first().unwrap() {
+                1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(ScopeSearchKey::Type(path.to_type(), Some(Box::new(original)))),
                     TypeParamBound::Lifetime(_) =>
@@ -192,8 +192,8 @@ impl<'a> ScopeSearchKey<'a> {
     pub fn find<K, T: Fn(&Type) -> K>(&self, finder: T) -> K {
         match self {
             ScopeSearchKey::PathRef(path, ..) => finder(&path.to_type()),
-            ScopeSearchKey::TypeRef(ty, ..) => finder(ty),
-            ScopeSearchKey::Type(ty, ..) => finder(&ty),
+            ScopeSearchKey::TypeRef(ty, ..) => finder(&ty),
+            ScopeSearchKey::Type(ty, ..) => finder(ty),
         }
     }
 }
@@ -246,20 +246,26 @@ impl ScopeResolver {
         maybe_entry.or_default()
     }
     pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
-        match predicate {
+        // println!("maybe_object_ref_by_predicate --> {}", predicate);
+        let result = match predicate {
             ScopeSearch::KeyInScope(search_key, scope) => {
-                self.inner.get(scope)
-                    .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty)))
+                let result = self.inner.get(scope)
+                    .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty).or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))));
+                result
             },
             ScopeSearch::ValueInScope(search_key, scope) => {
-                self.inner.get(scope)
-                    .and_then(|chain| search_key.find(|ty| chain.get_by_value(ty)))
+                let result = self.inner.get(scope)
+                    .and_then(|chain| search_key.find(|ty| chain.get_by_value(ty).or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
+                result
             },
             ScopeSearch::Value(search_key) => {
-                self.inner.values()
-                    .find_map(|chain| search_key.find(|ty| chain.get_by_value(ty)))
+                let result = self.inner.values()
+                    .find_map(|chain| search_key.find(|ty| chain.get_by_value(ty).or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
+                result
             },
-        }
+        };
+        // println!("maybe_object_ref_by_predicate <-- {}", result.map_or("None".to_string(), ToString::to_string));
+        result
     }
 
     pub fn scope_key_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {

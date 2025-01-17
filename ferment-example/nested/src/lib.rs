@@ -7,6 +7,8 @@ mod state_transition;
 
 extern crate ferment_macro;
 
+use crate::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
+
 #[ferment_macro::export]
 pub struct SomeStruct {
     pub name: String,
@@ -187,3 +189,12 @@ impl Drop for serde_json_Value {
         }
     }
 }
+
+#[derive(Clone)]
+#[ferment_macro::export]
+pub enum ExampleEnumLif<'a> {
+    Varik(&'a DataContractCreateTransition)
+}
+
+#[ferment_macro::export]
+pub fn test_lifetime<'a>(example: ExampleEnumLif<'a>) {}

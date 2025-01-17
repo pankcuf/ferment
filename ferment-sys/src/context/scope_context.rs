@@ -1,5 +1,6 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
+use quote::ToTokens;
 use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
@@ -7,7 +8,7 @@ use crate::composable::TraitModelPart1;
 use crate::composer::ComposerLink;
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait};
+use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
 use crate::lang::{LangFermentable, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -166,11 +167,13 @@ impl ScopeContext {
             let result = if path.is_void() {
                 Some(FFIFullDictionaryPath::<LANG, SPEC>::Void.to_type())
             } else {
-                match self.maybe_scope_item_obj_first(path) {
+                match self.maybe_scope_item_obj_first(path)
+                    .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {
                     Some(item) => {
                         if item.is_fermented() || item.is_custom() {
                             None
                         } else {
+                            println!("maybe_opaque_object: non fermentable / non custom: {}", item);
                             Some(item.to_type())
                         }
                     },
@@ -180,6 +183,7 @@ impl ScopeContext {
                         } else if path.is_primitive() {
                             None
                         } else {
+                            println!("maybe_opaque_object: alternative: {}", ty.to_token_stream());
                             Some(ty.clone())
                         }
                     }
@@ -195,7 +199,7 @@ impl ScopeContext {
             Type::Path(TypePath { path, .. }) =>
                 resolve_opaque(path),
             Type::TraitObject(TypeTraitObject { dyn_token, bounds, .. }) => match bounds.len() {
-                1 => match bounds.first().unwrap() {
+                1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         resolve_opaque(path)
                             .map(|ty| {

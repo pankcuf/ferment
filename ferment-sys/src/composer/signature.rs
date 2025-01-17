@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
+use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility, Lifetime};
 use syn::__private::TokenStream2;
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
@@ -10,7 +10,7 @@ use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind,
 use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
-use crate::ext::{FFITypeResolve, ItemExtension, Mangle, Resolve, ToType};
+use crate::ext::{FFITypeResolve, ItemExtension, LifetimeProcessor, Mangle, Resolve, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocComposer, DocPresentation, FFIConversionFromMethodExpr, FFIFullDictionaryPath, InterfacePresentation, Name, RustFermentate};
@@ -121,6 +121,7 @@ fn compose_regular_fn<SPEC>(
     where SPEC: RustSpecification,
           CommaPunctuatedArgKinds<RustFermentate, SPEC>: Extend<ArgKind<RustFermentate, SPEC>> {
     println!("compose_regular_fn: {}", path.to_token_stream());
+    let mut used_lifetimes = Vec::<Lifetime>::new();
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (ReturnType::Default, SPEC::Expr::Simple(Semi::default().to_token_stream())),
@@ -135,11 +136,16 @@ fn compose_regular_fn<SPEC>(
         .map(|arg| {
             match arg {
                 FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
+                    if let Some((_, Some(lt))) = reference {
+                        used_lifetimes.push(lt.clone());
+                    }
                     let expr_composer = match (mutability, reference) {
                         (Some(..), _) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
                         (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsRef(expr.into()),
                         (..) => |expr: SPEC::Expr| expr.into(),
                     };
+
+
                     let (ty, name_type_conversion) = match sig_context {
                         FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
                         FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
@@ -172,7 +178,9 @@ fn compose_regular_fn<SPEC>(
                     )
                 },
                 FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
+                    used_lifetimes.extend(ty.unique_lifetimes());
                     let name = Name::Pat(*pat.clone());
+                    println!("compose_regular: (input arg) {}", ty.to_token_stream());
                     (
                         ArgKind::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
                         ArgKind::AttrExpression(
@@ -185,7 +193,7 @@ fn compose_regular_fn<SPEC>(
         })
         .unzip();
     let input_conversions = SeqKind::FromUnnamedFields(((aspect, attrs.clone(), generics.clone(), NameKind::Named), argument_conversions));
-
+    println!("used_lifetimes: {:?}", used_lifetimes);
     BindingPresentableContext::RegFn(
         path,
         asyncness.is_some(),
@@ -194,7 +202,8 @@ fn compose_regular_fn<SPEC>(
         input_conversions,
         return_type_conversion,
         attrs,
-        generics
+        generics,
+        used_lifetimes
     )
 }
 

@@ -10,7 +10,7 @@ pub(crate) mod java;
 use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Type};
+use syn::{Attribute, Generics, Lifetime, Type};
 use crate::composer::VarComposable;
 use crate::error;
 use crate::ext::{Mangle, MangleDefault, ToType};
@@ -45,6 +45,7 @@ pub trait Specification<LANG>: Clone + Debug
 {
     type Attr: Clone + LangAttrSpecification<LANG> + Debug;
     type Gen: LangGenSpecification<LANG>;
+    type Lt: LangLifetimeSpecification<LANG>;
     type TYC: NameTreeContext;
     type Interface: ToTokens;
     type Expr: ExpressionComposable<LANG, Self>;
@@ -68,6 +69,7 @@ pub trait RustSpecification:
     PresentableSpecification<RustFermentate,
         Attr=Vec<Attribute>,
         Gen=Option<Generics>,
+        Lt=Vec<Lifetime>,
         Interface=InterfacePresentation,
         TYC=TypeContext,
         Expr=Expression<RustFermentate, Self>,
@@ -78,6 +80,7 @@ pub trait RustSpecification:
 impl<SPEC> Specification<RustFermentate> for SPEC where SPEC: RustSpecification {
     type Attr = Vec<Attribute>;
     type Gen = Option<Generics>;
+    type Lt = Vec<Lifetime>;
     type TYC = TypeContext;
     type Interface = InterfacePresentation;
     type Expr = Expression<RustFermentate, SPEC>;
@@ -92,6 +95,9 @@ pub trait LangAttrSpecification<T: Clone>: Clone + Default {
 pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
     fn from_generics(generics: Option<Generics>) -> Self;
 }
+pub trait LangLifetimeSpecification<T: Clone>: Clone + Default + Debug {
+    fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self;
+}
 
 impl<T> LangAttrSpecification<T> for Vec<Attribute> where T: Clone {
     fn from_attrs(attrs: Vec<Attribute>) -> Self {
@@ -101,6 +107,11 @@ impl<T> LangAttrSpecification<T> for Vec<Attribute> where T: Clone {
 impl<T> LangGenSpecification<T> for Option<Generics> where T: Clone {
     fn from_generics(generics: Option<Generics>) -> Self {
         generics
+    }
+}
+impl<T> LangLifetimeSpecification<T> for Vec<Lifetime> where T: Clone {
+    fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self {
+        lifetimes
     }
 }
 impl<T> LangAttrSpecification<T> for AttrWrapper where T: Clone {

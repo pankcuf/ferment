@@ -18,11 +18,7 @@ pub enum DataContractCreateTransition {
 
 #[derive(Clone)]
 #[ferment_macro::export]
-pub enum ExampleEnumLif<'a> {
-    Varik(&'a DataContractCreateTransition)
-}
-#[derive(Clone)]
-#[ferment_macro::export]
 pub struct ExampleStructLif<'a> {
     pub varik: &'a DataContractCreateTransition
 }
+

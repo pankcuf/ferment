@@ -16,7 +16,7 @@ pub enum BindingPresentableContext<LANG, SPEC>
     Destructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind),
     Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
     Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
-    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen)
+    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
 }
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
@@ -132,7 +132,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                     generics: generics.clone(),
                 }
             },
-            BindingPresentableContext::RegFn(path, is_async, arguments, return_type, input_conversions, return_type_conversion, attrs, generics) => BindingPresentation::RegularFunction {
+            BindingPresentableContext::RegFn(path, is_async, arguments, return_type, input_conversions, return_type_conversion, attrs, generics, lifetimes) => BindingPresentation::RegularFunction {
                 attrs: attrs.clone(),
                 is_async: *is_async,
                 arguments: arguments.present(&source),
@@ -140,6 +140,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
                 generics: generics.clone(),
+                lifetimes: lifetimes.clone(),
                 output_conversions: <SPEC::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
             }
         }

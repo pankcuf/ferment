@@ -3,7 +3,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::{Attribute, Generics, ReturnType, Type};
 use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{CommaPunctuatedArgs, TypePair};
-use crate::ext::LifetimeCleaner;
+use crate::ext::LifetimeProcessor;
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 #[allow(unused)]

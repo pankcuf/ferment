@@ -6,7 +6,7 @@ use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModel
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, RefineMut, ToPath};
+use crate::ext::{AsType, CrateExtension, DictionaryType, LifetimeProcessor, Pop, RefineMut, ToPath};
 
 #[allow(unused)]
 pub trait RefineInScope {
@@ -403,7 +403,7 @@ impl RefineInScope for TypeModelKind {
 
                 } else {
 
-                    let scope_path = model.pointer_less();
+                    let scope_path = model.lifetimes_cleaned().pointer_less();
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&crate_named_import_path)
                         .or_else(|| determine_scope_item(&mut model, scope_path, scope, source)) {
                         //println!("[INFO] (Import) Scope item found: {}", found_item);
@@ -420,7 +420,7 @@ impl RefineInScope for TypeModelKind {
                 true
             }
             TypeModelKind::Unknown(model) => {
-                let path = model.pointer_less();
+                let path = model.lifetimes_cleaned().pointer_less();
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&path, model) {
                     //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
                     *self = TypeModelKind::Dictionary(dictionary_type);

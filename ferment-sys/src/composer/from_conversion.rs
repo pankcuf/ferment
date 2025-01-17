@@ -66,6 +66,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
         let field_path = expr.clone().unwrap_or(SPEC::Expr::simple(name));
 
         let search_key = self.search.search_key();
+        println!("FromConversionFullComposer::search_key {} ", search_key);
         let maybe_object = source.maybe_object_by_predicate_ref(search);
         let full_type = maybe_object
             .as_ref()

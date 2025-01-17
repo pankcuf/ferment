@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility};
+use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, Lifetime};
 use syn::punctuated::Punctuated;
 use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -89,6 +89,7 @@ pub enum BindingPresentation {
         return_type: ReturnType,
         output_conversions: TokenStream2,
         generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
     },
     Callback {
         name: Ident,
@@ -129,8 +130,9 @@ fn present_pub_function<T: ToTokens, U: ToTokens>(
     args: CommaPunctuated<T>,
     output: ReturnType,
     generics: Option<Generics>,
+    lifetimes: Vec<Lifetime>,
     body: TokenStream2) -> TokenStream2 {
-    present_function(attrs, Pub::default().to_token_stream(), name.to_token_stream(), args, output, generics, body)
+    present_function(attrs, Pub::default().to_token_stream(), name.to_token_stream(), args, output, generics, lifetimes, body)
 }
 pub fn present_function<T: ToTokens>(
     attrs: &Vec<Attribute>,
@@ -139,20 +141,31 @@ pub fn present_function<T: ToTokens>(
     args: CommaPunctuated<T>,
     output: ReturnType,
     generics: Option<Generics>,
+    lifetimes: Vec<Lifetime>,
     body: TokenStream2) -> TokenStream2 {
     match generics {
-        None => quote! {
-           #(#attrs)*
-           #[no_mangle]
-           #acc unsafe extern "C" fn #name(#args) #output {
-                #body
+        None => {
+            let lifetime_tokens = if lifetimes.is_empty() {
+                quote!()
+            } else {
+                let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| lt.to_token_stream()));
+                quote!(<#comma_lifetimes>)
+            };
+            quote! {
+               #(#attrs)*
+               #[no_mangle]
+               #acc unsafe extern "C" fn #name #lifetime_tokens(#args) #output {
+                    #body
+                }
             }
         },
-        Some(Generics { params, where_clause, .. }) => quote! {
-           #(#attrs)*
-           #[no_mangle]
-           #acc unsafe extern "C" fn #name<#params>(#args) #output #where_clause {
-                #body
+        Some(Generics { params, where_clause, .. }) => {
+            quote! {
+               #(#attrs)*
+               #[no_mangle]
+               #acc unsafe extern "C" fn #name<#params>(#args) #output #where_clause {
+                    #body
+                }
             }
         }
     }
@@ -185,6 +198,7 @@ impl ToTokens for BindingPresentation {
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
                     generics.clone(),
+                    vec![],
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
             Self::VariantConstructor { attrs, name, ty, generics, ctor_arguments, body_presentation} => {
@@ -195,6 +209,7 @@ impl ToTokens for BindingPresentation {
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                     generics.clone(),
+                    vec![],
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
             Self::Destructor { attrs, name, ty, generics } => {
@@ -205,6 +220,7 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote!(ffi: #ty)]),
                     ReturnType::Default,
                     generics.clone(),
+                    vec![],
                     InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
                 )
             },
@@ -216,6 +232,7 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote!(obj: #ty)]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     None,
+                    vec![],
                     quote!(#trait_type {
                         object: obj as *const (),
                         vtable: &#vtable_name
@@ -229,6 +246,7 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote! { #(#attrs)* obj: #trait_type }]),
                     ReturnType::Default,
                     generics.clone(),
+                    vec![],
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
@@ -241,6 +259,7 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote! { obj: #var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
+                    vec![],
                     quote!((*obj).#field_name)
                 )
             },
@@ -257,9 +276,10 @@ impl ToTokens for BindingPresentation {
                     ]),
                     ReturnType::Default,
                     generics.clone(),
+                    vec![],
                     quote!((*obj).#field_name = value;))
             },
-            BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics } => {
+            BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
                         ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) })
@@ -271,6 +291,7 @@ impl ToTokens for BindingPresentation {
                         args,
                         return_type.clone(),
                         generics.clone(),
+                        lifetimes.clone(),
                         quote! {
                             let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
                             let obj = rt.block_on(async { #input_conversions .await });
@@ -284,6 +305,7 @@ impl ToTokens for BindingPresentation {
                         arguments.clone(),
                         return_type.clone(),
                         generics.clone(),
+                        lifetimes.clone(),
                         quote!(let obj = #input_conversions; #output_conversions)
                     )
                 }
@@ -324,6 +346,7 @@ impl ToTokens for BindingPresentation {
                     args.clone(),
                     output.clone(),
                     None,
+                    vec![],
                     body.clone()
                 )
             },
