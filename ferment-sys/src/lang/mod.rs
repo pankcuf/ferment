@@ -96,6 +96,7 @@ pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
     fn from_generics(generics: Option<Generics>) -> Self;
 }
 pub trait LangLifetimeSpecification<T: Clone>: Clone + Default + Debug {
+    #[allow(unused)]
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self;
 }
 

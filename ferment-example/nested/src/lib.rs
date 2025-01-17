@@ -198,3 +198,13 @@ pub enum ExampleEnumLif<'a> {
 
 #[ferment_macro::export]
 pub fn test_lifetime<'a>(example: ExampleEnumLif<'a>) {}
+
+#[ferment_macro::opaque]
+pub struct Manager {
+
+}
+
+#[ferment_macro::export]
+impl Manager {
+    pub fn check_lifetime_support<'a>(&self, example: ExampleEnumLif<'a>) {}
+}
