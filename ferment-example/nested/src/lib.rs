@@ -207,4 +207,5 @@ pub struct Manager {
 #[ferment_macro::export]
 impl Manager {
     pub fn check_lifetime_support<'a>(&self, example: ExampleEnumLif<'a>) {}
+    pub fn check_staticlifetime(&self, example: ExampleEnumLif<'static>) {}
 }

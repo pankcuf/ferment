@@ -145,10 +145,16 @@ pub fn present_function<T: ToTokens>(
     body: TokenStream2) -> TokenStream2 {
     match generics {
         None => {
-            let lifetime_tokens = if lifetimes.is_empty() {
+            let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter_map(|lt| {
+                if lt.ident.to_string().eq("static") {
+                    None
+                } else {
+                    Some(lt.to_token_stream())
+                }
+            }));
+            let lifetime_tokens = if comma_lifetimes.is_empty() {
                 quote!()
             } else {
-                let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| lt.to_token_stream()));
                 quote!(<#comma_lifetimes>)
             };
             quote! {
