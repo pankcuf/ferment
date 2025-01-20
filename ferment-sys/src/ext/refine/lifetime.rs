@@ -1,5 +1,6 @@
-use syn::{GenericArgument, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::CommaPunctuated;
+use crate::conversion::GenericTypeKind;
 
 pub trait LifetimeProcessor {
     fn clean_lifetimes(&mut self);
@@ -98,21 +99,18 @@ impl LifetimeProcessor for TypeBareFn {
 
 impl LifetimeProcessor for PathArguments {
     fn clean_lifetimes(&mut self) {
-        let mut remove_brackets = false;
         match self {
             PathArguments::None => {}
             PathArguments::AngleBracketed(args) => {
-                let cleaned_args = CommaPunctuated::from_iter(args.args.clone().into_iter().filter_map(|arg| if let GenericArgument::Lifetime(_) = arg { None } else { Some(arg) }));
-                remove_brackets = cleaned_args.is_empty();
-                args.args = cleaned_args;
+                args.clean_lifetimes();
+                if args.args.is_empty() {
+                    *self = PathArguments::None;
+                }
             },
             PathArguments::Parenthesized(args) => {
                 args.inputs.iter_mut().for_each(|i| i.clean_lifetimes());
                 args.output.clean_lifetimes();
             },
-        }
-        if remove_brackets {
-            *self = PathArguments::None;
         }
     }
 
@@ -120,19 +118,7 @@ impl LifetimeProcessor for PathArguments {
         match self {
             PathArguments::None => vec![],
             PathArguments::AngleBracketed(args) => {
-                let mut lifetimes = vec![];
-                args.args.iter().for_each(|arg| match arg {
-                    GenericArgument::Lifetime(lt) => {
-                        lifetimes.push(lt.clone());
-                    },
-                    GenericArgument::Type(ty) => {
-                        lifetimes.extend(ty.unique_lifetimes());
-                    }
-                    GenericArgument::Const(_) => {}
-                    GenericArgument::Binding(_) => {}
-                    GenericArgument::Constraint(_) => {}
-                });
-                lifetimes
+                args.unique_lifetimes()
             },
             PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
                 let mut lifetimes = Vec::from_iter(inputs.iter().flat_map(LifetimeProcessor::unique_lifetimes));
@@ -140,6 +126,30 @@ impl LifetimeProcessor for PathArguments {
                 lifetimes
             }
         }
+    }
+}
+impl LifetimeProcessor for AngleBracketedGenericArguments {
+    fn clean_lifetimes(&mut self) {
+        self.args = CommaPunctuated::from_iter(self.args.iter().filter_map(|arg| match arg {
+            GenericArgument::Type(ty) => Some(GenericArgument::Type(ty.lifetimes_cleaned())),
+            _ => None,
+        }));
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        let mut lifetimes = vec![];
+        self.args.iter().for_each(|arg| match arg {
+            GenericArgument::Lifetime(lt) => {
+                lifetimes.push(lt.clone());
+            },
+            GenericArgument::Type(ty) => {
+                lifetimes.extend(ty.unique_lifetimes());
+            }
+            GenericArgument::Const(_) => {}
+            GenericArgument::Binding(_) => {}
+            GenericArgument::Constraint(_) => {}
+        });
+        lifetimes
     }
 }
 
@@ -176,16 +186,12 @@ impl LifetimeProcessor for TypeImplTrait {
 
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
         let mut lifetimes = Vec::<Lifetime>::new();
-        self.bounds.iter().for_each(|bound| {
-            match bound {
-                TypeParamBound::Trait(trait_bound) => {
-                    if let Some(ref lts) = trait_bound.lifetimes {
-                        lifetimes.extend(lts.lifetimes.iter().map(|lt| lt.lifetime.clone()));
-                    }
-                }
-                TypeParamBound::Lifetime(lt) => {
-                    lifetimes.push(lt.clone());
-                }
+        self.bounds.iter().for_each(|bound| match bound {
+            TypeParamBound::Trait(trait_bound) => {
+                lifetimes.extend(trait_bound.unique_lifetimes());
+            }
+            TypeParamBound::Lifetime(lt) => {
+                lifetimes.push(lt.clone());
             }
         });
         lifetimes
@@ -254,5 +260,49 @@ impl LifetimeProcessor for TypeTuple {
 
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
         self.elems.iter().flat_map(|e| e.unique_lifetimes()).collect()
+    }
+}
+
+impl LifetimeProcessor for TraitBound {
+    fn clean_lifetimes(&mut self) {
+        self.lifetimes = None;
+        self.path.clean_lifetimes();
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        let mut lifetimes = self.path.unique_lifetimes();
+        if let Some(ref lts) = self.lifetimes {
+            lifetimes.extend(lts.lifetimes.iter().map(|lt| lt.lifetime.clone()));
+        }
+        lifetimes
+    }
+}
+
+impl LifetimeProcessor for GenericTypeKind {
+    fn clean_lifetimes(&mut self) {
+        match self {
+            GenericTypeKind::Map(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Group(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Result(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Box(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::AnyOther(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Array(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Slice(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Tuple(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Optional(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Callback(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::TraitBounds(bounds) => {
+                *bounds = bounds.iter().filter_map(|b| match b {
+                    TypeParamBound::Trait(trait_bound) =>
+                        Some(TypeParamBound::Trait(trait_bound.lifetimes_cleaned())),
+                    TypeParamBound::Lifetime(_) =>
+                        None,
+                }).collect();
+            },
+        }
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        todo!()
     }
 }

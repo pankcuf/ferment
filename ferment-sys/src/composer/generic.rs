@@ -5,6 +5,7 @@ use syn::{Attribute, Type};
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
 use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, PresentableArgumentPairComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, arg_conversions_iterator, NameKind};
+use crate::composer::array::ArrayComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -64,6 +65,7 @@ pub enum GenericComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG> + 'static {
     Bounds(BoundsComposer<LANG, SPEC>),
     Callback(CallbackComposer<LANG, SPEC>),
+    Array(ArrayComposer<LANG, SPEC>),
     Group(GroupComposer<LANG, SPEC>),
     Result(ResultComposer<LANG, SPEC>),
     Slice(SliceComposer<LANG, SPEC>),
@@ -77,6 +79,7 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
           SPEC: Specification<LANG>,
           BoundsComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           CallbackComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
+          ArrayComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           GroupComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           ResultComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
           SliceComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
@@ -92,6 +95,8 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
             GenericComposerWrapper::Bounds(composer) =>
                 composer.compose(source),
             GenericComposerWrapper::Callback(composer) =>
+                composer.compose(source),
+            GenericComposerWrapper::Array(composer) =>
                 composer.compose(source),
             GenericComposerWrapper::Group(composer) =>
                 composer.compose(source),
@@ -126,9 +131,9 @@ impl<LANG, SPEC> GenericComposer<LANG, SPEC>
             MixinKind::Generic(GenericTypeKind::Callback(ty)) =>
                 GenericComposerWrapper::Callback(CallbackComposer::new(ty, ty_context, attrs, scope_context)),
             MixinKind::Generic(GenericTypeKind::Group(ty)) =>
-                GenericComposerWrapper::Group(GroupComposer::default(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::Group(GroupComposer::new(ty, ty_context, attrs, scope_context)),
             MixinKind::Generic(GenericTypeKind::Array(ty)) =>
-                GenericComposerWrapper::Group(GroupComposer::array(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::Array(ArrayComposer::new(ty, ty_context, attrs, scope_context)),
             MixinKind::Generic(GenericTypeKind::Result(ty)) =>
                 GenericComposerWrapper::Result(ResultComposer::new(ty, ty_context, attrs, scope_context)),
             MixinKind::Generic(GenericTypeKind::Slice(ty)) =>

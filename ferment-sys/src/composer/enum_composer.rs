@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use quote::{quote, ToTokens};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, LifetimesModel};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
 use crate::composer::r#abstract::LinkedContextComposer;
 use crate::context::ScopeContextLink;
 use crate::lang::{LangAttrSpecification, LangFermentable, RustSpecification, Specification};
@@ -35,7 +35,7 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
           Name<LANG, SPEC>: ToTokens,
-          Self: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + NameKindComposable {
+          Self: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + LifetimesComposable<SPEC::Lt> + TypeAspect<SPEC::TYC> + NameKindComposable {
     pub fn new(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemEnum { attrs, ident: target_name, variants, generics, .. } = item_enum;
         let variant_composers = variants
@@ -77,6 +77,7 @@ impl<LANG, SPEC> EnumComposer<LANG, SPEC>
                 AttrsModel::from(attrs),
                 ty_context,
                 GenModel::new(Some(generics.clone())),
+                LifetimesModel::new(vec![]),
                 Rc::clone(context)
             ),
             variant_composers: variant_composers.0,
@@ -144,10 +145,12 @@ impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<RustFermentate,
             + NameKindComposable
             + TypeAspect<TypeContext>
             + AttrComposable<SPEC::Attr>
-            + GenericsComposable<SPEC::Gen> {
+            + GenericsComposable<SPEC::Gen>
+            + LifetimesComposable<SPEC::Lt> {
     fn compose_interfaces(&self) -> Depunctuated<SPEC::Interface> {
         let source = self.source_ref();
         let generics = self.compose_generics();
+        let lifetimes = self.compose_lifetimes();
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
@@ -179,8 +182,8 @@ impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<RustFermentate,
         let drop_body = DictionaryExpr::MatchFields(quote!(self), destroy_conversions.present(&source));
 
         Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &generics),
-            InterfacePresentation::conversion_to_boxed(&attrs, &types, to_body, &generics),
+            InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &generics, &lifetimes),
+            InterfacePresentation::conversion_to_boxed(&attrs, &types, to_body, &generics, &lifetimes),
             // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &generics),
             InterfacePresentation::drop(&attrs, ffi_type, drop_body)
         ])

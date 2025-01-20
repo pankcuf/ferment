@@ -1,10 +1,10 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Type, TypeTuple};
+use syn::{Attribute, Generics, Type, TypeTuple};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
@@ -26,7 +26,7 @@ impl<LANG, SPEC> TupleComposer<LANG, SPEC>
           SPEC: Specification<LANG> {
     pub fn new(type_tuple: &TypeTuple, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             type_tuple: type_tuple.clone(),
         }
     }
@@ -78,11 +78,11 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
             });
         let attrs = self.compose_attributes();
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions).to_token_stream(), &None),
-            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None),
+            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions).to_token_stream(), &None, &vec![]),
+            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &vec![]),
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.type_tuple.mangle_ident_default(), attrs: vec![] });
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.type_tuple.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

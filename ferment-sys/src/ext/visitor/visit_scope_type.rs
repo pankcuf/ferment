@@ -92,12 +92,12 @@ impl<'a> VisitScopeType<'a> for Path {
                 PathArguments::None => {}
                 PathArguments::AngleBracketed(angle_bracketed_generic_arguments) => {
                     for arg in &mut angle_bracketed_generic_arguments.args {
-                        // println!("Path: visit_scope_type.2222 {}", arg.to_token_stream());
+                        println!("Path: visit_scope_type.2222 {}", arg.to_token_stream());
                         match arg {
                             GenericArgument::Type(inner_type) => {
                                 let obj_conversion = inner_type.visit_scope_type(&(scope, context));
                                 let ty = obj_conversion.maybe_type().unwrap();
-                                //println!("nested object::::: {}", obj_conversion);
+                                // println!("nested object::::: {}", obj_conversion);
                                 nested_arguments.push(NestedArgument::Object(obj_conversion));
                                 *arg = GenericArgument::Type(ty);
                             },

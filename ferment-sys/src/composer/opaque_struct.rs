@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Generics};
+use syn::{Attribute, Generics, Lifetime};
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::DelimiterTrait;
 use crate::composable::{AttrsModel, FieldComposer};
@@ -33,6 +33,7 @@ impl<LANG, SPEC, I> OpaqueStructComposer<LANG, SPEC, I>
         ty_context: SPEC::TYC,
         attrs: &Vec<Attribute>,
         generics: &Generics,
+        lifetimes: &Vec<Lifetime>,
         fields: &CommaPunctuatedFields,
         context: &ScopeContextLink,
     ) -> ComposerLink<Self> {
@@ -40,6 +41,7 @@ impl<LANG, SPEC, I> OpaqueStructComposer<LANG, SPEC, I>
             composer: ItemComposer::new::<Self>(
                 ty_context,
                 Some(generics.clone()),
+                lifetimes.clone(),
                 AttrsModel::from(attrs),
                 fields,
                 context)

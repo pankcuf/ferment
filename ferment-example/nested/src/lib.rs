@@ -197,7 +197,7 @@ pub enum ExampleEnumLif<'a> {
 }
 
 #[ferment_macro::export]
-pub fn test_lifetime<'a>(example: ExampleEnumLif<'a>) {}
+pub fn test_lifetime<'a>(_example: ExampleEnumLif<'a>) {}
 
 #[ferment_macro::opaque]
 pub struct Manager {
@@ -206,6 +206,7 @@ pub struct Manager {
 
 #[ferment_macro::export]
 impl Manager {
-    pub fn check_lifetime_support<'a>(&self, example: ExampleEnumLif<'a>) {}
-    pub fn check_staticlifetime(&self, example: ExampleEnumLif<'static>) {}
+    pub fn check_lifetime_support<'a>(&self, _example: ExampleEnumLif<'a>) {}
+    pub fn check_staticlifetime(&self, _example: ExampleEnumLif<'static>) {}
+    pub fn check_generic_lifetime<'a>(&self, _example: Vec<ExampleEnumLif<'a>>) {}
 }

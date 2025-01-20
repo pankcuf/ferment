@@ -43,6 +43,7 @@ impl<LANG, SPEC, I> EnumVariantComposer<LANG, SPEC, I>
             composer: ItemComposer::new::<Self>(
                 ty_context,
                 None,
+                vec![],
                 AttrsModel::from(attrs),
                 fields,
                 context) }))

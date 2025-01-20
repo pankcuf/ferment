@@ -5,6 +5,7 @@ use crate::ext::{SpecialType, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, RustFermentate};
 
+#[derive(Debug)]
 pub enum FFIFullPath<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG> {

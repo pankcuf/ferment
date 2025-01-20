@@ -95,6 +95,9 @@ pub trait AttrComposable<T> {
 pub trait GenericsComposable<T> {
     fn compose_generics(&self) -> T;
 }
+pub trait LifetimesComposable<T> {
+    fn compose_lifetimes(&self) -> T;
+}
 pub trait VariantComposable<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG> {

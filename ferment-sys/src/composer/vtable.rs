@@ -5,7 +5,7 @@ use syn::{Attribute, FnArg, PatType, Receiver, ReturnType, Signature, Type, Visi
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FnSignatureContext, GenModel, TraitVTableComposer};
+use crate::composable::{AttrsModel, FieldComposer, FnSignatureContext, GenModel, LifetimesModel, TraitVTableComposer};
 use crate::composer::{BasicComposerOwner, AspectPresentable, BasicComposer, BasicComposerLink, ComposerLink, Linkable, SourceAccessible, SourceComposable, TypeAspect, VarComposer, from_trait_receiver_expr_composer, from_receiver_expr_composer, FromConversionFullComposer, ToConversionComposer, AttrComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
@@ -30,6 +30,7 @@ where LANG: LangFermentable,
                 AttrsModel::from(attrs),
                 ty_context,
                 GenModel::default(),
+                LifetimesModel::default(),
                 // LinkedContextComposer::new(default_doc, Self::target_type_aspect),
                 Rc::clone(context)),
         }));

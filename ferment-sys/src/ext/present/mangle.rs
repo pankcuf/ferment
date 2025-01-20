@@ -6,7 +6,7 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
 use crate::conversion::ObjectKind;
-use crate::ext::{AsType, ToPath};
+use crate::ext::{AsType, LifetimeProcessor, ToPath};
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -181,10 +181,18 @@ impl Mangle<String> for PathArguments {
         }
         let is_result = segment_str == "Result";
         match self {
-            PathArguments::AngleBracketed(arguments) =>
-                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
-            PathArguments::Parenthesized(arguments) =>
-                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
+            PathArguments::AngleBracketed(arguments) => {
+                let args = arguments.lifetimes_cleaned();
+                if args.args.is_empty() {
+                    segment_str
+                } else {
+                    format!("{}_{}", segment_str, args.mangle_string((is_map, is_result)))
+                }
+            },
+            PathArguments::Parenthesized(arguments) => {
+
+                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result)))
+            },
             _ => segment_str,
         }
     }

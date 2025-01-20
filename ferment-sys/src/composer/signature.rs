@@ -6,7 +6,7 @@ use syn::__private::TokenStream2;
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
-use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
@@ -29,10 +29,11 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
     fn new(
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
         context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
         }));
         {
             let mut composer = root.borrow_mut();
@@ -43,12 +44,14 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
     pub fn with_context(
         ty_context: SPEC::TYC,
         generics: &Generics,
+        lifetimes: &Vec<Lifetime>,
         attrs: &Vec<Attribute>,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::new(
             ty_context,
             Some(generics.clone()),
+            lifetimes.clone(),
             AttrsModel::from(attrs),
             context)
     }
@@ -61,18 +64,21 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         Self::with_context(
             ty_context,
             generics,
+            &vec![],
             attrs,
             context)
     }
     pub fn from_type_bare_fn(
         ty_context: SPEC::TYC,
         generics: &Generics,
+        lifetimes: &Vec<Lifetime>,
         attrs: &Vec<Attribute>,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::with_context(
             ty_context,
             generics,
+            lifetimes,
             attrs,
             context
         )
@@ -87,6 +93,7 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         Self::with_context(
             ty_context,
             &sig.generics,
+            &vec![],
             sig.maybe_attrs().unwrap_or(&vec![]),
             context
         )
@@ -97,7 +104,7 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         let TraitItemMethod { sig, attrs, .. } = trait_item_method;
-        Self::with_context(ty_context, &sig.generics, attrs, context)
+        Self::with_context(ty_context, &sig.generics, &vec![], attrs, context)
     }
 }
 

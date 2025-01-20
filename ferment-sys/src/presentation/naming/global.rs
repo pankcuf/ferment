@@ -42,6 +42,7 @@ pub enum GlobalType {
     Result, // For error handling.
 }
 
+#[derive(Debug)]
 pub enum FFIFullDictionaryPath<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG> {

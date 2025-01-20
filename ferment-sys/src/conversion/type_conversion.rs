@@ -2,8 +2,9 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
+use syn::{GenericArgument, PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use syn::parse::{Parse, ParseStream};
+use crate::ast::CommaPunctuated;
 use crate::conversion::GenericTypeKind;
 
 #[derive(Clone, Eq)]
@@ -79,8 +80,14 @@ impl From<Type> for TypeKind {
                             "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
                             "Fn" | "FnOnce" | "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
-                                PathArguments::AngleBracketed(_) =>
-                                    Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))),
+                                PathArguments::AngleBracketed(args) => {
+                                    let non_lifetimes = CommaPunctuated::from_iter(args.args.iter().filter_map(|arg| if let GenericArgument::Lifetime(_) = arg { None } else { Some(arg) }));
+                                    Some(if non_lifetimes.is_empty() {
+                                        TypeKind::Complex(ty.clone())
+                                    } else {
+                                        TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))
+                                    })
+                                },
                                 _ => None
                             }).unwrap_or(TypeKind::Complex(ty))
                         }

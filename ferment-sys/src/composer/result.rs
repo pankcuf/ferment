@@ -1,9 +1,9 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, Type};
+use syn::{Attribute, Generics, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated, SemiPunctuated, Void};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{complex_opt_arg_composer, GenericArgComposer, GenericArgPresentation, GenericTypeKind, primitive_opt_arg_composer, result_complex_arg_composer, TypeKind};
@@ -25,7 +25,7 @@ impl<LANG, SPEC> ResultComposer<LANG, SPEC>
           SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone()
         }
     }
@@ -125,12 +125,12 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
         let attrs = self.compose_attributes();
         let types = (ffi_type.clone(), self.present_target_aspect());
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![] }),
+            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() }),
             &attrs,
             field_composers,
             Depunctuated::from_iter([
-                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToResult(from_conversions.to_token_stream()), &None),
-                InterfacePresentation::conversion_to_boxed(&attrs, &types, BraceWrapped::<_, Void>::new(quote!(let (#field_names) = ferment::to_result(obj, #to_conversions); Self { #field_names })), &None),
+                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToResult(from_conversions.to_token_stream()), &None, &vec![]),
+                InterfacePresentation::conversion_to_boxed(&attrs, &types, BraceWrapped::<_, Void>::new(quote!(let (#field_names) = ferment::to_result(obj, #to_conversions); Self { #field_names })), &None, &vec![]),
                 // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
             ])

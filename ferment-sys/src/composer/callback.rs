@@ -1,10 +1,10 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
+use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility, Generics};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, TypeKind};
@@ -26,7 +26,7 @@ impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
           SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone()
         }
     }
@@ -108,7 +108,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
-            Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), attrs: vec![] }),
+            Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), generics: Generics::default(), attrs: vec![] }),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([

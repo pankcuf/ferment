@@ -247,6 +247,11 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
                 self.base().compose_generics()
             }
         }
+        impl #impl_generics crate::composer::LifetimesComposable<SPEC::Lt> for #ident #ty_generics #where_clause {
+            fn compose_lifetimes(&self) -> SPEC::Lt {
+                self.base().compose_lifetimes()
+            }
+        }
         impl #impl_generics crate::composer::SourceAccessible for #ident #ty_generics #where_clause {
             fn context(&self) -> &ComposerLink<crate::context::ScopeContext> {
                 self.base().context()

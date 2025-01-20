@@ -1,5 +1,6 @@
-use crate::composable::{AttrsModel, GenModel};
-use crate::composer::{AttrComposable, AttrsComposer, SourceComposable, ComposerLink, DocsComposable, GenericsComposable, GenericsComposer, Linkable, SourceAccessible, TypeAspect, TypeComposer};
+use crate::composable::{AttrsModel, GenModel, LifetimesModel};
+use crate::composer::{AttrComposable, AttrsComposer, SourceComposable, ComposerLink, DocsComposable, GenericsComposable, GenericsComposer, Linkable, SourceAccessible, TypeAspect, TypeComposer, LifetimesComposable};
+use crate::composer::lifetimes::LifetimesComposer;
 use crate::context::ScopeContextLink;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentation::{DocComposer, DocPresentation};
@@ -16,6 +17,7 @@ pub struct BasicComposer<LANG, SPEC, Link>
     // pub doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
     pub ty: TypeComposer<Link, SPEC::TYC>,
     pub generics: GenericsComposer<LANG, SPEC, Link>,
+    pub lifetimes: LifetimesComposer<LANG, SPEC, Link>,
 }
 impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
@@ -27,9 +29,10 @@ impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
         doc: DocComposer<LANG, SPEC, Link>,
         ty: TypeComposer<Link, SPEC::TYC>,
         generics: GenericsComposer<LANG, SPEC, Link>,
+        lifetimes: LifetimesComposer<LANG, SPEC, Link>,
         context: ScopeContextLink
     ) -> Self {
-        Self { context, attr, doc, ty, generics }
+        Self { context, attr, doc, ty, generics, lifetimes }
     }
 
     pub fn from(
@@ -37,6 +40,7 @@ impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
         attrs: AttrsModel,
         ty_context: SPEC::TYC,
         generics: GenModel,
+        lifetimes: LifetimesModel,
         // doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
         context: ScopeContextLink) -> Self {
         Self::new(
@@ -44,6 +48,7 @@ impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
             doc,
             TypeComposer::new(ty_context),
             GenericsComposer::<LANG, SPEC, Link>::new(generics),
+            LifetimesComposer::<LANG, SPEC, Link>::new(lifetimes),
             context
         )
     }
@@ -56,6 +61,7 @@ impl<LANG, SPEC, Link> Linkable<Link> for BasicComposer<LANG, SPEC, Link>
     fn link(&mut self, parent: &Link) {
         self.attr.link(parent);
         self.generics.link(parent);
+        self.lifetimes.link(parent);
         self.ty.link(parent);
         self.doc.link(parent);
     }
@@ -85,6 +91,14 @@ impl<LANG, SPEC, Link> GenericsComposable<SPEC::Gen> for BasicComposer<LANG, SPE
           SPEC: Specification<LANG> {
     fn compose_generics(&self) -> SPEC::Gen {
         self.generics.compose(self.context())
+    }
+}
+impl<LANG, SPEC, Link> LifetimesComposable<SPEC::Lt> for BasicComposer<LANG, SPEC, Link>
+    where Link: SharedAccess,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    fn compose_lifetimes(&self) -> SPEC::Lt {
+        self.lifetimes.compose(self.context())
     }
 }
 impl<'a, LANG, SPEC, Link> TypeAspect<SPEC::TYC> for BasicComposer<LANG, SPEC, Link>

@@ -4,11 +4,11 @@ use std::rc::Rc;
 use std::vec;
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Generics, ItemTrait, parse_quote, TraitItem, TraitItemMethod};
+use syn::{Generics, ItemTrait, parse_quote, TraitItem, TraitItemMethod, Lifetime};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, TraitTypeModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel, TraitTypeModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, Mangle, ToPath, ToType};
@@ -62,6 +62,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
                         SigComposer::with_context(
                             ty_context,
                             &sig.generics,
+                            &vec![],
                             attrs,
                             &method_scope_context));
                 },
@@ -75,6 +76,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
             types,
             ty_context,
             Some(item_trait.generics.clone()),
+            vec![],
             AttrsModel::from(&item_trait.attrs),
             scope_context)
     }
@@ -84,12 +86,13 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         types: HashMap<Ident, TraitTypeModel>,
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         // let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), LifetimesModel::new(lifetimes), Rc::clone(context)),
             methods,
             types,
         }));

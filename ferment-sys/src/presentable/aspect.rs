@@ -4,12 +4,12 @@ use proc_macro2::{Group, TokenTree};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::token::Comma;
-use crate::ast::{DelimiterTrait, Wrapped};
+use crate::ast::{CommaPunctuated, DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
 use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, NameKindComposable, PunctuatedArgKinds, TypeAspect};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
-use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
+use crate::ext::{AsType, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
 use crate::presentation::{DictionaryName, RustFermentate};
@@ -93,13 +93,24 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
         match self {
             Aspect::Target(context) => {
                 match context {
-                    TypeContext::Enum { ident, .. } |
-                    TypeContext::Struct { ident , .. } =>
-                        ident.to_type()
-                            .resolve(source),
+                    TypeContext::Enum { ident, generics, .. } |
+                    TypeContext::Struct { ident , generics, .. } => {
+                        let lifetimes = generics.lifetimes();
+                        let comma_pt = CommaPunctuated::from_iter(lifetimes);
+                        let result: Type = ident.to_type()
+                            .resolve(source);
+                        println!("present TARGET ASPECT: {} ---- {} ---- {}", ident, comma_pt.to_token_stream(), result.to_token_stream());
+                        // if comma_pt.is_empty() {
+                        //     result
+                        // } else {
+                        //     parse_quote!(#result #generics)
+                        // }
+                        result
+                    },
                     TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {
                         let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);
-                        parse_quote!(#full_ty::#variant_ident)
+                        let ty = full_ty.lifetimes_cleaned();
+                        parse_quote!(#ty::#variant_ident)
                     },
                     TypeContext::Fn { path, .. } => {
                         path.to_type()
@@ -198,8 +209,8 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         kind.ty().cloned().unwrap(),
                     TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
                         model.type_model_ref().ty.clone(),
-                    TypeContext::Enum { ident , attrs: _, } |
-                    TypeContext::Struct { ident , attrs: _, } =>
+                    TypeContext::Enum { ident , attrs: _, generics: _ } |
+                    TypeContext::Struct { ident , attrs: _, generics: _ } =>
                         ident.to_type(),
                     TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {
                         let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);

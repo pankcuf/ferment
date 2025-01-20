@@ -1,10 +1,10 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Type};
+use syn::{Attribute, Generics, Type};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
@@ -32,7 +32,7 @@ impl<LANG, SPEC> BoundsComposer<LANG, SPEC>
     ) -> Self {
         Self {
             model: model.clone(),
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
         }
     }
 }
@@ -95,12 +95,12 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None),
-            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None),
+            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &vec![]),
+            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &vec![]),
             // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![] });
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![], generics: Generics::default() });
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

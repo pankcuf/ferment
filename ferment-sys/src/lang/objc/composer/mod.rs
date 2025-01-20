@@ -1,4 +1,5 @@
 mod any_other;
+mod array;
 mod callback;
 mod item;
 mod result;

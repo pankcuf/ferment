@@ -1,4 +1,4 @@
-use syn::{Attribute, Generics};
+use syn::{Attribute, Generics, Lifetime};
 
 pub struct AttrsModel {
     pub attrs: Vec<Attribute>,
@@ -7,6 +7,16 @@ pub struct AttrsModel {
     // #[allow(unused)]
     // pub scope: ScopeChain,
 }
+impl AttrsModel {
+    pub fn new(attrs: Vec<Attribute>) -> Self {
+        Self { attrs }
+    }
+
+    pub fn from(attrs: &Vec<Attribute>) -> Self {
+        Self::new(attrs.clone())
+    }
+}
+
 pub struct GenModel {
     pub generics: Option<Generics>,
     // #[allow(unused)]
@@ -20,16 +30,6 @@ impl Default for GenModel {
         Self { generics: None }
     }
 }
-
-impl AttrsModel {
-    pub fn new(attrs: Vec<Attribute>) -> Self {
-        Self { attrs }
-    }
-
-    pub fn from(attrs: &Vec<Attribute>) -> Self {
-        Self::new(attrs.clone())
-    }
-}
 impl GenModel {
     pub fn new(generics: Option<Generics>) -> Self {
         Self { generics }
@@ -39,6 +39,27 @@ impl GenModel {
     //     Self::new(generics.clone())
     // }
 }
+
+pub struct LifetimesModel {
+    pub lifetimes: Vec<Lifetime>,
+    // #[allow(unused)]
+    // pub ident: Ident,
+    // #[allow(unused)]
+    // pub scope: ScopeChain,
+}
+
+impl Default for LifetimesModel {
+    fn default() -> Self {
+        Self { lifetimes: vec![] }
+    }
+}
+impl LifetimesModel {
+    pub fn new(lifetimes: Vec<Lifetime>) -> Self {
+        Self { lifetimes }
+    }
+}
+
+
 
 pub trait CfgAttributes {
     fn cfg_attributes(&self) -> Vec<Attribute>;

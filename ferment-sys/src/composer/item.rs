@@ -2,12 +2,12 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
 use quote::ToTokens;
-use syn::{Generics, Type};
+use syn::{Generics, Lifetime, Type};
 use syn::token::{Brace, Paren};
 use ferment_macro::ComposerBase;
 use crate::ast::{DelimiterTrait, Depunctuated, Void};
-use crate::composable::{AttrsModel, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs};
+use crate::composable::{AttrsModel, GenModel, LifetimesModel};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable};
 use crate::context::ScopeContextLink;
 use crate::ext::Resolve;
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -39,6 +39,7 @@ impl<LANG, SPEC, I> ItemComposer<LANG, SPEC, I>
     pub(crate) fn new<C>(
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
         context: &ScopeContextLink) -> ComposerLink<Self>
@@ -48,7 +49,7 @@ impl<LANG, SPEC, I> ItemComposer<LANG, SPEC, I>
         + FFIConversionsSpec<LANG, SPEC, ComposerLink<Self>>
         + ItemComposerSpec<LANG, SPEC> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), LifetimesModel::new(lifetimes), Rc::clone(context)),
             fields_from_composer: <C as FFIFieldsSpec<LANG, SPEC, ComposerLink<Self>>>::FROM,
             fields_to_composer: <C as FFIFieldsSpec<LANG, SPEC, ComposerLink<Self>>>::TO,
             bindings_composer: <C as FFIBindingsSpec<LANG, SPEC, ComposerLink<Self>, ArgKindPairs<LANG, SPEC>>>::COMPOSER,
@@ -173,12 +174,14 @@ impl<SPEC, I> InterfaceComposable<SPEC::Interface> for ItemComposer<RustFermenta
     where SPEC: RustSpecification,
           I: DelimiterTrait + ?Sized,
           Self: GenericsComposable<SPEC::Gen>
+            + LifetimesComposable<SPEC::Lt>
             + AttrComposable<SPEC::Attr>
             + TypeAspect<SPEC::TYC>
             + NameKindComposable {
 
     fn compose_interfaces(&self) -> Depunctuated<SPEC::Interface> {
         let generics = self.compose_generics();
+        let lifetimes = self.compose_lifetimes();
         let attrs = self.compose_attributes();
         let source = self.source_ref();
         let from = self.compose_aspect(FFIAspect::From).present(&source);
@@ -187,8 +190,8 @@ impl<SPEC, I> InterfaceComposable<SPEC::Interface> for ItemComposer<RustFermenta
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
         Depunctuated::from_iter([
-            InterfacePresentation::conversion_from(&attrs, &types, from, &generics),
-            InterfacePresentation::conversion_to(&attrs, &types, to, &generics),
+            InterfacePresentation::conversion_from(&attrs, &types, from, &generics, &lifetimes),
+            InterfacePresentation::conversion_to(&attrs, &types, to, &generics, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_type, drop)
         ])
     }

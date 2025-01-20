@@ -1,9 +1,9 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, PathSegment, Type};
+use syn::{Attribute, Generics, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer, VarComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
@@ -25,7 +25,7 @@ impl<LANG, SPEC> AnyOtherComposer<LANG, SPEC>
           SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -176,13 +176,13 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
             let from = maybe_opaque.as_ref().map_or(quote!(new), |_| quote!(from_raw));
             quote!(#ctor_path::#from(#conversion))
         };
-        interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None));
+        interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None, &vec![]));
         if let Some(to_conversion) = to_conversion {
             let expr_to_iter = [
                 FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Conversion(Expression::<RustFermentate, SPEC>::present(&to_conversion, source)))
             ];
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
-            interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None));
+            interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &vec![]));
         }
         // interfaces.push(InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None));
         let field_composers = Depunctuated::from_iter([
@@ -193,7 +193,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
             // destroy_composer(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()).present(source)
         ];
         interfaces.push(InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator)));
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![] });
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

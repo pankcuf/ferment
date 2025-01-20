@@ -3,7 +3,7 @@ use quote::ToTokens;
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::{DelimiterTrait, Void};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer};
+use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer, LifetimesComposable};
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
 use crate::shared::SharedAccess;
@@ -82,6 +82,7 @@ impl<LANG, SPEC, T, C> FFIFieldsSpec<LANG, SPEC, ComposerLink<T>> for C
           SPEC: Specification<LANG>,
           T: AttrComposable<SPEC::Attr>
               + GenericsComposable<SPEC::Gen>
+              + LifetimesComposable<SPEC::Lt>
               + TypeAspect<SPEC::TYC>
               + NameKindComposable
               + FieldsContext<LANG, SPEC>

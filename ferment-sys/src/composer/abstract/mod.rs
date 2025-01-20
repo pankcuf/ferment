@@ -79,14 +79,14 @@ impl<SPEC> MaybeComposer<RustFermentate, SPEC> for Item
                 let crate_ident = source.scope.crate_ident_as_path();
                 match (macro_type, self) {
                     (MacroType::Opaque, Item::Struct(item)) =>
-                        Some(ItemComposerWrapper::opaque_struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes()), scope_context)),
+                        Some(ItemComposerWrapper::opaque_struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
                     (MacroType::Export, Item::Struct(item)) =>
-                        Some(ItemComposerWrapper::r#struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes()), scope_context)),
+                        Some(ItemComposerWrapper::r#struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
                     (MacroType::Export, Item::Enum(item)) =>
-                        Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, item.attrs.cfg_attributes()), scope_context)),
+                        Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
                     (MacroType::Export, Item::Type(item)) => match &*item.ty {
                         Type::BareFn(type_bare_fn) =>
-                            Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &item.attrs, scope_context))),
+                            Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
                         _ => {
                             let fields = CommaPunctuated::from_iter([Field {
                                 vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
@@ -95,7 +95,7 @@ impl<SPEC> MaybeComposer<RustFermentate, SPEC> for Item
                                 ident: None,
                                 colon_token: None,
                             }]);
-                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes()), &item.attrs, &item.generics, &fields, scope_context)))
+                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
                         }
                     },
                     (MacroType::Export, Item::Fn(item)) =>

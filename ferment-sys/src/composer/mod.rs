@@ -36,6 +36,8 @@ mod type_alias;
 mod vtable;
 #[allow(unused)]
 mod scope_search;
+mod lifetimes;
+mod array;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -54,6 +56,7 @@ use crate::shared::SharedAccess;
 
 pub use self::r#abstract::*;
 pub use self::any_other::*;
+pub use self::array::*;
 pub use self::attrs::*;
 pub use self::basic::*;
 pub use self::bounds::*;

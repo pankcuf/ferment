@@ -29,7 +29,7 @@ impl<SPEC> MaybeComposer<ObjCFermentate, SPEC> for Item
                         Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
                     (MacroType::Export, Item::Type(item)) => match &*item.ty {
                         Type::BareFn(type_bare_fn) =>
-                            Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, prefix, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &item.attrs, scope_context))),
+                            Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, prefix, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
                         _ => {
                             let fields = CommaPunctuated::from_iter([Field {
                                 vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
@@ -38,7 +38,7 @@ impl<SPEC> MaybeComposer<ObjCFermentate, SPEC> for Item
                                 ident: None,
                                 colon_token: None,
                             }]);
-                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), &item.attrs, &item.generics, &fields, scope_context)))
+                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
                         }
                     },
                     (MacroType::Export, Item::Fn(item)) =>

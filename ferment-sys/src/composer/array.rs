@@ -15,30 +15,63 @@ use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariab
 
 
 #[derive(ComposerBase)]
-pub struct GroupComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct ArrayComposer<LANG, SPEC>
+where LANG: LangFermentable + 'static,
+      SPEC: Specification<LANG> + 'static {
     pub ty: Type,
+    // pub group_conversion_ty: Type,
     pub nested_type_kind: TypeKind,
+    // pub from_conversion_presentation: TokenStream2,
+    // pub to_conversion_presentation: TokenStream2,
     base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
-impl<LANG, SPEC> GroupComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<LANG, SPEC> ArrayComposer<LANG, SPEC>
+where LANG: LangFermentable,
+      SPEC: Specification<LANG> {
+    // pub fn new<F: ToTokens, T: ToTokens>(
+    //     ty: &Type,
+    //     ty_context: SPEC::TYC,
+    //     attrs: Vec<Attribute>,
+    //     group_conversion_ty: Type,
+    //     nested_type_kind: TypeKind,
+    //     from_conversion_presentation: F,
+    //     to_conversion_presentation: T,
+    //     scope_context: &ScopeContextLink
+    // ) -> Self {
+    //     Self {
+    //         ty: ty.clone(),
+    //         base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
+    //         group_conversion_ty,
+    //         nested_type_kind,
+    //         from_conversion_presentation: from_conversion_presentation.to_token_stream(),
+    //         to_conversion_presentation: to_conversion_presentation.to_token_stream()
+    //     }
+    // }
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         let nested_ty = ty.maybe_first_nested_type_ref().unwrap();
+        // Self::new(
+        //     ty,
+        //     ty_context,
+        //     attrs,
+        //     parse_quote!(Vec<#nested_ty>),
+        //     TypeKind::from(nested_ty),
+        //     DictionaryExpr::TryIntoUnwrap(FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()).to_token_stream()),
+        //     FFIVecConversionMethodExpr::Encode(DictionaryExpr::ObjToVec.to_token_stream()),
+        //     scope_context
+        // )
         Self {
             ty: ty.clone(),
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
+            // group_conversion_ty: parse_quote!(Vec<#nested_ty>),
             nested_type_kind: TypeKind::from(nested_ty),
         }
 
     }
 }
 
-impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl<SPEC> SourceComposable for ArrayComposer<RustFermentate, SPEC>
+where SPEC: RustSpecification {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
@@ -61,8 +94,9 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
                     FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Conversion(expr.present(source)))
                 ])
                     .to_token_stream()));
-        lifetimes.extend(self.nested_type_kind.to_type().unique_lifetimes());
-        let arg_presentation = match &self.nested_type_kind {
+        let nested_ty_kind = &self.nested_type_kind;
+        lifetimes.extend(nested_ty_kind.to_type().unique_lifetimes());
+        let arg_presentation = match nested_ty_kind {
             TypeKind::Primitive(arg_0_target_path) => {
                 GenericArgPresentation::<RustFermentate, SPEC>::new(
                     FFIVariable::direct(arg_0_target_path.clone()),
@@ -131,8 +165,15 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
         let expr_destroy_iterator = [
             arg_presentation.destructor.present(source)
         ];
+        println!("ArrayComposer: lifetimes: ({}) {:?}", self.ty.to_token_stream(), lifetimes);
+        let from_group_conversion = SPEC::Expr::present(&arg_presentation.from_conversion, source);
+        let result_conversion = DictionaryExpr::TryIntoUnwrap(quote!(vec));
+        let root_body = quote! {
+            let vec: Vec<#nested_ty_kind> = #from_group_conversion;
+            #result_conversion
+        };
+        let from_body = DictionaryExpr::FromRoot(root_body);
         let to_body = SPEC::Expr::present(&arg_presentation.to_conversion, source);
-        let from_body = DictionaryExpr::FromRoot(SPEC::Expr::present(&arg_presentation.from_conversion, source));
 
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
             Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() }),
@@ -145,6 +186,7 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
                 InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &lifetimes),
                 InterfacePresentation::conversion_to(&attrs, &types, to_body, &None, &lifetimes),
                 // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
+                // InterfacePresentation::vec(&attrs, &(ffi_type.clone(), self.group_conversion_ty.clone()), SPEC::Expr::present(&arg_presentation.from_conversion, source).to_token_stream(), SPEC::Expr::present(&arg_presentation.to_conversion, source).to_token_stream()),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])
         ))

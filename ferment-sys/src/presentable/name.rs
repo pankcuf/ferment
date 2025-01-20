@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Attribute, ItemFn, ItemTrait, Path, TypeBareFn};
+use syn::{Attribute, Generics, ItemFn, ItemTrait, Path, TypeBareFn};
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::conversion::MixinKind;
 use crate::ext::{AsType, ToPath};
@@ -11,6 +11,7 @@ use crate::presentable::NameTreeContext;
 pub enum TypeContext {
     Enum {
         ident: Ident,
+        generics: Generics,
         attrs: Vec<Attribute>,
     },
     EnumVariant {
@@ -21,6 +22,7 @@ pub enum TypeContext {
     },
     Struct {
         ident: Ident,
+        generics: Generics,
         attrs: Vec<Attribute>,
     },
     Fn {
@@ -57,11 +59,11 @@ impl TypeContext {
         }
     }
 
-    pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>) -> Self {
-        Self::Struct { ident: ident.clone(), attrs }
+    pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
+        Self::Struct { ident: ident.clone(), attrs, generics }
     }
-    pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>) -> Self {
-        Self::Enum { ident: ident.clone(), attrs }
+    pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
+        Self::Enum { ident: ident.clone(), attrs, generics }
     }
 
     pub fn r#impl(path: Path, trait_: Option<Path>, attrs: Vec<Attribute>) -> Self {

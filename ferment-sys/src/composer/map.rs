@@ -1,9 +1,9 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type};
+use syn::{Attribute, parse_quote, Type, Generics};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
@@ -25,7 +25,7 @@ impl<LANG, SPEC> MapComposer<LANG, SPEC>
           SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -135,7 +135,7 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         ];
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![] }),
+            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default()}),
             &attrs,
             Depunctuated::from_iter([
                 FieldComposer::<RustFermentate, SPEC>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
@@ -143,8 +143,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                 FieldComposer::<RustFermentate, SPEC>::named(arg_1_name, FieldTypeKind::Type(arg_1_presentation.ty.to_type().joined_mut()))
             ]),
             Depunctuated::from_iter([
-                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None),
-                InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, CommaPunctuated::from_iter(expr_to_iterator), &None),
+                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None, &vec![]),
+                InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, CommaPunctuated::from_iter(expr_to_iterator), &None, &vec![]),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])
         ))

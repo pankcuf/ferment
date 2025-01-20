@@ -4,7 +4,7 @@ use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::ast::Depunctuated;
-use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel};
+use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink, VTableComposerLink, SourceAccessible};
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
@@ -73,6 +73,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
                 attrs_model,
                 ty_context.clone(),
                 GenModel::new(Some(generics.clone())),
+                LifetimesModel::new(vec![]),
                 Rc::clone(scope_context)),
             methods,
             vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, scope_context))

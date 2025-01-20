@@ -119,7 +119,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
                 match bounds.len() {
                     0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
-                    1 => match bounds.first().unwrap() {
+                    1 => match bounds.first()? {
                         TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
                         TypeParamBound::Lifetime(_) => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Lifetime)"),
                     },
@@ -129,7 +129,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
             },
             _ => None
         };
-        // println!("Type::<Option<FFIFullPath>>::resolve...2({}", res.to_token_stream());
+        //println!("Type::<Option<FFIFullPath>>::resolve {} --> {:?}", self.to_token_stream(), res);
         res
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
@@ -162,7 +162,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<RustFermentate, SPEC> {
-        // println!("GenericTypeKind -> FFIFullPath --> {}", self);
+        println!("GenericTypeKind -> FFIFullPath --> {}", self);
         let result = match self {
             GenericTypeKind::Map(ty) |
             GenericTypeKind::Group(ty) |
@@ -218,7 +218,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
         };
-        // println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
+        println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
         result
     }
 }
@@ -244,8 +244,8 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
         // let config = &source.context.read().unwrap().config;
 
         let segments = &self.segments;
-        let first_segment = segments.first().unwrap();
-        let last_segment = segments.last().unwrap();
+        let first_segment = segments.first()?;
+        let last_segment = segments.last()?;
         let first_ident = &first_segment.ident;
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
@@ -277,7 +277,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
             } else {
                 segments
             };
-            maybe_crate_ident_replacement(&chunk.first().unwrap().ident, source)
+            maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
                     let crate_local_segments = chunk.crate_and_ident_less();
                     FFIFullPath::Type {
