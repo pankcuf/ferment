@@ -15,6 +15,7 @@ pub use self::ffi_conversion_method::*;
 pub use self::interfaces::*;
 #[allow(unused)]
 pub use self::ffi_map_conversion::*;
+#[allow(unused)]
 pub use self::ffi_vec_conversion_method::*;
 pub use self::dict_expr::DictionaryExpr;
 pub use self::dict_name::DictionaryName;

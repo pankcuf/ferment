@@ -7,6 +7,7 @@ mod state_transition;
 
 extern crate ferment_macro;
 
+use std::collections::BTreeMap;
 use crate::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
 
 #[ferment_macro::export]
@@ -209,4 +210,5 @@ impl Manager {
     pub fn check_lifetime_support<'a>(&self, _example: ExampleEnumLif<'a>) {}
     pub fn check_staticlifetime(&self, _example: ExampleEnumLif<'static>) {}
     pub fn check_generic_lifetime<'a>(&self, _example: Vec<ExampleEnumLif<'a>>) {}
+    pub fn check_map_lifetime<'a>(&self, _example: BTreeMap<String, ExampleEnumLif<'a>>) {}
 }

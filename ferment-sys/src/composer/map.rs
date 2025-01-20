@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, Generics};
+use syn::{Attribute, parse_quote, Type, Generics, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, Mangle, ToType};
+use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
@@ -37,6 +37,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
+        let mut lifetimes = Vec::<Lifetime>::new();
+
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
@@ -114,6 +116,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         let types = (ffi_type.clone(), self.present_target_aspect());
 
         let nested_types = self.ty.nested_types();
+        lifetimes.extend(nested_types.iter().flat_map(|ty| ty.unique_lifetimes()));
+
         let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
         let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
         let expr_from_iterator = [
@@ -143,8 +147,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                 FieldComposer::<RustFermentate, SPEC>::named(arg_1_name, FieldTypeKind::Type(arg_1_presentation.ty.to_type().joined_mut()))
             ]),
             Depunctuated::from_iter([
-                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None, &vec![]),
-                InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, CommaPunctuated::from_iter(expr_to_iterator), &None, &vec![]),
+                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None, &lifetimes),
+                InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, CommaPunctuated::from_iter(expr_to_iterator), &None, &lifetimes),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])
         ))
