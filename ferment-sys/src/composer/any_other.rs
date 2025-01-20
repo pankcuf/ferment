@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, Generics, PathSegment, Type};
+use syn::{Attribute, Generics, Lifetime, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer, VarComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{CrateExtension, GenericNestedArg, Mangle, MaybeLambdaArgs, ToPath, ToType};
+use crate::ext::{CrateExtension, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, RustFermentate};
@@ -37,6 +37,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
+        let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_name = self.ty.mangle_tokens_default();
         let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Obj);
 
@@ -50,6 +51,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
         let obj_by_value = source.maybe_object_by_value(&self.ty);
         let nested_ty = self.ty.maybe_first_nested_type_ref()?;
+        lifetimes.extend(nested_ty.unique_lifetimes());
         let maybe_opaque = source.maybe_opaque_object::<RustFermentate, SPEC>(nested_ty);
         let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
         println!("AnyOther.ty: {}", nested_ty.to_token_stream());
@@ -176,13 +178,13 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
             let from = maybe_opaque.as_ref().map_or(quote!(new), |_| quote!(from_raw));
             quote!(#ctor_path::#from(#conversion))
         };
-        interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None, &vec![]));
+        interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None, &lifetimes));
         if let Some(to_conversion) = to_conversion {
             let expr_to_iter = [
                 FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Conversion(Expression::<RustFermentate, SPEC>::present(&to_conversion, source)))
             ];
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
-            interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &vec![]));
+            interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &lifetimes));
         }
         // interfaces.push(InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None));
         let field_composers = Depunctuated::from_iter([

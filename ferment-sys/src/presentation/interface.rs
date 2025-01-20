@@ -66,7 +66,8 @@ pub enum InterfacePresentation {
         ffi_type: Type,
         inputs: CommaPunctuatedArgs,
         output: ReturnType,
-        body: TokenStream2
+        lifetimes: Vec<Lifetime>,
+        body: TokenStream2,
     },
     SendAndSync {
         attrs: Vec<Attribute>,
@@ -118,12 +119,13 @@ impl InterfacePresentation {
         InterfacePresentation::Drop { attrs: attrs.clone(), ty, body: body.to_token_stream() }
     }
 
-    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, ffi_type: &Type, inputs: CommaPunctuatedArgs, output: ReturnType, args_conversions: T, result_conversion: U) -> Self {
+    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, ffi_type: &Type, inputs: CommaPunctuatedArgs, output: ReturnType, lifetimes: &Vec<Lifetime>, args_conversions: T, result_conversion: U) -> Self {
         InterfacePresentation::Callback {
             attrs: attrs.clone(),
             ffi_type: ffi_type.clone(),
             inputs,
             output,
+            lifetimes: lifetimes.clone(),
             body: DictionaryExpr::CallbackCaller(args_conversions.to_token_stream(), result_conversion.to_token_stream()).to_token_stream(),
         }
     }
@@ -136,7 +138,9 @@ impl InterfacePresentation {
 }
 
 fn generics_presentation(generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> (TokenStream2, TokenStream2) {
-    match generics {
+    // println!("generics_presentation: generics: {:?}", generics);
+    // println!("generics_presentation: lifetimes: {:?}", lifetimes);
+    let result = match generics {
         Some(generics) => {
             let mut params = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeDef {
                 attrs: vec![],
@@ -170,7 +174,10 @@ fn generics_presentation(generics: &Option<Generics>, lifetimes: &Vec<Lifetime>)
             let bounds = if lifetimes.is_empty() { quote!() } else { quote!(<#lifetimes>) };
             (bounds, quote!())
         }
-    }
+    };
+    // println!("generics_presentation: result: {:?}", result);
+
+    result
 }
 
 impl ToTokens for InterfacePresentation {
@@ -196,6 +203,7 @@ impl ToTokens for InterfacePresentation {
                 types: (ffi_type, target_type),
                 conversions: (presentation, generics, lifetimes),
             } => {
+                // println!("ConversionFrom: {}", target_type.to_token_stream());
                 let (generic_bounds, where_clause) = generics_presentation(generics, lifetimes);
                 let package = DictionaryName::Package;
                 let interface_from = DictionaryName::InterfaceFrom;
@@ -277,11 +285,18 @@ impl ToTokens for InterfacePresentation {
                     unsafe fn encode(obj: Self::Value) -> *mut Self { #encode }
                 }
             },
-            Self::Callback { attrs, ffi_type, inputs, output, body } => {
+            Self::Callback { attrs, ffi_type, inputs, output, lifetimes, body } => {
+                let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeDef {
+                    attrs: vec![],
+                    lifetime: lt.clone(),
+                    colon_token: None,
+                    bounds: Default::default(),
+                })));
+                let bounds = if lifetimes.is_empty() { quote!() } else { quote!(<#lifetimes>) };
                 quote! {
                     #(#attrs)*
                     impl #ffi_type {
-                        pub unsafe fn call(&self, #inputs) #output {
+                        pub unsafe fn call #bounds(&self, #inputs) #output {
                             #body
                         }
                     }

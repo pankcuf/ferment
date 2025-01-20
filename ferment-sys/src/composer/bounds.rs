@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Type};
+use syn::{Attribute, Generics, Lifetime, Type};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
@@ -8,7 +8,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsM
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
-use crate::ext::{Mangle, Resolve, ToType};
+use crate::ext::{LifetimeProcessor, Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, RustFermentate};
@@ -46,6 +46,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
         if self.model.is_lambda() {
             return Self::Output::default();
         }
+        let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_name = self.model.mangle_ident_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
@@ -62,6 +63,7 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
 
                 let ty: Type = predicate_ty.resolve(source);
                 let field_name = Name::Index(index);
+                lifetimes.extend(predicate_ty.unique_lifetimes());
                 //name: Name, field_name: Name, ty: &Type, source: &ScopeContext
                 let (kind, destroy_expr,
                     from_expr,
@@ -95,8 +97,8 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &vec![]),
-            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &vec![]),
+            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &lifetimes),
+            InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);

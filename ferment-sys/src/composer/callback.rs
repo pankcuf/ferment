@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility, Generics};
+use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility, Generics, Lifetime};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -8,7 +8,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, Life
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name, RustFermentate};
@@ -39,6 +39,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { ty, .. } = self;
+        let mut lifetimes = Vec::<Lifetime>::new();
         let type_path: TypePath = parse_quote!(#ty);
         let PathSegment { arguments, .. } = type_path.path.segments.last()?;
         let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
@@ -64,6 +65,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let (return_type, from_result_conversion, dtor_arg) = match output {
             ReturnType::Type(token, field_type) => {
                 let full_ty: Type = field_type.resolve(source);
+                lifetimes.extend(field_type.unique_lifetimes());
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
                     TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                     TypeKind::Complex(ty) => {
@@ -101,6 +103,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
             .enumerate()
             .for_each(|(index, ty)| {
                 let name = Name::UnnamedArg(index);
+                lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
                 ffi_args.push(bare_fn_arg(VarComposer::<RustFermentate, SPEC>::new(ScopeSearch::Value(ScopeSearchKey::TypeRef(ty, None))).compose(source).to_type()));
                 arg_to_conversions.push(ToConversionComposer::<RustFermentate, SPEC>::new(name, ty.clone(), None).compose(source).present(source));
@@ -121,7 +124,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                 ])
             },
             Depunctuated::from_iter([
-                InterfacePresentation::callback(&attrs, &ffi_type, args, return_type, arg_to_conversions, from_result_conversion),
+                InterfacePresentation::callback(&attrs, &ffi_type, args, return_type, &lifetimes, arg_to_conversions, from_result_conversion),
                 InterfacePresentation::send_sync(&attrs, &ffi_type)
             ])
         ))

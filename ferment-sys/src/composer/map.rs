@@ -38,7 +38,6 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
-
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
@@ -117,7 +116,9 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
 
         let nested_types = self.ty.nested_types();
         lifetimes.extend(nested_types.iter().flat_map(|ty| ty.unique_lifetimes()));
-
+        println!("MapComposer: {}", self.ty.to_token_stream());
+        println!("MapComposer: nested_types: {:?}", nested_types);
+        println!("MapComposer: lifetimes: {:?}", lifetimes);
         let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
         let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
         let expr_from_iterator = [

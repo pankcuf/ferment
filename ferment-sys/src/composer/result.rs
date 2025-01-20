@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, Generics, Type};
+use syn::{Attribute, Generics, Lifetime, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated, SemiPunctuated, Void};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{complex_opt_arg_composer, GenericArgComposer, GenericArgPresentation, GenericTypeKind, primitive_opt_arg_composer, result_complex_arg_composer, TypeKind};
-use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, Mangle, SpecialType, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
@@ -37,10 +37,10 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
     type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
+        let mut lifetimes = Vec::<Lifetime>::new();
         let compose = |arg_name: &Name<RustFermentate, SPEC>, ty: &Type| {
             let from_conversion = FromConversionFullComposer::<RustFermentate, SPEC>::value(SPEC::Name::dictionary_name(DictionaryName::O), ty)
                 .compose(source);
-
             match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) => {
                     GenericArgPresentation::new(
@@ -113,7 +113,9 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
         field_names.iter()
             .enumerate()
             .for_each(|(index, name)| {
-                let GenericArgPresentation { from_conversion, to_conversion, destructor, ty } = compose(name, nested_types[index]);
+                let nested = nested_types[index];
+                lifetimes.extend(nested.unique_lifetimes());
+                let GenericArgPresentation { from_conversion, to_conversion, destructor, ty } = compose(name, nested);
                 from_conversions.push(Expression::<RustFermentate, SPEC>::ffi_ref_with_name(name).present(source));
                 from_conversions.push(from_conversion.present(source));
                 to_conversions.push(DictionaryExpr::Mapper(DictionaryName::O.to_token_stream(), to_conversion.present(source)));
@@ -129,8 +131,8 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
             &attrs,
             field_composers,
             Depunctuated::from_iter([
-                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToResult(from_conversions.to_token_stream()), &None, &vec![]),
-                InterfacePresentation::conversion_to_boxed(&attrs, &types, BraceWrapped::<_, Void>::new(quote!(let (#field_names) = ferment::to_result(obj, #to_conversions); Self { #field_names })), &None, &vec![]),
+                InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToResult(from_conversions.to_token_stream()), &None, &lifetimes),
+                InterfacePresentation::conversion_to_boxed(&attrs, &types, BraceWrapped::<_, Void>::new(quote!(let (#field_names) = ferment::to_result(obj, #to_conversions); Self { #field_names })), &None, &lifetimes),
                 // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
             ])

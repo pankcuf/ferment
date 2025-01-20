@@ -7,7 +7,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind};
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind, LifetimesComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{FFITypeResolve, ItemExtension, LifetimeProcessor, Mangle, Resolve, ToType};
@@ -356,7 +356,8 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 });
                             });
                         let ffi_type = self.present_ffi_aspect();
-                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, arg_to_conversions.present(&source), post_processing);
+                        let lifetimes = self.compose_lifetimes();
+                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, &lifetimes, arg_to_conversions.present(&source), post_processing);
                         BindingPresentation::Callback {
                             name: full_fn_path.mangle_ident_default(),
                             attrs: attrs.clone(),
