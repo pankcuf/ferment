@@ -561,8 +561,12 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                 InterfacesMethodExpr::UnboxAny(expr.present(source))
                     .to_token_stream()
             }
-            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr, ..) => {
                 InterfacesMethodExpr::UnboxAny(expr.to_token_stream())
+                    .to_token_stream()
+            }
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr, ..) => {
+                InterfacesMethodExpr::UnboxAnyOpt(expr.to_token_stream())
                     .to_token_stream()
             }
             Self::DestroyStringGroup(expr) => {

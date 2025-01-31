@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use quote::ToTokens;
 use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
@@ -48,6 +50,9 @@ impl ScopeContext {
     }
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
+    }
+    pub fn cell_with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::with(scope, context)))
     }
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports

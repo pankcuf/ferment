@@ -78,7 +78,6 @@ impl VisitScope for Item {
                             inner_args.push(quote!(#lifetime));
                         },
                     });
-                    println!("ADD_TO_SCOPE: {}", quote!(#scope<#inner_args>));
                     parse_quote!(#scope<#inner_args>)
                 } else {
                     scope.to_type()
@@ -117,19 +116,16 @@ impl VisitScope for Item {
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
-                            // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
                             inner_args.push(quote!(#lifetime));
                         },
                     });
-                    println!("ADD_TO_SCOPE: {}", quote!(#scope<#inner_args>));
                     parse_quote!(#scope<#inner_args>)
                 } else {
                     scope.to_type()
                 };
-                // println!("add_to_scope (STRUCT) SELF: {}", scope);
                 let self_object = ObjectKind::new_item(
                     TypeModelKind::Object(TypeModel::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
                     ScopeItemKind::Item(Item::Struct(item_struct.clone()), self_scope.clone()));

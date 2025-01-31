@@ -9,6 +9,7 @@ fn main() {
         .with_external_crates(vec![
             "versioned-feature-core",
             "example-simple",
+            "dashcore",
             "dpp",
             "platform-value",
             "platform-version"

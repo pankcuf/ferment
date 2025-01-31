@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use ferment::boxed;
 use crate::entry::{BlockHashByHeight, ModelByHeight, SomeModel};
 use crate::entry::processor::MasternodeProcessor;
@@ -18,7 +19,7 @@ impl DashSharedCore {
         model_by_height: ModelByHeight,
         context: *const std::os::raw::c_void) -> Self {
         Self {
-            processor: boxed(MasternodeProcessor { provider: Box::new(FFIPtrCoreProvider { block_hash_by_height, model_by_height }) }),
+            processor: boxed(MasternodeProcessor { provider: Arc::new(FFIPtrCoreProvider { block_hash_by_height, model_by_height }) }),
             cache: Default::default(),
             context
         }
@@ -30,7 +31,7 @@ impl DashSharedCore {
         where {
         Self {
             processor: boxed(MasternodeProcessor {
-                provider: Box::new(FFITraitCoreProvider {
+                provider: Arc::new(FFITraitCoreProvider {
                     block_hash_by_height: Box::new(block_hash_by_height),
                     model_by_height: Box::new(model_by_height) }) }),
             cache: Default::default(),

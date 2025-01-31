@@ -6,13 +6,20 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1.0.95"
-dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
+#dashcore = { path = "../../../rust-dashcore-fork", features = [
+#    "std",
+#    "secp-recovery",
+#    "rand",
+#    "signer",
+#    "serde",
+#], default-features = false }
+dashcore = { git = "https://github.com/pankcuf/rust-dashcore", features = [
     "std",
     "secp-recovery",
     "rand",
     "signer",
     "serde",
-], default-features = false, tag = "0.34.0" }
+], default-features = false, branch = "feat/ferment" }
 
 ferment = { path = "../../ferment" }
 ferment-macro = { path = "../../ferment-macro" }

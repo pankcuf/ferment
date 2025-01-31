@@ -11,8 +11,8 @@ include_guard = "example_nested_h"
 
 [parse]
 parse_deps = true
-include = ["ferment", "example-simple"]
-extra_bindings = ["ferment", "example-simple"]
+include = ["ferment", "example-simple", "dashcore"]
+extra_bindings = ["ferment", "example-simple", "dashcore"]
 
 [enum]
 prefix_with_name = true

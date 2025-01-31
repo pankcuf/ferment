@@ -3,11 +3,13 @@ mod model;
 mod gen;
 mod entry;
 mod state_transition;
-
+pub mod custom;
 
 extern crate ferment_macro;
 
 use std::collections::{BTreeMap, HashMap};
+use dpp::identity::{Identity, IdentityPublicKey};
+use dpp::identity::accessors::IdentityGettersV0;
 use crate::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
 
 #[ferment_macro::export]
@@ -212,4 +214,9 @@ impl Manager {
     pub fn check_generic_lifetime<'a>(&self, _example: Vec<ExampleEnumLif<'a>>) {}
     pub fn check_map_lifetime<'a>(&self, _example: BTreeMap<String, ExampleEnumLif<'a>>) {}
     pub fn check_map_deep_lifetime<'a>(&self, _example: HashMap<String, Vec<(String, ExampleEnumLif<'a>, [u8; 32])>>) {}
+}
+
+#[ferment_macro::export]
+pub fn identity_public_key_test(identity: Identity) -> IdentityPublicKey {
+    identity.public_keys().first_key_value().unwrap().1.clone()
 }

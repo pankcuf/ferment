@@ -1,11 +1,9 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
-use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, Item, ItemUse, UseRename, UseTree};
+use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
 use crate::composer::{MaybeComposer, SourceAccessible, SourceFermentable};
@@ -48,17 +46,15 @@ impl RustSpecification for ScopeTree {}
 impl SourceFermentable<RustFermentate> for ScopeTree {
     fn ferment(&self) -> RustFermentate {
         let source = self.source_ref();
-        let mut fermentate = Depunctuated::<RustFermentate>::new();
-        self.exported
+        let fermentate = Depunctuated::from_iter(self.exported
             .values()
-            .for_each(|item| match item {
+            .filter_map(|item| match item {
                 ScopeTreeItem::Item { item, scope, scope_context } =>
-                    if let Some(composer) = <Item as MaybeComposer<RustFermentate, ScopeTree>>::maybe_composer(item, scope, scope_context) {
-                        fermentate.push(composer.ferment())
-                    },
-                ScopeTreeItem::Tree { tree} =>
-                    fermentate.push(tree.ferment())
-        });
+                    MaybeComposer::<RustFermentate, ScopeTree>::maybe_composer(item, scope, scope_context)
+                        .map(|composer| composer.ferment()),
+                ScopeTreeItem::Tree { tree } =>
+                    Some(tree.ferment())
+        }));
         if !fermentate.is_empty() {
             let ctx = source.context.read().unwrap();
             let mut imports = SemiPunctuated::from_iter([
@@ -89,7 +85,7 @@ pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context:
 
     create_scope_tree(
         generics_scope_chain.clone(),
-        Rc::new(RefCell::new(ScopeContext::with(generics_scope_chain, global_context))),
+        ScopeContext::cell_with(generics_scope_chain, global_context),
         HashSet::from_iter([
             create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: crate_ident.clone() }))
         ]),

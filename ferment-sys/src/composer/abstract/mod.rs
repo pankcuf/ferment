@@ -6,7 +6,7 @@ mod sequence;
 mod sequence_mixer;
 mod spec;
 
-use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic};
+use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic, MetaList};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
 use crate::composable::CfgAttributes;
@@ -49,11 +49,11 @@ impl MaybeMacroLabeled for Item {
             .and_then(|attrs| attrs.iter().find_map(|attr| {
                 let path = &attr.path;
                 let mut arguments = Vec::<Path>::new();
-                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                    meta_list.nested
-                        .into_iter()
+                if let Ok(Meta::List(MetaList { nested, .. })) = attr.parse_meta() {
+                    nested
+                        .iter()
                         .for_each(|meta| if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                            arguments.push(path);
+                            arguments.push(path.clone());
                         });
                 }
                 match path.segments.last().unwrap().ident.to_string().as_str() {

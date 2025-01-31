@@ -30,7 +30,7 @@ fn scope_chain(self_scope: PathHolder) -> ScopeChain {
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ScopeContextLink {
-    Rc::new(RefCell::new(ScopeContext::with(scope_chain(self_scope), global_context_ptr)))
+    ScopeContext::cell_with(scope_chain(self_scope), global_context_ptr)
 }
 
 fn root_scope_tree() -> ScopeTree {
