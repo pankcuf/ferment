@@ -40,3 +40,8 @@ pub struct TransUser {
 pub struct VecofArr {
     pub v: Vec<[u8; 32]>,
 }
+
+#[ferment_macro::export]
+pub struct ExampleWithOptPrimitive {
+    pub v: Option<u32>,
+}

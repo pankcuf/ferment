@@ -206,8 +206,8 @@ impl<LANG, SPEC> SourceComposable for DestroyConversionComposer<LANG, SPEC>
                             SPEC::Expr::destroy_big_int(expr, quote!([u8; 16]), quote!(u128))
                         } else if last_ident.is_optional() {
                             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-                                Some(TypeKind::Primitive(_)) =>
-                                    Expression::empty(),
+                                Some(TypeKind::Primitive(ty)) =>
+                                    SPEC::Expr::cast_destroy(expr, ConversionExpressionKind::PrimitiveOpt, ffi_type, ty.clone()),
                                 Some(kind) =>
                                     SPEC::Expr::cast_destroy(expr, ConversionExpressionKind::ComplexOpt, ffi_type, kind.to_type()),
                                 None =>
