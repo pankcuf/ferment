@@ -1,13 +1,19 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type};
+use crate::conversion::TypeKind;
 
 #[allow(unused)]
 pub trait GenericNestedArg {
-    fn first_nested_type(&self) -> Option<&Type>;
+    fn maybe_first_nested_type_ref(&self) -> Option<&Type>;
     fn nested_types(&self) -> Vec<&Type>;
+
+    fn maybe_first_nested_type_kind(&self) -> Option<TypeKind> {
+        self.maybe_first_nested_type_ref()
+            .map(TypeKind::from)
+    }
 }
 
 impl GenericNestedArg for Type {
-    fn first_nested_type(&self) -> Option<&Type> {
+    fn maybe_first_nested_type_ref(&self) -> Option<&Type> {
         match self {
             Type::Array(type_array) => Some(&type_array.elem),
             Type::Slice(type_slice) => Some(&type_slice.elem),

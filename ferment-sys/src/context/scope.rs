@@ -28,7 +28,7 @@ impl PartialEq<Self> for Scope {
     fn eq(&self, other: &Self) -> bool {
         self.self_scope.0.to_token_stream().to_string() ==
             other.self_scope.0.to_token_stream().to_string()
-        //&& self.object.
+        && self.object.eq(&other.object)
     }
 }
 

@@ -73,6 +73,7 @@ pub enum RustFermentate {
     Impl {
         comment: DocPresentation,
         items: Depunctuated<RustFermentate>,
+        vtable: Option<BindingPresentation>
     },
     Trait {
         comment: DocPresentation,
@@ -83,6 +84,9 @@ pub enum RustFermentate {
         vtable: BindingPresentation,
         export: BindingPresentation,
         destructor: BindingPresentation,
+    },
+    StaticVTable {
+        vtable: BindingPresentation,
     },
     Generic {
         attrs: Vec<Attribute>,
@@ -124,7 +128,8 @@ impl ToTokens for RustFermentate {
             },
             Self::TokenStream(stream) =>
                 stream.to_tokens(tokens),
-            Self::Impl { comment, items } => {
+            Self::Impl { comment, items, vtable } => {
+                vtable.to_tokens(tokens);
                 comment.to_tokens(tokens);
                 items.to_tokens(tokens);
             }
@@ -169,6 +174,8 @@ impl ToTokens for RustFermentate {
                 drop.to_tokens(tokens);
                 bindings.to_tokens(tokens);
             }
+            Self::StaticVTable { vtable } =>
+                vtable.to_tokens(tokens),
         }
     }
 }

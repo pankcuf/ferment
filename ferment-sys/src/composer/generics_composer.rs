@@ -5,44 +5,39 @@ use crate::composable::GenModel;
 use crate::composer::{SourceComposable, Linkable};
 use crate::context::ScopeContextLink;
 use crate::lang::{LangFermentable, LangGenSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::shared::SharedAccess;
 
-pub struct GenericsComposer<Link, LANG, SPEC>
+pub struct GenericsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub parent: Option<Link>,
     pub generics: GenModel,
     _marker: PhantomData<(LANG, SPEC)>,
 
 }
-impl<Link, LANG, SPEC> GenericsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> GenericsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn new(generics: GenModel) -> Self {
         Self { parent: None, generics, _marker: PhantomData }
     }
 }
 
-impl<Link, LANG, SPEC> Linkable<Link> for GenericsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> Linkable<Link> for GenericsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable  {
+          SPEC: Specification<LANG> {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Link, LANG, SPEC> SourceComposable for GenericsComposer<Link, LANG, SPEC>
+impl<LANG, SPEC, Link> SourceComposable for GenericsComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     type Source = ScopeContextLink;
     type Output = SPEC::Gen;
     fn compose(&self, context: &Self::Source) -> Self::Output {

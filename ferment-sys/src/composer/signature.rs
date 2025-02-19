@@ -1,43 +1,39 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
+use syn::{Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, parse_quote, Pat, Path, PatType, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility, Lifetime};
+use syn::__private::TokenStream2;
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
-use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedPresentableArguments, SourceComposable, ComposerLink, constants, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink};
+use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel};
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FromConversionComposer, FromConversionFullComposer, Linkable, SourceAccessible, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer, BasicComposerLink, NameKind, LifetimesComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
-use crate::ext::{FFITypeResolve, ItemExtension, Mangle, Resolve, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression};
-use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocPresentation, FFIConversionFromMethodExpr, FFIFullDictionaryPath, InterfacePresentation, Name, RustFermentate};
+use crate::ext::{FFITypeResolve, ItemExtension, LifetimeProcessor, Mangle, Resolve, ToType};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocComposer, DocPresentation, FFIConversionFromMethodExpr, FFIFullDictionaryPath, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct SigComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable> + 'static,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    pub base: BasicComposerLink<Self, LANG, SPEC>,
-    // #[allow(unused)]
-    // pub binding_composer: BindingComposer<ComposerLink<Self>, LANG, SPEC>
+          SPEC: Specification<LANG> + 'static {
+    pub base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> SigComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
 
     fn new(
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
-        // binding_composer: BindingComposer<ComposerLink<Self>, LANG, SPEC>,
         context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(attrs, ty_context, GenModel::new(generics), constants::composer_doc(), Rc::clone(context)),
-            // binding_composer,
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
         }));
         {
             let mut composer = root.borrow_mut();
@@ -48,14 +44,15 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
     pub fn with_context(
         ty_context: SPEC::TYC,
         generics: &Generics,
+        lifetimes: &Vec<Lifetime>,
         attrs: &Vec<Attribute>,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::new(
             ty_context,
             Some(generics.clone()),
+            lifetimes.clone(),
             AttrsModel::from(attrs),
-            // binding_composer_(),
             context)
     }
     pub fn from_item_fn(
@@ -67,18 +64,21 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         Self::with_context(
             ty_context,
             generics,
+            &vec![],
             attrs,
             context)
     }
     pub fn from_type_bare_fn(
         ty_context: SPEC::TYC,
         generics: &Generics,
+        lifetimes: &Vec<Lifetime>,
         attrs: &Vec<Attribute>,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::with_context(
             ty_context,
             generics,
+            lifetimes,
             attrs,
             context
         )
@@ -93,6 +93,7 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         Self::with_context(
             ty_context,
             &sig.generics,
+            &vec![],
             sig.maybe_attrs().unwrap_or(&vec![]),
             context
         )
@@ -103,16 +104,15 @@ impl<LANG, SPEC> SigComposer<LANG, SPEC>
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         let TraitItemMethod { sig, attrs, .. } = trait_item_method;
-        Self::with_context(ty_context, &sig.generics, attrs, context)
+        Self::with_context(ty_context, &sig.generics, &vec![], attrs, context)
     }
 }
 
 impl<LANG, SPEC> DocsComposable for SigComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::Direct(self.base.doc.compose(&()))
+        DocPresentation::Direct(self.base.doc.compose(self.context()))
     }
 }
 
@@ -126,65 +126,71 @@ fn compose_regular_fn<SPEC>(
     source: &ScopeContext
 ) -> BindingPresentableContext<RustFermentate, SPEC>
     where SPEC: RustSpecification,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableArgument<RustFermentate, SPEC>: ScopeContextPresentable,
-          CommaPunctuatedPresentableArguments<RustFermentate, SPEC>: Extend<PresentableArgument<RustFermentate, SPEC>> {
-
+          CommaPunctuatedArgKinds<RustFermentate, SPEC>: Extend<ArgKind<RustFermentate, SPEC>> {
+    println!("compose_regular_fn: {}", path.to_token_stream());
+    let mut used_lifetimes = Vec::<Lifetime>::new();
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (ReturnType::Default, SPEC::Expr::Simple(Semi::default().to_token_stream())),
         ReturnType::Type(_, ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope).compose(source).to_type())),
-            ToConversionComposer::<RustFermentate, SPEC>::new(Name::Dictionary(DictionaryName::Obj), *ty.clone(), None).compose(source)
+            ToConversionComposer::<RustFermentate, SPEC>::new(SPEC::Name::dictionary_name(DictionaryName::Obj), *ty.clone(), None).compose(source)
         )
     };
 
-    let (arguments, argument_conversions): (CommaPunctuatedPresentableArguments<RustFermentate, SPEC>, CommaPunctuatedPresentableArguments<RustFermentate, SPEC>) = inputs
+    let (arguments, argument_conversions): (CommaPunctuatedArgKinds<RustFermentate, SPEC>, CommaPunctuatedArgKinds<RustFermentate, SPEC>) = inputs
         .iter()
         .map(|arg| {
             match arg {
-                FnArg::Receiver(Receiver { mutability: _, reference, attrs, .. }) => {
+                FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
+                    if let Some((_, Some(lt))) = reference {
+                        used_lifetimes.push(lt.clone());
+                    }
+                    let expr_composer = match (mutability, reference) {
+                        (Some(..), _) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
+                        (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsRef(expr.into()),
+                        (..) => |expr: SPEC::Expr| expr.into(),
+                    };
+
+
                     let (ty, name_type_conversion) = match sig_context {
                         FnSignatureContext::Impl(self_ty, maybe_trait_ty, _) |
                         FnSignatureContext::TraitInner(self_ty, maybe_trait_ty, _) => match maybe_trait_ty {
                             Some(trait_ty) => (
                                 trait_ty,
-                                if reference.is_some() {
-                                    SPEC::Expr::expr_as_ref(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
-                                } else {
-                                    from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source)
-                                }
+                                expr_composer(from_trait_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, if mutability.is_some() { quote!(mut) } else { quote!(const) }, source))
                             ),
                             None => (
                                 self_ty,
-                                if reference.is_some() {
-                                    SPEC::Expr::expr_as_ref(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
-                                } else {
-                                    from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source)
-                                }
+                                expr_composer(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
                             )
-                        }
+                        },
+                        FnSignatureContext::TraitAsType(self_ty, _, _) => (
+                            self_ty,
+                            expr_composer(from_receiver_expr_composer::<RustFermentate, SPEC>(self_ty, source))
+                        ),
                         _ => panic!("Receiver in regular fn")
                     };
-                    let name = Name::Dictionary(DictionaryName::Self_);
+                    let name = SPEC::Name::dictionary_name(DictionaryName::Self_);
                     let ty = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope).compose(source).to_type();
                     (
-                        PresentableArgument::Named(
+                        ArgKind::Named(
                             FieldComposer::new(name, FieldTypeKind::Type(ty), true, attrs.cfg_attributes()),
                             Visibility::Inherited
                         ),
-                        PresentableArgument::AttrExpression(
+                        ArgKind::AttrExpression(
                             name_type_conversion,
                             SPEC::Attr::default()
                         )
                     )
                 },
                 FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
+                    used_lifetimes.extend(ty.unique_lifetimes());
                     let name = Name::Pat(*pat.clone());
+                    println!("compose_regular: (input arg) {}", ty.to_token_stream());
                     (
-                        PresentableArgument::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
-                        PresentableArgument::AttrExpression(
+                        ArgKind::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
+                        ArgKind::AttrExpression(
                             FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(name, ty, &source.scope).compose(source),
                             SPEC::Attr::default()
                         )
@@ -193,8 +199,8 @@ fn compose_regular_fn<SPEC>(
             }
         })
         .unzip();
-    let input_conversions = PresentableSequence::RoundBracesFields(((aspect, generics.clone()), argument_conversions));
-
+    let input_conversions = SeqKind::FromUnnamedFields(((aspect, attrs.clone(), generics.clone(), NameKind::Named), argument_conversions));
+    println!("used_lifetimes: {:?}", used_lifetimes);
     BindingPresentableContext::RegFn(
         path,
         asyncness.is_some(),
@@ -203,7 +209,8 @@ fn compose_regular_fn<SPEC>(
         input_conversions,
         return_type_conversion,
         attrs,
-        generics
+        generics,
+        used_lifetimes
     )
 }
 
@@ -225,7 +232,35 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                             sig_context,
                             &source
                         ).present(&source),
-                    FnSignatureContext::Impl(_, _, sig) => compose_regular_fn::<SPEC>(
+                    FnSignatureContext::Impl(_, maybe_trait, sig) => {
+                        if let Some(trait_) = maybe_trait {
+                            let mut path = full_fn_path.clone();
+                            let last = path.segments.pop().unwrap();
+                            let last_segment = last.value();
+                            // path.segments
+                            let path = parse_quote!(#path<#trait_>::#last_segment);
+                            compose_regular_fn::<SPEC>(
+                                path,
+                                self.ffi_type_aspect(),
+                                attrs.clone(),
+                                None,
+                                sig,
+                                sig_context,
+                                &source
+                            )
+                        } else {
+                            compose_regular_fn::<SPEC>(
+                                full_fn_path.clone(),
+                                self.ffi_type_aspect(),
+                                attrs.clone(),
+                                None,
+                                sig,
+                                sig_context,
+                                &source
+                            )
+                        }.present(&source)
+                    },
+                    FnSignatureContext::TraitAsType(_, _, sig) => compose_regular_fn::<SPEC>(
                         full_fn_path.clone(),
                         self.ffi_type_aspect(),
                         attrs.clone(),
@@ -241,10 +276,10 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                             ReturnType::Default => ReturnType::Default,
                             ReturnType::Type(_, ty) => ReturnType::Type(Default::default(), Box::new(compose_ty(ty)))
                         };
-                        let arguments = CommaPunctuatedPresentableArguments::from_iter(inputs
+                        let arguments = CommaPunctuatedArgKinds::from_iter(inputs
                             .iter()
                             .map(|arg| {
-                                PresentableArgument::<RustFermentate, SPEC>::Named(match arg {
+                                ArgKind::<RustFermentate, SPEC>::Named(match arg {
                                     FnArg::Receiver(Receiver { mutability: _, reference: _, attrs, .. }) =>
                                         FieldComposer::self_typed(compose_ty(sig_context.receiver_ty()), attrs),
                                     FnArg::Typed(PatType { ty, attrs, pat, .. }) =>
@@ -252,7 +287,7 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 }, Visibility::Inherited)
                             })).present(&source);
                         BindingPresentation::TraitVTableInnerFn {
-                            name: Name::VTableInnerFn(sig.ident.clone()),
+                            name: Name::<RustFermentate, SPEC>::VTableInnerFn(sig.ident.clone()).mangle_tokens_default(),
                             name_and_args: quote!(unsafe extern "C" fn (#arguments)),
                             output_expression: return_type
                         }
@@ -300,10 +335,10 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 let var_composer = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope);
                                 let var_ty = var_composer.compose(&source);
                                 let conversion = TypeKind::from(ty);
-                                let ident_name = Name::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
+                                let ident_name = Name::<RustFermentate, SPEC>::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
                                 arg_names.push(ident_name.to_token_stream());
                                 arg_target_types.push(ArgPresentation::Pat(Pat::Verbatim(ty.to_token_stream())));
-                                arg_target_fields.push(ArgPresentation::Field(field(ident_name.clone(), ty, &source)));
+                                arg_target_fields.push(ArgPresentation::Field(field::<RustFermentate, SPEC>(ident_name.clone(), ty, &source)));
                                 let mut bare_fn_arg_replacement = bare_fn_arg.clone();
                                 bare_fn_arg_replacement.ty = var_ty.to_type();
                                 ffi_args.push(bare_fn_arg_replacement);
@@ -321,7 +356,8 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                                 });
                             });
                         let ffi_type = self.present_ffi_aspect();
-                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, arg_to_conversions.present(&source), post_processing);
+                        let lifetimes = self.compose_lifetimes();
+                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, &lifetimes, arg_to_conversions.present(&source), post_processing);
                         BindingPresentation::Callback {
                             name: full_fn_path.mangle_ident_default(),
                             attrs: attrs.clone(),
@@ -340,25 +376,26 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
 }
 pub fn from_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext) -> SPEC::Expr
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Name=Name<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
+          Name<LANG, SPEC>: ToTokens,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
-    FromConversionComposer::<LANG, SPEC>::new(Name::Dictionary(DictionaryName::Self_), ty.clone(), None)
+    FromConversionComposer::<LANG, SPEC>::new(SPEC::Name::dictionary_name(DictionaryName::Self_), ty.clone(), None)
         .compose(source)
 
 }
-pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, source: &ScopeContext) -> SPEC::Expr
+pub fn from_trait_receiver_expr_composer<LANG, SPEC>(ty: &Type, acc: TokenStream2, source: &ScopeContext) -> SPEC::Expr
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+          SPEC::Expr: ScopeContextPresentable {
     let ty: Type = ty.resolve(source);
-    Expression::dict_expr(DictionaryExpr::SelfAsTrait(ty.to_token_stream()))
+    Expression::dict_expr(DictionaryExpr::SelfAsTrait(ty.to_token_stream(), acc))
 }
 
 
-fn field(name: Name, ty: &Type, source: &ScopeContext) -> Field {
+fn field<LANG, SPEC>(name: SPEC::Name , ty: &Type, source: &ScopeContext) -> Field
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
     Field {
         attrs: vec![],
         vis: Visibility::Inherited,

@@ -6,7 +6,6 @@ use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind};
 use crate::ext::{AsType, CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
 pub trait Resolve<T> {
@@ -35,7 +34,6 @@ impl Resolve<ObjectKind> for Type {
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for Type
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         let result = source.maybe_custom_conversion(self)
@@ -54,7 +52,6 @@ impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for Type
 impl<'a, LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for ScopeSearchKey<'a>
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         let ty = self.to_type();
@@ -84,7 +81,7 @@ impl Resolve<TypeModelKind> for Type {
     }
     fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
         // println!("Type::<TypeModelKind>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
-        let result = <Type as Resolve<ObjectKind>>::maybe_resolve(self, source)
+        let result = Resolve::<ObjectKind>::maybe_resolve(self, source)
             .and_then(|ext_obj_kind| {
                 match ext_obj_kind {
                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
@@ -108,8 +105,7 @@ impl Resolve<TypeModelKind> for Type {
 
 impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<LANG, SPEC>> {
         let res = match self {
             Type::Path(TypePath { path, .. }) =>
@@ -123,7 +119,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
                 match bounds.len() {
                     0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
-                    1 => match bounds.first().unwrap() {
+                    1 => match bounds.first()? {
                         TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
                         TypeParamBound::Lifetime(_) => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Lifetime)"),
                     },
@@ -133,12 +129,12 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
             },
             _ => None
         };
-        // println!("Type::<Option<FFIFullPath>>::resolve...2({}", res.to_token_stream());
+        //println!("Type::<Option<FFIFullPath>>::resolve {} --> {:?}", self.to_token_stream(), res);
         res
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<LANG, SPEC> {
-        // println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
-        <Self as Resolve<FFIFullPath<LANG, SPEC>>>::maybe_resolve(self, source)
+        //println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
+        Resolve::<FFIFullPath<LANG, SPEC>>::maybe_resolve(self, source)
             .unwrap_or_else(|| {
                 // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
 
@@ -150,7 +146,6 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Type
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for GenericTypeKind
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         self.ty()
@@ -167,7 +162,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<RustFermentate, SPEC> {
-        // println!("GenericTypeKind -> FFIFullPath --> {}", self);
+        println!("GenericTypeKind -> FFIFullPath --> {}", self);
         let result = match self {
             GenericTypeKind::Map(ty) |
             GenericTypeKind::Group(ty) |
@@ -207,18 +202,13 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
                                 let ty = path.to_type();
                                 let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
                                 match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Opaque): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
-                                    },
-                                    Some(SpecialType::Custom(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Custom): {}", path.to_token_stream());
-                                        return FFIFullPath::External { path: path.clone() }
+                                    Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
+                                        println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
+                                        return FFIFullPath::external(path.clone())
                                     },
                                     _ => {}
                                 }
                             }
-
                             bounds.first().unwrap().mangle_ident_default().to_path()
                         }
                     },
@@ -228,7 +218,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
         };
-        // println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
+        println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
         result
     }
 }
@@ -237,7 +227,6 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
 impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for TypeModelKind
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
           FFIFullDictionaryPath<LANG, SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<LANG, SPEC>> {
         self.as_type().maybe_resolve(source)
@@ -250,12 +239,13 @@ impl<LANG, SPEC> Resolve<SpecialType<LANG, SPEC>> for TypeModelKind
 
 impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<LANG, SPEC>> {
+        // let config = &source.context.read().unwrap().config;
+
         let segments = &self.segments;
-        let first_segment = segments.first().unwrap();
-        let last_segment = segments.last().unwrap();
+        let first_segment = segments.first()?;
+        let last_segment = segments.last()?;
         let first_ident = &first_segment.ident;
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
@@ -287,7 +277,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
             } else {
                 segments
             };
-            maybe_crate_ident_replacement(&chunk.first().unwrap().ident, source)
+            maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
                     let crate_local_segments = chunk.crate_and_ident_less();
                     FFIFullPath::Type {
@@ -305,13 +295,7 @@ impl<LANG, SPEC> Resolve<FFIFullPath<LANG, SPEC>> for Path
                 })
                 .or_else(|| {
                     let segments = chunk.ident_less();
-                    Some(FFIFullPath::External {
-                        path: if segments.is_empty() {
-                            last_ident.to_path()
-                        } else {
-                            parse_quote!(#segments::#last_ident)
-                        }
-                    })
+                    Some(FFIFullPath::external(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) }))
                 })
         }
     }
@@ -332,7 +316,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<RustFermentate, SPEC>
     let last_segment = cloned_segments.iter_mut().last().unwrap();
     let last_ident = &last_segment.ident;
     if last_ident.is_primitive() {
-        FFIFullPath::External { path: last_ident.to_path() }
+        FFIFullPath::external(last_ident.to_path())
     } else if last_ident.is_any_string() {
         FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
     } else if last_ident.is_special_generic() ||
@@ -347,7 +331,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<RustFermentate, SPEC>
             .into_iter()
             .map(|segment| quote_spanned! { segment.span() => #segment })
             .collect::<Vec<_>>();
-        FFIFullPath::External { path: parse_quote!(#(#new_segments)::*) }
+        FFIFullPath::external(parse_quote!(#(#new_segments)::*))
 
     }
 }

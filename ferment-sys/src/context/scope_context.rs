@@ -1,16 +1,18 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject};
+use quote::ToTokens;
+use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
 use crate::composer::ComposerLink;
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait};
+use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
-use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
 
 pub type ScopeContextLink = ComposerLink<ScopeContext>;
@@ -48,6 +50,9 @@ impl ScopeContext {
     }
     pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
         Self { scope, context }
+    }
+    pub fn cell_with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self::with(scope, context)))
     }
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
@@ -106,13 +111,12 @@ impl ScopeContext {
     pub fn maybe_to_trait_fn_type<LANG, SPEC>(&self) -> Option<Type>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
         match &self.scope.parent_object().unwrap() {
             ObjectKind::Type(ref ty_conversion) |
             ObjectKind::Item(ref ty_conversion, ..) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
-                match <Type as Resolve<SpecialType<LANG, SPEC>>>::maybe_resolve(&full_parent_ty, self) {
+                match Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(&full_parent_ty, self) {
                     Some(special) => Some(special.to_type()),
                     None => match ty_conversion {
                         TypeModelKind::Trait(ty, ..) =>
@@ -138,7 +142,6 @@ impl ScopeContext {
     pub fn maybe_special_or_regular_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
         self.maybe_special_ffi_full_path::<LANG, SPEC>(ty)
             .or_else(|| self.maybe_ffi_full_path(ty))
@@ -146,16 +149,14 @@ impl ScopeContext {
     fn maybe_special_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
               SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath<LANG, SPEC>: ToType {
-        <Type as Resolve<SpecialType<LANG, SPEC>>>::maybe_resolve(ty, self)
+        Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(ty, self)
             .map(FFIFullPath::from)
     }
     pub fn maybe_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
         where LANG: LangFermentable,
-              SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable {
-        <Type as Resolve<TypeModelKind>>::resolve(ty, self)
+              SPEC: Specification<LANG> {
+        Resolve::<TypeModelKind>::resolve(ty, self)
             .to_type()
             .maybe_resolve(self)
     }
@@ -166,17 +167,18 @@ impl ScopeContext {
     }
     pub fn maybe_opaque_object<LANG, SPEC>(&self, ty: &Type) -> Option<Type>
         where LANG: LangFermentable, SPEC: Specification<LANG>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable,
               FFIFullDictionaryPath::<LANG, SPEC>: ToType {
         let resolve_opaque = |path: &Path| {
             let result = if path.is_void() {
                 Some(FFIFullDictionaryPath::<LANG, SPEC>::Void.to_type())
             } else {
-                match self.maybe_scope_item_obj_first(path) {
+                match self.maybe_scope_item_obj_first(path)
+                    .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {
                     Some(item) => {
                         if item.is_fermented() || item.is_custom() {
                             None
                         } else {
+                            println!("maybe_opaque_object: non fermentable / non custom: {}", item);
                             Some(item.to_type())
                         }
                     },
@@ -186,6 +188,7 @@ impl ScopeContext {
                         } else if path.is_primitive() {
                             None
                         } else {
+                            println!("maybe_opaque_object: alternative: {}", ty.to_token_stream());
                             Some(ty.clone())
                         }
                     }
@@ -201,7 +204,7 @@ impl ScopeContext {
             Type::Path(TypePath { path, .. }) =>
                 resolve_opaque(path),
             Type::TraitObject(TypeTraitObject { dyn_token, bounds, .. }) => match bounds.len() {
-                1 => match bounds.first().unwrap() {
+                1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         resolve_opaque(path)
                             .map(|ty| {
@@ -247,7 +250,9 @@ impl ScopeContext {
         // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
     }
-
+    pub fn maybe_object_by_predicate_ref<'a>(&self, predicate: &'a ScopeSearch<'a>) -> Option<ObjectKind> {
+        self.maybe_object_by_predicate(predicate.clone())
+    }
     pub fn maybe_object_by_predicate<'a>(&self, predicate: ScopeSearch<'a>) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_predicate(predicate).cloned();
@@ -277,12 +282,22 @@ impl ScopeContext {
     }
 
     pub fn trait_items_from_attributes(&self, attrs: &[Attribute]) -> Depunctuated<(TraitModelPart1, ScopeChain)> {
-        let global = self.context.read().unwrap();
         extract_trait_names(attrs)
             .iter()
-            .filter_map(|link| global.maybe_trait_scope_pair(link, &self.scope))
+            .filter_map(|trait_path| self.maybe_trait_scope_pair(&trait_path.to_type()))
             .collect()
     }
+
+    pub fn maybe_trait_scope_pair(&self, trait_name: &Type) -> Option<(TraitModelPart1, ScopeChain)> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_trait_scope_pair(trait_name, &self.scope)
+    }
+
+    pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
+        let lock = self.context.read().unwrap();
+        lock.maybe_item_trait(trait_path)
+    }
+
 
     // pub fn find_item_trait_in_scope(&self, trait_name: &Path, scope: &ScopeChain) -> (TraitCompositionPart1, ScopeChain) {
     //     let trait_ty = parse_quote!(#trait_name);

@@ -1,35 +1,31 @@
 use std::rc::Rc;
-use quote::ToTokens;
-use syn::{Attribute, parse_quote, Type, TypeSlice};
+use quote::{quote, ToTokens};
+use syn::{Attribute, parse_quote, Type, TypeSlice, Generics};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, BasicComposerLink};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{ExpressionComposer, GenericArgPresentation, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIVariable, FFIVecConversionMethodExpr, InterfacePresentation, Name, RustFermentate};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct SliceComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static,
-          <SPEC as Specification<LANG>>::Expr: Clone + ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> SliceComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone(),
         }
     }
@@ -44,16 +40,20 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
         let Self { ty, .. } = self;
         let ffi_name = ty.mangle_tokens_default();
         let type_slice: TypeSlice = parse_quote!(#ty);
-        let arg_0_name = Name::Dictionary(DictionaryName::Values);
-        let count_name = Name::Dictionary(DictionaryName::Count);
+        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Values);
+        let count_name = SPEC::Name::dictionary_name(DictionaryName::Count);
         let self_props = CommaPunctuated::from_iter([
             DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
             DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+        let from_args = CommaPunctuated::from_iter([
+            quote!(ffi_ref.#arg_0_name),
+            quote!(ffi_ref.#count_name),
+        ]);
 
         let arg_0_destroy = |composer: ExpressionComposer<RustFermentate, SPEC>|
             composer(self_props.to_token_stream());
         let arg_0_from = |composer: ExpressionComposer<RustFermentate, SPEC>|
-            composer(self_props.to_token_stream());
+            composer(from_args.to_token_stream());
         let arg_0_to = |composer: ExpressionComposer<RustFermentate, SPEC>|
             Expression::boxed_tokens(DictionaryExpr::SelfDestructuring(
                 CommaPunctuated::from_iter([
@@ -90,14 +90,17 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
             <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.destructor, source).to_token_stream()
         ];
         let attrs = self.compose_attributes();
+        let from_body = DictionaryExpr::FromRoot(SPEC::Expr::present(&arg_0_presentation.from_conversion, source));
+        let to_body = SPEC::Expr::present(&arg_0_presentation.to_conversion, source);
+
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from(&attrs, &types, FFIVecConversionMethodExpr::Decode(DictionaryExpr::FfiDerefAsRef.to_token_stream()), &None),
-            InterfacePresentation::conversion_to(&attrs, &types, FFIVecConversionMethodExpr::Encode(DictionaryName::Obj.to_token_stream()), &None),
-            InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
-            InterfacePresentation::vec(&attrs, &types, <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.from_conversion, source).to_token_stream(), <SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source).to_token_stream()),
+            InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &vec![]),
+            InterfacePresentation::conversion_to(&attrs, &types, to_body, &None, &vec![]),
+            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 
         ]);
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(ffi_name, &attrs, field_composers, interfaces))
+        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
+        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

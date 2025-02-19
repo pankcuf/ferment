@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use syn::{ItemTrait, Path};
+use syn::{ItemTrait, Path,};
 use crate::ast::PathHolder;
 use crate::composable::TraitModelPart1;
 use crate::context::ScopeChain;

@@ -1,260 +1,200 @@
 use std::clone::Clone;
-use syn::__private::TokenStream2;
 use syn::Field;
 use crate::ast::CommaPunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{ArgComposers, AspectPresentable, AttrComposable, CommaPunctuatedFields, ComposerLink, Composer, ComposerLinkRef, CtorSequenceComposer, FieldComposers, FieldPathResolver, FieldsComposerRef, FieldsContext, PresentableExprComposerRef, GenericsComposable, LinkedContextComposer, LocallyOwnedFieldComposers, SourceAccessible, TypeAspect, FieldComposerProducer, FieldPathConversionResolveSpec, ItemComposerExprSpec, AspectSequenceComposer, FFIComposer, ItemComposerSpec, FFIBindingsComposer, MethodComposer, CtorSpec, FFIComposerLink, TypeContextComposerLink, FFIBindingsComposerLink, FieldsOwnedSequenceComposerLink, FieldsConversionComposable, FieldsOwnedSequenceComposer, AspectSharedComposerLink, SequenceSharedComposerLink, FieldsSequenceMixer, DropSequenceComposer, RootSequenceComposer};
-use crate::ext::ToType;
+use crate::composer::{ArgComposers, AspectArgComposers, AspectSharedComposerLink, AttrComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, CtorSpec, FFIBindingsComposer, FFIBindingsComposerLink, FFIComposer, FFIComposerLink, ArgProducerByRef, FieldPathConversionResolveSpec, FieldPathResolver, FieldsContext, FieldsConversionComposable, ArgsSequenceComposer, FieldsSequenceMixer, GenericsComposable, ItemComposerExprSpec, ItemComposerSpec, OwnedArgComposers, MethodComposer, NameKindComposable, OwnerAspectSequence, OwnerAspectSequenceSpec, ArgKindPair, PresentableExprComposerRef, RootSequenceComposer, SequenceComposer, SequenceSharedComposerLink, SourceAccessible, SourceComposerByRef, TypeAspect, IterativeComposer, ItemAspectsSpec, FFIInterfaceMethodSpec};
+use crate::composer::r#abstract::SequenceMixer;
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, NameTreeContext, PresentableArgument, ScopeContextPresentable, PresentableSequence, Expression, BindingPresentableContext};
-use crate::presentation::{default_doc, Name};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, InterfaceKind, SeqKind};
 
-pub const fn composer_doc<T, TYC>() -> TypeContextComposerLink<T, TYC, TokenStream2>
-    where TYC: NameTreeContext,
-          Aspect<TYC>: ScopeContextPresentable,
-          T: AspectPresentable<TYC>
-          + SourceAccessible
-          + 'static {
-    LinkedContextComposer::new(default_doc, T::present_target_aspect_ref)
-}
 
-pub const fn field_owned_sequence_composer<T, C, LANG, SPEC>(
-    aspect: AspectSharedComposerLink<T, LANG, SPEC>
-) -> FieldsOwnedSequenceComposerLink<T, LANG, SPEC>
-    where T: AttrComposable<SPEC::Attr>
-            + GenericsComposable<SPEC::Gen>
-            + FieldsContext<LANG, SPEC>
-            + FieldsConversionComposable<LANG, SPEC>
-            + SourceAccessible
-            + 'static,
-          C: ItemComposerSpec<LANG, SPEC> + ?Sized,
+// pub const fn fields_composer<LANG, SPEC, T>() -> FieldsComposerRef<LANG, SPEC>
+//     where LANG: LangFermentable,
+//           SPEC: Specification<LANG>,
+//           T: FieldNameSpec<LANG, SPEC> {
+//     |fields| field_composers_iterator(fields, T::COMPOSER)
+// }
+pub(crate) const fn args_composer_iterator_root<LANG, SPEC, CTX, Item, OUT>()
+    -> SourceComposerByRef<OwnedArgComposers<LANG, SPEC, CTX>, ArgProducerByRef<LANG, SPEC, Item>, (CTX, OUT)>
+    where CTX: Clone,
+          OUT: FromIterator<Item>,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-    FieldsOwnedSequenceComposer::with_iterator_setup(
-        C::ROOT_PRESENTER,
-        aspect,
-        fields_composer_iterator_root(),
-        C::FIELD_PRESENTER)
+          SPEC: Specification<LANG> {
+    |(aspect, arg_composers), composer|
+        (aspect.clone(), arg_conversions_iterator(arg_composers, composer))
 }
 
-pub const fn struct_unnamed_fields_composer<LANG, SPEC>()
-    -> FieldsComposerRef<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    |fields| field_composers_iterator(
-        fields,
-        |index, Field { ty, attrs, .. }|
-            FieldComposer::typed(Name::UnnamedStructFieldsComp(ty.clone(), index), ty, false, attrs))
-}
-pub const fn struct_named_fields_composer<LANG, SPEC>()
-    -> FieldsComposerRef<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    |fields| field_composers_iterator(
-        fields,
-        |_index, Field { ident, ty, attrs, .. }|
-            FieldComposer::typed(Name::Optional(ident.clone()), ty, true, attrs))
-}
-
-pub(crate) const fn fields_composer_iterator_root<CTX, Item, OUT, LANG, SPEC>()
-    -> Composer<(LocallyOwnedFieldComposers<CTX, LANG, SPEC>, FieldComposerProducer<LANG, SPEC, Item>), (CTX, OUT)>
-    where OUT: FromIterator<Item>,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          CommaPunctuated<PresentableArgument<LANG, SPEC>>: FromIterator<PresentableArgument<LANG, SPEC>> {
-    |((aspect, field_composers), composer)|
-        (aspect, field_conversions_iterator(field_composers, composer))
+pub(crate) fn arg_conversion_expressions_iterator<LANG, SPEC, Iter>(
+    (arg_composers, expr_composer): (&CommaArgComposers<LANG, SPEC>, PresentableExprComposerRef<LANG, SPEC>),
+    resolver: FieldPathResolver<LANG, SPEC>
+) -> Iter
+where Iter: FromIterator<ArgKind<LANG, SPEC>>,
+      LANG: LangFermentable,
+      SPEC: Specification<LANG> {
+    arg_conversions_iterator(arg_composers, |c| ArgKind::attr_expr_composer(c, resolver, expr_composer))
 }
 
 
-pub fn field_composers_iterator<MAP, LANG, SPEC>(
+pub fn field_composers_iterator<LANG, SPEC, MAP>(
     fields: &CommaPunctuatedFields,
     mapper: MAP
-) -> FieldComposers<LANG, SPEC>
-    where MAP: Fn(usize, &Field) -> FieldComposer<LANG, SPEC>,
+) -> CommaArgComposers<LANG, SPEC>
+    where MAP: Fn(&Field, usize) -> FieldComposer<LANG, SPEC>,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    CommaPunctuated::from_iter(fields.iter().enumerate().map(|(index, field)| mapper(index, field)))
+          SPEC: Specification<LANG> {
+    CommaPunctuated::from_iter(fields.iter().enumerate().map(|(index, field)| mapper(field, index)))
 }
-pub fn field_conversions_iterator<MAP, Out, It, LANG, SPEC, SEP>(
-    composers: ArgComposers<SEP, LANG, SPEC>,
+pub fn arg_conversions_iterator<LANG, SPEC, MAP, Out, Iter, SEP>(
+    composers: &ArgComposers<LANG, SPEC, SEP>,
     mapper: MAP
-) -> It
+) -> Iter
     where MAP: Fn(&FieldComposer<LANG, SPEC>) -> Out,
-          It: FromIterator<Out>,
+          Iter: FromIterator<Out>,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    It::from_iter(composers.iter().map(mapper))
+          SPEC: Specification<LANG> {
+    Iter::from_iter(composers.iter().map(mapper))
 }
 
-pub(crate) fn field_conversion_expressions_iterator<It, LANG, SPEC>(
-    (composers, presenter): (FieldComposers<LANG, SPEC>, PresentableExprComposerRef<LANG, SPEC>),
-    resolver: FieldPathResolver<LANG, SPEC>
-) -> It
-    where It: FromIterator<PresentableArgument<LANG, SPEC>>,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
-    field_conversions_iterator(
-        composers,
-        |composer| {
-            let template = resolver(composer);
-            let expr = presenter(&template);
 
-            PresentableArgument::AttrExpression(expr, composer.attrs.clone())
-        })
-}
-
-pub(crate) const fn ffi_conversions_composer<T, C, LANG, SPEC>(
+pub(crate) const fn ffi_conversions_composer<LANG, SPEC, T, C>(
     from_ffi_root: RootSequenceComposer<LANG, SPEC>,
-    from_context: SequenceSharedComposerLink<T, LANG, SPEC>,
-    from_seq3: AspectSequenceComposer<LANG, SPEC>,
-
-    from_aspect: AspectSharedComposerLink<T, LANG, SPEC>,
-
+    from_context: SequenceSharedComposerLink<LANG, SPEC, T>,
+    from_aspect: AspectSharedComposerLink<LANG, SPEC, T>,
     to_ffi_root: RootSequenceComposer<LANG, SPEC>,
-    to_context: SequenceSharedComposerLink<T, LANG, SPEC>,
-    // to_seq3: OwnerCommaIteratorConversionComposer<LANG, SPEC>,
-    // to_aspect: SharedAspectComposerLink<T, LANG, SPEC>,
-    // destroy_seq1: Composer<PresentableSequence<LANG, SPEC>, PresentableSequence<LANG, SPEC>>,
-    // destroy_seq2: SharedSequenceComposerLink<T, LANG, SPEC>,
+    to_context: SequenceSharedComposerLink<LANG, SPEC, T>,
     drop_root: RootSequenceComposer<LANG, SPEC>,
-    drop_context: SequenceSharedComposerLink<T, LANG, SPEC>,
-    drop_seq3: DropSequenceComposer<LANG, SPEC>,
-) -> FFIComposerLink<T, LANG, SPEC>
-    where T: FieldsContext<LANG, SPEC> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen>,
+    drop_context: SequenceSharedComposerLink<LANG, SPEC, T>,
+) -> FFIComposerLink<LANG, SPEC, T>
+    where T: FieldsContext<LANG, SPEC> + AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
           C: ItemComposerSpec<LANG, SPEC> + ItemComposerExprSpec<LANG, SPEC> + FieldPathConversionResolveSpec<LANG, SPEC>,
           LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     FFIComposer::new(
-        FieldsSequenceMixer::new(
+        InterfaceKind::From(FieldsSequenceMixer::with_sequence(
             from_ffi_root,
             from_context,
-            from_seq3,
-            from_aspect,
-            C::CONVERSION,
-            |((aspect, field_composers), expr_composer)|
-                (aspect, field_conversion_expressions_iterator((field_composers, expr_composer), C::FROM))
-        ),
-        FieldsSequenceMixer::new(
+            SequenceComposer::new(
+                C::FROM_ROOT_CONVERSION_PRESENTER,
+                from_aspect,
+                IterativeComposer::new(
+                |(aspect, field_composers), expr_composer|
+                    (aspect.clone(), arg_conversion_expressions_iterator((field_composers, expr_composer), C::FROM)),
+                C::FROM_CONVERSION)))),
+
+        InterfaceKind::To(FieldsSequenceMixer::with_sequence(
             to_ffi_root,
             to_context,
-            C::ROOT_CONVERSION_PRESENTER,
-            |c: &ComposerLinkRef<T>| ((T::ffi_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
-            C::CONVERSION,
-            |((aspect, field_composers), expr_composer)|
-                (aspect, field_conversion_expressions_iterator((field_composers, expr_composer), C::TO))
-        ),
-        LinkedContextComposer::new(
-            PresentableSequence::unboxed_root,
-            drop_context),
-        FieldsSequenceMixer::new(
+            SequenceComposer::new(
+                C::TO_ROOT_CONVERSION_PRESENTER,
+                Aspect::ffi,
+                IterativeComposer::new(
+                |(aspect, field_composers), expr_composer|
+                    (aspect.clone(), arg_conversion_expressions_iterator((field_composers, expr_composer), C::TO)),
+                C::TO_CONVERSION)))),
+        InterfaceKind::Drop(FieldsSequenceMixer::with_sequence(
             drop_root,
             drop_context,
-            drop_seq3,
-            |c: &ComposerLinkRef<T>| ((T::ffi_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
-            // T::field_composers_by_ref,
-            C::DESTROY,
-            |((aspect, field_composers), expr_composer)|
-                (aspect, field_conversion_expressions_iterator((field_composers, expr_composer), C::DROP))
-        ),
+            SequenceComposer::new(
+                C::DROP_ROOT_CONVERSION_PRESENTER,
+                Aspect::ffi,
+                IterativeComposer::new(|(aspect, field_composers), expr_composer|
+                    (aspect.clone(), arg_conversion_expressions_iterator((field_composers, expr_composer), C::DROP)),
+                C::DROP_CONVERSION))))
+
+    )
+}
+#[allow(unused)]
+pub(crate) const fn ffi_conversions_composer2<LANG, SPEC, T, C>(
+    from_ffi_root: RootSequenceComposer<LANG, SPEC>,
+    from_context: SequenceSharedComposerLink<LANG, SPEC, T>,
+    from_aspect: AspectSharedComposerLink<LANG, SPEC, T>,
+    to_ffi_root: RootSequenceComposer<LANG, SPEC>,
+    to_context: SequenceSharedComposerLink<LANG, SPEC, T>,
+    drop_root: RootSequenceComposer<LANG, SPEC>,
+    drop_context: SequenceSharedComposerLink<LANG, SPEC, T>,
+) -> FFIComposerLink<LANG, SPEC, T>
+    where T: FieldsContext<LANG, SPEC> + AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
+          C: ItemAspectsSpec<LANG, SPEC>,
+          LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    FFIComposer::new(
+        InterfaceKind::From(
+            SequenceMixer::with_sequence(
+                from_ffi_root,
+                from_context,
+                SequenceComposer::new(C::FROM::SEQ, from_aspect, C::FROM::ITER))),
+        InterfaceKind::To(
+            SequenceMixer::with_sequence(
+                to_ffi_root,
+                to_context,
+                SequenceComposer::new(C::INTO::SEQ, Aspect::ffi, C::INTO::ITER))),
+        InterfaceKind::Drop(
+            SequenceMixer::with_sequence(
+                drop_root,
+                drop_context,
+                SequenceComposer::new(C::DTOR::SEQ, Aspect::ffi, C::DTOR::ITER)))
     )
 }
 
-// pub const fn seq_iterator_root<T, C, LANG, SPEC, It>()
-//     -> Composer<(LocalConversionContext<LANG, SPEC>, PresentableExprComposerRef<LANG, SPEC>), (GenericAspect<LANG, SPEC>, It)>
-//     where T: FieldsContext<LANG, SPEC> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen>,
-//           C: FieldPathResolveSpec<LANG, SPEC>,
-//           LANG: LangFermentable,
-//           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-//           SPEC::Expr: ScopeContextPresentable,
-//           It: FromIterator<PresentableArgument<LANG, SPEC>>,
-//           Aspect<SPEC::TYC>: ScopeContextPresentable,
-//           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-//           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-//     |((aspect, field_composers), expr_composer)|
-//         (aspect, field_conversion_expressions_iterator((field_composers, expr_composer), C::RESOLVER))
-// }
-
-// pub(crate) const fn struct_ffi_conversions_composer<T, C, LANG, SPEC>(
-//     from_seq3: AspectSequenceComposer<LANG, SPEC>,
-//     to_seq2: SequenceSharedComposerLink<T, LANG, SPEC>,
-// ) -> FFIComposerLink<T, LANG, SPEC>
-//     where T: FieldsContext<LANG, SPEC>
-//             + TypeAspect<SPEC::TYC>
-//             + GenericsComposable<SPEC::Gen>,
-//           C: ItemComposerSpec<LANG, SPEC>
-//             + ItemComposerExprSpec<LANG, SPEC>
-//             + FieldPathConversionResolveSpec<LANG, SPEC>,
-//           LANG: LangFermentable,
-//           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-//           SPEC::Expr: ScopeContextPresentable,
-//           Aspect<SPEC::TYC>: ScopeContextPresentable,
-//           PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-//           PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
-//     ffi_conversions_composer::<T, C, LANG, SPEC>(
-//         PresentableSequence::ffi_from_root,
-//         PresentableSequence::deref_ffi,
-//         from_seq3,
-//         |c| ((T::target_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
-//         PresentableSequence::ffi_to_root,
-//         to_seq2,
-//         // PresentableSequence::empty,
-//         PresentableSequence::struct_drop_post_processor,
-//         PresentableSequence::empty,
-//         PresentableSequence::StructDropBody
-//     )
-// }
-
-pub(crate) const fn ffi_bindings_composer<T, C, LANG, SPEC>()
-    -> FFIBindingsComposerLink<T, LANG, SPEC>
-    where T: AttrComposable<SPEC::Attr>
-            + GenericsComposable<SPEC::Gen>
-            + TypeAspect<SPEC::TYC>
-            + FieldsContext<LANG, SPEC>
-            + SourceAccessible
-            + 'static,
-          C: CtorSpec<ComposerLink<T>, LANG, SPEC>,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          SPEC::Expr: ScopeContextPresentable,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          PresentableSequence<LANG, SPEC>: ScopeContextPresentable,
-          PresentableArgument<LANG, SPEC>: ScopeContextPresentable {
+pub(crate) const fn ffi_bindings_composer<LANG, SPEC, T, C, Iter>()
+    -> FFIBindingsComposerLink<LANG, SPEC, T, Iter>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          T: AttrComposable<SPEC::Attr>
+          + GenericsComposable<SPEC::Gen>
+          + TypeAspect<SPEC::TYC>
+          + FieldsContext<LANG, SPEC>
+          + NameKindComposable
+          + SourceAccessible
+          + 'static,
+          C: CtorSpec<LANG, SPEC, ComposerLink<T>, Iter>,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
     FFIBindingsComposer::new(
-        CtorSequenceComposer::with_iterator_setup(
-            C::ROOT,
-            C::CONTEXT,
-            fields_composer_iterator_root(),
-            C::ARG),
-        MethodComposer::new(
-            |c: &ComposerLinkRef<T>| (T::present_ffi_aspect(c), T::compose_attributes(c), T::compose_generics(c)),
-            BindingPresentableContext::dtor),
-        MethodComposer::new(
-            |c: &ComposerLinkRef<T>| ((T::ffi_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
-            BindingPresentableContext::get),
-        MethodComposer::new(
-            |c: &ComposerLinkRef<T>| ((T::ffi_type_aspect(c), T::compose_generics(c)), T::field_composers(c)),
-            BindingPresentableContext::set),
+        ArgsSequenceComposer::with_iterator_setup(C::ROOT, C::ASPECT, C::ITER, C::ARG),
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::dtor),
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::get),
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::set),
         true
     )
+}
+#[allow(unused)]
+pub(crate) const fn ffi_bindings_composer2<LANG, SPEC, T, C, Iter>()
+    -> FFIBindingsComposerLink<LANG, SPEC, T, Iter>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          T: AttrComposable<SPEC::Attr>
+              + GenericsComposable<SPEC::Gen>
+              + TypeAspect<SPEC::TYC>
+              + FieldsContext<LANG, SPEC>
+              + NameKindComposable
+              + SourceAccessible
+              + 'static,
+          C: OwnerAspectSequenceSpec<LANG, SPEC, ComposerLink<T>, Iter, ArgKindPair<LANG, SPEC>, BindingPresentableContext<LANG, SPEC>>,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
+    FFIBindingsComposer::new(
+        C::COMPOSER,
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::dtor),
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::get),
+        MethodComposer::new(Aspect::ffi, BindingPresentableContext::set),
+        true
+    )
+}
+
+
+#[allow(unused)]
+pub const fn fields_sequence<LANG, SPEC, T, C, Iter>()
+    -> ArgsSequenceComposer<LANG, SPEC, ComposerLink<T>, AspectArgComposers<LANG, SPEC>, Iter::Item, OwnerAspectSequence<LANG, SPEC, Iter>, SeqKind<LANG, SPEC>>
+    where C: OwnerAspectSequenceSpec<LANG, SPEC, ComposerLink<T>, Iter, ArgKind<LANG, SPEC>, SeqKind<LANG, SPEC>>,
+    T: AttrComposable<SPEC::Attr>
+        + GenericsComposable<SPEC::Gen>
+        + TypeAspect<SPEC::TYC>
+        + NameKindComposable
+        + FieldsContext<LANG, SPEC>
+        + FieldsConversionComposable<LANG, SPEC>
+        + SourceAccessible
+        + 'static,
+    LANG: LangFermentable,
+    SPEC: Specification<LANG>,
+    Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKind<LANG, SPEC>> {
+    ArgsSequenceComposer::with_iterator_setup(C::ROOT, C::ASPECT, C::ITER, C::ARG)
 }

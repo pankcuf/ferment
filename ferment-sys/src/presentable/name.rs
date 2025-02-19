@@ -1,16 +1,17 @@
 use std::fmt::{Display, Formatter};
-use proc_macro2::Ident;
-use quote::ToTokens;
-use syn::{Attribute, ItemFn, ItemTrait, Path, TypeBareFn};
+use proc_macro2::{Ident, TokenStream};
+use quote::{quote, ToTokens};
+use syn::{Attribute, Generics, ItemFn, ItemTrait, Path, TypeBareFn};
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::conversion::MixinKind;
-use crate::ext::ToPath;
+use crate::ext::{AsType, ToPath};
 use crate::presentable::NameTreeContext;
 
 #[derive(Clone, Debug)]
 pub enum TypeContext {
     Enum {
         ident: Ident,
+        generics: Generics,
         attrs: Vec<Attribute>,
     },
     EnumVariant {
@@ -21,6 +22,7 @@ pub enum TypeContext {
     },
     Struct {
         ident: Ident,
+        generics: Generics,
         attrs: Vec<Attribute>,
     },
     Fn {
@@ -35,6 +37,7 @@ pub enum TypeContext {
     },
     Impl {
         path: Path,
+        trait_: Option<Path>,
         attrs: Vec<Attribute>,
     },
     Mixin {
@@ -42,6 +45,7 @@ pub enum TypeContext {
         attrs: Vec<Attribute>,
     }
 }
+
 impl TypeContext {
     pub(crate) fn attrs(&self) -> &Vec<Attribute> {
         match self {
@@ -55,15 +59,15 @@ impl TypeContext {
         }
     }
 
-    pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>) -> Self {
-        Self::Struct { ident: ident.clone(), attrs }
+    pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
+        Self::Struct { ident: ident.clone(), attrs, generics }
     }
-    pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>) -> Self {
-        Self::Enum { ident: ident.clone(), attrs }
+    pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
+        Self::Enum { ident: ident.clone(), attrs, generics }
     }
 
-    pub fn r#impl(path: Path, attrs: Vec<Attribute>) -> Self {
-        Self::Impl { path, attrs }
+    pub fn r#impl(path: Path, trait_: Option<Path>, attrs: Vec<Attribute>) -> Self {
+        Self::Impl { path, attrs, trait_ }
     }
     pub fn mixin(kind: &MixinKind, attrs: Vec<Attribute>) -> Self {
         Self::Mixin { mixin_kind: kind.clone(), attrs }
@@ -77,6 +81,14 @@ impl TypeContext {
     pub fn r#trait(item: &ItemTrait) -> Self {
         Self::Trait { path: item.ident.to_path(), attrs: item.attrs.cfg_attributes() }
     }
+
+    pub(crate) fn sig_context(&self) -> &FnSignatureContext {
+        match self {
+            TypeContext::Fn { sig_context, .. } => sig_context,
+            _ => panic!("Not a function")
+        }
+    }
+
 }
 impl Display for TypeContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -97,6 +109,24 @@ impl Display for TypeContext {
                 model.to_string(),
         }.as_str())
     }
+}
+impl ToTokens for TypeContext {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            TypeContext::Enum { ident, .. } |
+            TypeContext::Struct { ident, .. } =>
+                ident.to_tokens(tokens),
+            TypeContext::EnumVariant { ident, variant_ident, .. } =>
+                quote!(#ident::#variant_ident).to_tokens(tokens),
+            TypeContext::Fn { path, .. } |
+            TypeContext::Trait { path, .. } |
+            TypeContext::Impl { path, .. } =>
+                path.to_tokens(tokens),
+            TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
+                kind.to_tokens(tokens),
+            TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
+                model.as_type().to_tokens(tokens),
+        }    }
 }
 impl NameTreeContext for TypeContext {
     fn join_fn(&self, path: Path, sig_context: FnSignatureContext, attrs: Vec<Attribute>) -> Self {

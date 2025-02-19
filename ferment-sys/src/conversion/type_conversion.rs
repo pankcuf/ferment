@@ -2,8 +2,9 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
+use syn::{GenericArgument, PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use syn::parse::{Parse, ParseStream};
+use crate::ast::CommaPunctuated;
 use crate::conversion::GenericTypeKind;
 
 #[derive(Clone, Eq)]
@@ -72,14 +73,21 @@ impl From<Type> for TypeKind {
                             "IndexMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                             "BTreeSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                             "HashSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
+                            "IndexSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                             "Vec" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                             "Result" if path.segments.len() == 1 => TypeKind::Generic(GenericTypeKind::Result(ty)),
                             "Map" if first_ident.to_string().eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
                             "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
                             "Fn" | "FnOnce" | "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(ty)),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
-                                PathArguments::AngleBracketed(_) =>
-                                    Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))),
+                                PathArguments::AngleBracketed(args) => {
+                                    let non_lifetimes = CommaPunctuated::from_iter(args.args.iter().filter_map(|arg| if let GenericArgument::Lifetime(_) = arg { None } else { Some(arg) }));
+                                    Some(if non_lifetimes.is_empty() {
+                                        TypeKind::Complex(ty.clone())
+                                    } else {
+                                        TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))
+                                    })
+                                },
                                 _ => None
                             }).unwrap_or(TypeKind::Complex(ty))
                         }
@@ -92,6 +100,7 @@ impl From<Type> for TypeKind {
                         "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeKind::Generic(GenericTypeKind::AnyOther(ty)),
                         "BTreeMap" | "HashMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "IndexMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
+                        "IndexSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "BTreeSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "HashSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "Vec" => TypeKind::Generic(GenericTypeKind::Group(ty)),

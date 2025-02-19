@@ -20,8 +20,8 @@ pub trait FFIConversionFrom<T> {
         (!ffi.is_null())
             .then(|| Self::ffi_from(ffi))
     }
-
 }
+
 pub trait FFIConversionTo<T> {
     /// # Safety
     unsafe fn ffi_to_const(obj: T) -> *const Self;
@@ -50,6 +50,13 @@ pub trait FFIConversionDestroy<T> {
         let _ = unbox_any(ffi);
     }
 }
+
+// pub trait FFIPartialEq<T> where Self: FFIConversionFrom<T> {
+//     /// # Safety
+//     unsafe fn ffi_eq(ffi: *const Self, obj: &T) -> bool {
+//
+//     }
+// }
 
 pub fn boxed<T>(obj: T) -> *mut T {
     Box::into_raw(Box::new(obj))
@@ -85,14 +92,27 @@ pub unsafe fn unbox_string(data: *mut c_char) {
 
 /// # Safety
 pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
+    // TODO: that's wrong, need to make unbox_any composable of arbitrary type -> unbox_any_vec_composer
     for &x in vec.iter() {
         unbox_any(x);
+    }
+}
+/// # Safety
+pub unsafe fn unbox_any_vec_composer<T, U: Fn(*mut T)>(vec: Vec<*mut T>, composer: U) {
+    for &x in vec.iter() {
+        composer(x);
     }
 }
 
 /// # Safety
 pub unsafe fn unbox_any_vec_ptr<T>(ptr: *mut *mut T, count: usize) {
     unbox_any_vec(unbox_vec_ptr(ptr, count));
+}
+/// # Safety
+pub unsafe fn unbox_any_vec_ptr_composer<T>(ptr: *mut *mut T, count: usize, composer: unsafe fn(*mut T)) {
+    for &x in unbox_vec_ptr(ptr, count).iter() {
+        composer(x);
+    }
 }
 
 /// # Safety
@@ -152,6 +172,19 @@ impl<K: Hash + Eq, V> FFIMapConversion for indexmap::IndexMap<K, V> {
     type Value = V;
     fn new() -> Self { indexmap::IndexMap::new() }
     fn insert(&mut self, key: K, value: V) { indexmap::IndexMap::insert(self, key, value); }
+}
+
+impl FFIMapConversion for serde_json::Map<String, serde_json::Value> {
+    type Key = String;
+    type Value = serde_json::Value;
+
+    fn new() -> Self {
+        serde_json::Map::new()
+    }
+
+    fn insert(&mut self, key: Self::Key, value: Self::Value) {
+        serde_json::Map::insert(self, key, value);
+    }
 }
 
 /// # Safety

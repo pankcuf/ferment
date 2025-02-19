@@ -1,7 +1,5 @@
-use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemMod, ItemUse};
 use crate::context::{GlobalContext, ScopeChain, ScopeContext, ScopeContextLink};
@@ -56,11 +54,10 @@ impl ScopeTreeExportItem {
         Self::Tree(context, HashSet::default(), exports, attrs)
     }
     pub fn tree_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
-        let context = Rc::new(RefCell::new(ScopeContext::with(scope, context)));
-        Self::tree_with_context_and_exports(context, HashMap::default(), attrs)
+        Self::tree_with_context_and_exports(ScopeContext::cell_with(scope, context), HashMap::default(), attrs)
     }
     pub fn item_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, item: Item) -> Self {
-        Self::Item(Rc::new(RefCell::new(ScopeContext::with(scope, context))), item)
+        Self::Item(ScopeContext::cell_with(scope, context), item)
     }
     pub fn add_item(&mut self, item: Item, scope: ScopeChain) {
         if let ScopeTreeExportItem::Tree(..) = self {

@@ -21,6 +21,7 @@ pub enum DictionaryExpr {
     LetFfiRef,
     LetExpr(TokenStream2, TokenStream2),
     Deref(TokenStream2),
+    DerefRef(TokenStream2),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
     Mapper(TokenStream2, TokenStream2),
@@ -36,11 +37,16 @@ pub enum DictionaryExpr {
     MapCollect(TokenStream2, TokenStream2),
     Match(TokenStream2),
     MatchFields(TokenStream2, CommaPunctuated<ArgPresentation>),
+    #[cfg(feature = "objc")]
+    SwitchFields(TokenStream2, Depunctuated<crate::lang::objc::presentable::ArgPresentation>),
+    #[cfg(feature = "objc")]
+    Case(TokenStream2, TokenStream2),
     MatchResult(TokenStream2, TokenStream2),
     FromRoot(TokenStream2),
     CountRange,
     Range(TokenStream2),
     NewBox(TokenStream2),
+    LeakBox(TokenStream2),
     MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
     Add(TokenStream2, TokenStream2),
@@ -55,7 +61,8 @@ pub enum DictionaryExpr {
     CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
-    SelfAsTrait(TokenStream2),
+    SelfAsTrait(TokenStream2, TokenStream2),
+
 }
 
 
@@ -101,7 +108,14 @@ impl ToTokens for DictionaryExpr {
                 quote!(*).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
+            Self::DerefRef(expr) => {
+                quote!(&*).to_tokens(tokens);
+                expr.to_tokens(tokens)
+            }
             Self::AsRef(expr) => {
+
+                // let result = quote!(Box::leak(Box::new(#expr)));
+                // result.to_tokens(tokens);
                 quote!(&).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
@@ -158,6 +172,19 @@ impl ToTokens for DictionaryExpr {
                 Self::Match(quote!(#expr { #sequences }))
                     .to_tokens(tokens)
             },
+            #[cfg(feature = "objc")]
+            Self::SwitchFields(expr, sequences) => {
+                quote!(switch (#expr) { #sequences }).to_tokens(tokens);
+            },
+            #[cfg(feature = "objc")]
+            Self::Case(l_value, r_value) => {
+                let case = quote! {
+                    case #l_value: {
+                        #r_value
+                    }
+                };
+                case.to_tokens(tokens);
+            },
             Self::MatchResult(to_ok_conversion, to_error_conversion) => {
                 let null_mut = DictionaryExpr::NullMut;
                 let field_path = DictionaryName::Obj;
@@ -177,6 +204,8 @@ impl ToTokens for DictionaryExpr {
                 quote!((0..#expr)).to_tokens(tokens),
             Self::NewBox(conversion) =>
                 quote!(Box::new(#conversion)).to_tokens(tokens),
+            Self::LeakBox(conversion) =>
+                quote!(Box::leak(Box::new(#conversion))).to_tokens(tokens),
             Self::MapIntoBox(conversion) => {
                 conversion.to_tokens(tokens);
                 quote!(.map(Box::new)).to_tokens(tokens);
@@ -198,8 +227,8 @@ impl ToTokens for DictionaryExpr {
 
             Self::FromPtrClone(expr) =>
                 quote!((&*#expr).clone()).to_tokens(tokens),
-            Self::SelfAsTrait(self_ty) =>
-                quote!(*((*self_).object as *const #self_ty)).to_tokens(tokens),
+            Self::SelfAsTrait(self_ty, acc) =>
+                quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 
             Self::SelfDestructuring(content) =>
                 quote!(Self { #content }).to_tokens(tokens),

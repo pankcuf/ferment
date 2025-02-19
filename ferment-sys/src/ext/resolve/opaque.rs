@@ -76,11 +76,15 @@ impl Primitive for Type {
 
 pub trait FermentableDictionaryType {
     fn is_fermentable_dictionary_type(&self) -> bool;
+    fn is_fermentable_string(&self) -> bool;
 }
 
 impl FermentableDictionaryType for Ident {
     fn is_fermentable_dictionary_type(&self) -> bool {
         self.is_special_generic() || self.is_result() || self.is_smart_ptr() || self.is_string() || self.is_str()
+    }
+    fn is_fermentable_string(&self) -> bool {
+        self.is_string() || self.is_str()
     }
 }
 impl FermentableDictionaryType for PathSegment {
@@ -92,8 +96,12 @@ impl FermentableDictionaryType for PathSegment {
             self.is_str() ||
             self.is_optional() ||
             self.is_box() ||
-            self.is_lambda_fn() /*||
-            self.is_128_digit()*/
+            self.is_lambda_fn() ||
+            self.is_128_digit()
+    }
+
+    fn is_fermentable_string(&self) -> bool {
+        self.is_string() || self.is_str()
     }
 }
 
@@ -101,12 +109,24 @@ impl FermentableDictionaryType for Path {
     fn is_fermentable_dictionary_type(&self) -> bool {
         self.segments.last().map_or(false, PathSegment::is_fermentable_dictionary_type)
     }
+
+    fn is_fermentable_string(&self) -> bool {
+        self.segments.last().map_or(false, PathSegment::is_fermentable_string)
+    }
 }
 impl FermentableDictionaryType for Type {
     fn is_fermentable_dictionary_type(&self) -> bool {
         match self {
             Type::Path(TypePath { path, .. }) =>
                 path.is_optional() || path.is_box() || path.is_fermentable_dictionary_type(),
+            _ => false
+        }
+    }
+
+    fn is_fermentable_string(&self) -> bool {
+        match self {
+            Type::Path(TypePath { path, .. }) =>
+                path.is_string() || path.is_str(),
             _ => false
         }
     }

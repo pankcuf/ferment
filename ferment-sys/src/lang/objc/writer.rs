@@ -1,11 +1,13 @@
-use std::fs;
 use std::ffi::OsStr;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
+use std::fs::File;
+use std::io::Write;
+use std::ops::Add;
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use quote::ToTokens;
 
-use crate::error;
-// use crate::lang::objc::ObjCFermentate;
+use crate::{error, XCodeConfig};
+use crate::lang::objc::dictionary::{INTERFACES, MACROS};
 use crate::tree::IWriter;
 
 pub const X86_MAC: Target = Target { arch: Arch::X8664, platform: Platform::AppleDarwin };
@@ -13,6 +15,9 @@ pub const ARM_MAC: Target = Target { arch: Arch::AARCH64, platform: Platform::Ap
 pub const X86_IOS: Target = Target { arch: Arch::X8664, platform: Platform::AppleIOS };
 pub const ARM_IOS: Target = Target { arch: Arch::AARCH64, platform: Platform::AppleIOS };
 pub const ARM_IOS_SIM: Target = Target { arch: Arch::AARCH64, platform: Platform::AppleIOSSim };
+
+
+// const DEFAULT: &'static str =
 
 
 pub struct Target {
@@ -69,16 +74,19 @@ pub enum Program {
     Cargo,
     Lipo,
     Xcodebuild,
+    Pwd
 }
 
 impl Program {
-    pub fn run<S: AsRef<OsStr>, I: IntoIterator<Item = S>>(&self, args: I) {
+    pub fn run<S: AsRef<OsStr>, I: IntoIterator<Item = S>>(&self, args: I) -> Result<(), error::Error> {
         match self {
-            Program::Cargo | Program::Lipo | Program::Xcodebuild => {
+            Program::Cargo | Program::Lipo | Program::Xcodebuild | Program::Pwd => {
                 Command::new(self)
                     .args(args)
                     .status()
-                    .expect(format!("Failed to run: {:?}", self.as_ref()).as_str());
+                    .map_err(error::Error::from)
+                    .map(|_| ())
+                    // .expect(format!("Failed to run: {:?}", self.as_ref()).as_str());
             }
         }
     }
@@ -88,7 +96,8 @@ impl AsRef<OsStr> for Program {
         match self {
             Program::Cargo => "cargo",
             Program::Lipo => "lipo",
-            Program::Xcodebuild => "xcodebuild"
+            Program::Xcodebuild => "xcodebuild",
+            Program::Pwd => "pwd"
         }.as_ref()
     }
 }
@@ -96,6 +105,12 @@ impl AsRef<OsStr> for Program {
 
 pub struct Writer {
     pub config: super::Config
+}
+
+impl From<&super::Config> for Writer {
+    fn from(config: &super::Config) -> Self {
+        Self::new(config.clone())
+    }
 }
 
 impl Writer {
@@ -107,80 +122,56 @@ impl Writer {
 impl IWriter for Writer {
     type Fermentate = crate::lang::objc::fermentate::Fermentate;
     fn write(&self, fermentate: Self::Fermentate) -> Result<(), error::Error> {
-        let framework = &self.config.xcode.framework_name;
-        let _rust_lib_name = "dash_spv_apple_bindings";
-        let _header_name = "dash_shared_core";
-        println!("OBJC::WRITER: {}", fermentate.to_token_stream());
-        // fermentate.objc_files()
-        //     .iter()
-        //     .for_each(|file| cp(format!("../objc/{}", file), format!("{framework}/include/{}", file)));
+        let XCodeConfig { header_name, framework_name: framework, .. } = &self.config.xcode;
+        let mut writer = String::new();
+        let result = writer
+            .add("#import <Foundation/Foundation.h>\n")
+            .add(format!("#import \"{}.h\"\n", header_name).as_str())
+            .add(MACROS)
+            .add("NS_ASSUME_NONNULL_BEGIN\n")
+            .add(INTERFACES)
+            .add(fermentate.to_string().as_str())
+            .add("\nNS_ASSUME_NONNULL_END\n");
 
-        // cargo_build(X86_MAC);
-        // cargo_build(ARM_MAC);
-        // cargo_build(X86_IOS);
-        // cargo_build(ARM_IOS);
-        // cargo_build(ARM_IOS_SIM);
-        // cargo_lipo();
-        // mkdir(format!("{framework}/framework"));
-        // mkdir(format!("{framework}/include"));
-        // mkdir(format!("{framework}/lib/ios"));
-        // mkdir(format!("{framework}/lib/ios-simulator"));
-        // mkdir(format!("{framework}/lib/macos"));
-        // lipo(rust_lib_name, vec![X86_MAC, ARM_MAC], format!("{framework}/lib/macos/lib{header_name}_{}.a", OS::MacOS));
-        // lipo(rust_lib_name, vec![X86_IOS, ARM_IOS_SIM], format!("{framework}/lib/ios-simulator/lib{header_name}_{}.a", OS::IOS));
-        // cp(header(rust_lib_name), format!("{framework}/include/{header_name}.h"));
-        // cp(lib(rust_lib_name, ARM_IOS), format!("{framework}/lib/ios/lib{header_name}_{}.a", OS::IOS));
-        // xcframework(framework, header_name);
+
+        //println!("OBJC::WRITER: {}", result);
+        let objc_file_name = "objc_wrapper.h";
+
+        Command::new("mkdir")
+            .args(&["-p", "target/include"])
+            .status()?;
+
+        let objc_path= Path::new("target")
+            .to_path_buf()
+            .join(format!("include/{objc_file_name}").as_str());
+        let umbrella_header_path= Path::new("target")
+            .to_path_buf()
+            .join(format!("include/{framework}.h").as_str());
+
+        let umbrella = Path::new("target")
+            .to_path_buf()
+            .join("include/module.modulemap");
+
+        // //! Project version number for DashSharedCoreBindings.
+        // FOUNDATION_EXPORT double DashSharedCoreBindingsVersionNumber;
+        //
+        // //! Project version string for DashSharedCoreBindings.
+        // FOUNDATION_EXPORT const unsigned char DashSharedCoreBindingsVersionString[];
+        write_file_with_string(
+            &umbrella_header_path,
+            format!("#import <Foundation/Foundation.h>\n#import \"{header_name}.h\"\n#import \"{objc_file_name}\"\nFOUNDATION_EXPORT double {framework}VersionNumber;\nFOUNDATION_EXPORT const unsigned char {framework}VersionString[];"))?;
+        write_file_with_string(
+            &umbrella,
+            format!("framework module {framework} {{\n\tumbrella header \"{framework}.h\"\n\texport *\n\tmodule * {{ export * }}\n\theader \"{objc_file_name}\"\n\theader \"{header_name}.h\" }}"))?;
+        write_file_with_string(
+            &objc_path,
+            result)?;
         Ok(())
     }
 }
 
-fn lib(lib_name: &str, target: Target) -> String {
-    format!("../target/{target}/release/lib{lib_name}.a")
-}
-
-fn header(lib_name: &str) -> String {
-    format!("../target/{lib_name}.h")
-}
-fn cp(from: String, to: String) {
-    fs::copy(&from, &to)
-        .expect(format!("Failed to copy file {from} to {to}").as_str());
-}
-fn mkdir(dir: String) {
-    fs::create_dir_all(dir)
-        .expect("Failed to create directory");
-
-}
-
-fn cargo_lipo() {
-    Program::Cargo.run(&["lipo", "--release"]);
-}
-
-fn cargo_build(target: Target) {
-    Program::Cargo.run(&["build", "--target", format!("{}-{}", target.arch, target.platform).as_str(), "--release"]);
-}
-
-fn lipo(rust_lib_name: &str, targets: Vec<Target>, output: String) {
-    let mut args = vec![String::from("-create")];
-    args.extend(targets.into_iter().map(|t| lib(rust_lib_name, t)));
-    args.push(String::from("-output"));
-    args.push(output);
-    Program::Lipo.run(&args);
-}
-
-fn xcframework(framework: &str, header_name: &str,) {
-    Program::Xcodebuild.run(&[
-        "-create-xcframework",
-        "-library",
-        format!("{framework}/lib/ios/lib{header_name}_{}.a", OS::IOS).as_str(),
-        "-headers",
-        format!("{framework}/include").as_str(),
-        "-library",
-        format!("{framework}/lib/ios-simulator/lib{header_name}_{}.a", OS::IOS).as_str(),
-        "-headers",
-        format!("{framework}/include").as_str(),
-        "-output",
-        format!("{framework}/framework/{framework}.xcframework").as_str()
-    ]);
-
+fn write_file_with_string(path: &PathBuf, string: String) -> Result<(), error::Error> {
+    File::create(path)
+        .map_err(error::Error::from)
+        .and_then(|mut output| output.write_all(string.as_bytes()).map_err(error::Error::from))
 }

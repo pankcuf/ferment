@@ -1,25 +1,22 @@
-use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer};
+use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer, SourceContextComposerByRef};
 use crate::shared::SharedAccess;
 //pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
-pub struct SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
-    where Link: SharedAccess,
-          LinkCtx: Clone {
-    parent: Option<Link>,
+pub struct SequenceComposer<L, LC, SeqCtx, SeqMap, SeqOut, Out>
+    where L: SharedAccess {
+    parent: Option<L>,
     set_output: Composer<SeqOut, Out>,
-    get_context: SharedComposer<Link, LinkCtx>,
-    iterator: IterativeComposer<LinkCtx, SeqCtx, SeqMap, SeqOut>,
+    get_context: SharedComposer<L, LC>,
+    iterator: IterativeComposer<LC, SeqCtx, SeqMap, SeqOut>,
 }
 
-impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
-    where
-        Link: SharedAccess,
-        LinkCtx: Clone {
+impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<L, LC, SeqCtx, SeqMap, SeqOut, Out>
+    where L: SharedAccess {
     #[allow(unused)]
     pub const fn with_iterator_setup(
         set_output: Composer<SeqOut, Out>,
-        get_context: SharedComposer<Link, LinkCtx>,
-        iterator_post_processor: Composer<(LinkCtx, ComposerByRef<SeqCtx, SeqMap>), SeqOut>,
+        get_context: SharedComposer<L, LC>,
+        iterator_post_processor: SourceContextComposerByRef<LC, SeqCtx, SeqMap, SeqOut>,
         iterator_item: ComposerByRef<SeqCtx, SeqMap>,
     ) -> Self {
         Self {
@@ -35,33 +32,46 @@ impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> SequenceComposer<Link, LinkCtx,
     #[allow(unused)]
     pub const fn new(
         set_output: Composer<SeqOut, Out>,
-        get_context: SharedComposer<Link, LinkCtx>,
-        iterator: IterativeComposer<LinkCtx, SeqCtx, SeqMap, SeqOut>,
+        get_context: SharedComposer<L, LC>,
+        iterator: IterativeComposer<LC, SeqCtx, SeqMap, SeqOut>,
     ) -> Self {
         Self { set_output, get_context, iterator, parent: None }
     }
 }
 
-impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> Linkable<Link> for SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
-    where
-        Link: SharedAccess,
-        LinkCtx: Clone {
-    fn link(&mut self, parent: &Link) {
+impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> Linkable<L> for SequenceComposer<L, LC, SeqCtx, SeqMap, SeqOut, Out>
+    where L: SharedAccess {
+    fn link(&mut self, parent: &L) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, Out>
-    where
-        Link: SharedAccess,
-        LinkCtx: Clone {
+impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<L, LC, SeqCtx, SeqMap, SeqOut, Out>
+    where L: SharedAccess {
     type Source = ();
     type Output = Out;
     fn compose(&self, _: &Self::Source) -> Self::Output {
-        (self.set_output)(
-            self.iterator.compose(&self.parent
-                .as_ref()
-                .expect("no parent")
-                .access(self.get_context)))
+        let source = self.parent
+            .as_ref()
+            .expect("no parent")
+            .access(self.get_context);
+        let sequence_composition = self.iterator.compose(&source);
+        (self.set_output)(sequence_composition)
     }
 }
+
+// impl<LANG, SPEC, C, SEP> SequenceComposer<
+//     ComposerLink<C>,
+//     AspectArgComposers<LANG, SPEC>,
+//     FieldTypeLocalContext<LANG, SPEC>,
+//     SPEC::Expr,
+//     AspectPresentableArguments<LANG, SPEC, SEP>,
+//     SeqKind<LANG, SPEC>>
+//     where LANG: LangFermentable,
+//           SPEC: Specification<LANG>,
+//           C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + 'static,
+//           SEP: ToTokens + Default {
+//     pub const fn aspect_seq(aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<LANG, SPEC>>) -> Self {
+//         SequenceComposer::new(C::SEQ, aspect, IterativeComposer::aspect_sequence_expr::<C, SEP>())
+//     }
+// }

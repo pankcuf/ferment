@@ -1,8 +1,9 @@
+use std::sync::Arc;
 use crate::entry::provider::CoreProvider;
 
-// #[ferment_macro::opaque]
+#[ferment_macro::opaque]
 pub struct MasternodeProcessor {
-    pub provider: Box<dyn CoreProvider>,
+    pub provider: Arc<dyn CoreProvider>,
 }
 
 #[ferment_macro::opaque]
@@ -13,3 +14,8 @@ pub struct FFICoreProvider {
 
 }
 
+impl MasternodeProcessor {
+    pub fn new(provider: Arc<dyn CoreProvider>) -> Self {
+        Self { provider }
+    }
+}

@@ -1,12 +1,12 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{parse_quote, AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::{Colon2Punctuated, PathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, RefineMut, ToPath};
+use crate::ext::{AsType, CrateExtension, DictionaryType, LifetimeProcessor, Pop, RefineMut, ToPath};
 
 #[allow(unused)]
 pub trait RefineInScope {
@@ -329,8 +329,10 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
         let ident = &last_segment.ident;
         if ident.is_primitive() {
             Some(DictTypeModelKind::Primitive(model.clone()))
-        } else if ident.is_128_digit() {
-            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(model.clone())))
+        } else if matches!(ident.to_string().as_str(), "i128") {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(model.clone())))
+        } else if matches!(ident.to_string().as_str(), "u128") {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(model.clone())))
         } else if ident.is_str() {
             refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(model.clone())))
@@ -401,7 +403,7 @@ impl RefineInScope for TypeModelKind {
 
                 } else {
 
-                    let scope_path = model.pointer_less();
+                    let scope_path = model.lifetimes_cleaned().pointer_less();
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&crate_named_import_path)
                         .or_else(|| determine_scope_item(&mut model, scope_path, scope, source)) {
                         //println!("[INFO] (Import) Scope item found: {}", found_item);
@@ -418,7 +420,7 @@ impl RefineInScope for TypeModelKind {
                 true
             }
             TypeModelKind::Unknown(model) => {
-                let path = model.pointer_less();
+                let path = model.lifetimes_cleaned().pointer_less();
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&path, model) {
                     //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
                     *self = TypeModelKind::Dictionary(dictionary_type);
@@ -454,10 +456,12 @@ impl RefineInScope for TypeModelKind {
                         GroupModelKind::Map(model) |
                         GroupModelKind::Result(model) |
                         GroupModelKind::Vec(model) |
-                        GroupModelKind::IndexMap(model)
+                        GroupModelKind::IndexMap(model) |
+                        GroupModelKind::IndexSet(model)
                     ) |
                     DictFermentableModelKind::Other(model) |
-                    DictFermentableModelKind::Digit128(model) |
+                    DictFermentableModelKind::I128(model) |
+                    DictFermentableModelKind::U128(model) |
                     DictFermentableModelKind::Str(model) |
                     DictFermentableModelKind::String(model)) |
                 DictTypeModelKind::NonPrimitiveOpaque(model) |
@@ -580,8 +584,27 @@ impl RefineWithNestedArgs for PathArguments {
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) => {
                 args.iter_mut()
+                    .filter_map(|arg| {
+                        match arg {
+                            GenericArgument::Type(inner_ty) => Some(inner_ty),
+                            _ => None
+                        }
+                    })
                     .enumerate()
                     .for_each(|(index, generic_argument)| {
+
+                        // match generic_argument {
+                        //     GenericArgument::Type(inner_ty) => {
+                        //         if let Some(ty) = nested_argument.object().maybe_type() {
+                        //             *inner_ty = ty;
+                        //             true
+                        //         } else {
+                        //             false
+                        //         }
+                        //     },
+                        //     _ => false
+                        // }
+
                         if generic_argument.refine_with_nested_arg(&nested_arguments[index]) {
                             did_refine = true;
                         }

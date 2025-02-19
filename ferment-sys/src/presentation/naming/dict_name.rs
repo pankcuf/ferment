@@ -27,6 +27,7 @@ pub enum DictionaryName {
     FFiResult,
     Caller,
     Destructor,
+    Tag,
 }
 
 impl std::fmt::Display for DictionaryName {
@@ -58,6 +59,7 @@ impl ToTokens for DictionaryName {
             DictionaryName::FFiResult => quote!(ffi_result),
             DictionaryName::Caller => quote!(caller),
             DictionaryName::Destructor => quote!(destructor),
+            DictionaryName::Tag => quote!(tag),
         }
             .to_tokens(tokens)
     }

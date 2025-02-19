@@ -39,9 +39,9 @@ impl TypeKind {
             TypeKind::Primitive(path) =>
                 quote!(#path),
             TypeKind::Complex(ty) =>
-                <Type as Resolve<FFIFullPath>>::resolve(ty, source).to_token_stream(),
+                Resolve::<FFIFullPath>::resolve(ty, source).to_token_stream(),
             TypeKind::Generic(conversion) =>
-                <GenericTypeKind as Resolve<FFIFullPath>>::resolve(conversion, source).to_token_stream(),
+                Resolve::<FFIFullPath>::resolve(conversion, source).to_token_stream(),
         }
     }
 

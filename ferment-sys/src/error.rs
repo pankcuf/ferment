@@ -1,20 +1,31 @@
+use std::env::VarError;
+use std::fmt::Debug;
 use std::io;
+use std::process::ExitStatus;
 
 #[derive(Debug)]
 pub enum Error {
     FileError(io::Error),
     ExpansionError(&'static str),
     MorphingError(&'static str),
-    ParseSyntaxTree(syn::Error)
+    ParseSyntaxTree(syn::Error),
+    Configuration(String),
+    Exit(ExitStatus),
+    VarError(VarError),
+    Cbindgen(cbindgen::Error),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::FileError(ref err) => err.fmt(f),
+            Error::FileError(ref err) => std::fmt::Display::fmt(&err, f),
             Error::ExpansionError(msg) => write!(f, "{}", msg),
-            Error::ParseSyntaxTree(ref err) => err.fmt(f),
-            Error::MorphingError(ref err) => err.fmt(f),
+            Error::ParseSyntaxTree(ref err) => std::fmt::Display::fmt(&err, f),
+            Error::MorphingError(ref err) => std::fmt::Display::fmt(&err, f),
+            Error::Configuration(err) => std::fmt::Display::fmt(err, f),
+            Error::Exit(exit) => std::fmt::Display::fmt(exit, f),
+            Error::VarError(err) => std::fmt::Display::fmt(err, f),
+            Error::Cbindgen(err) => std::fmt::Display::fmt(err, f),
         }
     }
 }
@@ -30,3 +41,20 @@ impl From<syn::Error> for Error {
         Error::ParseSyntaxTree(value)
     }
 }
+// impl From<ExitStatus> for Error {
+//     fn from(value: ExitStatus) -> Self {
+//         Error::Exit(value)
+//     }
+// }
+
+// impl From<VarError> for Error {
+//     fn from(value: VarError) -> Self {
+//         Error::Configuration(format!("Environment variable error: {value}").as_str())
+//     }
+// }
+//
+// impl From<cbindgen::Error> for Error {
+//     fn from(value: cbindgen::Error) -> Self {
+//         Error::Configuration(format!("cbindgen error: {value}").as_str())
+//     }
+// }

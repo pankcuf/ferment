@@ -1,16 +1,20 @@
 use std::fmt::{Display, Formatter};
+use std::marker::PhantomData;
 use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Pat, Path, Type};
-use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
-use crate::presentation::DictionaryName;
+use syn::{parse_quote, Expr, Pat, Path, Type};
+use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
+use crate::lang::{FromDictionary, LangFermentable, NameComposable, RustSpecification, Specification};
+use crate::presentation::{DictionaryName, RustFermentate};
 
 
 #[derive(Clone, Debug)]
-#[allow(unused)]
-pub enum Name {
+pub enum Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
     Empty,
+    Expr(Expr),
     UnnamedArg(usize),
     Index(usize),
     Constructor(Type),
@@ -20,6 +24,7 @@ pub enum Name {
     UnnamedStructFieldsComp(Type, usize),
     TraitObj(Ident),
     TraitImplVtable(Ident, Ident),
+    TraitImplVtableFn(Ident, Ident),
     TraitFn(Type, Type),
     TraitDestructor(Type, Type),
     Vtable(Ident),
@@ -30,15 +35,57 @@ pub enum Name {
     Ident(Ident),
     Pat(Pat),
     Underscore,
+    EnumTag(Ident),
+    EnumVariantBody(Ident),
+    _Phantom(PhantomData<(LANG, SPEC)>),
 }
 
-impl Display for Name {
+impl<LANG, SPEC> FromDictionary for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self> {
+    fn dictionary_name(dictionary: DictionaryName) -> Self {
+        Name::Dictionary(dictionary)
+    }
+}
+
+impl<LANG, SPEC> Default for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self> {
+    fn default() -> Self {
+        Name::Empty
+    }
+}
+impl<LANG, SPEC> ToType for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self>,
+          Self: ToTokens {
+    fn to_type(&self) -> Type {
+        parse_quote!(#self)
+    }
+}
+impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Self: ToTokens {
+    fn to_path(&self) -> Path {
+        parse_quote!(#self)
+    }
+}
+
+
+impl<LANG, SPEC> Display for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Self>,
+          Self: ToTokens {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("Name({})", self.to_token_stream()).as_str())
     }
 }
 
-impl Name {
+impl<LANG, SPEC> Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG>,
+          Self: ToTokens {
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())
     }
@@ -49,11 +96,30 @@ impl Name {
     pub fn anonymous(&self) -> Ident {
         format_ident!("o_{}", self.to_token_stream().to_string())
     }
+
 }
 
-impl ToTokens for Name {
+impl<LANG, SPEC> NameComposable<LANG, SPEC> for Name<LANG, SPEC>
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG, Name=Name<LANG, SPEC>> {
+    fn ident(ident: Ident) -> Self {
+        Self::Ident(ident)
+    }
+
+    fn index(ident: usize) -> Self {
+        Self::Index(ident)
+    }
+
+    fn unnamed_arg(index: usize) -> Self {
+        Self::UnnamedArg(index)
+    }
+}
+
+impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
+            Name::_Phantom(..) |
             Name::Empty => quote!(),
             Name::Index(index) => usize_to_tokenstream(*index),
             Name::UnnamedArg(..) => self.mangle_tokens_default(),
@@ -77,16 +143,10 @@ impl ToTokens for Name {
                 Type::Ptr(_) => DictionaryName::Obj.to_token_stream(),
                 _ => usize_to_tokenstream(* index)
             },
-            // Name::UnnamedStructFieldsComp(ty, index) => match ty {
-            //     Type::Path(TypePath { path, .. }) => match PathConversion::from(path) {
-            //         PathConversion::Primitive(..) => usize_to_tokenstream(*index),
-            //         _ => usize_to_tokenstream(*index),
-            //     },
-            //     Type::Array(_type_array) => usize_to_tokenstream(*index),
-            //     Type::Ptr(_type_ptr) => DictionaryName::Obj.to_token_stream(),
-            //     _ => unimplemented!("from_unnamed_struct: not supported {}", quote!(#ty)),
-            // },
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
+                format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
+            }
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
                 format_ident!("{}_{}", item_name, trait_vtable_ident).to_token_stream()
             }
             Name::VTableInnerFn(ident) => ident.to_token_stream(),
@@ -107,15 +167,24 @@ impl ToTokens for Name {
             Name::Optional(ident) => quote!(#ident),
             Name::Pat(pat) => pat.to_token_stream(),
             Name::Underscore => quote!(_),
+            Name::EnumTag(ident) =>
+                format_ident!("{ident}_Tag")
+                    .to_token_stream(),
+            Name::EnumVariantBody(ident) =>
+                format_ident!("{ident}_Body")
+                    .to_token_stream(),
+            Name::Expr(expr) =>
+                expr.to_token_stream()
         }
         .to_tokens(tokens)
     }
 }
 
-impl Mangle<MangleDefault> for Name {
-
+impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
+    where SPEC: RustSpecification {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
+            Name::_Phantom(..) |
             Name::Empty => String::new(),
             Name::Index(index) => index.to_string(),
             Name::UnnamedArg(index) => format!("o_{}", index),
@@ -134,6 +203,9 @@ impl Mangle<MangleDefault> for Name {
             Name::ModFn(name) => name.mangle_string(context).to_string().replace("r#", ""),
             Name::TraitObj(ident) => ident.to_string(),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {
+                format!("{}_{}", item_name, trait_vtable_ident)
+            }
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
                 format!("{}_{}", item_name, trait_vtable_ident)
             }
             Name::TraitFn(item_name, trait_name) => format!("{}_as_{}", item_name.mangle_ident_default(), trait_name.mangle_ident_default()),
@@ -155,8 +227,10 @@ impl Mangle<MangleDefault> for Name {
             Name::Optional(ident) => quote!(#ident).to_string(),
             Name::Pat(pat) => pat.to_token_stream().to_string().replace("r#", ""),
             Name::VTableInnerFn(ident) => ident.to_token_stream().to_string(),
-
             Name::Underscore => quote!(_).to_string(),
+            Name::EnumTag(ident) => format!("{ident}_Tag").to_string(),
+            Name::EnumVariantBody(ident) => format!("{ident}_Body").to_string(),
+            Name::Expr(expr) => expr.to_token_stream().to_string(),
         }
     }
 }

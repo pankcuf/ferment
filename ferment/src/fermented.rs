@@ -157,6 +157,11 @@ pub mod types {
             unbox_string(ffi);
         }
     }
+    /// # Safety
+    #[no_mangle]
+    pub unsafe extern "C" fn str_destroy(str: *mut c_char) {
+        unbox_string(str);
+    }
 
     impl<T, FFI> FFIConversionFrom<Box<T>> for FFI where FFI: FFIConversionFrom<T> {
         unsafe fn ffi_from_const(ffi: *const Self) -> Box<T> {

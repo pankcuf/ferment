@@ -111,7 +111,8 @@ impl PartialEq<Self> for ScopeChain {
 impl Hash for ScopeChain {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.variant_code().hash(state);
-        self.self_path_holder_ref().hash(state);
+        self.self_scope().hash(state);
+        // self.self_path_holder_ref().hash(state);
     }
 }
 
@@ -157,6 +158,17 @@ impl ScopeChain {
             ScopeChain::Object { info, .. } => format!("[{}({} + {})]", format_token_stream(info.self_path()), "Object", info.fmt_export_type()),
             ScopeChain::Impl { info, .. } => format!("[{}({} + {})]", format_token_stream(info.self_path()), "Impl", info.fmt_export_type()),
             ScopeChain::Trait { info, .. } => format!("[{}({} + {})]", format_token_stream(info.self_path()), "Trait", info.fmt_export_type()),
+        }
+    }
+    #[allow(unused)]
+    pub fn fmt_mid(&self) -> String {
+        match self {
+            ScopeChain::CrateRoot { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "CrateRoot", info.fmt_export_type(), info.self_scope.object),
+            ScopeChain::Mod { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "Mod", info.fmt_export_type(), info.self_scope.object),
+            ScopeChain::Fn { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "Fn", info.fmt_export_type(), info.self_scope.object),
+            ScopeChain::Object { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "Object", info.fmt_export_type(), info.self_scope.object),
+            ScopeChain::Impl { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "Impl", info.fmt_export_type(), info.self_scope.object),
+            ScopeChain::Trait { info, .. } => format!("[{}({} + {} + {})]", format_token_stream(info.self_path()), "Trait", info.fmt_export_type(), info.self_scope.object),
         }
     }
     #[allow(unused)]
@@ -261,11 +273,11 @@ impl ScopeChain {
     }
     pub fn obj_root_chain(&self) -> Option<&Self> {
         match self {
-            ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => None,
+            ScopeChain::Fn { parent_scope_chain, .. } => parent_scope_chain.obj_root_chain(),
             ScopeChain::Trait { .. } |
             ScopeChain::Object { .. } |
             ScopeChain::Impl { .. } => Some(self),
-            ScopeChain::Fn { parent_scope_chain, .. } => parent_scope_chain.obj_root_chain(),
+            _ => None,
         }
     }
 

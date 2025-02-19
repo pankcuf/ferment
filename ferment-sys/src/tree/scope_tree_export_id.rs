@@ -1,29 +1,29 @@
 use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Path, PathSegment, Type};
+use syn::{Attribute, Generics, Path, PathSegment, Type};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::conversion::ObjectKind;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum ScopeTreeExportID {
     Ident(Ident),
-    Impl(Type, Option<Path>)
+    Impl(Type, Option<Path>, Generics)
 }
 
 impl From<&PathSegment> for ScopeTreeExportID {
     fn from(value: &PathSegment) -> Self {
-        ScopeTreeExportID::Ident(value.ident.clone())
+        Self::from_ident(&value.ident)
     }
 }
 
 impl std::fmt::Debug for ScopeTreeExportID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ScopeTreeExportID::Ident(ident) =>
-                f.write_str(format!("{}", ident.to_token_stream()).as_str()),
-            ScopeTreeExportID::Impl(ty, path) =>
-                f.write_str(format!("Impl({}, {})", ty.to_token_stream(), path.to_token_stream()).as_str())
+            Self::Ident(ident) =>
+                f.write_str(format!("{ident}").as_str()),
+            Self::Impl(ty, path, generics) =>
+                f.write_str(format!("Impl({}, {}, {})", ty.to_token_stream(), path.to_token_stream(), generics.to_token_stream().to_string()).as_str())
         }
     }
 }
@@ -34,15 +34,14 @@ impl std::fmt::Display for ScopeTreeExportID {
     }
 }
 
-
 impl ScopeTreeExportID {
     pub fn from_ident(ident: &Ident) -> Self {
-        ScopeTreeExportID::Ident(ident.clone())
+        Self::Ident(ident.clone())
     }
 
     pub fn create_child_scope(&self, scope: &ScopeChain, attrs: Vec<Attribute>) -> ScopeChain {
         match &self {
-            ScopeTreeExportID::Ident(ident) => ScopeChain::Mod {
+            Self::Ident(ident) => ScopeChain::Mod {
                 info: ScopeInfo {
                     attrs,
                     crate_ident: scope.crate_ident_ref().clone(),
@@ -50,7 +49,7 @@ impl ScopeTreeExportID {
                 },
                 parent_scope_chain: Box::new(scope.clone())
             },
-            ScopeTreeExportID::Impl(_, _) =>
+            Self::Impl(..) =>
                 panic!("impl not implemented")
         }
     }

@@ -107,6 +107,12 @@ pub struct AllMutexExamples {
     pub platform_case: Mutex<Option<Box<LLMQSnapshot>>>,
 }
 
+#[ferment_macro::opaque]
+#[derive(Clone)]
+pub struct CacheExample {
+    pub map: Arc<RwLock<BTreeMap<u32, LLMQSnapshot>>>,
+}
+
 #[ferment_macro::export]
 pub struct AllRwLockExamples {
     pub rwlock_simple: RwLock<u32>,
@@ -115,6 +121,7 @@ pub struct AllRwLockExamples {
     pub rwlock_opt_generic: RwLock<Option<BTreeMap<u32, LLMQSnapshot>>>,
     pub opt_rwlock_complex: Option<RwLock<Option<String>>>,
     pub arc_rw_lock_complex: Arc<RwLock<LLMQSnapshot>>,
+    pub arc_rw_lock_complex_opaque: Arc<CacheExample>,
 }
 #[ferment_macro::export]
 pub struct AllRefCellExamples {

@@ -1,12 +1,12 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{Generics, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use syn::punctuated::{IterMut, Punctuated};
 use crate::composable::nested_arg::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::TypeModelKind;
-use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ResolveTrait, ToPath, ToType};
+use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ResolveTrait, ToPath, ToType, LifetimeProcessor};
 
 pub trait TypeModeled {
     fn type_model_mut(&mut self) -> &mut TypeModel;
@@ -109,6 +109,16 @@ impl TypeModel {
         };
         // println!("pointer_less: {} --- {}", self.ty.to_token_stream(), p.to_token_stream());
         p
+    }
+}
+
+impl LifetimeProcessor for TypeModel {
+    fn clean_lifetimes(&mut self) {
+        self.ty.clean_lifetimes();
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        self.ty.unique_lifetimes()
     }
 }
 

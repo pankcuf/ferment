@@ -1,8 +1,7 @@
 use quote::{quote, ToTokens};
 use proc_macro2::{TokenStream as TokenStream2};
-use syn::Attribute;
-use crate::ext::ToPath;
-use crate::presentation::{present_struct, Name};
+use syn::{Attribute, Path};
+use crate::presentation::present_struct;
 
 #[derive(Clone, Debug)]
 pub enum FFIObjectPresentation {
@@ -19,7 +18,7 @@ pub enum FFIObjectPresentation {
     //     // methods_declarations: Vec<TraitVTablePresentation>,
     // },
     TraitVTable {
-        name: Name,
+        name: Path,
         attrs: Vec<Attribute>,
         fields: TokenStream2
     },
@@ -29,7 +28,7 @@ pub enum FFIObjectPresentation {
     //     output_expression: ReturnType,
     // },
     TraitObject {
-        name: Name,
+        name: Path,
         attrs: Vec<Attribute>,
         fields: TokenStream2
     },
@@ -50,10 +49,10 @@ impl ToTokens for FFIObjectPresentation {
             Self::Empty => quote!(),
             Self::Full(presentation) => quote!(#presentation),
             Self::TraitVTable { name, attrs, fields } => {
-                present_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
+                present_struct(&name.segments.last().unwrap().ident, attrs, fields)
             },
             Self::TraitObject { name, attrs, fields } => {
-                present_struct(&name.to_path().segments.last().unwrap().ident, attrs, fields)
+                present_struct(&name.segments.last().unwrap().ident, attrs, fields)
             },
             // Self::Generic {
             //     object_presentation,

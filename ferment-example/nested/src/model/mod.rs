@@ -2,6 +2,8 @@ pub mod snapshot;
 pub mod quorum;
 pub mod callback;
 pub mod tuples;
+pub mod many_scopes;
+pub mod indexmap;
 
 pub use snapshot::LLMQSnapshot;
 pub use snapshot::LLMQSnapshotSkipMode;
@@ -75,3 +77,9 @@ pub mod some_inner_2 {
     // }
 }
 
+// #[derive(Clone, Debug, Default)]
+// #[ferment_macro::opaque]
+// pub struct IndexPath<T> {
+//     pub indexes: Vec<T>,
+//     pub hardened: Vec<bool>,
+// }

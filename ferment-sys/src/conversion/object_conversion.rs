@@ -8,8 +8,8 @@ use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel, Type
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
-use crate::ext::{AsType, collect_bounds, ResolveAttrs, ToType, ValueReplaceScenario};
-use crate::presentation::Name;
+use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario};
+use crate::lang::{LangFermentable, NameComposable, Specification};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectKind {
@@ -64,20 +64,24 @@ impl ObjectKind {
         }
     }
 
-    pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
-        match self.maybe_callback() {
-            Some(ParenthesizedGenericArguments { inputs, ..}) =>
-                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| Name::UnnamedArg(index)))),
-            _ => None
-        }
-    }
     pub fn maybe_scope_item(&self) -> Option<&ScopeItemKind> {
         match self {
             ObjectKind::Item(_, scope_item) => Some(scope_item),
             _ => None
         }
     }
+}
 
+impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for ObjectKind
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
+        match self.maybe_callback() {
+            Some(ParenthesizedGenericArguments { inputs, ..}) =>
+                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| SPEC::Name::unnamed_arg(index)))),
+            _ => None
+        }
+    }
 }
 
 impl ValueReplaceScenario for ObjectKind {

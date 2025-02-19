@@ -8,11 +8,10 @@ use crate::composable::{TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::ObjectKind;
-use crate::ext::{AsType, Mangle, ToType};
+use crate::ext::{AsType, Mangle, MaybeLambdaArgs};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::Name;
+use crate::presentable::{Expression, ScopeContextPresentable};
 
 #[derive(Clone)]
 pub struct GenericBoundsModel {
@@ -106,6 +105,18 @@ impl GenericBoundsModel {
     }
 
 }
+
+impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for GenericBoundsModel
+    where LANG: LangFermentable,
+          SPEC: Specification<LANG> {
+    fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
+        if self.is_lambda() {
+            self.bounds.first().map(MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names)?
+        } else {
+            None
+        }
+    }
+}
 impl GenericBoundsModel {
     pub fn is_lambda(&self) -> bool {
         self.bounds.iter().find(|b| {
@@ -116,24 +127,19 @@ impl GenericBoundsModel {
             }
         }).is_some()
     }
-    pub fn maybe_lambda_args(&self) -> Option<CommaPunctuated<Name>> {
-        if self.is_lambda() {
-            self.bounds.first().unwrap().maybe_lambda_args()
-        } else {
-            None
-        }
-    }
-
+}
+impl GenericBoundsModel {
     pub fn expr_from<LANG, SPEC>(&self, field_path: Expression<LANG, SPEC>) -> Expression<LANG, SPEC>
         where LANG: LangFermentable,
-              SPEC: Specification<LANG, Var: ToType>,
-              Aspect<SPEC::TYC>: ScopeContextPresentable {
+              SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+              SPEC::Expr: ScopeContextPresentable {
         if self.bounds.is_empty() {
             Expression::from_primitive(field_path)
-        } else if let Some(lambda_args) = self.maybe_lambda_args() {
+        } else if let Some(lambda_args) = MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(self) {
             Expression::from_lambda(field_path, lambda_args)
         } else {
             Expression::from_complex(field_path)
         }
     }
+
 }

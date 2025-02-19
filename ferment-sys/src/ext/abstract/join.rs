@@ -42,14 +42,8 @@ impl Join<ImplItemMethod> for ScopeChain {
         let fn_self_scope = self_scope_holder.joined(ident);
         let self_type = fn_self_scope.to_type();
         let self_obj = ObjectKind::new_item(
-            TypeModelKind::Fn(
-                TypeModel::new(
-                    self_type,
-                    Some(generics.clone()),
-                    Punctuated::new())),
-            ScopeItemKind::Fn(
-                sig.clone(),
-                self_scope_holder.clone()));
+            TypeModelKind::Fn(TypeModel::new_non_gen(self_type, Some(generics.clone()))),
+            ScopeItemKind::Fn(sig.clone(), self_scope_holder.clone()));
         ScopeChain::func(
             Scope::new(fn_self_scope, self_obj),
             attrs,

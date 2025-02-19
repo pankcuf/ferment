@@ -1,35 +1,32 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
+use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility, Generics, Lifetime};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, constants, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
+use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, ToConversionComposer, VarComposer, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, Mangle, Resolve, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
-use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name, RustFermentate};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
+use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
+use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
 pub struct CallbackComposer<LANG, SPEC>
     where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable> + 'static,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> + 'static {
     pub ty: Type,
-    base: BasicComposerLink<Self, LANG, SPEC>,
+    base: BasicComposerLink<LANG, SPEC, Self>,
 }
 
 impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr: Clone + ScopeContextPresentable>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable,
-          Self: AspectPresentable<SPEC::TYC> {
+          SPEC: Specification<LANG> {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(AttrsModel::from(&attrs), ty_context, GenModel::default(), constants::composer_doc(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             ty: ty.clone()
         }
     }
@@ -42,8 +39,9 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { ty, .. } = self;
+        let mut lifetimes = Vec::<Lifetime>::new();
         let type_path: TypePath = parse_quote!(#ty);
-        let PathSegment { arguments, .. } = type_path.path.segments.last().unwrap();
+        let PathSegment { arguments, .. } = type_path.path.segments.last()?;
         let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
         let ffi_result = DictionaryName::FFiResult;
         let opt_conversion = |conversion: TokenStream2| quote! {
@@ -67,6 +65,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let (return_type, from_result_conversion, dtor_arg) = match output {
             ReturnType::Type(token, field_type) => {
                 let full_ty: Type = field_type.resolve(source);
+                lifetimes.extend(field_type.unique_lifetimes());
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
                     TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                     TypeKind::Complex(ty) => {
@@ -74,7 +73,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                         (ffi_ty.joined_mut(), from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream()))
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
-                        GenericTypeKind::Optional(ty) => match TypeKind::from(ty.first_nested_type().unwrap()) {
+                        GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
                             TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                             TypeKind::Complex(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
@@ -104,6 +103,7 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
             .enumerate()
             .for_each(|(index, ty)| {
                 let name = Name::UnnamedArg(index);
+                lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
                 ffi_args.push(bare_fn_arg(VarComposer::<RustFermentate, SPEC>::new(ScopeSearch::Value(ScopeSearchKey::TypeRef(ty, None))).compose(source).to_type()));
                 arg_to_conversions.push(ToConversionComposer::<RustFermentate, SPEC>::new(name, ty.clone(), None).compose(source).present(source));
@@ -111,20 +111,20 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
-            ty.mangle_tokens_default(),
-            attrs.clone(),
+            Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), generics: Generics::default(), attrs: vec![] }),
+            &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
                 ])
             } else {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::Dictionary(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
+                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
                 ])
             },
             Depunctuated::from_iter([
-                InterfacePresentation::callback(&attrs, &ffi_type, args, return_type, arg_to_conversions, from_result_conversion),
+                InterfacePresentation::callback(&attrs, &ffi_type, args, return_type, &lifetimes, arg_to_conversions, from_result_conversion),
                 InterfacePresentation::send_sync(&attrs, &ffi_type)
             ])
         ))

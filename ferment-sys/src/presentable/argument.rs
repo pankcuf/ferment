@@ -1,47 +1,38 @@
+use std::fmt::Debug;
 use quote::{quote, ToTokens};
 use syn::{Pat, PatWild, Type, Visibility, VisPublic};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComposer};
+use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComposer, FieldPathResolver, PresentableExprComposerRef};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{ScopeContextPresentable, PresentableSequence, Aspect, Expression};
+use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::{ArgPresentation, RustFermentate};
 
 
 #[derive(Clone, Debug, Display)]
-pub enum PresentableArgument<LANG, SPEC>
+pub enum ArgKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     AttrExhaustive(SPEC::Attr),
-    AttrSequence(PresentableSequence<LANG, SPEC>, SPEC::Attr),
+    AttrSequence(SeqKind<LANG, SPEC>, SPEC::Attr),
     AttrName(TokenStream2, SPEC::Attr),
     AttrExpression(SPEC::Expr, SPEC::Attr),
+    AttrExpressionComposer(FieldComposer<LANG, SPEC>, FieldPathResolver<LANG, SPEC>, PresentableExprComposerRef<LANG, SPEC>),
 
     BindingArg(FieldComposer<LANG, SPEC>),
     BindingFieldName(FieldComposer<LANG, SPEC>),
     CallbackArg(FieldComposer<LANG, SPEC>),
     DefaultFieldConversion(FieldComposer<LANG, SPEC>),
-    DefaultFieldType(FieldComposer<LANG, SPEC>),
+    Unnamed(FieldComposer<LANG, SPEC>),
     Named(FieldComposer<LANG, SPEC>, Visibility),
-
 }
-// impl<LANG, SPEC> std::fmt::Display for ArgumentPresentableContext<LANG, SPEC>
-//     where LANG: LangFermentable + Debug,
-//           SPEC: Specification<LANG> + Debug,
-//           <SPEC as Specification<LANG>>::Attr: Debug {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         Debug::fmt(self, f)
-//     }
-// }
 
-impl<LANG, SPEC> PresentableArgument<LANG, SPEC>
+impl<LANG, SPEC> ArgKind<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>, Var: ToType>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub fn binding_arg(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::BindingArg(composer.clone())
     }
@@ -55,17 +46,17 @@ impl<LANG, SPEC> PresentableArgument<LANG, SPEC>
         Self::DefaultFieldConversion(composer.clone())
     }
     pub fn default_field_type(composer: &FieldComposer<LANG, SPEC>) -> Self {
-        Self::DefaultFieldType(composer.clone())
+        Self::Unnamed(composer.clone())
     }
     pub fn public_named(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() }))
     }
-    // pub fn attr_expr(composer: &FieldComposer<LANG, SPEC>) -> Self {
-    //     Self::AttrExpression(SPEC::Expr::expr(Expr::Path(ExprPath { attrs: vec![], qself: None, path: composer.tokenized_name().to_path() })), composer.attrs.clone())
-    // }
     pub fn attr_name(composer: &FieldComposer<LANG, SPEC>) -> Self {
         Self::AttrName(composer.tokenized_name(), composer.attrs.clone())
     }
+    pub fn attr_expr_composer(composer: &FieldComposer<LANG, SPEC>, field_path_resolver: FieldPathResolver<LANG, SPEC>, expr_composer: PresentableExprComposerRef<LANG, SPEC>) -> Self {
+        Self::AttrExpressionComposer(composer.clone(), field_path_resolver, expr_composer)
+}
     pub fn callback_ctor_pair(composer: &FieldComposer<LANG, SPEC>) -> (Self, Self) {
         (Self::CallbackArg(composer.clone()), Self::binding_field_name(composer))
     }
@@ -80,46 +71,76 @@ impl<LANG, SPEC> PresentableArgument<LANG, SPEC>
     }
 }
 
-impl<SPEC> ScopeContextPresentable for PresentableArgument<RustFermentate, SPEC>
+impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     type Presentation = ArgPresentation;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         match self {
-            PresentableArgument::AttrExhaustive(attrs) =>
+            ArgKind::AttrExhaustive(attrs) =>
                 ArgPresentation::arm(attrs, Pat::Wild(PatWild { attrs: vec![], underscore_token: Default::default() }), quote!(unreachable!("This is unreachable"))),
-            PresentableArgument::AttrExpression(field_type_context, attrs) =>
-                ArgPresentation::expr(attrs, field_type_context.present(source).to_token_stream()),
-            PresentableArgument::AttrName(name, attrs) =>
+            ArgKind::AttrExpression(expr, attrs) =>
+                ArgPresentation::expr(attrs, expr.present(source)),
+            ArgKind::AttrExpressionComposer(field_composer, field_path_resolver, expr_composer) => {
+                let template = field_path_resolver(field_composer);
+                let expr = expr_composer(&template);
+                ArgPresentation::expr(&field_composer.attrs.clone(), expr.present(source))
+            },
+            ArgKind::AttrName(name, attrs) =>
                 ArgPresentation::expr(attrs, name.to_token_stream()),
-            PresentableArgument::AttrSequence(seq, attrs) =>
+            ArgKind::AttrSequence(seq, attrs) =>
                 ArgPresentation::expr(attrs, seq.present(source)),
-            PresentableArgument::BindingArg(FieldComposer { name, kind, named, attrs, .. }) => {
+            ArgKind::BindingArg(FieldComposer { name, kind, named, attrs, .. }) => {
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
-                        <Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type()
+                        Resolve::<SPEC::Var>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Var(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
                         field_type.to_type()
-                        // <Type as Resolve<FFIVariable<Type>>>::resolve(field_type, source).to_type()
+                        // Resolve::<FFIVariable<Type>>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Conversion(conversion) => (
                         Some(name.mangle_ident_default()), Type::Verbatim(conversion.clone()))
                 };
                 ArgPresentation::field(attrs, Visibility::Inherited, ident, ty)
             },
-            PresentableArgument::BindingFieldName(FieldComposer { name, named, attrs, .. }) =>
-                ArgPresentation::expr(attrs, named.then(|| name.to_token_stream()).unwrap_or(name.anonymous().to_token_stream())),
-            PresentableArgument::CallbackArg(FieldComposer { attrs, name, kind, .. }) =>
-                ArgPresentation::field(attrs, Visibility::Inherited, Some(name.mangle_ident_default()), kind.ty().clone()),
-            PresentableArgument::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) =>
-                ArgPresentation::field(attrs, Visibility::Inherited, Some(name.mangle_ident_default()), Type::Verbatim(FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(name.clone(), kind.ty(), &source.scope).compose(source).present(source).to_token_stream())),
-            PresentableArgument::DefaultFieldType(composer) =>
-                ArgPresentation::expr(&composer.attrs, <Type as Resolve<SPEC::Var>>::resolve(composer.ty(), source).to_token_stream()),
-            PresentableArgument::Named(FieldComposer { attrs, name, kind, ..}, visibility) =>
-                ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), VariableComposer::<RustFermentate, SPEC>::from(kind.ty()).compose(source).to_type()),
+            ArgKind::BindingFieldName(FieldComposer { name, named, attrs, .. }) =>
+                ArgPresentation::expr(
+                    attrs,
+                    named.then(|| name.to_token_stream())
+                        .unwrap_or(name.anonymous().to_token_stream())),
+            ArgKind::CallbackArg(FieldComposer { attrs, name, kind, .. }) =>
+                ArgPresentation::field(
+                    attrs,
+                    Visibility::Inherited,
+                    Some(name.mangle_ident_default()),
+                    kind.ty().clone()),
+            ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) => {
+                print!("DefaultFieldConversion: {} {}", name, kind);
+                ArgPresentation::field(
+                    attrs,
+                    Visibility::Inherited,
+                    Some(name.mangle_ident_default()),
+                    Type::Verbatim(
+                        FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(name.clone(), kind.ty(), &source.scope)
+                            .compose(source)
+                            .present(source)))
+            },
+            ArgKind::Unnamed(composer) =>
+                ArgPresentation::expr(
+                    &composer.attrs,
+                    Resolve::<SPEC::Var>::resolve(composer.ty(), source)
+                        .to_token_stream()),
+            ArgKind::Named(FieldComposer { attrs, name, kind, ..}, visibility) =>
+                ArgPresentation::field(
+                    attrs,
+                    visibility.clone(),
+                    Some(name.mangle_ident_default()),
+                    VariableComposer::<RustFermentate, SPEC>::from(kind.ty())
+                        .compose(source)
+                        .to_type()),
         }
     }
 }

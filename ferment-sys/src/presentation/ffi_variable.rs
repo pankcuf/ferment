@@ -6,34 +6,25 @@ use ferment_macro::Display;
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind, DictFermentableModelKind, SmartPointerModelKind, GroupModelKind};
-use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, path_arguments_to_type_conversions, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::ext::{path_arguments_to_type_conversions, Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
 
-// pub trait FFIVariableCreate<T> where T: ToTokens {
-//     fn direct(ty: T) -> Self;
-//     fn const_ptr(ty: T) -> Self;
-//     fn mut_ptr(ty: T) -> Self;
-// }
-
 #[derive(Clone, Display, Debug)]
-pub enum FFIVariable<T, LANG, SPEC>
+pub enum FFIVariable<LANG, SPEC, T>
     where T: ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     Direct { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     ConstPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     MutPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
 }
 
-impl<T, LANG, SPEC> FFIVariable<T, LANG, SPEC>
+impl<LANG, SPEC, T> FFIVariable<LANG, SPEC, T>
     where T: ToTokens,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Aspect<SPEC::TYC>: ScopeContextPresentable {
+          SPEC: Specification<LANG> {
     pub(crate) fn direct(ty: T) -> Self {
         Self::Direct { ty, _marker: PhantomData }
     }
@@ -45,14 +36,14 @@ impl<T, LANG, SPEC> FFIVariable<T, LANG, SPEC>
     }
 }
 
-impl<SPEC> ToTokens for FFIVariable<Type, RustFermentate, SPEC>
+impl<SPEC> ToTokens for FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.to_type().to_tokens(tokens)
     }
 }
 
-impl<SPEC> ToType for FFIVariable<Type, RustFermentate, SPEC>
+impl<SPEC> ToType for FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     fn to_type(&self) -> Type {
         match self {
@@ -63,11 +54,12 @@ impl<SPEC> ToType for FFIVariable<Type, RustFermentate, SPEC>
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Path
+    where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -75,14 +67,16 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC:
         let last_ident = &last_segment.ident;
         if last_ident.is_primitive() {
             FFIVariable::direct(self.to_type())
+        } else if matches!(last_ident.to_string().as_str(), "i128" | "u128") {
+            FFIVariable::mut_ptr(parse_quote!([u8; 16]))
         } else if last_ident.is_optional() {
             match path_arguments_to_type_conversions(&last_segment.arguments).first() {
                 Some(TypeKind::Primitive(ty)) =>
                     FFIVariable::mut_ptr(ty.clone()),
                 Some(TypeKind::Generic(generic_ty)) =>
-                    FFIVariable::mut_ptr(<GenericTypeKind as Resolve<FFIFullPath<RustFermentate, SPEC>>>::resolve(generic_ty, source).to_type()),
+                    FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(generic_ty, source).to_type()),
                 Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    <Path as Resolve<FFIVariable<Type, RustFermentate, SPEC>>>::resolve(path, source),
+                    Resolve::<FFIVariable<RustFermentate, SPEC, Type>>::resolve(path, source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
         } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
@@ -93,7 +87,7 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Path where SPEC:
     }
 }
 
-pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC>
+pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
@@ -109,7 +103,7 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
                     "c_void" => match (star_token, const_token, mutability) {
                         (_, Some(_const_token), None) => FFIVariable::const_ptr(FFIFullDictionaryPath::<RustFermentate, SPEC>::Void.to_type()),
                         (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(FFIFullDictionaryPath::<RustFermentate, SPEC>::Void.to_type()),
-                        _ => panic!("<Type as Resolve<FFIVariable>>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
                     },
                     _ => {
                         if const_token.is_some() {
@@ -133,12 +127,12 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for AddPunctuated<TypeParamBound>
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for AddPunctuated<TypeParamBound>
     where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
@@ -148,13 +142,13 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for AddPunctuated<Ty
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Type where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Type where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         // println!("Type::<FFIVariable>::resolve.1({})", self.to_token_stream());
-        let full_ty = <Type as Resolve<Type>>::resolve(self, source);
+        let full_ty = Resolve::<Type>::resolve(self, source);
         // println!("Type::<FFIVariable>::resolve.2({})", full_ty.to_token_stream());
         let refined = source.maybe_special_or_regular_ffi_full_path::<RustFermentate, SPEC>(&full_ty)
             .map(|ffi_path| ffi_path.to_type())
@@ -164,27 +158,31 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for Type where SPEC:
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
     where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
-            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(<Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(ty, source)
+            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|special| special.to_type())
-                    .unwrap_or(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(ty, source)
+                    .unwrap_or(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(ty, source)
                         .to_type())),
-            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(<Type as Resolve::<FFIFullPath<RustFermentate, SPEC>>>::resolve(ty, source).to_type()),
+            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(ty, source).to_type()),
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::direct(composition.to_type()),
+            TypeModelKind::Dictionary(
+                DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) => {
+                FFIVariable::mut_ptr(parse_quote!([u8; 16]))
+            },
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
                 // println!("TypeModelKind::Boxed: {}", ty.to_token_stream());
-                match ty.first_nested_type() {
+                match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         // println!("Nested: {}", nested_full_ty.to_token_stream());
-                        resolve_type_variable(match <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(nested_full_ty, source) {
+                        resolve_type_variable(match Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(nested_full_ty, source) {
                             Some(special) => special.to_type(),
                             None => {
                                 source.maybe_ffi_full_path::<RustFermentate, SPEC>(nested_full_ty)
@@ -196,6 +194,7 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
                     None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
                 }
             },
+
             TypeModelKind::Dictionary(
                 DictTypeModelKind::NonPrimitiveFermentable(
                     DictFermentableModelKind::SmartPointer(
@@ -212,11 +211,11 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
                         GroupModelKind::Map(TypeModel { ty, .. }) |
                         GroupModelKind::Result(TypeModel { ty, .. }) |
                         GroupModelKind::Vec(TypeModel { ty, .. }) |
-                        GroupModelKind::IndexMap(TypeModel { ty, .. })
+                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
+                        GroupModelKind::IndexSet(TypeModel { ty, .. })
                     ) |
                     DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                     DictFermentableModelKind::String(TypeModel { ty, .. }) |
-                    DictFermentableModelKind::Digit128(TypeModel { ty, .. }) |
                     DictFermentableModelKind::Other(TypeModel { ty, .. })
                 ) |
                 DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })
@@ -229,10 +228,10 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
             TypeModelKind::Slice(TypeModel { ty, .. }) |
             TypeModelKind::Tuple(TypeModel { ty, .. }) |
             TypeModelKind::Unknown(TypeModel { ty, .. })  => {
-                <Type as Resolve<SpecialType<RustFermentate, SPEC>>>::maybe_resolve(ty, source)
+                Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
                     .unwrap_or_else(|| {
-                        resolve_type_variable(<Type as Resolve<ObjectKind>>::maybe_resolve(ty, source)
+                        resolve_type_variable(Resolve::<ObjectKind>::maybe_resolve(ty, source)
                             .and_then(|external_type| {
                                 match external_type {
                                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
@@ -297,11 +296,11 @@ impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for TypeModelKind
     }
 }
 
-impl<SPEC> Resolve<FFIVariable<Type, RustFermentate, SPEC>> for GenericBoundsModel where SPEC: RustSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<Type, RustFermentate, SPEC>> {
+impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for GenericBoundsModel where SPEC: RustSpecification {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustFermentate, SPEC, Type>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<Type, RustFermentate, SPEC> {
+    fn resolve(&self, _source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
         let ffi_name = self.mangle_ident_default();
         if self.is_lambda() {
             FFIVariable::direct(parse_quote!(crate::fermented::generics::#ffi_name))

@@ -49,7 +49,6 @@ impl<'ast> Visit<'ast> for Visitor {
     fn visit_item_impl(&mut self, node: &'ast ItemImpl) {
         self.add_conversion(Item::Impl(node.clone()));
     }
-
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
         // let context = self.context.read().unwrap();
         // // let fermented_mod_name = &context.config.mod_name;
@@ -254,27 +253,24 @@ impl Visitor {
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
-            (Ok(MacroType::Export | MacroType::Opaque), Ok(_object)) => {
-                // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+            (Ok(MacroType::Export | MacroType::Opaque), Ok(_)) => {
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);
                 }
             },
-            (_, Ok(_object)) if item.is_mod() => {
-                //println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
+            (_, Ok(_)) if item.is_mod() => {
                 item.add_to_scope(&current_scope, self);
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroType::Register(custom_type)), Ok(_object)) => {
-                // println!("add_conversion.1: {}: {}", item.ident_string(), self_scope);
-                if let ScopeTreeExportItem::Tree(scope_context, _, _exported, _) = self.find_scope_tree(&self_scope) {
+            (Ok(MacroType::Register(custom_type)), Ok(_)) => {
+                if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
                     let scope_context_borrowed = scope_context.borrow();
                     scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
                 }
             },
-            (_, Ok(_object)) => {
+            (_, Ok(_)) => {
                 if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
                     if let Item::Impl(..) = item {
                         if let Some(_scope) = item.join_scope(&current_scope, self) {}
@@ -283,8 +279,6 @@ impl Visitor {
             },
             _ => {}
         }
-        // println!("add_conversion.2: {}: {}", item.ident_string(), self_scope);
-
     }
 }
 

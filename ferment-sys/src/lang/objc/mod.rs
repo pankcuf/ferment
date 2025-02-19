@@ -5,16 +5,17 @@ pub(crate) mod conversion;
 pub(crate) mod fermentate;
 pub(crate) mod presentation;
 #[allow(unused)]
-mod writer;
+pub(crate) mod writer;
 mod xcproj;
 pub(crate) mod presentable;
 mod composable;
 mod formatter;
+mod dictionary;
 
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Generics, Item, Type};
+use syn::{Generics, Item, Lifetime, Type};
 use crate::error;
 use crate::lang::{CrateTreeConsumer, PresentableSpecification, Specification};
 use crate::lang::objc::composers::AttrWrapper;
@@ -23,7 +24,9 @@ use crate::lang::objc::presentable::TypeContext;
 use crate::tree::{CrateTree, ScopeTree, ScopeTreeItem};
 
 pub use fermentate::Fermentate as ObjCFermentate;
+#[cfg(feature = "objc")]
 pub use writer::Writer as ObjCWriter;
+#[cfg(feature = "objc")]
 pub use xcproj::Config as XCodeConfig;
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
@@ -31,7 +34,7 @@ use crate::composer::{SourceComposable, GenericComposer, MaybeComposer, SourceAc
 use crate::conversion::expand_attributes;
 use crate::ext::Resolve;
 use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::FFIVariable;
+use crate::presentation::{FFIVariable, Name};
 
 pub trait ObjCSpecification:
     PresentableSpecification<ObjCFermentate,
@@ -40,18 +43,20 @@ pub trait ObjCSpecification:
         Interface=InterfaceImplementation,
         TYC=TypeContext,
         Expr=Expression<ObjCFermentate, Self>,
-        Var=FFIVariable<TokenStream2, ObjCFermentate, Self>
+        Name=Name<ObjCFermentate, Self>,
+        Var=FFIVariable<ObjCFermentate, Self, TokenStream2>
     > where <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens,
             Type: Resolve<Self::Var> {}
 
-impl<T> PresentableSpecification<ObjCFermentate> for T where T: ObjCSpecification {}
-impl<T> Specification<ObjCFermentate> for T where T: ObjCSpecification {
+impl<SPEC> Specification<ObjCFermentate> for SPEC where SPEC: ObjCSpecification {
     type Attr = AttrWrapper;
     type Gen = Option<Generics>;
+    type Lt = Vec<Lifetime>;
     type TYC = TypeContext;
     type Interface = InterfaceImplementation;
-    type Expr = Expression<ObjCFermentate, T>;
-    type Var = FFIVariable<TokenStream2, ObjCFermentate, T>;
+    type Expr = Expression<ObjCFermentate, SPEC>;
+    type Var = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
+    type Name = Name<ObjCFermentate, SPEC>;
 }
 
 
@@ -91,21 +96,21 @@ impl CrateTreeConsumer for Config {
 }
 
 
-#[derive(Clone, Debug)]
-pub enum CategoryKind {
-    C,
-    Rust,
-    Args
-}
-impl ToTokens for CategoryKind {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            CategoryKind::C => quote!(C),
-            CategoryKind::Rust => quote!(Rust),
-            CategoryKind::Args => quote!(Args),
-        }.to_tokens(tokens)
-    }
-}
+// #[derive(Clone, Debug)]
+// pub enum CategoryKind {
+//     C,
+//     Rust,
+//     Args
+// }
+// impl ToTokens for CategoryKind {
+//     fn to_tokens(&self, tokens: &mut TokenStream2) {
+//         match self {
+//             CategoryKind::C => quote!(C),
+//             CategoryKind::Rust => quote!(Rust),
+//             CategoryKind::Args => quote!(Args),
+//         }.to_tokens(tokens)
+//     }
+// }
 
 impl ObjCSpecification for ScopeTree {}
 impl ObjCSpecification for CrateTree {}
@@ -129,12 +134,25 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
                     GenericComposer::<ObjCFermentate, CrateTree>::new(mixin, attrs, ty_context, self.context())
                 })
                 .flat_map(|composer| composer.borrow().compose(&source)));
+        let custom_conversions = Depunctuated::from_iter(
+            global.custom
+                .inner
+                .iter()
+                .map(|(_scope_chain, _type_chain)| {
+                    quote!()
+                    // CustomComposer::<ObjCFermentate, CrateTree>::new()
+                    // let attrs = expand_attributes(attrs);
+                    // let ty_context = TypeContext::mixin(mixin, prefix, attrs.cfg_attributes());
+                    // GenericComposer::<ObjCFermentate, CrateTree>::new(mixin, attrs, ty_context, self.context())
+                }));
+                // .flat_map(|composer| composer.borrow().compose(&source)));
 
-        println!("CrateTree:: OBJC: {}", reg_conversions.to_token_stream());
+        // println!("CrateTree:: OBJC: {}", reg_conversions.to_token_stream());
 
         ObjCFermentate::TokenStream(quote! {
             #reg_conversions
             #generic_conversions
+            #custom_conversions
         })
     }
 }
@@ -153,7 +171,7 @@ impl SourceFermentable<ObjCFermentate> for ScopeTree {
                 ScopeTreeItem::Tree { tree} =>
                     fermentate.push(tree.ferment())
             });
-        println!("OBJC SCOPE FERMENTATE: {}", fermentate.to_token_stream());
+        //println!("OBJC SCOPE FERMENTATE: {}", fermentate.to_token_stream());
 //         if !fermentate.is_empty() {
 //             let ctx = source.context.read().unwrap();
 //             let rename = ctx.config.current_crate.ident();
@@ -171,6 +189,6 @@ impl SourceFermentable<ObjCFermentate> for ScopeTree {
 //         } else {
 //             Depunctuated::new()
 //         }
-        ObjCFermentate::Empty
+        ObjCFermentate::TokenStream(fermentate.to_token_stream())
     }
 }

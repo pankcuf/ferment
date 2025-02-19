@@ -6,7 +6,7 @@ use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
 use crate::conversion::ObjectKind;
-use crate::ext::{AsType, ToPath};
+use crate::ext::{AsType, LifetimeProcessor, ToPath};
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -57,7 +57,10 @@ impl Mangle<MangleDefault> for Type {
             Type::Ptr(type_ptr) =>
                 type_ptr.mangle_string(context),
             ty =>
-                ty.to_path().get_ident().unwrap().clone().to_string()
+                ty.to_path()
+                    .get_ident()
+                    .unwrap()
+                    .to_string()
         };
         // println!("Mangle Type..222: {}", res);
         res
@@ -161,7 +164,7 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
             if is_map || is_result {
                 format!("{mangled_type_path}_arr_{}", self.len.to_token_stream().to_string())
             } else {
-                mangled_type_path
+                format!("{mangled_type_path}_{}", self.len.to_token_stream().to_string())
             }
         } else {
             String::default()
@@ -178,10 +181,18 @@ impl Mangle<String> for PathArguments {
         }
         let is_result = segment_str == "Result";
         match self {
-            PathArguments::AngleBracketed(arguments) =>
-                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
-            PathArguments::Parenthesized(arguments) =>
-                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result))),
+            PathArguments::AngleBracketed(arguments) => {
+                let args = arguments.lifetimes_cleaned();
+                if args.args.is_empty() {
+                    segment_str
+                } else {
+                    format!("{}_{}", segment_str, args.mangle_string((is_map, is_result)))
+                }
+            },
+            PathArguments::Parenthesized(arguments) => {
+
+                format!("{}_{}", segment_str, arguments.mangle_string((is_map, is_result)))
+            },
             _ => segment_str,
         }
     }

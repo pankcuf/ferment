@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use syn::{BareFnArg, GenericArgument, ParenthesizedGenericArguments, parse_quote, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};
@@ -92,12 +92,10 @@ impl<'a> VisitScopeType<'a> for Path {
                 PathArguments::None => {}
                 PathArguments::AngleBracketed(angle_bracketed_generic_arguments) => {
                     for arg in &mut angle_bracketed_generic_arguments.args {
-                        // println!("Path: visit_scope_type.2222 {}", arg.to_token_stream());
                         match arg {
                             GenericArgument::Type(inner_type) => {
                                 let obj_conversion = inner_type.visit_scope_type(&(scope, context));
                                 let ty = obj_conversion.maybe_type().unwrap();
-                                //println!("nested object::::: {}", obj_conversion);
                                 nested_arguments.push(NestedArgument::Object(obj_conversion));
                                 *arg = GenericArgument::Type(ty);
                             },
@@ -274,14 +272,19 @@ impl<'a> VisitScopeType<'a> for Path {
 
                 _ if matches!(last_ident.to_string().as_str(), "IndexMap") =>
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexMap(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                _ if matches!(last_ident.to_string().as_str(), "IndexSet") =>
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
                 _ if first_ident.is_box() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
                 },
                 _ if first_ident.is_primitive() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_non_gen(first_ident.to_type(), None))))
                 },
-                _ if first_ident.is_128_digit() => {
-                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Digit128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
+                _ if matches!(first_ident.to_string().as_str(), "i128") => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
+                },
+                _ if matches!(first_ident.to_string().as_str(), "u128") => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(TypeModel::new_non_gen(first_ident.to_type(), None)))))
                 },
                 _ if first_ident.is_special_std_trait() => {
                     ObjectKind::Type(TypeModelKind::unknown_type(nested_import_seg.to_type()))
@@ -440,7 +443,7 @@ impl<'a> VisitScopeType<'a> for TypeArray {
 
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         ObjectKind::Type(
-            TypeModelKind::Slice(
+            TypeModelKind::Array(
                 TypeModel::new(
                     Type::Array(self.clone()),
                     None,

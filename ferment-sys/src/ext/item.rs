@@ -1,4 +1,4 @@
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ItemUse, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use syn::punctuated::Punctuated;
 use quote::{quote, ToTokens};
@@ -36,12 +36,11 @@ impl ItemExtension for Item {
             Item::Type(ItemType { ident, .. }, ..) |
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }, ..) |
             Item::Trait(ItemTrait { ident, .. }, ..) |
-            Item::Const(ItemConst { ident, .. }, ..) => ScopeTreeExportID::Ident(ident.clone()),
-            Item::Use(ItemUse { .. }, ..) =>
-                panic!("Not  supported"),
-            Item::Impl(ItemImpl { self_ty, trait_, .. }, ..) => ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path)),
+            Item::Const(ItemConst { ident, .. }, ..) =>
+                ScopeTreeExportID::Ident(ident.clone()),
+            Item::Impl(ItemImpl { self_ty, trait_, generics, .. }, ..) =>
+                ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path), generics.clone()),
             item => panic!("ScopeTreeExportID Not supported for {}", quote!(#item)),
-            // type_ident(self_ty).unwrap(),
         }
 
     }

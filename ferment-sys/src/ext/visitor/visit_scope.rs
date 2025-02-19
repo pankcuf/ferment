@@ -49,8 +49,41 @@ impl VisitScope for Item {
                 // TODO: Const scope processing
             }
             Item::Enum(item_enum) => {
+                let mut nested_arguments = CommaPunctuated::new();
                 // println!("add_to_scope (Enum) NEW_OBJECT: {}", scope);
-                let self_object = ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(item_enum.generics.clone()), Punctuated::new())), ScopeItemKind::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
+                let full_ty = if !item_enum.generics.params.is_empty() || item_enum.generics.where_clause.is_some() {
+                    //println!("ADDD FQ STRUCT: {}: {} ---- {}", item_struct.ident, item_struct.generics.params.to_token_stream(), item_struct.generics.where_clause.to_token_stream());
+                    let mut inner_args = CommaPunctuated::new();
+                    item_enum.generics.params.iter().for_each(|p| match p {
+                        GenericParam::Type(TypeParam { ident, bounds, .. }) => {
+                            inner_args.push(quote!(#ident));
+                            let mut nested_bounds = CommaPunctuated::new();
+                            bounds.iter().for_each(|pp| match pp {
+                                TypeParamBound::Trait(TraitBound { path, .. }) => {
+                                    // TODO: make it Unknown
+                                    nested_bounds.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(path.to_type(), None, CommaPunctuated::new())))));
+                                }
+                                TypeParamBound::Lifetime(Lifetime { .. }) => {}
+                            });
+                            // TODO: make it Unknown
+                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(ident.to_type(), Some(item_enum.generics.clone()), nested_bounds)))));
+
+                        }
+                        GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
+                            inner_args.push(quote!(#ident));
+                            // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
+                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_enum.generics.clone()), CommaPunctuated::new())))))
+                        },
+                        GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
+                            inner_args.push(quote!(#lifetime));
+                        },
+                    });
+                    parse_quote!(#scope<#inner_args>)
+                } else {
+                    scope.to_type()
+                };
+
+                let self_object = ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(full_ty, Some(item_enum.generics.clone()), nested_arguments)), ScopeItemKind::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
                 add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
                 add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
@@ -62,6 +95,7 @@ impl VisitScope for Item {
             }
             Item::Struct(item_struct) => {
                 let mut nested_arguments = CommaPunctuated::new();
+                // println!("ADD_TO_SCOPE: {}", item_struct.ident);
                 let full_ty = if !item_struct.generics.params.is_empty() || item_struct.generics.where_clause.is_some() {
                     //println!("ADDD FQ STRUCT: {}: {} ---- {}", item_struct.ident, item_struct.generics.params.to_token_stream(), item_struct.generics.where_clause.to_token_stream());
                     let mut inner_args = CommaPunctuated::new();
@@ -82,7 +116,6 @@ impl VisitScope for Item {
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
-                            // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
@@ -93,7 +126,6 @@ impl VisitScope for Item {
                 } else {
                     scope.to_type()
                 };
-                // println!("add_to_scope (STRUCT) SELF: {}", scope);
                 let self_object = ObjectKind::new_item(
                     TypeModelKind::Object(TypeModel::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
                     ScopeItemKind::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
@@ -117,12 +149,12 @@ impl VisitScope for Item {
                     Type::BareFn(..) =>
                         ObjectKind::new_item(
                             TypeModelKind::FnPointer(
-                                TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new()),
+                                TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone())),
                                 /*TypeModel::new(*item_type.ty.clone(), Some(item_type.generics.clone()), Punctuated::new())*/), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone())),
                     _ => {
                         // println!("add_to_scope (Type) NEW_OBJECT: {}", scope);
 
-                        ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(item_type.generics.clone()), Punctuated::new())), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
+                        ObjectKind::new_item(TypeModelKind::Object(TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
                     }
                 };
                 // println!("ADDD TYPE: {}", self_object);

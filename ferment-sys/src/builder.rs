@@ -1,7 +1,11 @@
 use crate::{Config, Crate, error, Lang};
+#[cfg(not(feature = "cbindgen_only"))]
 use crate::ast::Depunctuated;
-use crate::tree::{FileTreeProcessor, Writer};
+#[cfg(not(feature = "cbindgen_only"))]
+use crate::tree::FileTreeProcessor;
+use crate::tree::Writer;
 use crate::lang::rust::find_crates_paths;
+#[cfg(not(feature = "cbindgen_only"))]
 use crate::presentation::{Fermentate, RustFermentate};
 
 extern crate env_logger;
@@ -14,7 +18,8 @@ pub struct Builder {
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
-        Builder { config: Config::new("fermented", current_crate) }
+        Builder { config: Config::new("fermented", current_crate, cbindgen::Config::default()) }
+        // Builder { config: Config::new("fermented", current_crate, "cbindgen.toml") }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {
@@ -24,6 +29,16 @@ impl Builder {
     #[allow(unused)]
     pub fn with_default_mod_name(mut self) -> Builder {
         self.config.mod_name = String::from("fermented");
+        self
+    }
+    #[allow(unused)]
+    pub fn with_cbindgen_config(mut self, config: cbindgen::Config) -> Builder {
+        self.config.cbindgen_config = config;
+        self
+    }
+    #[allow(unused)]
+    pub fn with_cbindgen_config_from_file(mut self, config: &'static str) -> Builder {
+        self.config.cbindgen_config_from_file = Some(config.to_string());
         self
     }
     #[allow(unused)]
@@ -75,8 +90,8 @@ impl Builder {
     /// # Example
     ///
     /// ```no_run
-    /// # extern crate ferment;
-    /// use ferment::{Crate, Ferment, Lang};
+    /// # extern crate ferment_sys;
+    /// use ferment_sys::{Crate, Ferment, Lang};
     /// let mut languages = vec![];
     /// #[cfg(feature = "objc")]
     /// languages.push(Lang::ObjC(ferment::ObjC::new("DS", "Fermented")));
@@ -98,16 +113,19 @@ impl Builder {
     /// The resulting module will only contain the necessary imports and types suitable for FFI conversion.
     ///
     pub fn generate(self) -> Result<(), error::Error> {
-        FileTreeProcessor::build(&self.config)
-            .and_then(|crate_tree| {
-                let fermentate = Depunctuated::from_iter([
-                    Fermentate::Rust(RustFermentate::CrateTree(crate_tree.clone())),
-                    #[cfg(feature = "objc")]
-                    Fermentate::ObjC(crate::lang::objc::ObjCFermentate::CrateTree(crate_tree))
-                ]);
-                Writer::from(self.config)
-                    .write(fermentate)
-            })
+        #[cfg(not(feature = "cbindgen_only"))]
+        let fermentate = {
+            let crate_tree = FileTreeProcessor::build(&self.config)?;
+            Depunctuated::from_iter([
+                Fermentate::Rust(RustFermentate::CrateTree(crate_tree.clone())),
+                #[cfg(feature = "objc")]
+                Fermentate::ObjC(crate::lang::objc::ObjCFermentate::CrateTree(crate_tree))
+            ])
+        };
+        let writer = Writer::from(self.config);
+        #[cfg(not(feature = "cbindgen_only"))]
+        writer.write(fermentate)?;
+        writer.write_headers()
     }
 }
 

@@ -465,3 +465,7 @@ So here we have 2 different approaches, in `OuterStruct_ctor` and in `create_out
 Back in the days decisions were made from the point of view of efficiency, it would be better to always give pointer's ownership to the rust. But to do this, you will have to write code in rust only in an FFI-compatible style (which is ridiculous), or modify the `ferment` to the state where not only FFI-compatible methods/structures are fermented, but also the code itself inside them.
 
 
+
+
+FAQ: 
+- if you see no opaque pointers in cbindgen header makes sure you did include crate-owner in the list in settings 
