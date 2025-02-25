@@ -117,11 +117,17 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                     },
                     TypeModelKind::Optional(..) => {
                         let full_nested_ty = full_type.maybe_first_nested_type_kind().unwrap();
-                        match full_nested_ty {
-                            TypeKind::Primitive(ty) =>
-                                Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, ty),
-                            _ =>
-                                Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_nested_ty.to_type())
+                        let maybe_special = <Type as FFISpecialTypeResolve<LANG, SPEC>>::maybe_special_type(&full_nested_ty.to_type(), source);
+                        match maybe_special {
+                            Some(SpecialType::Custom(ty)) => {
+                                Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ty, full_nested_ty.to_type())
+                            },
+                            _ => match full_nested_ty {
+                                TypeKind::Primitive(ty) =>
+                                    Expression::cast_from(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, ty.clone()),
+                                _ =>
+                                    Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_nested_ty.to_type())
+                            }
                         }
                     }
                     TypeModelKind::Dictionary(
@@ -305,10 +311,19 @@ impl<LANG, SPEC> SourceComposable for FromConversionComposer<LANG, SPEC>
                         Expression::from_primitive(field_path)
                     }
                 },
-                TypeModelKind::Optional(ty) => if ty.as_type().maybe_first_nested_type_ref().unwrap().is_primitive() {
-                    Expression::from_primitive_opt(field_path)
-                } else {
-                    Expression::from_complex_opt(field_path)
+                TypeModelKind::Optional(ty) => {
+                    let first_nested_ty = ty.as_type().maybe_first_nested_type_ref().unwrap();
+                    let maybe_special = <Type as FFISpecialTypeResolve<LANG, SPEC>>::maybe_special_type(first_nested_ty, source);
+                    match maybe_special {
+                        Some(SpecialType::Custom(..)) => {
+                            Expression::from_complex_opt(field_path)
+                        },
+                        _ => if first_nested_ty.is_primitive() {
+                            Expression::from_primitive_opt(field_path)
+                        } else {
+                            Expression::from_complex_opt(field_path)
+                        }
+                    }
                 }
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) => {
                     let nested_ty = ty.maybe_first_nested_type_ref().unwrap();

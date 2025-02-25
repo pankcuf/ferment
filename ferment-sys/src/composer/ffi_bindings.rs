@@ -1,8 +1,6 @@
-use syn::Type;
 use crate::ast::Depunctuated;
-use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer};
+use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer, VariableComposer};
 use crate::context::ScopeContext;
-use crate::ext::Resolve;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
@@ -60,7 +58,8 @@ impl<LANG, SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<LANG, SPEC
           SPEC: Specification<LANG>,
           Link: SharedAccess,
           Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>>,
-          Type: Resolve<SPEC::Var> {
+          VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
+{
     type Source = ScopeContext;
     type Output = Depunctuated<BindingPresentableContext<LANG, SPEC>>;
 

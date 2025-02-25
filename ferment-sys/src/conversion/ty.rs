@@ -129,6 +129,12 @@ impl TypeModelKind {
             _ => false
         }
     }
+    pub fn is_optional(&self) -> bool {
+        match self {
+            TypeModelKind::Optional(..) => true,
+            _ => false
+        }
+    }
 
     pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         match self {

@@ -2,14 +2,13 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::clone::Clone;
 use quote::ToTokens;
-use syn::{Generics, Lifetime, Type};
+use syn::{Generics, Lifetime};
 use syn::token::{Brace, Paren};
 use ferment_macro::ComposerBase;
 use crate::ast::{DelimiterTrait, Depunctuated, Void};
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable};
-use crate::context::ScopeContextLink;
-use crate::ext::Resolve;
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable, VariableComposer};
+use crate::context::{ScopeContext, ScopeContextLink};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DocComposer, DocPresentation, FFIObjectPresentation, InterfacePresentation, RustFermentate};
@@ -160,7 +159,9 @@ impl<LANG, SPEC, I> BindingComposable<LANG, SPEC> for ItemComposer<LANG, SPEC, I
     where LANG: LangFermentable,
           SPEC: Specification<LANG>,
           I: DelimiterTrait + ?Sized,
-          Type: Resolve<SPEC::Var> {
+          VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var> {
+
+          // Type: Resolve<SPEC::Var> {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<LANG, SPEC>> {
         let source = self.source_ref();
         self.bindings_composer

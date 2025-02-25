@@ -1,8 +1,6 @@
-use syn::Type;
-use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer};
+use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer, VariableComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::context::ScopeContext;
-use crate::ext::Resolve;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
@@ -47,7 +45,8 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
     where Link: SharedAccess,
           LANG: LangFermentable,
           SPEC: Specification<LANG>,
-          Type: Resolve<SPEC::Var> {
+            VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
+{
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
     fn compose(&self, source: &Self::Source) -> Self::Output {
@@ -62,7 +61,7 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
                     aspect.clone(),
                     attrs.clone(),
                     generics.clone(),
-                    Resolve::<SPEC::Var>::resolve(composer.ty(), source),
+                    VariableComposer::<LANG, SPEC>::from(composer.ty()).compose(source),
                     composer.tokenized_name()
                 )))
         )

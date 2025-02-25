@@ -13,7 +13,7 @@ anyhow = "1.0.95"
 #    "signer",
 #    "serde",
 #], default-features = false }
-dashcore = { git = "https://github.com/pankcuf/rust-dashcore", features = [
+dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = [
     "std",
     "secp-recovery",
     "rand",

@@ -6,7 +6,7 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
+use crate::ext::{AsType, FFISpecialTypeResolve, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentation::{resolve_type_variable, FFIFullPath, FFIVariable, RustFermentate};
 
@@ -179,7 +179,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                         result
                                     }
                                 }
-                            }
+                            },
                             TypeModelKind::Unknown(TypeModel { ty, .. }) => {
                                 // println!("VarComposer (Unknown): {}", ty.to_token_stream());
                                 FFIVariable::mut_ptr(ty)
@@ -253,9 +253,21 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                             },
                             TypeModelKind::Bounds(bounds) => {
                                 bounds.resolve(source)
-                            }
+                            },
 
                             ref cnv => {
+
+                                if cnv.is_optional() {
+                                    let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
+                                    let maybe_special = <Type as FFISpecialTypeResolve<RustFermentate, SPEC>>::maybe_special_type(&nested_ty.to_type(), source);
+                                    match maybe_special {
+                                        Some(SpecialType::Custom(custom_ty)) => {
+                                            return FFIVariable::mut_ptr(custom_ty.to_type());
+                                        },
+                                        _ => {}
+                                    }
+                                }
+
                                 // println!("VarComposer (Regular Fermentable Conversion): {}", conversion);
                                 // let result: FFIVariable = conversion.resolve(source);
                                 // let conversion_ty = conversion.ty();
@@ -607,6 +619,17 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                             }
 
                             ref cnv => {
+                                if cnv.is_optional() {
+                                    let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
+                                    let maybe_special = <Type as FFISpecialTypeResolve<RustFermentate, SPEC>>::maybe_special_type(&nested_ty.to_type(), source);
+                                    match maybe_special {
+                                        Some(SpecialType::Custom(custom_ty)) => {
+                                            return FFIVariable::mut_ptr(custom_ty.to_type());
+                                        },
+                                        _ => {}
+                                    }
+                                }
+
                                 // println!("VariableComposer (Regular Fermentable Conversion): {}", conversion);
                                 // let result: FFIVariable = conversion.resolve(source);
                                 // let conversion_ty = conversion.ty();
