@@ -1,4 +1,4 @@
-**# ferment
+# ferment
 Syntax-tree morphing tool for FFI (work in progress)
 
 Allows to generate an FFI-compliant equivalent for rust types (structures, enums, types, functions).
@@ -29,27 +29,33 @@ Using the tool implies using `cbindgen` with a configuration like this:
 
 ```rust
 extern crate cbindgen;
+extern crate ferment_sys;
 
 fn main() {
-    extern crate cbindgen;
-    extern crate ferment_sys;
-
-    use std::process::Command;
-
-    fn main() {
-
-        match ferment_sys::Ferment:
-            .with_mod_name("fermented")
-            .with_crates(vec![])
-            .generate() {
-            Ok(()) => match Command::new("cbindgen")
-                .args(&["--config", "cbindgen.toml", "-o", "target/example.h"])
-                .status() {
-                Ok(status) => println!("Bindings generated into target/example.h with status: {}", status),
-                Err(err) => panic!("Can't generate bindings: {}", err)
+    const SELF_NAME: &str = "example_nested";
+    match ferment_sys::Ferment::with_crate_name(SELF_NAME)
+        .with_default_mod_name()
+        .with_cbindgen_config_from_file("cbindgen.toml")
+        .with_external_crates(vec![
+            "versioned-feature-core",
+            "example-simple",
+            "dashcore",
+            "dpp",
+            "platform-value",
+            "platform-version"
+        ])
+        .with_languages(vec![
+            #[cfg(feature = "objc")]
+            ferment_sys::Lang::ObjC(ferment_sys::ObjC::new(ferment_sys::XCodeConfig {
+                class_prefix: "DS".to_string(),
+                framework_name: "DSExampleNested".to_string(),
+                header_name: SELF_NAME.to_string()
             }
-            Err(err) => panic!("Can't create FFI fermentate: {}", err)
-        }
+            )),
+        ])
+        .generate() {
+        Ok(_) => println!("[ferment] [ok]: {SELF_NAME}"),
+        Err(err) => panic!("[ferment] [err]: {}", err)
     }
 }
 ```
