@@ -12,7 +12,7 @@ use dpp::identity::{Identity, IdentityPublicKey};
 use dpp::identity::accessors::IdentityGettersV0;
 use crate::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
 
-#[ferment_macro::export]
+#[cfg_attr(feature = "apple", ferment_macro::export)]
 pub struct SomeStruct {
     pub name: String,
     pub names: &'static str,

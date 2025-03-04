@@ -34,7 +34,6 @@ impl CustomResolver {
             .insert(regular_ty, ffi_object);
     }
     pub fn maybe_type(&self, ty: &Type) -> Option<Type> {
-        // println!("maybe_conversion: {}", ty.to_token_stream());
         self.inner.keys()
             .find_map(|scope| self.replace_conversion(scope, ty))
     }

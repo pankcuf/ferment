@@ -6,9 +6,10 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
 use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
+use crate::composer::MaybeMacroLabeled;
 use crate::context::Scope;
 use crate::conversion::ObjectKind;
-use crate::ext::{CrateExtension, Fermented, Opaque, Pop, ResolveAttrs, ToPath, ToType};
+use crate::ext::{CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
 #[derive(Clone, Eq)]
@@ -26,10 +27,11 @@ impl PartialEq<Self> for ScopeInfo {
 
 impl ScopeInfo {
     pub fn fmt_export_type(&self) -> String {
-        self.attrs.is_opaque()
+        self.attrs.is_labeled_for_opaque_export()
             .then(|| "Opaque")
-            .or_else(|| self.attrs.is_fermented()
+            .or_else(|| self.attrs.is_labeled_for_export()
                 .then(|| "Fermented"))
+            .or_else(|| self.attrs.is_labeled_for_opaque_export().then(|| "Opaque"))
             .unwrap_or("Unknown").to_string()
     }
     pub fn self_path(&self) -> &Path {

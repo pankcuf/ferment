@@ -5,9 +5,10 @@ use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem,
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel};
+use crate::composer::MaybeMacroLabeled;
 use crate::context::ScopeChain;
 use crate::conversion::{MacroType, ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{Join, ResolveMacro, ToType};
+use crate::ext::{Join, ToType};
 use crate::ext::item::collect_bounds;
 use crate::tree::Visitor;
 
