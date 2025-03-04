@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use quote::quote;
-use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, NestedMeta, parse_quote, Path};
+use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, NestedMeta, parse_quote};
 use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, TypeHolder};
-use crate::ext::{ItemExtension, ToType};
+use crate::composer::MaybeMacroLabeled;
+use crate::ext::ItemExtension;
 
+#[derive(Debug)]
 pub enum MacroType {
     Export,
     Opaque,
@@ -38,34 +40,15 @@ impl TryFrom<&Item> for MacroType {
     type Error = ();
 
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
+        // #[cfg_attr(feature = "apple", ferment_macro::export)]
+
         match value.maybe_attrs()
-            .and_then(|attrs| attrs.iter().find_map(|attr| {
-                let path = &attr.path;
-                let mut arguments = Vec::<Path>::new();
-                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                    meta_list.nested.iter().for_each(|meta| {
-                        if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                            arguments.push(path.clone());
-                        }
-                    });
-                }
-                match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "export" =>
-                        Some(MacroType::Export),
-                    "opaque" =>
-                        Some(MacroType::Opaque),
-                    "register" =>
-                        Some(MacroType::Register(TypeHolder(arguments.first().unwrap().to_type()))),
-                    _ =>
-                        None
-                }
-            })) {
+            .and_then(|attrs| attrs.iter().find_map(MaybeMacroLabeled::maybe_macro_labeled)) {
                 Some(macro_type) => Ok(macro_type),
                 None => Err(())
             }
     }
 }
-
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub enum CfgMacroType {

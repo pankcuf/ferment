@@ -3,7 +3,7 @@ use dpp::data_contract::DataContract;
 #[cfg(feature = "state-transitions")]
 use dpp::errors::ProtocolError;
 #[cfg(feature = "state-transitions")]
-use dpp::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
+use dpp::state_transition::state_transitions::contract::data_contract_update_transition::DataContractUpdateTransition;
 #[cfg(feature = "state-transitions")]
 use dpp::version::PlatformVersion;
 #[cfg(feature = "state-transitions")]
@@ -22,9 +22,9 @@ pub struct ContractsManager {
 #[ferment_macro::export]
 impl ContractsManager {
     #[cfg(feature = "state-transitions")]
-    pub fn contract_registration_transition(&self, contract: DataContract) -> Result<DataContractCreateTransition, ProtocolError> {
+    pub fn contract_registration_transition(&self, contract: DataContract) -> Result<DataContractUpdateTransition, ProtocolError> {
         let v = PlatformVersion::first();
-        DataContractCreateTransition::try_from_platform_versioned(contract, v)
+        DataContractUpdateTransition::try_from_platform_versioned((contract, 0), v)
     }
 
 }

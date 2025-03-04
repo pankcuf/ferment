@@ -207,7 +207,7 @@ impl_hash_ferment!(
     dashcore_hash_types_MerkleRootQuorums_inner);
 
 #[allow(non_camel_case_types)]
-#[ferment_macro::register(dashcore::hash_types::QuorumEntryHash)]
+#[cfg_attr(feature = "apple", ferment_macro::register(dashcore::hash_types::QuorumEntryHash))]
 pub struct dashcore_hash_types_QuorumEntryHash(pub *mut [u8; dashcore::hash_types::QuorumEntryHash::LEN]);
 impl_hash_ferment!(
     dashcore::hash_types::QuorumEntryHash,
@@ -217,7 +217,7 @@ impl_hash_ferment!(
     dashcore_hash_types_QuorumEntryHash_inner);
 
 #[allow(non_camel_case_types)]
-#[ferment_macro::register(dashcore::hash_types::ConfirmedHashHashedWithProRegTx)]
+#[cfg_attr(feature = "apple", ferment_macro::register(dashcore::hash_types::ConfirmedHashHashedWithProRegTx))]
 pub struct dashcore_hash_types_ConfirmedHashHashedWithProRegTx(pub *mut [u8; dashcore::hash_types::ConfirmedHashHashedWithProRegTx::LEN]);
 impl_hash_ferment!(
     dashcore::hash_types::ConfirmedHashHashedWithProRegTx,
@@ -245,4 +245,14 @@ impl_hash_ferment!(
     dashcore_hash_types_QuorumCommitmentHash_ctor,
     dashcore_hash_types_QuorumCommitmentHash_destroy,
     dashcore_hash_types_QuorumCommitmentHash_inner);
+
+#[allow(non_camel_case_types)]
+#[ferment_macro::register(dashcore::hash_types::Sha256dHash)]
+pub struct dashcore_hash_types_Sha256dHash(pub *mut [u8; dashcore::hash_types::Sha256dHash::LEN]);
+impl_hash_ferment!(
+    dashcore::hash_types::Sha256dHash,
+    dashcore_hash_types_Sha256dHash,
+    dashcore_hash_types_Sha256dHash_ctor,
+    dashcore_hash_types_Sha256dHash_destroy,
+    dashcore_hash_types_Sha256dHash_inner);
 

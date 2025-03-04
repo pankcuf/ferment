@@ -11,7 +11,6 @@ pub mod document;
 extern crate ferment_macro;
 extern crate tokio;
 
-// use std::time::Duration;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -296,3 +295,12 @@ pub mod nested {
 
 }
 
+// #[cfg_attr(feature = "apple", ferment_macro::export)]
+// pub enum TestCfgAttrMacro {
+//     Variant1(String),
+//     Variant2,
+//     Variant3(HashID, u32),
+//     Variant4(HashID, u32, String),
+//     Variant5(BTreeMap<String, HashID>, u32, String),
+//     Variant6([u8; 32]),
+// }

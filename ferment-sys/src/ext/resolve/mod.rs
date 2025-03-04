@@ -11,5 +11,5 @@ pub use self::maybe_lambda_args::*;
 pub use self::opaque::*;
 pub use self::resolve::*;
 pub use self::resolve_attrs::*;
-pub use self::resolve_macro::*;
+// pub use self::resolve_macro::*;
 pub use self::resolve_trait::*;

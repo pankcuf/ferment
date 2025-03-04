@@ -6,14 +6,14 @@ mod sequence;
 mod sequence_mixer;
 mod spec;
 
-use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic, MetaList};
+use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic, MetaList, Attribute};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
 use crate::composable::CfgAttributes;
 use crate::composer::{ItemComposerWrapper, SigComposer};
 use crate::composer::type_alias::TypeAliasComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::conversion::MacroType;
+use crate::conversion::{MacroType, ScopeItemKind};
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentable::{TypeContext, ScopeContextPresentable, Expression};
@@ -28,6 +28,28 @@ pub use self::spec::*;
 
 pub trait MaybeMacroLabeled {
     fn maybe_macro_labeled(&self) -> Option<MacroType>;
+    fn is_labeled_for_export(&self) -> bool {
+        if let Some(MacroType::Export) = self.maybe_macro_labeled() {
+            true
+        } else {
+            false
+        }
+    }
+    fn is_labeled_for_opaque_export(&self) -> bool {
+        if let Some(MacroType::Opaque) = self.maybe_macro_labeled() {
+            true
+        } else {
+            false
+        }
+    }
+    fn is_labeled_for_register(&self) -> bool {
+        if let Some(MacroType::Register(_)) = self.maybe_macro_labeled() {
+            true
+        } else {
+            false
+        }
+    }
+
 }
 
 pub trait MaybeComposer<LANG, SPEC>
@@ -46,27 +68,82 @@ pub trait SourceComposable {
 impl MaybeMacroLabeled for Item {
     fn maybe_macro_labeled(&self) -> Option<MacroType> {
         self.maybe_attrs()
-            .and_then(|attrs| attrs.iter().find_map(|attr| {
-                let path = &attr.path;
-                let mut arguments = Vec::<Path>::new();
-                if let Ok(Meta::List(MetaList { nested, .. })) = attr.parse_meta() {
-                    nested
-                        .iter()
-                        .for_each(|meta| if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                            arguments.push(path.clone());
-                        });
+            .and_then(MaybeMacroLabeled::maybe_macro_labeled)
+    }
+}
+
+impl MaybeMacroLabeled for ScopeItemKind {
+    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+        self.maybe_attrs().and_then(MaybeMacroLabeled::maybe_macro_labeled)
+    }
+}
+
+impl MaybeMacroLabeled for Vec<Attribute> {
+    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+        self.iter().find_map(MaybeMacroLabeled::maybe_macro_labeled)
+    }
+}
+
+impl MaybeMacroLabeled for Attribute {
+    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+        let mut arguments = Vec::<Path>::new();
+        let mut macro_name: Option<String> = None;
+
+        match self.parse_meta() {
+            Ok(Meta::Path(path)) => {
+                // Handle simple case like `#[ferment_macro::export]`
+                macro_name = Some(path.segments.last()?.ident.to_string());
+            }
+            Ok(Meta::List(MetaList { nested, path, .. })) => {
+                if path.is_ident("cfg_attr") {
+                    // Handle `#[cfg_attr(feature = "apple", ferment_macro::export)]`
+                    for (i, meta) in nested.iter().enumerate() {
+                        if i == 0 {
+                            // Skip the first argument (feature flag)
+                            continue;
+                        }
+                        match meta {
+                            NestedMeta::Meta(Meta::Path(inner_path)) => {
+                                macro_name = Some(inner_path.segments.last()?.ident.to_string());
+                            }
+                            NestedMeta::Meta(Meta::List(inner_list)) => {
+                                macro_name = Some(inner_list.path.segments.last()?.ident.to_string());
+                                // Extract arguments for `register(...)`
+                                for inner_meta in &inner_list.nested {
+                                    if let NestedMeta::Meta(Meta::Path(inner_path)) = inner_meta {
+                                        arguments.push(inner_path.clone());
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                } else {
+                    // Handle `#[ferment_macro::register(...)]`
+                    macro_name = Some(path.segments.last()?.ident.to_string());
+
+                    // Extract arguments
+                    for meta in &nested {
+                        if let NestedMeta::Meta(Meta::Path(inner_path)) = meta {
+                            arguments.push(inner_path.clone());
+                        }
+                    }
                 }
-                match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "export" =>
-                        Some(MacroType::Export),
-                    "opaque" =>
-                        Some(MacroType::Opaque),
-                    "register" =>
-                        Some(MacroType::Register(TypeHolder(arguments.first().unwrap().to_type()))),
-                    _ =>
-                        None
-                }
-            }))
+            }
+            _ => {}
+        }
+
+        let detected_macro = macro_name?;
+
+        match detected_macro.as_str() {
+            "export" => Some(MacroType::Export),
+            "opaque" => Some(MacroType::Opaque),
+            "register" => {
+                let first_argument = arguments.first()?;
+                Some(MacroType::Register(TypeHolder(first_argument.to_type())))
+            }
+            _ => None,
+        }
     }
 }
 

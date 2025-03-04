@@ -4,6 +4,10 @@ version = "0.1.4"
 edition = "2021"
 #build = "build.backup"
 
+[features]
+default = ["apple"]
+apple = []
+
 [dependencies]
 async-trait = "0.1.74"
 ferment = { path = "../../ferment" }

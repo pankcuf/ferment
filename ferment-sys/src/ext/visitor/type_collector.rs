@@ -1,8 +1,9 @@
 use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemMod, ItemType, Meta, NestedMeta, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, Variant};
 use crate::ast::TypeHolder;
 use crate::composable::GenericBoundsModel;
+use crate::composer::MaybeMacroLabeled;
 use crate::conversion::ScopeItemKind;
-use crate::ext::{UniqueNestedItems, ResolveMacro};
+use crate::ext::UniqueNestedItems;
 
 #[allow(unused)]
 pub struct MacroAttributes {

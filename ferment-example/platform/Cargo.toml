@@ -11,23 +11,15 @@ keywords.workspace = true
 
 [dependencies]
 anyhow = { version = "1.0.75" }
-dash-sdk = { path = "../../../platform/packages/rs-sdk" }
-dashcore = { git = "https://github.com/pankcuf/rust-dashcore", features = [
-    "std",
-    "secp-recovery",
-    "rand",
-    "signer",
-    "serde",
-], default-features = false, branch = "feat/ferment" }
-dpp = { path = "../../../platform/packages/rs-dpp", features = ["state-transitions"] }
-fancy-regex = "0.13.0"
+dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
 ferment = { path = "../../ferment" }
 ferment-macro = { path = "../../ferment-macro" }
 grovedb-version = "2.1.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
 jsonschema = "0.22.3"
-platform-value = { path = "../../../platform/packages/rs-platform-value" }
-platform-version = { path = "../../../platform/packages/rs-platform-version" }
+dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", features = ["state-transitions", "apple"] }
+platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
+platform-version = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-version", features = ["apple"] }
 regex = { version = "1.10.4" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 

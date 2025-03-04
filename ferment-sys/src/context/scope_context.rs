@@ -7,10 +7,10 @@ use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBou
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
-use crate::composer::ComposerLink;
+use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{Custom, DictionaryType, extract_trait_names, Fermented, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
 use crate::lang::{LangFermentable, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -175,7 +175,7 @@ impl ScopeContext {
                 match self.maybe_scope_item_obj_first(path)
                     .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {
                     Some(item) => {
-                        if item.is_fermented() || item.is_custom() {
+                        if item.is_labeled_for_export() || item.is_labeled_for_register() {
                             None
                         } else {
                             println!("maybe_opaque_object: non fermentable / non custom: {}", item);
