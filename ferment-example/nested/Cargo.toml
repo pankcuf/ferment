@@ -56,6 +56,7 @@ json = ["platform-value/serde_json"]
 json-object = ["dpp/json-object"]
 json-schema-validation = ["dpp/json-schema-validation"]
 message-signing = ["dpp/message-signing"]
+message_verification = ["dashcore/message_verification"]
 mock-versions = ["platform-version/mock-versions"]
 objc = ["ferment-sys/objc"]
 cbindgen_only = ["ferment-sys/cbindgen_only"]
@@ -71,3 +72,4 @@ validation = ["dpp/validation"]
 [lib]
 name = "example_nested"
 crate-type = ["staticlib", "cdylib"]
+

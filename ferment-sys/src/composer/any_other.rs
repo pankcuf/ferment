@@ -59,7 +59,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
-        let _maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
+        // let _maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
         // let compose = |arg_name: &Name, ty: &Type| {
         // };
         // let arg_name = &arg_0_name;
@@ -186,13 +186,11 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
             interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &lifetimes));
         }
-        // interfaces.push(InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None));
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Type(ffi_var))
         ]);
         let expr_destroy_iterator = [
             destroy_conversion.present(source)
-            // destroy_composer(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()).present(source)
         ];
         interfaces.push(InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator)));
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() });

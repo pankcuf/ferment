@@ -162,7 +162,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<RustFermentate, SPEC> {
-        println!("GenericTypeKind -> FFIFullPath --> {}", self);
+        //println!("GenericTypeKind -> FFIFullPath --> {}", self);
         let result = match self {
             GenericTypeKind::Map(ty) |
             GenericTypeKind::Group(ty) |
@@ -218,7 +218,7 @@ impl<SPEC> Resolve<FFIFullPath<RustFermentate, SPEC>> for GenericTypeKind
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
         };
-        println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
+        //println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
         result
     }
 }

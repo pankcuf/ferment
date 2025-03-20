@@ -187,7 +187,7 @@ fn compose_regular_fn<SPEC>(
                 FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
                     used_lifetimes.extend(ty.unique_lifetimes());
                     let name = Name::Pat(*pat.clone());
-                    println!("compose_regular: (input arg) {}", ty.to_token_stream());
+                    //println!("compose_regular: (input arg) {}", ty.to_token_stream());
                     (
                         ArgKind::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited),
                         ArgKind::AttrExpression(
@@ -200,7 +200,7 @@ fn compose_regular_fn<SPEC>(
         })
         .unzip();
     let input_conversions = SeqKind::FromUnnamedFields(((aspect, attrs.clone(), generics.clone(), NameKind::Named), argument_conversions));
-    println!("used_lifetimes: {:?}", used_lifetimes);
+    //println!("used_lifetimes: {:?}", used_lifetimes);
     BindingPresentableContext::RegFn(
         path,
         asyncness.is_some(),
@@ -357,7 +357,8 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                             });
                         let ffi_type = self.present_ffi_aspect();
                         let lifetimes = self.compose_lifetimes();
-                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, &lifetimes, arg_to_conversions.present(&source), post_processing);
+                        let args_to = arg_to_conversions.present(&source);
+                        let conversion = InterfacePresentation::callback(attrs, &ffi_type, arg_target_fields, return_type, &lifetimes, args_to, post_processing);
                         BindingPresentation::Callback {
                             name: full_fn_path.mangle_ident_default(),
                             attrs: attrs.clone(),

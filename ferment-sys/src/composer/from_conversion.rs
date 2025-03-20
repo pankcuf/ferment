@@ -66,7 +66,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
         let field_path = expr.clone().unwrap_or(SPEC::Expr::simple(name));
 
         let search_key = self.search.search_key();
-        println!("FromConversionFullComposer::search_key {} ", search_key);
+        //println!("FromConversionFullComposer::search_key {} ", search_key);
         let maybe_object = source.maybe_object_by_predicate_ref(search);
         let full_type = maybe_object
             .as_ref()
@@ -80,13 +80,13 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
         let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
 
-        println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
+        //println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
 
         let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
-        println!("FromConversionFullComposer::maybe_special {} ", maybe_special.as_ref().map_or("None".to_string(), SpecialType::to_string));
+        //println!("FromConversionFullComposer::maybe_special {} ", maybe_special.as_ref().map_or("None".to_string(), SpecialType::to_string));
         let expression = match maybe_special {
             Some(SpecialType::Opaque(..)) => match composition {
                 TypeModelKind::Bounds(bounds) =>
@@ -222,7 +222,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                 }
             }
         };
-        println!("FromConversionFullComposer ==> {:?}", expression);
+        //println!("FromConversionFullComposer ==> {:?}", expression);
         if is_ref {
             Expression::LeakBox(expression.into())
         } else {

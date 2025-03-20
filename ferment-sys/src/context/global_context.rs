@@ -484,10 +484,11 @@ impl GlobalContext {
                 let nested_arguments = conversion.nested_arguments_ref();
                 let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
                 let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
-                let skip = all_of_them_are_non_fermentable && maybe_custom.is_none();
+                let maybe_lambda = conversion.is_lambda();
+                let skip = all_of_them_are_non_fermentable && maybe_custom.is_none() && !maybe_lambda;
 
                 // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
-                println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), conversion);
+                //println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), conversion);
                 skip
             }
             None => false
