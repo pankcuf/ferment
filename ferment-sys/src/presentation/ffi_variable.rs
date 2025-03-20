@@ -89,7 +89,6 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Path
 
 pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type>
     where SPEC: RustSpecification {
-    //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
@@ -231,7 +230,8 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
                 Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
                     .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
                     .unwrap_or_else(|| {
-                        resolve_type_variable(Resolve::<ObjectKind>::maybe_resolve(ty, source)
+                        let maybe_object_kind = Resolve::<ObjectKind>::maybe_resolve(ty, source);
+                        let ty_model_kind_to_resolve = maybe_object_kind
                             .and_then(|external_type| {
                                 match external_type {
                                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
@@ -276,7 +276,9 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
                                     }
                                 }
                             })
-                            .unwrap_or(TypeModelKind::unknown_type_ref(ty)).to_type(), source)
+                            .unwrap_or(TypeModelKind::unknown_type_ref(ty));
+                        let ty_to_resolve = ty_model_kind_to_resolve.to_type();
+                        resolve_type_variable(ty_to_resolve, source)
                     })
             },
             TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
