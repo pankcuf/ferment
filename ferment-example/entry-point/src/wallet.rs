@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
 use std::os::raw::c_void;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -37,8 +38,8 @@ impl WalletEx {
         CommitTx: Fn(*const c_void, Vec<[u8; 32]>, [u8; 32], bool, [u8; 32]) -> bool + 'static,
         IsSynced: Fn(*const c_void) -> bool + 'static,
         IsMasternodeOrDisconnectRequested: Fn(*const c_void, String) -> bool + 'static,
-        DisconnectMasternode: Fn(*const c_void, String) -> bool + 'static,
-        SendMessage: Fn(*const c_void, String, Vec<u8>, String, bool) -> bool + 'static,
+        DisconnectMasternode: Fn(*const c_void, SocketAddr) -> bool + 'static,
+        SendMessage: Fn(*const c_void, String, Vec<u8>, Option<SocketAddr>, bool) -> bool + 'static,
         AddPendingMasternode: Fn(*const c_void, [u8; 32], [u8; 32]) -> bool + 'static,
         StartManagerAsync: Fn(*const c_void) + 'static,
         GetCoinJoinKeys: Fn(*const c_void, bool) -> Vec<Vec<u8>> + 'static,
