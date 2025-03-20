@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::{FFIAspect, SourceComposable};
@@ -56,11 +56,12 @@ where LANG: LangFermentable,
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
         };
+        // println!("ToConversionFullComposer::{}")
         let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
-        let _composition = maybe_object.as_ref()
-            .and_then(|kind| kind.maybe_trait_or_same_kind(source))
-            .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
-        let _maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
+        // let _composition = maybe_object.as_ref()
+        //     .and_then(|kind| kind.maybe_trait_or_same_kind(source))
+        //     .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
+        // let _maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
         match maybe_object {
             Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object().unwrap() {
                 ObjectKind::Type(ref ty_conversion) |
@@ -68,6 +69,8 @@ where LANG: LangFermentable,
                     let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), source);
                     let maybe_special: Option<SpecialType<LANG, SPEC>> = full_parent_ty.maybe_resolve(source);
                     match maybe_special {
+                        Some(SpecialType::Opaque(..)) if is_ref =>
+                            Expression::boxed_tokens(quote!(#name.clone())),
                         Some(SpecialType::Opaque(..)) =>
                             Expression::boxed_tokens(name),
                         Some(SpecialType::Custom(custom_ty)) =>
@@ -83,6 +86,8 @@ where LANG: LangFermentable,
                 match maybe_special {
                     Some(SpecialType::Opaque(..)) if search_key.maybe_originally_is_ptr() =>
                         field_path,
+                    Some(SpecialType::Opaque(..)) if is_ref =>
+                        Expression::boxed(Expression::Clone(field_path.into())),
                     Some(SpecialType::Opaque(..)) =>
                         Expression::boxed(field_path),
                     Some(SpecialType::Custom(custom_ty)) =>

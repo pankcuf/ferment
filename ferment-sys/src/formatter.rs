@@ -65,7 +65,7 @@ pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Opti
 #[allow(unused)]
 pub fn format_mixin_kinds(dict: &HashMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
-        .map(|(item, attrs)| format!("{}:\n\t {}", item, format_unique_attrs(attrs)))
+        .map(|(item, attrs)| format!("{}:\t {}", item, format_unique_attrs(attrs)))
         .collect::<Vec<_>>()
         .join("\n\t")
 }

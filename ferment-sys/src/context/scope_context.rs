@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use quote::ToTokens;
 use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
@@ -178,7 +177,7 @@ impl ScopeContext {
                         if item.is_labeled_for_export() || item.is_labeled_for_register() {
                             None
                         } else {
-                            println!("maybe_opaque_object: non fermentable / non custom: {}", item);
+                            //println!("maybe_opaque_object: non fermentable / non custom: {}", item);
                             Some(item.to_type())
                         }
                     },
@@ -188,7 +187,7 @@ impl ScopeContext {
                         } else if path.is_primitive() {
                             None
                         } else {
-                            println!("maybe_opaque_object: alternative: {}", ty.to_token_stream());
+                            //println!("maybe_opaque_object: alternative: {}", ty.to_token_stream());
                             Some(ty.clone())
                         }
                     }

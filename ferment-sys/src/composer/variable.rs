@@ -81,7 +81,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
             .unwrap_or(search_key.to_type());
         println!("VarComposer:: {} --- {} --- {}", self.search, full_ty.to_token_stream(), maybe_obj.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let maybe_special = Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(&full_ty, source);
-        // println!("VarComposer:: (Maybe Special?) {}", maybe_special.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        println!("VarComposer:: (Maybe Special?) {}", maybe_special.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) =>
@@ -100,7 +100,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                 _ => ptr_composer(special.to_type())
             }
             None => {
-                // println!("VarComposer (NonSpecial): {} in {}", full_ty.to_token_stream(), source.scope.fmt_short());
+                println!("VarComposer (NonSpecial): {} in {} ({:?})", full_ty.to_token_stream(), source.scope.fmt_short(), maybe_obj);
                 match maybe_obj {
                     Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
                         let ty = source.maybe_to_trait_fn_type::<RustFermentate, SPEC>()
@@ -161,7 +161,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                         let object = source.maybe_object_by_value(full_nested_ty);
                                         // let object = Resolve::<Option<ObjectKind>>::resolve(nested_ty, source);
                                         // println!("VarComposer (Nested Boxed Type Conversion (Object?)): {}", object.as_ref().map_or("None".to_string(), |o| format!("{}", o)));
-                                        let var_ty = match object {
+                                        let ty_model_kind = match object {
                                             Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
                                                 source.maybe_trait_or_regular_model_kind(),
                                             Some(ObjectKind::Type(ref kind) |
@@ -169,7 +169,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                                 kind.maybe_trait_model_kind_or_same(source),
                                             _ => None,
                                         }.unwrap_or(TypeModelKind::unknown_type_ref(full_nested_ty));
-                                        let var_c_type = var_ty.to_type();
+                                        let var_c_type = ty_model_kind.to_type();
                                         let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
                                         let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                         let result = resolve_type_variable(var_ty, source);
@@ -325,7 +325,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                     cnv.clone()
                                     // TypeModelKind::Unknown(TypeComposition::new(conversion_ty.clone(), None, Punctuated::new()))
                                 });
-                                // println!("VarComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
+                                println!("VarComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
                                 let var_c_type = var_ty.to_type();
                                 let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
                                 let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
@@ -351,7 +351,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                 }
             }
         };
-        // println!("VarComposer (compose) RESULT: {}", result.to_token_stream());
+        println!("VarComposer (compose) RESULT: {}", result.to_token_stream());
         result
     }
 }
@@ -527,7 +527,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                         // let conversion_ty = conversion.ty();
                                         let object = Resolve::<ObjectKind>::maybe_resolve(nested_ty, source);
                                         // println!("VariableComposer (Nested Boxed Type Conversion (Object?)): {}", object.as_ref().map_or("None".to_string(), |o| format!("{}", o)));
-                                        let var_ty = match object {
+                                        let ty_model_kind = match object {
                                             Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
                                                 source.maybe_trait_or_regular_model_kind(),
                                             Some(ObjectKind::Type(ref kind) |
@@ -535,7 +535,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                                 kind.maybe_trait_model_kind_or_same(source),
                                             _ => None,
                                         }.unwrap_or(TypeModelKind::unknown_type_ref(nested_ty));
-                                        let var_c_type = var_ty.to_type();
+                                        let var_c_type = ty_model_kind.to_type();
                                         let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
                                         let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                         let result = resolve_type_variable(var_ty, source);

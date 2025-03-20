@@ -5,5 +5,6 @@ mod keychain;
 mod wallet;
 mod wallet_provider;
 mod custom;
+mod provider;
 
 extern crate ferment_macro;

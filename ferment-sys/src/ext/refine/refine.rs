@@ -90,42 +90,6 @@ impl RefineInScope for ObjectKind {
     }
 }
 
-impl RefineWithFullPath for Type {
-    fn refine_with_full_path(&mut self, full_path: &Path, nested_arguments: &CommaPunctuatedNestedArguments) -> bool {
-        //println!("Type::refine_with_full_path --> {}", self.to_token_stream());
-        let mut refined = self.refine_with_nested_args(nested_arguments);
-        match self {
-            Type::Path(TypePath { path, .. }) => {
-                *path = if let Some(last_segment) = path.segments.last() {
-                    let mut full_path_with_args = full_path.clone();
-                    full_path_with_args.segments.last_mut().unwrap().arguments = last_segment.arguments.clone();
-                    full_path_with_args
-                } else {
-                    full_path.clone()
-                };
-                refined = true;
-            }
-            Type::Array(_) => {}
-            Type::BareFn(_) => {}
-            Type::Group(_) => {}
-            Type::ImplTrait(_) => {}
-            Type::Infer(_) => {}
-            Type::Macro(_) => {}
-            Type::Never(_) => {}
-            Type::Paren(_) => {}
-            Type::Ptr(_) => {}
-            Type::Reference(_) => {}
-            Type::Slice(_) => {}
-            Type::TraitObject(_) => {}
-            Type::Tuple(_) => {}
-            Type::Verbatim(_) => {}
-            _ => {}
-        }
-        //println!("Type::refine_with_full_path ({}) <-- {}", refined, self.to_token_stream());
-        refined
-    }
-}
-
 fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, scope: &ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeItemKind> {
     // There are 2 cases:
     // 1. it's from non-fermented crate
@@ -421,8 +385,9 @@ impl RefineInScope for TypeModelKind {
             }
             TypeModelKind::Unknown(model) => {
                 let path = model.lifetimes_cleaned().pointer_less();
-                if let Some(dictionary_type) = maybe_dict_type_model_kind(&path, model) {
+                if let Some(mut dictionary_type) = maybe_dict_type_model_kind(&path, model) {
                     //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
+                    refine_nested_arguments(dictionary_type.type_model_mut(), scope, source);
                     *self = TypeModelKind::Dictionary(dictionary_type);
                     true
                 } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
@@ -490,13 +455,16 @@ impl RefineInScope for TypeModelKind {
 
 impl RefineInScope for NestedArgument {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
+        //println!("NestedArgument::refine_in_scope --> {} \n\tin {}", self, scope.fmt_short());
         let obj = self.object_mut();
-        if let Some(refined_obj) = source.maybe_refined_object(scope, obj) {
+        let result = if let Some(refined_obj) = source.maybe_refined_object(scope, obj) {
             *obj = refined_obj;
             true
         } else {
             false
-        }
+        };
+        //println!("NestedArgument::refine_in_scope <-- {} \n\tin {}", self, scope.fmt_short());
+        result
     }
 }
 

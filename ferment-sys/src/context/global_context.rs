@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
 use crate::{print_phase, Config};
@@ -526,7 +526,7 @@ impl RefineMut for GlobalContext {
                             .for_each(|_ty| {
                                 // println!("CHECK")
                                 let skip = self.should_skip_from_expanding(object);
-                                println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
+                                //println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
                                 if !skip {
                                     if let Some(kind) = object.maybe_generic_type_kind() {
                                         refined_mixins

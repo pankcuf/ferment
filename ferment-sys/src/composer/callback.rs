@@ -6,7 +6,7 @@ use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, VarComposer, BasicComposerLink, ToConversionFullComposer};
-use crate::context::{ScopeContext, ScopeContextLink, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
@@ -105,7 +105,8 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                 let name = Name::UnnamedArg(index);
                 lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
-                ffi_args.push(bare_fn_arg(VarComposer::<RustFermentate, SPEC>::new(ScopeSearch::Value(ScopeSearchKey::TypeRef(ty, None))).compose(source).to_type()));
+                let ffi_arg = VarComposer::<RustFermentate, SPEC>::value(ty).compose(source).to_type();
+                ffi_args.push(bare_fn_arg(ffi_arg));
                 arg_to_conversions.push(ToConversionFullComposer::<RustFermentate, SPEC>::value(name, ty).compose(source).present(source));
             });
         let ffi_type = self.present_ffi_aspect();
