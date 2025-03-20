@@ -153,14 +153,11 @@ impl<'a> ScopeSearchKey<'a> {
     pub fn maybe_from_ref(ty: &'a Type) -> Option<Self> {
         let original = ScopeSearchKey::TypeRef(ty, None);
         match ty {
-            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.len() {
-                1 => match bounds.first()? {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
-                    TypeParamBound::Lifetime(_) =>
-                        panic!("maybe_scope_type::error")
-                },
-                _ => None
+            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.first()? {
+                TypeParamBound::Trait(TraitBound { path, .. }) =>
+                    Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
+                TypeParamBound::Lifetime(_) =>
+                    panic!("maybe_scope_type::error")
             },
             Type::Reference(TypeReference { elem: ty, .. }) |
             Type::Ptr(TypePtr { elem: ty, .. }) =>

@@ -422,15 +422,15 @@ impl RefineInScope for TypeModelKind {
             TypeModelKind::Unknown(model) => {
                 let path = model.lifetimes_cleaned().pointer_less();
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&path, model) {
-                    println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
+                    //println!("[INFO] (Unknown) Dictionary item found: {}", dictionary_type);
                     *self = TypeModelKind::Dictionary(dictionary_type);
                     true
                 } else if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&path)
-                    .or_else(|| determine_scope_item(model, path, scope, source)){
-                    println!("[INFO] (Unknown) Scope item found: {}", found_item);
+                    .or_else(|| determine_scope_item(model, path, scope, source)) {
+                    //println!("[INFO] (Unknown) Scope item found: {}", found_item);
                     refine_ty_with_import_path(model.ty_mut(), found_item.path());
                     if let Some(updated) = found_item.update_with(model.clone()) {
-                        println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
+                        //println!("[INFO] (Unknown) Scope item refined (Unknown): {}", updated);
                         *self = updated;
                     }
                     true

@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use syn::{parse_quote, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, Type, TypePath, TypeReference};
+use syn::{parse_quote, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, Type, TypePath, TypePtr, TypeReference};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::ast::CommaPunctuated;
@@ -202,15 +202,20 @@ impl<'a> AsType<'a> for TypeModelKind {
 
 impl ToType for TypeModelKind {
     fn to_type(&self) -> Type {
+        // TODO: check others like slices
         match self {
             TypeModelKind::Imported(ty, import_path) => {
                 let ty = ty.as_type();
                 let path = import_path.popped();
                 match ty {
-                    Type::Reference(TypeReference { elem, mutability, .. }) => {
-                        parse_quote!(&#mutability #path::#elem)
-                    },
-                    _ => parse_quote!(#path::#ty)
+                    Type::Reference(TypeReference { elem, mutability, .. }) =>
+                        parse_quote!(&#mutability #path::#elem),
+                    Type::Ptr(TypePtr { elem, mutability: Some(..), .. }) =>
+                        parse_quote!(*mut #path::#elem),
+                    Type::Ptr(TypePtr { elem, const_token: Some(..), .. }) =>
+                        parse_quote!(*const #path::#elem),
+                    _ =>
+                        parse_quote!(#path::#ty)
                 }
             },
             _ => self.as_type().clone()

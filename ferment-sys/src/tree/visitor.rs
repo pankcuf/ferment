@@ -249,13 +249,11 @@ impl Visitor {
 
     pub fn add_conversion(&mut self, item: Item) {
         // TODO: filter out #[cfg(test)]
-        println!("add_conversion: {}", item.ident_string());
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
         match (MacroType::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
             (Ok(MacroType::Export | MacroType::Opaque), Ok(_)) => {
-                println!("Export: {}", item.ident_string());
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);

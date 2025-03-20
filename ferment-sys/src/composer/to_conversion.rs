@@ -81,6 +81,8 @@ where LANG: LangFermentable,
             Some(ObjectKind::Item(..) | ObjectKind::Type(..)) => {
                 let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
                 match maybe_special {
+                    Some(SpecialType::Opaque(..)) if search_key.maybe_originally_is_ptr() =>
+                        field_path,
                     Some(SpecialType::Opaque(..)) =>
                         Expression::boxed(field_path),
                     Some(SpecialType::Custom(custom_ty)) =>

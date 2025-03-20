@@ -356,6 +356,30 @@ macro_rules! impl_custom_conversion2 {
         }
     };
 }
+#[macro_export]
+macro_rules! impl_cloneable_ferment {
+    ($ty:path, $ffitype:ident) => {
+        impl ferment::FFIConversionFrom<$ty> for $ffitype {
+            unsafe fn ffi_from_const(ffi: *const Self) -> $ty {
+                let ffi = &*ffi;
+                let raw = &*ffi.0;
+                raw.clone()
+            }
+        }
+        impl ferment::FFIConversionTo<$ty> for $ffitype {
+            unsafe fn ffi_to_const(obj: $ty) -> *const Self {
+                ferment::boxed(Self(ferment::boxed(obj)))
+            }
+        }
+        impl Drop for $ffitype {
+            fn drop(&mut self) {
+                unsafe {
+                    ferment::unbox_any(self.0);
+                }
+            }
+        }
+    };
+}
 
 /// # Safety
 pub unsafe fn to_arc<T: ?Sized>(obj: std::sync::Arc<T>) -> *mut T {

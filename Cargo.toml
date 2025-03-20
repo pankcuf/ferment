@@ -18,3 +18,5 @@ keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]
 lto = "thin"
 opt-level = 3
 
+[profile.dev.build-override]
+debug = true
