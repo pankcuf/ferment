@@ -28,11 +28,11 @@ impl ImportResolver {
             UseTree::Rename(UseRename { rename: ident, .. }) => {
                 if ident != "_" {
                     current_path.push(ident.clone());
-                    // println!("ident: {}", ident);
+                    let path = Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) };
                     self.inner
                         .entry(scope.clone())
                         .or_default()
-                        .insert(parse_quote!(#ident), Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) });
+                        .insert(parse_quote!(#ident), path);
                 }
             },
             UseTree::Group(UseGroup { items, .. }) =>

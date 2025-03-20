@@ -28,7 +28,7 @@ pub trait TypeModeled {
         &mut self.type_model_mut().ty
     }
     fn replace_model_type(&mut self, with_ty: Type) {
-        self.type_model_mut().ty = with_ty;
+        *self.ty_mut() = with_ty;
     }
 }
 

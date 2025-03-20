@@ -6,7 +6,7 @@ use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeMode
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, CrateExtension, DictionaryType, ToPath, ToType};
+use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, ToPath, ToType};
 use crate::nprint;
 
 pub trait ToObjectKind {
@@ -95,28 +95,29 @@ impl<'a> VisitScopeType<'a> for Path {
                         match arg {
                             GenericArgument::Type(inner_type) => {
                                 let obj_conversion = inner_type.visit_scope_type(&(scope, context));
-                                let ty = obj_conversion.maybe_type().unwrap();
+                                let ty_model_kind = obj_conversion.maybe_type_model_kind_ref().unwrap();
+                                let new_inner_ty = ty_model_kind.as_type().clone();
                                 nested_arguments.push(NestedArgument::Object(obj_conversion));
-                                *arg = GenericArgument::Type(ty);
+                                *arg = GenericArgument::Type(new_inner_ty);
                             },
                             _ => {}
                         }
                     }
                 }
                 PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                    //println!("Path::Parenthesized::visit_scope_type: {} --- {}", inputs.to_token_stream(), output.to_token_stream());
                     for arg in inputs {
                         let obj_conversion = arg.visit_scope_type(&(scope, context));
-                        let ty = obj_conversion.maybe_type().unwrap();
-                        //println!("Path::Parenthesized: {} --- {} --- {}", arg.to_token_stream(), obj_conversion, ty.to_token_stream());
+                        let ty_model_kind = obj_conversion.maybe_type_model_kind_ref().unwrap();
+                        let new_inner_ty = ty_model_kind.as_type().clone();
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
-                        *arg = ty;
+                        *arg = new_inner_ty;
                     }
                     if let ReturnType::Type(_, ret) = output {
                         let obj_conversion = ret.visit_scope_type(&(scope, context));
-                        let ty = obj_conversion.maybe_type().unwrap();
+                        let ty_model_kind = obj_conversion.maybe_type_model_kind_ref().unwrap();
+                        let new_inner_ty = ty_model_kind.as_type().clone();
                         nested_arguments.push(NestedArgument::Object(obj_conversion));
-                        *ret = Box::new(ty);
+                        *ret = Box::new(new_inner_ty);
                     }
                 }
             }
@@ -161,7 +162,6 @@ impl<'a> VisitScopeType<'a> for Path {
                         })
                         .collect())
                 .unwrap_or_default();
-            // GenericBoundsModel::new(&import_seg.0, &bound, generics, nested_arguments)
             ObjectKind::Type(TypeModelKind::Bounds(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments)))
         } else if let Some(mut import_path) = context.maybe_import_path_ref(scope, &import_seg).cloned() {
             // Can be reevaluated after processing entire scope tree:
@@ -191,7 +191,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 };
                 segments.replace_last_with(&new_segments);
             }
-            println!("TO TRAIT: (BOUNDS): {} -- {:?}", segments.to_token_stream(), nested_arguments);
+            //println!("TO TRAIT: (BOUNDS): {} -- {:?}", segments.to_token_stream(), nested_arguments);
             TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                 .to_trait(nested_arguments)
         } else {
@@ -474,7 +474,7 @@ impl<'a> VisitScopeType<'a> for TypeBareFn {
         if let ReturnType::Type(_, ty) = &self.output {
             nested.push(NestedArgument::Object(ty.visit_scope_type(source)))
         }
-        println!("TypeBareFn::visit_scope_type: {} --- {}", self.to_token_stream(), nested.to_token_stream());
+        //println!("TypeBareFn::visit_scope_type: {} --- {}", self.to_token_stream(), nested.to_token_stream());
         ObjectKind::Type(
             TypeModelKind::FnPointer(
                 TypeModel::new(Type::BareFn(self.clone()), None, nested)))
@@ -488,12 +488,15 @@ impl<'a> VisitScopeType<'a> for TypeReference {
         match &mut obj {
             ObjectKind::Type(tyc) |
             ObjectKind::Item(tyc, _) => {
-                tyc.replace_model_type(Type::Reference(TypeReference {
+                //println!("TypeReference::visit_scope_type --> {}", tyc);
+                let ty = Type::Reference(TypeReference {
                     and_token: Default::default(),
                     lifetime: self.lifetime.clone(),
                     mutability: self.mutability.clone(),
                     elem: Box::new(tyc.to_type()),
-                }));
+                });
+                //println!("TypeReference::visit_scope_type <-- {}", ty.to_token_stream());
+                tyc.replace_model_type(ty);
             }
             ObjectKind::Empty => {}
         }
@@ -508,16 +511,36 @@ impl<'a> VisitScopeType<'a> for TypePtr {
         match &mut obj {
             ObjectKind::Type(tyc) |
             ObjectKind::Item(tyc, _) => {
-                let ty = tyc.to_type();
-                match (self.const_token, self.mutability) {
-                    (Some(..), _) => {
-                        tyc.replace_model_type(parse_quote!(*const #ty))
+                match &tyc {
+                    TypeModelKind::Imported(ty, import_path) => {
+                        let ty = ty.as_type();
+                        let path = import_path.popped();
+                        match (self.const_token, self.mutability) {
+                            (Some(..), _) => {
+                                tyc.replace_model_type(parse_quote!(*const #path::#ty))
+                            },
+                            (_, Some(..)) => {
+                                tyc.replace_model_type(parse_quote!(*mut #path::#ty))
+                            },
+                            _ => {
+
+                            }
+                        }
                     },
-                    (_, Some(..)) => {
-                        tyc.replace_model_type(parse_quote!(*mut #ty))
-                    },
-                    _ => {}
+                    _ => {
+                        let ty = tyc.to_type();
+                        match (self.const_token, self.mutability) {
+                            (Some(..), _) => {
+                                tyc.replace_model_type(parse_quote!(*const #ty))
+                            },
+                            (_, Some(..)) => {
+                                tyc.replace_model_type(parse_quote!(*mut #ty))
+                            },
+                            _ => {}
+                        }
+                    }
                 }
+
             }
             ObjectKind::Empty => {}
         }
@@ -551,7 +574,7 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
         let (scope, context) = source;
         let TypeTraitObject { dyn_token, bounds } = self;
         let mut bounds = bounds.clone();
-        let nested_arguments = CommaPunctuatedNestedArguments::new();
+        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
         bounds.iter_mut().for_each(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
                 let object = path.visit_scope_type(&(scope, context, None));
@@ -574,7 +597,7 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
                     }
                     ObjectKind::Empty => {}
                 }
-                //nested_arguments.push(NestedArgument::Constraint(object));
+                nested_arguments.push(NestedArgument::Constraint(object));
             },
             _ => {},
         });
