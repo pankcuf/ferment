@@ -78,7 +78,7 @@ where LANG: LangFermentable,
                 },
                 _ => from_external::<LANG, SPEC>(&full_type, ffi_type, if is_ref { Expression::Clone(field_path.into()) } else { field_path })
             },
-            Some(ObjectKind::Item(..) | ObjectKind::Type(..)) => {
+            Some(ObjectKind::Item(ty_kind, ..) | ObjectKind::Type(ty_kind)) => {
                 let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
                 match maybe_special {
                     Some(SpecialType::Opaque(..)) if search_key.maybe_originally_is_ptr() =>
@@ -87,17 +87,11 @@ where LANG: LangFermentable,
                         Expression::boxed(field_path),
                     Some(SpecialType::Custom(custom_ty)) =>
                         Expression::cast_to(field_path, ConversionExpressionKind::Complex, custom_ty, full_type),
-                    _ => match full_type.type_model_kind(source) {
+                    _ => match ty_kind {
                         TypeModelKind::FnPointer(..) | TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type),
                         TypeModelKind::Optional(TypeModel { ty, .. }) => {
                             let nested_ty = ty.maybe_first_nested_type_kind().unwrap();
-                            // match nested_ty {
-                            //     TypeKind::Primitive(_) =>
-                            //         Expression::cast_to(field_path, ConversionExpressionKind::PrimitiveOpt, ffi_type, nested_ty.to_type()),
-                            //     _ =>
-                            //         Expression::cast_to(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, nested_ty.to_type()),
-                            // }
                             let maybe_special = <Type as FFISpecialTypeResolve<LANG, SPEC>>::maybe_special_type(&nested_ty.to_type(), source);
                             match maybe_special {
                                 Some(SpecialType::Custom(custom_ty)) => {
@@ -147,11 +141,9 @@ where LANG: LangFermentable,
                                 Expression::from_lambda(field_path, lambda_args)
                             } else {
                                 Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type.clone())
-                                // Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, field_path.into())
                             }
                             _ =>
                                 Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type.clone())
-                            // Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Complex, field_path.into())
                         },
                         _ => from_external::<LANG, SPEC>(&full_type, ffi_type, if is_ref { Expression::Clone(field_path.into()) } else { field_path })
                     }

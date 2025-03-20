@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 use crate::wallet::WalletEx;
 
@@ -13,9 +14,9 @@ pub struct WalletProvider {
     fresh_coinjoin_address: Arc<dyn Fn(*const std::os::raw::c_void , bool) -> Vec<u8>>,
     commit_transaction: Arc<dyn Fn(*const std::os::raw::c_void, Vec<[u8; 32]>, [u8; 32], bool, [u8; 32]) -> bool>,
     is_masternode_or_disconnect_requested: Arc<dyn Fn(*const std::os::raw::c_void, String) -> bool>,
-    disconnect_masternode: Arc<dyn Fn(*const std::os::raw::c_void, String) -> bool>,
+    disconnect_masternode: Arc<dyn Fn(*const std::os::raw::c_void, SocketAddr) -> bool>,
     is_synced: Arc<dyn Fn(*const std::os::raw::c_void) -> bool>,
-    send_message: Arc<dyn Fn(*const std::os::raw::c_void, String, Vec<u8>, String, bool) -> bool>,
+    send_message: Arc<dyn Fn(*const std::os::raw::c_void, String, Vec<u8>, Option<SocketAddr>, bool) -> bool>,
     add_pending_masternode: Arc<dyn Fn(*const std::os::raw::c_void, [u8; 32], [u8; 32]) -> bool>,
     start_manager_async: Arc<dyn Fn(*const std::os::raw::c_void)>,
     get_coinjoin_keys: Arc<dyn Fn(*const std::os::raw::c_void, bool) -> Vec<Vec<u8>>>,
@@ -34,9 +35,9 @@ impl WalletProvider {
         FCA: Fn(*const std::os::raw::c_void, bool) -> Vec<u8> + 'static,
         CT: Fn(*const std::os::raw::c_void, Vec<[u8; 32]>, [u8; 32], bool, [u8; 32]) -> bool + 'static,
         IMODR: Fn(*const std::os::raw::c_void, String) -> bool + 'static,
-        DM: Fn(*const std::os::raw::c_void, String) -> bool + 'static,
+        DM: Fn(*const std::os::raw::c_void, SocketAddr) -> bool + 'static,
         IS: Fn(*const std::os::raw::c_void) -> bool + 'static,
-        SM: Fn(*const std::os::raw::c_void, String, Vec<u8>, String, bool) -> bool + 'static,
+        SM: Fn(*const std::os::raw::c_void, String, Vec<u8>, Option<SocketAddr>, bool) -> bool + 'static,
         APM: Fn(*const std::os::raw::c_void, [u8; 32], [u8; 32]) -> bool + 'static,
         SMA: Fn(*const std::os::raw::c_void) + 'static,
         GCK: Fn(*const std::os::raw::c_void, bool) -> Vec<Vec<u8>> + 'static,
@@ -98,13 +99,13 @@ impl WalletProvider {
     pub(crate) fn is_masternode_or_disconnect_requested(&self, address: String) -> bool {
         (self.is_masternode_or_disconnect_requested)(self.context, address)
     }
-    pub(crate) fn disconnect_masternode(&self, address: String) -> bool {
+    pub(crate) fn disconnect_masternode(&self, address: SocketAddr) -> bool {
         (self.disconnect_masternode)(self.context, address)
     }
     pub(crate) fn is_synced(&self) -> bool {
         (self.is_synced)(self.context)
     }
-    pub(crate) fn send_message(&self, message: Vec<u8>, msg_type: String, address: String, warn: bool) -> bool {
+    pub(crate) fn send_message(&self, message: Vec<u8>, msg_type: String, address: Option<SocketAddr>, warn: bool) -> bool {
         (self.send_message)(self.context, msg_type, message, address, warn)
     }
     pub(crate) fn add_pending_masternode(&self, pro_tx_hash: [u8; 32], session_id: [u8; 32]) -> bool {
