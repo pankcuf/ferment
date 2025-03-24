@@ -3,6 +3,7 @@ name = "example-entry-point"
 version = "0.1.4"
 edition = "2021"
 build = "build.rs"
+publish = false
 
 [dependencies]
 async-trait = "0.1.74"

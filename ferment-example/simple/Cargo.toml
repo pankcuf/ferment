@@ -2,6 +2,7 @@
 name = "example-simple"
 version = "0.1.4"
 edition = "2021"
+publish = false
 #build = "build.backup"
 
 [features]

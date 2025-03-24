@@ -3,6 +3,7 @@ name = "example-nested"
 version = "0.1.4"
 edition = "2021"
 build = "build.rs"
+publish = false
 
 [dependencies]
 anyhow = "1.0.95"

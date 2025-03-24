@@ -8,6 +8,7 @@ description.workspace = true
 homepage.workspace = true
 license.workspace = true
 keywords.workspace = true
+publish = false
 
 [dependencies]
 anyhow = { version = "1.0.75" }
