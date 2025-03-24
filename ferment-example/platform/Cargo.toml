@@ -12,8 +12,8 @@ keywords.workspace = true
 [dependencies]
 anyhow = { version = "1.0.75" }
 dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
-ferment = { path = "../../ferment" }
-ferment-macro = { path = "../../ferment-macro" }
+ferment.workspace = true
+ferment-macro.workspace = true
 grovedb-version = "2.1.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
 jsonschema = "0.22.3"
@@ -24,8 +24,9 @@ regex = { version = "1.10.4" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 
 [build-dependencies]
-cbindgen = "0.27.0"
-ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
+cbindgen = "0.28.0"
+ferment-sys = { workspace = true, features = ["objc"]}
+
 toml = "0.8.16"
 
 [features]

@@ -8,17 +8,15 @@ build = "build.rs"
 anyhow = "1.0.95"
 dashcore = { git = "https://github.com/dashpay/rust-dashcore", features = ["std", "secp-recovery", "rand", "signer", "serde", "apple"], default-features = false, branch = "feat/ferment" }
 
-ferment = { path = "../../ferment" }
-ferment-macro = { path = "../../ferment-macro" }
+ferment.workspace = true
+ferment-macro.workspace = true
+
 example-simple = { path = "../simple" }
 
 dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", default-features = false, features = ["apple", "dash-sdk-features"] }
 platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
 platform-version = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-version", features = ["apple"] }
 versioned-feature-core = "1.0.0"
-#platform-value = { path = "../../../platform/packages/rs-platform-value" }
-#platform-version = { path = "../../../platform/packages/rs-platform-version" }
-#versioned-feature-core = "1.0.0"
 
 indexmap = "2.7.0"
 regex = "1.11.1"
@@ -27,7 +25,7 @@ serde_json = "1.0.85"
 
 [build-dependencies]
 cbindgen = "0.28.0"
-ferment-sys = { path = "../../ferment-sys" }
+ferment-sys.workspace = true
 #ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
 #ferment-sys = { path = "../../ferment-sys", features = ["objc", "cbindgen_only"] }
 

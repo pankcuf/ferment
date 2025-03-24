@@ -15,6 +15,11 @@ license = "MIT"
 keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]
 version = "0.2.0"
 
+[workspace.dependencies]
+ferment = { version = "0.2.0", path = "ferment" }
+ferment-sys = { version = "0.2.0", path = "ferment-sys" }
+ferment-macro = { version = "0.2.0", path = "ferment-macro" }
+
 [profile.release]
 lto = "thin"
 opt-level = 3
