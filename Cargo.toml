@@ -13,6 +13,7 @@ description = "FFI bindings orchestrator"
 homepage = "https://github.com/pankcuf/ferment"
 license = "MIT"
 keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]
+version = "0.2.0"
 
 [profile.release]
 lto = "thin"
