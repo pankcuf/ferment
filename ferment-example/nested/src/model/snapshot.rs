@@ -1,3 +1,5 @@
+use dashcore::bls_sig_utils::BLSSignature;
+
 #[derive(Clone)]
 #[ferment_macro::export]
 pub enum LLMQSnapshotSkipMode {
@@ -20,4 +22,12 @@ impl Default for LLMQSnapshot {
     fn default() -> Self {
         Self { member_list: vec![], skip_list: vec![], skip_list_mode: LLMQSnapshotSkipMode::NoSkipping, option_vec: None }
     }
+}
+
+
+#[derive(Clone)]
+#[ferment_macro::export]
+pub enum VerifyingChainLockSignaturesType {
+    Rotating([BLSSignature; 4]),
+    NonRotating(BLSSignature),
 }
