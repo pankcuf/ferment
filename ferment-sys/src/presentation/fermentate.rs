@@ -153,8 +153,8 @@ impl ToTokens for RustFermentate {
                 quote!(#(#attrs)* pub mod #name { #imports #conversions }).to_tokens(tokens),
             Self::Trait { comment, vtable, trait_object } => {
                 comment.to_tokens(tokens);
-                vtable.to_tokens(tokens);
                 trait_object.to_tokens(tokens);
+                vtable.to_tokens(tokens);
             },
             Self::CrateTree(tree) =>
                 <CrateTree as SourceFermentable<RustFermentate>>::ferment(tree)
