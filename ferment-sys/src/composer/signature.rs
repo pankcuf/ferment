@@ -127,7 +127,7 @@ fn compose_regular_fn<SPEC>(
 ) -> BindingPresentableContext<RustFermentate, SPEC>
     where SPEC: RustSpecification,
           CommaPunctuatedArgKinds<RustFermentate, SPEC>: Extend<ArgKind<RustFermentate, SPEC>> {
-    println!("compose_regular_fn: {}", path.to_token_stream());
+    //println!("compose_regular_fn: {}", path.to_token_stream());
     let mut used_lifetimes = Vec::<Lifetime>::new();
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
@@ -271,17 +271,17 @@ impl<SPEC> SourceFermentable<RustFermentate> for SigComposer<RustFermentate, SPE
                         ).present(&source),
                     FnSignatureContext::TraitInner(_, _, sig) => {
                         let Signature { output, inputs, .. } = sig;
-                        let compose_ty = |ty: &Type| VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope).compose(&source).to_type();
+                        let compose_var = |ty: &Type| VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &source.scope).compose(&source).to_type();
                         let return_type = match output {
                             ReturnType::Default => ReturnType::Default,
-                            ReturnType::Type(_, ty) => ReturnType::Type(Default::default(), Box::new(compose_ty(ty)))
+                            ReturnType::Type(_, ty) => ReturnType::Type(Default::default(), Box::new(compose_var(ty)))
                         };
                         let arguments = CommaPunctuatedArgKinds::from_iter(inputs
                             .iter()
                             .map(|arg| {
                                 ArgKind::<RustFermentate, SPEC>::Named(match arg {
                                     FnArg::Receiver(Receiver { mutability: _, reference: _, attrs, .. }) =>
-                                        FieldComposer::self_typed(compose_ty(sig_context.receiver_ty()), attrs),
+                                        FieldComposer::self_typed(compose_var(sig_context.receiver_ty()), attrs),
                                     FnArg::Typed(PatType { ty, attrs, pat, .. }) =>
                                         FieldComposer::typed(Name::Pat(*pat.clone()), ty, true, attrs)
                                 }, Visibility::Inherited)

@@ -4,7 +4,7 @@ use proc_macro2::{Group, TokenTree};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::token::Comma;
-use crate::ast::{CommaPunctuated, DelimiterTrait, Wrapped};
+use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
 use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, NameKindComposable, PunctuatedArgKinds, TypeAspect};
 use crate::context::ScopeContext;
@@ -93,18 +93,10 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
         match self {
             Aspect::Target(context) => {
                 match context {
-                    TypeContext::Enum { ident, generics, .. } |
-                    TypeContext::Struct { ident , generics, .. } => {
-                        let lifetimes = generics.lifetimes();
-                        let comma_pt = CommaPunctuated::from_iter(lifetimes);
+                    TypeContext::Enum { ident, .. } |
+                    TypeContext::Struct { ident, .. } => {
                         let result: Type = ident.to_type()
                             .resolve(source);
-                        println!("present TARGET ASPECT: {} ---- {} ---- {}", ident, comma_pt.to_token_stream(), result.to_token_stream());
-                        // if comma_pt.is_empty() {
-                        //     result
-                        // } else {
-                        //     parse_quote!(#result #generics)
-                        // }
                         result
                     },
                     TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {

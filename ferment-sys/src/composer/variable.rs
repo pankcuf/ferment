@@ -79,9 +79,9 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
-        println!("VarComposer:: {} --- {} --- {}", self.search, full_ty.to_token_stream(), maybe_obj.as_ref().map_or("None".to_string(), ObjectKind::to_string));
+        //println!("VarComposer:: full_type: {} -- {}", full_ty.to_token_stream(),  maybe_obj.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let maybe_special = Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(&full_ty, source);
-        println!("VarComposer:: (Maybe Special?) {}", maybe_special.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        //println!("VarComposer:: (Maybe Special?) {}", maybe_special.as_ref().map_or("None".to_string(), |o| format!("{o}")));
         let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) =>
@@ -100,7 +100,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                 _ => ptr_composer(special.to_type())
             }
             None => {
-                println!("VarComposer (NonSpecial): {} in {} ({:?})", full_ty.to_token_stream(), source.scope.fmt_short(), maybe_obj);
+                //println!("VarComposer (NonSpecial): {} in {} ({:?})", full_ty.to_token_stream(), source.scope.fmt_short(), maybe_obj);
                 match maybe_obj {
                     Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
                         let ty = source.maybe_to_trait_fn_type::<RustFermentate, SPEC>()
@@ -325,7 +325,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                     cnv.clone()
                                     // TypeModelKind::Unknown(TypeComposition::new(conversion_ty.clone(), None, Punctuated::new()))
                                 });
-                                println!("VarComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
+                                //println!("VarComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
                                 let var_c_type = var_ty.to_type();
                                 let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
                                 let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
@@ -351,7 +351,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                 }
             }
         };
-        println!("VarComposer (compose) RESULT: {}", result.to_token_stream());
+        //println!("VarComposer (compose) RESULT: {}\n", result.to_token_stream());
         result
     }
 }

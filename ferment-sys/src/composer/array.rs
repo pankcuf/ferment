@@ -165,7 +165,7 @@ where SPEC: RustSpecification {
         let expr_destroy_iterator = [
             arg_presentation.destructor.present(source)
         ];
-        println!("ArrayComposer: lifetimes: ({}) {:?}", self.ty.to_token_stream(), lifetimes);
+        //println!("ArrayComposer: lifetimes: ({}) {:?}", self.ty.to_token_stream(), lifetimes);
         let from_group_conversion = SPEC::Expr::present(&arg_presentation.from_conversion, source);
         let result_conversion = DictionaryExpr::TryIntoUnwrap(quote!(vec));
         let root_body = quote! {

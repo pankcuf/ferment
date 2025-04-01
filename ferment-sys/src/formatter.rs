@@ -5,7 +5,7 @@ use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
 use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, GenericConversion, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
-use crate::context::{GlobalContext, ScopeChain};
+use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MixinKind, ObjectKind};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
@@ -215,11 +215,13 @@ pub fn format_ident_types_dict(dict: &HashMap<Ident, Type>) -> String {
         .join("\n")
 }
 
-// #[allow(unused)]
-// pub fn format_scope_types_dict(dict: &HashMap<ScopeChain, TypeChain>) -> String {
-//     scope_types_dict(dict)
-//         .join("\n\n")
-// }
+#[allow(unused)]
+pub fn format_scope_types_dict(dict: &HashMap<ScopeChain, TypeChain>) -> String {
+    dict.iter().map(|(scope, tc)| {
+        format!("{}: \n\t{}", scope.fmt_short(), format_types_dict(&tc.inner))
+    }).collect::<Vec<_>>()
+        .join("\n")
+}
 //
 #[allow(unused)]
 pub fn format_used_traits(dict: &HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>) -> String {

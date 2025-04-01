@@ -23,9 +23,9 @@ pub enum ScopeSearchKey<'a> {
 impl<'a> Display for ScopeSearchKey<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Self::PathRef(path, original) => format!("PathRef({}, {:?})", path.to_token_stream(), original),
-            Self::TypeRef(ty, original) => format!("TypeRef({}, {:?})", ty.to_token_stream(), original),
-            Self::Type(ty, original) => format!("Type({}, {:?})", ty.to_token_stream(), original),
+            Self::PathRef(path, original) => format!("PathRef({}, {})", path.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default()),
+            Self::TypeRef(ty, original) => format!("TypeRef({}, {})", ty.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default()),
+            Self::Type(ty, original) => format!("Type({}, {})", ty.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default()),
         }.as_str())
     }
 }
@@ -131,7 +131,6 @@ pub enum ScopeSearch<'a> {
 impl<'a> Display for ScopeSearch<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            // Self::Key(key) => format!("Key({})", key),
             Self::KeyInScope(key, scope) => format!("KeyInScope({} in {})", key, scope.fmt_short()),
             Self::Value(key) => format!("Value({})", key),
             Self::ValueInScope(key, scope) => format!("ValueInScope({} in {})", key, scope.fmt_short()),
@@ -142,7 +141,6 @@ impl<'a> Display for ScopeSearch<'a> {
 impl<'a> ScopeSearch<'a> {
     pub fn search_key(&'a self) -> &'a ScopeSearchKey<'a> {
         match self {
-            // ScopeSearch::Key(search_key) |
             ScopeSearch::KeyInScope(search_key, _) |
             ScopeSearch::Value(search_key) |
             ScopeSearch::ValueInScope(search_key, _) => search_key,
@@ -218,6 +216,7 @@ impl Display for ScopeResolver {
 }
 
 impl ScopeResolver {
+
     pub(crate) fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         self.inner.keys()
             .find_map(|scope_chain| path.eq(scope_chain.self_path()).then_some(scope_chain))
@@ -239,34 +238,43 @@ impl ScopeResolver {
     }
     pub fn type_chain_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         let maybe_entry = self.inner.entry(scope.clone());
-        // println!("type_chain_mut: {} {:?}", scope.fmt_short(), maybe_entry);
         maybe_entry.or_default()
     }
     pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
-        // println!("maybe_object_ref_by_predicate --> {}", predicate);
         let result = match predicate {
             ScopeSearch::KeyInScope(search_key, scope) => {
-                let result = self.inner.get(scope)
-                    .and_then(|chain| search_key.find(|ty| chain.get_by_key(ty).or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))));
+                let result = self.get(scope)
+                    .and_then(|chain|
+                        search_key.find(|ty|
+                            chain.get_by_key(ty)
+                                .or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))));
                 result
             },
             ScopeSearch::ValueInScope(search_key, scope) => {
-                let result = self.inner.get(scope)
-                    .and_then(|chain| search_key.find(|ty| chain.get_by_value(ty).or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
+                let result = self.get(scope)
+                    .and_then(|chain|
+                        search_key.find(|ty|
+                            chain.get_by_value(ty)
+                                .or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
                 result
             },
             ScopeSearch::Value(search_key) => {
                 let result = self.inner.values()
-                    .find_map(|chain| search_key.find(|ty| chain.get_by_value(ty).or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
+                    .find_map(|chain|
+                        search_key.find(|ty|
+                            chain.get_by_value(ty)
+                                .or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
                 result
             },
         };
-        // println!("maybe_object_ref_by_predicate <-- {}", result.map_or("None".to_string(), ToString::to_string));
         result
     }
 
-    pub fn scope_key_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
+    pub fn get(&self, scope: &ScopeChain) -> Option<&TypeChain> {
         self.inner.get(scope)
+    }
+    pub fn scope_key_type_for_path(&self, path: &Path, scope: &ScopeChain) -> Option<Type> {
+        self.get(scope)
             .and_then(|chain| chain.get_by_path(path))
     }
 }

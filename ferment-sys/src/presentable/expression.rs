@@ -404,18 +404,18 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
             }
             Self::NamedComposer((l_value, composer)) => {
                 let expression = composer.compose(source);
-                println!("NamedComposer: {} {:?}", l_value, expression);
+                //println!("NamedComposer: {} {:?}", l_value, expression);
                 Self::Named((l_value.clone(), expression.into()))
                     .present(source)
             },
 
             Self::ConversionType(expr) => {
-                println!("ConversionType: {:?}", expr);
+                //println!("ConversionType: {:?}", expr);
                 expr.compose(source)
                     .present(source)
             },
             Self::Terminated(expr) => {
-                println!("Terminated: {:?}", expr);
+                //println!("Terminated: {:?}", expr);
                 expr.compose(source)
                     .present(source)
                     .to_token_stream()

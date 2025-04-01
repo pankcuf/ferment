@@ -28,6 +28,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
         let source = scope_context.borrow();
         let mut methods = Vec::new();
+        let mut vtable_method_composers = Vec::new();
         let attrs_model = AttrsModel::from(attrs);
         items.iter().for_each(|impl_item| {
             match impl_item {
@@ -42,7 +43,9 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
                                 FnSignatureContext::Impl(*self_ty.clone(), Some(path.to_type()), item.sig.clone()),
                                 item.attrs.cfg_attributes()
                             );
-                            methods.push(SigComposer::from_impl_item_method(item, trait_ty_context, &method_scope_context));
+                            let composer = SigComposer::from_impl_item_method(item, trait_ty_context, &method_scope_context);
+                            methods.push(composer.clone());
+                            vtable_method_composers.push(composer);
 
                             let impl_ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
@@ -75,8 +78,8 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
                 GenModel::new(Some(generics.clone())),
                 LifetimesModel::new(vec![]),
                 Rc::clone(scope_context)),
-            methods,
-            vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, scope_context))
+            methods: methods.clone(),
+            vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, vtable_method_composers, Rc::clone(scope_context)))
         }));
         {
             let mut composer = root.borrow_mut();
@@ -99,13 +102,20 @@ impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SP
     where SPEC: RustSpecification {
     fn ferment(&self) -> RustFermentate {
         let source = self.source_ref();
-        // println!("ImplComposer::ferment: {}", self.base);
+        //println!("ImplComposer::ferment: {}", source.scope.fmt_short());
         let mut items = Depunctuated::<RustFermentate>::new();
         self.methods.iter().for_each(|sig_composer| {
             let fermentate = sig_composer.borrow().ferment();
             items.push(fermentate);
         });
-        let vtable = self.vtable.as_ref().map(|composer| composer.borrow().compose(&source));
+
+        let vtable = self.vtable.as_ref()
+            .map(|composer| {
+                let composer = composer.borrow();
+                let composer_source = composer.source_ref();
+                composer.compose(&composer_source)
+                // composer.borrow().compose(&source)
+            });
         RustFermentate::Impl { comment: DocPresentation::Empty, items, vtable }
     }
 }

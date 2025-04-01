@@ -82,6 +82,7 @@ impl TypeContext {
         Self::Trait { path: item.ident.to_path(), attrs: item.attrs.cfg_attributes() }
     }
 
+    #[allow(unused)]
     pub(crate) fn sig_context(&self) -> &FnSignatureContext {
         match self {
             TypeContext::Fn { sig_context, .. } => sig_context,

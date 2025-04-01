@@ -51,3 +51,4 @@
 - fix: Vec<&str> becomes Vec_, also can't use smth like ['a ['a str]]
 - static methods for impls are broken if they returns Self
 - improve: expose to_string methods, for items implementing Display
+- fix: support trait methods with default implementations

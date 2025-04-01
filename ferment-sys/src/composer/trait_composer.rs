@@ -36,7 +36,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         ty_context: SPEC::TYC,
         scope: &ScopeChain,
         scope_context: &ScopeContextLink) -> ComposerLink<Self> {
-        let ItemTrait { ident, .. } = item_trait;
+        let ItemTrait { attrs, generics, ident, items,  .. } = item_trait;
         let self_ty = ident.to_type();
         // let trait_ident = &item_trait.ident;
         // let fn_name = self.ident.unwrap();
@@ -47,7 +47,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         let source = scope_context.borrow();
         let mut methods = vec![];
         let mut types = HashMap::new();
-        item_trait.items
+        items
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Method(trait_item_method) => {
@@ -58,13 +58,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
                         scope.joined_path_holder(&sig.ident).0,
                         sig_context,
                         attrs.clone());
-                    methods.push(
-                        SigComposer::with_context(
-                            ty_context,
-                            &sig.generics,
-                            &vec![],
-                            attrs,
-                            &method_scope_context));
+                    methods.push(SigComposer::from_trait_item_method(trait_item_method, ty_context, &method_scope_context));
                 },
                 TraitItem::Type(trait_item_type) => {
                     types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));
@@ -75,9 +69,9 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
             methods,
             types,
             ty_context,
-            Some(item_trait.generics.clone()),
+            Some(generics.clone()),
             vec![],
-            AttrsModel::from(&item_trait.attrs),
+            AttrsModel::from(attrs),
             scope_context)
     }
 

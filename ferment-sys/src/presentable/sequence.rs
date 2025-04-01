@@ -196,10 +196,10 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     quote!((#fields);))
             },
             SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
-                println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
+                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
                 let fields = fields.present(source);
-                println!("SequenceOutput({})", ffi_type.to_token_stream());
+                //println!("SequenceOutput({})", ffi_type.to_token_stream());
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
@@ -243,7 +243,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     .to_token_stream()
             },
             SeqKind::StructFrom(field_context, conversions) => {
-                println!("SequenceOutput::StructFrom({}, {:?})", field_context, conversions);
+                //println!("SequenceOutput::StructFrom({}, {:?})", field_context, conversions);
                 let conversions = conversions.present(source);
                 let field_path = field_context.present(source);
                 quote!(let ffi_ref = #field_path; #conversions)
