@@ -101,7 +101,6 @@ impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
 impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     fn ferment(&self) -> RustFermentate {
-        let source = self.source_ref();
         //println!("ImplComposer::ferment: {}", source.scope.fmt_short());
         let mut items = Depunctuated::<RustFermentate>::new();
         self.methods.iter().for_each(|sig_composer| {
@@ -114,7 +113,6 @@ impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SP
                 let composer = composer.borrow();
                 let composer_source = composer.source_ref();
                 composer.compose(&composer_source)
-                // composer.borrow().compose(&source)
             });
         RustFermentate::Impl { comment: DocPresentation::Empty, items, vtable }
     }
