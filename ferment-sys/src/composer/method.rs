@@ -45,8 +45,7 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
     where Link: SharedAccess,
           LANG: LangFermentable,
           SPEC: Specification<LANG>,
-            VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
-{
+          VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var> {
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
     fn compose(&self, source: &Self::Source) -> Self::Output {
@@ -55,15 +54,16 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
             .expect("no parent")
             .access(self.context);
         Vec::from_iter(
-        context.iter()
-            .map(|composer|
-                (self.seq_iterator_item)((
-                    aspect.clone(),
-                    attrs.clone(),
-                    generics.clone(),
-                    VariableComposer::<LANG, SPEC>::from(composer.ty()).compose(source),
-                    composer.tokenized_name()
-                )))
+            context.iter()
+                .map(|composer| {
+                    (self.seq_iterator_item)((
+                        aspect.clone(),
+                        composer.attrs.clone(),
+                        generics.clone(),
+                        VariableComposer::<LANG, SPEC>::from(composer.ty()).compose(source),
+                        composer.tokenized_name()
+                    ))
+                })
         )
     }
 }

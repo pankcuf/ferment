@@ -4,6 +4,7 @@ mod gen;
 mod entry;
 mod state_transition;
 pub mod custom;
+// mod sync_state;
 
 extern crate ferment_macro;
 

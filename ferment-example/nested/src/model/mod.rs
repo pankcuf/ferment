@@ -4,6 +4,7 @@ pub mod callback;
 pub mod tuples;
 pub mod many_scopes;
 pub mod indexmap;
+pub mod feat_dep;
 
 pub use snapshot::LLMQSnapshot;
 pub use snapshot::LLMQSnapshotSkipMode;
