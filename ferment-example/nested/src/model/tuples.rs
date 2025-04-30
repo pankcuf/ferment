@@ -11,6 +11,10 @@ pub fn get_hash_id_form_snapshot(_snapshot: LLMQSnapshot) -> HashID {
 pub struct StructWithTuple {
     pub tuple: (u32, HashID)
 }
+#[ferment_macro::export]
+pub struct StructWithTupleWithOptional {
+    pub tuple: (u32, HashID, Option<LLMQSnapshot>)
+}
 
 #[ferment_macro::export]
 pub fn get_tuple_simple() -> (u32, u32) {
@@ -24,6 +28,11 @@ pub fn get_tuple_simple_complex() -> (u32, HashID) {
 
 #[ferment_macro::export]
 pub fn get_tuple_complex_complex(tuple: (u32, HashID)) -> u32 {
+    tuple.0
+}
+
+#[ferment_macro::export]
+pub fn get_tuple_complex_complex_opt(tuple: (u32, HashID, Option<LLMQSnapshot>)) -> u32 {
     tuple.0
 }
 

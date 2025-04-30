@@ -49,7 +49,7 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let ((aspect, attrs, generics, _name_kind), context) = self.parent
+        let ((aspect, _attrs, generics, _name_kind), context) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);

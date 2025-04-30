@@ -7,7 +7,7 @@ use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::{GenericArgPresentation, TypeKind};
+use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{LifetimeProcessor, Mangle, Resolve};
 use crate::lang::{LangFermentable, NameComposable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
@@ -54,20 +54,22 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
                 let name = SPEC::Name::unnamed_arg(index);
                 let field_name = SPEC::Name::index(index);
                 let ty: Type = ty.resolve(source);
-                let (kind, destroy_expr, from_expr, to_expr) = match TypeKind::from(&ty) {
+                let (kind, destroy_expr) = match TypeKind::from(&ty) {
                     TypeKind::Primitive(..) => (
                         ConversionExpressionKind::Primitive,
                         Expression::empty(),
-                        Expression::ffi_ref_with_name(&name),
-                        Expression::obj_name(&field_name),
+                    ),
+                    TypeKind::Generic(GenericTypeKind::Optional(..)) => (
+                        ConversionExpressionKind::ComplexOpt,
+                        Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
                     ),
                     _ => (
                         ConversionExpressionKind::Complex,
                         Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
-                        Expression::ffi_ref_with_name(&name),
-                        Expression::obj_name(&field_name)
                     ),
                 };
+                let from_expr = Expression::ffi_ref_with_name(&name);
+                let to_expr = Expression::obj_name(&field_name);
                 let item = GenericArgPresentation::<RustFermentate, SPEC>::new(
                     SPEC::Var::direct(ty.clone()),
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
