@@ -22,6 +22,7 @@ pub enum DictionaryExpr {
     LetExpr(TokenStream2, TokenStream2),
     Deref(TokenStream2),
     DerefRef(TokenStream2),
+    DerefMutRef(TokenStream2),
     AsRef(TokenStream2),
     AsMutRef(TokenStream2),
     Mapper(TokenStream2, TokenStream2),
@@ -110,6 +111,10 @@ impl ToTokens for DictionaryExpr {
             }
             Self::DerefRef(expr) => {
                 quote!(&*).to_tokens(tokens);
+                expr.to_tokens(tokens)
+            }
+            Self::DerefMutRef(expr) => {
+                quote!(&mut *).to_tokens(tokens);
                 expr.to_tokens(tokens)
             }
             Self::AsRef(expr) => {

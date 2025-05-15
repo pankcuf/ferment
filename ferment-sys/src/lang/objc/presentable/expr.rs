@@ -59,6 +59,14 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
             Self::AsMutRef(field_path) =>
                 DictionaryExpr::AsMutRef(field_path.present(source))
                     .to_token_stream(),
+            Self::DerefRef(field_path) => {
+                DictionaryExpr::DerefRef(field_path.present(source))
+                    .to_token_stream()
+            },
+            Self::DerefMutRef(field_path) => {
+                DictionaryExpr::DerefMutRef(field_path.present(source))
+                    .to_token_stream()
+            },
             Self::Named((l_value, presentable)) => {
                 let ty = presentable.present(source);
                 quote!(#l_value: #ty)

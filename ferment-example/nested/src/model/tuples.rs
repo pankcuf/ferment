@@ -1,3 +1,4 @@
+use dashcore::hash_types::BlockHash;
 use example_simple::nested::HashID;
 use crate::model::LLMQSnapshot;
 use crate::state_transition::state_transitions::contract::data_contract_create_transition::DataContractCreateTransition;
@@ -53,4 +54,12 @@ pub struct VecofArr {
 #[ferment_macro::export]
 pub struct ExampleWithOptPrimitive {
     pub v: Option<u32>,
+}
+#[ferment_macro::export]
+pub struct ExampleWithCustomGeneric {
+    pub v: Vec<BlockHash>,
+}
+#[ferment_macro::export]
+pub struct ExampleWithGenericTuple {
+    pub v: (BlockHash, BlockHash),
 }

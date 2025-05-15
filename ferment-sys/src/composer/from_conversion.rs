@@ -73,6 +73,7 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(search_key.to_type());
         let is_ref = search_key.maybe_originally_is_ref();
+        let is_mut_ref = search_key.maybe_originally_is_mut_ref();
         let full_type = match &full_type {
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
@@ -80,24 +81,32 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
         let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
         // let ffi_type = full_type.mangle_tokens_default().to_type();
 
-        //println!("FromConversionFullComposer::maybe_object {} ", maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
+        println!("FromConversionFullComposer::maybe_object {}/{} {} ", is_ref, is_mut_ref, maybe_object.as_ref().map_or("None".to_string(), ObjectKind::to_string));
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
 
         let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
-        //println!("FromConversionFullComposer::maybe_special {} ", maybe_special.as_ref().map_or("None".to_string(), SpecialType::to_string));
+        println!("FromConversionFullComposer::maybe_special {} ", maybe_special.as_ref().map_or("None".to_string(), SpecialType::to_string));
+        let mut wrap_to_box = is_ref;
         let expression = match maybe_special {
-            Some(SpecialType::Opaque(..)) => match composition {
-                TypeModelKind::Bounds(bounds) =>
-                    bounds.expr_from(field_path),
-                TypeModelKind::FnPointer(..) |
-                TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
-                    Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-                _ if search_key.maybe_originally_is_ptr() =>
-                    Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
-                _ =>
-                    Expression::from_ptr_clone(field_path),
+            Some(SpecialType::Opaque(..)) => {
+                wrap_to_box = false;
+                match composition {
+                    TypeModelKind::Bounds(bounds) =>
+                        bounds.expr_from(field_path),
+                    TypeModelKind::FnPointer(..) |
+                    TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
+                        Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
+                    _ if search_key.maybe_originally_is_ptr() =>
+                        Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type),
+                    _ if is_mut_ref =>
+                        Expression::DerefMutRef(field_path.into()),
+                    _ if is_ref =>
+                        Expression::DerefRef(field_path.into()),
+                    _ =>
+                        Expression::from_ptr_clone(field_path),
+                }
             },
             Some(SpecialType::Custom(custom_ty)) =>
                 Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_type),
@@ -121,6 +130,10 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                         match maybe_special {
                             Some(SpecialType::Custom(ty)) => {
                                 Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ty, full_nested_ty.to_type())
+                            },
+                            Some(SpecialType::Opaque(..)) => {
+                                wrap_to_box = true;
+                                Expression::cast_from(field_path, ConversionExpressionKind::ComplexOpt, ffi_type, full_nested_ty.to_type())
                             },
                             _ => match full_nested_ty {
                                 TypeKind::Primitive(ty) =>
@@ -222,8 +235,8 @@ impl<'a, LANG, SPEC> SourceComposable for FromConversionFullComposer<'a, LANG, S
                 }
             }
         };
-        //println!("FromConversionFullComposer ==> {:?}", expression);
-        if is_ref {
+        println!("FromConversionFullComposer ==> {:?}", expression);
+        if wrap_to_box {
             Expression::LeakBox(expression.into())
         } else {
             expression
