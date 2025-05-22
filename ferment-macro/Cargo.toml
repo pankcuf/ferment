@@ -1,6 +1,6 @@
 [package]
 name = "ferment-macro"
-version = "0.2.4"
+version = "0.2.5"
 description = "Macros for boilerplate"
 edition = "2021"
 license = "MIT"

@@ -16,9 +16,9 @@ keywords = ["ffi", "macro", "c-bindings", "syntax-tree"]
 version = "0.2.1"
 
 [workspace.dependencies]
-ferment = { version = "0.2.4", path = "ferment" }
-ferment-sys = { version = "0.2.4", path = "ferment-sys" }
-ferment-macro = { version = "0.2.4", path = "ferment-macro" }
+ferment = { version = "0.2.5", path = "ferment" }
+ferment-sys = { version = "0.2.5", path = "ferment-sys" }
+ferment-macro = { version = "0.2.5", path = "ferment-macro" }
 
 [profile.release]
 lto = "thin"
