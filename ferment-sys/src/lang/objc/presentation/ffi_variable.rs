@@ -17,7 +17,10 @@ impl<SPEC> ToType for FFIVariable<ObjCFermentate, SPEC, TokenStream2>
         match self {
             FFIVariable::Direct { ty, .. } => ty.to_type(),
             FFIVariable::ConstPtr { ty, .. } => ty.joined_const().to_type(),
-            FFIVariable::MutPtr { ty, .. } => ty.joined_mut().to_type()
+            FFIVariable::MutPtr { ty, .. } => ty.joined_mut().to_type(),
+            FFIVariable::Ref { ty, .. } => ty.joined_ref().to_type(),
+            FFIVariable::MutRef { ty, .. } => ty.joined_mut_ref().to_type(),
+            FFIVariable::Dyn { ty, .. } => ty.joined_dyn().to_type()
         }
     }
 }
@@ -28,6 +31,9 @@ impl<SPEC> ToTokens for FFIVariable<ObjCFermentate, SPEC, TokenStream2> where SP
             FFIVariable::Direct { ty, .. } => ty.to_tokens(tokens),
             FFIVariable::ConstPtr { ty, .. } => quote!(const #ty *).to_tokens(tokens),
             FFIVariable::MutPtr { ty, .. } => quote!(#ty *).to_tokens(tokens),
+            FFIVariable::Ref { ty, .. } => quote!(&#ty).to_tokens(tokens),
+            FFIVariable::MutRef { ty, .. } => quote!(&#ty *).to_tokens(tokens),
+            FFIVariable::Dyn { ty, .. } => quote!(#ty *).to_tokens(tokens),
         }
     }
 }
@@ -38,6 +44,9 @@ impl<SPEC> Accessory for FFIVariable<ObjCFermentate, SPEC, TokenStream2> where S
             FFIVariable::Direct { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
             FFIVariable::ConstPtr { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
             FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::Ref { ty , .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
         }
     }
 
@@ -46,11 +55,22 @@ impl<SPEC> Accessory for FFIVariable<ObjCFermentate, SPEC, TokenStream2> where S
             FFIVariable::Direct { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
             FFIVariable::ConstPtr { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
             FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::Ref { ty , .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::MutPtr { ty: ty.clone(), _marker: PhantomData },
         }
     }
 
     fn joined_dyn(&self) -> Self {
         self.clone()
+    }
+
+    fn joined_ref(&self) -> Self {
+        todo!()
+    }
+
+    fn joined_mut_ref(&self) -> Self {
+        todo!()
     }
 }
 

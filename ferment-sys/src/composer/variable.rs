@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use quote::ToTokens;
-use syn::{parse_quote, Type, TypePtr};
+use syn::{parse_quote, Type, TypeInfer, TypePtr};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
@@ -65,7 +65,52 @@ impl<'a, LANG, SPEC> TargetVarComposer<'a, LANG, SPEC>
         Self::new(ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
 }
+impl<'a, SPEC> SourceComposable for TargetVarComposer<'a, RustFermentate, SPEC> where SPEC: RustSpecification {
+    type Source = ScopeContext;
+    type Output = SPEC::Var;
 
+    fn compose(&self, source: &Self::Source) -> Self::Output {
+        let search_key = self.search.search_key();
+        let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
+        println!("TargetVar: {}", search_key.to_token_stream());
+        let accessor_composer = if search_key.maybe_originally_is_const_ptr() {
+            FFIVariable::const_ptr
+        } else if search_key.maybe_originally_is_mut_ptr() {
+            FFIVariable::mut_ptr
+        } else if search_key.maybe_originally_is_mut_ref() {
+            FFIVariable::mut_ref
+        } else if search_key.maybe_originally_is_dyn() {
+            FFIVariable::r#dyn
+        } else if search_key.maybe_originally_is_ref() {
+            FFIVariable::r#ref
+        } else {
+            FFIVariable::direct
+        };
+        let full_ty = maybe_obj
+            .as_ref()
+            .and_then(ObjectKind::maybe_type)
+            .unwrap_or(search_key.to_type());
+        accessor_composer(match maybe_obj {
+            Some(ObjectKind::Type(ref ty_model_kind)) |
+            Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
+                let conversion = match ty_model_kind {
+                    TypeModelKind::Trait(ty, ..) => {
+                        ty.as_type()
+                            .maybe_trait_object_model_kind(source)
+                    },
+                    _ => Some(ty_model_kind.clone()),
+                }.unwrap_or(ty_model_kind.clone());
+                match conversion {
+                    TypeModelKind::Bounds(..) =>
+                        Type::Infer(TypeInfer { underscore_token: Default::default() }),
+                    _ => full_ty,
+                }
+            },
+            _ => full_ty,
+        })
+
+    }
+}
 impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
     where SPEC: RustSpecification {
     type Source = ScopeContext;

@@ -1,7 +1,8 @@
 use quote::{quote, ToTokens};
-use syn::{Path, ReturnType};
+use syn::{Path, ReturnType, Type};
 use syn::__private::TokenStream2;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence};
+use crate::ast::CommaPunctuatedTokens;
+use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence, SemiPunctuatedArgKinds};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -16,7 +17,9 @@ pub enum BindingPresentableContext<LANG, SPEC>
     Destructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind),
     Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
     Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
-    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
+    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt),
+    #[allow(unused)]
+    RegFn2(Path, bool, CommaPunctuatedTokens, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, Type, SemiPunctuatedArgKinds<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
 }
 
 impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
@@ -137,6 +140,19 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 is_async: *is_async,
                 arguments: arguments.present(&source),
                 name: Name::<RustFermentate, SPEC>::ModFn(path.clone()).mangle_tokens_default(),
+                input_conversions: input_conversions.present(&source),
+                return_type: return_type.clone(),
+                generics: generics.clone(),
+                lifetimes: lifetimes.clone(),
+                output_conversions: <SPEC::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
+            },
+            BindingPresentableContext::RegFn2(path, is_async, argument_names, arguments, return_type, full_fn_path, input_conversions, return_type_conversion, attrs, generics, lifetimes) => BindingPresentation::RegularFunction2 {
+                attrs: attrs.clone(),
+                is_async: *is_async,
+                argument_names: argument_names.clone(),
+                arguments: arguments.present(&source),
+                name: Name::<RustFermentate, SPEC>::ModFn(path.clone()).mangle_tokens_default(),
+                full_fn_path: full_fn_path.clone(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
                 generics: generics.clone(),

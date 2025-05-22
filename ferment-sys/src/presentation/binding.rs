@@ -3,8 +3,8 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, Lifetime};
 use syn::punctuated::Punctuated;
 use syn::token::{Pub, RArrow};
-use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composer::CommaPunctuatedArgs;
+use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
+use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs};
 use crate::ext::{Accessory, CrateExtension, Pop, Terminated, ToPath, ToType};
 use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr};
 
@@ -86,6 +86,19 @@ pub enum BindingPresentation {
         is_async: bool,
         arguments: CommaPunctuatedArgs,
         input_conversions: TokenStream2,
+        return_type: ReturnType,
+        output_conversions: TokenStream2,
+        generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
+    },
+    RegularFunction2 {
+        attrs: Vec<Attribute>,
+        name: TokenStream2,
+        is_async: bool,
+        argument_names: CommaPunctuatedTokens,
+        arguments: CommaPunctuatedArgs,
+        full_fn_path: Type,
+        input_conversions: SemiPunctuatedArgs,
         return_type: ReturnType,
         output_conversions: TokenStream2,
         generics: Option<Generics>,
@@ -271,7 +284,6 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, generics } |
             BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
-                // println!("BindingPresentation::Setter: {}\n\t{}\n\t{}\n\t{}\n\t{}", name.mangle_ident_default(), field_name, obj_type.to_token_stream(), field_type.to_token_stream(), attrs);
                 let var = obj_type.joined_mut();
                 present_pub_function(
                     attrs,
@@ -288,7 +300,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) })
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(
@@ -299,8 +311,11 @@ impl ToTokens for BindingPresentation {
                         generics.clone(),
                         lifetimes.clone(),
                         quote! {
-                            let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
-                            let obj = rt.block_on(async { #input_conversions .await });
+                            let rt = &*(runtime as *mut tokio::runtime::Runtime);
+                            let local = tokio::task::LocalSet::new();
+                            let obj = rt.block_on(local.run_until(async {
+                                #input_conversions .await
+                            }));
                             #output_conversions
                         }
                     )
@@ -313,6 +328,54 @@ impl ToTokens for BindingPresentation {
                         generics.clone(),
                         lifetimes.clone(),
                         quote!(let obj = #input_conversions; #output_conversions)
+                    )
+                }
+            },
+            BindingPresentation::RegularFunction2 { attrs, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+                if *is_async {
+                    let mut args = Punctuated::from_iter([
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) }),
+                    ]);
+                    args.extend(arguments.clone());
+                    present_pub_function(
+                        attrs,
+                        name,
+                        args.clone(),
+                        return_type.clone(),
+                        generics.clone(),
+                        lifetimes.clone(),
+                        quote! {
+                            let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
+                            #input_conversions;
+                            let obj = rt.block_on(async {
+                                #full_fn_path(#argument_names).await
+                            });
+                            #output_conversions
+                        }
+                        // quote! {
+                        //     let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
+                        //     #input_conversions;
+                        //     let obj = rt.block_on(tokio::task::spawn_blocking(move || {
+                        //         tokio::runtime::Handle::current().block_on(async {
+                        //             #full_fn_path(#argument_names).await
+                        //         })
+                        //     })).unwrap();
+                        //     #output_conversions
+                        // }
+                    )
+                } else {
+                    present_pub_function(
+                        attrs,
+                        name,
+                        arguments.clone(),
+                        return_type.clone(),
+                        generics.clone(),
+                        lifetimes.clone(),
+                        quote! {
+                            #input_conversions;
+                            let obj = #full_fn_path(#argument_names);
+                            #output_conversions
+                        }
                     )
                 }
             },

@@ -25,7 +25,7 @@ pub struct WalletProvider2 {
 #[ferment_macro::export]
 impl WalletProvider2 {
 
-    pub fn new<
+    pub fn new<'a,
         // GWT: Fn(c_void, [u8; 32]) -> Option<[u8; 32]> + 'static,
         ST: Fn(*const WalletEx2, &[u8; 32], bool) -> Option<[u8; 32]> + 'static,
         IMI: Fn(*const c_void, [u8; 32]) -> bool + 'static,

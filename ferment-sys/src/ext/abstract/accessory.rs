@@ -8,6 +8,12 @@ pub trait Accessory: ToTokens {
     fn joined_const(&self) -> Self;
     #[allow(unused)]
     fn joined_dyn(&self) -> Self;
+
+    #[allow(unused)]
+    fn joined_ref(&self) -> Self;
+
+    #[allow(unused)]
+    fn joined_mut_ref(&self) -> Self;
 }
 #[macro_export]
 macro_rules! impl_accessory {
@@ -21,6 +27,12 @@ macro_rules! impl_accessory {
             }
             fn joined_dyn(&self) -> Self {
                 parse_quote!(dyn #self)
+            }
+            fn joined_ref(&self) -> Self {
+                parse_quote!(&#self)
+            }
+            fn joined_mut_ref(&self) -> Self {
+                parse_quote!(&mut #self)
             }
         }
     };

@@ -102,10 +102,23 @@ impl<'a> ScopeSearchKey<'a> {
             _ => false
         }
     }
+    pub fn maybe_originally_is_dyn(&'a self) -> bool {
+        match self.maybe_original_key() {
+            Some(boxed_key) => boxed_key.is_dyn(),
+            _ => false
+        }
+    }
     pub fn maybe_ptr(&'a self) -> Option<&'a TypePtr> {
         match self {
             ScopeSearchKey::TypeRef(Type::Ptr(type_ptr), ..) |
             ScopeSearchKey::Type(Type::Ptr(type_ptr), ..) => Some(type_ptr),
+            _ => None
+        }
+    }
+    pub fn maybe_dyn(&'a self) -> Option<&'a TypeTraitObject> {
+        match self {
+            ScopeSearchKey::TypeRef(Type::TraitObject(ty), ..) |
+            ScopeSearchKey::Type(Type::TraitObject(ty), ..) => Some(ty),
             _ => None
         }
     }
@@ -129,6 +142,13 @@ impl<'a> ScopeSearchKey<'a> {
         match self {
             ScopeSearchKey::TypeRef(Type::Reference(TypeReference { mutability: Some(_mutable), .. }), ..) |
             ScopeSearchKey::Type(Type::Reference(TypeReference { mutability: Some(_mutable), .. }), ..) => true,
+            _ => false
+        }
+    }
+    pub fn is_dyn(&self) -> bool {
+        match self {
+            ScopeSearchKey::TypeRef(Type::TraitObject(TypeTraitObject { .. }), ..) |
+            ScopeSearchKey::Type(Type::TraitObject(TypeTraitObject { .. }), ..) => true,
             _ => false
         }
     }

@@ -19,6 +19,9 @@ pub enum FFIVariable<LANG, SPEC, T>
     Direct { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     ConstPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
     MutPtr { ty: T, _marker: PhantomData<(LANG, SPEC)> },
+    Ref { ty: T, _marker: PhantomData<(LANG, SPEC)> },
+    MutRef { ty: T, _marker: PhantomData<(LANG, SPEC)> },
+    Dyn { ty: T, _marker: PhantomData<(LANG, SPEC)> },
 }
 
 impl<LANG, SPEC, T> FFIVariable<LANG, SPEC, T>
@@ -33,6 +36,15 @@ impl<LANG, SPEC, T> FFIVariable<LANG, SPEC, T>
     }
     pub(crate) fn mut_ptr(ty: T) -> Self {
         Self::MutPtr { ty, _marker: PhantomData }
+    }
+    pub(crate) fn r#ref(ty: T) -> Self {
+        Self::Ref { ty, _marker: PhantomData }
+    }
+    pub(crate) fn mut_ref(ty: T) -> Self {
+        Self::MutRef { ty, _marker: PhantomData }
+    }
+    pub(crate) fn r#dyn(ty: T) -> Self {
+        Self::Dyn { ty, _marker: PhantomData }
     }
 }
 
@@ -49,7 +61,10 @@ impl<SPEC> ToType for FFIVariable<RustFermentate, SPEC, Type>
         match self {
             FFIVariable::Direct { ty, .. } => ty.to_type(),
             FFIVariable::ConstPtr { ty, .. } => ty.joined_const(),
-            FFIVariable::MutPtr { ty, .. } => ty.joined_mut()
+            FFIVariable::MutPtr { ty, .. } => ty.joined_mut(),
+            FFIVariable::Ref { ty, .. } => ty.joined_ref(),
+            FFIVariable::MutRef { ty, .. } => ty.joined_mut_ref(),
+            FFIVariable::Dyn { ty, .. } => ty.joined_dyn()
         }
     }
 }

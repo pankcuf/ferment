@@ -33,9 +33,16 @@ impl DashSharedCore {
             processor: boxed(MasternodeProcessor {
                 provider: Arc::new(FFITraitCoreProvider {
                     block_hash_by_height: Box::new(block_hash_by_height),
-                    model_by_height: Box::new(model_by_height) }) }),
+                    model_by_height: Box::new(model_by_height)
+                })
+            }),
             cache: Default::default(),
             context
         }
     }
+
+    pub async fn sign_and_publish_state_transition(&self, private_key: &[u8]) -> u32 {
+        0
+    }
+
 }
