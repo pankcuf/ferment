@@ -93,12 +93,18 @@ pub unsafe fn unbox_string(data: *mut c_char) {
 /// # Safety
 pub unsafe fn unbox_any_vec<T>(vec: Vec<*mut T>) {
     // TODO: that's wrong, need to make unbox_any composable of arbitrary type -> unbox_any_vec_composer
+    if vec.is_empty() {
+        return;
+    }
     for &x in vec.iter() {
         unbox_any(x);
     }
 }
 /// # Safety
 pub unsafe fn unbox_any_vec_composer<T, U: Fn(*mut T)>(vec: Vec<*mut T>, composer: U) {
+    if vec.is_empty() {
+        return;
+    }
     for &x in vec.iter() {
         composer(x);
     }
@@ -106,11 +112,19 @@ pub unsafe fn unbox_any_vec_composer<T, U: Fn(*mut T)>(vec: Vec<*mut T>, compose
 
 /// # Safety
 pub unsafe fn unbox_any_vec_ptr<T>(ptr: *mut *mut T, count: usize) {
-    unbox_any_vec(unbox_vec_ptr(ptr, count));
+    let vec_of_ptr = unbox_vec_ptr(ptr, count);
+    if vec_of_ptr.is_empty() {
+        return;
+    }
+    unbox_any_vec(vec_of_ptr);
 }
 /// # Safety
 pub unsafe fn unbox_any_vec_ptr_composer<T>(ptr: *mut *mut T, count: usize, composer: unsafe fn(*mut T)) {
-    for &x in unbox_vec_ptr(ptr, count).iter() {
+    let vec_of_ptr = unbox_vec_ptr(ptr, count);
+    if vec_of_ptr.is_empty() {
+        return;
+    }
+    for x in vec_of_ptr {
         composer(x);
     }
 }
