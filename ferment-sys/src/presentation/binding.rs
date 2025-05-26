@@ -300,7 +300,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) }),
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*const std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(
@@ -311,7 +311,7 @@ impl ToTokens for BindingPresentation {
                         generics.clone(),
                         lifetimes.clone(),
                         quote! {
-                            let rt = &*(runtime as *mut tokio::runtime::Runtime);
+                            let rt = &*(runtime as *const tokio::runtime::Runtime);
                             let local = tokio::task::LocalSet::new();
                             let obj = rt.block_on(local.run_until(async {
                                 #input_conversions .await
@@ -334,7 +334,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::RegularFunction2 { attrs, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*mut std::os::raw::c_void) }),
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*const std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(
@@ -345,7 +345,7 @@ impl ToTokens for BindingPresentation {
                         generics.clone(),
                         lifetimes.clone(),
                         quote! {
-                            let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
+                            let rt = unsafe { &*(runtime as *const tokio::runtime::Runtime) };
                             #input_conversions;
                             let obj = rt.block_on(async {
                                 #full_fn_path(#argument_names).await
