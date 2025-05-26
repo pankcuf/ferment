@@ -312,10 +312,9 @@ impl ToTokens for BindingPresentation {
                         lifetimes.clone(),
                         quote! {
                             let rt = &*(runtime as *const tokio::runtime::Runtime);
-                            let local = tokio::task::LocalSet::new();
-                            let obj = rt.block_on(local.run_until(async {
+                            let obj = rt.block_on(async {
                                 #input_conversions .await
-                            }));
+                            });
                             #output_conversions
                         }
                     )
