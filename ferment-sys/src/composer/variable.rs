@@ -309,6 +309,9 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, RustFermentate, SPEC>
                                         Some(SpecialType::Custom(custom_ty)) => {
                                             return FFIVariable::mut_ptr(custom_ty.to_type());
                                         },
+                                        Some(SpecialType::Opaque(custom_ty)) => {
+                                            return FFIVariable::mut_ptr(custom_ty.to_type());
+                                        },
                                         _ => {}
                                     }
                                 }

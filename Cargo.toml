@@ -17,7 +17,7 @@ version = "0.2.1"
 
 [workspace.dependencies]
 ferment = { version = "0.2.6", path = "ferment" }
-ferment-sys = { version = "0.2.7", path = "ferment-sys" }
+ferment-sys = { version = "0.2.8", path = "ferment-sys" }
 ferment-macro = { version = "0.2.5", path = "ferment-macro" }
 
 [profile.release]

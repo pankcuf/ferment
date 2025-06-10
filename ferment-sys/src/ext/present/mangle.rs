@@ -56,6 +56,7 @@ impl Mangle<MangleDefault> for Type {
                 type_bare_fn.mangle_string(context),
             Type::Ptr(type_ptr) =>
                 type_ptr.mangle_string(context),
+            Type::TraitObject(type_trait_object) => type_trait_object.mangle_string(context),
             ty =>
                 ty.to_path()
                     .get_ident()

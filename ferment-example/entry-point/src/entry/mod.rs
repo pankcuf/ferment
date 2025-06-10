@@ -48,4 +48,8 @@ impl PlatformProvider {
             context
         }
     }
+
+    pub fn maybe_context(&self) -> Option<FFIContext> {
+        None
+    }
 }

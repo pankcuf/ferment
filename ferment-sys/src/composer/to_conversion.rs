@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::{FFIAspect, SourceComposable};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, FFIObjectResolve, FFISpecialTypeResolve, FFITypeModelKindResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, SpecialType, ToType};
 use crate::lang::{LangFermentable, Specification};
@@ -24,6 +24,9 @@ where LANG: LangFermentable,
       SPEC: Specification<LANG> {
     pub fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
+    }
+    pub fn key(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain) -> Self {
+        Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), None)
     }
     pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
         Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), None)
@@ -101,6 +104,9 @@ where LANG: LangFermentable,
                             match maybe_special {
                                 Some(SpecialType::Custom(custom_ty)) => {
                                     Expression::cast_to(field_path, ConversionExpressionKind::ComplexOpt, custom_ty, nested_ty.to_type())
+                                },
+                                Some(SpecialType::Opaque(custom_ty)) => {
+                                    Expression::cast_to(field_path, ConversionExpressionKind::PrimitiveOpt, custom_ty, nested_ty.to_type())
                                 },
                                 _ => match &nested_ty {
                                     TypeKind::Primitive(..) =>

@@ -12,6 +12,7 @@ ferment.workspace = true
 ferment-macro.workspace = true
 
 example-simple = { path = "../simple" }
+example-entry-point = { path = "../entry-point" }
 
 dpp = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "dpp", default-features = false, features = ["apple", "dash-sdk-features"] }
 platform-value = { git = "https://github.com/dashpay/platform", branch = "test/ferment", package = "platform-value", features = ["apple"] }
