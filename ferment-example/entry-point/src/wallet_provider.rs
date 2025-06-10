@@ -137,3 +137,15 @@
 //     }
 //
 // }
+
+#[ferment_macro::export]
+pub struct TestWalletProvider {
+
+}
+
+impl TestWalletProvider {
+    #[ferment_macro::export]
+    pub fn export(&self) -> String {
+        "".to_string()
+    }
+}

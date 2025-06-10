@@ -140,7 +140,7 @@ pub unsafe fn from_opt_primitive<T: Copy>(ptr: *mut T) -> Option<T> {
 }
 
 /// # Safety
-pub unsafe fn to_opt_primitive<T: Copy>(obj: Option<T>) -> *mut T {
+pub unsafe fn to_opt_primitive<T>(obj: Option<T>) -> *mut T {
     obj.map_or(std::ptr::null_mut(), |o| boxed(o))
 }
 

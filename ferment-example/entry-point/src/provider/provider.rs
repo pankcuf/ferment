@@ -1,6 +1,7 @@
 use std::os::raw::c_void;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use crate::entry::FFIContext;
 
 #[ferment_macro::opaque]
 pub struct CoinJoinProvider {
@@ -41,6 +42,9 @@ impl CoinJoinProvider  {
             session_lifecycle_listener2: Arc::new(session_lifecycle_listener2),
             mixing_lifecycle_listener: Arc::new(mixing_lifecycle_listener),
         }
+    }
+    pub async fn load_smth_opaque(&self, context: &mut FFIContext) -> Result<bool, String> {
+        Ok(true)
     }
 }
 
