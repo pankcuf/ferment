@@ -59,6 +59,7 @@ pub enum DictionaryExpr {
     CastedFFIConversionMethod(TokenStream2, TokenStream2, TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
+    CastedFFIConversionFromOpaqueOpt(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
@@ -256,6 +257,8 @@ impl ToTokens for DictionaryExpr {
             Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
+                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
+            Self::CastedFFIConversionFromOpaqueOpt(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionDestroy(ffi_type, target_type, expr) => {
                 quote!(<#ffi_type as ferment::FFIConversionDestroy<#target_type>>::destroy(#expr)).to_tokens(tokens)

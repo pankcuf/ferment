@@ -7,7 +7,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, Life
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
@@ -63,14 +63,31 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                         from_conversion,
                         Expression::ffi_to_primitive_group_tokens(arg_context(arg_name))),
                 TypeKind::Complex(arg_ty) => {
-                    let arg_composer = GenericArgComposer::<RustFermentate, SPEC>::new(
-                        Some(Expression::from_complex_tokens),
-                        Some(Expression::ffi_to_complex_group_tokens),
-                        Some(if arg_ty.is_fermentable_string() {
-                            Expression::destroy_string_group_tokens
-                        } else {
-                            Expression::destroy_complex_group_tokens
-                        }));
+                    let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = arg_ty.maybe_special_type(source);
+                    let arg_composer = match maybe_special {
+                        Some(SpecialType::Opaque(..)) => {
+                            GenericArgComposer::<RustFermentate, SPEC>::new(
+                                Some(Expression::from_complex_tokens),
+                                Some(Expression::ffi_to_opaque_group_tokens),
+                                Some(if arg_ty.is_fermentable_string() {
+                                    Expression::destroy_string_group_tokens
+                                } else {
+                                    Expression::destroy_complex_group_tokens
+                                }))                        }
+                        _ => {
+                            GenericArgComposer::<RustFermentate, SPEC>::new(
+                                Some(Expression::from_complex_tokens),
+                                Some(Expression::ffi_to_complex_group_tokens),
+                                Some(if arg_ty.is_fermentable_string() {
+                                    Expression::destroy_string_group_tokens
+                                } else {
+                                    Expression::destroy_complex_group_tokens
+                                })
+                            )
+                        }
+                    };
+
+                    // let arg_composer = ;
 
                     GenericArgPresentation::<RustFermentate, SPEC>::new(
                         FFIVariable::direct(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),

@@ -1,3 +1,4 @@
+use std::os::raw::c_void;
 use std::sync::Arc;
 
 pub mod core;
@@ -30,6 +31,8 @@ pub type ModelByHeight = unsafe extern "C" fn(u32) -> SomeModel;
 pub struct PlatformProvider {
     pub get_quorum_public_key: Arc<dyn Fn(*const FFIContext, u32, [u8; 32], u32) -> Result<[u8; 48], String> + Send + Sync>,
     pub get_data_contract: Arc<dyn Fn(*const FFIContext, String) -> Result<Option<Arc<SomeModel>>, String> + Send + Sync>,
+    pub maybe_identity: Arc<dyn Fn(*const c_void, [u8; 32], String) -> Option<FFIContext> + Send + Sync>,
+
     pub context: Arc<FFIContext>
 }
 
@@ -37,14 +40,17 @@ pub struct PlatformProvider {
 impl PlatformProvider {
     pub fn new<
         QPK: Fn(*const FFIContext, u32, [u8; 32], u32) -> Result<[u8; 48], String> + Send + Sync + 'static,
-        DC: Fn(*const FFIContext, String) -> Result<Option<Arc<SomeModel>>, String> + Send + Sync + 'static>(
+        DC: Fn(*const FFIContext, String) -> Result<Option<Arc<SomeModel>>, String> + Send + Sync + 'static,
+        MaybeIdentity: Fn(*const c_void, [u8; 32], String) -> Option<FFIContext> + Send + Sync + 'static>(
         get_quorum_public_key: QPK,
         get_data_contract: DC,
+        maybe_identity: MaybeIdentity,
         context: Arc<FFIContext>
     ) -> Self {
         Self {
             get_quorum_public_key: Arc::new(get_quorum_public_key),
             get_data_contract: Arc::new(get_data_contract),
+            maybe_identity: Arc::new(maybe_identity),
             context
         }
     }
