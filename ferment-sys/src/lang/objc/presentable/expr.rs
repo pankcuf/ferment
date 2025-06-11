@@ -148,6 +148,10 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 // Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitiveGroup(expr.to_token_stream()))
                 //     .present(source)
             },
+            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup | ConversionExpressionKind::OpaqueGroup, expr) => {
+                println!("OBJC: ConversionExprTokens: From: OpaqueGroup | OpaqueOptGroup: {}", expr);
+                quote!([NSArray ffi_from:#expr])
+            },
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr) => {
                 println!("OBJC: ConversionExprTokens: From: Complex: {}", expr);
 
@@ -177,6 +181,8 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 // Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(expr.to_token_stream()))
                 //     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr) =>
+                quote!([NSArray ffi_to_opt:#expr]),
+            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup | ConversionExpressionKind::OpaqueGroup, expr) =>
                 quote!([NSArray ffi_to_opt:#expr]),
                 // panic!("wrong {}", expr),
             // Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitiveGroup(expr.to_token_stream()))
@@ -245,13 +251,13 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 quote!([NSArray ffi_destroy:#expr])
             }
 
-            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup | ConversionExpressionKind::OpaqueOptGroup | ConversionExpressionKind::OpaqueGroup, expr, ..) => {
                 quote!([DSFerment from_opt_primitive_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup | ConversionExpressionKind::OpaqueOptGroup | ConversionExpressionKind::OpaqueGroup, expr, ..) => {
                 quote!([DSFerment to_opt_primitive_group:#expr])
             }
-            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) => {
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveOptGroup | ConversionExpressionKind::OpaqueOptGroup | ConversionExpressionKind::OpaqueGroup, expr, ..) => {
                 quote!([DSFerment destroy_opt_primitive_group:#expr])
             }
 

@@ -52,4 +52,7 @@ impl PlatformProvider {
     pub fn maybe_context(&self) -> Option<FFIContext> {
         None
     }
+    pub fn maybe_contexts(&self) -> Vec<FFIContext> {
+        vec![]
+    }
 }

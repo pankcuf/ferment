@@ -21,6 +21,8 @@ pub enum ConversionExpressionKind {
     PrimitiveOptGroup,
     ComplexGroup,
     ComplexOptGroup,
+    OpaqueGroup,
+    OpaqueOptGroup,
 }
 
 pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug + ScopeContextPresentable
@@ -252,6 +254,12 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn from_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr)
     }
+    pub(crate) fn from_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
+        Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup, expr)
+    }
+    pub(crate) fn from_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
+        Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueGroup, expr)
+    }
 
     pub(crate) fn from_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr)
@@ -280,6 +288,12 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     }
     pub(crate) fn ffi_to_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr)
+    }
+    pub(crate) fn ffi_to_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
+        Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup, expr)
+    }
+    pub(crate) fn ffi_to_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
+        Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueGroup, expr)
     }
     pub(crate) fn ffi_to_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr)
@@ -459,6 +473,12 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitiveGroup(expr.to_token_stream()))
                     .present(source),
+            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FromOptOpaqueGroup(expr.to_token_stream()))
+                    .present(source),
+            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueGroup, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FromOpaqueGroup(expr.to_token_stream()))
+                    .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFrom, expr.to_token_stream()))
@@ -483,6 +503,12 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitiveGroup(expr.to_token_stream()))
+                    .present(source),
+            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOptOpaqueGroup(expr.to_token_stream()))
+                    .present(source),
+            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::OpaqueGroup, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOpaqueGroup(expr.to_token_stream()))
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr) =>
@@ -530,6 +556,12 @@ impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
                     .present(source),
             Self::CastConversionExprTokens(aspect, ConversionExpressionKind::PrimitiveOptGroup, expr, ..) =>
                 Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::PrimitiveOptGroup, expr.clone())
+                    .present(source),
+            Self::CastConversionExprTokens(aspect, ConversionExpressionKind::OpaqueOptGroup, expr, ..) =>
+                Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::OpaqueOptGroup, expr.clone())
+                    .present(source),
+            Self::CastConversionExprTokens(aspect, ConversionExpressionKind::OpaqueGroup, expr, ..) =>
+                Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::OpaqueGroup, expr.clone())
                     .present(source),
             Self::CastConversionExprTokens(aspect, ConversionExpressionKind::ComplexGroup, expr, ..) =>
                 Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::ComplexGroup, expr.clone())

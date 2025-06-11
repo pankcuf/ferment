@@ -222,6 +222,31 @@ pub unsafe fn from_opt_primitive_group<C, T>(vec: *mut *mut T, count: usize) -> 
         .collect()
 }
 
+/// # Safety
+pub unsafe fn from_opt_opaque_group<C, T>(vec: *mut *mut T, count: usize) -> C
+    where
+        C: FromIterator<Option<T>>,
+        T: Clone {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (!v.is_null()).then(|| (*v).clone())
+        })
+        .collect()
+}
+/// # Safety
+pub unsafe fn from_opaque_group<C, T>(vec: *mut *mut T, count: usize) -> C
+    where
+        C: FromIterator<T>,
+        T: Clone {
+    (0..count)
+        .map(|i| {
+            let v = *vec.add(i);
+            (*v).clone()
+        })
+        .collect()
+}
+
 
 /// # Safety
 pub unsafe fn from_complex_group<C, V, V2>(vec: *mut *mut V2, count: usize) -> C
@@ -263,6 +288,15 @@ pub unsafe fn to_primitive_group<T, U>(iter: impl Iterator<Item=T>) -> *mut U
 pub unsafe fn to_opt_primitive_group<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
     where Vec<*mut U>: FromIterator<*mut T> {
     boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
+}
+
+pub unsafe fn to_opt_opaque_group<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
+    where Vec<*mut U>: FromIterator<*mut T> {
+    boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
+}
+pub unsafe fn to_opaque_group<T, U>(iter: impl Iterator<Item=T>) -> *mut *mut U
+    where Vec<*mut U>: FromIterator<*mut T> {
+    boxed_vec(iter.map(boxed).collect())
 }
 
 /// # Safety
