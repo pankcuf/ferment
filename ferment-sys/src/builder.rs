@@ -19,7 +19,6 @@ impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
         Builder { config: Config::new("fermented", current_crate, cbindgen::Config::default()) }
-        // Builder { config: Config::new("fermented", current_crate, "cbindgen.toml") }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {

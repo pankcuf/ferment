@@ -135,7 +135,6 @@ impl UniqueNestedItems for Type {
     type Item = Type;
 
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
-        // let mut involved = HashSet::from([parse_quote!(Self)]);
         let mut involved = HashSet::from([]);
         match self {
             Type::Array(TypeArray { elem, .. }) |

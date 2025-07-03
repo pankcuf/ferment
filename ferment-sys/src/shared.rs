@@ -13,9 +13,7 @@ pub trait SharedAccess {
             F: FnOnce(&Self::ImmutableAccess) -> R;
 
     #[allow(unused)]
-    fn access_mut<F, R>(&self, f: F) -> R
-        where
-            F: FnOnce(&Self::MutableAccess) -> R;
+    fn access_mut<F, R>(&self, f: F) -> R where F: FnOnce(&Self::MutableAccess) -> R;
 }
 impl<T: 'static> SharedAccess for Rc<RefCell<T>> {
     type Item = T;

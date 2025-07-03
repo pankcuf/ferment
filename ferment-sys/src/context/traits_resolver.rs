@@ -20,12 +20,6 @@ impl TraitsResolver {
             .insert(item_trait.ident.clone(), TraitModelPart1::new(item_trait.clone()));
     }
 
-    // pub fn maybe_trait(&self, scope: &ScopeChain) -> Option<&TraitCompositionPart1> {
-    //     let last_ident = scope.head();
-    //     self.inner.get(&scope)
-    //         .and_then(|scope_traits| scope_traits.get(&last_ident))
-    // }
-
     pub fn add_used_traits(&mut self, scope: &ScopeChain, trait_names: Vec<Path>) {
         self.used_traits_dictionary
             .entry(scope.clone())
@@ -34,7 +28,6 @@ impl TraitsResolver {
     }
 
     pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<&TraitModelPart1> {
-        // println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
         self.inner
             .get(scope)
             .and_then(|dict| dict.get(ident))

@@ -39,9 +39,6 @@ impl std::fmt::Display for ScopeContext {
 impl ScopeContext {
     pub fn print_with_message(&self, message: &str) {
         print_phase!(message, "{}", self);
-        // println!("\n•• {} ••\n", message);
-        // println!("{}", self);
-
     }
     pub fn is_from_current_crate(&self) -> bool {
         let context = self.context.read().unwrap();
@@ -55,11 +52,8 @@ impl ScopeContext {
     }
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
-        // let path = PathHolder::from(custom_type.0.to_path());
         let mut lock = self.context.write().unwrap();
 
-        // let regular_type = lock.maybe_import(&scope, &path)
-        //     .unwrap_or(&path.0).clone();
         lock.custom.add_conversion(
             custom_type,
             ffi_type.to_unknown(Punctuated::new()),
@@ -100,7 +94,7 @@ impl ScopeContext {
                 Some(context.maybe_scope_ref_obj_first(parent_scope.self_path())
                     .and_then(|parent_obj_scope| context.maybe_object_ref_by_tree_key(ty_model_kind.as_type(), parent_obj_scope)
                         .and_then(ObjectKind::maybe_type))
-                    .unwrap_or(parent_scope.to_type()))
+                    .unwrap_or_else(|| parent_scope.to_type()))
 
             },
             _ => None
@@ -177,7 +171,6 @@ impl ScopeContext {
                         if item.is_labeled_for_export() || item.is_labeled_for_register() {
                             None
                         } else {
-                            //println!("maybe_opaque_object: non fermentable / non custom: {}", item);
                             Some(item.to_type())
                         }
                     },
@@ -187,7 +180,6 @@ impl ScopeContext {
                         } else if path.is_primitive() {
                             None
                         } else {
-                            //println!("maybe_opaque_object: alternative: {}", ty.to_token_stream());
                             Some(ty.clone())
                         }
                     }
@@ -195,10 +187,6 @@ impl ScopeContext {
             };
             result
         };
-        // match ScopeSearchKey::maybe_from_ref(ty) {
-        //     Some(ScopeSearchKey::PathRef(path)) => resolve_opaque(path),
-        //     _ => None
-        // }
         match ty {
             Type::Path(TypePath { path, .. }) =>
                 resolve_opaque(path),
@@ -218,20 +206,6 @@ impl ScopeContext {
                 },
                 _ => None
             },
-            // Type::Ptr(TypePtr { elem, const_token, mutability, .. }) => {
-            //     match &**elem {
-            //         Type::Path(TypePath { path, .. }) => resolve_opaque(path).map(|ty| {
-            //             if const_token.is_some() {
-            //                 ty
-            //                 // parse_quote!(*const #ty)
-            //             } else {
-            //                 ty
-            //                 // parse_quote!(*mut #ty)
-            //             }
-            //         }),
-            //         _ => None
-            //     }
-            // }
             _ => None
         }
     }
@@ -239,14 +213,12 @@ impl ScopeContext {
     pub fn maybe_object_by_key(&self, ty: &Type) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_tree_key(ty, &self.scope).cloned();
-        // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
     }
 
     pub fn maybe_object_by_value(&self, ty: &Type) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_value(ty).cloned();
-        // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
     }
     pub fn maybe_object_by_predicate_ref<'a>(&self, predicate: &'a ScopeSearch<'a>) -> Option<ObjectKind> {
@@ -255,7 +227,6 @@ impl ScopeContext {
     pub fn maybe_object_by_predicate<'a>(&self, predicate: ScopeSearch<'a>) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_predicate(predicate).cloned();
-        // println!("maybe_object: {} --- {} --- [{}]", ty.to_token_stream(), result.to_token_stream(), self.scope);
         result
     }
 
@@ -266,11 +237,9 @@ impl ScopeContext {
 
     pub fn full_type_for(&self, ty: &Type) -> Type {
         let lock = self.context.read().unwrap();
-        // println!("full_type_for.1: {} [{}]", ty.to_token_stream(), self.scope.self_path().to_token_stream());
         let full_ty = lock.maybe_object_ref_by_tree_key(ty, &self.scope)
             .and_then(ObjectKind::maybe_type)
             .unwrap_or(ty.clone());
-        // println!("full_type_for.2: {}", full_ty.to_token_stream());
         full_ty
     }
 
@@ -296,92 +265,7 @@ impl ScopeContext {
         let lock = self.context.read().unwrap();
         lock.maybe_item_trait(trait_path)
     }
-
-
-    // pub fn find_item_trait_in_scope(&self, trait_name: &Path, scope: &ScopeChain) -> (TraitCompositionPart1, ScopeChain) {
-    //     let trait_ty = parse_quote!(#trait_name);
-    //     let lock = self.context.read().unwrap();
-    //     let full_trait_ty = lock.maybe_type(&trait_ty, scope).unwrap();
-    //     let trait_ident = parse_quote!(#trait_name);
-    //     let trait_scope = full_trait_ty.as_scope();
-    //
-    //     let trait_scope = lock.actual_scope_for_path(full_trait_ty);
-    //
-    //     //let trait_scope = ScopeChain::Trait { self_scope: trait_scope, parent_scope_chain: Box::new(scope.clone()) };
-    //     println!("find_item_trait_in_scope.2: {}: {}", format_token_stream(&trait_ident), &trait_scope);
-    //     let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
-    //     // let trait_scope_chain = ScopeChain::Trait {
-    //     //     self_scope: trait_scope,
-    //     //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
-    //     // };
-    //     (item_trait, trait_scope)
-    // }
-    // pub fn find_item_trait_scope_pair(&self, trait_name: &Path) -> (TraitCompositionPart1, ScopeChain) {
-    //     println!("find_item_trait_scope_pair.1: {}", format_token_stream(trait_name));
-    //     let trait_ty = parse_quote!(#trait_name);
-    //     let lock = self.context.read().unwrap();
-    //     // let full_trait_ty = lock.maybe_type(&trait_ty, &self.scope).unwrap();
-    //     let trait_scope = lock.actual_scope_for_type(&trait_ty, &self.scope);
-    //     // trait_scope.se
-    //     // let trait_ident = parse_quote!(#trait_name);
-    //     // let trait_scope = full_trait_ty.as_scope();
-    //     println!("find_item_trait_scope_pair.2: {}", trait_scope);
-    //     let item_trait = self.item_trait_with_ident_for(&trait_ident, &trait_scope).unwrap();
-    //     // let trait_scope_chain = ScopeChain::Trait {
-    //     //     self_scope: trait_scope,
-    //     //     parent_scope_chain: Box::new(ScopeChain::Mod { self_scope: self.scope.self_scope().clone() }),
-    //     // };
-    //     (item_trait, trait_scope)
-    // }
-    // pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<TraitCompositionPart1> {
-    //     println!("item_trait_with_ident_for: {} in [{}] ", format_token_stream(ident), format_token_stream(scope));
-    //     let lock = self.context.read().unwrap();
-    //     lock.traits.item_trait_with_ident_for(ident, scope).cloned()
-    // }
-
-    // pub fn find_generics_fq_in(&self, item: &Item, scope: &ScopeChain) -> HashSet<GenericConversion> {
-    //     let lock = self.context.read().unwrap();
-    //     lock.scope_register.find_generics_fq_in(item, scope)
-    // }
-
-    // pub fn ffi_dictionary_type(&self, path: &Path) -> Type {
-    //     // println!("ffi_dictionary_field_type: {}", format_token_stream(path));
-    //     match path.segments.last().unwrap().ident.to_string().as_str() {
-    //         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64" | "i128" | "u128" |
-    //         "isize" | "usize" | "bool" =>
-    //             parse_quote!(#path),
-    //         "OpaqueContext" =>
-    //             parse_quote!(ferment::OpaqueContext_FFI),
-    //         "OpaqueContextMut" =>
-    //             parse_quote!(ferment::OpaqueContextMut_FFI),
-    //         "Option" =>
-    //             self.ffi_dictionary_type(path_arguments_to_paths(&path.segments.last().unwrap().arguments).first().unwrap()),
-    //         "Vec" | "BTreeMap" | "HashMap" => {
-    //             let path = self.scope_type_for_path(path)
-    //                 .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-    //                 .joined_mut();
-    //             parse_quote!(#path)
-    //         },
-    //         "Result" /*if path.segments.len() == 1*/ => {
-    //             let path = self.scope_type_for_path(path)
-    //                 .map_or(path.to_token_stream(), |full_type| full_type.mangle_ident_default().to_token_stream())
-    //                 .joined_mut();
-    //             parse_quote!(#path)
-    //         },
-    //         _ => {
-    //             let ty: Type = parse_quote!(#path);
-    //             ty.joined_mut()
-    //         }
-    //     }
-    // }
 }
-
-// impl ScopeContext {
-//     pub fn present_composition_in_context<T>(&self, composition: T, context: T::Context) -> T::Presentation
-//         where T: Composition {
-//         composition.present(context, self)
-//     }
-// }
 
 impl Join<ImplItemMethod> for ScopeContext {
     fn joined(&self, other: &ImplItemMethod) -> Self {
@@ -394,13 +278,3 @@ impl Join<TraitItemMethod> for ScopeContext {
         Self::with(self.scope.joined(other), self.context.clone())
     }
 }
-
-// impl<'a, T, S> Composer<'a> for ScopeContext
-//     where S: ScopeContextPresentable<Presentation=T>, T: ToTokens {
-//     type Source = S;
-//     type Result = <S as ScopeContextPresentable>::Presentation;
-//
-//     fn compose(&self, source: &'a Self::Source) -> Self::Result {
-//         source.present(self)
-//     }
-// }

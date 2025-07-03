@@ -75,7 +75,6 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for Path
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
-        // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
         let last_segment = self.segments.last().unwrap();
@@ -178,7 +177,6 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustFermentate, SPEC, Type> {
-        println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(ty, source)
@@ -297,18 +295,15 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for TypeModelKind
                     })
             },
             TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
-                // ty.to_path().popped()
                 panic!("error: Arg conversion (Fn) ({}) not supported", ty.to_token_stream())
             },
 
             TypeModelKind::Bounds(bounds) => {
-                // println!("TypeModelKind::Bounds: {}", bounds);
                 bounds.resolve(source)
             },
             ty =>
                 panic!("error: Arg conversion ({}) not supported", ty),
         };
-        // println!("TypeModelKind::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
         result
     }
 }
@@ -325,6 +320,5 @@ impl<SPEC> Resolve<FFIVariable<RustFermentate, SPEC, Type>> for GenericBoundsMod
         } else {
             FFIVariable::mut_ptr(parse_quote!(crate::fermented::generics::#ffi_name))
         }
-        // println!("GenericBoundsModel::<FFIVariable>::resolve({})", self);
     }
 }

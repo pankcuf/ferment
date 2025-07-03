@@ -10,7 +10,6 @@ use crate::shared::SharedAccess;
 pub enum FFIAspect {
     From,
     To,
-    // Destroy,
     Drop,
 }
 
@@ -21,7 +20,6 @@ pub struct FFIComposer<LANG, SPEC, Link>
           LANG: LangFermentable,
           SPEC: Specification<LANG> {
     pub parent: Option<Link>,
-    // pub ctor_composer: InterfaceKind<LANG, SPEC, Link>,
     pub from_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
     pub to_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
     pub drop_composer: InterfaceKind<LANG, SPEC, Link>,
@@ -31,7 +29,6 @@ impl<LANG, SPEC, Link> FFIComposer<LANG, SPEC, Link>
           SPEC: Specification<LANG>,
           Link: SharedAccess {
     pub const fn new(
-        // ctor_composer: InterfaceKind<LANG, SPEC, L>,
         from_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
         to_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
         drop_composer: InterfaceKind<LANG, SPEC, Link>,
@@ -46,7 +43,6 @@ impl<LANG, SPEC, Link> Linkable<Link> for FFIComposer<LANG, SPEC, Link>
           SPEC: Specification<LANG>,
           Link: SharedAccess {
     fn link(&mut self, parent: &Link) {
-        // self.ctor_composer.link(parent);
         self.from_conversion_composer.link(parent);
         self.to_conversion_composer.link(parent);
         self.drop_composer.link(parent);

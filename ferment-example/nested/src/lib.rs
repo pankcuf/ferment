@@ -20,7 +20,6 @@ pub struct SomeStruct {
 }
 
 #[allow(non_camel_case_types)]
-#[repr(C)]
 #[ferment_macro::register(std::time::Duration)]
 pub struct std_time_Duration2 {
     secs: u64,
@@ -60,6 +59,7 @@ impl Drop for regex_Regex {
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(serde_json::Error)]
+/// @ferment_macro::export(serde_json::Error)
 pub struct serde_json_Error {
     raw: *mut serde_json::Error,
 }
@@ -113,7 +113,6 @@ impl Drop for dashcore_consensus_Error {
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(anyhow::Error)]
 #[derive(Clone)]
-#[repr(C)]
 pub struct anyhow_Error {
     raw_err: *mut anyhow::Error,
 }

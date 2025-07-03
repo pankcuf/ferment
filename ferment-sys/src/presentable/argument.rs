@@ -99,7 +99,6 @@ impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
                     FieldTypeKind::Var(field_type) => (
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
                         field_type.to_type()
-                        // Resolve::<FFIVariable<Type>>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Conversion(conversion) => (
                         Some(name.mangle_ident_default()), Type::Verbatim(conversion.clone()))
@@ -118,7 +117,6 @@ impl<SPEC> ScopeContextPresentable for ArgKind<RustFermentate, SPEC>
                     Some(name.mangle_ident_default()),
                     kind.ty().clone()),
             ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) => {
-                print!("DefaultFieldConversion: {} {}", name, kind);
                 ArgPresentation::field(
                     attrs,
                     Visibility::Inherited,

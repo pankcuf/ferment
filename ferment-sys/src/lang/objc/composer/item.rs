@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use crate::ast::{CommaPunctuated, DelimiterTrait, Depunctuated, SemiPunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, FFIObjectComposable, FieldsConversionComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceComposable, SourceFermentable, ToConversionComposer, TypeAspect, VarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, FFIObjectComposable, FieldsConversionComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceComposable, SourceFermentable, ToConversionFullComposer, TypeAspect, VarComposer};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
@@ -47,7 +47,7 @@ impl<SPEC, I> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
             .for_each(|FieldComposer { name, kind, .. }| {
                 let var = VarComposer::<ObjCFermentate, SPEC>::key_in_scope(kind.ty(), &source.scope)
                     .compose(&source);
-                let to_conversion = ToConversionComposer::<ObjCFermentate, SPEC>::new(name.clone(), kind.ty().clone(), Some(Expression::ObjName(name.clone())))
+                let to_conversion = ToConversionFullComposer::<ObjCFermentate, SPEC>::key_expr(name.clone(), kind.ty(), &source.scope, Some(Expression::ObjName(name.clone())))
                     .compose(&source)
                     .present(&source);
 

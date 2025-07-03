@@ -119,7 +119,6 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         kind.ty().cloned().unwrap(),
                     TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
                         model.as_type().clone()
-                    // model.type_model_ref().ty.clone(),
                 }
             },
             Aspect::FFI(context) => {

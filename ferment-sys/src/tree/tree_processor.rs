@@ -92,12 +92,9 @@ impl FileTreeProcessor {
 }
 
 fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> Result<HashMap<Crate, ScopeTreeExportItem>, error::Error> {
-    let result = crates.iter()
+    crates.iter()
         .try_fold(HashMap::new(), |mut acc, crate_config| {
             acc.insert(crate_config.clone(), crate_config.process(vec![], context)?);
             Ok(acc)
-        });
-
-    //println!("processed_crates:\n {:?}", result);
-    result
+        })
 }

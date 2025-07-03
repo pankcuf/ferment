@@ -41,19 +41,19 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
-        let count_name = SPEC::Name::dictionary_name(count.clone());
-        let arg_0_name = SPEC::Name::dictionary_name(keys.clone());
-        let arg_1_name = SPEC::Name::dictionary_name(values.clone());
+        let count_name = Name::dictionary_name(count.clone());
+        let arg_0_name = Name::dictionary_name(keys.clone());
+        let arg_1_name = Name::dictionary_name(values.clone());
 
-        let arg_context = |arg_name: &Name<RustFermentate, SPEC>| quote!(obj.#arg_name().cloned());
-        let arg_args = |arg_name: &Name<RustFermentate, SPEC>| CommaPunctuated::from_iter([
+        let arg_context = |arg_name: &SPEC::Name| quote!(obj.#arg_name().cloned());
+        let arg_args = |arg_name: &SPEC::Name| CommaPunctuated::from_iter([
             DictionaryExpr::SelfProp(arg_name.to_token_stream()),
             DictionaryExpr::SelfProp(count_name.to_token_stream())]);
 
-        let compose = |arg_name: &Name<RustFermentate, SPEC>, ty: &Type| {
+        let compose = |arg_name: &SPEC::Name, ty: &Type| {
             let from_conversion =
                 Expression::map_o_expr(
-                    FromConversionFullComposer::<RustFermentate, SPEC>::value(SPEC::Name::dictionary_name(DictionaryName::O), ty)
+                    FromConversionFullComposer::<RustFermentate, SPEC>::value(Name::dictionary_name(DictionaryName::O), ty)
                         .compose(source));
             let result = match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) =>
@@ -64,31 +64,18 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                         Expression::ffi_to_primitive_group_tokens(arg_context(arg_name))),
                 TypeKind::Complex(arg_ty) => {
                     let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = arg_ty.maybe_special_type(source);
-                    let arg_composer = match maybe_special {
-                        Some(SpecialType::Opaque(..)) => {
-                            GenericArgComposer::<RustFermentate, SPEC>::new(
-                                Some(Expression::from_complex_tokens),
-                                Some(Expression::ffi_to_opaque_group_tokens),
-                                Some(if arg_ty.is_fermentable_string() {
-                                    Expression::destroy_string_group_tokens
-                                } else {
-                                    Expression::destroy_complex_group_tokens
-                                }))                        }
-                        _ => {
-                            GenericArgComposer::<RustFermentate, SPEC>::new(
-                                Some(Expression::from_complex_tokens),
-                                Some(Expression::ffi_to_complex_group_tokens),
-                                Some(if arg_ty.is_fermentable_string() {
-                                    Expression::destroy_string_group_tokens
-                                } else {
-                                    Expression::destroy_complex_group_tokens
-                                })
-                            )
-                        }
+                    let to_composer = match maybe_special {
+                        Some(SpecialType::Opaque(..)) => Expression::ffi_to_opaque_group_tokens,
+                        _ => Expression::ffi_to_complex_group_tokens
                     };
-
-                    // let arg_composer = ;
-
+                    let arg_composer = GenericArgComposer::<RustFermentate, SPEC>::new(
+                        Some(Expression::from_complex_tokens),
+                        Some(to_composer),
+                        Some(if arg_ty.is_fermentable_string() {
+                            Expression::destroy_string_group_tokens
+                        } else {
+                            Expression::destroy_complex_group_tokens
+                        }));
                     GenericArgPresentation::<RustFermentate, SPEC>::new(
                         FFIVariable::direct(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),
                         arg_composer.destroy(arg_args(arg_name).to_token_stream()),
@@ -133,9 +120,6 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
 
         let nested_types = self.ty.nested_types();
         lifetimes.extend(nested_types.iter().flat_map(|ty| ty.unique_lifetimes()));
-        // println!("MapComposer: {}", self.ty.to_token_stream());
-        // println!("MapComposer: nested_types: {:?}", nested_types);
-        // println!("MapComposer: lifetimes: {:?}", lifetimes);
         let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
         let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
         let expr_from_iterator = [

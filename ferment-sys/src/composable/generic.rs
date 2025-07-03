@@ -34,15 +34,14 @@ impl Eq for GenericConversion {}
 
 impl Hash for GenericConversion {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // self.attrs.to_token_stream().to_string().hash(state);
         self.object.to_token_stream().to_string().hash(state);
     }
 }
 
 #[allow(unused)]
 impl GenericConversion {
-    pub fn new(object: ObjectKind/*, attrs: Directives*/) -> Self {
-        Self { object/*, attrs*/ }
+    pub fn new(object: ObjectKind) -> Self {
+        Self { object }
     }
 
     pub fn used_imports(&self) -> HashSet<PathHolder> {
@@ -75,7 +74,6 @@ fn generic_imports(ty: Option<&Type>) -> HashSet<PathHolder> {
 
 #[derive(Clone, Debug)]
 pub struct GenericsComposition {
-    // pub qs: TypeComposition,
     pub generics: Generics,
 
 }

@@ -1,12 +1,8 @@
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, Path, PathArguments, PathSegment, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use syn::punctuated::Punctuated;
 use quote::{quote, ToTokens};
-use crate::ast::{AddPunctuated, CommaPunctuated};
-use crate::composable::NestedArgument;
-use crate::composer::CommaPunctuatedNestedArguments;
+use crate::ast::AddPunctuated;
 use crate::conversion::TypeKind;
-use crate::ext::VisitScopeType;
 use crate::tree::ScopeTreeExportID;
 
 pub trait ItemExtension {
@@ -104,7 +100,6 @@ impl ItemExtension for Item {
 
 
 fn maybe_generic_type_bound<'a>(path: &'a Path, generics: &'a Generics) -> Option<&'a TypeParam> {
-    // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
     path.segments.last()
         .and_then(|last_segment|
             generics.params.iter()
@@ -118,20 +113,10 @@ fn maybe_generic_type_bound<'a>(path: &'a Path, generics: &'a Generics) -> Optio
 }
 
 pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
-    match &segment.arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-            args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(ty) => Some(ty),
-                _ => None
-            }).collect(),
-        // PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) =>
-
-        _ => Vec::new(),
-    }
+    path_arguments_to_types(&segment.arguments)
 }
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
-    // println!("path_arguments_to_types: {}", arguments.to_token_stream());
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
             args.iter().filter_map(|arg| match arg {
@@ -139,34 +124,6 @@ pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
                 _ => None
             }).collect(),
         _ => Vec::new(),
-    }
-}
-
-#[allow(unused)]
-pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuatedNestedArguments {
-    match arguments {
-        PathArguments::None => Punctuated::new(),
-        PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-            let mut nested = CommaPunctuated::new();
-            inputs.iter().for_each(|arg| {
-                nested.push(NestedArgument::Object(arg.visit_scope_type(source)));
-            });
-            match output {
-                ReturnType::Default => {}
-                ReturnType::Type(_, ty) => {
-                    nested.push(NestedArgument::Object(ty.visit_scope_type(source)));
-                }
-            }
-            nested
-        },
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-            args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(inner_type) =>
-                    Some(NestedArgument::Object(inner_type.visit_scope_type(source))),
-                _ => None
-            }
-            ).collect()
-        }
     }
 }
 

@@ -4,7 +4,8 @@ use syn::{Attribute, Generics, Lifetime, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer, VarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer};
+use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{CrateExtension, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
@@ -49,16 +50,16 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         // Mutex/RwLock: primitive/complex arg: to: "obj.into_inner().expect("Err")"
         // Arc<RwLock>>: to: obj.borrow().clone()
         // RefCell: primitive/complex arg: to: "obj.into_inner()"
-        let obj_by_value = source.maybe_object_by_value(&self.ty);
+        // let obj_by_value = source.maybe_object_by_value(&self.ty);
         let nested_ty = self.ty.maybe_first_nested_type_ref()?;
         lifetimes.extend(nested_ty.unique_lifetimes());
-        let maybe_opaque = source.maybe_opaque_object::<RustFermentate, SPEC>(nested_ty);
-        let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
-        println!("AnyOther.ty: {}", nested_ty.to_token_stream());
-        println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
-        println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
-        println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
+        // let maybe_opaque = source.maybe_opaque_object::<RustFermentate, SPEC>(nested_ty);
+        // let nested_obj_by_value = source.maybe_object_by_value(nested_ty);
+        // println!("AnyOther.ty: {}", nested_ty.to_token_stream());
+        // println!("AnyOther.nested.ty: {}", nested_ty.to_token_stream());
+        // println!("AnyOther by_value: {}", obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        // println!("AnyOther nested: by_value: {}", nested_obj_by_value.as_ref().map_or("None".to_string(), |o| format!("{o}")));
+        // println!("AnyOther opaque: {}", maybe_opaque.to_token_stream());
         // let _maybe_nested_nested_ty = nested_ty.maybe_first_nested_type_ref();
         // let compose = |arg_name: &Name, ty: &Type| {
         // };

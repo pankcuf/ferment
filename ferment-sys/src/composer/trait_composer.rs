@@ -28,9 +28,7 @@ pub struct TraitComposer<LANG, SPEC>
 
 impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          // Self: AspectPresentable<SPEC::TYC>
-{
+          SPEC: Specification<LANG> {
     pub fn from_item_trait(
         item_trait: &ItemTrait,
         ty_context: SPEC::TYC,
@@ -38,12 +36,6 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemTrait { attrs, generics, ident, items,  .. } = item_trait;
         let self_ty = ident.to_type();
-        // let trait_ident = &item_trait.ident;
-        // let fn_name = self.ident.unwrap();
-        // let mut full_fn_path = scope.joined(&trait_ident);
-        // if self.scope.is_crate_based() {
-        //     full_fn_path.replace_first_with(&PathHolder::from(source.scope.crate_ident().to_path()))
-        // }
         let source = scope_context.borrow();
         let mut methods = vec![];
         let mut types = HashMap::new();
@@ -84,7 +76,6 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
         attrs: AttrsModel,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
-        // let ty_context = Context::Trait { path: self_path, attrs: attrs.cfg_attributes() };
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), LifetimesModel::new(lifetimes), Rc::clone(context)),
             methods,

@@ -19,7 +19,6 @@ pub trait VisitScope {
 
 impl VisitScope for Item {
     fn join_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) -> Option<ScopeChain> {
-        //println!("join_scope: {}", scope.self_path_holder_ref());
         match self {
             Item::Struct(..) |
             Item::Enum(..) |
@@ -40,7 +39,6 @@ impl VisitScope for Item {
         }
     }
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) {
-        //println!("add_to_scope: {}", scope.self_path_holder_ref());
         let self_scope = scope.self_path_holder_ref();
         match self {
             Item::Mod(item_mod) => {
@@ -51,7 +49,6 @@ impl VisitScope for Item {
             }
             Item::Enum(item_enum) => {
                 let mut nested_arguments = CommaPunctuated::new();
-                // println!("add_to_scope (Enum) NEW_OBJECT: {}", scope);
                 let full_ty = if !item_enum.generics.params.is_empty() || item_enum.generics.where_clause.is_some() {
                     //println!("ADDD FQ STRUCT: {}: {} ---- {}", item_struct.ident, item_struct.generics.params.to_token_stream(), item_struct.generics.where_clause.to_token_stream());
                     let mut inner_args = CommaPunctuated::new();
@@ -72,7 +69,6 @@ impl VisitScope for Item {
                         }
                         GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
                             inner_args.push(quote!(#ident));
-                            // println!("add_to_scope (Struct::Const) NEW_OBJECT: {}", scope);
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_enum.generics.clone()), CommaPunctuated::new())))))
                         },
                         GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
@@ -96,9 +92,7 @@ impl VisitScope for Item {
             }
             Item::Struct(item_struct) => {
                 let mut nested_arguments = CommaPunctuated::new();
-                // println!("ADD_TO_SCOPE: {}", item_struct.ident);
                 let full_ty = if !item_struct.generics.params.is_empty() || item_struct.generics.where_clause.is_some() {
-                    //println!("ADDD FQ STRUCT: {}: {} ---- {}", item_struct.ident, item_struct.generics.params.to_token_stream(), item_struct.generics.where_clause.to_token_stream());
                     let mut inner_args = CommaPunctuated::new();
                     item_struct.generics.params.iter().for_each(|p| match p {
                         GenericParam::Type(TypeParam { ident, bounds, .. }) => {
@@ -149,12 +143,8 @@ impl VisitScope for Item {
                 let self_object = match &*item_type.ty {
                     Type::BareFn(..) =>
                         ObjectKind::new_item(
-                            TypeModelKind::FnPointer(
-                                TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone())),
-                                /*TypeModel::new(*item_type.ty.clone(), Some(item_type.generics.clone()), Punctuated::new())*/), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone())),
+                            TypeModelKind::FnPointer(TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone())),
                     _ => {
-                        // println!("add_to_scope (Type) NEW_OBJECT: {}", scope);
-
                         ObjectKind::new_item(TypeModelKind::Object(TypeModel::new_non_gen(scope.to_type(), Some(item_type.generics.clone()))), ScopeItemKind::Item(Item::Type(item_type.clone()), self_scope.clone()))
                     }
                 };
@@ -180,22 +170,26 @@ impl VisitScope for Item {
                             let ImplItemMethod { sig, .. } = impl_method;
                             let Signature { ident, inputs, output, generics, .. } = sig;
                             let fn_scope = scope.joined(impl_method);
-
-                            //println!("add_impl_method: Self::{} into: {}", ident, scope);
+                            visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
                             visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                             if let ReturnType::Type(_arrow_token, ty) = output {
                                 visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
                             }
-                            inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                let type_chain = visitor.create_type_chain(ty, &fn_scope);
-                                let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
-                                // println!("add_impl_method add_method_arg: Self::{} into: {}", ident, scope.self_scope().object);
-                                // type_chain.insert(parse_quote!(Self), scope.self_scope().object.clone());
-                                visitor.add_full_qualified_type_chains(HashMap::from_iter([
-                                    (fn_scope.clone(), type_chain),
-                                    (scope.clone(), parent_type_chain.clone()),
-                                    (scope.parent_scope().unwrap().clone(), parent_type_chain.clone()),
-                                ]))
+                            inputs.iter().for_each(|arg| {
+                                match arg {
+                                    FnArg::Receiver(..) => {
+                                        // visitor.add_full_qualified_type_match(scope, self_ty, false);
+                                    },
+                                    FnArg::Typed(PatType { ty, .. }) => {
+                                        let type_chain = visitor.create_type_chain(ty, &fn_scope);
+                                        let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
+                                        visitor.add_full_qualified_type_chains(HashMap::from_iter([
+                                            (fn_scope.clone(), type_chain),
+                                            (scope.clone(), parent_type_chain.clone()),
+                                            (scope.parent_scope().unwrap().clone(), parent_type_chain.clone()),
+                                        ]))
+                                    }
+                                }
                             });
                             visitor.add_generic_chain(&fn_scope, generics, false);
                         },
@@ -213,7 +207,6 @@ impl VisitScope for Item {
     }
 }
 fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope: &ScopeChain) {
-    // println!("add_full_qualified_trait: {}: {}", item_trait.ident, scope);
     let ident = &item_trait.ident;
     let type_compo = TypeModel::new(scope.to_type(), Some(item_trait.generics.clone()), Punctuated::new());
     let itself = ObjectKind::new_item(
@@ -225,8 +218,6 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
-    // println!("::: 1. ADD Self (local scope): <{}, {}> in [{}]", quote!(Self), itself, scope);
-    // println!("::: 2. ADD Self: (parent scope) <{}, {}> in [{}]", quote!(#ident), itself, scope.parent_scope().unwrap());
     visitor.add_full_qualified_trait_match(&scope, item_trait, &itself);
     item_trait.items.iter().for_each(|trait_item|
         match trait_item {
@@ -238,6 +229,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 let TraitItemMethod { sig, .. } = trait_item_method;
                 let Signature { ident, generics, inputs, output, .. } = sig;
                 let fn_scope = scope.joined(trait_item_method);
+                // visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                 if let ReturnType::Type(_arrow_token, ty) = output {
                     visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
@@ -253,30 +245,6 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                     ]))
                 });
                 visitor.add_generic_chain(&fn_scope, generics, false);
-
-                // add_full_qualified_signature(visitor, sig, &fn_scope);
-                // visitor.add_generic_chain(&fn_scope, generics, false);
-
-                // let ImplItemMethod { sig, .. } = impl_method;
-                // let Signature { ident, inputs, output, generics, .. } = sig;
-                // let fn_scope = scope.joined(impl_method);
-                //
-                // visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
-                // if let ReturnType::Type(_arrow_token, ty) = output {
-                //     visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
-                // }
-                // inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-                //     let mut type_chain = visitor.create_type_chain(ty, &fn_scope);
-                //     let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
-                //     type_chain.insert(parse_quote!(Self), scope.self_scope().object.clone());
-                //     visitor.add_full_qualified_type_chains(HashMap::from_iter([
-                //         (fn_scope.clone(), type_chain),
-                //         (scope.clone(), parent_type_chain.clone()),
-                //         (scope.parent_scope().unwrap().clone(), parent_type_chain.clone()),
-                //     ]))
-                // });
-                // visitor.add_generic_chain(&fn_scope, generics, false);
-
             }
             TraitItem::Type(TraitItemType { ident: type_ident, bounds, generics, .. }) => {
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#type_ident), true);
@@ -298,7 +266,6 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
         visitor.add_full_qualified_type_chain(scope, type_chain, true);
     }
     inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
-        // println!("add input: {} in [{}]", ty.to_token_stream(), scope);
         // TODO: Prevent generic bound from adding to parent here
         // It's easy when arg is non-compound type, i.e. itself
         // It's hard when bound is a part of arg i.e. T: Into<U>
@@ -326,7 +293,6 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
 }
 
 fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope: &ScopeChain) {
-    //println!("add_inner_module_conversion: {}" , item_mod.ident);
     match &item_mod.content {
         None => {},
         Some((_, items)) => {
@@ -344,7 +310,6 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
                     Item::Impl(..) => {
                         match MacroType::try_from(item) {
                             Ok(MacroType::Export | MacroType::Opaque | MacroType::Register(_)) => {
-                                //println!("add_inner_module_conversion.item: {}", item.ident_string());
                                 item.add_to_scope(&scope.joined(item), visitor)
                             }
                             Err(_) => {}
@@ -352,19 +317,12 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
                     },
                     _ => {}
                 }
-
             })
         }
     }
 }
 
-// fn add_local_type(visitor: &mut Visitor, ident: &Ident, scope: &ScopeChain, add_to_parent: bool) {
-//     println!("add_local_type: [add_2_parent: {}] {} in [{}]", add_to_parent, ident, scope);
-//     visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), add_to_parent);
-// }
-
 fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
-    // println!("add_bounds: [add_2_parent: {}] {} in [{}]", add_to_parent, bounds.to_token_stream(), scope);
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
         let ty = path.to_type();
@@ -391,7 +349,6 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
             predicates.iter().for_each(|predicate| match predicate {
                 WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
                     // where T: Debug + Clone, T::Item: XX,
-                    // println!("WherePredicate: {}", bounded_ty.to_token_stream());
                     generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
                     visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
                 },

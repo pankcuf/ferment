@@ -7,7 +7,6 @@ mod ffi_object;
 mod naming;
 mod ffi_full_path;
 mod ffi_variable;
-// mod trait_vtable_presentation;
 
 pub use self::arg_presentation::*;
 pub use self::binding::*;
@@ -18,5 +17,4 @@ pub use self::ffi_full_path::*;
 pub use self::ffi_object::*;
 pub use self::ffi_variable::*;
 pub use self::naming::*;
-//pub use self::trait_vtable_presentation::*;
 

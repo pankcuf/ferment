@@ -5,7 +5,6 @@ use crate::conversion::TypeKind;
 pub trait GenericNestedArg {
     fn maybe_first_nested_type_ref(&self) -> Option<&Type>;
     fn nested_types(&self) -> Vec<&Type>;
-
     fn maybe_first_nested_type_kind(&self) -> Option<TypeKind> {
         self.maybe_first_nested_type_ref()
             .map(TypeKind::from)
@@ -26,20 +25,6 @@ impl GenericNestedArg for Type {
                     }),
                 _ => None,
             }),
-            // Type::BareFn(_) => {}
-            // Type::Group(_) => {}
-            // Type::ImplTrait(_) => {}
-            // Type::Infer(_) => {}
-            // Type::Macro(_) => {}
-            // Type::Never(_) => {}
-            // Type::Paren(_) => {},
-            // Type::Ptr(_) => {}
-            // Type::Reference(_) => {}
-            // Type::Slice(_) => {}
-            // Type::TraitObject(_) => {}
-            // Type::Tuple(_) => {}
-            // Type::Verbatim(_) => {}
-            // Type::__NonExhaustive => {}
             _ => None
         }
     }

@@ -184,7 +184,6 @@ impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<RustFermentate,
         Depunctuated::from_iter([
             InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &generics, &lifetimes),
             InterfacePresentation::conversion_to_boxed(&attrs, &types, to_body, &generics, &lifetimes),
-            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &generics),
             InterfacePresentation::drop(&attrs, ffi_type, drop_body)
         ])
     }

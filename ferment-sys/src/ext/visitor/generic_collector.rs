@@ -6,37 +6,15 @@ use crate::conversion::ScopeItemKind;
 use crate::ext::item::segment_arguments_to_types;
 use crate::ext::visitor::TypeCollector;
 
-// pub trait Collector where Self: TypeCollector {
-//     fn collect(&self) -> HashSet<TypeHolder> {
-//         let compositions = self.collect_compositions();
-//         //println!("find_generics: {}", format_type_holders(&HashSet::from_iter(compositions.clone().into_iter())));
-//         // collect all types with generics and ensure their uniqueness
-//         // since we don't want to implement interface multiple times for same object
-//         let mut generics: HashSet<TypeHolder> = HashSet::new();
-//         compositions
-//             .iter()
-//             .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
-//         generics
-//     }
-//     fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
-//         generics.extend(self.find_generics());
-//     }
-//
-// }
-
 pub trait GenericCollector where Self: TypeCollector + ToTokens {
     fn find_generics(&self) -> HashSet<TypeHolder> {
         let compositions = self.collect_compositions();
-        // println!("find_generics in [{}]: {}", self.to_token_stream(), format_type_holders(&HashSet::from_iter(compositions.clone().into_iter())));
         // collect all types with generics and ensure their uniqueness
         // since we don't want to implement interface multiple times for same object
         let mut generics: HashSet<TypeHolder> = HashSet::new();
-        //println!("GenericCollector::compositions: {}\n{}", self.to_token_stream(), format_type_holders_vec(&compositions));
         compositions
             .iter()
             .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
-        //println!("GenericCollector::generics {}\n{}", self.to_token_stream(), format_type_holders(&generics));
-
         generics
     }
 
@@ -53,8 +31,6 @@ impl GenericCollector for Type {
         let result = match self {
             Type::Path(TypePath { path, .. }) => {
                 path.collect_to(generics);
-
-
                 if path.segments
                     .iter()
                     .any(|seg| {
@@ -95,7 +71,6 @@ impl GenericCollector for Type {
             },
             _ => {}
         };
-        // println!("GenericCollector:: {}", self.to_token_stream(), form);
         result
     }
 }

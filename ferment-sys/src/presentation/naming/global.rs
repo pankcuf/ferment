@@ -50,25 +50,6 @@ pub enum FFIFullDictionaryPath<LANG, SPEC>
     CChar,
     Phantom(PhantomData<(LANG, SPEC)>)
 }
-// #[allow(unused)]
-// pub enum FFIFullDictionaryVariable {
-//     Void,
-//     CChar
-// }
-// impl ToType for FFIFullDictionaryVariable {
-//     fn to_type(&self) -> Type {
-//         match self {
-//             FFIFullDictionaryVariable::Void => FFIFullDictionaryPath::Void.to_type(),
-//             FFIFullDictionaryVariable::CChar => FFIFullDictionaryPath::CChar.to_type(),
-//         }
-//     }
-// }
-// impl ToPath for FFIFullDictionaryVariable {
-//     fn to_path(&self) -> Path {
-//         self.to_type()
-//             .to_path()
-//     }
-// }
 
 impl<SPEC> ToType for FFIFullDictionaryPath<RustFermentate, SPEC> where SPEC: RustSpecification {
     fn to_type(&self) -> Type {

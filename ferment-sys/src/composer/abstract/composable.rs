@@ -30,7 +30,6 @@ pub trait TypeAspect<TYC>
     where TYC: NameTreeContext {
     fn type_context(&self) -> TYC { self.type_context_ref().clone() }
     fn type_context_ref(&self) -> &TYC;
-
     fn ffi_type_aspect(&self) -> Aspect<TYC> { Aspect::FFI(self.type_context()) }
     fn target_type_aspect(&self) -> Aspect<TYC> { Aspect::Target(self.type_context()) }
     fn raw_target_type_aspect(&self) -> Aspect<TYC> { Aspect::RawTarget(self.type_context()) }

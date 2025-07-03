@@ -29,23 +29,4 @@ impl<Link, TYC> TypeComposer<Link, TYC>
     pub const fn new(context: TYC) -> Self {
         Self { context, parent: None }
     }
-
-    // pub fn compose_aspect(&self, aspect: FFIAspect) -> Aspect {
-    //     match aspect {
-    //         FFIAspect::FFI => Aspect::FFI(&self.context),
-    //         FFIAspect::Target => Aspect::Target(&self.context),
-    //     }
-    // }
 }
-
-// impl<'a, Parent, TYC> Composer<'a> for TypeComposer<Parent, TYC>
-//     where Parent: SharedAccess,
-//           TYC: Clone,
-//           Aspect<TYC>: ScopeContextPresentable {
-//     type Source = ScopeContext;
-//     type Output = TYC;
-//
-//     fn compose(&self, _source: &'a Self::Source) -> Self::Output {
-//         self.context.clone()
-//     }
-// }

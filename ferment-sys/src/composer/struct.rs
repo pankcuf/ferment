@@ -197,8 +197,6 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for StructComposer<LANG, SPEC, Bra
         SeqKind::NamedStruct;
     const TO_ROOT_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::NamedStruct;
-    // const FIELD_ITER: OwnedFieldsIterator<LANG, SPEC> =
-    //     IterativeComposer::aspect_fields(Self::PRODUCER);
     const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::FromNamedFields;
     const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
@@ -218,8 +216,6 @@ impl<LANG, SPEC> ItemComposerSpec<LANG, SPEC> for StructComposer<LANG, SPEC, Par
         SeqKind::UnnamedStruct;
     const TO_ROOT_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::UnnamedStruct;
-    // const FIELD_ITER: OwnedFieldsIterator<LANG, SPEC> =
-    //     IterativeComposer::aspect_fields(Self::PRODUCER);
     const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =
         SeqKind::ToUnnamedFields;
     const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC> =

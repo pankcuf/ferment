@@ -3,7 +3,7 @@ use syn::token::{Comma, Semi};
 use ferment_macro::Display;
 use crate::composer::{AspectSharedComposerLink, AttrComposable, ComposerLink, DropSequenceMixer, FFIConversionsMixer, FFIInterfaceMethodSpec, FieldsContext, GenericsComposable, InterfaceSequenceMixer, Linkable, NameKindComposable, RootSequenceComposer, SequenceSharedComposerLink, SourceComposable, TypeAspect};
 use crate::lang::{LangFermentable, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind};
+use crate::presentable::{Aspect, SeqKind};
 use crate::shared::SharedAccess;
 
 #[derive(Display)]

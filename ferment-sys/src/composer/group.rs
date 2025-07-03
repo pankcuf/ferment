@@ -162,7 +162,6 @@ impl<SPEC> SourceComposable for GroupComposer<RustFermentate, SPEC>
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &lifetimes),
                 InterfacePresentation::conversion_to(&attrs, &types, to_body, &None, &lifetimes),
-                // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::drop(&attrs, ffi_type, SemiPunctuated::from_iter(expr_destroy_iterator))
             ])
         ))

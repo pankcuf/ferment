@@ -46,8 +46,6 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
                     GenericArgPresentation::new(
                         FFIVariable::direct(arg_ty),
                         Expression::destroy_primitive_opt_tokens(DictionaryExpr::SelfProp(arg_name.to_token_stream())),
-                        // from_conversion,
-                        // Expression::map_o_expr(from_conversion),
                         Expression::map_o_expr(Expression::deref_expr(from_conversion)),
                         Expression::boxed_tokens(DictionaryName::O))
                 }
@@ -65,7 +63,6 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
                         FFIVariable::direct(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&arg_ty, source)),
                         arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()),
                         Expression::map_o_expr(from_conversion),
-                        // Expression::map_o_expr(arg_composer.from(DictionaryName::O.to_token_stream())),
                         arg_composer.to(DictionaryName::O.to_token_stream()))
                 }
                 TypeKind::Generic(generic_arg_ty) => {
@@ -94,7 +91,6 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
                         FFIVariable::direct(arg_ty),
                         arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()),
                         Expression::map_o_expr(from_conversion),
-                        // Expression::map_o_expr(arg_composer.from(DictionaryName::O.to_token_stream())),
                         arg_composer.to(DictionaryName::O.to_token_stream()))
                 }
             }
@@ -133,7 +129,6 @@ impl<SPEC> SourceComposable for ResultComposer<RustFermentate, SPEC>
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToResult(from_conversions.to_token_stream()), &None, &lifetimes),
                 InterfacePresentation::conversion_to_boxed(&attrs, &types, BraceWrapped::<_, Void>::new(quote!(let (#field_names) = ferment::to_result(obj, #to_conversions); Self { #field_names })), &None, &lifetimes),
-                // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
                 InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
             ])
         ))

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use quote::ToTokens;
 use crate::composable::FieldComposer;
-use crate::composer::{SourceComposable, DestroyConversionComposer, FromConversionFullComposer, ToConversionComposer};
+use crate::composer::{SourceComposable, FromConversionFullComposer, ToConversionFullComposer, DestroyFullConversionComposer};
 use crate::context::ScopeContext;
 use crate::ext::ToType;
 use crate::lang::{LangFermentable, Specification};
@@ -13,8 +13,9 @@ pub enum ConversionType<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG> {
     From(FieldComposer<LANG, SPEC>, Option<SPEC::Expr>),
-    To(ToConversionComposer<LANG, SPEC>),
-    Destroy(DestroyConversionComposer<LANG, SPEC>),
+    To(FieldComposer<LANG, SPEC>, Option<SPEC::Expr>),
+    Destroy(FieldComposer<LANG, SPEC>, Option<SPEC::Expr>),
+    // Destroy(DestroyConversionComposer<LANG, SPEC>),
 }
 
 impl<LANG, SPEC> ConversionType<LANG, SPEC>
@@ -24,10 +25,10 @@ impl<LANG, SPEC> ConversionType<LANG, SPEC>
         Self::From(composer.clone(), expr)
     }
     pub fn expr_to(composer: &FieldComposer<LANG, SPEC>, expr: Option<SPEC::Expr>) -> Self {
-        Self::To(ToConversionComposer::new(composer.name.clone(), composer.ty().clone(), expr))
+        Self::To(composer.clone(), expr)
     }
     pub fn expr_destroy(composer: &FieldComposer<LANG, SPEC>, expr: Option<SPEC::Expr>) -> Self {
-        Self::Destroy(DestroyConversionComposer::new(composer.name.clone(), composer.ty().clone(), expr))
+        Self::Destroy(composer.clone(), expr)
     }
 }
 
@@ -46,10 +47,11 @@ impl<LANG, SPEC> SourceComposable for ConversionType<LANG, SPEC>
         match self {
             ConversionType::From(composer, expr) =>
                 FromConversionFullComposer::<LANG, SPEC>::key_in_scope_with_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source),
-            ConversionType::To(composer) =>
-                composer.compose(source),
-            ConversionType::Destroy(composer) =>
-                composer.compose(source),
+            ConversionType::To(composer, expr) =>
+                ToConversionFullComposer::key_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source),
+            ConversionType::Destroy(composer, expr) =>
+                DestroyFullConversionComposer::key_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source).unwrap_or(Expression::Empty),
+                // DestroyConversionComposer::new(composer.name.clone(), composer.ty().clone(), expr.clone()).compose(source),
         }
     }
 }

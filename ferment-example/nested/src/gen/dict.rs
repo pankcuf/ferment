@@ -110,7 +110,7 @@ pub struct AllMutexExamples {
 #[ferment_macro::opaque]
 #[derive(Clone)]
 pub struct CacheExample {
-    pub map: Arc<RwLock<BTreeMap<u32, LLMQSnapshot>>>,
+    pub _map: Arc<RwLock<BTreeMap<u32, LLMQSnapshot>>>,
 }
 
 #[ferment_macro::export]

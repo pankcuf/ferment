@@ -37,17 +37,11 @@ fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute]
 impl TypeCollector for GenericBoundsModel {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();
-        // let mut cache_type = |ty: &Type|
-        //     type_and_paths.push(TypeHolder(ty.clone()));
-        // self.bounds.iter().for_each(|bound| {
-        //
-        // });
         self.predicates.iter().for_each(|(_ty, bounds)| {
             bounds.iter().for_each(|bound| {
                 type_and_paths.push(TypeHolder(parse_quote!(#bound)))
             });
         });
-
         type_and_paths
     }
 }

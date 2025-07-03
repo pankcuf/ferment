@@ -68,17 +68,29 @@ use syn::token::Comma;
 ///
 #[proc_macro_attribute]
 pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    input
+    // input
+    let input = TokenStream2::from(input);
+    let expanded = quote! {
+        #[doc = "@ferment::export"]
+        #input
+    };
+    TokenStream::from(expanded)
+
 }
 
 
 #[proc_macro_attribute]
-pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn register(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let ty = syn::parse::<Path>(attr).expect("Expected a path");
+    let ty_str = quote!(#ty).to_string();
     let input = TokenStream2::from(input);
+
     let expanded = quote! {
+        #[doc = concat!("@ferment::register(", #ty_str, ")")]
         #[repr(C)]
         #input
     };
+
     TokenStream::from(expanded)
 }
 
@@ -89,8 +101,16 @@ pub fn opaque(_attr: TokenStream, input: TokenStream) -> TokenStream {
     //     #[repr(C)]
     //     #input
     // };
-    input
+    // input
     // TokenStream::from(expanded)
+
+    let input = TokenStream2::from(input);
+    let expanded = quote! {
+        #[doc = "@ferment::opaque"]
+        #input
+    };
+    TokenStream::from(expanded)
+
 }
 
 

@@ -3,7 +3,6 @@ mod ffi_conversions;
 mod item;
 mod method;
 mod constants;
-mod chain;
 mod enum_composer;
 mod r#type;
 mod generic;
@@ -16,7 +15,6 @@ mod generics_composer;
 pub(crate) mod r#abstract;
 mod variable;
 mod from_conversion;
-mod ffi_full_path;
 mod to_conversion;
 mod destroy_conversion;
 mod callback;
@@ -38,6 +36,8 @@ mod vtable;
 mod scope_search;
 mod lifetimes;
 mod array;
+mod target_var;
+mod var;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -81,11 +81,13 @@ pub use self::result::*;
 pub use self::signature::*;
 pub use self::slice::*;
 pub use self::r#struct::*;
+pub use self::target_var::*;
 pub use self::to_conversion::*;
 pub use self::trait_composer::*;
 pub use self::tuple::*;
 pub use self::r#type::TypeComposer;
 pub use self::type_alias::*;
+pub use self::var::*;
 pub use self::variable::*;
 
 /// Composer Context Presenters
@@ -151,7 +153,8 @@ pub type BindingAccessorContext<LANG, SPEC> = (
     Aspect<<SPEC as Specification<LANG>>::TYC>,
     <SPEC as Specification<LANG>>::Attr,
     <SPEC as Specification<LANG>>::Gen,
-    <SPEC as Specification<LANG>>::Var,
+    // <SPEC as Specification<LANG>>::Var,
+    VariableComposer<LANG, SPEC>,
     TokenStream2,
 );
 pub type FieldTypeLocalContext<LANG, SPEC> = (

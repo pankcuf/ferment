@@ -157,7 +157,6 @@ impl<'a> ScopeSearchKey<'a> {
 #[derive(Clone, Debug)]
 pub enum ScopeSearch<'a> {
     KeyInScope(ScopeSearchKey<'a>, &'a ScopeChain),
-    // Key(ScopeSearchKey<'a>),
     Value(ScopeSearchKey<'a>),
     ValueInScope(ScopeSearchKey<'a>, &'a ScopeChain),
 }
@@ -188,7 +187,7 @@ impl<'a> ScopeSearchKey<'a> {
                 TypeParamBound::Trait(TraitBound { path, .. }) =>
                     Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
                 TypeParamBound::Lifetime(_) =>
-                    panic!("maybe_scope_type::error")
+                    None
             },
             Type::Reference(TypeReference { elem: ty, .. }) |
             Type::Ptr(TypePtr { elem: ty, .. }) =>
@@ -206,7 +205,7 @@ impl<'a> ScopeSearchKey<'a> {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(ScopeSearchKey::Type(path.to_type(), Some(Box::new(original)))),
                     TypeParamBound::Lifetime(_) =>
-                        panic!("maybe_scope_type::error")
+                        None
                 },
                 _ => None
             },

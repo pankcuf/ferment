@@ -80,9 +80,6 @@ impl CustomResolver {
             },
             _ => {}
         }
-        // if replaced {
-        //     println!("replace_conversion.2: {}: {}", replaced, custom_type.to_token_stream());
-        // }
         replaced.then(|| custom_type)
     }
 

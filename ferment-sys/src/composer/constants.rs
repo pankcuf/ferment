@@ -7,13 +7,6 @@ use crate::composer::r#abstract::SequenceMixer;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, InterfaceKind, SeqKind};
 
-
-// pub const fn fields_composer<LANG, SPEC, T>() -> FieldsComposerRef<LANG, SPEC>
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG>,
-//           T: FieldNameSpec<LANG, SPEC> {
-//     |fields| field_composers_iterator(fields, T::COMPOSER)
-// }
 pub(crate) const fn args_composer_iterator_root<LANG, SPEC, CTX, Item, OUT>()
     -> SourceComposerByRef<OwnedArgComposers<LANG, SPEC, CTX>, ArgProducerByRef<LANG, SPEC, Item>, (CTX, OUT)>
     where CTX: Clone,

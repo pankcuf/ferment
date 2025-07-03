@@ -14,7 +14,6 @@ pub struct BasicComposer<LANG, SPEC, Link>
     pub context: ScopeContextLink,
     pub attr: AttrsComposer<LANG, SPEC, Link>,
     pub doc: DocComposer<LANG, SPEC, Link>,
-    // pub doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
     pub ty: TypeComposer<Link, SPEC::TYC>,
     pub generics: GenericsComposer<LANG, SPEC, Link>,
     pub lifetimes: LifetimesComposer<LANG, SPEC, Link>,
@@ -25,7 +24,6 @@ impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
           SPEC: Specification<LANG> {
     fn new(
         attr: AttrsComposer<LANG, SPEC, Link>,
-        // doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
         doc: DocComposer<LANG, SPEC, Link>,
         ty: TypeComposer<Link, SPEC::TYC>,
         generics: GenericsComposer<LANG, SPEC, Link>,
@@ -41,8 +39,8 @@ impl<LANG, SPEC, Link> BasicComposer<LANG, SPEC, Link>
         ty_context: SPEC::TYC,
         generics: GenModel,
         lifetimes: LifetimesModel,
-        // doc: TypeContextComposer<Link, SPEC::TYC, TokenStream2>,
-        context: ScopeContextLink) -> Self {
+        context: ScopeContextLink
+    ) -> Self {
         Self::new(
             AttrsComposer::new(attrs),
             doc,

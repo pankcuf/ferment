@@ -114,7 +114,6 @@ impl Hash for ScopeChain {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.variant_code().hash(state);
         self.self_scope().hash(state);
-        // self.self_path_holder_ref().hash(state);
     }
 }
 
@@ -307,8 +306,7 @@ impl ScopeChain {
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
-        //println!("maybe_generic_bound_for_path.... {} in [{}]", path.to_token_stream(), self.self_path_holder_ref());
-        let result = match self {
+        match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
             ScopeChain::Trait { info, .. } |
@@ -318,11 +316,7 @@ impl ScopeChain {
             ScopeChain::Fn { info, parent_scope_chain, .. } =>
                 info.self_scope.maybe_generic_bound_for_path(path)
                     .or(parent_scope_chain.maybe_generic_bound_for_path(path)),
-        };
-        // if result.is_some() {
-        //     println!("maybe_generic_bound_for_path: FOUND: {}", result.as_ref().map_or("None".to_string(), |(g, tp)| format!("{} ----- {}", g.to_token_stream(), tp.to_token_stream())));
-        // }
-        result
+        }
     }
 }
 

@@ -6,11 +6,12 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposerOwner, AspectPresentable, BasicComposer, BasicComposerLink, ComposerLink, Linkable, SourceComposable, TypeAspect, VarComposer, FromConversionFullComposer, ToConversionComposer, AttrComposable, VariableComposer, SigComposerLink, SourceAccessible};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, FromConversionFullComposer, Linkable, SigComposerLink, SourceAccessible, SourceComposable, ToConversionFullComposer, TypeAspect, VariableComposer};
+use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
 use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Expression, ScopeContextPresentable};
+use crate::presentable::{Expression, ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocComposer, FFIFullPath, Name, RustFermentate};
 
 #[derive(ComposerBase)]
@@ -32,7 +33,6 @@ where LANG: LangFermentable,
                 ty_context,
                 GenModel::default(),
                 LifetimesModel::default(),
-                // LinkedContextComposer::new(default_doc, Self::target_type_aspect),
                 context),
             vtable_method_composers
         }));
@@ -68,7 +68,11 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
                 let method_composer = method_composer.borrow();
                 let method_scope_context = method_composer.source_ref();
                 let method_ty_context = method_composer.type_context();
-                let sig_context = method_ty_context.sig_context();
+                let sig_context = match &method_ty_context {
+                    TypeContext::Fn { sig_context, .. } => sig_context,
+                    _ => panic!("Not a function")
+                };
+
                 let sig = sig_context.maybe_signature().unwrap();
                 let Signature { ident, output, inputs, .. } = sig;
                 let name = Name::<RustFermentate, SPEC>::TraitImplVtableFn(trait_ty.mangle_ident_default(), method_scope_context.scope.to_type().mangle_ident_default());
@@ -111,7 +115,7 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
                             .to_type();
                         (
                             ReturnType::Type(Default::default(), Box::new(var)),
-                            ToConversionComposer::<RustFermentate, SPEC>::new(SPEC::Name::dictionary_name(DictionaryName::Obj), *ty.clone(), None)
+                            ToConversionFullComposer::<RustFermentate, SPEC>::key(SPEC::Name::dictionary_name(DictionaryName::Obj), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context)
                         )
                     }

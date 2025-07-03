@@ -2,7 +2,7 @@ use quote::{quote, ToTokens};
 use syn::{Path, ReturnType, Type};
 use syn::__private::TokenStream2;
 use crate::ast::CommaPunctuatedTokens;
-use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence, SemiPunctuatedArgKinds};
+use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence, SemiPunctuatedArgKinds, VariableComposer, SourceComposable};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
@@ -15,8 +15,8 @@ pub enum BindingPresentableContext<LANG, SPEC>
     Constructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
     VariantConstructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
     Destructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind),
-    Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
-    Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, SPEC::Var, TokenStream2),
+    Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<LANG, SPEC>, TokenStream2),
+    Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<LANG, SPEC>, TokenStream2),
     RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt),
     #[allow(unused)]
     RegFn2(Path, bool, CommaPunctuatedTokens, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, Type, SemiPunctuatedArgKinds<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
@@ -120,7 +120,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                     name: Name::<RustFermentate, SPEC>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
-                    field_type: field_type.to_type(),
+                    field_type: field_type.compose(source).to_type(),
                     generics: generics.clone(),
                 }
             },
@@ -131,7 +131,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                     name: Name::<RustFermentate, SPEC>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
-                    field_type: field_type.to_type(),
+                    field_type: field_type.compose(source).to_type(),
                     generics: generics.clone(),
                 }
             },

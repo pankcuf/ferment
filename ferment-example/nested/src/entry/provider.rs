@@ -2,7 +2,9 @@ use crate::entry::{BlockHashByHeight, ModelByHeight, SomeModel};
 
 #[ferment_macro::opaque]
 pub trait CoreProvider {
+    #[allow(unused)]
     fn get_block_hash_by_height(&self, height: u32) -> [u8; 32];
+    #[allow(unused)]
     fn model_by_height(&self, height: u32) -> SomeModel;
 }
 #[ferment_macro::opaque]

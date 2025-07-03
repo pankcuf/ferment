@@ -81,15 +81,6 @@ impl TypeContext {
     pub fn r#trait(item: &ItemTrait) -> Self {
         Self::Trait { path: item.ident.to_path(), attrs: item.attrs.cfg_attributes() }
     }
-
-    #[allow(unused)]
-    pub(crate) fn sig_context(&self) -> &FnSignatureContext {
-        match self {
-            TypeContext::Fn { sig_context, .. } => sig_context,
-            _ => panic!("Not a function")
-        }
-    }
-
 }
 impl Display for TypeContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

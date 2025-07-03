@@ -12,24 +12,12 @@ pub trait ResolveTrait where Self: Sized + ToType {
         match maybe_trait {
             Some(ObjectKind::Type(model) | ObjectKind::Item(model, _)) => {
                 // check maybe it's really known
-                // let trait_scope = lock.actual_scope_for_type(model.as_type(), scope).unwrap();
                 if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
                     let search_key = ScopeSearchKey::maybe_from(parse_quote!(Self)).unwrap();
                     if let Some(obj) = lock.maybe_object_ref_by_predicate(ScopeSearch::KeyInScope(search_key, trait_scope)) {
                         maybe_trait = Some(obj);
                     }
-                    // if let Some(tt) = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty)) {
-                    //     maybe_trait = Some(tt);
-                    // }
-                    // maybe_trait = lock.maybe_scope_type(&parse_quote!(Self), &parse_quote!(#ty));
-                    // println!("FFI (trait unknown but maybe known) for: {}", maybe_trait.map_or(format!("None"), |m| m.to_string()));
-                    // if let Some(ty) = maybe_trait {
-                    //     println!("FFI (trait unknown but known) for: {}", ty.to_string());
-                    // }
-
                 }
-
-
             },
             _ => {}
         }

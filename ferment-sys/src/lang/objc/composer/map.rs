@@ -3,7 +3,7 @@ use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, FromConversionFullComposer, ToConversionFullComposer, DestroyFullConversionComposer, VarComposer, TargetVarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, DestroyFullConversionComposer, FromConversionFullComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ToConversionFullComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
@@ -13,23 +13,8 @@ use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::TypeContext;
-use crate::presentable::{Expression, ScopeContextPresentable, Aspect};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, FFIVariable, Name};
-// NSMutableDictionary<DSdash_spv_masternode_processor_common_block_Block *, DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey *> *obj = [NSMutableDictionary dictionaryWithCapacity:ffi_ref->count];
-// for (int i = 0; i < ffi_ref->count; i++) {
-//      [obj setObject:[DSdash_spv_masternode_processor_common_block_Block ffi_from:ffi_ref->values[i]]
-//              forKey:[DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_from:ffi_ref->keys[i]]];
-// }
-//    dash_spv_masternode_processor_common_block_Block **keys = malloc(count * sizeof(struct dash_spv_masternode_processor_common_block_Block));
-//     dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey **values = malloc(count * sizeof(struct dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey));
-//     for (DSdash_spv_masternode_processor_common_block_Block *key in obj) {
-//         keys[i] = [DSdash_spv_masternode_processor_common_block_Block ffi_to:key];
-//         values[i] = [DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_to:obj[key]];
-//     }
-//     ffi_ref->count = [obj count];
-//     ffi_ref->keys = keys;
-//     ffi_ref->values = values;
-//     return ffi_ref;
 
 fn compose_arg<SPEC>(
     arg_name: &Name<ObjCFermentate, SPEC>,

@@ -96,7 +96,6 @@ impl<SPEC> SourceComposable for SliceComposer<RustFermentate, SPEC>
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &vec![]),
             InterfacePresentation::conversion_to(&attrs, &types, to_body, &None, &vec![]),
-            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 
         ]);

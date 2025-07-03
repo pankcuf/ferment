@@ -291,16 +291,6 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                         formatted_string.push('>');
                         space_needed = true;
                     }
-                    // '[' => {
-                    //     inside_square_brackets += 1;
-                    //     formatted_string.push('[');
-                    //     space_needed = false;
-                    // }
-                    // ']' => {
-                    //     inside_square_brackets -= 1;
-                    //     formatted_string.push(']');
-                    //     space_needed = false;
-                    // }
                     ',' => {
                         formatted_string.push(',');
                         last_token_was_comma = true;
@@ -430,8 +420,6 @@ fn scope_traits_dict(dict: &HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>
 
 
 fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<PathHolder>>) -> Vec<String> {
-    // nested_scope_dict(dict, |scope, sub_dict|
-    //     format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t")))
     let mut iter = dict.iter()
         .filter_map(|(key, value)| {
             let scopes = quote!(#(#value),*);
@@ -473,21 +461,6 @@ pub fn format_trait_decomposition_part1(dict: &TraitDecompositionPart1) -> Strin
         vec!["-- types:".to_string()], ident_trait_type_decomposition_dict(&dict.types),
     ])
 }
-
-// #[allow(unused)]
-// pub fn format_type_composition(dict: &TypeComposition) -> String {
-//     format_complex_obj(vec![
-//         vec!["-- type:".to_string(), format_token_stream(&dict.ty), "-- generics:".to_string(), dict.generics.as_ref().map_or(format!("None"), |generics| format_token_stream(generics))],
-//     ])
-// }
-
-// #[allow(unused)]
-// pub fn format_trait_decomposition_part2(dict: &TraitDecompositionPart2) -> String {
-//     format_complex_obj(vec![
-//         vec!["-- methods: ".to_string()], ident_signatures_dict(&dict.methods),
-//         vec!["-- types: ".to_string()], ident_trait_type_decomposition_dict(&dict.types),
-//     ])
-// }
 
 #[allow(dead_code)]
 pub enum Emoji {

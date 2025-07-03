@@ -137,26 +137,22 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 quote!(),
             SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) |
             SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name ( #presentation ) )
             },
             SeqKind::FromNamedFields(((aspect, ..), fields)) |
             SeqKind::ToNamedFields(((aspect, ..), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source);
                 let cleaned_name = name.lifetimes_cleaned();
                 let presentation = fields.present(source);
                 quote!(#cleaned_name { #presentation })
             },
             SeqKind::TypeAliasFromConversion((_, fields)) => {
-                //println!("SequenceOutput::{}({:?})", self, fields);
                 fields.present(source)
                     .to_token_stream()
             },
             SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path: Path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
@@ -167,7 +163,6 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             }
             SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
@@ -178,7 +173,6 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             }
             SeqKind::Variants(aspect, attrs, fields) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let name = aspect.present(source).mangle_ident_default();
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 quote! {
@@ -187,7 +181,6 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             },
             SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
                 let fields = fields.present(source);
                 present_struct(
@@ -196,17 +189,14 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                     quote!((#fields);))
             },
             SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let ffi_type = aspect.present(source);
                 let fields = fields.present(source);
-                //println!("SequenceOutput({})", ffi_type.to_token_stream());
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
                     aspect.attrs(),
                     quote!({#fields}))
             },
             SeqKind::Enum(context) => {
-                //println!("SequenceOutput::{}({:?})", self, context);
                 let enum_presentation = context.present(source);
                 quote! {
                     #[repr(C)]
@@ -216,7 +206,6 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             },
             SeqKind::Unit(aspect) => {
-                //println!("SequenceOutput::{}({})", self, aspect);
                 let attrs = aspect.attrs();
                 let path = aspect.present(source)
                     .to_path();
@@ -231,19 +220,16 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             },
             SeqKind::NoFieldsConversion(aspect) => {
-                // println!("SequenceOutput::{}({})", self, aspect);
                 aspect.present(source)
                     .to_token_stream()
             },
             SeqKind::EnumUnitFields(((aspect, _attrs, _generics, _is_round), fields)) => {
-                //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 Assignment::new(
                     aspect.present(source).to_path().segments.last().unwrap().ident.clone(),
                     fields.present(source))
                     .to_token_stream()
             },
             SeqKind::StructFrom(field_context, conversions) => {
-                //println!("SequenceOutput::StructFrom({}, {:?})", field_context, conversions);
                 let conversions = conversions.present(source);
                 let field_path = field_context.present(source);
                 quote!(let ffi_ref = #field_path; #conversions)
@@ -252,29 +238,20 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 InterfacesMethodExpr::Boxed(conversions.present(source))
                     .to_token_stream()
             }
-            // SeqKind::Boxed(conversions) => {
-            //     //println!("SequenceOutput::{}({})", self, conversions);
-            //     InterfacesMethodExpr::Boxed(conversions.present(source))
-            //         .to_token_stream()
-            // }
             SeqKind::EnumVariantFrom(l_value, r_value) |
             SeqKind::EnumVariantTo(l_value, r_value) |
             SeqKind::EnumVariantDrop(l_value, r_value) => {
-                //println!("SequenceOutput::{}({:?}, {:?})", self, l_value, r_value);
                 Lambda::new(l_value.present(source), r_value.present(source))
                     .to_token_stream()
             }
             SeqKind::DerefFFI => {
                 let field_path = DictionaryName::Ffi;
-                //println!("SequenceOutput::{}({})", self, field_path);
                 quote!(&*#field_path)
             }
             SeqKind::Obj => {
-                //println!("SequenceOutput::{}", self);
                 DictionaryName::Obj.to_token_stream()
             },
             SeqKind::StructDropBody((_, items)) => {
-                //println!("SequenceOutput::{}({:?})", self, items);
                 let destructors = items.present(source);
                 quote! {
                     let ffi_ref = self;
@@ -282,12 +259,10 @@ impl<SPEC> ScopeContextPresentable for SeqKind<RustFermentate, SPEC>
                 }
             },
             SeqKind::DropCode((_, items)) => {
-                //println!("SequenceOutput::{}({:?})", self, items);
                 let destructors = items.present(source);
                 quote!({ #destructors })
             }
         };
-        // println!("SequenceOutput::{}({})", self, result);
         result
     }
 }

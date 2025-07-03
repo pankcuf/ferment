@@ -10,13 +10,11 @@ mod name;
 mod argument;
 mod sequence;
 mod aspect;
-mod ty_context;
 #[allow(unused)]
 mod interface;
 
 pub use aspect::*;
 pub use binding::*;
-// pub use ctor_presentable::*;
 pub use expression::*;
 pub use name::*;
 pub use argument::*;
@@ -39,26 +37,16 @@ impl ScopeContextPresentable for TokenStream2 {
 }
 
 impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
-    where T: ScopeContextPresentable, SEP: ToTokens + Clone + Default {
+    where T: ScopeContextPresentable,
+          SEP: ToTokens + Clone + Default {
     type Presentation = Punctuated<<T as ScopeContextPresentable>::Presentation, SEP>;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         self.iter().map(|presentable| presentable.present(source)).collect()
     }
 }
-// impl<T, SEP> ScopeContextPresentable for Punctuated<T, SEP>
-//     where T: ScopeContextPresentable, SEP: ToTokens + Clone + Default {
-//     type Presentation = Punctuated<<T as ScopeContextPresentable>::Presentation, SEP>;
-//
-//     fn present(&self, source: &ScopeContext) -> Self::Presentation {
-//         self.iter().map(|presentable| presentable.present(source)).collect()
-//     }
-// }
-
-
 
 pub trait NameTreeContext: Clone + Debug + ToTokens {
-    // fn maybe_parent(&self) -> Option<&Box<Self>>;
     fn join_fn(&self, path: Path, sig_context: FnSignatureContext, attrs: Vec<Attribute>) -> Self;
     fn join_variant(&self, ident: Ident, variant_ident: Ident, attrs: Vec<Attribute>) -> Self;
 }

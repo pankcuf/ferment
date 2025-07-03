@@ -61,9 +61,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
                                 sig_context,
                                 item.attrs.cfg_attributes()
                             );
-
                             methods.push(SigComposer::from_impl_item_method(item, ty_context, &method_scope_context));
-
                         }
                     }
                 },
@@ -101,13 +99,11 @@ impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
 impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SPEC>
     where SPEC: RustSpecification {
     fn ferment(&self) -> RustFermentate {
-        //println!("ImplComposer::ferment: {}", source.scope.fmt_short());
         let mut items = Depunctuated::<RustFermentate>::new();
         self.methods.iter().for_each(|sig_composer| {
             let fermentate = sig_composer.borrow().ferment();
             items.push(fermentate);
         });
-
         let vtable = self.vtable.as_ref()
             .map(|composer| {
                 let composer = composer.borrow();

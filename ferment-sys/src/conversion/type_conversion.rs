@@ -57,7 +57,6 @@ impl From<&Type> for TypeKind {
 }
 impl From<Type> for TypeKind {
     fn from(ty: Type) -> Self {
-        // let dbg = ty.to_token_stream();
         let result = match ty {
             Type::Path(TypePath { ref path , ..}) => {
                 let first_segment = path.segments.first().unwrap();

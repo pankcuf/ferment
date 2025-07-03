@@ -139,7 +139,6 @@ impl TypeModelKind {
     pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         match self {
             TypeModelKind::Trait(ty, ..) => {
-                //println!("TypeModelKind:: (Trait Conversion): {}", ty);
                 ty.maybe_trait_object_maybe_model_kind(source)
             },
             _ => None

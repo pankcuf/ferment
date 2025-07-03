@@ -44,11 +44,10 @@ impl<LANG, SPEC, Link, LinkCtx, CTX> Linkable<Link> for MethodComposer<LANG, SPE
 impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, Link>
     where Link: SharedAccess,
           LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var> {
+          SPEC: Specification<LANG> {
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
-    fn compose(&self, source: &Self::Source) -> Self::Output {
+    fn compose(&self, _source: &Self::Source) -> Self::Output {
         let ((aspect, _attrs, generics, _name_kind), context) = self.parent
             .as_ref()
             .expect("no parent")
@@ -60,7 +59,7 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
                         aspect.clone(),
                         composer.attrs.clone(),
                         generics.clone(),
-                        VariableComposer::<LANG, SPEC>::from(composer.ty()).compose(source),
+                        VariableComposer::<LANG, SPEC>::from(composer.ty()),
                         composer.tokenized_name()
                     ))
                 })

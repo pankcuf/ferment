@@ -126,21 +126,17 @@ impl Visitor {
         lock.traits.add_trait(scope, item_trait, itself);
     }
     pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
-        //println!("add_generic_chain: [add_2_parent: {}] {} in [{}]", add_to_parent, generics.to_token_stream(), scope);
         let generics = create_generics_chain(self, generics, scope, add_to_parent);
         let mut lock = self.context.write().unwrap();
-        // println!("Visitor::add_generic_chain: {:?}", generics); // TODO: always empty
         lock.generics.extend_in_scope(scope, generics)
     }
 
     fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
-        // println!("scope_add_many: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
     pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectKind, scope: &ScopeChain) {
-        // println!("scope_add_one: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
@@ -151,15 +147,6 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits
             .add_used_traits(scope, trait_names)
-        // let trait_names = extract_trait_names(item_trait_attrs);
-        // let self_scope = scope.joined(ident);
-        // trait_names.iter().for_each(|trait_name|
-        //     self.add_full_qualified_type_match(&scope, &self_scope,&parse_quote!(#trait_name), &VisitorContext::Object));
-        // let mut lock = self.context.write().unwrap();
-        // lock.used_traits_dictionary
-        //     .entry(self_scope)
-        //     .or_default()
-        //     .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
     }
 
     pub(crate) fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {

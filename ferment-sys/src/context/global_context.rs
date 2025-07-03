@@ -17,13 +17,10 @@ use crate::formatter::{format_global_context, format_mixin_kinds};
 pub struct GlobalContext {
     pub config: Config,
     pub scope_register: ScopeResolver,
-    // crate::asyn::query::Query: [T: [TransportRequest]]
     pub generics: GenericResolver,
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
     pub imports: ImportResolver,
-    // pub refined_generics: HashMap<GenericConversion, HashSet<Option<Attribute>>>,
-    // pub refined_generic_constraints: HashMap<GenericBoundsModel, HashSet<Option<Attribute>>>,
     pub refined_mixins: HashMap<MixinKind, HashSet<Option<Attribute>>>
 }
 
@@ -125,15 +122,12 @@ impl GlobalContext {
         let trait_ty = link.to_type();
         let trait_scope = self.actual_scope_for_type(&trait_ty, parent_scope)?;
         let trait_path = link.to_path();
-        // println!("find_item_trait_scope_pair: {} -> {}", link.to_token_stream(), trait_scope);
         let ident = trait_path.get_ident()?;
         self.item_trait_with_ident_for(ident, trait_scope)
             .map(|trait_model| {
                 let mut model = trait_model.clone();
                 // TODO: move to full and replace nested_arguments
-                println!("maybe_trait_scope_pair NEW_OBJECT: {}", scope.fmt_short());
                 let value = TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(trait_model.item.generics.clone()), Punctuated::new()));
-                // println!("AttrsComposer: {} {} {}", trait_composition.item.ident, trait_scope, conversion);
                 model.implementors.push(value);
                 (model, trait_scope.clone())
             })
@@ -141,7 +135,6 @@ impl GlobalContext {
     }
 
     fn maybe_obj_or_parent_object_ref_by_tree_key<'a>(&'a self, self_scope: &'a ScopeChain, parent_chain: &'a ScopeChain, ty: &'a Type) -> Option<&'a ObjectKind> {
-        // println!("maybe_obj_or_parent_scope_type: {}", ty.to_token_stream());
         self.maybe_local_scope_object_ref_by_key(ty, self_scope)
             .or_else(move || match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
@@ -150,7 +143,6 @@ impl GlobalContext {
             })
     }
     fn maybe_obj_or_parent_object_ref_by_tree_search_key<'a>(&'a self, self_scope: &'a ScopeChain, parent_chain: &'a ScopeChain, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
-        // println!("maybe_obj_or_parent_scope_type: {}", ty.to_token_stream());
         self.maybe_object_ref_by_search_key_in_scope(search_key.clone(), self_scope)
             .or_else(move || match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
@@ -230,37 +222,24 @@ impl GlobalContext {
     }
 
     pub fn maybe_scope_item_ref<'a>(&'a self, path: &'a Path) -> Option<&'a ScopeItemKind> {
-        // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope_ref(path) {
-            //println!("[INFO] Found scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last()?.ident;
             let ty = last_ident.to_type();
-
             if let Some(ObjectKind::Item(_, item)) = self.maybe_object_ref_by_search_key_in_scope(ScopeSearchKey::Type(ty, None), scope) {
-                //println!("[INFO] Found item in scope: {}", item);
                 return Some(item);
-            } else {
-                //println!("[INFO] Scope found {} but no item: {}", scope.fmt_short(), path.to_token_stream());
             }
-        } else {
-            //println!("[INFO] No scope found [{}]", path.to_token_stream());
         }
         None
     }
     pub fn maybe_scope_item_ref_obj_first(&self, path: &Path) -> Option<&ScopeItemKind> {
-        // println!("maybe_item: {}", path.to_token_stream());
         if let Some(scope) = self.maybe_scope_ref_obj_first(path) {
-            //println!("[INFO] Found obj scope: {}", scope.fmt_short());
             let last_ident = &path.segments.last()?.ident;
             let ty = last_ident.to_type();
             if let Some(search_key) = ScopeSearchKey::maybe_from(ty) {
                 if let Some(ObjectKind::Item(_, item)) = self.maybe_object_ref_by_tree_search_key(search_key, scope) {
-                    //println!("[INFO] Found item in scope: {}", item);
                     return Some(item);
                 }
             }
-        } else {
-            //println!("[INFO] No scope found [{}]", path.to_token_stream());
         }
         None
     }
@@ -275,7 +254,7 @@ impl GlobalContext {
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> Option<&ScopeChain> {
         let p = parse_quote!(#ty);
         let search_key = ScopeSearchKey::maybe_from_ref(ty)?;
-        let scope = if let Some(st) = self.maybe_object_ref_by_search_key_in_scope(search_key, current_scope) {
+        if let Some(st) = self.maybe_object_ref_by_search_key_in_scope(search_key, current_scope) {
             let self_ty = st.maybe_type()?;
             let self_path: Path = self_ty.to_path();
             self.maybe_scope_ref(&self_path)
@@ -283,104 +262,8 @@ impl GlobalContext {
             self.maybe_scope_ref(import_path)
         } else {
             None
-        };
-        scope
-        // scope.unwrap_or(ScopeChain::crate_root(current_scope.crate_ident().clone(), vec![]))
+        }
     }
-
-
-    // pub fn maybe_trait(&self, full_ty: &Type) -> Option<TraitCompositionPart1> {
-    //     let full_scope: PathHolder = parse_quote!(#full_ty);
-    //     self.maybe_scope(&full_scope.0)
-    //         .and_then(|scope| self.traits.maybe_trait(scope).cloned())
-    // }
-
-
-    // fn find_trait_item_full_paths_pair(&self, ) -> (Scope, Scope) {
-    //     self.used_traits_dictionary.iter()
-    //         .for_each(|(item_full_path, trait_path_chunks)| {
-    //             trait_path_chunks.iter()
-    //                 .for_each(|trait_ident_or_chunk| {
-    //                     let trait_ident = trait_ident_or_chunk.root_ident();
-    //                     // Restore full trait path using imports
-    //                     // TODO: can be chunk so need to handle not only idents
-    //                     let trait_scope = if let Some(import) = self.maybe_scope_import_path(item_full_path, &trait_ident) {
-    //                         Scope::from(import)
-    //                     } else {
-    //                         item_full_path.popped().joined(&trait_ident)
-    //                     };
-    //                     (trait_scope, item_full_path)
-    //                 });
-    //
-    //         });
-    //
-    // }
-
-    // pub fn inject_types_from_traits_implementation(&mut self) {
-    //     let self_tc = TypeHolder::new(parse_quote!(Self));
-    //     self.used_traits_dictionary.iter()
-    //         .for_each(|(item_full_path, trait_path_chunks)| {
-    //             trait_path_chunks.iter()
-    //                 .for_each(|trait_ident_or_chunk| {
-    //                     let trait_ident = trait_ident_or_chunk.root_ident();
-    //                     // Restore full trait path using imports
-    //                     // TODO: can be chunk so need to handle not only idents
-    //                     let trait_scope = if let Some(import) = self.maybe_scope_import_path(item_full_path, &trait_ident) {
-    //                         Scope::from(import)
-    //                     } else {
-    //                         item_full_path.popped().joined(&trait_ident)
-    //                     };
-    //                     println!("inject_types_from_traits_implementation: [{}]: {}: {}", format_token_stream(item_full_path), format_token_stream(trait_ident_or_chunk), format_token_stream(&trait_scope));
-    //                     if let Some(types_used_by_trait) = self.scope_types.get(&trait_scope).cloned() {
-    //                         // Copy them to implementor's types
-    //                         println!("copy types except self:\n   {}", format_types_dict(&types_used_by_trait));
-    //                         // TODO: do we need to replace Self to <Self as #trait>?
-    //                         let types = types_used_by_trait.into_iter().filter(|(tc, tyty)| {
-    //
-    //                             !self_tc.eq(tc)
-    //                         });
-    //                         self.scope_types.entry(item_full_path.clone())
-    //                             .or_default()
-    //                             .extend(types);
-    //                     }
-    //             });
-    //
-    //     });
-    // }
-    // pub fn inject_types_from_traits_implementation(&mut self) {
-    //     let self_tc: TypeHolder = parse_quote!(Self);
-    //
-    //     // Collect necessary data in a Vec to avoid borrowing `self` while iterating.
-    //     let mut trait_data = Vec::new();
-    //
-    //     for (item_full_path, trait_path_chunks) in &self.used_traits_dictionary {
-    //         for trait_ident_or_chunk in trait_path_chunks {
-    //
-    //             // let trait_ident = trait_ident_or_chunk.root_ident();
-    //             let trait_scope = if let Some(import) = self.maybe_scope_import_path(item_full_path, trait_ident_or_chunk) {
-    //                 PathHolder::from(import)
-    //             } else {
-    //                 // item_full_path.parent_scope()
-    //                 item_full_path.parent_scope().joined_path(trait_ident_or_chunk.0.clone())
-    //             };
-    //             println!("inject_types_from_traits_implementation: [{}]: {}: {}", format_token_stream(item_full_path), format_token_stream(trait_ident_or_chunk), format_token_stream(&trait_scope));
-    //
-    //             if let Some(types_used_by_trait) = self.scope_types.get(&trait_scope) {
-    //                 trait_data.push((item_full_path.clone(), types_used_by_trait.clone()));
-    //             }
-    //         }
-    //     }
-    //
-    //     // Now, iterate over the collected data and modify `self.scope_types`.
-    //     for (item_full_path, types_used_by_trait) in trait_data {
-    //         // println!("copy types except self:\n   {}", format_types_dict(&types_used_by_trait));
-    //         let types = types_used_by_trait.into_iter().filter(|(tc, _)| !self_tc.eq(tc));
-    //         self.scope_types
-    //             .entry(item_full_path)
-    //             .or_default()
-    //             .extend(types);
-    //     }
-    // }
 }
 
 
@@ -400,9 +283,7 @@ impl GlobalContext {
     }
 
     pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &PathHolder) -> Option<&Path> {
-        let result_opt = self.imports.maybe_import(scope, path);
-        // println!("maybe_import: {path} in [{}] ---> {}", scope.self_path_holder_ref(), result_opt.to_token_stream());
-        result_opt
+        self.imports.maybe_import(scope, path)
     }
 
     pub fn maybe_import_scope_pair_ref(&self, scope_path_last_segment: &PathSegment, scope_path_candidate: &Path) -> Option<(&ScopeChain, &Path)> {
@@ -415,13 +296,9 @@ impl GlobalContext {
 
     // We need to find full qualified paths for involved chunk and bind them to actual items
     pub(crate) fn maybe_refined_object(&self, scope: &ScopeChain, object: &ObjectKind) -> Option<ObjectKind> {
-        // println!("maybe_refined_object --> {} \n\tin {}", object, scope.fmt_short());
         let mut refined = object.clone();
-        let result = refined.refine_in_scope(scope, self)
-            .then_some(refined);
-
-        // println!("maybe_refined_object <-- {} \n\tin {}", result.as_ref().map_or("None".to_string(), |o| format!("{}", o)), scope.fmt_short());
-        result
+        refined.refine_in_scope(scope, self)
+            .then_some(refined)
     }
     pub(crate) fn maybe_custom_type(&self, ty: &Type) -> Option<Type> {
         self.custom.maybe_type(ty)
@@ -429,7 +306,7 @@ impl GlobalContext {
 
     fn num_of_nested_exposable_types_for_generic<'a>(&'a self, args: &'a CommaPunctuatedNestedArguments) -> usize {
         args.iter().filter_map(|arg| {
-            let ttt = match arg.object().maybe_type_model_kind_ref() {
+            match arg.object().maybe_type_model_kind_ref() {
                 Some(tyc) => match tyc {
                     TypeModelKind::Unknown(..) |
                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) =>
@@ -461,19 +338,14 @@ impl GlobalContext {
                         let is_custom = self.maybe_custom_type(tyc.as_type());
                         let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
                         let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
-                        //println!("TYC: ({}, {}, {}) ---- {}", all_of_them_are_non_fermentable, is_custom.is_some(), nested_arguments.is_empty(), tyc);
                         (!all_of_them_are_non_fermentable || is_custom.is_some() || nested_arguments.is_empty())
                             .then_some(tyc)
                     },
                     TypeModelKind::Trait(..) | TypeModelKind::TraitType(..) => None,
-                        // (self.num_of_nested_fermentable_types_for_generic(nested_arguments) == nested_arguments.len() || self.maybe_custom_conversion(tyc.ty()).is_some())
-                        //     .then_some(tyc),
                     tyc => Some(tyc)
                 }
                 _ => None
-            };
-            //println!("arg: {} ---- {}", arg, ttt.map_or("None".to_string(), |f| format!("{}", f)));
-            ttt
+            }
         }).collect::<Vec<_>>().len()
     }
 
@@ -486,7 +358,6 @@ impl GlobalContext {
                 let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
                 let maybe_lambda = conversion.is_lambda();
                 let skip = all_of_them_are_non_fermentable && maybe_custom.is_none() && !maybe_lambda;
-
                 // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
                 //println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), conversion);
                 skip
@@ -503,14 +374,10 @@ impl RefineMut for GlobalContext {
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.scope_register.refine_with(refined);
         let mut refined_mixins = HashMap::<MixinKind, HashSet<Option<Attribute>>>::new();
-        // let mut refined_generics = HashMap::<GenericConversion, HashSet<Option<Attribute>>>::new();
-        // let mut refined_generic_constraints = HashMap::<GenericBoundsModel, HashSet<Option<Attribute>>>::new();
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
-                //println!("REFINE GENERIC in {}", scope.fmt_short());
                 type_chain.inner.iter().for_each(|(_conversion, object)| {
-                    // println!("\t{} ---- {}", _conversion, object);
                     let object_attrs = object.resolve_attrs();
                     let mut all_attrs: HashSet<Option<Attribute>> = HashSet::from_iter(object_attrs);
                     all_attrs.extend(scope_level_attrs.clone());
@@ -519,14 +386,11 @@ impl RefineMut for GlobalContext {
                     }
 
                     if let Some(ty) = object.maybe_type() {
-                        //println!("--- FIND GENERICS IN TYPE: {}", ty.to_token_stream());
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.maybe_custom_type(&ty.0).is_none())
                             .for_each(|_ty| {
-                                // println!("CHECK")
                                 let skip = self.should_skip_from_expanding(object);
-                                //println!("--- ADD GENERIC: OBJECT: (skip: {}) {} -- {}", skip, _ty.to_token_stream(), object);
                                 if !skip {
                                     if let Some(kind) = object.maybe_generic_type_kind() {
                                         refined_mixins
@@ -541,18 +405,9 @@ impl RefineMut for GlobalContext {
 
 
                     if let Some(TypeModelKind::Bounds(bounds)) = object.maybe_type_model_kind_ref() {
-                        println!("REFINE_SCOPE_BOUNDS: {}", bounds);
-                        // if bounds.bounds.len() > 1 {
-                        //     refined_generic_constraints
-                        //         .entry(bounds.clone())
-                        //         .or_insert_with(HashSet::new)
-                        //         .extend(all_attrs.clone());
-                        // }
-
                         bounds.find_generic_constraints()
                             .iter()
                             .for_each(|_ty| {
-                                println!("--- ADD GENERIC: BOUNDS: {}", bounds);
                                 refined_mixins.entry(MixinKind::Bounds(bounds.clone()))
                                     .or_insert_with(HashSet::new)
                                     .extend(all_attrs.clone());
@@ -567,21 +422,12 @@ impl RefineMut for GlobalContext {
             .for_each(|(scope, generic_chain)| {
                 generic_chain.values_mut()
                     .for_each(|bounds| {
-                        //println!("REFINE GENERIC BOUNDS: {}", format_path_vec(bounds));
                         bounds.iter_mut().for_each(|bound| {
-                            if let Some(ty) = self.scope_register.scope_key_type_for_path(bound, scope) {
-                                match ty {
-                                    Type::Path(TypePath { path, .. }) => {
-                                        //println!("REFINE BOUND: {}", path.to_token_stream());
-                                        *bound = path;
-                                    },
-                                    _ => {
-                                        //println!("NON REFINE BOUND: {}", ty.to_token_stream());
-                                    }
-                                }
+                            match self.scope_register.scope_key_type_for_path(bound, scope) {
+                                Some(Type::Path(TypePath { path, .. })) => { *bound = path; }
+                                _ => {}
                             }
                         });
-
                     });
         })
     }
@@ -591,7 +437,6 @@ impl Unrefined for GlobalContext {
     type Unrefinement = ScopeRefinement;
     fn unrefined(&self) -> Self::Unrefinement {
         let mut scope_updates = vec![];
-        //println!("------- GlobalContext::unrefined ----------");
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_types_to_refine = type_chain.inner.iter()
@@ -603,7 +448,6 @@ impl Unrefined for GlobalContext {
                     scope_updates.push((scope.clone(), scope_types_to_refine));
                 }
             });
-        //println!("------- GlobalContext::unrefined ---------- {}", format_scope_refinement(&scope_updates));
         scope_updates
     }
 }
@@ -635,9 +479,6 @@ impl GlobalContext {
     fn maybe_object_ref_by_search_key_in_scope<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
         self.maybe_object_ref_by_predicate(ScopeSearch::KeyInScope(search_key, scope))
     }
-    // fn maybe_object_ref_by_search_value_in_scope<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
-    //     self.maybe_object_ref_by_predicate(ScopeSearch::ValueInScope(search_key, scope))
-    // }
     fn maybe_object_ref_by_search_value<'a>(&'a self, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
         self.maybe_object_ref_by_predicate(ScopeSearch::Value(search_key))
     }

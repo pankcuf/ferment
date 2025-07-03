@@ -60,14 +60,10 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
             .enumerate()
             .for_each(|(index, predicate_ty)| {
                 let name = Name::UnnamedArg(index);
-
                 let ty: Type = predicate_ty.resolve(source);
                 let field_name = Name::Index(index);
                 lifetimes.extend(predicate_ty.unique_lifetimes());
-                //name: Name, field_name: Name, ty: &Type, source: &ScopeContext
-                let (kind, destroy_expr,
-                    from_expr,
-                    to_expr) = match TypeKind::from(&ty) {
+                let (kind, destroy_expr, from_expr, to_expr) = match TypeKind::from(&ty) {
                     TypeKind::Primitive(..) => (
                         ConversionExpressionKind::Primitive,
                         Expression::empty(),
@@ -86,20 +82,14 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
-
-
-                // let (ty, item) = dictionary_generic_arg_pair::<RustFermentate, SPEC>(name.clone(), Name::Index(index), predicate_ty, &source);
-                // args.iter().for_each(|item| {
-                    from_conversions.push(item.from_conversion.present(source));
-                    to_conversions.push(item.to_conversion.present(source));
-                    destroy_conversions.push(item.destructor.present(source));
-                // });
+                from_conversions.push(item.from_conversion.present(source));
+                to_conversions.push(item.to_conversion.present(source));
+                destroy_conversions.push(item.destructor.present(source));
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &lifetimes),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
-            // InterfacePresentation::conversion_unbox_any_terminated(&attrs, &types, DictionaryName::Ffi, &None),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![], generics: Generics::default() });

@@ -40,8 +40,6 @@ impl TryFrom<&Item> for MacroType {
     type Error = ();
 
     fn try_from(value: &Item) -> Result<Self, Self::Error> {
-        // #[cfg_attr(feature = "apple", ferment_macro::export)]
-
         match value.maybe_attrs()
             .and_then(|attrs| attrs.iter().find_map(MaybeMacroLabeled::maybe_macro_labeled)) {
                 Some(macro_type) => Ok(macro_type),
@@ -204,8 +202,6 @@ pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Vec<Attribute> {
         path: parse_quote!(cfg),
         tokens: quote!((#attrs)),
     }]).unwrap_or_default()
-    // vec![]
-    // Depunctuated::from_iter([Fermentate::TokenStream((!attrs.is_empty()).then(|| quote!(#[cfg(#attrs)])).unwrap_or_default())])
 }
 pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<Meta> {
     if attrs.contains(&None) {

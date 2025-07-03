@@ -118,7 +118,6 @@ impl<LANG, SPEC> TraitVTableComposer<LANG, SPEC>
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Method(trait_item_method) => {
-
                     let name_context = ty_context.join_fn(
                         source.scope.joined_path_holder(&trait_item_method.sig.ident).0,
                         FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_method.sig.clone()),

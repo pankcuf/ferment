@@ -87,6 +87,9 @@ pub unsafe fn unbox_any_opt<T: ?Sized>(any: *mut T) {
 
 /// # Safety
 pub unsafe fn unbox_string(data: *mut c_char) {
+    if data.is_null() {
+        return;
+    }
     let _ = CString::from_raw(data);
 }
 

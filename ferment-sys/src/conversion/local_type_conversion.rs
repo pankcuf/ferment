@@ -8,15 +8,6 @@ use syn::Type;
 pub enum LocalTypeConversion {
     Bound(Type),
     Type(Type)
-    // Trait(TypeModel, TraitDecompositionPart1),
-    // TraitType(TypeModel),
-    // TraitAssociatedType(TypeModel),
-    // Object(TypeModel),
-    // Primitive(TypeModel),
-    // Bounds(GenericBoundsModel),
-    // SmartPointer(TypeModel),
-    // Fn(TypeModel),
-    // Unknown(TypeModel),
 }
 
 impl LocalTypeConversion {

@@ -95,11 +95,7 @@ impl ScopeTreeExportItem {
         // println!("---- add_non_mod_item: {} -- {}", item.maybe_ident().to_token_stream(), scope);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
-            ScopeTreeExportItem::Tree(
-                scope_context,
-                _,
-                exported,
-                _attrs) => {
+            ScopeTreeExportItem::Tree(scope_context, _, exported, _attrs) => {
                 exported.insert(
                     item.scope_tree_export_id(),
                     ScopeTreeExportItem::item_with_context(scope.clone(), scope_context.borrow().context.clone(), item.clone()));

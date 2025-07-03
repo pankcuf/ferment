@@ -46,11 +46,9 @@ pub struct GenericArgComposer<LANG, SPEC>
     where LANG: LangFermentable,
           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
-    // pub ty: Type,
     pub from_composer: Option<ExpressionComposer<LANG, SPEC>>,
     pub to_composer: Option<ExpressionComposer<LANG, SPEC>>,
     pub destroy_composer: Option<ExpressionComposer<LANG, SPEC>>,
-    // pub ty_composer: TyComposer<'a>,
 }
 
 impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
@@ -58,16 +56,13 @@ impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     pub const fn new(
-        // ty_composer: TyComposer,
         from_composer: Option<ExpressionComposer<LANG, SPEC>>,
         to_composer: Option<ExpressionComposer<LANG, SPEC>>,
         destroy_composer: Option<ExpressionComposer<LANG, SPEC>>
     ) -> Self {
         Self { from_composer, to_composer, destroy_composer }
     }
-    // pub fn ty(&self, ty: &Type, source: &ScopeContext) -> Type {
-    //     (self.ty_composer)((ty, source))
-    // }
+
     pub fn from(&self, expr: TokenStream2) -> SPEC::Expr {
         self.from_composer.map(|c| c(expr))
             .unwrap_or(Expression::empty())
@@ -271,7 +266,6 @@ impl<SPEC> Resolve<Field> for FieldComposer<RustFermentate, SPEC>
     }
     fn resolve(&self, source: &ScopeContext) -> Field {
         let FieldComposer { attrs, name, kind, .. } = self;
-        // println!("Resolve::<Field>::resolve({:?})", self);
         Field {
             attrs: attrs.clone(),
             vis: Visibility::Public(VisPublic { pub_token: Default::default() }),
@@ -280,41 +274,6 @@ impl<SPEC> Resolve<Field> for FieldComposer<RustFermentate, SPEC>
             ty: VariableComposer::<RustFermentate, SPEC>::new(kind.to_type())
                 .compose(source)
                 .to_type()
-
-            // VarComposer::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(kind.ty()).unwrap(), &source.scope))
-            //     .compose(source)
-            //     .to_type()
         }
     }
 }
-
-// pub(crate) fn dictionary_generic_arg_pair<LANG, SPEC>(name: Name, field_name: Name, ty: &Type, source: &ScopeContext) -> (Type, GenericArgPresentation<LANG, SPEC>)
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-//           SPEC::Expr: ScopeContextPresentable,
-//           Aspect<SPEC::TYC>: ScopeContextPresentable {
-//     let ty: Type = ty.resolve(source);
-//     let (kind, destroy_expr,
-//         from_expr,
-//         to_expr) = match TypeKind::from(&ty) {
-//         TypeKind::Primitive(..) => (
-//             ConversionExpressionKind::Primitive,
-//             Expression::empty(),
-//             Expression::ffi_ref_with_name(&name),
-//             Expression::obj_name(&field_name),
-//         ),
-//         _ => (
-//             ConversionExpressionKind::Complex,
-//             Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
-//             Expression::ffi_ref_with_name(&name),
-//             Expression::obj_name(&field_name)
-//         ),
-//     };
-//     (ty.clone(), GenericArgPresentation::new(
-//         SPEC::Var::direct(ty),
-//         Expression::ConversionExpr(FFIAspect::Destroy, kind, destroy_expr.into()),
-//         Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
-//         Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())))
-//      )
-// }
-

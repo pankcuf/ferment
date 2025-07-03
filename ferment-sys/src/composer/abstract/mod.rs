@@ -5,6 +5,7 @@ mod linked;
 mod sequence;
 mod sequence_mixer;
 mod spec;
+mod var_composable;
 
 use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic, MetaList, Attribute};
 use syn::token::Pub;
@@ -25,6 +26,7 @@ pub use self::linked::*;
 pub use self::sequence::*;
 pub use self::sequence_mixer::*;
 pub use self::spec::*;
+pub use self::var_composable::*;
 
 pub trait MaybeMacroLabeled {
     fn maybe_macro_labeled(&self) -> Option<MacroType>;

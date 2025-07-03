@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, ObjectKind, TypeModelKind};
+use crate::conversion::{GenericTypeKind, ObjectKind};
 use crate::ext::{Accessory, LifetimeProcessor, Resolve, ToPath, ToType};
 use crate::lang::{LangFermentable, RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, RustFermentate};
@@ -96,15 +96,15 @@ impl FFIObjectResolve for Type {
     }
 }
 
-pub trait FFITypeModelKindResolve {
-    fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind;
-}
-
-impl FFITypeModelKindResolve for Type {
-    fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind {
-        self.resolve(source)
-    }
-}
+// pub trait FFITypeModelKindResolve {
+//     fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind;
+// }
+//
+// impl FFITypeModelKindResolve for Type {
+//     fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind {
+//         self.resolve(source)
+//     }
+// }
 
 pub trait FFIVarResolve<LANG, SPEC>: Clone + LifetimeProcessor + Resolve<FFIFullPath<LANG, SPEC>> + Resolve<SpecialType<LANG, SPEC>> + ToTokens
     where LANG: LangFermentable,
@@ -114,14 +114,10 @@ pub trait FFIVarResolve<LANG, SPEC>: Clone + LifetimeProcessor + Resolve<FFIFull
         self.resolve(source)
     }
     fn special_or_to_ffi_full_path_type(&self, source: &ScopeContext) -> Type {
-        // println!("special_or_to_ffi_full_path_type:: {}", self.to_token_stream());
         let maybe_special_type: Option<SpecialType<LANG, SPEC>> = self.lifetimes_cleaned().maybe_resolve(source);
-        // println!("special_or_to_ffi_full_path_type.111:: {}", maybe_special_type.as_ref().map_or("None".to_string(), |t| t.to_string()));
-        let res = maybe_special_type
+        maybe_special_type
             .map(|special| special.to_type())
-            .unwrap_or_else(|| self.ffi_full_path(source).to_type());
-        // println!("special_or_to_ffi_full_path_type.222:: {}", res.to_type().to_token_stream());
-        res
+            .unwrap_or_else(|| self.ffi_full_path(source).to_type())
     }
     fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type {
         self.special_or_to_ffi_full_path_type(source)

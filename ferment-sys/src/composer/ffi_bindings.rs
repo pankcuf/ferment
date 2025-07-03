@@ -1,5 +1,5 @@
 use crate::ast::Depunctuated;
-use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer, VariableComposer};
+use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer};
 use crate::context::ScopeContext;
 use crate::lang::{LangFermentable, Specification};
 use crate::presentable::BindingPresentableContext;
@@ -58,7 +58,7 @@ impl<LANG, SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<LANG, SPEC
           SPEC: Specification<LANG>,
           Link: SharedAccess,
           Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>>,
-          VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
+          // VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
 {
     type Source = ScopeContext;
     type Output = Depunctuated<BindingPresentableContext<LANG, SPEC>>;

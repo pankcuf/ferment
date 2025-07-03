@@ -59,19 +59,3 @@ impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<L
         (self.set_output)(sequence_composition)
     }
 }
-
-// impl<LANG, SPEC, C, SEP> SequenceComposer<
-//     ComposerLink<C>,
-//     AspectArgComposers<LANG, SPEC>,
-//     FieldTypeLocalContext<LANG, SPEC>,
-//     SPEC::Expr,
-//     AspectPresentableArguments<LANG, SPEC, SEP>,
-//     SeqKind<LANG, SPEC>>
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG>,
-//           C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + 'static,
-//           SEP: ToTokens + Default {
-//     pub const fn aspect_seq(aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<LANG, SPEC>>) -> Self {
-//         SequenceComposer::new(C::SEQ, aspect, IterativeComposer::aspect_sequence_expr::<C, SEP>())
-//     }
-// }

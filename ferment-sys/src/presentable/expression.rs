@@ -213,6 +213,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
         Self::expression(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_primitive_opt(expr: Self) -> Self {
         Self::expression(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
     }
@@ -254,6 +255,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn from_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn from_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup, expr)
     }
@@ -289,6 +291,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     pub(crate) fn ffi_to_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn ffi_to_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup, expr)
     }

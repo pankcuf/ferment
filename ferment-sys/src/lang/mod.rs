@@ -36,13 +36,9 @@ pub trait NameComposable<LANG, SPEC>
     fn unnamed_arg(index: usize) -> Self;
 }
 
-pub trait LangFermentable: Clone + Debug {
-    // type SPEC: Specification<Self>;
-}
+pub trait LangFermentable: Clone + Debug {}
 pub trait Specification<LANG>: Clone + Debug
-    where LANG: LangFermentable,
-          // Aspect<Self::TYC>: ScopeContextPresentable
-{
+    where LANG: LangFermentable {
     type Attr: Clone + LangAttrSpecification<LANG> + Debug;
     type Gen: LangGenSpecification<LANG>;
     type Lt: LangLifetimeSpecification<LANG>;

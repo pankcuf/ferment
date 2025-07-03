@@ -83,7 +83,6 @@ impl<'a> VisitScopeType<'a> for Path {
 
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         let (scope, context, qself) = source;
-        // println!("{}: Path: visit_scope_type {}", scope.fmt_short(), self.to_token_stream());
         let new_qself = qself.as_ref().map(|q| q.qself.clone());
         let mut segments = self.segments.clone();
         let mut nested_arguments = Punctuated::new();
@@ -191,7 +190,6 @@ impl<'a> VisitScopeType<'a> for Path {
                 };
                 segments.replace_last_with(&new_segments);
             }
-            //println!("TO TRAIT: (BOUNDS): {} -- {:?}", segments.to_token_stream(), nested_arguments);
             TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                 .to_trait(nested_arguments)
         } else {
@@ -234,13 +232,8 @@ impl<'a> VisitScopeType<'a> for Path {
                 },
                 "Result" if segments.len() == 1 => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Result(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
-
-                    // println!("visit_scope_type (Option): {}: {}", segments.to_token_stream(), nested_arguments.to_token_stream());
-                    // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                    //     .to_object(nested_arguments)
                 },
                 "Option" => {
-                    //println!("visit_scope_type (Option): {} === {}", segments.to_token_stream(), nested_arguments.to_token_stream());
                     ObjectKind::Type(
                         TypeModelKind::Optional(
                             handle_type_path_model(
@@ -252,17 +245,11 @@ impl<'a> VisitScopeType<'a> for Path {
                                     }
                                 },
                                 nested_arguments)))
-                    // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                    //     .to_object(nested_arguments)
-
                 },
                 _ if last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") => {
                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                         .to_object(nested_arguments)
                 },
-                // _ if first_ident.is_special_generic() => {
-                //     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(TypeComposition::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))
-                // },
                 _ if last_ident.is_map() =>
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Map(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
                 _ if last_ident.is_btree_set() =>
@@ -296,7 +283,6 @@ impl<'a> VisitScopeType<'a> for Path {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(TypeModel::new_non_gen(nested_import_seg.to_type(), None)))))
                 },
                 _ if first_ident.is_lambda_fn() => {
-                    //println!("first_ident.is_lambda_fn: {}", segments.to_token_stream());
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(handle_type_path_model(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }, nested_arguments))))
                 },
                 _ => {
@@ -324,26 +310,6 @@ impl<'a> VisitScopeType<'a> for Path {
                                 parse_quote!(#scope::#self)
                             }
                         });
-                        // let last_segment = segments.pop().unwrap();
-                        // let new_segments: Punctuated<PathSegment, Colon2> = match obj_parent_scope {
-                        //     None => {
-                        //         // Global
-                        //         if scope.is_crate_root() {
-                        //             let scope = scope.crate_ident();
-                        //
-                        //             parse_quote!(#scope::#self)
-                        //         } else {
-                        //             parse_quote!(#scope::#self)
-                        //         }
-                        //     },
-                        //     Some(parent) => {
-                        //         let scope = parent.self_path_holder();
-                        //         // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
-                        //         parse_quote!(#scope::#self)
-                        //     }
-                        // };
-                        // segments.extend(new_segments);
-                        // segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
                         TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                             .to_unknown(nested_arguments)
 
@@ -351,12 +317,6 @@ impl<'a> VisitScopeType<'a> for Path {
                         let tail = segments.crate_less();
                         if let Some(QSelfModel { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
                             nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
-
-                            // println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
-                            // println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
-                            // println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
-                            // println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
-
                             let maybe_import = context.maybe_scope_import_path(scope, &import_seg)
                                 .or(context.maybe_scope_import_path(obj_scope, &import_seg))
                                 .or(obj_parent_scope.and_then(|obj_parent_scope|
@@ -382,28 +342,8 @@ impl<'a> VisitScopeType<'a> for Path {
                                     converted.to_unknown(nested_arguments)
                             }
                         } else {
-                            // println!("No root chain: {} --- {}", self.to_token_stream(), nested_arguments.to_token_stream());
-                            // println!("------ import local? {} in [{}]", import_seg.to_token_stream(), scope);
-                            // println!("------ import parent? {} in [{:?}]", import_seg.to_token_stream(), scope.parent_scope());
-                            // println!("------ import object? {} in [{:?}]", import_seg.to_token_stream(), obj_scope);
-                            // println!("------ import object parent? {} in [{:?}]", import_seg.to_token_stream(), obj_parent_scope);
-
                             TypePath { qself: new_qself, path: self.clone() }
                                 .to_unknown(nested_arguments)
-
-                            //(Local join multi: std) ferment_example::std_error_Error_FFI + std::fmt::Result
-                            // nprint!(1, Emoji::Local, "(Local or ExternalChunks join multi) {} + {}", format_token_stream(scope), format_token_stream(self));
-                            // let last_segment = segments.last().cloned().unwrap();
-                            // let new_segments: Punctuated<PathSegment, Colon2> = if self.leading_colon.is_none() {
-                            //     parse_quote!(#scope::#self)
-                            // } else {
-                            //     parse_quote!(#scope #self)
-                            // };
-                            // segments.clear();
-                            // segments.extend(new_segments);
-                            // segments.last_mut().unwrap().arguments = last_segment.arguments;
-                            // TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                            //     .to_unknown()
                         }
                     }
                 },
@@ -488,15 +428,12 @@ impl<'a> VisitScopeType<'a> for TypeReference {
         match &mut obj {
             ObjectKind::Type(tyc) |
             ObjectKind::Item(tyc, _) => {
-                //println!("TypeReference::visit_scope_type --> {}", tyc);
-                let ty = Type::Reference(TypeReference {
+                tyc.replace_model_type(Type::Reference(TypeReference {
                     and_token: Default::default(),
                     lifetime: self.lifetime.clone(),
                     mutability: self.mutability.clone(),
                     elem: Box::new(tyc.to_type()),
-                });
-                //println!("TypeReference::visit_scope_type <-- {}", ty.to_token_stream());
-                tyc.replace_model_type(ty);
+                }));
             }
             ObjectKind::Empty => {}
         }
@@ -570,7 +507,6 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
     type Result = ObjectKind;
 
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
-        //println!("visit_scope_type (TypeTraitObject): {}", self.to_token_stream());
         let (scope, context) = source;
         let TypeTraitObject { dyn_token, bounds } = self;
         let mut bounds = bounds.clone();

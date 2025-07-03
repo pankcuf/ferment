@@ -5,13 +5,13 @@ pub trait Trait111 {
 
 #[ferment_macro::opaque]
 pub struct Struct111 {
-    pub field1: i32,
+    pub _field1: i32,
 }
 
 #[ferment_macro::export]
 impl Struct111 {
     pub fn new() -> Self {
-        Self { field1: 0 }
+        Self { _field1: 0 }
     }
 }
 

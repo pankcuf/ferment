@@ -1,11 +1,12 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, BareFnArg, ParenthesizedGenericArguments, parse_quote, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility, Generics, Lifetime};
+use syn::{parse_quote, Attribute, BareFnArg, Generics, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, VarComposer, BasicComposerLink, ToConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer};
+use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, SpecialType, ToType};
@@ -70,35 +71,22 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                     TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                     TypeKind::Complex(ty) => {
                         let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
-                        match maybe_special {
-                            Some(SpecialType::Opaque(..)) => {
-                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
-                                //                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
-                                // let from = from_(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty.to_token_stream(), quote!(#ffi_result)).to_token_stream()).to_token_stream();
-                                (ffi_ty.joined_mut(), quote!((&*#ffi_result).clone()))
-                            }
-                            _ => {
-                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
-                                (ffi_ty.joined_mut(), from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream()))
-                            }
-                        }
+                        let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
+                        (ffi_ty.joined_mut(), match maybe_special {
+                            Some(SpecialType::Opaque(..)) => quote!((&*#ffi_result).clone()),
+                            _ => from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
+                        })
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
                         GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
                             TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                             TypeKind::Complex(ty) => {
                                 let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
-                                match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => {
-                                        let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
-                                        (ffi_ty.joined_mut(), opt_conversion(quote!(Some((&*#ffi_result).clone()))))
-                                    }
-                                    _ => {
-                                        let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
-                                        (ffi_ty.joined_mut(), opt_conversion(from_opt_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())))
-                                    }
-                                }
-
+                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
+                                (ffi_ty.joined_mut(), opt_conversion(match maybe_special {
+                                    Some(SpecialType::Opaque(..)) => quote!(Some((&*#ffi_result).clone())),
+                                    _ => from_opt_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
+                                }))
                             },
                             TypeKind::Generic(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);

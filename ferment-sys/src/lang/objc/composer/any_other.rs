@@ -1,5 +1,5 @@
 use quote::ToTokens;
-use crate::composer::{AnyOtherComposer, SourceComposable, GenericComposerInfo, VarComposer};
+use crate::composer::{AnyOtherComposer, GenericComposerInfo, SourceComposable, VarComposer};
 use crate::context::ScopeContext;
 use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};

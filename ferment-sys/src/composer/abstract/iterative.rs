@@ -39,28 +39,6 @@ where LANG: LangFermentable,
     }
 }
 
-
-// impl<LANG, SPEC, Iter> IterativeComposer<
-//     AspectArgComposers<LANG, SPEC>,
-//     FieldTypeLocalContext<LANG, SPEC>,
-//     SPEC::Expr,
-//     OwnerAspectSequence<LANG, SPEC, Iter>>
-// where LANG: LangFermentable,
-//       SPEC: Specification<LANG>,
-//       Iter: FromIterator<ArgKind<LANG, SPEC>>,
-// {
-//     pub const fn aspect_sequence<C, SEP>(
-//         mapper: ComposerByRef<FieldTypeLocalContext<LANG, SPEC>, SPEC::Expr>
-//     ) -> Self
-//         where C: FFIInterfaceMethodSpec<LANG, SPEC, SEP>,
-//               SEP: ToTokens + Default {
-//         Self::new(
-//             |(aspect, arg_composers), expr_composer|
-//                 (aspect.clone(), constants::arg_conversion_expressions_iterator((arg_composers, expr_composer), C::RESOLVER)),
-//             mapper)
-//     }
-// }
-
 pub type FFIInterfaceMethodIterator<LANG, SPEC, SEP> = IterativeComposer<
     AspectArgComposers<LANG, SPEC>,
     FieldTypeLocalContext<LANG, SPEC>,
@@ -73,11 +51,10 @@ impl<LANG, SPEC, Iter> IterativeComposer<
     OwnerAspectSequence<LANG, SPEC, Iter>>
 where LANG: LangFermentable,
       SPEC: Specification<LANG>,
-      Iter: FromIterator<ArgKind<LANG, SPEC>>,
-{
+      Iter: FromIterator<ArgKind<LANG, SPEC>> {
     pub const fn aspect_sequence_expr<C, SEP>() -> Self
-        where C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + ?Sized,
-              SEP: ToTokens + Default {
+    where C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + ?Sized,
+          SEP: ToTokens + Default {
         Self::new(
             |(aspect, arg_composers), expr_composer|
                 (aspect.clone(), constants::arg_conversion_expressions_iterator((arg_composers, expr_composer), C::RESOLVER)),
