@@ -12,12 +12,12 @@ mod composable;
 mod formatter;
 mod dictionary;
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Generics, Item, Lifetime, Type};
+use syn::{Generics, Item, Lifetime};
 use crate::error;
-use crate::lang::{CrateTreeConsumer, PresentableSpecification, Specification};
+use crate::lang::{CrateTreeConsumer, Specification};
 use crate::lang::objc::composers::AttrWrapper;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::presentable::TypeContext;
@@ -32,33 +32,23 @@ use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
 use crate::composer::{SourceComposable, GenericComposer, MaybeComposer, SourceAccessible, SourceFermentable};
 use crate::conversion::expand_attributes;
-use crate::ext::Resolve;
-use crate::presentable::{Expression, ScopeContextPresentable};
+use crate::presentable::Expression;
 use crate::presentation::{FFIVariable, Name};
 
-pub trait ObjCSpecification:
-    PresentableSpecification<ObjCFermentate,
-        Attr=AttrWrapper,
-        Gen=Option<Generics>,
-        Interface=InterfaceImplementation,
-        TYC=TypeContext,
-        Expr=Expression<ObjCFermentate, Self>,
-        Name=Name<ObjCFermentate, Self>,
-        Var=FFIVariable<ObjCFermentate, Self, TokenStream2>
-    > where <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens,
-            Type: Resolve<Self::Var> {}
+#[derive(Clone, Debug)]
+pub struct ObjCSpecification;
 
-impl<SPEC> Specification<ObjCFermentate> for SPEC where SPEC: ObjCSpecification {
+impl Specification for ObjCSpecification {
     type Attr = AttrWrapper;
     type Gen = Option<Generics>;
     type Lt = Vec<Lifetime>;
     type TYC = TypeContext;
     type Interface = InterfaceImplementation;
-    type Expr = Expression<ObjCFermentate, SPEC>;
-    type Var = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
-    type Name = Name<ObjCFermentate, SPEC>;
+    type Expr = Expression<Self>;
+    type Var = FFIVariable<Self, TokenStream2>;
+    type Name = Name<Self>;
+    type Fermentate = ObjCFermentate;
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -112,8 +102,6 @@ impl CrateTreeConsumer for Config {
 //     }
 // }
 
-impl ObjCSpecification for ScopeTree {}
-impl ObjCSpecification for CrateTree {}
 impl SourceFermentable<ObjCFermentate> for CrateTree {
     fn ferment(&self) -> ObjCFermentate {
         let Self { attrs: _, crates, generics_tree: ScopeTree { imported, .. }} = self;
@@ -131,7 +119,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
                 .filter_map(|(mixin, attrs)| {
                     let attrs = expand_attributes(attrs);
                     let ty_context = TypeContext::mixin(mixin, prefix, attrs.cfg_attributes());
-                    GenericComposer::<ObjCFermentate, CrateTree>::new(mixin, attrs, ty_context, self.context())
+                    GenericComposer::<ObjCSpecification>::new(mixin, attrs, ty_context, self.context())
                 })
                 .flat_map(|composer| composer.borrow().compose(&source)));
         let custom_conversions = Depunctuated::from_iter(
@@ -165,7 +153,7 @@ impl SourceFermentable<ObjCFermentate> for ScopeTree {
             .values()
             .for_each(|item| match item {
                 ScopeTreeItem::Item { item, scope, scope_context } =>
-                    if let Some(composer) = <Item as MaybeComposer<ObjCFermentate, ScopeTree>>::maybe_composer(item, scope, scope_context) {
+                    if let Some(composer) = <Item as MaybeComposer<ObjCSpecification>>::maybe_composer(item, scope, scope_context) {
                         fermentate.push(composer.ferment())
                     },
                 ScopeTreeItem::Tree { tree} =>

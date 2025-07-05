@@ -7,7 +7,7 @@ use crate::composer::PunctuatedArgKinds;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::presentable::ty_context::TypeContext;
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::DictionaryName;
@@ -28,10 +28,9 @@ impl Aspect<TypeContext> {
             Aspect::RawTarget(context) => context.attrs(),
         }
     }
-    pub fn allocate<I, SEP, SPEC>(&self, fields: Wrapped<PunctuatedArgKinds<ObjCFermentate, SPEC, SEP>, SEP, I>, source: &ScopeContext) -> TokenStream2
+    pub fn allocate<I, SEP>(&self, fields: Wrapped<PunctuatedArgKinds<ObjCSpecification, SEP>, SEP, I>, source: &ScopeContext) -> TokenStream2
         where I: DelimiterTrait,
-              SEP: ToTokens,
-              SPEC: ObjCSpecification {
+              SEP: ToTokens {
         let name = self.alloc_field_name();
         let aspect_presentation = self.present(source);
         match self {

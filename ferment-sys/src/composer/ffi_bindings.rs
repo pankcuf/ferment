@@ -1,49 +1,46 @@
 use crate::ast::Depunctuated;
 use crate::composer::{SourceComposable, Linkable, ComposerLink, AccessorMethodComposer, DtorMethodComposer, ArgKindPair, OwnerAspectSequenceSpecComposer};
 use crate::context::ScopeContext;
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
 
-pub type FFIBindingsComposerLink<LANG, SPEC, T, Iter> = FFIBindingsComposer<LANG, SPEC, ComposerLink<T>, Iter>;
-pub type MaybeFFIBindingsComposerLink<LANG, SPEC, T, Iter> = Option<FFIBindingsComposerLink<LANG, SPEC, T, Iter>>;
-pub struct FFIBindingsComposer<LANG, SPEC, Link, Iter>
+pub type FFIBindingsComposerLink<SPEC, T, Iter> = FFIBindingsComposer<SPEC, ComposerLink<T>, Iter>;
+pub type MaybeFFIBindingsComposerLink<SPEC, T, Iter> = Option<FFIBindingsComposerLink<SPEC, T, Iter>>;
+pub struct FFIBindingsComposer<SPEC, Link, Iter>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
+          SPEC: Specification,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     pub parent: Option<Link>,
-    pub ctor: OwnerAspectSequenceSpecComposer<LANG, SPEC, Link, Iter, BindingPresentableContext<LANG, SPEC>>,
-    pub dtor: DtorMethodComposer<LANG, SPEC, Link>,
-    pub getter: AccessorMethodComposer<LANG, SPEC, Link>,
-    pub setter: AccessorMethodComposer<LANG, SPEC, Link>,
+    pub ctor: OwnerAspectSequenceSpecComposer<SPEC, Link, Iter, BindingPresentableContext<SPEC>>,
+    pub dtor: DtorMethodComposer<SPEC, Link>,
+    pub getter: AccessorMethodComposer<SPEC, Link>,
+    pub setter: AccessorMethodComposer<SPEC, Link>,
     pub get_set: bool
 }
-impl<LANG, SPEC, Link, Iter> FFIBindingsComposer<LANG, SPEC, Link, Iter>
+impl<SPEC, Link, Iter> FFIBindingsComposer<SPEC, Link, Iter>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
+          SPEC: Specification,
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     pub const fn new(
-        ctor: OwnerAspectSequenceSpecComposer<LANG, SPEC, Link, Iter, BindingPresentableContext<LANG, SPEC>>,
-        dtor: DtorMethodComposer<LANG, SPEC, Link>,
-        getter: AccessorMethodComposer<LANG, SPEC, Link>,
-        setter: AccessorMethodComposer<LANG, SPEC, Link>,
+        ctor: OwnerAspectSequenceSpecComposer<SPEC, Link, Iter, BindingPresentableContext<SPEC>>,
+        dtor: DtorMethodComposer<SPEC, Link>,
+        getter: AccessorMethodComposer<SPEC, Link>,
+        setter: AccessorMethodComposer<SPEC, Link>,
         get_set: bool,
     ) -> Self {
         Self { parent: None, ctor, dtor, getter, setter, get_set }
     }
 
-    pub fn compose_ctor(&self) -> BindingPresentableContext<LANG, SPEC> {
+    pub fn compose_ctor(&self) -> BindingPresentableContext<SPEC> {
         self.ctor.compose(&())
     }
 }
 
-impl<LANG, SPEC, Link, Iter> Linkable<Link> for FFIBindingsComposer<LANG, SPEC, Link, Iter>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, Link, Iter> Linkable<Link> for FFIBindingsComposer<SPEC, Link, Iter>
+    where SPEC: Specification,
           Link: SharedAccess,
-          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     fn link(&mut self, parent: &Link) {
         self.getter.link(parent);
         self.setter.link(parent);
@@ -53,15 +50,12 @@ impl<LANG, SPEC, Link, Iter> Linkable<Link> for FFIBindingsComposer<LANG, SPEC, 
     }
 }
 
-impl<LANG, SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<LANG, SPEC, Link, Iter>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<SPEC, Link, Iter>
+    where SPEC: Specification,
           Link: SharedAccess,
-          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>>,
-          // VariableComposer<LANG, SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var>,
-{
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     type Source = ScopeContext;
-    type Output = Depunctuated<BindingPresentableContext<LANG, SPEC>>;
+    type Output = Depunctuated<BindingPresentableContext<SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut bindings = Depunctuated::new();

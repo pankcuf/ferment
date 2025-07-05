@@ -10,21 +10,19 @@ use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, SpecialType, ToType};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
-use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name};
 
 #[derive(ComposerBase)]
-pub struct CallbackComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct CallbackComposer<SPEC>
+    where SPEC: Specification + 'static {
     pub ty: Type,
-    base: BasicComposerLink<LANG, SPEC, Self>,
+    base: BasicComposerLink<SPEC, Self>,
 }
 
-impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> CallbackComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
@@ -33,10 +31,9 @@ impl<LANG, SPEC> CallbackComposer<LANG, SPEC>
     }
 }
 
-impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for CallbackComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { ty, .. } = self;
@@ -70,8 +67,8 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
                     TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
                     TypeKind::Complex(ty) => {
-                        let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
-                        let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
+                        let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
+                        let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                         (ffi_ty.joined_mut(), match maybe_special {
                             Some(SpecialType::Opaque(..)) => quote!((&*#ffi_result).clone()),
                             _ => from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
@@ -81,21 +78,21 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                         GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
                             TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
                             TypeKind::Complex(ty) => {
-                                let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = ty.maybe_special_type(source);
-                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
+                                let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
+                                let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), opt_conversion(match maybe_special {
                                     Some(SpecialType::Opaque(..)) => quote!(Some((&*#ffi_result).clone())),
                                     _ => from_opt_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
                                 }))
                             },
                             TypeKind::Generic(ty) => {
-                                let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&ty, source);
+                                let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), from_opt_complex_result(ty.ty().to_token_stream(), ffi_ty.to_token_stream()))
                             },
                         },
                         GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                         _ => {
-                            let ffi_ty = FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_type(&full_ty, source);
+                            let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&full_ty, source);
                             (ffi_ty.joined_mut(), from_complex_result(generic_ty.to_token_stream(), ffi_ty.to_token_stream()))
                         }
                     }
@@ -114,23 +111,23 @@ impl<SPEC> SourceComposable for CallbackComposer<RustFermentate, SPEC>
                 let name = Name::UnnamedArg(index);
                 lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
-                let ffi_arg = VarComposer::<RustFermentate, SPEC>::value(ty).compose(source).to_type();
+                let ffi_arg = VarComposer::<RustSpecification>::value(ty).compose(source).to_type();
                 ffi_args.push(bare_fn_arg(ffi_arg));
-                arg_to_conversions.push(ToConversionFullComposer::<RustFermentate, SPEC>::value(name, ty).compose(source).present(source));
+                arg_to_conversions.push(ToConversionFullComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
             });
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::callback(
+        Some(GenericComposerInfo::<RustSpecification>::callback(
             Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), generics: Generics::default(), attrs: vec![] }),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
-                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
-                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
+                    FieldComposer::named(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
+                    FieldComposer::named(Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
                 ])
             } else {
                 Depunctuated::from_iter([
-                    FieldComposer::named(SPEC::Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
+                    FieldComposer::named(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
                 ])
             },
             Depunctuated::from_iter([

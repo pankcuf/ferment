@@ -5,7 +5,7 @@ use syn::parse_quote;
 use crate::composer::{Linkable, SourceComposable};
 use crate::context::ScopeContextLink;
 use crate::formatter::format_token_stream;
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::shared::SharedAccess;
 
 #[derive(Clone, Debug)]
@@ -44,38 +44,33 @@ impl ToTokens for DocPresentation {
 }
 
 
-pub struct DocComposer<LANG, SPEC, Link>
+pub struct DocComposer<SPEC, Link>
 where Link: SharedAccess,
-      LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+      SPEC: Specification {
     pub parent: Option<Link>,
     pub ty: TokenStream2,
-    // get_context: SharedComposer<Link, TokenStream2>,
-    _marker: PhantomData<(LANG, SPEC)>,
+    _marker: PhantomData<SPEC>,
 }
 
-impl<LANG, SPEC, Link> DocComposer<LANG, SPEC, Link>
-    where Link: SharedAccess,
-      LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+impl<SPEC, Link> DocComposer<SPEC, Link>
+where Link: SharedAccess,
+      SPEC: Specification {
     pub fn new(ty: TokenStream2) -> Self {
         Self { parent: None, ty, _marker: PhantomData }
     }
 }
 
-impl<LANG, SPEC, Link> Linkable<Link> for DocComposer<LANG, SPEC, Link>
-    where Link: SharedAccess,
-      LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+impl<SPEC, Link> Linkable<Link> for DocComposer<SPEC, Link>
+where Link: SharedAccess,
+      SPEC: Specification {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<LANG, SPEC, Link> SourceComposable for DocComposer<LANG, SPEC, Link>
+impl<SPEC, Link> SourceComposable for DocComposer<SPEC, Link>
 where Link: SharedAccess,
-      LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+      SPEC: Specification {
     type Source = ScopeContextLink;
     type Output = TokenStream2;
     fn compose(&self, _source: &Self::Source) -> Self::Output {

@@ -26,7 +26,6 @@ impl SourceAccessible for CrateTree {
         &self.generics_tree.scope_context
     }
 }
-impl RustSpecification for CrateTree {}
 
 impl CrateTree {
     pub fn new(current_crate: &Crate, current_tree: ScopeTreeExportItem, external_crates: HashMap<Crate, ScopeTreeExportItem>) -> Result<Self, error::Error> {
@@ -81,7 +80,7 @@ impl SourceFermentable<RustFermentate> for CrateTree {
                 .filter_map(|(mixin, attrs)| {
                     let attrs = expand_attributes(attrs);
                     let tyc = TypeContext::mixin(mixin, attrs.cfg_attributes());
-                    GenericComposer::<RustFermentate, CrateTree>::new(mixin, attrs, tyc, self.context())
+                    GenericComposer::<RustSpecification>::new(mixin, attrs, tyc, self.context())
                 })
                 .flat_map(|composer|
                     composer.borrow().compose(&source)));

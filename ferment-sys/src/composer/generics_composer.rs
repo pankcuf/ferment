@@ -4,40 +4,36 @@ use crate::ast::{AddPunctuated, TypePathHolder};
 use crate::composable::GenModel;
 use crate::composer::{SourceComposable, Linkable};
 use crate::context::ScopeContextLink;
-use crate::lang::{LangFermentable, LangGenSpecification, Specification};
+use crate::lang::{LangGenSpecification, Specification};
 use crate::shared::SharedAccess;
 
-pub struct GenericsComposer<LANG, SPEC, Link>
+pub struct GenericsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     pub parent: Option<Link>,
     pub generics: GenModel,
-    _marker: PhantomData<(LANG, SPEC)>,
+    _marker: PhantomData<SPEC>,
 
 }
-impl<LANG, SPEC, Link> GenericsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> GenericsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     pub fn new(generics: GenModel) -> Self {
         Self { parent: None, generics, _marker: PhantomData }
     }
 }
 
-impl<LANG, SPEC, Link> Linkable<Link> for GenericsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> Linkable<Link> for GenericsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<LANG, SPEC, Link> SourceComposable for GenericsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     type Source = ScopeContextLink;
     type Output = SPEC::Gen;
     fn compose(&self, context: &Self::Source) -> Self::Output {

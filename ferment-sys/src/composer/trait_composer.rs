@@ -12,23 +12,21 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, FnSignatureCon
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceFermentable, BasicComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, Mangle, ToPath, ToType};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{NameTreeContext, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, DocComposer, DocPresentation, FFIObjectPresentation, Name, RustFermentate};
 
 #[derive(ComposerBase)]
-pub struct TraitComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub base: BasicComposerLink<LANG, SPEC, Self>,
-    pub methods: Vec<SigComposerLink<LANG, SPEC>>,
+pub struct TraitComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub base: BasicComposerLink<SPEC, Self>,
+    pub methods: Vec<SigComposerLink<SPEC>>,
     #[allow(unused)]
     pub types: HashMap<Ident, TraitTypeModel>,
 }
 
-impl<LANG, SPEC> TraitComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> TraitComposer<SPEC>
+    where SPEC: Specification {
     pub fn from_item_trait(
         item_trait: &ItemTrait,
         ty_context: SPEC::TYC,
@@ -68,7 +66,7 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     }
 
     fn new(
-        methods: Vec<SigComposerLink<LANG, SPEC>>,
+        methods: Vec<SigComposerLink<SPEC>>,
         types: HashMap<Ident, TraitTypeModel>,
         ty_context: SPEC::TYC,
         generics: Option<Generics>,
@@ -89,22 +87,20 @@ impl<LANG, SPEC> TraitComposer<LANG, SPEC>
     }
 }
 
-impl<LANG, SPEC> DocsComposable for TraitComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> DocsComposable for TraitComposer<SPEC>
+    where SPEC: Specification {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(self.context()))
     }
 }
 
-impl<SPEC> SourceFermentable<RustFermentate> for TraitComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceFermentable<RustFermentate> for TraitComposer<RustSpecification> {
     fn ferment(&self) -> RustFermentate {
         // TODO: source.scope or local_scope?
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
         let mangled_ty = ffi_type.mangle_ident_default();
-        let vtable_name = Name::<RustFermentate, SPEC>::Vtable(mangled_ty.clone());
+        let vtable_name = Name::<RustSpecification>::Vtable(mangled_ty.clone());
         RustFermentate::Trait {
             comment: DocPresentation::Empty,
             vtable: FFIObjectPresentation::TraitVTable {
@@ -118,14 +114,14 @@ impl<SPEC> SourceFermentable<RustFermentate> for TraitComposer<RustFermentate, S
             },
             trait_object: FFIObjectPresentation::TraitObject {
                 attrs,
-                name: Name::<RustFermentate, SPEC>::TraitObj(mangled_ty).to_path(),
+                name: Name::<RustSpecification>::TraitObj(mangled_ty).to_path(),
                 fields: BraceWrapped::new(
                     CommaPunctuated::from_iter([
-                        FieldComposer::<RustFermentate, SPEC>::named(
-                            SPEC::Name::dictionary_name(DictionaryName::Object),
+                        FieldComposer::<RustSpecification>::named(
+                            Name::dictionary_name(DictionaryName::Object),
                             FieldTypeKind::Type(parse_quote!(*const ()))),
-                        FieldComposer::<RustFermentate, SPEC>::named(
-                            SPEC::Name::dictionary_name(DictionaryName::Vtable),
+                        FieldComposer::<RustSpecification>::named(
+                            Name::dictionary_name(DictionaryName::Vtable),
                             FieldTypeKind::Type(parse_quote!(*const #vtable_name))),
                     ])).present(&self.context().borrow())
                 }

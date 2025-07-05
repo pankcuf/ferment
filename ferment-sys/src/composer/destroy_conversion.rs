@@ -6,22 +6,20 @@ use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, SpecialType, ToType};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposable, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 
 #[derive(Clone, Debug)]
-pub struct DestroyFullConversionComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+pub struct DestroyFullConversionComposer<'a, SPEC>
+where SPEC: Specification {
     pub name: SPEC::Name,
     pub search: ScopeSearch<'a>,
     pub expr: Option<SPEC::Expr>,
 }
-impl<'a, LANG, SPEC> DestroyFullConversionComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+impl<'a, SPEC> DestroyFullConversionComposer<'a, SPEC>
+where SPEC: Specification {
     pub fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
     }
@@ -35,12 +33,11 @@ where LANG: LangFermentable,
     }
 
 }
-impl<'a, LANG, SPEC> SourceComposable for DestroyFullConversionComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+impl<'a, SPEC> SourceComposable for DestroyFullConversionComposer<'a, SPEC>
+where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
-      FFIFullPath<LANG, SPEC>: ToType,
-      FFIFullDictionaryPath<LANG, SPEC>: ToType {
+      FFIFullPath<SPEC>: ToType,
+      FFIFullDictionaryPath<SPEC>: ToType {
     type Source = ScopeContext;
     type Output = Option<SPEC::Expr>;
 
@@ -57,11 +54,11 @@ where LANG: LangFermentable,
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
             _ => full_type
         };
-        let ffi_type = Resolve::<FFIFullPath<LANG, SPEC>>::resolve(&full_type, source).to_type();
+        let ffi_type = Resolve::<FFIFullPath<SPEC>>::resolve(&full_type, source).to_type();
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
-        let maybe_special: Option<SpecialType<LANG, SPEC>> = full_type.maybe_special_type(source);
+        let maybe_special: Option<SpecialType<SPEC>> = full_type.maybe_special_type(source);
         let expression = match maybe_special {
             Some(special) =>
                 Some(SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, special, full_type)),
@@ -70,7 +67,7 @@ where LANG: LangFermentable,
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => None,
                     TypeModelKind::FnPointer(..) => {
                         if let Some(..) = source.maybe_fn_sig(&full_type)
-                            .and_then(|ty| MaybeLambdaArgs::<LANG, SPEC>::maybe_lambda_arg_names(&ty)) {
+                            .and_then(|ty| MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&ty)) {
                             Some(SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, ffi_type, full_type))
                         } else {
                             None
@@ -105,14 +102,14 @@ where LANG: LangFermentable,
                         Some(SPEC::Expr::destroy_complex(field_path))
                     },
                     TypeModelKind::Unknown(..) => {
-                        destroy_other::<LANG, SPEC>(&search_key.to_type(), ffi_type, full_type, field_path)
+                        destroy_other::<SPEC>(&search_key.to_type(), ffi_type, full_type, field_path)
                     },
                     TypeModelKind::Slice(TypeModel { ref ty, .. }) => {
                         let maybe_nested_ty = ty.maybe_first_nested_type_ref();
-                        destroy_other::<LANG, SPEC>(&search_key.to_type(), ffi_type, parse_quote!(Vec<#maybe_nested_ty>), field_path)
+                        destroy_other::<SPEC>(&search_key.to_type(), ffi_type, parse_quote!(Vec<#maybe_nested_ty>), field_path)
                     },
                     _ => {
-                        destroy_other::<LANG, SPEC>(&search_key.to_type(), ffi_type, full_type, field_path)
+                        destroy_other::<SPEC>(&search_key.to_type(), ffi_type, full_type, field_path)
                     }
                 }
             }
@@ -122,9 +119,8 @@ where LANG: LangFermentable,
 }
 
 
-fn destroy_other<LANG, SPEC>(ty: &Type, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+fn destroy_other<SPEC>(ty: &Type, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
+where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable {
     match TypeKind::from(ty) {
         TypeKind::Primitive(_) =>

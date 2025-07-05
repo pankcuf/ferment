@@ -9,21 +9,19 @@ use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, Compo
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::NameTreeContext;
 use crate::presentation::{DocComposer, DocPresentation, RustFermentate};
 
 #[derive(ComposerBase)]
-pub struct ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub base: BasicComposerLink<LANG, SPEC, Self>,
-    pub methods: Vec<SigComposerLink<LANG, SPEC>>,
-    pub vtable: Option<VTableComposerLink<LANG, SPEC>>,
+pub struct ImplComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub base: BasicComposerLink<SPEC, Self>,
+    pub methods: Vec<SigComposerLink<SPEC>>,
+    pub vtable: Option<VTableComposerLink<SPEC>>,
 }
-impl<LANG, SPEC> ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> ImplComposer<SPEC>
+    where SPEC: Specification {
     pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
         let source = scope_context.borrow();
@@ -88,16 +86,14 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
     }
 }
 
-impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> DocsComposable for ImplComposer<SPEC>
+    where SPEC: Specification {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(self.context()))
     }
 }
 
-impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceFermentable<RustFermentate> for ImplComposer<RustSpecification> {
     fn ferment(&self) -> RustFermentate {
         let mut items = Depunctuated::<RustFermentate>::new();
         self.methods.iter().for_each(|sig_composer| {

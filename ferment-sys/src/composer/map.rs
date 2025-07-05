@@ -8,21 +8,19 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(ComposerBase)]
-pub struct MapComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct MapComposer<SPEC>
+    where SPEC: Specification + 'static {
     pub ty: Type,
-    base: BasicComposerLink<LANG, SPEC, Self>,
+    base: BasicComposerLink<SPEC, Self>,
 }
 
-impl<LANG, SPEC> MapComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> MapComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
@@ -31,10 +29,9 @@ impl<LANG, SPEC> MapComposer<LANG, SPEC>
     }
 }
 
-impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for MapComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
@@ -45,30 +42,30 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
         let arg_0_name = Name::dictionary_name(keys.clone());
         let arg_1_name = Name::dictionary_name(values.clone());
 
-        let arg_context = |arg_name: &SPEC::Name| quote!(obj.#arg_name().cloned());
-        let arg_args = |arg_name: &SPEC::Name| CommaPunctuated::from_iter([
+        let arg_context = |arg_name: &<RustSpecification as Specification>::Name| quote!(obj.#arg_name().cloned());
+        let arg_args = |arg_name: &<RustSpecification as Specification>::Name| CommaPunctuated::from_iter([
             DictionaryExpr::SelfProp(arg_name.to_token_stream()),
             DictionaryExpr::SelfProp(count_name.to_token_stream())]);
 
-        let compose = |arg_name: &SPEC::Name, ty: &Type| {
+        let compose = |arg_name: &<RustSpecification as Specification>::Name, ty: &Type| {
             let from_conversion =
                 Expression::map_o_expr(
-                    FromConversionFullComposer::<RustFermentate, SPEC>::value(Name::dictionary_name(DictionaryName::O), ty)
+                    FromConversionFullComposer::<RustSpecification>::value(Name::dictionary_name(DictionaryName::O), ty)
                         .compose(source));
             let result = match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) =>
-                    GenericArgPresentation::<RustFermentate, SPEC>::new(
+                    GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(arg_ty),
                         Expression::destroy_primitive_group_tokens(arg_args(arg_name)),
                         from_conversion,
                         Expression::ffi_to_primitive_group_tokens(arg_context(arg_name))),
                 TypeKind::Complex(arg_ty) => {
-                    let maybe_special: Option<SpecialType<RustFermentate, SPEC>> = arg_ty.maybe_special_type(source);
+                    let maybe_special: Option<SpecialType<RustSpecification>> = arg_ty.maybe_special_type(source);
                     let to_composer = match maybe_special {
                         Some(SpecialType::Opaque(..)) => Expression::ffi_to_opaque_group_tokens,
                         _ => Expression::ffi_to_complex_group_tokens
                     };
-                    let arg_composer = GenericArgComposer::<RustFermentate, SPEC>::new(
+                    let arg_composer = GenericArgComposer::<RustSpecification>::new(
                         Some(Expression::from_complex_tokens),
                         Some(to_composer),
                         Some(if arg_ty.is_fermentable_string() {
@@ -76,8 +73,8 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                         } else {
                             Expression::destroy_complex_group_tokens
                         }));
-                    GenericArgPresentation::<RustFermentate, SPEC>::new(
-                        FFIVariable::direct(FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),
+                    GenericArgPresentation::<RustSpecification>::new(
+                        FFIVariable::direct(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),
                         arg_composer.destroy(arg_args(arg_name).to_token_stream()),
                         from_conversion,
                         arg_composer.to(arg_context(arg_name)))
@@ -88,25 +85,25 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
                             None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
                             Some(ty) => (match TypeKind::from(ty) {
                                 TypeKind::Primitive(_) =>
-                                    GenericArgComposer::<RustFermentate, SPEC>::new(
+                                    GenericArgComposer::<RustSpecification>::new(
                                         Some(Expression::from_primitive_opt_tokens),
                                         Some(Expression::ffi_to_primitive_opt_group_tokens),
                                         Some(Expression::destroy_complex_group_tokens)),
                                 _ =>
-                                    GenericArgComposer::<RustFermentate, SPEC>::new(
+                                    GenericArgComposer::<RustSpecification>::new(
                                         Some(Expression::from_complex_opt_tokens),
                                         Some(Expression::ffi_to_complex_opt_group_tokens),
                                         Some(Expression::destroy_complex_group_tokens)),
-                            }, FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(ty, source))
+                            }, FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_variable_type(ty, source))
                         }
                     } else { (
-                        GenericArgComposer::<RustFermentate, SPEC>::new(
+                        GenericArgComposer::<RustSpecification>::new(
                             Some(Expression::from_complex_tokens),
                             Some(Expression::ffi_to_complex_group_tokens),
                             Some(Expression::destroy_complex_group_tokens)),
-                        FFIVarResolve::<RustFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source))
+                        FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source))
                     };
-                    GenericArgPresentation::<RustFermentate, SPEC>::new(
+                    GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(arg_ty),
                         arg_composer.destroy(arg_args(arg_name).to_token_stream()),
                         from_conversion,
@@ -126,27 +123,27 @@ impl<SPEC> SourceComposable for MapComposer<RustFermentate, SPEC>
             quote!(ffi_ref.#count),
             quote!(ffi_ref.#keys),
             quote!(ffi_ref.#values),
-            SPEC::Expr::present(&arg_0_presentation.from_conversion, source),
-            SPEC::Expr::present(&arg_1_presentation.from_conversion, source),
+            <RustSpecification as Specification>::Expr::present(&arg_0_presentation.from_conversion, source),
+            <RustSpecification as Specification>::Expr::present(&arg_1_presentation.from_conversion, source),
         ];
         let expr_to_iterator = [
-            FieldComposer::<RustFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-            FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Conversion(<SPEC::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source).to_token_stream())),
-            FieldComposer::<RustFermentate, SPEC>::named(arg_1_name.clone(), FieldTypeKind::Conversion(<SPEC::Expr as ScopeContextPresentable>::present(&arg_1_presentation.to_conversion, source).to_token_stream())),
+            FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+            FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source).to_token_stream())),
+            FieldComposer::<RustSpecification>::named(arg_1_name.clone(), FieldTypeKind::Conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_1_presentation.to_conversion, source).to_token_stream())),
         ];
 
         let expr_destroy_iterator = [
-            SPEC::Expr::present(&arg_0_presentation.destructor, source),
-            SPEC::Expr::present(&arg_1_presentation.destructor, source),
+            <RustSpecification as Specification>::Expr::present(&arg_0_presentation.destructor, source),
+            <RustSpecification as Specification>::Expr::present(&arg_1_presentation.destructor, source),
         ];
         let attrs = self.compose_attributes();
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(
+        Some(GenericComposerInfo::<RustSpecification>::default(
             Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default()}),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustFermentate, SPEC>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
-                FieldComposer::<RustFermentate, SPEC>::named(arg_0_name, FieldTypeKind::Type(arg_0_presentation.ty.to_type().joined_mut())),
-                FieldComposer::<RustFermentate, SPEC>::named(arg_1_name, FieldTypeKind::Type(arg_1_presentation.ty.to_type().joined_mut()))
+                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
+                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Type(arg_0_presentation.ty.to_type().joined_mut())),
+                FieldComposer::<RustSpecification>::named(arg_1_name, FieldTypeKind::Type(arg_1_presentation.ty.to_type().joined_mut()))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None, &lifetimes),

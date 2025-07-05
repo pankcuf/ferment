@@ -9,21 +9,19 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, TypeKind};
 use crate::ext::{LifetimeProcessor, Mangle, Resolve, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, RustFermentate};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name};
 
 #[derive(ComposerBase)]
-pub struct BoundsComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct BoundsComposer<SPEC>
+    where SPEC: Specification + 'static {
     pub model: GenericBoundsModel,
-    base: BasicComposerLink<LANG, SPEC, Self>,
+    base: BasicComposerLink<SPEC, Self>,
 }
 
-impl<LANG, SPEC> BoundsComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> BoundsComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(
         model: &GenericBoundsModel,
         ty_context: SPEC::TYC,
@@ -37,10 +35,9 @@ impl<LANG, SPEC> BoundsComposer<LANG, SPEC>
     }
 }
 
-impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for BoundsComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         if self.model.is_lambda() {
@@ -50,9 +47,9 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
         let ffi_name = self.model.mangle_ident_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
-        let mut from_conversions = CommaPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut to_conversions = CommaPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut destroy_conversions = SemiPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut from_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut to_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
         let mut field_composers = Depunctuated::new();
         self.model
             .predicates
@@ -77,8 +74,8 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
                         Expression::obj_name(&field_name)
                     ),
                 };
-                let item = GenericArgPresentation::<RustFermentate, SPEC>::new(
-                    SPEC::Var::direct(ty.clone()),
+                let item = GenericArgPresentation::<RustSpecification>::new(
+                    <RustSpecification as Specification>::Var::direct(ty.clone()),
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
@@ -93,6 +90,6 @@ impl<SPEC> SourceComposable for BoundsComposer<RustFermentate, SPEC>
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![], generics: Generics::default() });
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
+        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

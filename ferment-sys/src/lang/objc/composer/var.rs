@@ -7,22 +7,21 @@ use crate::composer::{SourceComposable, VarComposer, VariableComposer};
 use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{path_arguments_to_type_conversions, AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
 
 
-impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl<'a> SourceComposable for VarComposer<'a, ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
+    type Output = FFIVariable<ObjCSpecification, TokenStream2>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
         let ptr_composer = search_key.ptr_composer();
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
-        let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = full_ty.maybe_resolve(source);
+        let maybe_special: Option<SpecialType<ObjCSpecification>> = full_ty.maybe_resolve(source);
 
         match maybe_special {
             Some(special) => match maybe_obj {
@@ -36,7 +35,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
             }
             None => match maybe_obj {
                 Some(ObjectKind::Item(_, ScopeItemKind::Fn(..))) =>
-                    ptr_composer(source.maybe_to_trait_fn_type::<ObjCFermentate, SPEC>()
+                    ptr_composer(source.maybe_to_trait_fn_type::<ObjCSpecification>()
                         .map_or(search_key.to_token_stream(), ToTokens::into_token_stream)),
                 Some(ObjectKind::Type(ref ty_model_kind)) |
                 Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
@@ -53,7 +52,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                     SmartPointerModelKind::Box(model)))) => {
                             let ty = model.as_type();
                             let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
-                            match Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(full_nested_ty, source) {
+                            match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
                                 Some(special) =>
                                     ptr_composer(special.to_token_stream()),
                                 None => {
@@ -67,7 +66,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                         _ => None,
                                     }.unwrap_or(TypeModelKind::unknown_type_ref(full_nested_ty));
                                     let var_c_type = var_ty.to_type();
-                                    let ffi_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                                    let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                     let var_ty = ffi_path.map(|p| p.to_type())
                                         .unwrap_or(var_c_type);
                                     let result = resolve_type_variable(var_ty, source);
@@ -85,12 +84,12 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
                             FFIVariable::mut_ptr(parse_quote!(NSData)),
                         TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
-                            FFIVariable::direct(Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(&ty, source)
+                            FFIVariable::direct(Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(&ty, source)
                                 .map(|special| special.to_token_stream())
-                                .unwrap_or(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(&ty, source)
+                                .unwrap_or(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&ty, source)
                                     .to_token_stream())),
                         TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) =>
-                            FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(&ty, source)
+                            FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&ty, source)
                                 .to_token_stream()),
                         TypeModelKind::Dictionary(
                             DictTypeModelKind::NonPrimitiveFermentable(
@@ -114,11 +113,11 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                 DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::Str(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
-                            let maybe_ffi_full_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = ty.maybe_resolve(source);
+                            let maybe_ffi_full_path: Option<FFIFullPath<ObjCSpecification>> = ty.maybe_resolve(source);
                             resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or(parse_quote!(#ty)), source)
                         },
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) =>
-                            Resolve::<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>::resolve(&conversion, source),
+                            Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&conversion, source),
                         TypeModelKind::Bounds(bounds) => {
                             bounds.resolve(source)
                         },
@@ -136,7 +135,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                                 _ => None,
                             }.unwrap_or_else(|| cnv.clone());
                             let var_c_type = var_ty.to_type();
-                            let ffi_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                            let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                             let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                             let result = resolve_type_variable(var_ty, source);
                             result
@@ -144,7 +143,7 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
                     }
                 },
                 _ => {
-                    let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = ScopeSearchKey::maybe_resolve(search_key, source);
+                    let maybe_special: Option<SpecialType<ObjCSpecification>> = ScopeSearchKey::maybe_resolve(search_key, source);
                     maybe_special
                         .map(FFIFullPath::from)
                         .or_else(|| Resolve::<TypeModelKind>::resolve(search_key, source)
@@ -159,12 +158,11 @@ impl<'a, SPEC> SourceComposable for VarComposer<'a, ObjCFermentate, SPEC>
 
     }
 }
-impl<SPEC> Resolve<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> for Path
-where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCFermentate, SPEC, TokenStream2>> {
+impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCSpecification, TokenStream2>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2> {
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
         // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
         let first_segment = self.segments.first().unwrap();
         let first_ident = &first_segment.ident;
@@ -177,9 +175,9 @@ where SPEC: ObjCSpecification {
                 Some(TypeKind::Primitive(ty)) =>
                     FFIVariable::mut_ptr(ty.to_token_stream()),
                 Some(TypeKind::Generic(generic_ty)) =>
-                    FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(generic_ty, source).to_token_stream()),
+                    FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(generic_ty, source).to_token_stream()),
                 Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    Resolve::<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>::resolve(path, source),
+                    Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(path, source),
                 _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
             }
         } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
@@ -189,10 +187,9 @@ where SPEC: ObjCSpecification {
         }
     }
 }
-impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for VariableComposer<ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = FFIVariable<ObjCFermentate, SPEC, TokenStream2>;
+    type Output = FFIVariable<ObjCSpecification, TokenStream2>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let is_const_ptr = match self.ty {
@@ -204,7 +201,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
         // println!("VariableComposer (compose): {} ({}) in {}", self.ty.to_token_stream(), full_ty.to_token_stream(), source.scope.fmt_short());
 
         let maybe_obj = source.maybe_object_by_predicate(ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope));
-        let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = full_ty.maybe_resolve(source);
+        let maybe_special: Option<SpecialType<ObjCSpecification>> = full_ty.maybe_resolve(source);
         let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
@@ -279,7 +276,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                             ObjectKind::Item(ref ty_conversion, ..) => {
                                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), source);
                                 // println!("VariableComposer (Function Parent): {} ({}) in {}", ty_conversion.to_token_stream(), full_parent_ty.to_token_stream(), source.scope.fmt_short());
-                                match Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(&full_parent_ty, source) {
+                                match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(&full_parent_ty, source) {
                                     Some(special) => special.to_type(),
                                     None => {
                                         match ty_conversion {
@@ -318,7 +315,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 let ty = model.as_type();
                                 let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
                                 let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
-                                match Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(full_nested_ty, source) {
+                                match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
                                         // println!("VariableComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
                                         match source.maybe_object_by_key(nested_ty) {
@@ -373,7 +370,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                             _ => None,
                                         }.unwrap_or(TypeModelKind::unknown_type_ref(nested_ty));
                                         let var_c_type = var_ty.to_type();
-                                        let ffi_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                                        let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                         let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                         let result = resolve_type_variable(var_ty, source);
 
@@ -395,9 +392,9 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => {
                                 // println!("VariableComposer (FnPointer Conversion): {}", ty.to_token_stream());
                                 let result = FFIVariable::direct(
-                                    Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(&ty, source)
+                                    Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(&ty, source)
                                         .map(|special| special.to_token_stream())
-                                        .unwrap_or(Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(&ty, source)
+                                        .unwrap_or(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&ty, source)
                                             .to_token_stream())
                                 );
                                 // println!("VariableComposer (FnPointer Variable): {}", result.to_token_stream());
@@ -406,7 +403,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => {
                                 // println!("VariableComposer (LambdaFn Conversion): {}", ty.to_token_stream());
                                 let result = FFIVariable::mut_ptr(
-                                    Resolve::<FFIFullPath<ObjCFermentate, SPEC>>::resolve(&ty, source).to_token_stream());
+                                    Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&ty, source).to_token_stream());
                                 // println!("VariableComposer (LambdaFn Variable): {}", result.to_token_stream());
                                 result
                             },
@@ -438,7 +435,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 // Dictionary generics and strings should be fermented
                                 // Others should be treated as opaque
                                 // println!("VariableComposer (Dictionary NonPrimitiveFermentable Conversion): {}", ty.to_token_stream());
-                                let maybe_ffi_full_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = ty.maybe_resolve(source);
+                                let maybe_ffi_full_path: Option<FFIFullPath<ObjCSpecification>> = ty.maybe_resolve(source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveFermentable Conversion FFIFULLPATH?): {}", maybe_ffi_full_path.to_token_stream());
                                 let result = resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or(parse_quote!(#ty)), source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveFermentable Variable): {}", result.to_token_stream());
@@ -452,7 +449,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
-                                let result = Resolve::<FFIVariable<ObjCFermentate, SPEC, TokenStream2>>::resolve(&conversion, source);
+                                let result = Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&conversion, source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                                 result
                             },
@@ -520,7 +517,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                                 });
                                 // println!("VariableComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
                                 let var_c_type = var_ty.to_type();
-                                let ffi_path: Option<FFIFullPath<ObjCFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                                let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                 let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                 let result = resolve_type_variable(var_ty, source);
 
@@ -532,7 +529,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
                     _ => {
                         //println!("UNKNOWN TOTALLY: {}", self.ty.to_token_stream());
                         // FFIVariable::mut_ptr(self.ty.clone())
-                        Resolve::<SpecialType<ObjCFermentate, SPEC>>::maybe_resolve(&self.ty, source)
+                        Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(&self.ty, source)
                             .map(FFIFullPath::from)
                             .or_else(|| source.maybe_ffi_full_path(&self.ty))
                             .map(|ffi_path| ffi_path.to_type())
@@ -551,8 +548,7 @@ impl<SPEC> SourceComposable for VariableComposer<ObjCFermentate, SPEC>
     }
 }
 
-pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2>
-    where SPEC: ObjCSpecification {
+pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
@@ -593,8 +589,7 @@ pub fn resolve_type_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariab
     }
 }
 #[allow(unused)]
-pub fn resolve_target_variable<SPEC>(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCFermentate, SPEC, TokenStream2>
-    where SPEC: ObjCSpecification {
+pub fn resolve_target_variable(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
     //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
@@ -850,12 +845,11 @@ pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
 
 
 
-impl<SPEC> Resolve<FFIFullPath<ObjCFermentate, SPEC>> for GenericTypeKind
-    where SPEC: ObjCSpecification {
-    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<ObjCFermentate, SPEC>> {
+impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<ObjCSpecification>> {
         Some(self.resolve(source))
     }
-    fn resolve(&self, source: &ScopeContext) -> FFIFullPath<ObjCFermentate, SPEC> {
+    fn resolve(&self, source: &ScopeContext) -> FFIFullPath<ObjCSpecification> {
         // println!("GenericTypeKind -> FFIFullPath --> {}", self);
         let result = match self {
             GenericTypeKind::Map(ty) |
@@ -894,7 +888,7 @@ impl<SPEC> Resolve<FFIFullPath<ObjCFermentate, SPEC>> for GenericTypeKind
                         ffi_name: {
                             if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) = bounds.first() {
                                 let ty = path.to_type();
-                                let maybe_special: Option<SpecialType<ObjCFermentate, SPEC>> = ty.maybe_special_type(source);
+                                let maybe_special: Option<SpecialType<ObjCSpecification>> = ty.maybe_special_type(source);
                                 match maybe_special {
                                     Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
                                         println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
@@ -918,8 +912,7 @@ impl<SPEC> Resolve<FFIFullPath<ObjCFermentate, SPEC>> for GenericTypeKind
     }
 }
 
-fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+fn single_generic_ffi_type(ty: &Type) -> FFIFullPath<ObjCSpecification> {
     let path: Path = parse_quote!(#ty);
     let first_segment = path.segments.first().unwrap();
     let mut cloned_segments = path.segments.clone();
@@ -946,8 +939,7 @@ fn single_generic_ffi_type<SPEC>(ty: &Type) -> FFIFullPath<ObjCFermentate, SPEC>
 
     }
 }
-impl<SPEC> ToType for FFIFullDictionaryPath<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ToType for FFIFullDictionaryPath<ObjCSpecification> {
     fn to_type(&self) -> Type {
         match self {
             FFIFullDictionaryPath::Void => parse_quote!(void),
@@ -958,8 +950,7 @@ impl<SPEC> ToType for FFIFullDictionaryPath<ObjCFermentate, SPEC>
     }
 }
 
-impl<SPEC> ToType for FFIFullPath<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ToType for FFIFullPath<ObjCSpecification> {
     fn to_type(&self) -> Type {
         let prefix = "DS";
         match self {

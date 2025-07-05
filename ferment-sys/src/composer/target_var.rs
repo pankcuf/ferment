@@ -4,20 +4,18 @@ use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{ObjectKind, TypeModelKind};
 use crate::ext::{AsType, ResolveTrait, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentation::{FFIVariable, RustFermentate};
+use crate::lang::{RustSpecification, Specification};
+use crate::presentation::FFIVariable;
 
 #[derive(Clone, Debug)]
-pub struct TargetVarComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+pub struct TargetVarComposer<'a, SPEC>
+where SPEC: Specification {
     pub search: ScopeSearch<'a>,
-    _marker: PhantomData<(LANG, SPEC)>,
+    _marker: PhantomData<SPEC>,
 }
 
-impl<'a, LANG, SPEC> TargetVarComposer<'a, LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<'a, SPEC> TargetVarComposer<'a, SPEC>
+    where SPEC: Specification {
     pub fn new(search: ScopeSearch<'a>) -> Self {
         Self { search, _marker: PhantomData }
     }
@@ -31,9 +29,9 @@ impl<'a, LANG, SPEC> TargetVarComposer<'a, LANG, SPEC>
     }
 }
 
-impl<'a, SPEC> SourceComposable for TargetVarComposer<'a, RustFermentate, SPEC> where SPEC: RustSpecification {
+impl<'a> SourceComposable for TargetVarComposer<'a, RustSpecification> {
     type Source = ScopeContext;
-    type Output = SPEC::Var;
+    type Output = <RustSpecification as Specification>::Var;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();

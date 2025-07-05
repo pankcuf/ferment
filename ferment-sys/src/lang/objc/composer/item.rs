@@ -7,16 +7,16 @@ use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::ArgPresentation;
+use crate::lang::Specification;
 use crate::presentable::{Expression, ScopeContextPresentable};
 
-impl<SPEC, I> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComposer<ObjCFermentate, SPEC, I>
+impl<I> InterfaceComposable<<ObjCSpecification as Specification>::Interface> for crate::composer::ItemComposer<ObjCSpecification, I>
     where I: DelimiterTrait + ?Sized,
-          SPEC: ObjCSpecification,
-          Self: GenericsComposable<SPEC::Gen>
-            + AttrComposable<SPEC::Attr>
-            + TypeAspect<SPEC::TYC>
+          Self: GenericsComposable<<ObjCSpecification as Specification>::Gen>
+            + AttrComposable<<ObjCSpecification as Specification>::Attr>
+            + TypeAspect<<ObjCSpecification as Specification>::TYC>
             + NameKindComposable {
-    fn compose_interfaces(&self) -> Depunctuated<SPEC::Interface> {
+    fn compose_interfaces(&self) -> Depunctuated<<ObjCSpecification as Specification>::Interface> {
         let source = self.source_ref();
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
@@ -45,9 +45,9 @@ impl<SPEC, I> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
         self.field_composers
             .iter()
             .for_each(|FieldComposer { name, kind, .. }| {
-                let var = VarComposer::<ObjCFermentate, SPEC>::key_in_scope(kind.ty(), &source.scope)
+                let var = VarComposer::<ObjCSpecification>::key_in_scope(kind.ty(), &source.scope)
                     .compose(&source);
-                let to_conversion = ToConversionFullComposer::<ObjCFermentate, SPEC>::key_expr(name.clone(), kind.ty(), &source.scope, Some(Expression::ObjName(name.clone())))
+                let to_conversion = ToConversionFullComposer::<ObjCSpecification>::key_expr(name.clone(), kind.ty(), &source.scope, Some(Expression::ObjName(name.clone())))
                     .compose(&source)
                     .present(&source);
 
@@ -91,9 +91,8 @@ impl<SPEC, I> InterfaceComposable<SPEC::Interface> for crate::composer::ItemComp
     }
 }
 
-impl<SPEC, I> SourceFermentable<ObjCFermentate> for crate::composer::ItemComposer<ObjCFermentate, SPEC, I>
-    where SPEC: ObjCSpecification,
-          I: DelimiterTrait + ?Sized, Self: NameKindComposable {
+impl<I> SourceFermentable<ObjCFermentate> for crate::composer::ItemComposer<ObjCSpecification, I>
+    where I: DelimiterTrait + ?Sized, Self: NameKindComposable {
     fn ferment(&self) -> ObjCFermentate {
         let implementations = self.compose_interfaces();
         println!("OBJC: ITEM FERMENT: \n{}", format_interface_implementations(&implementations));

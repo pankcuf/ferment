@@ -3,13 +3,12 @@ use syn::__private::TokenStream2;
 use crate::composer::{SourceComposable, FFIAspect};
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, InterfacesMethodExpr};
 
 
-impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ScopeContextPresentable for Expression<ObjCSpecification> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -22,9 +21,7 @@ impl<SPEC> ScopeContextPresentable for Expression<ObjCFermentate, SPEC>
                 expr.to_token_stream(),
             Self::DictionaryExpr(expr) =>
                 expr.to_token_stream(),
-
-
-                        Self::InterfacesExpr(expr) => expr.to_token_stream(),
+            Self::InterfacesExpr(expr) => expr.to_token_stream(),
             Self::MapExpression(presentable, mapper) =>
                 DictionaryExpr::Mapper(presentable.present(source).to_token_stream(), mapper.present(source).to_token_stream()).to_token_stream(),
             Self::DestroyString(presentable, _path) => {

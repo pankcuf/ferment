@@ -6,9 +6,9 @@ use crate::ast::CommaPunctuated;
 use crate::composer::{SourceComposable, FFIAspect, FieldTypeLocalContext};
 use crate::context::ScopeContext;
 use crate::ext::{ConversionType, Terminated, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::ScopeContextPresentable;
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr};
 
 
 #[derive(Clone, Copy, Debug)]
@@ -25,15 +25,13 @@ pub enum ConversionExpressionKind {
     OpaqueOptGroup,
 }
 
-pub trait ExpressionComposable<LANG, SPEC>: Clone + Debug + ScopeContextPresentable
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub trait ExpressionComposable<SPEC>: Clone + Debug + ScopeContextPresentable
+    where SPEC: Specification {
     fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr;
 }
 
-impl<LANG, SPEC> ExpressionComposable<LANG, SPEC> for Expression<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Self>,
+impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
+    where SPEC: Specification<Expr=Self>,
           SPEC::Expr: ScopeContextPresentable {
     fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr {
         Expression::Simple(tokens.to_token_stream())
@@ -41,13 +39,12 @@ impl<LANG, SPEC> ExpressionComposable<LANG, SPEC> for Expression<LANG, SPEC>
 }
 
 #[derive(Clone, Debug)]
-pub enum Expression<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Self>,
+pub enum Expression<SPEC>
+    where SPEC: Specification<Expr=Self>,
           Self: ScopeContextPresentable {
-    ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>),
+    ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<SPEC>>),
     ConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2),
-    CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<LANG, SPEC>>, /*ffi*/Type, /*target*/Type),
+    CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<SPEC>>, /*ffi*/Type, /*target*/Type),
     CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi*/Type, /*target*/Type),
 
     // Allocate(FFIAspect),
@@ -64,38 +61,37 @@ pub enum Expression<LANG, SPEC>
     InterfacesExpr(InterfacesMethodExpr),
 
     // DictionaryExpr
-    AsRef(Box<Expression<LANG, SPEC>>),
-    AsMutRef(Box<Expression<LANG, SPEC>>),
-    DerefRef(Box<Expression<LANG, SPEC>>),
-    DerefMutRef(Box<Expression<LANG, SPEC>>),
-    Clone(Box<Expression<LANG, SPEC>>),
-    FromPtrClone(Box<Expression<LANG, SPEC>>),
-    DerefExpr(Box<Expression<LANG, SPEC>>),
-    MapExpression(Box<Expression<LANG, SPEC>>, Box<Expression<LANG, SPEC>>),
-    MapIntoBox(Box<Expression<LANG, SPEC>>),
-    NewBox(Box<Expression<LANG, SPEC>>),
-    FromRawBox(Box<Expression<LANG, SPEC>>),
+    AsRef(Box<Expression<SPEC>>),
+    AsMutRef(Box<Expression<SPEC>>),
+    DerefRef(Box<Expression<SPEC>>),
+    DerefMutRef(Box<Expression<SPEC>>),
+    Clone(Box<Expression<SPEC>>),
+    FromPtrClone(Box<Expression<SPEC>>),
+    DerefExpr(Box<Expression<SPEC>>),
+    MapExpression(Box<Expression<SPEC>>, Box<Expression<SPEC>>),
+    MapIntoBox(Box<Expression<SPEC>>),
+    NewBox(Box<Expression<SPEC>>),
+    FromRawBox(Box<Expression<SPEC>>),
 
-    CastDestroy(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
-    DestroyString(Box<Expression<LANG, SPEC>>, TokenStream2),
+    CastDestroy(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
+    DestroyString(Box<Expression<SPEC>>, TokenStream2),
     DestroyStringGroup(TokenStream2),
-    DestroyBigInt(Box<Expression<LANG, SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
+    DestroyBigInt(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
 
-    ConversionType(Box<ConversionType<LANG, SPEC>>),
-    Terminated(Box<ConversionType<LANG, SPEC>>),
+    ConversionType(Box<ConversionType<SPEC>>),
+    Terminated(Box<ConversionType<SPEC>>),
 
-    Named((TokenStream2, Box<Expression<LANG, SPEC>>)),
-    NamedComposer((TokenStream2, Box<ConversionType<LANG, SPEC>>)),
+    Named((TokenStream2, Box<Expression<SPEC>>)),
+    NamedComposer((TokenStream2, Box<ConversionType<SPEC>>)),
 
-    FromLambda(Box<Expression<LANG, SPEC>>, CommaPunctuated<SPEC::Name>),
+    FromLambda(Box<Expression<SPEC>>, CommaPunctuated<SPEC::Name>),
     FromLambdaTokens(TokenStream2, CommaPunctuated<SPEC::Name>),
-    Boxed(Box<Expression<LANG, SPEC>>),
-    LeakBox(Box<Expression<LANG, SPEC>>),
+    Boxed(Box<Expression<SPEC>>),
+    LeakBox(Box<Expression<SPEC>>),
 }
 
-impl<LANG, SPEC> Expression<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Self>,
+impl<SPEC> Expression<SPEC>
+    where SPEC: Specification<Expr=Self>,
           SPEC::Expr: ScopeContextPresentable {
     fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
@@ -124,21 +120,21 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     // pub(crate) fn expr_as_ref(expr: Self) -> Self {
     //     Self::AsRef(expr.into())
     // }
-    pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
         Self::Empty
     }
 
-    pub(crate) fn bypass(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn bypass(context: &FieldTypeLocalContext<SPEC>) -> Self {
         let (_, conversion_type) = context;
         Self::ConversionType(Box::new(conversion_type.clone()))
     }
 
-    pub(crate) fn named_conversion(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn named_conversion(context: &FieldTypeLocalContext<SPEC>) -> Self {
         let (name, conversion_type) = context;
         Self::NamedComposer((name.to_token_stream(), Box::new(conversion_type.clone())))
     }
 
-    pub(crate) fn terminated(context: &FieldTypeLocalContext<LANG, SPEC>) -> Self {
+    pub(crate) fn terminated(context: &FieldTypeLocalContext<SPEC>) -> Self {
         let (_, conversion_type) = context;
         Self::Terminated(Box::new(conversion_type.clone()))
     }
@@ -339,19 +335,7 @@ impl<LANG, SPEC> Expression<LANG, SPEC>
     }
 }
 
-// impl<LANG, SPEC> Display for Expression<LANG, SPEC>
-//     where LANG: LangFermentable + Debug,
-//           SPEC: Specification<LANG> + Debug,
-//           <SPEC as Specification<LANG>>::Attr: Debug {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         std::fmt::Debug::fmt(self, f)
-//     }
-// }
-
-
-
-impl<SPEC> ScopeContextPresentable for Expression<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl ScopeContextPresentable for Expression<RustSpecification> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {

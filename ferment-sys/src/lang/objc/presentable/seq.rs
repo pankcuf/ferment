@@ -5,8 +5,9 @@ use syn::Path;
 use crate::ast::{Assignment, BraceWrapped, ParenWrapped};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composers::AttrWrapper;
+use crate::lang::Specification;
 use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::DictionaryName;
 
@@ -57,8 +58,7 @@ pub fn present_struct<T: ToTokens>(
     })
 }
 
-impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -125,7 +125,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = ParenWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ UnnamedVariantFields ({}, {})", ident, presentation);
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
             SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
@@ -135,14 +135,14 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ NamedVariantFields ({}, {})", ident, presentation);
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
             SeqKind::Variants(aspect, attrs, fields) => {
                 let name = aspect.present(source).mangle_ident_default();
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ Variants ({}, {})", name, presentation.to_token_stream());
-                SPEC::Attr::wrap(attrs, quote!(#name #presentation))
+                <ObjCSpecification as Specification>::Attr::wrap(attrs, quote!(#name #presentation))
             },
             SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
                 let ffi_type = aspect.present(source);
@@ -150,7 +150,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 println!("OBJC SEQ UnnamedStruct ({}, {})", ffi_type.to_token_stream(), presentation);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
-                    SPEC::Attr::from(aspect.attrs()),
+                    <ObjCSpecification as Specification>::Attr::from(aspect.attrs()),
                     presentation.terminated())
             },
             SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
@@ -159,7 +159,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 println!("OBJC SEQ NamedStruct ({}, {:?})", ffi_type.to_token_stream(), presentation);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
-                    SPEC::Attr::from(aspect.attrs()),
+                    <ObjCSpecification as Specification>::Attr::from(aspect.attrs()),
                     presentation)
             },
             SeqKind::Enum(context) => {
@@ -188,7 +188,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let last_segment = path.segments
                     .last()
                     .expect("Empty path");
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(last_segment)
                     .to_token_stream()
             },

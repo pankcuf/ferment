@@ -2,8 +2,7 @@ use std::marker::PhantomData;
 use syn::{parse_quote, Path, Type};
 use ferment_macro::Display;
 use crate::ext::{ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentation::RustFermentate;
+use crate::lang::{RustSpecification, Specification};
 
 #[allow(unused)]
 #[derive(Display)]
@@ -43,15 +42,14 @@ pub enum GlobalType {
 }
 
 #[derive(Debug)]
-pub enum FFIFullDictionaryPath<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub enum FFIFullDictionaryPath<SPEC>
+    where SPEC: Specification {
     Void,
     CChar,
-    Phantom(PhantomData<(LANG, SPEC)>)
+    Phantom(PhantomData<SPEC>)
 }
 
-impl<SPEC> ToType for FFIFullDictionaryPath<RustFermentate, SPEC> where SPEC: RustSpecification {
+impl ToType for FFIFullDictionaryPath<RustSpecification> {
     fn to_type(&self) -> Type {
         match self {
             FFIFullDictionaryPath::Void => parse_quote!(std::os::raw::c_void),
@@ -60,10 +58,9 @@ impl<SPEC> ToType for FFIFullDictionaryPath<RustFermentate, SPEC> where SPEC: Ru
         }
     }
 }
-impl<LANG, SPEC> ToPath for FFIFullDictionaryPath<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          FFIFullDictionaryPath<LANG, SPEC>: ToType {
+impl<SPEC> ToPath for FFIFullDictionaryPath<SPEC>
+    where SPEC: Specification,
+          FFIFullDictionaryPath<SPEC>: ToType {
     fn to_path(&self) -> Path {
         self.to_type()
             .to_path()

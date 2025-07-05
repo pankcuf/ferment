@@ -4,20 +4,18 @@ use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::ObjectKind;
 use crate::ext::{Resolve, SpecialType, ToType};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentation::FFIFullDictionaryPath;
 
 #[derive(Clone)]
-pub struct ScopeSearchComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+pub struct ScopeSearchComposer<'a, SPEC>
+where SPEC: Specification {
     pub search: ScopeSearch<'a>,
-    phantom_data: PhantomData<(LANG, SPEC)>
+    phantom_data: PhantomData<(SPEC)>
 }
 
-impl<'a, LANG, SPEC> ScopeSearchComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
+impl<'a, SPEC> ScopeSearchComposer<'a, SPEC>
+where SPEC: Specification {
     fn new(search: ScopeSearch<'a>) -> Self {
         Self { search, phantom_data: PhantomData }
     }
@@ -29,19 +27,18 @@ where LANG: LangFermentable,
     }
 }
 
-impl<'a, LANG, SPEC> SourceComposable for ScopeSearchComposer<'a, LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG>,
-      FFIFullDictionaryPath<LANG, SPEC>: ToType {
+impl<'a, SPEC> SourceComposable for ScopeSearchComposer<'a, SPEC>
+where SPEC: Specification,
+      FFIFullDictionaryPath<SPEC>: ToType {
 
     type Source = ScopeContext;
-    type Output = (Type, Option<ObjectKind>, Option<SpecialType<LANG, SPEC>>);
+    type Output = (Type, Option<ObjectKind>, Option<SpecialType<SPEC>>);
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
-        let maybe_special: Option<SpecialType<LANG, SPEC>> = full_ty.maybe_resolve(source);
+        let maybe_special: Option<SpecialType<SPEC>> = full_ty.maybe_resolve(source);
         (full_ty, maybe_obj, maybe_special)
     }
 }

@@ -9,21 +9,19 @@ use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{CrateExtension, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, RustFermentate};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation};
 
 #[derive(ComposerBase)]
-pub struct AnyOtherComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct AnyOtherComposer<SPEC>
+    where SPEC: Specification + 'static {
     pub ty: Type,
-    base: BasicComposerLink<LANG, SPEC, Self>,
+    base: BasicComposerLink<SPEC, Self>,
 }
 
-impl<LANG, SPEC> AnyOtherComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> AnyOtherComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
@@ -32,15 +30,14 @@ impl<LANG, SPEC> AnyOtherComposer<LANG, SPEC>
     }
 }
 
-impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for AnyOtherComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_name = self.ty.mangle_tokens_default();
-        let arg_0_name = SPEC::Name::dictionary_name(DictionaryName::Obj);
+        let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj);
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();
@@ -67,11 +64,11 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         // let ty = nested_ty;
         // compose(&arg_0_name, nested_ty)
 
-        let ffi_var = VarComposer::<RustFermentate, SPEC>::value(nested_ty)
+        let ffi_var = VarComposer::<RustSpecification>::value(nested_ty)
             .compose(source)
             .to_type();
         let maybe_obj = source.maybe_object_by_value(nested_ty);
-        let maybe_opaque = source.maybe_opaque_object::<RustFermentate, SPEC>(nested_ty);
+        let maybe_opaque = source.maybe_opaque_object::<RustSpecification>(nested_ty);
         let is_opaque = maybe_opaque.is_some();
         // println!("compose ffi_type: {}", ffi_var.to_token_stream());
         let to_expr = {
@@ -109,7 +106,7 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
                     },
                     "Mutex" | "RwLock" => {
 
-                        let expr = ToConversionFullComposer::<RustFermentate, SPEC>::value(arg_0_name.clone(), nested_ty).compose(source);
+                        let expr = ToConversionFullComposer::<RustSpecification>::value(arg_0_name.clone(), nested_ty).compose(source);
                         println!("RES expr: {}", expr.present(source));
                         // let pres = expr.present(source);
                         // Expression::
@@ -125,15 +122,15 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         let (from_conversion, to_conversion, destroy_conversion) = match maybe_obj.as_ref().and_then(|o| o.maybe_type_model_kind_ref()) {
             Some(ty_model_kind) => match ty_model_kind {
                 TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)) => (
-                    Expression::<RustFermentate, SPEC>::from_primitive_tokens(quote!(ffi_ref.#arg_0_name)),
-                    Some(Expression::<RustFermentate, SPEC>::ffi_to_primitive_tokens(to_expr)),
-                    Expression::<RustFermentate, SPEC>::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))
+                    Expression::<RustSpecification>::from_primitive_tokens(quote!(ffi_ref.#arg_0_name)),
+                    Some(Expression::<RustSpecification>::ffi_to_primitive_tokens(to_expr)),
+                    Expression::<RustSpecification>::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream()))
                 ),
                 TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => {
-                    if let Some(lambda_args) = MaybeLambdaArgs::<RustFermentate, SPEC>::maybe_lambda_arg_names(ty_model_kind) {
+                    if let Some(lambda_args) = MaybeLambdaArgs::<RustSpecification>::maybe_lambda_arg_names(ty_model_kind) {
                         (Expression::from_lambda(Expression::Simple(quote!((&*ffi_ref.#arg_0_name))), lambda_args), None, Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
                     } else {
-                        (Expression::from_primitive(Expression::<RustFermentate, SPEC>::FfiRefWithName(arg_0_name.clone()).into()), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
+                        (Expression::from_primitive(Expression::<RustSpecification>::FfiRefWithName(arg_0_name.clone()).into()), Some(Expression::ffi_to_primitive_tokens(to_expr)), Expression::destroy_primitive_tokens(DictionaryExpr::SelfProp(arg_0_name.to_token_stream())))
                     }
                 },
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) =>
@@ -182,20 +179,20 @@ impl<SPEC> SourceComposable for AnyOtherComposer<RustFermentate, SPEC>
         interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None, &lifetimes));
         if let Some(to_conversion) = to_conversion {
             let expr_to_iter = [
-                FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Conversion(Expression::<RustFermentate, SPEC>::present(&to_conversion, source)))
+                FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(Expression::<RustSpecification>::present(&to_conversion, source)))
             ];
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
             interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &lifetimes));
         }
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::<RustFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Type(ffi_var))
+            FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Type(ffi_var))
         ]);
         let expr_destroy_iterator = [
             destroy_conversion.present(source)
         ];
         interfaces.push(InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator)));
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
+        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }
 

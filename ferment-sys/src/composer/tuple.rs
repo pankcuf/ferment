@@ -9,21 +9,19 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{LifetimeProcessor, Mangle, Resolve};
-use crate::lang::{LangFermentable, NameComposable, RustSpecification, Specification};
+use crate::lang::{NameComposable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, RustFermentate};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation};
 
 #[derive(ComposerBase)]
-pub struct TupleComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
+pub struct TupleComposer<SPEC>
+    where SPEC: Specification + 'static {
     pub type_tuple: TypeTuple,
-    base: BasicComposerLink<LANG, SPEC, Self>,
+    base: BasicComposerLink<SPEC, Self>,
 }
 
-impl<LANG, SPEC> TupleComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> TupleComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(type_tuple: &TypeTuple, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
@@ -32,18 +30,17 @@ impl<LANG, SPEC> TupleComposer<LANG, SPEC>
     }
 }
 
-impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for TupleComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<RustFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
-        let mut from_conversions = CommaPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut to_conversions = CommaPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut destroy_conversions = SemiPunctuated::<<SPEC::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut from_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut to_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
         let mut field_composers = Depunctuated::new();
         self.type_tuple
             .elems
@@ -51,8 +48,8 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
             .enumerate()
             .for_each(|(index, ty)| {
                 lifetimes.extend(ty.unique_lifetimes());
-                let name = SPEC::Name::unnamed_arg(index);
-                let field_name = SPEC::Name::index(index);
+                let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
+                let field_name = <RustSpecification as Specification>::Name::index(index);
                 let ty: Type = ty.resolve(source);
                 let (kind, destroy_expr) = match TypeKind::from(&ty) {
                     TypeKind::Primitive(..) => (
@@ -70,8 +67,8 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
                 };
                 let from_expr = Expression::ffi_ref_with_name(&name);
                 let to_expr = Expression::obj_name(&field_name);
-                let item = GenericArgPresentation::<RustFermentate, SPEC>::new(
-                    SPEC::Var::direct(ty.clone()),
+                let item = GenericArgPresentation::<RustSpecification>::new(
+                    <RustSpecification as Specification>::Var::direct(ty.clone()),
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
@@ -87,6 +84,6 @@ impl<SPEC> SourceComposable for TupleComposer<RustFermentate, SPEC>
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.type_tuple.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
-        Some(GenericComposerInfo::<RustFermentate, SPEC>::default(aspect, &attrs, field_composers, interfaces))
+        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

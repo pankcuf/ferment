@@ -10,22 +10,20 @@ use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicCom
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
-use crate::lang::{FromDictionary, LangFermentable, RustSpecification, Specification};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocComposer, FFIFullPath, Name, RustFermentate};
+use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, DocComposer, FFIFullPath, Name};
 
 #[derive(ComposerBase)]
-pub struct VTableComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub base: BasicComposerLink<LANG, SPEC, Self>,
-    pub vtable_method_composers: Vec<SigComposerLink<LANG, SPEC>>,
+pub struct VTableComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub base: BasicComposerLink<SPEC, Self>,
+    pub vtable_method_composers: Vec<SigComposerLink<SPEC>>,
 }
 
-impl<LANG, SPEC> VTableComposer<LANG, SPEC>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG> {
-    pub fn from_trait_path(ty_context: SPEC::TYC, attrs: &Vec<Attribute>, vtable_method_composers: Vec<SigComposerLink<LANG, SPEC>>, context: ScopeContextLink) -> ComposerLink<Self> {
+impl<SPEC> VTableComposer<SPEC>
+where SPEC: Specification {
+    pub fn from_trait_path(ty_context: SPEC::TYC, attrs: &Vec<Attribute>, vtable_method_composers: Vec<SigComposerLink<SPEC>>, context: ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
                 DocComposer::new(ty_context.to_token_stream()),
@@ -44,8 +42,7 @@ where LANG: LangFermentable,
 
     }
 }
-impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for VTableComposer<RustSpecification> {
     type Source = ScopeContext;
     type Output = BindingPresentation;
 
@@ -75,7 +72,7 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
 
                 let sig = sig_context.maybe_signature().unwrap();
                 let Signature { ident, output, inputs, .. } = sig;
-                let name = Name::<RustFermentate, SPEC>::TraitImplVtableFn(trait_ty.mangle_ident_default(), method_scope_context.scope.to_type().mangle_ident_default());
+                let name = Name::<RustSpecification>::TraitImplVtableFn(trait_ty.mangle_ident_default(), method_scope_context.scope.to_type().mangle_ident_default());
                 let mut args = CommaPunctuated::new();
                 let mut args_conversions = CommaPunctuated::new();
                 inputs.iter().for_each(|arg| {
@@ -84,38 +81,38 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
                             args.push(ArgPresentation::field(
                                 attrs,
                                 Visibility::Inherited,
-                                Some(Name::<RustFermentate, SPEC>::dictionary_name(DictionaryName::Self_).mangle_ident_default()),
-                                VariableComposer::<RustFermentate, SPEC>::from(sig_context.receiver_ty())
+                                Some(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_).mangle_ident_default()),
+                                VariableComposer::<RustSpecification>::from(sig_context.receiver_ty())
                                     .compose(&method_scope_context)
                                     .to_type()
                             ));
                             args_conversions.push(ArgPresentation::expr(attrs, match (mutability, reference) {
-                                (Some(..), _) => SPEC::Expr::AsMutRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(mut))).into()),
-                                (_, Some(..)) => SPEC::Expr::AsRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into()),
+                                (Some(..), _) => <RustSpecification as Specification>::Expr::AsMutRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(mut))).into()),
+                                (_, Some(..)) => <RustSpecification as Specification>::Expr::AsRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into()),
                                 (..) => Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into(),
                             }.present(source)));
 
                         },
                         FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
-                            let var = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &method_scope_context.scope)
+                            let var = VarComposer::<RustSpecification>::key_in_scope(ty, &method_scope_context.scope)
                                 .compose(&method_scope_context)
                                 .to_type();
-                            args.push(ArgPresentation::field(attrs, Visibility::Inherited, Some(Name::<RustFermentate, SPEC>::Pat(*pat.clone()).mangle_ident_default()), var));
-                            args_conversions.push(ArgPresentation::expr(attrs, FromConversionFullComposer::<RustFermentate, SPEC>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
+                            args.push(ArgPresentation::field(attrs, Visibility::Inherited, Some(Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default()), var));
+                            args_conversions.push(ArgPresentation::expr(attrs, FromConversionFullComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context).present(source)));
                         }
                     }
                 });
 
                 let (out, presentable_output_conversion) = match &output {
-                    ReturnType::Default => (ReturnType::Default, SPEC::Expr::Simple(Semi::default().to_token_stream())),
+                    ReturnType::Default => (ReturnType::Default, <RustSpecification as Specification>::Expr::Simple(Semi::default().to_token_stream())),
                     ReturnType::Type(_, ty) => {
-                        let var = VarComposer::<RustFermentate, SPEC>::key_in_scope(ty, &method_scope_context.scope)
+                        let var = VarComposer::<RustSpecification>::key_in_scope(ty, &method_scope_context.scope)
                             .compose(&method_scope_context)
                             .to_type();
                         (
                             ReturnType::Type(Default::default(), Box::new(var)),
-                            ToConversionFullComposer::<RustFermentate, SPEC>::key(SPEC::Name::dictionary_name(DictionaryName::Obj), ty, &method_scope_context.scope)
+                            ToConversionFullComposer::<RustSpecification>::key(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context)
                         )
                     }
@@ -136,8 +133,8 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
                 });
             });
         let trait_ident = trait_ty.mangle_ident_default();
-        let name = Name::<RustFermentate, SPEC>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ident);
-        let full_trait_path: FFIFullPath<RustFermentate, SPEC> = trait_ty.resolve(&source);
+        let name = Name::<RustSpecification>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ident);
+        let full_trait_path: FFIFullPath<RustSpecification> = trait_ty.resolve(&source);
         let full_trait_type = full_trait_path.to_type();
         let mut fq_trait_vtable = full_trait_type.to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);
@@ -151,14 +148,14 @@ impl<SPEC> SourceComposable for VTableComposer<RustFermentate, SPEC>
             bindings: Depunctuated::from_iter([
                 BindingPresentation::ObjAsTrait {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::TraitFn(target_type.clone(), full_trait_type.clone()).to_token_stream(),
+                    name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()).to_token_stream(),
                     item_type: target_type.clone(),
                     trait_type: full_trait_type.to_token_stream(),
                     vtable_name: name.to_token_stream(),
                 },
                 BindingPresentation::ObjAsTraitDestructor {
                     attrs,
-                    name: Name::<RustFermentate, SPEC>::TraitDestructor(target_type.clone(), full_trait_type.clone()).to_token_stream(),
+                    name: Name::<RustSpecification>::TraitDestructor(target_type.clone(), full_trait_type.clone()).to_token_stream(),
                     item_type: target_type.to_token_stream(),
                     trait_type: full_trait_type.to_token_stream(),
                     generics: None,

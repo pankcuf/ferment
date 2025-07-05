@@ -5,51 +5,49 @@ use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{BindingAccessorContext, CommaPunctuatedArgKinds, AspectArgComposers, NameKind, ArgKindPair, OwnerAspectSequence, SemiPunctuatedArgKinds, VariableComposer, SourceComposable};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable, SeqKind};
-use crate::presentation::{BindingPresentation, Name, RustFermentate};
+use crate::presentation::{BindingPresentation, Name};
 
-pub enum BindingPresentableContext<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    Constructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
-    VariantConstructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>),
+pub enum BindingPresentableContext<SPEC>
+    where SPEC: Specification {
+    Constructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>),
+    VariantConstructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind, CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>),
     Destructor(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, NameKind),
-    Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<LANG, SPEC>, TokenStream2),
-    Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<LANG, SPEC>, TokenStream2),
-    RegFn(Path, bool, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, SeqKind<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt),
+    Getter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<SPEC>, TokenStream2),
+    Setter(Aspect<SPEC::TYC>, SPEC::Attr, SPEC::Gen, VariableComposer<SPEC>, TokenStream2),
+    RegFn(Path, bool, CommaPunctuatedArgKinds<SPEC>, ReturnType, SeqKind<SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt),
     #[allow(unused)]
-    RegFn2(Path, bool, CommaPunctuatedTokens, CommaPunctuatedArgKinds<LANG, SPEC>, ReturnType, Type, SemiPunctuatedArgKinds<LANG, SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
+    RegFn2(Path, bool, CommaPunctuatedTokens, CommaPunctuatedArgKinds<SPEC>, ReturnType, Type, SemiPunctuatedArgKinds<SPEC>, SPEC::Expr, SPEC::Attr, SPEC::Gen, SPEC::Lt)
 }
 
-impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    pub fn ctor<Iter: IntoIterator<Item=ArgKindPair<LANG, SPEC>>>(context: OwnerAspectSequence<LANG, SPEC, Iter>) -> Self {
+impl<SPEC> BindingPresentableContext<SPEC>
+    where SPEC: Specification {
+    pub fn ctor<Iter: IntoIterator<Item=ArgKindPair<SPEC>>>(context: OwnerAspectSequence<SPEC, Iter>) -> Self {
         let ((ffi_type, attrs, generics, name_kind, .. ), field_pairs) = context;
-        let (args, names): (CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::Constructor(ffi_type, attrs, generics, name_kind, args, names)
     }
-    pub fn variant_ctor<Iter: IntoIterator<Item=ArgKindPair<LANG, SPEC>>>(context: OwnerAspectSequence<LANG, SPEC, Iter>) -> Self {
+    pub fn variant_ctor<Iter: IntoIterator<Item=ArgKindPair<SPEC>>>(context: OwnerAspectSequence<SPEC, Iter>) -> Self {
         let ((aspect, attrs, generics, name_kind, .. ), field_pairs) = context;
-        let (args, names): (CommaPunctuatedArgKinds<LANG, SPEC>, CommaPunctuatedArgKinds<LANG, SPEC>) = field_pairs.into_iter().unzip();
+        let (args, names): (CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>) = field_pairs.into_iter().unzip();
         BindingPresentableContext::VariantConstructor(aspect, attrs, generics, name_kind, args, names)
     }
-    pub fn dtor(context: AspectArgComposers<LANG, SPEC>) -> Self {
+    pub fn dtor(context: AspectArgComposers<SPEC>) -> Self {
         let ((ffi_type, attrs, generics, name_kind), ..) = context;
         BindingPresentableContext::Destructor(ffi_type, attrs, generics, name_kind)
     }
-    pub fn get(context: BindingAccessorContext<LANG, SPEC>) -> Self {
+    pub fn get(context: BindingAccessorContext<SPEC>) -> Self {
         let (obj_type, attrs, generics, field_type, field_name, ..) = context;
         BindingPresentableContext::Getter(obj_type, attrs, generics, field_type, field_name)
     }
-    pub fn set(context: BindingAccessorContext<LANG, SPEC>) -> Self {
+    pub fn set(context: BindingAccessorContext<SPEC>) -> Self {
         let (obj_type, attrs, generics, field_type, field_name, ..) = context;
         BindingPresentableContext::Setter(obj_type, attrs, generics, field_type, field_name)
     }
-    // pub fn reg_fn(context: FunctionContext<LANG, SPEC>) -> Self {
+    // pub fn reg_fn(context: FunctionContext<SPEC>) -> Self {
     //     let (((ffi_type, attrs, generics, .. ), is_round), field_pairs) = context;
-    //     let (args, names): (CommaPunctuatedOwnedItems<LANG, SPEC>, CommaPunctuatedOwnedItems<LANG, SPEC>) = field_pairs.into_iter().unzip();
+    //     let (args, names): (CommaPunctuatedOwnedItems<SPEC>, CommaPunctuatedOwnedItems<SPEC>) = field_pairs.into_iter().unzip();
     //     BindingPresentableContext::RegFn(
     //         path,
     //         asyncness.is_some(),
@@ -63,8 +61,7 @@ impl<LANG, SPEC> BindingPresentableContext<LANG, SPEC>
     // }
 }
 
-impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
     type Presentation = BindingPresentation;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -78,7 +75,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 };
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::Constructor(ty.clone()).mangle_tokens_default(),
+                    name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone(),
                     ctor_arguments: args.present(&source),
@@ -96,7 +93,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
 
                 BindingPresentation::VariantConstructor {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::Constructor(ty.clone()).mangle_tokens_default(),
+                    name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone(),
                     ctor_arguments: args.present(&source),
@@ -107,7 +104,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::Destructor(ty.clone()).mangle_tokens_default(),
+                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
                     generics: generics.clone()
                 }
@@ -117,7 +114,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
 
                 BindingPresentation::Getter {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
+                    name: Name::<RustSpecification>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
                     field_type: field_type.compose(source).to_type(),
@@ -128,7 +125,7 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 let obj_type = obj_aspect.present(source);
                 BindingPresentation::Getter {
                     attrs: attrs.clone(),
-                    name: Name::<RustFermentate, SPEC>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
+                    name: Name::<RustSpecification>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
                     field_type: field_type.compose(source).to_type(),
@@ -139,25 +136,25 @@ impl<SPEC> ScopeContextPresentable for BindingPresentableContext<RustFermentate,
                 attrs: attrs.clone(),
                 is_async: *is_async,
                 arguments: arguments.present(&source),
-                name: Name::<RustFermentate, SPEC>::ModFn(path.clone()).mangle_tokens_default(),
+                name: Name::<RustSpecification>::ModFn(path.clone()).mangle_tokens_default(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
                 generics: generics.clone(),
                 lifetimes: lifetimes.clone(),
-                output_conversions: <SPEC::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
+                output_conversions: <<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
             },
             BindingPresentableContext::RegFn2(path, is_async, argument_names, arguments, return_type, full_fn_path, input_conversions, return_type_conversion, attrs, generics, lifetimes) => BindingPresentation::RegularFunction2 {
                 attrs: attrs.clone(),
                 is_async: *is_async,
                 argument_names: argument_names.clone(),
                 arguments: arguments.present(&source),
-                name: Name::<RustFermentate, SPEC>::ModFn(path.clone()).mangle_tokens_default(),
+                name: Name::<RustSpecification>::ModFn(path.clone()).mangle_tokens_default(),
                 full_fn_path: full_fn_path.clone(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
                 generics: generics.clone(),
                 lifetimes: lifetimes.clone(),
-                output_conversions: <SPEC::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
+                output_conversions: <<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
             }
         }
     }

@@ -9,7 +9,7 @@ use crate::composable::TypeModeled;
 use crate::context::ScopeContext;
 use crate::conversion::dict::DictTypeModelKind;
 use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ToType};
-use crate::lang::{LangFermentable, NameComposable, Specification};
+use crate::lang::{NameComposable, Specification};
 
 
 #[derive(Clone)]
@@ -77,9 +77,8 @@ impl ToTokens for TypeModelKind {
     }
 }
 
-impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for TypeModelKind
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> MaybeLambdaArgs<SPEC> for TypeModelKind
+    where SPEC: Specification {
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>

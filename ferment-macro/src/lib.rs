@@ -239,8 +239,8 @@ pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
-        impl #impl_generics crate::composer::BasicComposerOwner<crate::presentable::Context, LANG, SPEC, Gen> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>, LANG> {
+        impl #impl_generics crate::composer::BasicComposerOwner<crate::presentable::Context, SPEC, Gen> for #ident #ty_generics #where_clause {
+            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>> {
                 &self.base
             }
         }
@@ -252,8 +252,8 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
-        impl #impl_generics crate::composer::BasicComposerOwner<LANG, SPEC> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposerLink<LANG, SPEC, Self> {
+        impl #impl_generics crate::composer::BasicComposerOwner<SPEC> for #ident #ty_generics #where_clause {
+            fn base(&self) -> &crate::composer::BasicComposerLink<SPEC, Self> {
                 &self.base
             }
         }

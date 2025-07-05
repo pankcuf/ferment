@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, RwLock};
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
+use quote::format_ident;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
@@ -41,32 +41,25 @@ impl SourceAccessible for ScopeTree {
     }
 }
 
-impl RustSpecification for ScopeTree {}
-
 impl SourceFermentable<RustFermentate> for ScopeTree {
     fn ferment(&self) -> RustFermentate {
-        let source = self.source_ref();
         let fermentate = Depunctuated::from_iter(self.exported
             .values()
             .filter_map(|item| match item {
                 ScopeTreeItem::Item { item, scope, scope_context } =>
-                    MaybeComposer::<RustFermentate, ScopeTree>::maybe_composer(item, scope, scope_context)
+                    MaybeComposer::<RustSpecification>::maybe_composer(item, scope, scope_context)
                         .map(|composer| composer.ferment()),
                 ScopeTreeItem::Tree { tree } =>
                     Some(tree.ferment())
         }));
         if !fermentate.is_empty() {
+            let source = self.source_ref();
             let ctx = source.context.read().unwrap();
             let mut imports = SemiPunctuated::from_iter([
                 create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: ctx.config.current_crate.ident() }))
             ]);
             imports.extend(SemiPunctuated::from_iter(self.imported.iter().cloned()));
-            let name = if self.scope.is_crate_root() {
-                self.scope.crate_ident_ref().to_token_stream()
-            } else {
-                self.scope.head().to_token_stream()
-            };
-            RustFermentate::mod_with(self.attrs.cfg_attributes(), name, imports, fermentate)
+            RustFermentate::mod_with(self.attrs.cfg_attributes(), self.scope.crate_name(), imports, fermentate)
         } else {
             RustFermentate::Empty
         }

@@ -16,9 +16,8 @@ use crate::composer::type_alias::TypeAliasComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::{MacroType, ScopeItemKind};
 use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{TypeContext, ScopeContextPresentable, Expression};
-use crate::presentation::RustFermentate;
 pub use self::composable::*;
 pub use self::context::*;
 pub use self::iterative::*;
@@ -54,11 +53,10 @@ pub trait MaybeMacroLabeled {
 
 }
 
-pub trait MaybeComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub trait MaybeComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
-    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<LANG, SPEC>>;
+    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<SPEC>>;
 }
 
 pub trait SourceComposable {
@@ -149,9 +147,8 @@ impl MaybeMacroLabeled for Attribute {
     }
 }
 
-impl<SPEC> MaybeComposer<RustFermentate, SPEC> for Item
-    where SPEC: RustSpecification {
-    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<RustFermentate, SPEC>> {
+impl MaybeComposer<RustSpecification> for Item {
+    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<RustSpecification>> {
         self.maybe_macro_labeled()
             .and_then(|macro_type| {
                 let source = scope_context.borrow();

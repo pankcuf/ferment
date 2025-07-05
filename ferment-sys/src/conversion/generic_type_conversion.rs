@@ -1,4 +1,4 @@
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
@@ -10,55 +10,49 @@ use crate::composer::{Composer, SourceComposable, VariableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType, AsType};
 use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::{RustFermentate, Name};
+use crate::presentation::Name;
 
-pub type ExpressionComposer<LANG, SPEC> = Composer<TokenStream2, <SPEC as Specification<LANG>>::Expr>;
+pub type ExpressionComposer<SPEC> = Composer<TokenStream2, <SPEC as Specification>::Expr>;
 #[allow(unused)]
-pub type ExprComposer<LANG, SPEC> = dyn Fn(TokenStream2) -> <SPEC as Specification<LANG>>::Expr;
+pub type ExprComposer<SPEC> = dyn Fn(TokenStream2) -> <SPEC as Specification>::Expr;
 
-pub const fn primitive_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub const fn primitive_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr = Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_primitive_opt_tokens), Some(Expression::ffi_to_primitive_opt_tokens), Some(Expression::destroy_primitive_opt_tokens))
 }
 #[allow(unused)]
-pub const fn complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub const fn complex_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_tokens))
 }
-pub const fn complex_opt_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub const fn complex_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_opt_tokens), Some(Expression::ffi_to_complex_opt_tokens), Some(Expression::destroy_complex_opt_tokens))
 }
-pub const fn result_complex_arg_composer<LANG, SPEC>() -> GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub const fn result_complex_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_opt_tokens))
 }
 
-pub struct GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+pub struct GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
-    pub from_composer: Option<ExpressionComposer<LANG, SPEC>>,
-    pub to_composer: Option<ExpressionComposer<LANG, SPEC>>,
-    pub destroy_composer: Option<ExpressionComposer<LANG, SPEC>>,
+    pub from_composer: Option<ExpressionComposer<SPEC>>,
+    pub to_composer: Option<ExpressionComposer<SPEC>>,
+    pub destroy_composer: Option<ExpressionComposer<SPEC>>,
 }
 
-impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
+impl<SPEC> GenericArgComposer<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     pub const fn new(
-        from_composer: Option<ExpressionComposer<LANG, SPEC>>,
-        to_composer: Option<ExpressionComposer<LANG, SPEC>>,
-        destroy_composer: Option<ExpressionComposer<LANG, SPEC>>
+        from_composer: Option<ExpressionComposer<SPEC>>,
+        to_composer: Option<ExpressionComposer<SPEC>>,
+        destroy_composer: Option<ExpressionComposer<SPEC>>
     ) -> Self {
         Self { from_composer, to_composer, destroy_composer }
     }
@@ -77,26 +71,23 @@ impl<LANG, SPEC> GenericArgComposer<LANG, SPEC>
     }
 }
 
-pub type GenericNestedArgComposer<LANG, SPEC> = fn(arg_name: &Name<LANG, SPEC>, arg_ty: &Type) -> GenericArgPresentation<LANG, SPEC>;
+pub type GenericNestedArgComposer<SPEC> = fn(arg_name: &Name<SPEC>, arg_ty: &Type) -> GenericArgPresentation<SPEC>;
 
 #[allow(unused)]
-pub trait GenericNamedArgComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC>;
+pub trait GenericNamedArgComposer<SPEC>
+    where SPEC: Specification {
+    fn compose_with(&self, name: &Name<SPEC> , composer: GenericNestedArgComposer<SPEC>) -> GenericArgPresentation<SPEC>;
 }
 
-impl<LANG, SPEC> GenericNamedArgComposer<LANG, SPEC> for Type
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    fn compose_with(&self, name: &Name<LANG, SPEC> , composer: GenericNestedArgComposer<LANG, SPEC>) -> GenericArgPresentation<LANG, SPEC> {
+impl<SPEC> GenericNamedArgComposer<SPEC> for Type
+    where SPEC: Specification {
+    fn compose_with(&self, name: &Name<SPEC> , composer: GenericNestedArgComposer<SPEC>) -> GenericArgPresentation<SPEC> {
         composer(name, self)
     }
 }
 
-pub struct GenericArgPresentation<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub struct GenericArgPresentation<SPEC>
+    where SPEC: Specification {
     pub ty: SPEC::Var,
     // pub alloc: SPEC::Expr,
     pub destructor: SPEC::Expr,
@@ -104,24 +95,21 @@ pub struct GenericArgPresentation<LANG, SPEC>
     pub to_conversion: SPEC::Expr,
 }
 
-impl<LANG, SPEC> Debug for GenericArgPresentation<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> Debug for GenericArgPresentation<SPEC>
+    where SPEC: Specification {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("GenericArgPresentation({})", self.ty.to_token_stream()))
     }
 }
-impl<LANG, SPEC> Display for GenericArgPresentation<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> Display for GenericArgPresentation<SPEC>
+    where SPEC: Specification {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
 }
 
-impl<LANG, SPEC> GenericArgPresentation<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> GenericArgPresentation<SPEC>
+    where SPEC: Specification {
     pub fn new(ty: SPEC::Var, destructor: SPEC::Expr, from_conversion: SPEC::Expr, to_conversion: SPEC::Expr) -> Self {
         Self { ty, destructor, from_conversion, to_conversion }
     }
@@ -258,9 +246,7 @@ impl GenericTypeKind {
     }
 }
 
-impl<SPEC> Resolve<Field> for FieldComposer<RustFermentate, SPEC>
-    where
-        SPEC: RustSpecification {
+impl Resolve<Field> for FieldComposer<RustSpecification> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<Field> {
         Some(self.resolve(source))
     }
@@ -271,7 +257,7 @@ impl<SPEC> Resolve<Field> for FieldComposer<RustFermentate, SPEC>
             vis: Visibility::Public(VisPublic { pub_token: Default::default() }),
             ident: Some(name.mangle_ident_default()),
             colon_token: Some(Default::default()),
-            ty: VariableComposer::<RustFermentate, SPEC>::new(kind.to_type())
+            ty: VariableComposer::<RustSpecification>::new(kind.to_type())
                 .compose(source)
                 .to_type()
         }

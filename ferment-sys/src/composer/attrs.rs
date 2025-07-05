@@ -2,39 +2,35 @@ use std::marker::PhantomData;
 use crate::composable::{AttrsModel, CfgAttributes};
 use crate::composer::{SourceComposable, Linkable};
 use crate::context::ScopeContextLink;
-use crate::lang::{LangAttrSpecification, LangFermentable, Specification};
+use crate::lang::{LangAttrSpecification, Specification};
 use crate::shared::SharedAccess;
 
-pub struct AttrsComposer<LANG, SPEC, Link>
+pub struct AttrsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     pub parent: Option<Link>,
     pub attrs: AttrsModel,
-    _marker: PhantomData<(LANG, SPEC)>,
+    _marker: PhantomData<SPEC>,
 }
-impl<LANG, SPEC, Link> AttrsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> AttrsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     pub fn new(attrs: AttrsModel) -> Self {
         Self { parent: None, attrs, _marker: PhantomData }
     }
 }
 
-impl<LANG, SPEC, Link> Linkable<Link> for AttrsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> Linkable<Link> for AttrsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
 
-impl<LANG, SPEC, Link> SourceComposable for AttrsComposer<LANG, SPEC, Link>
+impl<SPEC, Link> SourceComposable for AttrsComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     type Source = ScopeContextLink;
     type Output = SPEC::Attr;
     fn compose(&self, _context: &Self::Source) -> Self::Output {

@@ -2,8 +2,7 @@ use crate::composer::{SourceComposable, GenericComposer, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 
-impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for GenericComposer<ObjCSpecification> {
     type Source = ScopeContext;
     type Output = Option<ObjCFermentate>;
 

@@ -6,12 +6,11 @@ use crate::composer::{ItemComposerWrapper, MaybeComposer, MaybeMacroLabeled, Sig
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::MacroType;
 use crate::ext::{CrateExtension, ToPath};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::presentable::TypeContext;
 
-impl<SPEC> MaybeComposer<ObjCFermentate, SPEC> for Item
-    where SPEC: ObjCSpecification {
-    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<ObjCFermentate, SPEC>> {
+impl MaybeComposer<ObjCSpecification> for Item {
+    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<ObjCSpecification>> {
         self.maybe_macro_labeled()
             .and_then(|macro_type| {
                 let source = scope_context.borrow();

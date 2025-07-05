@@ -10,9 +10,9 @@ use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, Field
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
-use crate::presentation::{DictionaryName, RustFermentate};
+use crate::presentation::DictionaryName;
 
 #[derive(Clone, Debug)]
 pub enum Aspect<T> {
@@ -22,16 +22,14 @@ pub enum Aspect<T> {
 }
 
 impl<T> Aspect<T> where T: NameTreeContext {
-    pub fn ffi<LANG, SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<LANG, SPEC>
-    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<LANG, SPEC> + NameKindComposable,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, TYC=T> {
+    pub fn ffi<SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<SPEC>
+    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
+          SPEC: Specification<TYC=T> {
         ((Aspect::FFI(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
     }
-    pub fn target<LANG, SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<LANG, SPEC>
-    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<LANG, SPEC> + NameKindComposable,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG, TYC=T> {
+    pub fn target<SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<SPEC>
+    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
+          SPEC: Specification<TYC=T> {
         ((Aspect::Target(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
     }
 }
@@ -54,9 +52,8 @@ impl Aspect<TypeContext> {
         }
     }
     #[allow(unused)]
-    pub fn allocate<I, SPEC>(&self, fields: Wrapped<PunctuatedArgKinds<RustFermentate, SPEC, Comma>, Comma, I>, source: &ScopeContext) -> TokenStream2
-    where I: DelimiterTrait,
-          SPEC: RustSpecification {
+    pub fn allocate<I>(&self, fields: Wrapped<PunctuatedArgKinds<RustSpecification, Comma>, Comma, I>, source: &ScopeContext) -> TokenStream2
+    where I: DelimiterTrait {
         let aspect_presentation = self.present(source);
         match self {
             Aspect::Target(_context) => {

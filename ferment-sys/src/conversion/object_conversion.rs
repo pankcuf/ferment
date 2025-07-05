@@ -9,7 +9,7 @@ use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario};
-use crate::lang::{LangFermentable, NameComposable, Specification};
+use crate::lang::{NameComposable, Specification};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ObjectKind {
@@ -72,9 +72,8 @@ impl ObjectKind {
     }
 }
 
-impl<LANG, SPEC> MaybeLambdaArgs<LANG, SPEC> for ObjectKind
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> MaybeLambdaArgs<SPEC> for ObjectKind
+    where SPEC: Specification {
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>

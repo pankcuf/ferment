@@ -5,14 +5,12 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Expr, Pat, Path, Type};
 use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
-use crate::lang::{FromDictionary, LangFermentable, NameComposable, RustSpecification, Specification};
-use crate::presentation::{DictionaryName, RustFermentate};
+use crate::lang::{FromDictionary, NameComposable, RustSpecification, Specification};
+use crate::presentation::DictionaryName;
 
 
 #[derive(Clone, Debug)]
-pub enum Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub enum Name<SPEC> where SPEC: Specification {
     Empty,
     Expr(Expr),
     UnnamedArg(usize),
@@ -37,35 +35,31 @@ pub enum Name<LANG, SPEC>
     Underscore,
     EnumTag(Ident),
     EnumVariantBody(Ident),
-    _Phantom(PhantomData<(LANG, SPEC)>),
+    _Phantom(PhantomData<SPEC>),
 }
 
-impl<LANG, SPEC> FromDictionary for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Name=Self> {
+impl<SPEC> FromDictionary for Name<SPEC>
+    where SPEC: Specification {
     fn dictionary_name(dictionary: DictionaryName) -> Self {
         Name::Dictionary(dictionary)
     }
 }
 
-impl<LANG, SPEC> Default for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Name=Self> {
+impl<SPEC> Default for Name<SPEC>
+    where SPEC: Specification {
     fn default() -> Self {
         Name::Empty
     }
 }
-impl<LANG, SPEC> ToType for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Name=Self>,
+impl<SPEC> ToType for Name<SPEC>
+    where SPEC: Specification,
           Self: ToTokens {
     fn to_type(&self) -> Type {
         parse_quote!(#self)
     }
 }
-impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC> ToPath for Name<SPEC>
+    where SPEC: Specification,
           Self: ToTokens {
     fn to_path(&self) -> Path {
         parse_quote!(#self)
@@ -73,18 +67,16 @@ impl<LANG, SPEC> ToPath for Name<LANG, SPEC>
 }
 
 
-impl<LANG, SPEC> Display for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Name=Self>,
+impl<SPEC> Display for Name<SPEC>
+    where SPEC: Specification,
           Self: ToTokens {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!("Name({})", self.to_token_stream()).as_str())
     }
 }
 
-impl<LANG, SPEC> Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC> Name<SPEC>
+    where SPEC: Specification,
           Self: ToTokens {
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())
@@ -99,9 +91,8 @@ impl<LANG, SPEC> Name<LANG, SPEC>
 
 }
 
-impl<LANG, SPEC> NameComposable<LANG, SPEC> for Name<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Name=Name<LANG, SPEC>> {
+impl<SPEC> NameComposable<SPEC> for Name<SPEC>
+    where SPEC: Specification<Name=Name<SPEC>> {
     fn ident(ident: Ident) -> Self {
         Self::Ident(ident)
     }
@@ -115,8 +106,7 @@ impl<LANG, SPEC> NameComposable<LANG, SPEC> for Name<LANG, SPEC>
     }
 }
 
-impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl ToTokens for Name<RustSpecification> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Name::_Phantom(..) |
@@ -180,8 +170,7 @@ impl<SPEC> ToTokens for Name<RustFermentate, SPEC>
     }
 }
 
-impl<SPEC> Mangle<MangleDefault> for Name<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl Mangle<MangleDefault> for Name<RustSpecification> {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             Name::_Phantom(..) |

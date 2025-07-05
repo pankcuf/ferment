@@ -12,7 +12,7 @@ use crate::context::ScopeContextLink;
 use crate::conversion::TypeModelKind;
 use crate::ext::{Join, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
 
 #[derive(Clone, Debug)]
@@ -98,16 +98,14 @@ impl TraitDecompositionPart1 {
 // For use in Full Context Tree
 #[derive(Clone)]
 #[allow(unused)]
-pub struct TraitVTableComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub method_composers: Depunctuated<SigComposerLink<LANG, SPEC>>,
+pub struct TraitVTableComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub method_composers: Depunctuated<SigComposerLink<SPEC>>,
     pub types: HashMap<Ident, TraitTypeModel>,
 }
 
-impl<LANG, SPEC> TraitVTableComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> TraitVTableComposer<SPEC>
+    where SPEC: Specification {
     #[allow(unused)]
     pub fn from_item_trait(item_trait: &ItemTrait, ty_context: SPEC::TYC, self_ty: Type, context: &ScopeContextLink) -> Self {
         let trait_ident = &item_trait.ident;

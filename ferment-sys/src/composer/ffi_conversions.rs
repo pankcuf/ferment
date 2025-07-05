@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use crate::composer::ComposerLink;
 use crate::composer::r#abstract::{SourceComposable, Linkable};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentable::{SeqKind, InterfaceKind};
 use crate::shared::SharedAccess;
 
@@ -13,34 +13,31 @@ pub enum FFIAspect {
     Drop,
 }
 
-pub type FFIComposerLink<LANG, SPEC, T> = FFIComposer<LANG, SPEC, ComposerLink<T>>;
-pub type MaybeFFIComposerLink<LANG, SPEC, T> = Option<FFIComposerLink<LANG, SPEC, T>>;
-pub struct FFIComposer<LANG, SPEC, Link>
+pub type FFIComposerLink<SPEC, T> = FFIComposer<SPEC, ComposerLink<T>>;
+pub type MaybeFFIComposerLink<SPEC, T> = Option<FFIComposerLink<SPEC, T>>;
+pub struct FFIComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     pub parent: Option<Link>,
-    pub from_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
-    pub to_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
-    pub drop_composer: InterfaceKind<LANG, SPEC, Link>,
+    pub from_conversion_composer: InterfaceKind<SPEC, Link>,
+    pub to_conversion_composer: InterfaceKind<SPEC, Link>,
+    pub drop_composer: InterfaceKind<SPEC, Link>,
 }
-impl<LANG, SPEC, Link> FFIComposer<LANG, SPEC, Link>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, Link> FFIComposer<SPEC, Link>
+    where SPEC: Specification,
           Link: SharedAccess {
     pub const fn new(
-        from_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
-        to_conversion_composer: InterfaceKind<LANG, SPEC, Link>,
-        drop_composer: InterfaceKind<LANG, SPEC, Link>,
+        from_conversion_composer: InterfaceKind<SPEC, Link>,
+        to_conversion_composer: InterfaceKind<SPEC, Link>,
+        drop_composer: InterfaceKind<SPEC, Link>,
     ) -> Self {
         Self { from_conversion_composer, to_conversion_composer, drop_composer, parent: None }
     }
 }
 
 
-impl<LANG, SPEC, Link> Linkable<Link> for FFIComposer<LANG, SPEC, Link>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, Link> Linkable<Link> for FFIComposer<SPEC, Link>
+    where SPEC: Specification,
           Link: SharedAccess {
     fn link(&mut self, parent: &Link) {
         self.from_conversion_composer.link(parent);
@@ -50,12 +47,11 @@ impl<LANG, SPEC, Link> Linkable<Link> for FFIComposer<LANG, SPEC, Link>
     }
 }
 
-impl<LANG, SPEC, Link> SourceComposable for FFIComposer<LANG, SPEC, Link>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, Link> SourceComposable for FFIComposer<SPEC, Link>
+    where SPEC: Specification,
           Link: SharedAccess {
     type Source = FFIAspect;
-    type Output = SeqKind<LANG, SPEC>;
+    type Output = SeqKind<SPEC>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         match source {

@@ -2,10 +2,9 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Type;
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{DictionaryName, Name};
-impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl Mangle<MangleDefault> for Name<ObjCSpecification> {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             Name::_Phantom(..) |
@@ -73,8 +72,7 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
     }
 }
 
-impl<SPEC> ToTokens for Name<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ToTokens for Name<ObjCSpecification> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Name::Underscore =>

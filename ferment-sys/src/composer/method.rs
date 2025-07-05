@@ -1,29 +1,27 @@
 use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer, VariableComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::context::ScopeContext;
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentable::BindingPresentableContext;
 use crate::shared::SharedAccess;
 
-pub type AccessorMethodComposer<LANG, SPEC, Link> = MethodComposer<LANG, SPEC, Link, AspectArgComposers<LANG, SPEC>, BindingAccessorContext<LANG, SPEC>>;
-pub type DtorMethodComposer<LANG, SPEC, Link> = MethodComposer<LANG, SPEC, Link, AspectArgComposers<LANG, SPEC>, AspectArgComposers<LANG, SPEC>>;
+pub type AccessorMethodComposer<SPEC, Link> = MethodComposer<SPEC, Link, AspectArgComposers<SPEC>, BindingAccessorContext<SPEC>>;
+pub type DtorMethodComposer<SPEC, Link> = MethodComposer<SPEC, Link, AspectArgComposers<SPEC>, AspectArgComposers<SPEC>>;
 
-pub struct MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
+pub struct MethodComposer<SPEC, Link, LinkCtx, CTX>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     parent: Option<Link>,
     context: SharedComposer<Link, LinkCtx>,
-    seq_iterator_item: BindingComposer<LANG, SPEC, CTX>
+    seq_iterator_item: BindingComposer<SPEC, CTX>
 }
-impl<LANG, SPEC, Link, LinkCtx, CTX> MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
+impl<SPEC, Link, LinkCtx, CTX> MethodComposer<SPEC, Link, LinkCtx, CTX>
     where
         Link: SharedAccess,
-        LANG: LangFermentable,
-        SPEC: Specification<LANG> {
+        SPEC: Specification {
     pub const fn new(
         context: SharedComposer<Link, LinkCtx>,
-        seq_iterator_item: BindingComposer<LANG, SPEC, CTX>,
+        seq_iterator_item: BindingComposer<SPEC, CTX>,
     ) -> Self {
         Self {
             parent: None,
@@ -32,21 +30,19 @@ impl<LANG, SPEC, Link, LinkCtx, CTX> MethodComposer<LANG, SPEC, Link, LinkCtx, C
         }
     }
 }
-impl<LANG, SPEC, Link, LinkCtx, CTX> Linkable<Link> for MethodComposer<LANG, SPEC, Link, LinkCtx, CTX>
+impl<SPEC, Link, LinkCtx, CTX> Linkable<Link> for MethodComposer<SPEC, Link, LinkCtx, CTX>
     where
         Link: SharedAccess,
-        LANG: LangFermentable,
-        SPEC: Specification<LANG> {
+        SPEC: Specification {
     fn link(&mut self, parent: &Link) {
         self.parent = Some(parent.clone_container());
     }
 }
-impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, Link>
+impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     type Source = ScopeContext;
-    type Output = Vec<BindingPresentableContext<LANG, SPEC>>;
+    type Output = Vec<BindingPresentableContext<SPEC>>;
     fn compose(&self, _source: &Self::Source) -> Self::Output {
         let ((aspect, _attrs, generics, _name_kind), context) = self.parent
             .as_ref()
@@ -59,19 +55,18 @@ impl<LANG, SPEC, Link> SourceComposable for AccessorMethodComposer<LANG, SPEC, L
                         aspect.clone(),
                         composer.attrs.clone(),
                         generics.clone(),
-                        VariableComposer::<LANG, SPEC>::from(composer.ty()),
+                        VariableComposer::<SPEC>::from(composer.ty()),
                         composer.tokenized_name()
                     ))
                 })
         )
     }
 }
-impl<LANG, SPEC, Link> SourceComposable for DtorMethodComposer<LANG, SPEC, Link>
+impl<SPEC, Link> SourceComposable for DtorMethodComposer<SPEC, Link>
     where Link: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+          SPEC: Specification {
     type Source = ScopeContext;
-    type Output = BindingPresentableContext<LANG, SPEC>;
+    type Output = BindingPresentableContext<SPEC>;
     fn compose(&self, _source: &Self::Source) -> Self::Output {
         let context = self.parent
             .as_ref()

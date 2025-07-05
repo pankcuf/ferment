@@ -221,6 +221,14 @@ impl ScopeChain {
     fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
         ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident, self_scope }, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
+
+    pub fn crate_name(&self) -> TokenStream2 {
+        if self.is_crate_root() {
+            self.crate_ident_ref().to_token_stream()
+        } else {
+            self.head().to_token_stream()
+        }
+    }
     pub fn crate_ident_ref(&self) -> &Ident {
         &self.info().crate_ident
     }

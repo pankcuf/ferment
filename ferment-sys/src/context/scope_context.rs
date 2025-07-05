@@ -10,7 +10,7 @@ use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
 
@@ -101,15 +101,14 @@ impl ScopeContext {
         }
     }
 
-    pub fn maybe_to_trait_fn_type<LANG, SPEC>(&self) -> Option<Type>
-        where LANG: LangFermentable,
-              SPEC: Specification<LANG>,
-              FFIFullDictionaryPath<LANG, SPEC>: ToType {
+    pub fn maybe_to_trait_fn_type<SPEC>(&self) -> Option<Type>
+        where SPEC: Specification,
+              FFIFullDictionaryPath<SPEC>: ToType {
         match &self.scope.parent_object().unwrap() {
             ObjectKind::Type(ref ty_conversion) |
             ObjectKind::Item(ref ty_conversion, ..) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
-                match Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(&full_parent_ty, self) {
+                match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self) {
                     Some(special) => Some(special.to_type()),
                     None => match ty_conversion {
                         TypeModelKind::Trait(ty, ..) =>
@@ -132,23 +131,20 @@ impl ScopeContext {
                 parent_obj.maybe_trait_or_regular_model_kind(self))
     }
 
-    pub fn maybe_special_or_regular_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
-        where LANG: LangFermentable,
-              SPEC: Specification<LANG>,
-              FFIFullDictionaryPath<LANG, SPEC>: ToType {
-        self.maybe_special_ffi_full_path::<LANG, SPEC>(ty)
+    pub fn maybe_special_or_regular_ffi_full_path<SPEC>(&self, ty: &Type) -> Option<FFIFullPath<SPEC>>
+        where SPEC: Specification,
+              FFIFullDictionaryPath<SPEC>: ToType {
+        self.maybe_special_ffi_full_path::<SPEC>(ty)
             .or_else(|| self.maybe_ffi_full_path(ty))
     }
-    fn maybe_special_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
-        where LANG: LangFermentable,
-              SPEC: Specification<LANG>,
-              FFIFullDictionaryPath<LANG, SPEC>: ToType {
-        Resolve::<SpecialType<LANG, SPEC>>::maybe_resolve(ty, self)
+    fn maybe_special_ffi_full_path<SPEC>(&self, ty: &Type) -> Option<FFIFullPath<SPEC>>
+        where SPEC: Specification,
+              FFIFullDictionaryPath<SPEC>: ToType {
+        Resolve::<SpecialType<SPEC>>::maybe_resolve(ty, self)
             .map(FFIFullPath::from)
     }
-    pub fn maybe_ffi_full_path<LANG, SPEC>(&self, ty: &Type) -> Option<FFIFullPath<LANG, SPEC>>
-        where LANG: LangFermentable,
-              SPEC: Specification<LANG> {
+    pub fn maybe_ffi_full_path<SPEC>(&self, ty: &Type) -> Option<FFIFullPath<SPEC>>
+        where SPEC: Specification {
         Resolve::<TypeModelKind>::resolve(ty, self)
             .to_type()
             .maybe_resolve(self)
@@ -158,12 +154,12 @@ impl ScopeContext {
         let lock = self.context.read().unwrap();
         lock.maybe_scope_item_ref_obj_first(path).cloned()
     }
-    pub fn maybe_opaque_object<LANG, SPEC>(&self, ty: &Type) -> Option<Type>
-        where LANG: LangFermentable, SPEC: Specification<LANG>,
-              FFIFullDictionaryPath::<LANG, SPEC>: ToType {
+    pub fn maybe_opaque_object<SPEC>(&self, ty: &Type) -> Option<Type>
+        where SPEC: Specification,
+              FFIFullDictionaryPath<SPEC>: ToType {
         let resolve_opaque = |path: &Path| {
             let result = if path.is_void() {
-                Some(FFIFullDictionaryPath::<LANG, SPEC>::Void.to_type())
+                Some(FFIFullDictionaryPath::<SPEC>::Void.to_type())
             } else {
                 match self.maybe_scope_item_obj_first(path)
                     .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {

@@ -6,37 +6,33 @@ use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, FFISpecialTypeResolve, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentation::{resolve_type_variable, FFIFullPath, FFIVariable, RustFermentate};
+use crate::lang::{RustSpecification, Specification};
+use crate::presentation::{resolve_type_variable, FFIFullPath, FFIVariable};
 
 
 #[derive(Clone, Debug)]
-pub struct VariableComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub struct VariableComposer<SPEC>
+    where SPEC: Specification {
     pub ty: Type,
-    _marker: PhantomData<(LANG, SPEC)>
+    _marker: PhantomData<SPEC>
 }
 
-impl<LANG, SPEC> VariableComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> VariableComposer<SPEC>
+    where SPEC: Specification {
     pub fn new(ty: Type) -> Self {
         Self { ty, _marker: PhantomData }
     }
 }
-impl<LANG, SPEC> From<&Type> for VariableComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> From<&Type> for VariableComposer<SPEC>
+    where SPEC: Specification {
     fn from(value: &Type) -> Self {
         Self { ty: value.clone(), _marker: PhantomData }
     }
 }
 
-impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
+impl SourceComposable for VariableComposer<RustSpecification> {
     type Source = ScopeContext;
-    type Output = FFIVariable<RustFermentate, SPEC, Type>;
+    type Output = FFIVariable<RustSpecification, Type>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let is_const_ptr = match self.ty {
@@ -51,7 +47,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
 
         let full_ty: Type = Resolve::resolve(&self.ty, source);
         let maybe_obj = source.maybe_object_by_predicate(ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope));
-        let result = match Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(&full_ty, source) {
+        let result = match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_ty, source) {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
                     let ty = match &source.scope.parent_object().unwrap() {
@@ -95,7 +91,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                             ObjectKind::Type(ref ty_conversion) |
                             ObjectKind::Item(ref ty_conversion, ..) => {
                                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), source);
-                                match Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(&full_parent_ty, source) {
+                                match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_parent_ty, source) {
                                     Some(special) => special.to_type(),
                                     None => {
                                         match ty_conversion {
@@ -127,7 +123,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                 let ty = model.as_type();
                                 let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
                                 let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
-                                match Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(full_nested_ty, source) {
+                                match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
                                         match source.maybe_object_by_key(nested_ty) {
                                             Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
@@ -157,7 +153,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                             _ => None,
                                         }.unwrap_or(TypeModelKind::unknown_type_ref(nested_ty));
                                         let var_c_type = ty_model_kind.to_type();
-                                        let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                                        let ffi_path: Option<FFIFullPath<RustSpecification>> = var_c_type.maybe_resolve(source);
                                         let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                         let result = resolve_type_variable(var_ty, source);
                                         result
@@ -174,14 +170,14 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                 FFIVariable::mut_ptr(parse_quote!([u8; 16])),
                             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
                                 FFIVariable::direct(
-                                    Resolve::<SpecialType<RustFermentate, SPEC>>::maybe_resolve(&ty, source)
+                                    Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&ty, source)
                                         .map(|special| special.to_type())
-                                        .unwrap_or_else(|| Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(&ty, source)
+                                        .unwrap_or_else(|| Resolve::<FFIFullPath<RustSpecification>>::resolve(&ty, source)
                                             .to_type())
                                 ),
                             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => {
                                 FFIVariable::mut_ptr(
-                                    Resolve::<FFIFullPath<RustFermentate, SPEC>>::resolve(&ty, source).to_type())
+                                    Resolve::<FFIFullPath<RustSpecification>>::resolve(&ty, source).to_type())
                             },
                             TypeModelKind::Dictionary(
                                 DictTypeModelKind::NonPrimitiveFermentable(
@@ -207,14 +203,14 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                     DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
                                 // Dictionary generics and strings should be fermented
                                 // Others should be treated as opaque
-                                let maybe_ffi_full_path: Option<FFIFullPath<RustFermentate, SPEC>> = ty.maybe_resolve(source);
+                                let maybe_ffi_full_path: Option<FFIFullPath<RustSpecification>> = ty.maybe_resolve(source);
                                 let result = resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or(parse_quote!(#ty)), source);
                                 result
                             },
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) => {
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
-                                let result = Resolve::<FFIVariable<RustFermentate, SPEC, Type>>::resolve(&conversion, source);
+                                let result = Resolve::<FFIVariable<RustSpecification, Type>>::resolve(&conversion, source);
                                 result
                             },
                             TypeModelKind::Bounds(bounds) => {
@@ -224,7 +220,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                             ref cnv => {
                                 if cnv.is_optional() {
                                     let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
-                                    let maybe_special = <Type as FFISpecialTypeResolve<RustFermentate, SPEC>>::maybe_special_type(&nested_ty.to_type(), source);
+                                    let maybe_special = <Type as FFISpecialTypeResolve<RustSpecification>>::maybe_special_type(&nested_ty.to_type(), source);
                                     match maybe_special {
                                         Some(SpecialType::Custom(custom_ty)) => {
                                             return FFIVariable::mut_ptr(custom_ty.to_type());
@@ -274,7 +270,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                                     cnv.clone()
                                 });
                                 let var_c_type = var_ty.to_type();
-                                let ffi_path: Option<FFIFullPath<RustFermentate, SPEC>> = var_c_type.maybe_resolve(source);
+                                let ffi_path: Option<FFIFullPath<RustSpecification>> = var_c_type.maybe_resolve(source);
                                 let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
                                 let result = resolve_type_variable(var_ty, source);
                                 result
@@ -282,7 +278,7 @@ impl<SPEC> SourceComposable for VariableComposer<RustFermentate, SPEC>
                         }
                     }
                     _ => {
-                        source.maybe_special_or_regular_ffi_full_path::<RustFermentate, SPEC>(&self.ty)
+                        source.maybe_special_or_regular_ffi_full_path::<RustSpecification>(&self.ty)
                             .map(|ffi_path| ffi_path.to_type())
                             .unwrap_or(self.ty.clone())
                             .resolve(source)

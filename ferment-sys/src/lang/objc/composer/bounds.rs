@@ -1,12 +1,11 @@
 use crate::composer::{BoundsComposer, SourceComposable, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::ext::{AsType, Mangle, ToType};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 
-impl<SPEC> SourceComposable for BoundsComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for BoundsComposer<ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     #[allow(unused_variables)]
     fn compose(&self, source: &Self::Source) -> Self::Output {
