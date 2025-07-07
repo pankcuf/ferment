@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, Lifetime, Generics};
+use syn::{Attribute, Type, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
@@ -9,7 +9,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation};
 
 #[derive(ComposerBase)]
@@ -42,20 +42,19 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
         let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
         let from_args = CommaPunctuated::from_iter([
-            quote!(ffi_ref.#arg_0_name),
-            quote!(ffi_ref.#count_name),
+            DictionaryExpr::ffi_ref_prop(&arg_0_name),
+            DictionaryExpr::ffi_ref_prop(&count_name),
         ]);
         let drop_args = CommaPunctuated::from_iter([
-            DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
-            DictionaryExpr::SelfProp(count_name.to_token_stream())
+            DictionaryExpr::self_prop(&arg_0_name),
+            DictionaryExpr::self_prop(&count_name)
         ]);
         let arg_0_to = |expr: Expression<RustSpecification>|
-            Expression::boxed_tokens(DictionaryExpr::SelfDestructuring(
+            Expression::boxed_tokens(DictionaryExpr::self_destruct(
                 CommaPunctuated::from_iter([
-                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::conversion(DictionaryExpr::ObjLen)),
                     FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(expr.present(source)))
-                ])
-                    .to_token_stream()));
+                ])));
         let nested_ty_kind = &self.nested_type_kind;
         lifetimes.extend(nested_ty_kind.to_type().unique_lifetimes());
         let arg_presentation = match nested_ty_kind {
@@ -115,9 +114,9 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
                 };
                 GenericArgPresentation::<RustSpecification>::new(
                     FFIVariable::direct(arg_ty),
-                    arg_0_composer.destroy(drop_args.to_token_stream()),
-                    arg_0_composer.from(from_args.to_token_stream()),
-                    arg_0_to(arg_0_composer.to_composer.map(|c| c(DictionaryExpr::ObjIntoIter.to_token_stream())).unwrap_or(Expression::empty()))
+                    arg_0_composer.destroy(drop_args),
+                    arg_0_composer.from(from_args),
+                    arg_0_to(arg_0_composer.to_composer.map(|c| c(DictionaryExpr::ObjIntoIter.to_token_stream())).unwrap_or_default())
                 )
             }
         };
@@ -127,21 +126,20 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let expr_destroy_iterator = [
             arg_presentation.destructor.present(source)
         ];
-        let from_group_conversion = <RustSpecification as Specification>::Expr::present(&arg_presentation.from_conversion, source);
-        let result_conversion = DictionaryExpr::TryIntoUnwrap(quote!(vec));
+        let from_group_conversion = arg_presentation.from_conversion.present(source);
         let root_body = quote! {
             let vec: Vec<#nested_ty_kind> = #from_group_conversion;
-            #result_conversion
+            vec.try_into().unwrap()
         };
         let from_body = DictionaryExpr::FromRoot(root_body);
-        let to_body = <RustSpecification as Specification>::Expr::present(&arg_presentation.to_conversion, source);
+        let to_body = arg_presentation.to_conversion.present(source);
 
         Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() }),
+            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
-                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Type(arg_presentation.ty.to_type().joined_mut()))
+                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::type_count()),
+                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Var(arg_presentation.ty.joined_mut()))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &lifetimes),

@@ -8,7 +8,7 @@ use crate::composer::SourceFermentable;
 use crate::lang::LangFermentable;
 use crate::lang::objc::ObjCFermentate;
 use crate::lang::objc::presentable::ArgPresentation;
-use crate::tree::{CrateTree, ScopeTree};
+use crate::tree::ScopeTree;
 
 #[derive(Clone, Debug)]
 pub enum InterfaceImplementation {
@@ -200,7 +200,7 @@ pub enum Fermentate {
         implementations: Depunctuated<InterfaceImplementation>
     },
     ScopeTree(ScopeTree),
-    CrateTree(CrateTree),
+    // CrateTree(CrateTree),
 }
 impl LangFermentable for Fermentate {}
 
@@ -235,9 +235,9 @@ impl Display for Fermentate {
                 f.write_str(token_stream.to_string().as_str()),
             Self::ScopeTree(tree) =>
                 f.write_str(<ScopeTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_token_stream().to_string().as_str()),
-            Self::CrateTree(tree) => {
-                f.write_str(<CrateTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_token_stream().to_string().as_str())
-            },
+            // Self::CrateTree(tree) => {
+            //     f.write_str(<CrateTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_token_stream().to_string().as_str())
+            // },
 
         }
     }
@@ -251,8 +251,8 @@ impl ToTokens for Fermentate {
                 token_stream.to_tokens(tokens),
             Fermentate::ScopeTree(tree) =>
                 <ScopeTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_tokens(tokens),
-            Fermentate::CrateTree(tree) =>
-                <CrateTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_tokens(tokens),
+            // Fermentate::CrateTree(tree) =>
+            //     <CrateTree as SourceFermentable<ObjCFermentate>>::ferment(tree).to_tokens(tokens),
             _ => {}
         }
     }

@@ -18,6 +18,12 @@ pub enum DocPresentation {
     Safety(TokenStream2),
 }
 
+impl Default for DocPresentation {
+    fn default() -> Self {
+        DocPresentation::Empty
+    }
+}
+
 pub fn default_doc<T: ToTokens>(name: T) -> TokenStream2 {
     let comment = format!("FFI-representation of the [`{}`]", format_token_stream(name));
     // TODO: FFI-representation of the [`{}`](../../path/to/{}.rs)

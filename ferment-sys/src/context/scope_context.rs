@@ -115,7 +115,7 @@ impl ScopeContext {
                             Some(ty.as_type()
                                 .maybe_trait_object(self)
                                 .and_then(|oc| oc.maybe_type_model_kind_ref().map(TypeModelKind::to_type))
-                                .unwrap_or(ty_conversion.to_type())),
+                                .unwrap_or_else(|| ty_conversion.to_type())),
                         _ => Some(ty_conversion.to_type())
                     }
                 }
@@ -235,7 +235,7 @@ impl ScopeContext {
         let lock = self.context.read().unwrap();
         let full_ty = lock.maybe_object_ref_by_tree_key(ty, &self.scope)
             .and_then(ObjectKind::maybe_type)
-            .unwrap_or(ty.clone());
+            .unwrap_or_else(|| ty.clone());
         full_ty
     }
 

@@ -121,7 +121,3 @@ impl<SPEC> FFIVarResolve<SPEC> for Type
           FFIFullPath<SPEC>: ToType,
           FFIFullDictionaryPath<SPEC>: ToType{}
 impl FFIVarResolve<RustSpecification> for GenericTypeKind {}
-
-#[cfg(feature = "objc")]
-impl FFIVarResolve<crate::lang::objc::ObjCSpecification> for GenericTypeKind {}
-

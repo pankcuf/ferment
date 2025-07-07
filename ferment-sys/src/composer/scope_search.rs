@@ -37,7 +37,7 @@ where SPEC: Specification,
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
-        let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or(search_key.to_type());
+        let full_ty = maybe_obj.as_ref().and_then(ObjectKind::maybe_type).unwrap_or_else(|| search_key.to_type());
         let maybe_special: Option<SpecialType<SPEC>> = full_ty.maybe_resolve(source);
         (full_ty, maybe_obj, maybe_special)
     }

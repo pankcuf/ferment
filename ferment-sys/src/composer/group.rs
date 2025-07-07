@@ -1,6 +1,6 @@
 use std::rc::Rc;
-use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, Lifetime, Generics};
+use quote::ToTokens;
+use syn::{Attribute, Type, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
@@ -9,7 +9,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation};
 
 #[derive(ComposerBase)]
@@ -42,55 +42,53 @@ impl SourceComposable for GroupComposer<RustSpecification> {
         let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
         let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
         let from_args = CommaPunctuated::from_iter([
-            quote!(ffi_ref.#arg_0_name),
-            quote!(ffi_ref.#count_name),
+            DictionaryExpr::ffi_ref_prop(&arg_0_name),
+            DictionaryExpr::ffi_ref_prop(&count_name),
         ]);
         let drop_args = CommaPunctuated::from_iter([
-            DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
-            DictionaryExpr::SelfProp(count_name.to_token_stream())
+            DictionaryExpr::self_prop(&arg_0_name),
+            DictionaryExpr::self_prop(&count_name)
         ]);
         let arg_0_to = |expr: Expression<RustSpecification>|
-            Expression::boxed_tokens(DictionaryExpr::SelfDestructuring(
+            Expression::boxed_tokens(DictionaryExpr::self_destruct(
                 CommaPunctuated::from_iter([
-                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
+                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::conversion(DictionaryExpr::ObjLen)),
                     FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(expr.present(source)))
-                ])
-                    .to_token_stream()));
+                ])));
         lifetimes.extend(self.nested_type_kind.to_type().unique_lifetimes());
         let arg_presentation = match &self.nested_type_kind {
             TypeKind::Primitive(arg_0_target_path) => {
                 GenericArgPresentation::<RustSpecification>::new(
                     FFIVariable::direct(arg_0_target_path.clone()),
-                    Expression::destroy_primitive_group_tokens(drop_args.to_token_stream()),
-                    Expression::from_primitive_group_tokens(from_args.to_token_stream()),
-                    arg_0_to(Expression::ffi_to_primitive_group_tokens(DictionaryExpr::ObjIntoIter.to_token_stream()))
+                    Expression::destroy_primitive_group_tokens(drop_args),
+                    Expression::from_primitive_group_tokens(from_args),
+                    arg_0_to(Expression::ffi_to_primitive_group_tokens(DictionaryExpr::ObjIntoIter))
                 )
             }
             TypeKind::Complex(arg_0_target_ty) => {
-                let maybe_special: Option<SpecialType<RustSpecification>> = arg_0_target_ty.maybe_special_type(source);
-                match maybe_special {
+                match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(arg_0_target_ty, source) {
                     Some(SpecialType::Opaque(..)) => {
                         GenericArgPresentation::<RustSpecification>::new(
                             FFIVariable::mut_ptr(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(arg_0_target_ty, source)),
                             if arg_0_target_ty.is_fermentable_string() {
-                                Expression::DestroyStringGroup(drop_args.to_token_stream())
+                                Expression::destroy_string_group_tokens(drop_args)
                             } else {
-                                Expression::destroy_complex_group_tokens(drop_args.to_token_stream())
+                                Expression::destroy_complex_group_tokens(drop_args)
                             },
-                            Expression::from_opaque_group_tokens(from_args.to_token_stream()),
-                            arg_0_to(Expression::ffi_to_opaque_group_tokens(DictionaryExpr::ObjIntoIter.to_token_stream()))
+                            Expression::from_opaque_group_tokens(from_args),
+                            arg_0_to(Expression::ffi_to_opaque_group_tokens(DictionaryExpr::ObjIntoIter))
                         )
                     }
                     _ => {
                         GenericArgPresentation::<RustSpecification>::new(
                             FFIVariable::mut_ptr(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(arg_0_target_ty, source)),
                             if arg_0_target_ty.is_fermentable_string() {
-                                Expression::DestroyStringGroup(drop_args.to_token_stream())
+                                Expression::destroy_string_group_tokens(drop_args)
                             } else {
-                                Expression::destroy_complex_group_tokens(drop_args.to_token_stream())
+                                Expression::destroy_complex_group_tokens(drop_args)
                             },
-                            Expression::from_complex_group_tokens(from_args.to_token_stream()),
-                            arg_0_to(Expression::ffi_to_complex_group_tokens(DictionaryExpr::ObjIntoIter.to_token_stream()))
+                            Expression::from_complex_group_tokens(from_args),
+                            arg_0_to(Expression::ffi_to_complex_group_tokens(DictionaryExpr::ObjIntoIter))
                         )
 
                     }
@@ -132,9 +130,9 @@ impl SourceComposable for GroupComposer<RustSpecification> {
                 };
                 GenericArgPresentation::<RustSpecification>::new(
                     FFIVariable::direct(arg_ty),
-                    arg_0_composer.destroy(drop_args.to_token_stream()),
-                    arg_0_composer.from(from_args.to_token_stream()),
-                    arg_0_to(arg_0_composer.to_composer.map(|c| c(DictionaryExpr::ObjIntoIter.to_token_stream())).unwrap_or(Expression::empty()))
+                    arg_0_composer.destroy(drop_args),
+                    arg_0_composer.from(from_args),
+                    arg_0_to(arg_0_composer.to_composer.map(|c| c(DictionaryExpr::ObjIntoIter.to_token_stream())).unwrap_or_default())
                 )
             }
         };
@@ -144,15 +142,15 @@ impl SourceComposable for GroupComposer<RustSpecification> {
         let expr_destroy_iterator = [
             arg_presentation.destructor.present(source)
         ];
-        let to_body = <RustSpecification as Specification>::Expr::present(&arg_presentation.to_conversion, source);
-        let from_body = DictionaryExpr::FromRoot(<RustSpecification as Specification>::Expr::present(&arg_presentation.from_conversion, source));
+        let to_body = arg_presentation.to_conversion.present(source);
+        let from_body = DictionaryExpr::FromRoot(arg_presentation.from_conversion.present(source));
 
-        Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() }),
+        Some(GenericComposerInfo::default(
+            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
-                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Type(arg_presentation.ty.to_type().joined_mut()))
+                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::type_count()),
+                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Var(arg_presentation.ty.joined_mut()))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &lifetimes),

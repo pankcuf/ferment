@@ -7,7 +7,8 @@ use crate::context::ScopeContext;
 use crate::lang::LangFermentable;
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{BindingPresentation, DocPresentation, FFIObjectPresentation, InterfacePresentation};
-use crate::tree::{CrateTree, ScopeTree};
+use crate::tree::ScopeTree;
+
 
 
 #[non_exhaustive]
@@ -27,23 +28,23 @@ impl Default for Fermentate {
     }
 }
 
-impl ToTokens for Fermentate {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            Fermentate::Empty => {}
-            Fermentate::Rust(fermentate) => fermentate.to_tokens(tokens),
-            #[cfg(feature = "objc")]
-            Fermentate::ObjC(fermentate) => fermentate.to_tokens(tokens)
-        }
-    }
-}
-impl ScopeContextPresentable for Fermentate {
-    type Presentation = TokenStream2;
-
-    fn present(&self, _source: &ScopeContext) -> Self::Presentation {
-        self.to_token_stream()
-    }
-}
+// impl ToTokens for Fermentate {
+//     fn to_tokens(&self, tokens: &mut TokenStream2) {
+//         match self {
+//             Fermentate::Empty => {}
+//             Fermentate::Rust(fermentate) => fermentate.to_tokens(tokens),
+//             #[cfg(feature = "objc")]
+//             Fermentate::ObjC(fermentate) => fermentate.to_tokens(tokens)
+//         }
+//     }
+// }
+// impl ScopeContextPresentable for Fermentate {
+//     type Presentation = TokenStream2;
+//
+//     fn present(&self, _source: &ScopeContext) -> Self::Presentation {
+//         self.to_token_stream()
+//     }
+// }
 /// A result of fermentation
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -62,7 +63,7 @@ pub enum RustFermentate {
         bindings: Depunctuated<BindingPresentation>,
         traits: Depunctuated<RustFermentate>,
     },
-    CrateTree(CrateTree),
+    // CrateTree(CrateTree),
     ScopeTree(ScopeTree),
     Mod {
         attrs: Vec<Attribute>,
@@ -156,9 +157,9 @@ impl ToTokens for RustFermentate {
                 trait_object.to_tokens(tokens);
                 vtable.to_tokens(tokens);
             },
-            Self::CrateTree(tree) =>
-                <CrateTree as SourceFermentable<RustFermentate>>::ferment(tree)
-                    .to_tokens(tokens),
+            // Self::CrateTree(tree) =>
+            //     <CrateTree as SourceFermentable<RustFermentate>>::ferment(tree)
+            //         .to_tokens(tokens),
             Self::ScopeTree(tree) =>
                 <ScopeTree as SourceFermentable<RustFermentate>>::ferment(tree)
                     .to_tokens(tokens),

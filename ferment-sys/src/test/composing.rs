@@ -11,7 +11,7 @@ use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::TypeModel;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeContextLink, ScopeInfo, TypeChain};
 use crate::conversion::{ObjectKind, TypeModelKind};
-use crate::conversion::dict::DictTypeModelKind;
+use crate::conversion::DictTypeModelKind;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeExportID, ScopeTreeExportItem};
 
 

@@ -35,7 +35,7 @@ fn compose_arg(
     let target_expr = target_composer.compose(source);
     println!("MapComposer:: OBJC FROM EXPR: {}", from_expr.present(source));
     println!("MapComposer:: OBJC TO EXPR: {}", to_expr.present(source));
-    println!("MapComposer:: OBJC DESTROY EXPR: {}", destroy_expr.as_ref().map(|e| e.present(source)).unwrap_or(quote!()));
+    println!("MapComposer:: OBJC DESTROY EXPR: {}", destroy_expr.as_ref().map(|e| e.present(source)).unwrap_or_default());
     println!("MapComposer:: OBJC VAR EXPR: {}", var_expr.to_token_stream());
     println!("MapComposer:: OBJC TARGET EXPR: {}", target_expr.to_token_stream());
     // let arg_args = |arg_name: &Name<ObjCFermentate, SPEC>| CommaPunctuated::from_iter([
@@ -45,15 +45,15 @@ fn compose_arg(
     match TypeKind::from(ty) {
         TypeKind::Primitive(arg_ty) =>
             (GenericArgPresentation::<ObjCSpecification>::new(
-                <ObjCSpecification as Specification>::Var::direct(objc_primitive(&arg_ty).to_token_stream()),
-                destroy_expr.unwrap_or(<ObjCSpecification as Specification>::Expr::empty()),
+                <ObjCSpecification as Specification>::Var::direct(objc_primitive(&arg_ty)),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty)),
         TypeKind::Complex(arg_ty) => {
             (GenericArgPresentation::<ObjCSpecification>::new(
                 FFIVariable::direct(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(&arg_ty, source).to_token_stream()),
-                destroy_expr.unwrap_or(<ObjCSpecification as Specification>::Expr::empty()),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty))
@@ -73,7 +73,7 @@ fn compose_arg(
             };
             (GenericArgPresentation::<ObjCSpecification>::new(
                 FFIVariable::direct(arg_ty),
-                destroy_expr.unwrap_or(<ObjCSpecification as Specification>::Expr::empty()),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty))
@@ -95,7 +95,6 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: format_ident!("Dictionary"), prefix: "NS".to_string(), attrs: vec![] });
 
         let objc_name = aspect.present(source);
-        // let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         let c_name = ffi_type.to_token_stream();

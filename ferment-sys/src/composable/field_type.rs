@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use syn::{Attribute, Field, Type};
+use syn::{parse_quote, Attribute, Field, Type};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
 use ferment_macro::Display;
@@ -40,14 +40,15 @@ impl<SPEC> ToType for FieldTypeKind<SPEC>
 }
 impl<SPEC> FieldTypeKind<SPEC>
     where SPEC: Specification {
-    pub fn ty(&self) -> &Type {
-        match self {
-            FieldTypeKind::Type(ty) => ty,
-            _ => panic!("improper use of conversion as type")
-        }
+
+    pub fn conversion<T: ToTokens>(conversion: T) -> Self {
+        Self::Conversion(conversion.to_token_stream())
     }
     pub fn r#type(ty: &Type) -> Self {
         Self::Type(ty.clone())
+    }
+    pub fn type_count() -> Self {
+        Self::Type(parse_quote!(usize))
     }
 }
 

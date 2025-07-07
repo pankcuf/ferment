@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Lifetime, Type, TypeTuple};
+use syn::{Attribute, Lifetime, Type, TypeTuple};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
@@ -10,8 +10,8 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{LifetimeProcessor, Mangle, Resolve};
 use crate::lang::{NameComposable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation};
+use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, ToFFIVariable};
 
 #[derive(ComposerBase)]
 pub struct TupleComposer<SPEC>
@@ -38,9 +38,9 @@ impl SourceComposable for TupleComposer<RustSpecification> {
         let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
-        let mut from_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut to_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut from_conversions = CommaPunctuated::new();
+        let mut to_conversions = CommaPunctuated::new();
+        let mut destroy_conversions = SemiPunctuated::new();
         let mut field_composers = Depunctuated::new();
         self.type_tuple
             .elems
@@ -54,21 +54,21 @@ impl SourceComposable for TupleComposer<RustSpecification> {
                 let (kind, destroy_expr) = match TypeKind::from(&ty) {
                     TypeKind::Primitive(..) => (
                         ConversionExpressionKind::Primitive,
-                        Expression::empty(),
+                        Expression::default(),
                     ),
                     TypeKind::Generic(GenericTypeKind::Optional(..)) => (
                         ConversionExpressionKind::ComplexOpt,
-                        Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
+                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
                     ),
                     _ => (
                         ConversionExpressionKind::Complex,
-                        Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
+                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
                     ),
                 };
                 let from_expr = Expression::ffi_ref_with_name(&name);
                 let to_expr = Expression::obj_name(&field_name);
                 let item = GenericArgPresentation::<RustSpecification>::new(
-                    <RustSpecification as Specification>::Var::direct(ty.clone()),
+                    ty.to_direct_var(),
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
                     Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
                     Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
@@ -79,11 +79,11 @@ impl SourceComposable for TupleComposer<RustSpecification> {
             });
         let attrs = self.compose_attributes();
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions).to_token_stream(), &None, &lifetimes),
+            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &lifetimes),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: self.type_tuple.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
+        let aspect = Aspect::raw_struct_ident(self.type_tuple.mangle_ident_default());
         Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

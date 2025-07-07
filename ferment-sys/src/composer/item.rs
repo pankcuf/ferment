@@ -7,8 +7,8 @@ use syn::token::{Brace, Paren};
 use ferment_macro::ComposerBase;
 use crate::ast::{DelimiterTrait, Depunctuated, Void};
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable, VariableComposer};
-use crate::context::{ScopeContext, ScopeContextLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable};
+use crate::context::ScopeContextLink;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DocComposer, DocPresentation, FFIObjectPresentation, InterfacePresentation, RustFermentate};
@@ -39,7 +39,8 @@ impl<SPEC, I> ItemComposer<SPEC, I>
         lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
         fields: &CommaPunctuatedFields,
-        context: &ScopeContextLink) -> ComposerLink<Self>
+        context: &ScopeContextLink
+    ) -> ComposerLink<Self>
         where C: FFIFieldsSpec<SPEC, ComposerLink<Self>>
         + FFIObjectSpec<SPEC, ComposerLink<Self>>
         + FFIBindingsSpec<SPEC, ComposerLink<Self>, ArgKindPairs<SPEC>>
@@ -58,7 +59,6 @@ impl<SPEC, I> ItemComposer<SPEC, I>
             root.borrow_mut().setup_composers(&root);
         }
         root
-
     }
 
     fn setup_composers(&mut self, root: &ComposerLink<Self>) {
@@ -148,16 +148,13 @@ impl<SPEC, I> FFIObjectComposable for ItemComposer<SPEC, I>
 
 impl<SPEC, I> BindingComposable<SPEC> for ItemComposer<SPEC, I>
     where SPEC: Specification,
-          I: DelimiterTrait + ?Sized,
-          VariableComposer<SPEC>: SourceComposable<Source = ScopeContext, Output = SPEC::Var> {
-
-          // Type: Resolve<SPEC::Var> {
+          I: DelimiterTrait + ?Sized {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<SPEC>> {
         let source = self.source_ref();
         self.bindings_composer
             .as_ref()
             .map(|c| c.compose(&source))
-            .unwrap_or(Depunctuated::new())
+            .unwrap_or_else(|| Depunctuated::new())
     }
 }
 
@@ -194,11 +191,11 @@ impl<I> SourceFermentable<RustFermentate> for ItemComposer<RustSpecification, I>
         let conversions = self.ffi_conversions_composer
             .as_ref()
             .map(|_| self.compose_interfaces())
-            .unwrap_or(Depunctuated::new());
+            .unwrap_or_else(|| Depunctuated::new());
         let comment = self.ffi_object_composer
             .as_ref()
             .map(|_| self.compose_docs())
-            .unwrap_or(DocPresentation::Empty);
+            .unwrap_or_default();
         RustFermentate::Item {
             attrs: self.compose_attributes(),
             comment,

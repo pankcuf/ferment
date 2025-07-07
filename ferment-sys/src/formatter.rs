@@ -4,7 +4,7 @@ use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
 use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
-use crate::composable::{GenericBoundsModel, GenericConversion, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
+use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::conversion::{MixinKind, ObjectKind};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
@@ -55,13 +55,6 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
         .join("\n\n")
 }
 
-#[allow(unused)]
-pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Option<Attribute>>>) -> String {
-    dict.iter()
-        .map(|(item, attrs)| format!("{}: {}", format_unique_attrs(attrs), item.object.to_token_stream()))
-        .collect::<Vec<_>>()
-        .join("\n\t")
-}
 #[allow(unused)]
 pub fn format_mixin_kinds(dict: &HashMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
@@ -147,8 +140,8 @@ pub fn ident_signature_conversion_pair(dict: (&Ident, &Signature)) -> String {
 #[allow(unused)]
 pub fn ident_trait_type_decomposition_conversion_pair(dict: (&Ident, &TraitTypeModel)) -> String {
     format!("\t{}: {}", format_token_stream(dict.0), {
-        let TraitTypeModel { ident, trait_bounds, generics } = dict.1;
-        quote!(#ident: [bounds: #(#trait_bounds)*, generics: #generics])
+        let TraitTypeModel { ident, trait_bounds } = dict.1;
+        quote!(#ident: [bounds: #(#trait_bounds)*])
     })
 }
 fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {

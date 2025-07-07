@@ -30,7 +30,7 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
             TypeKind::Primitive(arg_0_target_path) => {
                 let kind = ConversionExpressionKind::PrimitiveGroup;
                 GenericArgPresentation::<ObjCSpecification>::new(
-                    <ObjCSpecification as Specification>::Var::direct(objc_primitive(arg_0_target_path).to_token_stream()),
+                    <ObjCSpecification as Specification>::Var::direct(objc_primitive(arg_0_target_path)),
                     Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())

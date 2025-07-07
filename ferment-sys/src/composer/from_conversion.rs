@@ -33,6 +33,7 @@ impl<'a, SPEC> FromConversionFullComposer<'a, SPEC>
     pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
         Self::expr_less(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
+    #[allow(unused)]
     pub fn value_expr(name: SPEC::Name, ty: &'a Type, field_expr: SPEC::Expr) -> Self {
         Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(field_expr))
     }
@@ -48,13 +49,13 @@ impl<'a, SPEC> SourceComposable for FromConversionFullComposer<'a, SPEC>
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { name, search, field_expr: expr, .. } = self;
-        let field_path = expr.clone().unwrap_or(SPEC::Expr::simple(name));
+        let field_path = expr.clone().unwrap_or_else(|| SPEC::Expr::simple(name));
         let search_key = self.search.search_key();
         let maybe_object = source.maybe_object_by_predicate_ref(search);
         let full_type = maybe_object
             .as_ref()
             .and_then(ObjectKind::maybe_type)
-            .unwrap_or(search_key.to_type());
+            .unwrap_or_else(|| search_key.to_type());
         let is_ref = search_key.maybe_originally_is_ref();
         let is_mut_ref = search_key.maybe_originally_is_mut_ref();
         let full_type = match &full_type {
@@ -64,7 +65,7 @@ impl<'a, SPEC> SourceComposable for FromConversionFullComposer<'a, SPEC>
         let ffi_type = Resolve::<FFIFullPath<SPEC>>::resolve(&full_type, source).to_type();
         let composition = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
-            .unwrap_or(TypeModelKind::unknown_type(search_key.to_type()));
+            .unwrap_or_else(|| TypeModelKind::unknown_type(search_key.to_type()));
 
         let maybe_special: Option<SpecialType<SPEC>> = full_type.maybe_special_type(source);
         let mut wrap_to_box = is_ref;

@@ -38,6 +38,14 @@ impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
     }
 }
 
+impl<SPEC> Default for Expression<SPEC>
+where SPEC: Specification<Expr=Self>,
+      Self: ScopeContextPresentable {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Expression<SPEC>
     where SPEC: Specification<Expr=Self>,
@@ -47,20 +55,14 @@ pub enum Expression<SPEC>
     CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<SPEC>>, /*ffi*/Type, /*target*/Type),
     CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi*/Type, /*target*/Type),
 
-    // Allocate(FFIAspect),
-
     Empty,
     Simple(TokenStream2),
     DictionaryName(DictionaryName),
     Name(SPEC::Name),
     FfiRefWithName(SPEC::Name),
     ObjName(SPEC::Name),
-
-    // CallDictionaryMethod(),
     DictionaryExpr(DictionaryExpr),
     InterfacesExpr(InterfacesMethodExpr),
-
-    // DictionaryExpr
     AsRef(Box<Expression<SPEC>>),
     AsMutRef(Box<Expression<SPEC>>),
     DerefRef(Box<Expression<SPEC>>),
@@ -109,17 +111,9 @@ impl<SPEC> Expression<SPEC>
         Self::CastConversionExprTokens(aspect, kind, expr.to_token_stream(), ffi_ty, target_ty)
     }
 
-    pub(crate) fn empty() -> Self {
-        Self::Empty
-    }
-
     pub(crate) fn dict_expr(expr: DictionaryExpr) -> Self {
         Self::DictionaryExpr(expr)
     }
-
-    // pub(crate) fn expr_as_ref(expr: Self) -> Self {
-    //     Self::AsRef(expr.into())
-    // }
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
         Self::Empty
     }
@@ -217,17 +211,10 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn from_primitive(expr: Self) -> Self {
         Self::expression(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
     }
-    // pub(crate) fn ffi_to_complex(expr: Self) -> Self {
-    //     Self::expression(FFIAspect::To, ConversionExpressionKind::Complex, expr)
-    // }
+
     pub(crate) fn destroy_complex(expr: Self) -> Self {
         Self::expression(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
     }
-    // pub(crate) fn destroy_complex_opt(expr: Self) -> Self {
-    //     Self::expression(FFIAspect::Destroy, ConversionExpressionKind::ComplexOpt, expr)
-    // }
-
-
 
     pub(crate) fn from_complex_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::Complex, expr)
@@ -353,7 +340,7 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::ObjName(name) =>
                 quote!(obj.#name),
             Self::FfiRefWithName(name) =>
-                quote!(ffi_ref.#name),
+                DictionaryExpr::ffi_ref_prop(name).to_token_stream(),
             Self::Name(name) => name
                 .to_token_stream(),
 
@@ -414,18 +401,15 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             }
             Self::NamedComposer((l_value, composer)) => {
                 let expression = composer.compose(source);
-                //println!("NamedComposer: {} {:?}", l_value, expression);
                 Self::Named((l_value.clone(), expression.into()))
                     .present(source)
             },
 
             Self::ConversionType(expr) => {
-                //println!("ConversionType: {:?}", expr);
                 expr.compose(source)
                     .present(source)
             },
             Self::Terminated(expr) => {
-                //println!("Terminated: {:?}", expr);
                 expr.compose(source)
                     .present(source)
                     .to_token_stream()
@@ -601,9 +585,7 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 let pres = expr.present(source);
                 InterfacesMethodExpr::UnboxAnyVecPtrComposer(quote!(#pres, ferment::unbox_string)).to_token_stream()
             },
-
         }
-
     }
 }
 

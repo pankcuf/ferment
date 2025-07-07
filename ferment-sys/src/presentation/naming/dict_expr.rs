@@ -27,6 +27,7 @@ pub enum DictionaryExpr {
     AsMutRef(TokenStream2),
     Mapper(TokenStream2, TokenStream2),
     SelfProp(TokenStream2),
+    FfiRefProp(TokenStream2),
     AsMut_(TokenStream2),
     IfNotNull(TokenStream2, TokenStream2),
     IfThen(TokenStream2, TokenStream2),
@@ -64,7 +65,18 @@ pub enum DictionaryExpr {
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
     SelfAsTrait(TokenStream2, TokenStream2),
+}
 
+impl DictionaryExpr {
+    pub fn self_prop<T: ToTokens>(name: T) -> Self {
+        Self::SelfProp(name.to_token_stream())
+    }
+    pub fn ffi_ref_prop<T: ToTokens>(name: T) -> Self {
+        Self::FfiRefProp(name.to_token_stream())
+    }
+    pub fn self_destruct<T: ToTokens>(name: T) -> Self {
+        Self::SelfDestructuring(name.to_token_stream())
+    }
 }
 
 
@@ -133,6 +145,10 @@ impl ToTokens for DictionaryExpr {
                 quote!(|#context| ).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
+            Self::FfiRefProp(prop) => {
+                quote!(ffi_ref.).to_tokens(tokens);
+                prop.to_tokens(tokens);
+            },
             Self::SelfProp(prop) => {
                 quote!(self.).to_tokens(tokens);
                 prop.to_tokens(tokens);
@@ -264,7 +280,7 @@ impl ToTokens for DictionaryExpr {
                 quote!(<#ffi_type as ferment::FFIConversionDestroy<#target_type>>::destroy(#expr)).to_tokens(tokens)
             }
             Self::BoxedSelfDestructuring(expr) =>
-                InterfacesMethodExpr::Boxed(DictionaryExpr::SelfDestructuring(expr.to_token_stream()).to_token_stream()).to_tokens(tokens),
+                InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr).to_token_stream()).to_tokens(tokens),
 
         }
     }

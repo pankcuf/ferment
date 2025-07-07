@@ -88,7 +88,7 @@ impl From<Type> for TypeKind {
                                     })
                                 },
                                 _ => None
-                            }).unwrap_or(TypeKind::Complex(ty))
+                            }).unwrap_or_else(|| TypeKind::Complex(ty))
                         }
                     },
                     _ => match last_ident.to_string().as_str() {
@@ -112,7 +112,7 @@ impl From<Type> for TypeKind {
                                 PathArguments::AngleBracketed(_) =>
                                     Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))),
                                 _ => None
-                            }).unwrap_or(TypeKind::Complex(ty))
+                            }).unwrap_or_else(|| TypeKind::Complex(ty))
                         },
                     }
                 }

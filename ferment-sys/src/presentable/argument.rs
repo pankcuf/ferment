@@ -90,11 +90,11 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
             ArgKind::BindingArg(FieldComposer { name, kind, named, attrs, .. }) => {
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
+                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
                         Resolve::<<RustSpecification as Specification>::Var>::resolve(field_type, source).to_type()
                     ),
                     FieldTypeKind::Var(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
+                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
                         field_type.to_type()
                     ),
                     FieldTypeKind::Conversion(conversion) => (
@@ -106,20 +106,20 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 ArgPresentation::expr(
                     attrs,
                     named.then(|| name.to_token_stream())
-                        .unwrap_or(name.anonymous().to_token_stream())),
+                        .unwrap_or_else(|| name.anonymous().to_token_stream())),
             ArgKind::CallbackArg(FieldComposer { attrs, name, kind, .. }) =>
                 ArgPresentation::field(
                     attrs,
                     Visibility::Inherited,
                     Some(name.mangle_ident_default()),
-                    kind.ty().clone()),
+                    kind.to_type()),
             ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) => {
                 ArgPresentation::field(
                     attrs,
                     Visibility::Inherited,
                     Some(name.mangle_ident_default()),
                     Type::Verbatim(
-                        FromConversionFullComposer::<RustSpecification>::key_in_scope(name.clone(), kind.ty(), &source.scope)
+                        FromConversionFullComposer::<RustSpecification>::key_in_scope(name.clone(), &kind.to_type(), &source.scope)
                             .compose(source)
                             .present(source)))
             },
@@ -133,7 +133,7 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                     attrs,
                     visibility.clone(),
                     Some(name.mangle_ident_default()),
-                    VariableComposer::<RustSpecification>::from(kind.ty())
+                    VariableComposer::<RustSpecification>::from(&kind.to_type())
                         .compose(source)
                         .to_type()),
         }

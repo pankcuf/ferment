@@ -24,6 +24,7 @@ impl<'a, SPEC> TargetVarComposer<'a, SPEC>
         Self::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
     }
 
+    #[allow(unused)]
     pub fn value(ty: &'a Type) -> Self {
         Self::new(ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
     }
@@ -53,7 +54,7 @@ impl<'a> SourceComposable for TargetVarComposer<'a, RustSpecification> {
         let full_ty = maybe_obj
             .as_ref()
             .and_then(ObjectKind::maybe_type)
-            .unwrap_or(search_key.to_type());
+            .unwrap_or_else(|| search_key.to_type());
         accessor_composer(match maybe_obj {
             Some(ObjectKind::Type(ref ty_model_kind)) |
             Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
@@ -63,7 +64,7 @@ impl<'a> SourceComposable for TargetVarComposer<'a, RustSpecification> {
                             .maybe_trait_object_model_kind(source)
                     },
                     _ => Some(ty_model_kind.clone()),
-                }.unwrap_or(ty_model_kind.clone());
+                }.unwrap_or_else(|| ty_model_kind.clone());
                 match conversion {
                     TypeModelKind::Bounds(..) =>
                         Type::Infer(TypeInfer { underscore_token: Default::default() }),

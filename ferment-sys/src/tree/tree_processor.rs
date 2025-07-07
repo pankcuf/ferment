@@ -16,6 +16,7 @@ pub struct FileTreeProcessor {
 }
 
 impl FileTreeProcessor {
+    #[allow(unused)]
     pub fn build(config: &Config) -> Result<CrateTree, error::Error> {
         let Config { current_crate, external_crates, .. } = config;
         let context = Arc::new(RwLock::new(GlobalContext::from(config)));
@@ -91,6 +92,7 @@ impl FileTreeProcessor {
     }
 }
 
+#[allow(unused)]
 fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> Result<HashMap<Crate, ScopeTreeExportItem>, error::Error> {
     crates.iter()
         .try_fold(HashMap::new(), |mut acc, crate_config| {

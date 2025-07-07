@@ -292,11 +292,12 @@ pub unsafe fn to_opt_primitive_group<T, U>(iter: impl Iterator<Item=Option<T>>) 
     where Vec<*mut U>: FromIterator<*mut T> {
     boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
 }
-
+/// # Safety
 pub unsafe fn to_opt_opaque_group<T, U>(iter: impl Iterator<Item=Option<T>>) -> *mut *mut U
     where Vec<*mut U>: FromIterator<*mut T> {
     boxed_vec(iter.map(|t| t.map_or(std::ptr::null_mut(), |o| boxed(o))).collect())
 }
+/// # Safety
 pub unsafe fn to_opaque_group<T, U>(iter: impl Iterator<Item=T>) -> *mut *mut U
     where Vec<*mut U>: FromIterator<*mut T> {
     boxed_vec(iter.map(boxed).collect())

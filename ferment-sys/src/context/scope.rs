@@ -46,7 +46,7 @@ impl Scope {
     pub fn joined(&self, item: &Item) -> Self {
         let child_self_scope = item.maybe_ident()
             .map(|ident| self.self_scope.joined(ident))
-            .unwrap_or(self.self_scope.clone());
+            .unwrap_or_else(|| self.self_scope.clone());
         let object = ObjectKind::try_from((item, &child_self_scope)).unwrap();
         Scope::new(child_self_scope, object)
     }

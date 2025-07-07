@@ -47,7 +47,7 @@ impl<SPEC> SourceComposable for ConversionType<SPEC>
             ConversionType::To(composer, expr) =>
                 ToConversionFullComposer::key_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source),
             ConversionType::Destroy(composer, expr) =>
-                DestroyFullConversionComposer::key_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source).unwrap_or(Expression::Empty),
+                DestroyFullConversionComposer::key_expr(composer.name.clone(), composer.ty(), &source.scope, expr.clone()).compose(source).unwrap_or_default(),
                 // DestroyConversionComposer::new(composer.name.clone(), composer.ty().clone(), expr.clone()).compose(source),
         }
     }

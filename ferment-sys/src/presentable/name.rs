@@ -62,6 +62,9 @@ impl TypeContext {
     pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
         Self::Struct { ident: ident.clone(), attrs, generics }
     }
+    pub fn struct_ident(ident: Ident) -> Self {
+        Self::Struct { ident, attrs: vec![], generics: Generics::default() }
+    }
     pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
         Self::Enum { ident: ident.clone(), attrs, generics }
     }

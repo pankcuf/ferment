@@ -1,14 +1,10 @@
 use crate::{Config, Crate, error, Lang};
-#[cfg(not(feature = "cbindgen_only"))]
-use crate::ast::Depunctuated;
-#[cfg(not(feature = "cbindgen_only"))]
-use crate::tree::FileTreeProcessor;
-use crate::tree::Writer;
 use crate::lang::rust::find_crates_paths;
-#[cfg(not(feature = "cbindgen_only"))]
-use crate::presentation::{Fermentate, RustFermentate};
+use crate::writer::Writer;
 
 extern crate env_logger;
+
+pub const DEFAULT_FERMENTATE_MOD: &str = "fermented";
 
 #[derive(Debug, Clone)]
 pub struct Builder {
@@ -18,7 +14,7 @@ pub struct Builder {
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
-        Builder { config: Config::new("fermented", current_crate, cbindgen::Config::default()) }
+        Builder { config: Config::new(DEFAULT_FERMENTATE_MOD, current_crate, cbindgen::Config::default()) }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {
@@ -27,7 +23,7 @@ impl Builder {
 
     #[allow(unused)]
     pub fn with_default_mod_name(mut self) -> Builder {
-        self.config.mod_name = String::from("fermented");
+        self.config.mod_name = String::from(DEFAULT_FERMENTATE_MOD);
         self
     }
     #[allow(unused)]
@@ -112,19 +108,8 @@ impl Builder {
     /// The resulting module will only contain the necessary imports and types suitable for FFI conversion.
     ///
     pub fn generate(self) -> Result<(), error::Error> {
-        #[cfg(not(feature = "cbindgen_only"))]
-        let fermentate = {
-            let crate_tree = FileTreeProcessor::build(&self.config)?;
-            Depunctuated::from_iter([
-                Fermentate::Rust(RustFermentate::CrateTree(crate_tree.clone())),
-                #[cfg(feature = "objc")]
-                Fermentate::ObjC(crate::lang::objc::ObjCFermentate::CrateTree(crate_tree))
-            ])
-        };
-        let writer = Writer::from(self.config);
-        #[cfg(not(feature = "cbindgen_only"))]
-        writer.write(fermentate)?;
-        writer.write_headers()
+        Writer::from(self.config)
+            .write_all()
     }
 }
 

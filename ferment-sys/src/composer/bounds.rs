@@ -1,17 +1,17 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Lifetime, Type};
+use syn::{Attribute, Lifetime, Type};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::{GenericArgPresentation, TypeKind};
-use crate::ext::{LifetimeProcessor, Mangle, Resolve, ToType};
+use crate::conversion::GenericArgPresentation;
+use crate::ext::{LifetimeProcessor, Mangle, Primitive, Resolve, ToType};
 use crate::lang::{RustSpecification, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name};
+use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, ToFFIVariable};
 
 #[derive(ComposerBase)]
 pub struct BoundsComposer<SPEC>
@@ -47,9 +47,9 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
         let ffi_name = self.model.mangle_ident_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
-        let mut from_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut to_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut from_conversions = CommaPunctuated::new();
+        let mut to_conversions = CommaPunctuated::new();
+        let mut destroy_conversions = SemiPunctuated::new();
         let mut field_composers = Depunctuated::new();
         self.model
             .predicates
@@ -60,25 +60,22 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
                 let ty: Type = predicate_ty.resolve(source);
                 let field_name = Name::Index(index);
                 lifetimes.extend(predicate_ty.unique_lifetimes());
-                let (kind, destroy_expr, from_expr, to_expr) = match TypeKind::from(&ty) {
-                    TypeKind::Primitive(..) => (
+                let (kind, destroy_expr) = if ty.is_primitive() {
+                    (
                         ConversionExpressionKind::Primitive,
-                        Expression::empty(),
-                        Expression::ffi_ref_with_name(&name),
-                        Expression::obj_name(&field_name),
-                    ),
-                    _ => (
+                        Expression::default(),
+                    )
+                } else {
+                    (
                         ConversionExpressionKind::Complex,
-                        Expression::dict_expr(DictionaryExpr::SelfProp(name.to_token_stream())),
-                        Expression::ffi_ref_with_name(&name),
-                        Expression::obj_name(&field_name)
-                    ),
+                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
+                    )
                 };
                 let item = GenericArgPresentation::<RustSpecification>::new(
-                    <RustSpecification as Specification>::Var::direct(ty.clone()),
+                    ty.to_direct_var(),
                     Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
-                    Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
-                    Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
+                    Expression::ConversionExpr(FFIAspect::From, kind, Expression::ffi_ref_with_name(&name).into()),
+                    Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, Expression::obj_name(&field_name).into()).into())));
                 from_conversions.push(item.from_conversion.present(source));
                 to_conversions.push(item.to_conversion.present(source));
                 destroy_conversions.push(item.destructor.present(source));
@@ -89,7 +86,7 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ffi_name, attrs: vec![], generics: Generics::default() });
+        let aspect = Aspect::raw_struct_ident(ffi_name);
         Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

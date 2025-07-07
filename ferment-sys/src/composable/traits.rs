@@ -6,7 +6,7 @@ use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
-use crate::composable::{CfgAttributes, FnSignatureContext, GenericsComposition};
+use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::composer::{SigComposer, SigComposerLink};
 use crate::context::ScopeContextLink;
 use crate::conversion::TypeModelKind;
@@ -30,12 +30,11 @@ impl ToTokens for TraitBoundDecomposition {
 pub struct TraitTypeModel {
     pub ident: Ident,
     pub trait_bounds: Vec<TraitBoundDecomposition>,
-    pub generics: GenericsComposition,
 }
 
 impl ToTokens for TraitTypeModel {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let TraitTypeModel { ident, trait_bounds, generics: _ } = self;
+        let TraitTypeModel { ident, trait_bounds } = self;
         quote!(#ident: #(#trait_bounds),*).to_tokens(tokens)
     }
 }
@@ -52,7 +51,6 @@ impl TraitTypeModel {
                         None
                 })
                 .collect(),
-            generics: GenericsComposition { generics: Default::default() },
         }
     }
 }

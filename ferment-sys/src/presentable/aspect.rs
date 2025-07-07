@@ -1,6 +1,6 @@
 use syn::{Attribute, parse_quote, Type, TypeSlice};
 use std::fmt::{Debug, Display};
-use proc_macro2::{Group, TokenTree};
+use proc_macro2::{Group, Ident, TokenTree};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::token::Comma;
@@ -71,6 +71,9 @@ impl Aspect<TypeContext> {
         }
     }
 
+    pub fn raw_struct_ident(ident: Ident) -> Self {
+        Aspect::RawTarget(TypeContext::struct_ident(ident))
+    }
 }
 
 impl<T> Display for Aspect<T> where T: ToString {
@@ -209,7 +212,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     TypeContext::Impl { path , trait_, attrs: _ } =>
                         trait_.as_ref()
                             .map(|trait_| trait_.to_type())
-                            .unwrap_or(path.to_type())
+                            .unwrap_or_else(|| path.to_type())
                             .resolve(source)
                 }
             }

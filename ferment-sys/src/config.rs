@@ -64,18 +64,5 @@ impl Config {
             ..Default::default()
         }
     }
-
-
-
 }
 
-#[cfg(feature = "objc")]
-impl Config {
-    pub fn maybe_objc_config(&self) -> Option<&crate::lang::objc::Config> {
-        self.languages.iter().find_map(|lang| match lang {
-            Lang::ObjC(config) => Some(config),
-            #[cfg(feature = "java")]
-            _ => None
-        })
-    }
-}

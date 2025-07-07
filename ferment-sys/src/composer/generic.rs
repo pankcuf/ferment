@@ -167,7 +167,8 @@ impl SourceComposable for GenericComposer<RustSpecification> {
                       ffi_aspect,
                       attrs,
                       binding_composer,
-                      interfaces }| {
+                      interfaces
+                  }| {
                 let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
                 let ffi_name_tokens = ffi_aspect.present(source).to_token_stream();
                 let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name_tokens, &attrs, BraceWrapped::new(fields).present(source)));

@@ -97,7 +97,7 @@ impl ContainsBound for Type {
                 bounds.contains_bound(bound),
             Type::Path(TypePath { path, qself}) =>
                 path.eq(bound) ||
-                    qself.as_ref().map_or(false, |q| q.contains_bound(bound)),
+                    qself.as_ref().map(|q| q.contains_bound(bound)).unwrap_or_default(),
             Type::Tuple(TypeTuple { elems, .. }) =>
                 elems.iter().any(|ty| ty.contains_bound(bound)),
             _ => false
@@ -138,7 +138,7 @@ impl ContainsSubType for Type {
             Type::TraitObject(TypeTraitObject { bounds, .. }) =>
                 bounds.contains_sub_type(sub_type),
             Type::Path(TypePath { qself, ..}) =>
-                qself.as_ref().map_or(false, |q| q.ty.contains_sub_type(sub_type)),
+                qself.as_ref().map(|q| q.ty.contains_sub_type(sub_type)).unwrap_or_default(),
             Type::Tuple(TypeTuple { elems, .. }) =>
                 elems.iter().any(|ty| ty.contains_sub_type(sub_type)),
             _ => false

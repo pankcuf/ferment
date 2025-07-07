@@ -12,14 +12,24 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Lifetime, Type};
 use crate::composer::VarComposable;
+#[cfg(any(feature = "objc", feature = "java"))]
 use crate::error;
+#[cfg(feature = "objc")]
+use crate::Config;
+#[cfg(feature = "objc")]
+use crate::conversion::GenericTypeKind;
+#[cfg(feature = "objc")]
+use crate::ext::FFIVarResolve;
 use crate::ext::{Mangle, MangleDefault, ToType};
+#[cfg(feature = "objc")]
 use crate::lang::objc::composers::AttrWrapper;
 use crate::presentable::{NameTreeContext, TypeContext, Expression, ExpressionComposable};
 use crate::presentation::{DictionaryName, FFIVariable, InterfacePresentation, Name, RustFermentate};
+#[cfg(any(feature = "objc", feature = "java"))]
 use crate::tree::CrateTree;
 
 
+#[cfg(any(feature = "objc", feature = "java"))]
 pub trait CrateTreeConsumer {
     fn generate(&self, crate_tree: &CrateTree) -> Result<(), error::Error>;
 }
@@ -91,6 +101,7 @@ impl<T> LangLifetimeSpecification<T> for Vec<Lifetime> where T: Clone {
         lifetimes
     }
 }
+#[cfg(feature = "objc")]
 impl<T> LangAttrSpecification<T> for AttrWrapper where T: Clone {
     fn from_attrs(attrs: Vec<Attribute>) -> Self {
         AttrWrapper::from(attrs)
@@ -106,6 +117,7 @@ pub enum Lang {
     Java(java::Config)
 }
 
+#[cfg(any(feature = "objc", feature = "java"))]
 impl CrateTreeConsumer for Lang {
     fn generate(&self, crate_tree: &CrateTree) -> Result<(), error::Error> {
         match self {
@@ -120,3 +132,17 @@ impl CrateTreeConsumer for Lang {
         }
     }
 }
+
+#[cfg(feature = "objc")]
+impl Config {
+    pub fn maybe_objc_config(&self) -> Option<&objc::Config> {
+        self.languages.iter().find_map(|lang| match lang {
+            Lang::ObjC(config) => Some(config),
+            #[cfg(feature = "java")]
+            _ => None
+        })
+    }
+}
+
+#[cfg(feature = "objc")]
+impl FFIVarResolve<objc::ObjCSpecification> for GenericTypeKind {}

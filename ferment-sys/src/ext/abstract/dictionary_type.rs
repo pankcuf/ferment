@@ -181,66 +181,66 @@ impl DictionaryType for PathSegment {
 }
 impl DictionaryType for Colon2Punctuated<PathSegment> {
     fn is_void(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_void())
+        self.last().map(|seg| seg.is_void()).unwrap_or_default()
     }
     fn is_digit(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_digit())
+        self.last().map(|seg| seg.is_digit()).unwrap_or_default()
     }
     fn is_128_digit(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_128_digit())
+        self.last().map(|seg| seg.is_128_digit()).unwrap_or_default()
     }
 
     fn is_bool(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_bool())
+        self.last().map(|seg| seg.is_bool()).unwrap_or_default()
     }
     fn is_str(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_str())
+        self.last().map(|seg| seg.is_str()).unwrap_or_default()
     }
 
     fn is_string(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_string())
+        self.last().map(|seg| seg.is_string()).unwrap_or_default()
     }
     fn is_vec(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_vec())
+        self.last().map(|seg| seg.is_vec()).unwrap_or_default()
     }
 
     fn is_smart_ptr(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_smart_ptr())
+        self.last().map(|seg| seg.is_smart_ptr()).unwrap_or_default()
     }
 
     fn is_special_std_trait(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_special_std_trait())
+        self.last().map(|seg| seg.is_special_std_trait()).unwrap_or_default()
     }
     fn is_special_generic(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_special_generic())
+        self.last().map(|seg| seg.is_special_generic()).unwrap_or_default()
     }
 
     fn is_result(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_result())
+        self.last().map(|seg| seg.is_result()).unwrap_or_default()
     }
 
     fn is_map(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_map())
+        self.last().map(|seg| seg.is_map()).unwrap_or_default()
     }
 
     fn is_btree_set(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_btree_set())
+        self.last().map(|seg| seg.is_btree_set()).unwrap_or_default()
     }
 
     fn is_hash_set(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_hash_set())
+        self.last().map(|seg| seg.is_hash_set()).unwrap_or_default()
     }
 
     fn is_box(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_box())
+        self.last().map(|seg| seg.is_box()).unwrap_or_default()
     }
 
     fn is_optional(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_optional())
+        self.last().map(|seg| seg.is_optional()).unwrap_or_default()
     }
 
     fn is_lambda_fn(&self) -> bool {
-        self.last().map_or(false, |seg| seg.is_lambda_fn())
+        self.last().map(|seg| seg.is_lambda_fn()).unwrap_or_default()
     }
 }
 

@@ -1,17 +1,25 @@
+// #[cfg(not(feature = "cbindgen_only"))]
 use std::collections::HashMap;
+// #[cfg(not(feature = "cbindgen_only"))]
 use quote::quote;
-use syn::{Attribute, parse_quote};
+// #[cfg(not(feature = "cbindgen_only"))]
+use syn::parse_quote;
+use syn::Attribute;
+// #[cfg(not(feature = "cbindgen_only"))]
 use crate::{Crate, error, print_phase};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
 use crate::composer::{SourceComposable, GenericComposer, SourceAccessible, SourceFermentable};
 use crate::context::ScopeContextLink;
 use crate::conversion::expand_attributes;
+// #[cfg(not(feature = "cbindgen_only"))]
 use crate::ext::RefineUnrefined;
 use crate::lang::RustSpecification;
 use crate::presentable::TypeContext;
 use crate::presentation::RustFermentate;
-use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTree, ScopeTreeExportItem};
+use crate::tree::ScopeTree;
+// #[cfg(not(feature = "cbindgen_only"))]
+use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTreeExportItem};
 
 /// Main entry point for resulting expansion
 #[derive(Clone, Debug)]
@@ -27,6 +35,7 @@ impl SourceAccessible for CrateTree {
     }
 }
 
+#[allow(unused)]
 impl CrateTree {
     pub fn new(current_crate: &Crate, current_tree: ScopeTreeExportItem, external_crates: HashMap<Crate, ScopeTreeExportItem>) -> Result<Self, error::Error> {
         match current_tree {

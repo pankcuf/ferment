@@ -2,6 +2,7 @@ use quote::ToTokens;
 use crate::ast::{CommaPunctuated, DelimiterTrait, Depunctuated, SemiPunctuated};
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, FFIObjectComposable, FieldsConversionComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceComposable, SourceFermentable, ToConversionFullComposer, TypeAspect, VarComposer};
+use crate::ext::ToType;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCFermentate;
@@ -45,9 +46,9 @@ impl<I> InterfaceComposable<<ObjCSpecification as Specification>::Interface> for
         self.field_composers
             .iter()
             .for_each(|FieldComposer { name, kind, .. }| {
-                let var = VarComposer::<ObjCSpecification>::key_in_scope(kind.ty(), &source.scope)
+                let var = VarComposer::<ObjCSpecification>::key_in_scope(&kind.to_type(), &source.scope)
                     .compose(&source);
-                let to_conversion = ToConversionFullComposer::<ObjCSpecification>::key_expr(name.clone(), kind.ty(), &source.scope, Some(Expression::ObjName(name.clone())))
+                let to_conversion = ToConversionFullComposer::<ObjCSpecification>::key_expr(name.clone(), &kind.to_type(), &source.scope, Some(Expression::ObjName(name.clone())))
                     .compose(&source)
                     .present(&source);
 

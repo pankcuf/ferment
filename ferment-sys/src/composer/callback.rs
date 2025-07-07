@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, BareFnArg, Generics, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
+use syn::{parse_quote, Attribute, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -11,7 +11,7 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, ScopeContextPresentable, TypeContext};
+use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocComposer, InterfacePresentation, Name};
 
 #[derive(ComposerBase)]
@@ -53,10 +53,10 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
         let from_ = |result_conversion: TokenStream2|
             DictionaryExpr::CallbackDestructor(result_conversion, quote!(#ffi_result));
 
-        let from_complex_result = |ty: TokenStream2, ffi_ty: TokenStream2|
-            from_(DictionaryExpr::CastedFFIConversionFrom(ffi_ty, ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
-        let from_opt_complex_result = |ty: TokenStream2, ffi_ty: TokenStream2|
-            from_(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty, ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
+        let from_complex_result = |ty: TokenStream2, ffi_ty: Type|
+            from_(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
+        let from_opt_complex_result = |ty: TokenStream2, ffi_ty: Type|
+            from_(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
 
         let from_primitive_result = || quote!(ffi_result);
         let from_opt_primitive_result = || quote!(*#ffi_result);
@@ -71,7 +71,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                         let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                         (ffi_ty.joined_mut(), match maybe_special {
                             Some(SpecialType::Opaque(..)) => quote!((&*#ffi_result).clone()),
-                            _ => from_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
+                            _ => from_complex_result(ty.to_token_stream(), ffi_ty)
                         })
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
@@ -82,18 +82,18 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), opt_conversion(match maybe_special {
                                     Some(SpecialType::Opaque(..)) => quote!(Some((&*#ffi_result).clone())),
-                                    _ => from_opt_complex_result(ty.to_token_stream(), ffi_ty.to_token_stream())
+                                    _ => from_opt_complex_result(ty.to_token_stream(), ffi_ty)
                                 }))
                             },
                             TypeKind::Generic(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
-                                (ffi_ty.joined_mut(), from_opt_complex_result(ty.ty().to_token_stream(), ffi_ty.to_token_stream()))
+                                (ffi_ty.joined_mut(), from_opt_complex_result(ty.ty().to_token_stream(), ffi_ty))
                             },
                         },
                         GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                         _ => {
                             let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&full_ty, source);
-                            (ffi_ty.joined_mut(), from_complex_result(generic_ty.to_token_stream(), ffi_ty.to_token_stream()))
+                            (ffi_ty.joined_mut(), from_complex_result(generic_ty.to_token_stream(), ffi_ty))
                         }
                     }
                 };
@@ -111,14 +111,13 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                 let name = Name::UnnamedArg(index);
                 lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
-                let ffi_arg = VarComposer::<RustSpecification>::value(ty).compose(source).to_type();
-                ffi_args.push(bare_fn_arg(ffi_arg));
+                ffi_args.push(bare_fn_arg(VarComposer::<RustSpecification>::value(ty).compose(source).to_type()));
                 arg_to_conversions.push(ToConversionFullComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
             });
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustSpecification>::callback(
-            Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), generics: Generics::default(), attrs: vec![] }),
+            Aspect::raw_struct_ident(ty.mangle_ident_default()),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
@@ -143,6 +142,15 @@ fn bare_fn_arg(ty: Type) -> BareFnArg {
 }
 
 fn bare(inputs: CommaPunctuated<BareFnArg>, output: ReturnType) -> Type {
-    Type::BareFn(TypeBareFn { abi: Some(parse_quote!(extern "C")), inputs, output, lifetimes: None, unsafety: Some(Default::default()), fn_token: Default::default(), paren_token: Default::default(), variadic: None, })
+    Type::BareFn(TypeBareFn {
+        abi: Some(parse_quote!(extern "C")),
+        inputs,
+        output,
+        lifetimes: None,
+        unsafety: Some(Default::default()),
+        fn_token: Default::default(),
+        paren_token: Default::default(),
+        variadic: None
+    })
 }
 

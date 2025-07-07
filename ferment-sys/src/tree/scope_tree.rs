@@ -7,13 +7,15 @@ use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
 use crate::composer::{MaybeComposer, SourceAccessible, SourceFermentable};
-use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeContextLink, ScopeInfo};
+use crate::context::{GlobalContext, Scope, ScopeContext, ScopeInfo};
+use crate::context::{ScopeChain, ScopeContextLink};
 use crate::conversion::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
 use crate::lang::RustSpecification;
 use crate::presentation::RustFermentate;
-use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
+use crate::tree::{ScopeTreeExportID, ScopeTreeItem};
+use crate::tree::ScopeTreeExportItem;
 
 #[derive(Clone)]
 pub struct ScopeTree {
@@ -66,6 +68,7 @@ impl SourceFermentable<RustFermentate> for ScopeTree {
     }
 }
 
+#[allow(unused)]
 pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
     let crate_ident =  root_scope_chain.crate_ident_ref();
     let generics_scope_ident = format_ident!("generics");
@@ -99,6 +102,7 @@ pub fn create_item_use_with_tree(tree: UseTree) -> ItemUse {
 }
 
 
+#[allow(unused)]
 pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ScopeContextLink,
@@ -110,6 +114,7 @@ pub fn create_crate_root_scope_tree(
     create_scope_tree(ScopeChain::crate_root(crate_ident, attrs.clone()), scope_context, imported, exported, attrs)
 }
 
+#[allow(unused)]
 pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ScopeContextLink,

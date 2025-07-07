@@ -99,7 +99,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Type {
             .map(FFIFullPath::from)
             .or_else(|| source.maybe_ffi_full_path(self))
             .map(|ffi_path| ffi_path.to_type())
-            .unwrap_or(parse_quote!(#self))
+            .unwrap_or_else(|| parse_quote!(#self))
             .to_type();
         resolve_type_variable(refined, source)
     }
@@ -171,7 +171,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                 FFIVariable::direct(
                     Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(ty, source)
                         .map(|special| special.to_token_stream())
-                        .unwrap_or(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(ty, source)
+                        .unwrap_or_else(|| Resolve::<FFIFullPath<ObjCSpecification>>::resolve(ty, source)
                             .to_token_stream())),
             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) =>
                 FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(ty, source).to_token_stream()),
@@ -262,7 +262,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                                   ObjectKind::Empty => None
                               }
                           })
-                          .unwrap_or(TypeModelKind::unknown_type_ref(ty))
+                          .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty))
                           .to_type(), source)
                     })
             },

@@ -55,6 +55,7 @@ use crate::shared::SharedAccess;
 
 pub use self::r#abstract::*;
 pub use self::any_other::*;
+#[allow(unused)]
 pub use self::array::*;
 pub use self::attrs::*;
 pub use self::basic::*;
@@ -80,12 +81,14 @@ pub use self::result::*;
 pub use self::signature::*;
 pub use self::slice::*;
 pub use self::r#struct::*;
+#[allow(unused)]
 pub use self::target_var::*;
 pub use self::to_conversion::*;
 pub use self::trait_composer::*;
 pub use self::tuple::*;
 pub use self::r#type::TypeComposer;
 pub use self::type_alias::*;
+#[allow(unused)]
 pub use self::var::*;
 pub use self::variable::*;
 

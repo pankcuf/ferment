@@ -57,17 +57,17 @@ impl<SPEC> GenericArgComposer<SPEC>
         Self { from_composer, to_composer, destroy_composer }
     }
 
-    pub fn from(&self, expr: TokenStream2) -> SPEC::Expr {
-        self.from_composer.map(|c| c(expr))
-            .unwrap_or(Expression::empty())
+    pub fn from<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
+        self.from_composer.map(|c| c(expr.to_token_stream()))
+            .unwrap_or_default()
     }
-    pub fn to(&self, expr: TokenStream2) -> SPEC::Expr {
-        self.to_composer.map(|c| c(expr))
-            .unwrap_or(Expression::empty())
+    pub fn to<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
+        self.to_composer.map(|c| c(expr.to_token_stream()))
+            .unwrap_or_default()
     }
-    pub fn destroy(&self, expr: TokenStream2) -> SPEC::Expr {
-        self.destroy_composer.map(|c| c(expr))
-            .unwrap_or(Expression::empty())
+    pub fn destroy<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
+        self.destroy_composer.map(|c| c(expr.to_token_stream()))
+            .unwrap_or_default()
     }
 }
 

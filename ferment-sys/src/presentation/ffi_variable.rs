@@ -11,6 +11,28 @@ use crate::ext::{path_arguments_to_type_conversions, Accessory, AsType, Dictiona
 use crate::lang::{RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
+pub trait ToFFIVariable<SPEC, T>
+    where T: ToTokens,
+          SPEC: Specification {
+    fn to_direct_var(&self) -> FFIVariable<SPEC, T>;
+}
+
+impl<SPEC> ToFFIVariable<SPEC, Type> for Type where SPEC: Specification {
+    fn to_direct_var(&self) -> FFIVariable<SPEC, Type> {
+        FFIVariable::direct(self.clone())
+    }
+}
+
+impl<SPEC> ToFFIVariable<SPEC, Type> for SpecialType<SPEC> where SPEC: Specification {
+    fn to_direct_var(&self) -> FFIVariable<SPEC, Type> {
+        match self {
+            SpecialType::Custom(ty) |
+            SpecialType::Opaque(ty) => ty.to_direct_var(),
+            _ => panic!("")
+        }
+    }
+}
+
 #[derive(Clone, Display, Debug)]
 pub enum FFIVariable<SPEC, T>
     where T: ToTokens,
@@ -139,7 +161,6 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for AddPunctuated<TypeParamBo
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
-        // println!("AddPunctuated<TypeParamBound>::<FFIVariable>::resolve({})", self.to_token_stream());
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
             TypeParamBound::Lifetime(_) => None
@@ -153,12 +174,10 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for Type {
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
-        // println!("Type::<FFIVariable>::resolve.1({})", self.to_token_stream());
         let full_ty = Resolve::<Type>::resolve(self, source);
-        // println!("Type::<FFIVariable>::resolve.2({})", full_ty.to_token_stream());
         let refined = source.maybe_special_or_regular_ffi_full_path::<RustSpecification>(&full_ty)
             .map(|ffi_path| ffi_path.to_type())
-            .unwrap_or(parse_quote!(#self))
+            .unwrap_or_else(|| parse_quote!(#self))
             .to_type();
         resolve_type_variable(refined, source)
     }
@@ -173,7 +192,7 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(Resolve::<SpecialType<RustSpecification>>::maybe_resolve(ty, source)
                     .map(|special| special.to_type())
-                    .unwrap_or(Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source)
+                    .unwrap_or_else(|| Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source)
                         .to_type())),
             TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source).to_type()),
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::direct(composition.to_type()),
@@ -182,10 +201,8 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                 FFIVariable::mut_ptr(parse_quote!([u8; 16]))
             },
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
-                // println!("TypeModelKind::Boxed: {}", ty.to_token_stream());
                 match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
-                        // println!("Nested: {}", nested_full_ty.to_token_stream());
                         resolve_type_variable(match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(nested_full_ty, source) {
                             Some(special) => special.to_type(),
                             None => {
@@ -264,24 +281,21 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                                     ObjectKind::Item(ref ty_conversion, ..) => {
                                         match ty_conversion {
                                             TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
-                                                // println!("Type::<TypeModelKind> It's a Trait So --> {}", external_type.type_conversion().to_token_stream());
                                                 ty.as_type().maybe_trait_object_maybe_model_kind(source)
                                             },
                                             _ => {
                                                 None
                                             },
                                         }.unwrap_or_else(|| {
-                                            // println!("Type::<TypeModelKind> Not a Trait So --> {}", external_type.type_conversion().to_token_stream());
                                             external_type.maybe_type_model_kind_ref().cloned()
                                         })
                                     },
                                     ObjectKind::Empty => {
-                                        // println!("Type::<TypeModelKind> Has no object --> {}", external_type.type_conversion().to_token_stream());
                                         None
                                     }
                                 }
                             })
-                            .unwrap_or(TypeModelKind::unknown_type_ref(ty));
+                            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty));
                         let ty_to_resolve = ty_model_kind_to_resolve.to_type();
                         resolve_type_variable(ty_to_resolve, source)
                     })
@@ -306,11 +320,11 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for GenericBoundsModel {
     }
     fn resolve(&self, _source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
         let ffi_name = self.mangle_ident_default();
+        let ty = parse_quote!(crate::fermented::generics::#ffi_name);
         if self.is_lambda() {
-            FFIVariable::direct(parse_quote!(crate::fermented::generics::#ffi_name))
-
+            FFIVariable::direct(ty)
         } else {
-            FFIVariable::mut_ptr(parse_quote!(crate::fermented::generics::#ffi_name))
+            FFIVariable::mut_ptr(ty)
         }
     }
 }

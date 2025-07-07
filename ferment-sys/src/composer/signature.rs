@@ -6,8 +6,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerLink, BasicComposerOwner, CommaPunctuatedArgKinds, ComposerLink, DocsComposable, FromConversionFullComposer, LifetimesComposable, Linkable, NameKind, SemiPunctuatedArgKinds, SourceAccessible, SourceComposable, SourceFermentable, ToConversionFullComposer, TypeAspect};
-use crate::composer::target_var::TargetVarComposer;
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerLink, BasicComposerOwner, CommaPunctuatedArgKinds, ComposerLink, DocsComposable, FromConversionFullComposer, LifetimesComposable, Linkable, NameKind, SourceAccessible, SourceComposable, SourceFermentable, ToConversionFullComposer, TypeAspect};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
@@ -137,7 +136,7 @@ fn compose_regular_fn(
     let mut arguments = CommaPunctuatedArgKinds::<RustSpecification>::new();
     let mut argument_names = CommaPunctuatedTokens::new();
     let mut argument_conversions = CommaPunctuatedArgKinds::<RustSpecification>::new();
-    let mut argument_conversions2 = SemiPunctuatedArgKinds::<RustSpecification>::new();
+    // let mut argument_conversions2 = SemiPunctuatedArgKinds::<RustSpecification>::new();
     for arg in inputs {
         match arg {
             FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
@@ -198,10 +197,10 @@ fn compose_regular_fn(
                     name_type_conversion.clone(),
                     <RustSpecification as Specification>::Attr::default()
                 ));
-                argument_conversions2.push(ArgKind::AttrExpression(
-                    Expression::DictionaryExpr(DictionaryExpr::LetExpr(name.to_token_stream(), name_type_conversion.present(source))),
-                    <RustSpecification as Specification>::Attr::default()
-                ));
+                // argument_conversions2.push(ArgKind::AttrExpression(
+                //     Expression::DictionaryExpr(DictionaryExpr::LetExpr(name.to_token_stream(), name_type_conversion.present(source))),
+                //     <RustSpecification as Specification>::Attr::default()
+                // ));
             },
             FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
                 used_lifetimes.extend(ty.unique_lifetimes());
@@ -213,12 +212,11 @@ fn compose_regular_fn(
                     from_conversion.clone(),
                     <RustSpecification as Specification>::Attr::default()
                 ));
-                let target_ty = TargetVarComposer::<RustSpecification>::key_in_scope(ty, &source.scope).compose(source);
-                argument_conversions2.push(ArgKind::AttrExpression(
-                    Expression::DictionaryExpr(DictionaryExpr::LetExpr(quote! { #name: #target_ty }, from_conversion.present(source))),
-                    <RustSpecification as Specification>::Attr::default()
-                ));
-
+                // let target_ty = TargetVarComposer::<RustSpecification>::key_in_scope(ty, &source.scope).compose(source);
+                // argument_conversions2.push(ArgKind::AttrExpression(
+                //     Expression::DictionaryExpr(DictionaryExpr::LetExpr(quote! { #name: #target_ty }, from_conversion.present(source))),
+                //     <RustSpecification as Specification>::Attr::default()
+                // ));
             }
         }
     }

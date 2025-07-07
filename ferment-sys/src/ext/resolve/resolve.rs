@@ -95,7 +95,7 @@ impl Resolve<TypeModelKind> for Type {
                     ObjectKind::Empty => None
                 }
             })
-            .unwrap_or(TypeModelKind::unknown_type_ref(self));
+            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(self));
         // println!("Type::<TypeModelKind>::resolve.2({}) in {} --> {}", self.to_token_stream(), source.scope.fmt_short(), result);
         result
     }

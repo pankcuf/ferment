@@ -1,15 +1,15 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, Generics, Lifetime};
+use syn::{Attribute, Type, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(ComposerBase)]
@@ -44,8 +44,8 @@ impl SourceComposable for MapComposer<RustSpecification> {
 
         let arg_context = |arg_name: &<RustSpecification as Specification>::Name| quote!(obj.#arg_name().cloned());
         let arg_args = |arg_name: &<RustSpecification as Specification>::Name| CommaPunctuated::from_iter([
-            DictionaryExpr::SelfProp(arg_name.to_token_stream()),
-            DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+            DictionaryExpr::self_prop(&arg_name),
+            DictionaryExpr::self_prop(&count_name)]);
 
         let compose = |arg_name: &<RustSpecification as Specification>::Name, ty: &Type| {
             let from_conversion =
@@ -75,7 +75,7 @@ impl SourceComposable for MapComposer<RustSpecification> {
                         }));
                     GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_variable_type(&arg_ty, source)),
-                        arg_composer.destroy(arg_args(arg_name).to_token_stream()),
+                        arg_composer.destroy(arg_args(arg_name)),
                         from_conversion,
                         arg_composer.to(arg_context(arg_name)))
                 },
@@ -105,7 +105,7 @@ impl SourceComposable for MapComposer<RustSpecification> {
                     };
                     GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(arg_ty),
-                        arg_composer.destroy(arg_args(arg_name).to_token_stream()),
+                        arg_composer.destroy(arg_args(arg_name)),
                         from_conversion,
                         arg_composer.to(arg_context(arg_name)))
                 },
@@ -120,30 +120,30 @@ impl SourceComposable for MapComposer<RustSpecification> {
         let arg_0_presentation = compose(&arg_0_name, nested_types[0]);
         let arg_1_presentation = compose(&arg_1_name, nested_types[1]);
         let expr_from_iterator = [
-            quote!(ffi_ref.#count),
-            quote!(ffi_ref.#keys),
-            quote!(ffi_ref.#values),
-            <RustSpecification as Specification>::Expr::present(&arg_0_presentation.from_conversion, source),
-            <RustSpecification as Specification>::Expr::present(&arg_1_presentation.from_conversion, source),
+            DictionaryExpr::ffi_ref_prop(&count).to_token_stream(),
+            DictionaryExpr::ffi_ref_prop(&keys).to_token_stream(),
+            DictionaryExpr::ffi_ref_prop(&values).to_token_stream(),
+            arg_0_presentation.from_conversion.present(source),
+            arg_1_presentation.from_conversion.present(source),
         ];
         let expr_to_iterator = [
-            FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-            FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source).to_token_stream())),
-            FieldComposer::<RustSpecification>::named(arg_1_name.clone(), FieldTypeKind::Conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_1_presentation.to_conversion, source).to_token_stream())),
+            FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::conversion(DictionaryExpr::ObjLen)),
+            FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_0_presentation.to_conversion, source))),
+            FieldComposer::<RustSpecification>::named(arg_1_name.clone(), FieldTypeKind::conversion(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_1_presentation.to_conversion, source))),
         ];
 
         let expr_destroy_iterator = [
-            <RustSpecification as Specification>::Expr::present(&arg_0_presentation.destructor, source),
-            <RustSpecification as Specification>::Expr::present(&arg_1_presentation.destructor, source),
+            arg_0_presentation.destructor.present(source),
+            arg_1_presentation.destructor.present(source),
         ];
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default()}),
+            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
-                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Type(arg_0_presentation.ty.to_type().joined_mut())),
-                FieldComposer::<RustSpecification>::named(arg_1_name, FieldTypeKind::Type(arg_1_presentation.ty.to_type().joined_mut()))
+                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::type_count()),
+                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Var(arg_0_presentation.ty.joined_mut())),
+                FieldComposer::<RustSpecification>::named(arg_1_name, FieldTypeKind::Var(arg_1_presentation.ty.joined_mut()))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::conversion_from_root(&attrs, &types, InterfacesMethodExpr::FoldToMap(CommaPunctuated::from_iter(expr_from_iterator).to_token_stream()), &None, &lifetimes),

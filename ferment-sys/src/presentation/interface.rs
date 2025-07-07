@@ -77,7 +77,7 @@ impl InterfacePresentation {
         Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body.to_token_stream()), generics, lifetimes)
     }
     pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
-        Self::conversion_to_boxed(attrs, types, DictionaryExpr::SelfDestructuring(body.to_token_stream()), generics, lifetimes)
+        Self::conversion_to_boxed(attrs, types, DictionaryExpr::self_destruct(body), generics, lifetimes)
     }
     pub fn conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
         InterfacePresentation::ConversionFrom {

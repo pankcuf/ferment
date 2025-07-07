@@ -6,7 +6,7 @@ use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, FFISpecialTypeResolve, GenericNestedArg, Resolve, ResolveTrait, SpecialType, ToType};
 use crate::lang::{RustSpecification, Specification};
-use crate::presentation::{resolve_type_variable, FFIFullPath, FFIVariable};
+use crate::presentation::{resolve_type_variable, FFIFullPath, FFIVariable, ToFFIVariable};
 
 #[derive(Clone, Debug)]
 pub struct VarComposer<'a, SPEC>
@@ -40,15 +40,15 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
         let full_ty = maybe_obj
             .as_ref()
             .and_then(ObjectKind::maybe_type)
-            .unwrap_or(search_key.to_type());
+            .unwrap_or_else(|| search_key.to_type());
         let maybe_special = Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_ty, source);
         let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) =>
-                    ptr_composer(source.maybe_to_fn_type().unwrap_or(search_key.to_type())),
+                    ptr_composer(source.maybe_to_fn_type().unwrap_or_else(|| search_key.to_type())),
                 Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
                      ObjectKind::Type(TypeModelKind::FnPointer(..), ..)) =>
-                    FFIVariable::direct(special.to_type()),
+                    special.to_direct_var(),
                 Some(ObjectKind::Item(TypeModelKind::Trait(..), ..) |
                      ObjectKind::Type(TypeModelKind::TraitType(..) |
                                       TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..)) => {
@@ -63,7 +63,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                 match maybe_obj {
                     Some(ObjectKind::Item(_fn_ty_conversion, ScopeItemKind::Fn(..))) => {
                         let ty = source.maybe_to_trait_fn_type::<RustSpecification>()
-                            .unwrap_or(search_key.to_type());
+                            .unwrap_or_else(|| search_key.to_type());
                         ptr_composer(ty)
                     },
                     Some(ObjectKind::Type(ref ty_model_kind)) |
@@ -74,7 +74,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                     .maybe_trait_object_model_kind(source)
                             },
                             _ => Some(ty_model_kind.clone()),
-                        }.unwrap_or(ty_model_kind.clone());
+                        }.unwrap_or_else(|| ty_model_kind.clone());
                         match conversion {
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
                                 let ty = model.as_type();
@@ -83,9 +83,8 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                     Some(special) => {
                                         match source.maybe_object_by_value(full_nested_ty) {
                                             Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
-                                                 ObjectKind::Type(TypeModelKind::FnPointer(..), ..)) => {
-                                                FFIVariable::direct(special.to_type())
-                                            }
+                                                 ObjectKind::Type(TypeModelKind::FnPointer(..), ..)) =>
+                                                special.to_direct_var(),
                                             Some(ObjectKind::Item(TypeModelKind::Trait(..), ..) |
                                                  ObjectKind::Type(TypeModelKind::TraitType(..), ..) |
                                                  ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..)) => {
@@ -106,10 +105,10 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                                  ObjectKind::Item(ref kind, ..)) =>
                                                 kind.maybe_trait_model_kind_or_same(source),
                                             _ => None,
-                                        }.unwrap_or(TypeModelKind::unknown_type_ref(full_nested_ty));
+                                        }.unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
                                         let var_c_type = ty_model_kind.to_type();
                                         let ffi_path: Option<FFIFullPath<RustSpecification>> = var_c_type.maybe_resolve(source);
-                                        let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
+                                        let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));
                                         let result = resolve_type_variable(var_ty, source);
                                         result
                                     }
@@ -129,7 +128,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 FFIVariable::direct(
                                     Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&ty, source)
                                         .map(|special| special.to_type())
-                                        .unwrap_or(Resolve::<FFIFullPath<RustSpecification>>::resolve(&ty, source)
+                                        .unwrap_or_else(|| Resolve::<FFIFullPath<RustSpecification>>::resolve(&ty, source)
                                             .to_type())
                                 )
                             },
@@ -161,7 +160,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 // Dictionary generics and strings should be fermented
                                 // Others should be treated as opaque
                                 let maybe_ffi_full_path: Option<FFIFullPath<RustSpecification>> = ty.maybe_resolve(source);
-                                let result = resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or(parse_quote!(#ty)), source);
+                                let result = resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or_else(|| parse_quote!(#ty)), source);
                                 result
                             },
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) => {
@@ -232,7 +231,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 });
                                 let var_c_type = var_ty.to_type();
                                 let ffi_path: Option<FFIFullPath<RustSpecification>> = var_c_type.maybe_resolve(source);
-                                let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or(parse_quote!(#var_c_type));
+                                let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));
                                 let result = resolve_type_variable(var_ty, source);
                                 result
                             }
@@ -247,7 +246,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 .to_type()
                                 .maybe_resolve(source))
                             .map(|ffi_path| ffi_path.to_type())
-                            .unwrap_or(search_key.to_type())
+                            .unwrap_or_else(|| search_key.to_type())
                             .resolve(source)
                     }
                 }

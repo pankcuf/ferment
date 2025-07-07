@@ -18,6 +18,7 @@ pub trait Unrefined: Sized {
     fn unrefined(&self) -> Self::Unrefinement;
 }
 
+#[allow(unused)]
 pub trait RefineUnrefined: RefineMut + Unrefined<Unrefinement = Self::Refinement> {
     fn refine(&mut self) {
         let unrefined = self.unrefined();

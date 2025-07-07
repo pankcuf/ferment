@@ -1,6 +1,6 @@
 use std::rc::Rc;
-use quote::{quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, TypeSlice, Generics};
+use quote::ToTokens;
+use syn::{Attribute, parse_quote, Type, TypeSlice};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
@@ -9,8 +9,8 @@ use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{ExpressionComposer, GenericArgPresentation, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, Mangle, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
-use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, ToFFIVariable};
 
 #[derive(ComposerBase)]
 pub struct SliceComposer<SPEC>
@@ -40,11 +40,11 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
         let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
         let self_props = CommaPunctuated::from_iter([
-            DictionaryExpr::SelfProp(arg_0_name.to_token_stream()),
-            DictionaryExpr::SelfProp(count_name.to_token_stream())]);
+            DictionaryExpr::self_prop(&arg_0_name),
+            DictionaryExpr::self_prop(&count_name)]);
         let from_args = CommaPunctuated::from_iter([
-            quote!(ffi_ref.#arg_0_name),
-            quote!(ffi_ref.#count_name),
+            DictionaryExpr::ffi_ref_prop(&arg_0_name),
+            DictionaryExpr::ffi_ref_prop(&count_name),
         ]);
 
         let arg_0_destroy = |composer: ExpressionComposer<RustSpecification>|
@@ -52,15 +52,15 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         let arg_0_from = |composer: ExpressionComposer<RustSpecification>|
             composer(from_args.to_token_stream());
         let arg_0_to = |composer: ExpressionComposer<RustSpecification>|
-            Expression::boxed_tokens(DictionaryExpr::SelfDestructuring(
+            Expression::boxed_tokens(DictionaryExpr::self_destruct(
                 CommaPunctuated::from_iter([
-                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::Conversion(DictionaryExpr::ObjLen.to_token_stream())),
-                    FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).present(source).to_token_stream()))
-                ]).to_token_stream()));
+                    FieldComposer::<RustSpecification>::named(count_name.clone(), FieldTypeKind::conversion(DictionaryExpr::ObjLen)),
+                    FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::conversion(composer(DictionaryExpr::ObjIntoIter.to_token_stream()).present(source)))
+                ])));
         let arg_0_presentation = match TypeKind::from(&type_slice.elem) {
             TypeKind::Primitive(arg_0_target_path) =>
                 GenericArgPresentation::<RustSpecification>::new(
-                    FFIVariable::direct(arg_0_target_path.clone()),
+                    arg_0_target_path.to_direct_var(),
                     arg_0_destroy(Expression::destroy_primitive_group_tokens),
                     arg_0_from(Expression::from_primitive_group_tokens),
                     arg_0_to(Expression::ffi_to_primitive_group_tokens)),
@@ -80,15 +80,15 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         };
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::named(count_name, FieldTypeKind::Type(parse_quote!(usize))),
-            FieldComposer::named(arg_0_name, FieldTypeKind::Type(arg_0_presentation.ty.to_type().joined_mut()))
+            FieldComposer::named(count_name, FieldTypeKind::type_count()),
+            FieldComposer::named(arg_0_name, FieldTypeKind::Var(arg_0_presentation.ty.joined_mut()))
         ]);
         let expr_destroy_iterator = [
-            <<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&arg_0_presentation.destructor, source).to_token_stream()
+            arg_0_presentation.destructor.present(source)
         ];
         let attrs = self.compose_attributes();
-        let from_body = DictionaryExpr::FromRoot(<RustSpecification as Specification>::Expr::present(&arg_0_presentation.from_conversion, source));
-        let to_body = <RustSpecification as Specification>::Expr::present(&arg_0_presentation.to_conversion, source);
+        let from_body = DictionaryExpr::FromRoot(arg_0_presentation.from_conversion.present(source));
+        let to_body = arg_0_presentation.to_conversion.present(source);
 
         let interfaces = Depunctuated::from_iter([
             InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &vec![]),
@@ -96,7 +96,7 @@ impl SourceComposable for SliceComposer<RustSpecification> {
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 
         ]);
-        let aspect = Aspect::RawTarget(TypeContext::Struct { ident: ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() });
+        let aspect = Aspect::raw_struct_ident(ty.mangle_ident_default());
         Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
     }
 }

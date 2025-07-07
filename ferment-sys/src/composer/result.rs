@@ -1,15 +1,15 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Attribute, Generics, Lifetime, Type};
+use syn::{Attribute, Lifetime, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated, SemiPunctuated, Void};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{complex_opt_arg_composer, GenericArgComposer, GenericArgPresentation, GenericTypeKind, primitive_opt_arg_composer, result_complex_arg_composer, TypeKind};
-use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable, TypeContext};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(ComposerBase)]
@@ -42,7 +42,7 @@ impl SourceComposable for ResultComposer<RustSpecification> {
                 TypeKind::Primitive(arg_ty) => {
                     GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(arg_ty),
-                        Expression::destroy_primitive_opt_tokens(DictionaryExpr::SelfProp(arg_name.to_token_stream())),
+                        Expression::destroy_primitive_opt_tokens(DictionaryExpr::self_prop(&arg_name)),
                         Expression::map_o_expr(Expression::deref_expr(from_conversion)),
                         Expression::boxed_tokens(DictionaryName::O))
                 }
@@ -58,9 +58,9 @@ impl SourceComposable for ResultComposer<RustSpecification> {
                     };
                     GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&arg_ty, source)),
-                        arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()),
+                        arg_composer.destroy(DictionaryExpr::self_prop(&arg_name)),
                         Expression::map_o_expr(from_conversion),
-                        arg_composer.to(DictionaryName::O.to_token_stream()))
+                        arg_composer.to(DictionaryName::O))
                 }
                 TypeKind::Generic(generic_arg_ty) => {
                     let (arg_composer, arg_ty) = if let GenericTypeKind::Optional(..) = generic_arg_ty {
@@ -82,13 +82,16 @@ impl SourceComposable for ResultComposer<RustSpecification> {
                             }
                         }
                     } else {
-                        (result_complex_arg_composer::<RustSpecification>(), FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&generic_arg_ty, source))
+                        (
+                            result_complex_arg_composer::<RustSpecification>(),
+                            FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&generic_arg_ty, source)
+                        )
                     };
                     GenericArgPresentation::<RustSpecification>::new(
                         FFIVariable::direct(arg_ty),
-                        arg_composer.destroy(DictionaryExpr::SelfProp(arg_name.to_token_stream()).to_token_stream()),
+                        arg_composer.destroy(DictionaryExpr::self_prop(&arg_name)),
                         Expression::map_o_expr(from_conversion),
-                        arg_composer.to(DictionaryName::O.to_token_stream()))
+                        arg_composer.to(DictionaryName::O))
                 }
             }
         };
@@ -112,15 +115,13 @@ impl SourceComposable for ResultComposer<RustSpecification> {
                 from_conversions.push(Expression::<RustSpecification>::ffi_ref_with_name(name).present(source));
                 from_conversions.push(from_conversion.present(source));
                 to_conversions.push(DictionaryExpr::Mapper(DictionaryName::O.to_token_stream(), to_conversion.present(source)));
-                destroy_conversions.push(<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(&destructor, source));
-                field_composers.push(FieldComposer::named(name.clone(), FieldTypeKind::Type(
-                    ty.to_type().joined_mut()
-                )));
+                destroy_conversions.push(destructor.present(source));
+                field_composers.push(FieldComposer::named(name.clone(), FieldTypeKind::Var(ty.joined_mut())));
             });
         let attrs = self.compose_attributes();
         let types = (ffi_type.clone(), self.present_target_aspect());
         Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::RawTarget(TypeContext::Struct { ident: self.ty.mangle_ident_default(), attrs: vec![], generics: Generics::default() }),
+            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             field_composers,
             Depunctuated::from_iter([

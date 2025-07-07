@@ -107,7 +107,7 @@ impl Constraints for Type {
                 inputs.iter().find(|BareFnArg { ty, .. }| ty.has_self()).is_some() || output.has_self(),
             Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.has_self(),
-            Type::Path(TypePath { qself, path }) => path.has_self() || qself.as_ref().map_or(false, Constraints::has_self),
+            Type::Path(TypePath { qself, path }) => path.has_self() || qself.as_ref().map(Constraints::has_self).unwrap_or_default(),
             Type::Tuple(TypeTuple { elems, .. }) => elems.has_self(),
             _ => false,
         }

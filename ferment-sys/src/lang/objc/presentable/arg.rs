@@ -6,7 +6,6 @@ use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComp
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
-use crate::lang::Specification;
 use crate::presentable::{ArgKind, ScopeContextPresentable};
 use crate::presentation::FFIVariable;
 
@@ -119,7 +118,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             },
             ArgKind::Unnamed(FieldComposer{ kind, name, attrs, .. }) => {
                 //println!("OBJC ArgKind::DefaultFieldType: {} -- {}", kind, name);
-                let var = Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(kind.ty(), source);
+                let var = Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&kind.to_type(), source);
                 ArgPresentation::AttrConversion {
                     conversion: quote! { #var #name }
                 }
@@ -130,8 +129,8 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             },
             ArgKind::DefaultFieldConversion(FieldComposer { name, attrs, kind, .. }) => {
                 //println!("OBJC ArgKind::DefaultFieldConversion: {} {}", name, kind);
-                let ty = kind.ty();
-                let composer = FromConversionFullComposer::<ObjCSpecification>::key_in_scope(name.clone(), ty, &source.scope);
+                let ty = kind.to_type();
+                let composer = FromConversionFullComposer::<ObjCSpecification>::key_in_scope(name.clone(), &ty, &source.scope);
                 let from_conversion_expr = composer.compose(source);
                 let from_conversion_presentation = from_conversion_expr.present(source);
                 ArgPresentation::AttrConversion { conversion: quote!() }
@@ -140,11 +139,11 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                 //println!("OBJC ArgKind::BindingArg: {} {}", name, kind);
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
-                        Resolve::<<ObjCSpecification as Specification>::Var>::resolve(field_type, source)
+                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
+                        field_type.resolve(source)
                     ),
                     FieldTypeKind::Var(var) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or(name.anonymous())),
+                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
                             var.clone()
                         ),
 

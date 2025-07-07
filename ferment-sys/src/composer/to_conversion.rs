@@ -32,6 +32,7 @@ where SPEC: Specification {
     pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
         Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), None)
     }
+    #[allow(unused)]
     pub fn value_expr(name: SPEC::Name, ty: &'a Type, expr: SPEC::Expr) -> Self {
         Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(expr))
     }
@@ -48,12 +49,12 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let Self { name, search, expr, .. } = self;
         let search_key = self.search.search_key();
-        let field_path = expr.clone().unwrap_or(SPEC::Expr::simple(name));
+        let field_path = expr.clone().unwrap_or_else(|| SPEC::Expr::simple(name));
         let maybe_object = source.maybe_object_by_predicate_ref(search);
         let full_type = maybe_object
             .as_ref()
             .and_then(ObjectKind::maybe_type)
-            .unwrap_or(search_key.to_type());
+            .unwrap_or_else(|| search_key.to_type());
         let is_ref = search_key.maybe_originally_is_ref();
         let full_type = match &full_type {
             Type::Reference(TypeReference { elem, .. }) => *elem.clone(),
