@@ -48,7 +48,7 @@ impl ContainsBound for AddPunctuated<TypeParamBound> {
         self.iter().any(|type_param_bound| match type_param_bound {
             TypeParamBound::Trait(TraitBound { path, .. }) =>
                 path.eq(bound),
-            TypeParamBound::Lifetime(_) => false
+            _ => false
         })
     }
 }
@@ -159,7 +159,7 @@ impl ContainsSubType for AddPunctuated<TypeParamBound> {
     fn contains_sub_type(&self, sub_type: &Type) -> bool {
         self.iter().any(|type_param_bound| match type_param_bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => path.to_type().eq(sub_type),
-            TypeParamBound::Lifetime(_) => false
+            _ => false
         })
     }
 }

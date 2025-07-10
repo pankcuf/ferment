@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, ImplItemMethod, Item, ItemType, parse_quote, Path, TraitBound, TraitItemMethod, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
+use syn::{Attribute, ImplItemFn, Item, ItemType, parse_quote, Path, TraitBound, TraitItemFn, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
@@ -197,7 +197,7 @@ impl ScopeContext {
                                     _ => parse_quote!(#dyn_token #ty),
                                 }
                             }),
-                    TypeParamBound::Lifetime(_) =>
+                    _ =>
                         panic!("maybe_opaque_object::error::lifetime")
                 },
                 _ => None
@@ -263,14 +263,14 @@ impl ScopeContext {
     }
 }
 
-impl Join<ImplItemMethod> for ScopeContext {
-    fn joined(&self, other: &ImplItemMethod) -> Self {
+impl Join<ImplItemFn> for ScopeContext {
+    fn joined(&self, other: &ImplItemFn) -> Self {
         Self::with(self.scope.joined(other), self.context.clone())
     }
 }
 
-impl Join<TraitItemMethod> for ScopeContext {
-    fn joined(&self, other: &TraitItemMethod) -> Self {
+impl Join<TraitItemFn> for ScopeContext {
+    fn joined(&self, other: &TraitItemFn) -> Self {
         Self::with(self.scope.joined(other), self.context.clone())
     }
 }

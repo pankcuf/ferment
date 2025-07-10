@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::vec;
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Generics, ItemTrait, parse_quote, TraitItem, TraitItemMethod, Lifetime};
+use syn::{Generics, ItemTrait, parse_quote, TraitItem, TraitItemFn, Lifetime};
 use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated};
@@ -40,8 +40,8 @@ impl<SPEC> TraitComposer<SPEC>
         items
             .iter()
             .for_each(|trait_item| match trait_item {
-                TraitItem::Method(trait_item_method) => {
-                    let TraitItemMethod { sig, attrs, .. } = trait_item_method;
+                TraitItem::Fn(trait_item_method) => {
+                    let TraitItemFn { sig, attrs, .. } = trait_item_method;
                     let sig_context = FnSignatureContext::TraitInner(self_ty.clone(), Some(self_ty.clone()), sig.clone());
                     let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
                     let ty_context = ty_context.join_fn(

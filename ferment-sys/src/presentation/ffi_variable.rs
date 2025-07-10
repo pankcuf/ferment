@@ -163,7 +163,7 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for AddPunctuated<TypeParamBo
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-            TypeParamBound::Lifetime(_) => None
+            _ => None
         }).unwrap();
         bound.resolve(source)
     }

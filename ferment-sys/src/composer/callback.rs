@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypePath, Visibility};
+use syn::{parse_quote, Attribute, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypeParamBound, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -8,7 +8,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, Life
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::{GenericTypeKind, TypeKind};
+use crate::conversion::{CallbackKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
@@ -17,16 +17,16 @@ use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocCo
 #[derive(ComposerBase)]
 pub struct CallbackComposer<SPEC>
     where SPEC: Specification + 'static {
-    pub ty: Type,
+    pub kind: CallbackKind,
     base: BasicComposerLink<SPEC, Self>,
 }
 
 impl<SPEC> CallbackComposer<SPEC>
     where SPEC: Specification {
-    pub fn new(ty: &Type, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
+    pub fn new(kind: &CallbackKind, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
-            ty: ty.clone()
+            kind: kind.clone()
         }
     }
 }
@@ -36,11 +36,32 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
     type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let Self { ty, .. } = self;
+        let Self { kind, .. } = self;
         let mut lifetimes = Vec::<Lifetime>::new();
-        let type_path: TypePath = parse_quote!(#ty);
-        let PathSegment { arguments, .. } = type_path.path.segments.last()?;
-        let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
+        let (inputs, output) = match kind {
+            CallbackKind::FnOnce(Type::TraitObject(trait_object)) |
+            CallbackKind::Fn(Type::TraitObject(trait_object)) |
+            CallbackKind::FnMut(Type::TraitObject(trait_object)) => {
+                trait_object.bounds.iter().find_map(|bound| if let TypeParamBound::Trait(trait_bound) = bound {
+                    let PathSegment { arguments, .. } = trait_bound.path.segments.last()?;
+                    let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
+                    Some((inputs, output))
+                } else { None }).unwrap()
+            }
+
+            CallbackKind::FnPointer(Type::BareFn(TypeBareFn { inputs, output, .. })) => {
+                (inputs.iter().map(|b| b.ty.clone()).collect(), output.clone())
+            }
+            CallbackKind::FnOnce(Type::Path(path)) |
+            CallbackKind::Fn(Type::Path(path)) |
+            CallbackKind::FnMut(Type::Path(path)) |
+            CallbackKind::FnPointer(Type::Path(path)) => {
+                let PathSegment { arguments, .. } = path.path.segments.last()?;
+                let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
+                (inputs, output)
+            },
+            _ => panic!("Unsupported callback kind: {:?}", kind)
+        };
         let ffi_result = DictionaryName::FFiResult;
         let opt_conversion = |conversion: TokenStream2| quote! {
             if #ffi_result.is_null() {
@@ -117,7 +138,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustSpecification>::callback(
-            Aspect::raw_struct_ident(ty.mangle_ident_default()),
+            Aspect::raw_struct_ident(kind.ty().mangle_ident_default()),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([

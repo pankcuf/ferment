@@ -388,21 +388,16 @@ impl RefineMut for GlobalContext {
                     if let Some(ty) = object.maybe_type() {
                         ty.find_generics()
                             .iter()
-                            .filter(|ty| self.maybe_custom_type(&ty.0).is_none())
+                            .filter(|ty| self.maybe_custom_type(&ty.0).is_none() && !self.should_skip_from_expanding(object))
                             .for_each(|_ty| {
-                                let skip = self.should_skip_from_expanding(object);
-                                if !skip {
-                                    if let Some(kind) = object.maybe_generic_type_kind() {
-                                        refined_mixins
-                                            .entry(MixinKind::Generic(kind))
-                                            .or_insert_with(HashSet::new)
-                                            .extend(all_attrs.clone());
-                                    }
+                                if let Some(kind) = object.maybe_generic_type_kind() {
+                                    refined_mixins
+                                        .entry(MixinKind::Generic(kind))
+                                        .or_insert_with(HashSet::new)
+                                        .extend(all_attrs.clone());
                                 }
                             });
                     }
-
-
 
                     if let Some(TypeModelKind::Bounds(bounds)) = object.maybe_type_model_kind_ref() {
                         bounds.find_generic_constraints()

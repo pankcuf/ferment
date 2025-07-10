@@ -512,7 +512,7 @@ impl RefineWithNestedArgs for Type {
                                 did_refine = true;
                             }
                         }
-                        TypeParamBound::Lifetime(_) => {}
+                        _ => {}
                     }
                 });
             }
@@ -673,7 +673,7 @@ fn refine_nested_ty(new_ty_model: &mut TypeModel, scope: &ScopeChain, source: &G
                             refined = true;
                         }
                     }
-                    TypeParamBound::Lifetime(_) => {}
+                    _ => {}
                 }
             });
         }

@@ -1,4 +1,4 @@
-use syn::{AngleBracketedGenericArguments, GenericArgument, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::CommaPunctuated;
 use crate::conversion::GenericTypeKind;
 
@@ -89,7 +89,11 @@ impl LifetimeProcessor for TypeBareFn {
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
         let mut lifetimes = vec![];
         self.lifetimes.iter().for_each(|lifetime| {
-            lifetimes.extend(lifetime.lifetimes.iter().map(|lt| lt.lifetime.clone()));
+            lifetimes.extend(lifetime.lifetimes.iter().filter_map(|lt| match lt {
+                GenericParam::Lifetime(lt) => Some(lt.lifetime.clone()),
+                _ => None
+            }
+            ));
         });
         lifetimes.extend(self.inputs.iter().flat_map(|i| i.ty.unique_lifetimes()));
         lifetimes.extend(self.output.unique_lifetimes());
@@ -145,9 +149,7 @@ impl LifetimeProcessor for AngleBracketedGenericArguments {
             GenericArgument::Type(ty) => {
                 lifetimes.extend(ty.unique_lifetimes());
             }
-            GenericArgument::Const(_) => {}
-            GenericArgument::Binding(_) => {}
-            GenericArgument::Constraint(_) => {}
+            _ => {}
         });
         lifetimes
     }
@@ -193,6 +195,7 @@ impl LifetimeProcessor for TypeImplTrait {
             TypeParamBound::Lifetime(lt) => {
                 lifetimes.push(lt.clone());
             }
+            _ => {}
         });
         lifetimes
     }
@@ -208,12 +211,16 @@ impl LifetimeProcessor for TypeTraitObject {
             match bound {
                 TypeParamBound::Trait(trait_bound) => {
                     if let Some(ref lts) = trait_bound.lifetimes {
-                        lifetimes.extend(lts.lifetimes.iter().map(|lt| lt.lifetime.clone()));
+                        lifetimes.extend(lts.lifetimes.iter().filter_map(|lt| match lt {
+                            GenericParam::Lifetime(lt) => Some(lt.lifetime.clone()),
+                            _ => None
+                        }));
                     }
                 }
                 TypeParamBound::Lifetime(lt) => {
                     lifetimes.push(lt.clone());
                 }
+                _ => {}
             }
         });
         lifetimes
@@ -272,7 +279,10 @@ impl LifetimeProcessor for TraitBound {
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
         let mut lifetimes = self.path.unique_lifetimes();
         if let Some(ref lts) = self.lifetimes {
-            lifetimes.extend(lts.lifetimes.iter().map(|lt| lt.lifetime.clone()));
+            lifetimes.extend(lts.lifetimes.iter().filter_map(|lt| match lt {
+                GenericParam::Lifetime(lt) => Some(lt.lifetime.clone()),
+                _ => None
+            }));
         }
         lifetimes
     }
@@ -290,12 +300,12 @@ impl LifetimeProcessor for GenericTypeKind {
             GenericTypeKind::Slice(ty) => ty.clean_lifetimes(),
             GenericTypeKind::Tuple(ty) => ty.clean_lifetimes(),
             GenericTypeKind::Optional(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Callback(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Callback(kind) => kind.ty_mut().clean_lifetimes(),
             GenericTypeKind::TraitBounds(bounds) => {
                 *bounds = bounds.iter().filter_map(|b| match b {
                     TypeParamBound::Trait(trait_bound) =>
                         Some(TypeParamBound::Trait(trait_bound.lifetimes_cleaned())),
-                    TypeParamBound::Lifetime(_) =>
+                    _ =>
                         None,
                 }).collect();
             },

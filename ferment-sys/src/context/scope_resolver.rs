@@ -185,7 +185,7 @@ impl<'a> ScopeSearchKey<'a> {
             Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.first()? {
                 TypeParamBound::Trait(TraitBound { path, .. }) =>
                     Some(ScopeSearchKey::PathRef(path, Some(Box::new(original)))),
-                TypeParamBound::Lifetime(_) =>
+                _ =>
                     None
             },
             Type::Reference(TypeReference { elem: ty, .. }) |
@@ -203,7 +203,7 @@ impl<'a> ScopeSearchKey<'a> {
                 1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(ScopeSearchKey::Type(path.to_type(), Some(Box::new(original)))),
-                    TypeParamBound::Lifetime(_) =>
+                    _ =>
                         None
                 },
                 _ => None

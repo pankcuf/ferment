@@ -1,4 +1,4 @@
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, Path, PathArguments, PathSegment, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, Path, PathArguments, PathSegment, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use crate::ast::AddPunctuated;
@@ -50,7 +50,7 @@ impl ItemExtension for Item {
             Item::ForeignMod(item) => Some(&item.attrs),
             Item::Impl(item) => Some(&item.attrs),
             Item::Macro(item) => Some(&item.attrs),
-            Item::Macro2(item) => Some(&item.attrs),
+            // Item::Macro2(item) => Some(&item.attrs),
             Item::Mod(item) => Some(&item.attrs),
             Item::Static(item) => Some(&item.attrs),
             Item::Struct(item) => Some(&item.attrs),
@@ -69,7 +69,7 @@ impl ItemExtension for Item {
             Item::Enum(ItemEnum { ident, .. }) |
             Item::ExternCrate(ItemExternCrate { ident, .. }) |
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }) |
-            Item::Macro2(ItemMacro2 { ident, .. }) |
+            // Item::Macro2(ItemMacro2 { ident, .. }) |
             Item::Mod(ItemMod { ident, .. }) |
             Item::Struct(ItemStruct { ident, ..  }) |
             Item::Static(ItemStatic { ident, ..  }) |
@@ -142,7 +142,7 @@ pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
 pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     bounds.iter().filter_map(|bound| match bound {
         TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
-        TypeParamBound::Lifetime(_lifetime) => None
+        _ => None
     }).collect()
 }
 fn path_ident_ref(path: &Path) -> Option<&Ident> {

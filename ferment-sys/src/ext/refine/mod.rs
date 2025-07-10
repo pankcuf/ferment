@@ -94,10 +94,7 @@ impl RefineMut for PathArguments {
                             GenericArgument::Type(inner_ty) => {
                                 refine(inner_ty)
                             }
-                            GenericArgument::Lifetime(_) => {}
-                            GenericArgument::Const(_) => {}
-                            GenericArgument::Binding(_) => {}
-                            GenericArgument::Constraint(_) => {}
+                            _ => {}
                         }
                     });
             }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemMethod, TraitItemType, Type, TypeParamBound};
+use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
 use crate::composable::{CfgAttributes, FnSignatureContext};
@@ -47,8 +47,8 @@ impl TraitTypeModel {
                 .filter_map(|bound| match bound {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(TraitBoundDecomposition { path: path.clone() }),
-                    TypeParamBound::Lifetime(_lt) =>
-                        None
+                    _ =>
+                        None,
                 })
                 .collect(),
         }
@@ -78,7 +78,7 @@ impl TraitDecompositionPart1 {
         trait_items
             .iter()
             .for_each(|trait_item| match trait_item {
-                TraitItem::Method(TraitItemMethod { sig, .. } ) => {
+                TraitItem::Fn(TraitItemFn { sig, .. }) => {
                     methods.insert(sig.ident.clone(), sig.clone());
                 },
                 TraitItem::Type(trait_item_type) => {
@@ -113,14 +113,14 @@ impl<SPEC> TraitVTableComposer<SPEC>
         item_trait.items
             .iter()
             .for_each(|trait_item| match trait_item {
-                TraitItem::Method(trait_item_method) => {
+                TraitItem::Fn(trait_item_fn) => {
                     let name_context = ty_context.join_fn(
-                        source.scope.joined_path_holder(&trait_item_method.sig.ident).0,
-                        FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_method.sig.clone()),
-                        trait_item_method.attrs.cfg_attributes()
+                        source.scope.joined_path_holder(&trait_item_fn.sig.ident).0,
+                        FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_fn.sig.clone()),
+                        trait_item_fn.attrs.cfg_attributes()
                     );
-                    let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
-                    method_composers.push(SigComposer::from_trait_item_method(trait_item_method, name_context, &method_scope_context));
+                    let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_fn)));
+                    method_composers.push(SigComposer::from_trait_item_method(trait_item_fn, name_context, &method_scope_context));
                 },
                 TraitItem::Type(trait_item_type) => {
                     types.insert(trait_item_type.ident.clone(), TraitTypeModel::from_item_type(trait_item_type));

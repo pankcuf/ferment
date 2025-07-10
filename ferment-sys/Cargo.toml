@@ -16,12 +16,12 @@ java = []
 [dependencies]
 ferment-macro.workspace = true
 
-syn = { version = "1.0.109", features = ["default", "full", "visit", "extra-traits"] }
-quote = "1.0.28"
-proc-macro2 = "1.0.70"
-cargo_metadata = "0.19.2"
-env_logger = "0.11.0"
-cbindgen = "0.28.0"
+syn = { version = "2.0.104", features = ["default", "full", "visit", "extra-traits"] }
+quote = "1.0.40"
+proc-macro2 = "1.0.95"
+cargo_metadata = "0.20"
+env_logger = "0.11"
+cbindgen = "0.29.0"
 
 [lib]
 name = "ferment_sys"

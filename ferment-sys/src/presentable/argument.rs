@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use quote::{quote, ToTokens};
-use syn::{Pat, PatWild, Type, Visibility, VisPublic};
+use syn::{Pat, PatWild, Type, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
 use crate::composable::{FieldComposer, FieldTypeKind};
@@ -47,7 +47,7 @@ impl<SPEC> ArgKind<SPEC>
         Self::Unnamed(composer.clone())
     }
     pub fn public_named(composer: &FieldComposer<SPEC>) -> Self {
-        Self::Named(composer.clone(), Visibility::Public(VisPublic { pub_token: Default::default() }))
+        Self::Named(composer.clone(), Visibility::Public(Default::default()))
     }
     pub fn attr_name(composer: &FieldComposer<SPEC>) -> Self {
         Self::AttrName(composer.tokenized_name(), composer.attrs.clone())
@@ -77,16 +77,16 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
             ArgKind::AttrExhaustive(attrs) =>
                 ArgPresentation::arm(attrs, Pat::Wild(PatWild { attrs: vec![], underscore_token: Default::default() }), quote!(unreachable!("This is unreachable"))),
             ArgKind::AttrExpression(expr, attrs) =>
-                ArgPresentation::expr(attrs, expr.present(source)),
+                ArgPresentation::attr_tokens(attrs, expr.present(source)),
             ArgKind::AttrExpressionComposer(field_composer, field_path_resolver, expr_composer) => {
                 let template = field_path_resolver(field_composer);
                 let expr = expr_composer(&template);
-                ArgPresentation::expr(&field_composer.attrs.clone(), expr.present(source))
+                ArgPresentation::attr_tokens(&field_composer.attrs, expr.present(source))
             },
             ArgKind::AttrName(name, attrs) =>
-                ArgPresentation::expr(attrs, name.to_token_stream()),
+                ArgPresentation::attr_tokens(attrs, name.to_token_stream()),
             ArgKind::AttrSequence(seq, attrs) =>
-                ArgPresentation::expr(attrs, seq.present(source)),
+                ArgPresentation::attr_tokens(attrs, seq.present(source)),
             ArgKind::BindingArg(FieldComposer { name, kind, named, attrs, .. }) => {
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
@@ -103,7 +103,7 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 ArgPresentation::field(attrs, Visibility::Inherited, ident, ty)
             },
             ArgKind::BindingFieldName(FieldComposer { name, named, attrs, .. }) =>
-                ArgPresentation::expr(
+                ArgPresentation::attr_tokens(
                     attrs,
                     named.then(|| name.to_token_stream())
                         .unwrap_or_else(|| name.anonymous().to_token_stream())),
@@ -124,7 +124,7 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                             .present(source)))
             },
             ArgKind::Unnamed(composer) =>
-                ArgPresentation::expr(
+                ArgPresentation::attr_tokens(
                     &composer.attrs,
                     Resolve::<<RustSpecification as Specification>::Var>::resolve(composer.ty(), source)
                         .to_token_stream()),

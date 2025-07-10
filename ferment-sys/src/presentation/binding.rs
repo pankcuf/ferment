@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, Lifetime};
+use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, Lifetime, FieldMutability};
 use syn::punctuated::Punctuated;
 use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
@@ -300,7 +300,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*const std::os::raw::c_void) }),
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(
@@ -333,7 +333,7 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::RegularFunction2 { attrs, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), ty: parse_quote!(*const std::os::raw::c_void) }),
+                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(

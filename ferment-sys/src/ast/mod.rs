@@ -7,9 +7,8 @@ mod wrapped;
 use std::hash::Hash;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::Generics;
 use syn::punctuated::Punctuated;
-use syn::token::{Add, Brace, Colon2, Comma, Dot, FatArrow, Paren, Semi};
+use syn::token::{Brace, Comma, Dot, FatArrow, Paren, PathSep, Plus, Semi};
 pub use opposed::*;
 pub use path_holder::*;
 pub use type_holder::*;
@@ -31,9 +30,9 @@ pub type SemiPunctuated<T> = Punctuated<T, Semi>;
 #[allow(unused)]
 pub type SemiPunctuatedTokens = SemiPunctuated<TokenStream2>;
 #[allow(unused)]
-pub type Colon2Punctuated<T> = Punctuated<T, Colon2>;
+pub type Colon2Punctuated<T> = Punctuated<T, PathSep>;
 #[allow(unused)]
-pub type AddPunctuated<T> = Punctuated<T, Add>;
+pub type AddPunctuated<T> = Punctuated<T, Plus>;
 #[allow(unused)]
 pub type DotPunctuated<T> = Punctuated<T, Dot>;
 
@@ -98,12 +97,20 @@ macro_rules! impl_holder {
                 Self(value)
             }
         }
-        impl syn::parse_quote::ParseQuote for $holder_name {
+        // impl syn::ParseQuote for $holder_name {
+        //     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        //         <$inner_type>::parse(input)
+        //             .map($holder_name::from)
+        //     }
+        // }
+
+        impl syn::parse::Parse for $holder_name {
             fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-                <$inner_type>::parse(input)
-                    .map($holder_name::from)
+                <$inner_type as syn::parse::Parse>::parse(input).map($holder_name)
             }
         }
+
+
 
         impl quote::ToTokens for $holder_name {
             fn to_tokens(&self, tokens: &mut syn::__private::TokenStream2) {
@@ -113,4 +120,4 @@ macro_rules! impl_holder {
 
     };
 }
-impl_holder!(GenericsHolder, Generics);
+//impl_holder!(GenericsHolder, Generics);

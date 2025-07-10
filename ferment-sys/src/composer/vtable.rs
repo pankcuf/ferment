@@ -86,7 +86,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                                     .compose(&method_scope_context)
                                     .to_type()
                             ));
-                            args_conversions.push(ArgPresentation::expr(attrs, match (mutability, reference) {
+                            args_conversions.push(ArgPresentation::attr_tokens(attrs, match (mutability, reference) {
                                 (Some(..), _) => <RustSpecification as Specification>::Expr::AsMutRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(mut))).into()),
                                 (_, Some(..)) => <RustSpecification as Specification>::Expr::AsRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into()),
                                 (..) => Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into(),
@@ -98,7 +98,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                                 .compose(&method_scope_context)
                                 .to_type();
                             args.push(ArgPresentation::field(attrs, Visibility::Inherited, Some(Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default()), var));
-                            args_conversions.push(ArgPresentation::expr(attrs, FromConversionFullComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
+                            args_conversions.push(ArgPresentation::attr_tokens(attrs, FromConversionFullComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context).present(source)));
                         }
                     }

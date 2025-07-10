@@ -7,7 +7,8 @@ mod sequence_mixer;
 mod spec;
 mod var_composable;
 
-use syn::{Field, Item, Meta, NestedMeta, Path, Type, Visibility, VisPublic, MetaList, Attribute};
+use syn::{Field, Item, Meta, Path, Type, Visibility, Attribute, FieldMutability};
+use syn::parse::Parser;
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
 use crate::composable::CfgAttributes;
@@ -89,29 +90,35 @@ impl MaybeMacroLabeled for Attribute {
         let mut arguments = Vec::<Path>::new();
         let mut macro_name: Option<String> = None;
 
-        match self.parse_meta() {
-            Ok(Meta::Path(path)) => {
+        match &self.meta {
+            Meta::Path(path) => {
                 // Handle simple case like `#[ferment_macro::export]`
-                macro_name = Some(path.segments.last()?.ident.to_string());
+                macro_name = path.segments.last().map(|s| s.ident.to_string());
             }
-            Ok(Meta::List(MetaList { nested, path, .. })) => {
+            Meta::List(meta_list) => {
+                let path = &meta_list.path;
+                let nested = CommaPunctuated::<Meta>::parse_terminated.parse2(meta_list.tokens.clone()).ok()?;
+
                 if path.is_ident("cfg_attr") {
-                    // Handle `#[cfg_attr(feature = "apple", ferment_macro::export)]`
-                    for (i, meta) in nested.iter().enumerate() {
+                    // #[cfg_attr(feature = "...", ferment_macro::export)]
+                    for (i, meta_item) in nested.iter().enumerate() {
                         if i == 0 {
-                            // Skip the first argument (feature flag)
-                            continue;
+                            continue; // Skip cfg condition
                         }
-                        match meta {
-                            NestedMeta::Meta(Meta::Path(inner_path)) => {
-                                macro_name = Some(inner_path.segments.last()?.ident.to_string());
+                        match meta_item {
+                            Meta::Path(inner_path) => {
+                                macro_name = inner_path.segments.last().map(|s| s.ident.to_string());
                             }
-                            NestedMeta::Meta(Meta::List(inner_list)) => {
-                                macro_name = Some(inner_list.path.segments.last()?.ident.to_string());
-                                // Extract arguments for `register(...)`
-                                for inner_meta in &inner_list.nested {
-                                    if let NestedMeta::Meta(Meta::Path(inner_path)) = inner_meta {
-                                        arguments.push(inner_path.clone());
+                            Meta::List(inner_list) => {
+                                macro_name = inner_list.path.segments.last().map(|s| s.ident.to_string());
+
+                                let inner_nested = CommaPunctuated::<Meta>::parse_terminated
+                                    .parse2(inner_list.tokens.clone())
+                                    .ok()?;
+
+                                for inner_meta in inner_nested {
+                                    if let Meta::Path(arg_path) = inner_meta {
+                                        arguments.push(arg_path.clone());
                                     }
                                 }
                             }
@@ -119,17 +126,17 @@ impl MaybeMacroLabeled for Attribute {
                         }
                     }
                 } else {
-                    // Handle `#[ferment_macro::register(...)]`
-                    macro_name = Some(path.segments.last()?.ident.to_string());
+                    // #[ferment_macro::register(...)]
+                    macro_name = path.segments.last().map(|s| s.ident.to_string());
 
-                    // Extract arguments
-                    for meta in &nested {
-                        if let NestedMeta::Meta(Meta::Path(inner_path)) = meta {
-                            arguments.push(inner_path.clone());
+                    for meta_item in nested {
+                        if let Meta::Path(arg_path) = meta_item {
+                            arguments.push(arg_path.clone());
                         }
                     }
                 }
             }
+
             _ => {}
         }
 
@@ -165,11 +172,12 @@ impl MaybeComposer<RustSpecification> for Item {
                             Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
                         _ => {
                             let fields = CommaPunctuated::from_iter([Field {
-                                vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
+                                vis: Visibility::Public(Pub::default()),
                                 ty: *item.ty.clone(),
                                 attrs: vec![],
                                 ident: None,
                                 colon_token: None,
+                                mutability: FieldMutability::None,
                             }]);
                             Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
                         }

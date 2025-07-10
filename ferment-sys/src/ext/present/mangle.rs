@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, BareFnArg, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeDef, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateEq, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
@@ -103,7 +103,7 @@ impl Mangle<MangleDefault> for TypeTraitObject {
         // TODO: need mixins impl to process multiple bounds
         self.bounds.iter().find_map(|b| match b {
             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            TypeParamBound::Lifetime(_) => None,
+            _ => None,
         }).unwrap_or("Any".to_string())
     }
 }
@@ -113,7 +113,7 @@ impl Mangle<MangleDefault> for TypeImplTrait {
         // TODO: need mixins impl to process multiple bounds
         self.bounds.iter().find_map(|b| match b {
             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            TypeParamBound::Lifetime(_) => None,
+            _ => None,
         }).unwrap_or("Any".to_string())
     }
 }
@@ -231,7 +231,7 @@ impl Mangle<(bool, bool)> for ParenthesizedGenericArguments {
     fn mangle_string(&self, _context: (bool, bool)) -> String {
         format!(
             "ARGS_{}_RTRN_{}",
-            &self.inputs.iter().map(|gen_arg| gen_arg.mangle_string_default()).collect::<Vec<_>>().join("_"),
+            &self.inputs.iter().map(Mangle::mangle_string_default).collect::<Vec<_>>().join("_"),
             match &self.output {
                 ReturnType::Default => String::new(),
                 ReturnType::Type(_, ty) => ty.mangle_string_default()
@@ -239,7 +239,7 @@ impl Mangle<(bool, bool)> for ParenthesizedGenericArguments {
     }
 }
 
-impl Mangle<MangleDefault> for LifetimeDef {
+impl Mangle<MangleDefault> for LifetimeParam {
     fn mangle_string(&self, _context: MangleDefault) -> String {
         "".to_string()
     }
@@ -275,11 +275,29 @@ impl Mangle<MangleDefault> for Lifetime {
     }
 }
 
+impl Mangle<MangleDefault> for PreciseCapture {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.params.iter().map(|p| p.mangle_string(context.clone())).collect::<Vec<_>>().join("_")
+    }
+}
+impl Mangle<MangleDefault> for CapturedParam {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        match self {
+            CapturedParam::Lifetime(lt) => lt.mangle_string(context),
+            CapturedParam::Ident(ident) => ident.to_string(),
+            _ => String::new()
+        }
+    }
+}
+
 impl Mangle<MangleDefault> for TypeParamBound {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             TypeParamBound::Trait(trait_bound) => trait_bound.mangle_string(context),
             TypeParamBound::Lifetime(lifetime) => lifetime.mangle_string(context),
+            TypeParamBound::PreciseCapture(precise_capture) => precise_capture.mangle_string(context),
+            TypeParamBound::Verbatim(token_stream) => token_stream.to_string(),
+            _ => String::new()
         }
     }
 }
@@ -297,18 +315,19 @@ impl Mangle<MangleDefault> for PredicateLifetime {
         "".to_string()
     }
 }
-impl Mangle<MangleDefault> for PredicateEq {
-    fn mangle_string(&self, _context: MangleDefault) -> String {
-        "".to_string()
-    }
-}
+// impl Mangle<MangleDefault> for PredicateEq {
+//     fn mangle_string(&self, _context: MangleDefault) -> String {
+//         "".to_string()
+//     }
+// }
 
 impl Mangle<MangleDefault> for WherePredicate {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             WherePredicate::Type(predicate_ty) => predicate_ty.mangle_string(context),
             WherePredicate::Lifetime(predicate_lifetime) => predicate_lifetime.mangle_string(context),
-            WherePredicate::Eq(predicate_eq) => predicate_eq.mangle_string(context),
+            // WherePredicate::Eq(predicate_eq) => predicate_eq.mangle_string(context),
+            _ => String::new()
         }
     }
 }

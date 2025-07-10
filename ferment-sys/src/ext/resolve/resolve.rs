@@ -118,7 +118,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
                     0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
                     1 => match bounds.first()? {
                         TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
-                        TypeParamBound::Lifetime(_) => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Lifetime)"),
+                        _ => None,
                     },
                     _ => Some(FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }),
                 }
@@ -165,10 +165,11 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             GenericTypeKind::Box(ty) |
             GenericTypeKind::AnyOther(ty) =>
                 single_generic_ffi_type(ty),
-            GenericTypeKind::Callback(ty) |
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
+            GenericTypeKind::Callback(kind) =>
+                FFIFullPath::Generic { ffi_name: kind.ty().mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_type(tuple.elems.first().unwrap()),

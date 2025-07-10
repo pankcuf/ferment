@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant, Expr, ExprLit, Attribute};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
@@ -128,11 +128,37 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
 pub fn method_call_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
+    // let namespace = input.attrs.iter()
+    //     .find(|attr| attr.path().is_ident("namespace"))
+    //     .and_then(|attr| match attr.parse_meta() {
+    //         Ok(Meta::NameValue(MetaNameValue { lit: Lit::Str(lit), .. })) => Some(lit.parse::<Path>().expect("Invalid namespace")),
+    //         _ => None
+    //     })
+    //     .expect("namespace attribute is required");
+
+    // let namespace = input.attrs.iter()
+    //     .find(|attr| attr.path().is_ident("namespace"))
+    //     .and_then(|attr| {
+    //         attr.parse_args::<Lit>().ok().and_then(|lit| {
+    //             if let Lit::Str(s) = lit {
+    //                 Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //     })
+    //     .expect("namespace attribute is required");
     let namespace = input.attrs.iter()
-        .find(|attr| attr.path.is_ident("namespace"))
-        .and_then(|attr| match attr.parse_meta() {
-            Ok(Meta::NameValue(MetaNameValue { lit: Lit::Str(lit), .. })) => Some(lit.parse::<Path>().expect("Invalid namespace")),
-            _ => None
+        .find_map(|Attribute { ref meta, .. }| {
+            if let Meta::NameValue(MetaNameValue { path, value: Expr::Lit(ExprLit { lit: Lit::Str(s), .. }), .. }) = meta {
+                if path.is_ident("namespace") {
+                    Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         })
         .expect("namespace attribute is required");
 
@@ -179,7 +205,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
                 let method = match self {
                     #methods
                 };
-                let ns = syn::punctuated::Punctuated::<_, syn::token::Colon2>::from_iter([quote!(#namespace), method]);
+                let ns = syn::punctuated::Punctuated::<_, syn::token::PathSep>::from_iter([quote!(#namespace), method]);
                 tokens.append_all(vec![ns.to_token_stream()]);
                 tokens
             }

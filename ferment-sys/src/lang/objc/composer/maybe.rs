@@ -1,4 +1,4 @@
-use syn::{Field, Item, Type, Visibility, VisPublic};
+use syn::{Field, FieldMutability, Item, Type, Visibility};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder};
 use crate::composable::CfgAttributes;
@@ -31,11 +31,12 @@ impl MaybeComposer<ObjCSpecification> for Item {
                             Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, prefix, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
                         _ => {
                             let fields = CommaPunctuated::from_iter([Field {
-                                vis: Visibility::Public(VisPublic { pub_token: Pub::default() }),
+                                vis: Visibility::Public(Pub::default()),
                                 ty: *item.ty.clone(),
                                 attrs: vec![],
                                 ident: None,
                                 colon_token: None,
+                                mutability: FieldMutability::None,
                             }]);
                             Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
                         }

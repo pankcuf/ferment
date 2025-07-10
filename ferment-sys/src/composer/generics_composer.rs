@@ -48,7 +48,7 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
                             TypeParamBound::Trait(TraitBound { path, .. }) => {
                                 *path = rb.clone();
                             },
-                            TypeParamBound::Lifetime(_) => {}
+                            _ => {}
                         });
                 }
             };
@@ -57,8 +57,7 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
                     let ident_path: TypePathHolder = parse_quote!(#ident);
                     update_bound(&ident_path, bounds);
                 }
-                GenericParam::Lifetime(_) |
-                GenericParam::Const(_) => {},
+                _ => {},
             });
             if let Some(ref mut wh) = g.where_clause {
                 wh.predicates.iter_mut().for_each(|wp| match wp {
@@ -66,8 +65,7 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
                         let ident_path: TypePathHolder = parse_quote!(#bounded_ty);
                         update_bound(&ident_path, bounds);
                     }
-                    WherePredicate::Lifetime(_) => {}
-                    WherePredicate::Eq(_) => {}
+                    _ => {}
                 })
             }
             g

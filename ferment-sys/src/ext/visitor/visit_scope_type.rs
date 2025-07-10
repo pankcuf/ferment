@@ -145,7 +145,7 @@ impl<'a> VisitScopeType<'a> for Path {
                         }
                         has.then(|| path.visit_scope_type(source))
                     },
-                    TypeParamBound::Lifetime(_) => None
+                    _ => None
                 }).collect()
             };
             let bounds = generic_trait_bounds(path, &ident_path, &bound.bounds);

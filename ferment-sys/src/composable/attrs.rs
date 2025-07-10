@@ -61,7 +61,7 @@ impl CfgAttributes for AttrsModel {
 impl CfgAttributes for Vec<Attribute> {
     fn cfg_attributes(&self) -> Vec<Attribute> {
         self.iter()
-            .filter(|attr| attr.path.is_ident("cfg"))
+            .filter(|attr| attr.path().is_ident("cfg"))
             .cloned()
             .collect()
     }
@@ -70,7 +70,7 @@ impl CfgAttributes for Vec<Option<Attribute>> {
     fn cfg_attributes(&self) -> Vec<Attribute> {
         self.iter()
             .filter_map(|attr| match attr {
-                Some(attr) if attr.path.is_ident("cfg") => Some(attr.clone()),
+                Some(attr) if attr.path().is_ident("cfg") => Some(attr.clone()),
                 _ => None
             })
             .collect()

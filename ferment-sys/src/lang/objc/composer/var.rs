@@ -572,7 +572,7 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<Obj
             Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) => {
             let bound = bounds.iter().find_map(|bound| match bound {
                 TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-                TypeParamBound::Lifetime(_) => None
+                _ => None
             }).unwrap();
             bound.resolve(source)
         }
@@ -613,7 +613,7 @@ pub fn resolve_target_variable(ty: Type, source: &ScopeContext) -> FFIVariable<O
             Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) => {
             let bound = bounds.iter().find_map(|bound| match bound {
                 TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-                TypeParamBound::Lifetime(_) => None
+                _ => None
             }).unwrap();
             bound.resolve(source)
         }
@@ -849,10 +849,11 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             GenericTypeKind::Box(ty) |
             GenericTypeKind::AnyOther(ty) =>
                 single_generic_ffi_type(ty),
-            GenericTypeKind::Callback(ty) |
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
+            GenericTypeKind::Callback(kind) =>
+                FFIFullPath::Generic { ffi_name: kind.ty().mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_type(tuple.elems.first().unwrap()),

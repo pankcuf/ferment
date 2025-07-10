@@ -111,7 +111,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for AddPunctuated<Typ
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
         let bound = self.iter().find_map(|bound| match bound {
             TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-            TypeParamBound::Lifetime(_) => None
+            _ => None
         }).unwrap();
         bound.resolve(source)
     }

@@ -30,7 +30,7 @@ impl<SPEC> ImplComposer<SPEC>
         let attrs_model = AttrsModel::from(attrs);
         items.iter().for_each(|impl_item| {
             match impl_item {
-                ImplItem::Method(item) => {
+                ImplItem::Fn(item) => {
                     let method_scope_context = Rc::new(RefCell::new(source.joined(item)));
                     // TMP strategy to provide both trait vtable based and implementor based bindings
                     match trait_.as_ref() {

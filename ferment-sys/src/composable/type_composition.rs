@@ -100,7 +100,7 @@ impl TypeModel {
                 bounds.iter().find_map(|b| match b {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(path.arg_less()),
-                    TypeParamBound::Lifetime(_) =>
+                    _ =>
                         None
                 }).unwrap()
             }

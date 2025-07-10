@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use syn::{AngleBracketedGenericArguments, BareFnArg, Binding, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use crate::context::EnrichScopePolicy;
 use crate::ext::{HashMapMergePolicy, ValueReplaceScenario};
@@ -31,12 +31,12 @@ impl<K, V> ScopeCollection<K, V> for BareFnArg
         self.ty.scope_items()
     }
 }
-impl<K, V> ScopeCollection<K, V> for Binding
-    where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display {
-    fn scope_items(&self) -> HashMap<K, V> {
-        self.ty.scope_items()
-    }
-}
+// impl<K, V> ScopeCollection<K, V> for Binding
+//     where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display {
+//     fn scope_items(&self) -> HashMap<K, V> {
+//         self.ty.scope_items()
+//     }
+// }
 
 impl<K, V> ScopeCollection<K, V> for Constraint
     where K: Eq + Hash + Display + Debug, V: ValueReplaceScenario + Display {
@@ -59,10 +59,9 @@ impl<K, V> ScopeCollection<K, V> for GenericArgument
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             GenericArgument::Type(ty) => ty.scope_items(),
-            GenericArgument::Binding(binding) => binding.scope_items(),
             GenericArgument::Constraint(constraint) => constraint.scope_items(),
             GenericArgument::Const(expr) => expr.scope_items(),
-            GenericArgument::Lifetime(_) => HashMap::default(),
+            _ => HashMap::default(),
         }
     }
 }
@@ -155,7 +154,7 @@ impl<K, V> ScopeCollection<K, V> for TypeParamBound
     fn scope_items(&self) -> HashMap<K, V> {
         match self {
             TypeParamBound::Trait(TraitBound { path, .. }) => path.scope_items(),
-            TypeParamBound::Lifetime(_) => HashMap::default()
+            _ => HashMap::default()
         }
     }
 }

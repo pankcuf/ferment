@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, BareFnArg, Field, FnArg, Generics, ImplItemMethod, ItemFn, Lifetime, Pat, PatType, Path, Receiver, ReturnType, Signature, TraitItemMethod, Type, TypeBareFn, TypePtr, Visibility};
+use syn::{parse_quote, Attribute, BareFnArg, Field, FieldMutability, FnArg, Generics, ImplItemFn, ItemFn, Lifetime, PatType, Path, Receiver, ReturnType, Signature, TraitItemFn, Type, TypeBareFn, TypePtr, Visibility};
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
@@ -83,11 +83,11 @@ impl<SPEC> SigComposer<SPEC>
     }
 
     pub fn from_impl_item_method(
-        impl_item_method: &ImplItemMethod,
+        impl_item_method: &ImplItemFn,
         ty_context: SPEC::TYC,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
-        let ImplItemMethod { sig, .. } = impl_item_method;
+        let ImplItemFn { sig, .. } = impl_item_method;
         Self::with_context(
             ty_context,
             &sig.generics,
@@ -97,11 +97,11 @@ impl<SPEC> SigComposer<SPEC>
         )
     }
     pub fn from_trait_item_method(
-        trait_item_method: &TraitItemMethod,
+        trait_item_method: &TraitItemFn,
         ty_context: SPEC::TYC,
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
-        let TraitItemMethod { sig, attrs, .. } = trait_item_method;
+        let TraitItemFn { sig, attrs, .. } = trait_item_method;
         Self::with_context(ty_context, &sig.generics, &vec![], attrs, context)
     }
 }
@@ -370,7 +370,7 @@ impl SourceFermentable<RustFermentate> for SigComposer<RustSpecification> {
                                 let conversion = TypeKind::from(ty);
                                 let ident_name = Name::<RustSpecification>::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
                                 arg_names.push(ident_name.to_token_stream());
-                                arg_target_types.push(ArgPresentation::Pat(Pat::Verbatim(ty.to_token_stream())));
+                                arg_target_types.push(ArgPresentation::AttrTokens(vec![], ty.to_token_stream()));
                                 arg_target_fields.push(ArgPresentation::Field(field::<RustSpecification>(ident_name.clone(), ty, &source)));
                                 let mut bare_fn_arg_replacement = bare_fn_arg.clone();
                                 bare_fn_arg_replacement.ty = var_ty.to_type();
@@ -413,6 +413,7 @@ fn field<SPEC>(name: SPEC::Name , ty: &Type, source: &ScopeContext) -> Field
     Field {
         attrs: vec![],
         vis: Visibility::Inherited,
+        mutability: FieldMutability::None,
         ident: Some(name.mangle_ident_default()),
         colon_token: None,
         ty: match ty {

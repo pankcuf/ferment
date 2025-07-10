@@ -75,7 +75,7 @@ impl CustomResolver {
                     TypeParamBound::Trait(TraitBound { path, .. }) => {
                         replace_segments(path);
                     },
-                    TypeParamBound::Lifetime(_) => {}
+                    _ => {}
                 })
             },
             _ => {}

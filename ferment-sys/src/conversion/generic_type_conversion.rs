@@ -2,7 +2,7 @@ use crate::lang::{RustSpecification, Specification};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, Field, GenericArgument, PathArguments, PathSegment, Type, TypeParamBound, TypePath, Visibility, VisPublic};
+use syn::{AngleBracketedGenericArguments, Field, FieldMutability, GenericArgument, PathArguments, PathSegment, Type, TypeParamBound, TypePath, Visibility};
 use syn::__private::TokenStream2;
 use crate::ast::AddPunctuated;
 use crate::composable::{FieldComposer, GenericBoundsModel};
@@ -162,6 +162,59 @@ impl Hash for MixinKind {
     }
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum CallbackKind {
+    FnOnce(Type),
+    Fn(Type),
+    FnMut(Type),
+    FnPointer(Type),
+}
+impl Debug for CallbackKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("CallbackKind::{}({})", match self {
+            CallbackKind::FnOnce(_) => "FnOnce",
+            CallbackKind::Fn(_) => "Fn",
+            CallbackKind::FnMut(_) => "FnMut",
+            CallbackKind::FnPointer(_) => "FnPointer",
+        }, self.to_token_stream()))
+    }
+}
+
+impl Display for CallbackKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+
+impl ToTokens for CallbackKind {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            CallbackKind::FnOnce(ty) |
+            CallbackKind::Fn(ty) |
+            CallbackKind::FnMut(ty) |
+            CallbackKind::FnPointer(ty) => ty.to_tokens(tokens),
+        }
+    }
+}
+
+impl CallbackKind {
+    pub fn ty(&self) -> &Type {
+        match self {
+            CallbackKind::FnOnce(ty) |
+            CallbackKind::Fn(ty) |
+            CallbackKind::FnMut(ty) |
+            CallbackKind::FnPointer(ty) => ty,
+        }
+    }
+    pub fn ty_mut(&mut self) -> &mut Type {
+        match self {
+            CallbackKind::FnOnce(ty) |
+            CallbackKind::Fn(ty) |
+            CallbackKind::FnMut(ty) |
+            CallbackKind::FnPointer(ty) => ty,
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum GenericTypeKind {
@@ -174,7 +227,7 @@ pub enum GenericTypeKind {
     Slice(Type),
     Tuple(Type),
     Optional(Type),
-    Callback(Type),
+    Callback(CallbackKind),
     TraitBounds(AddPunctuated<TypeParamBound>),
 }
 impl Debug for GenericTypeKind {
@@ -211,8 +264,8 @@ impl ToTokens for GenericTypeKind {
             GenericTypeKind::Slice(ty) |
             GenericTypeKind::AnyOther(ty) |
             GenericTypeKind::Optional(ty) |
-            GenericTypeKind::Callback(ty) |
             GenericTypeKind::Tuple(ty) => ty.to_tokens(tokens),
+            GenericTypeKind::Callback(kind) => kind.to_tokens(tokens),
             GenericTypeKind::TraitBounds(bounds) => bounds.to_tokens(tokens),
         }
     }
@@ -228,7 +281,6 @@ impl GenericTypeKind {
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) |
             GenericTypeKind::AnyOther(ty) |
-            GenericTypeKind::Callback(ty) |
             GenericTypeKind::Tuple(ty) => Some(ty),
             GenericTypeKind::Optional(Type::Path(TypePath { qself: _, path })) => match path.segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
@@ -237,6 +289,7 @@ impl GenericTypeKind {
                 },
                 _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", self.to_token_stream()),
             }
+            GenericTypeKind::Callback(kind) => Some(kind.ty()),
             GenericTypeKind::TraitBounds(_) => {
                 // TODO: Make mixin here
                 None
@@ -254,7 +307,8 @@ impl Resolve<Field> for FieldComposer<RustSpecification> {
         let FieldComposer { attrs, name, kind, .. } = self;
         Field {
             attrs: attrs.clone(),
-            vis: Visibility::Public(VisPublic { pub_token: Default::default() }),
+            vis: Visibility::Public(Default::default()),
+            mutability: FieldMutability::None,
             ident: Some(name.mangle_ident_default()),
             colon_token: Some(Default::default()),
             ty: VariableComposer::<RustSpecification>::new(kind.to_type())

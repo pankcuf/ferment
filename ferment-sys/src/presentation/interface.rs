@@ -1,6 +1,6 @@
 use quote::{quote, ToTokens};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Attribute, GenericParam, Generics, Lifetime, LifetimeDef, ReturnType, Type};
+use syn::{Attribute, GenericParam, Generics, Lifetime, LifetimeParam, ReturnType, Type};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::composer::{CommaPunctuatedArgs, TypePair};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
@@ -118,7 +118,7 @@ impl InterfacePresentation {
 fn generics_presentation(generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> (TokenStream2, TokenStream2) {
     let result = match generics {
         Some(generics) => {
-            let mut params = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeDef {
+            let mut params = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam {
                 attrs: vec![],
                 lifetime: lt.clone(),
                 colon_token: None,
@@ -141,7 +141,7 @@ fn generics_presentation(generics: &Option<Generics>, lifetimes: &Vec<Lifetime>)
             (generic_bounds, where_clause)
         },
         None => {
-            let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeDef {
+            let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam {
                 attrs: vec![],
                 lifetime: lt.clone(),
                 colon_token: None,
@@ -218,7 +218,7 @@ impl ToTokens for InterfacePresentation {
                 }
             },
             Self::Callback { attrs, ffi_type, inputs, output, lifetimes, body } => {
-                let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeDef {
+                let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam {
                     attrs: vec![],
                     lifetime: lt.clone(),
                     colon_token: None,

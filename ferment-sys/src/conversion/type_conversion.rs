@@ -5,7 +5,7 @@ use quote::ToTokens;
 use syn::{GenericArgument, PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use syn::parse::{Parse, ParseStream};
 use crate::ast::CommaPunctuated;
-use crate::conversion::GenericTypeKind;
+use crate::conversion::{CallbackKind, GenericTypeKind};
 
 #[derive(Clone, Eq)]
 pub enum TypeKind {
@@ -77,7 +77,9 @@ impl From<Type> for TypeKind {
                             "Result" if path.segments.len() == 1 => TypeKind::Generic(GenericTypeKind::Result(ty)),
                             "Map" if first_ident.to_string().eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
                             "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
-                            "Fn" | "FnOnce" | "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(ty)),
+                            "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
+                            "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
+                            "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
                             _ => path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(args) => {
                                     let non_lifetimes = CommaPunctuated::from_iter(args.args.iter().filter_map(|arg| if let GenericArgument::Lifetime(_) = arg { None } else { Some(arg) }));
@@ -106,7 +108,9 @@ impl From<Type> for TypeKind {
                         "Result" if path.segments.len() == 1 => TypeKind::Generic(GenericTypeKind::Result(ty)),
                         "Map" if first_ident.to_string().eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
-                        "Fn" | "FnOnce" | "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(ty)),
+                        "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
+                        "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
+                        "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
                         _ => {
                             path.segments.iter().find_map(|ff| match &ff.arguments {
                                 PathArguments::AngleBracketed(_) =>
@@ -123,7 +127,7 @@ impl From<Type> for TypeKind {
                 TypeKind::Generic(GenericTypeKind::Array(ty.clone())),
             Type::Slice(..) =>
                 TypeKind::Generic(GenericTypeKind::Slice(ty.clone())),
-            Type::BareFn(..) => TypeKind::Generic(GenericTypeKind::Callback(ty.clone())),
+            Type::BareFn(..) => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnPointer(ty.clone()))),
             // Type::Ptr(_) => {}
             Type::Reference(TypeReference { elem, .. }) => TypeKind::from(*elem),
             Type::ImplTrait(TypeImplTrait { bounds, .. }) |

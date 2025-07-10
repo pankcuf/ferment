@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use proc_macro2::Ident;
-use quote::quote;
-use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemMethod, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, Lifetime, LifetimeDef, Meta, NestedMeta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemMethod, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate};
+use quote::{quote, ToTokens};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath};
+use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel};
@@ -61,7 +62,7 @@ impl VisitScope for Item {
                                     // TODO: make it Unknown
                                     nested_bounds.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(path.to_type(), None, CommaPunctuated::new())))));
                                 }
-                                TypeParamBound::Lifetime(Lifetime { .. }) => {}
+                                _ => {}
                             });
                             // TODO: make it Unknown
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(ident.to_type(), Some(item_enum.generics.clone()), nested_bounds)))));
@@ -71,7 +72,7 @@ impl VisitScope for Item {
                             inner_args.push(quote!(#ident));
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_enum.generics.clone()), CommaPunctuated::new())))))
                         },
-                        GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
+                        GenericParam::Lifetime(LifetimeParam { lifetime, bounds: _, .. }) => {
                             inner_args.push(quote!(#lifetime));
                         },
                     });
@@ -103,7 +104,7 @@ impl VisitScope for Item {
                                     // TODO: make it Unknown
                                     nested_bounds.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(path.to_type(), None, CommaPunctuated::new())))));
                                 }
-                                TypeParamBound::Lifetime(Lifetime { .. }) => {}
+                                _ => {}
                             });
                             // TODO: make it Unknown
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::TraitType(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), nested_bounds)))));
@@ -113,7 +114,7 @@ impl VisitScope for Item {
                             inner_args.push(quote!(#ident));
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::Type(TypeModelKind::Object(TypeModel::new(ident.to_type(), Some(item_struct.generics.clone()), CommaPunctuated::new())))))
                         },
-                        GenericParam::Lifetime(LifetimeDef { lifetime, bounds: _, .. }) => {
+                        GenericParam::Lifetime(LifetimeParam { lifetime, bounds: _, .. }) => {
                             inner_args.push(quote!(#lifetime));
                         },
                     });
@@ -166,8 +167,8 @@ impl VisitScope for Item {
                             visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                             visitor.add_full_qualified_type_match(scope, ty, true);
                         },
-                        ImplItem::Method(impl_method) => {
-                            let ImplItemMethod { sig, .. } = impl_method;
+                        ImplItem::Fn(impl_method) => {
+                            let ImplItemFn { sig, .. } = impl_method;
                             let Signature { ident, inputs, output, generics, .. } = sig;
                             let fn_scope = scope.joined(impl_method);
                             visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
@@ -225,8 +226,8 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                 visitor.add_full_qualified_type_match(scope, ty, true);
             },
-            TraitItem::Method(trait_item_method) => {
-                let TraitItemMethod { sig, .. } = trait_item_method;
+            TraitItem::Fn(trait_item_method) => {
+                let TraitItemFn { sig, .. } = trait_item_method;
                 let Signature { ident, generics, inputs, output, .. } = sig;
                 let fn_scope = scope.joined(trait_item_method);
                 // visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
@@ -325,7 +326,12 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
 fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
-        let ty = path.to_type();
+        // let type_path: TypePath = parse_quote!(#path);
+        let ty =  Type::Path(TypePath { qself: None, path: path.clone() });
+        // TypePath::parse(path.to_token_stream());
+        println!("add_bounds: {}: {:?}", path.to_token_stream(), path);
+        // let type_path: TypePath = parse_quote!(#path);
+        // let ty = path.to_type();
         visitor.add_full_qualified_type_match(scope, &ty, add_to_parent);
     });
     bounds
@@ -336,12 +342,13 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
     generics.params.iter().for_each(|generic_param| {
         match generic_param { // T: Debug + Clone
             GenericParam::Type(TypeParam { ident: generic_ident, bounds, .. }) => {
+                println!("create_generics_chain: param: {} /// {}", generic_ident.to_token_stream(), bounds.to_token_stream());
                 generics_chain.insert(parse_quote!(#generic_ident), add_bounds(visitor, bounds, scope, add_to_parent));
             },
             GenericParam::Const(ConstParam { ty, .. }) => {
                 visitor.add_full_qualified_type_match(scope, ty, add_to_parent);
             },
-            GenericParam::Lifetime(_lifetime) => {},
+            _ => {},
         }
     });
     match &generics.where_clause {
@@ -349,11 +356,11 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
             predicates.iter().for_each(|predicate| match predicate {
                 WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
                     // where T: Debug + Clone, T::Item: XX,
+                    println!("create_generics_chain: where: {} /// {}", bounded_ty.to_token_stream(), bounds.to_token_stream());
                     generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
                     visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
                 },
-                WherePredicate::Lifetime(_) => {}
-                WherePredicate::Eq(_) => {}
+                _ => {}
             })
         },
         None => {}
@@ -369,13 +376,29 @@ pub fn extract_trait_names(attrs: &[Attribute]) -> Vec<Path> {
     let mut paths = Vec::<Path>::new();
     attrs.iter().for_each(|attr| {
         if attr.is_labeled_for_export() {
-            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                meta_list.nested.iter().for_each(|meta| {
-                    if let NestedMeta::Meta(Meta::Path(path)) = meta {
-                        paths.push(path.clone());
+
+            // attr.parse_nested_meta()
+            // if let Ok(Meta::List(ref meta_list)) = attr.meta {
+            //     meta_list.
+            //     paths.push(path.clone());
+            // }
+            // if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+            //     meta_list.nested.iter().for_each(|meta| {
+            //         if let NestedMeta::Meta(Meta::Path(path)) = meta {
+            //             paths.push(path.clone());
+            //         }
+            //     });
+            // }
+            if let Meta::List(meta_list) = &attr.meta {
+                if let Ok(nested) = CommaPunctuated::<Meta>::parse_terminated.parse2(meta_list.tokens.clone()) {
+                    for meta_item in nested.iter() {
+                        if let Meta::Path(path) = meta_item {
+                            paths.push(path.clone());
+                        }
                     }
-                });
+                }
             }
+
         }
     });
     paths
