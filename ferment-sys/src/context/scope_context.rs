@@ -4,12 +4,12 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, ImplItemFn, Item, ItemType, parse_quote, Path, TraitBound, TraitItemFn, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
-use crate::ast::{Depunctuated, TypeHolder};
+use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -71,18 +71,18 @@ impl ScopeContext {
             _ => None,
         };
         match scope_item {
-            Some(ScopeItemKind::Fn(..)) => None,
-            Some(ScopeItemKind::Item(item, ..)) => match item {
-                Item::Type(ItemType { ty, ..}) => {
-                    match &*ty {
-                        Type::BareFn(bare) => Some(bare.clone()),
-                        _ => None
-                    }
-                },
+            Some(ScopeItemKind::Item(Item::Type(ItemType { ty, ..}), ..)) => match &*ty {
+                Type::BareFn(bare) => Some(bare.clone()),
                 _ => None
             }
-            None => None
+            _ => None
         }
+    }
+
+    pub fn maybe_lambda_args<SPEC>(&self, ty: &Type) -> Option<CommaPunctuated<SPEC::Name>>
+        where SPEC: Specification {
+        self.maybe_fn_sig(ty)
+            .and_then(|ty| MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&ty))
     }
 
     pub fn maybe_to_fn_type(&self) -> Option<Type> {

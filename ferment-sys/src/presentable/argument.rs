@@ -4,7 +4,7 @@ use syn::{Pat, PatWild, Type, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComposer, FieldPathResolver, PresentableExprComposerRef};
+use crate::composer::{SourceComposable, ConversionFromComposer, VariableComposer, FieldPathResolver, PresentableExprComposerRef};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{RustSpecification, Specification};
@@ -119,7 +119,7 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                     Visibility::Inherited,
                     Some(name.mangle_ident_default()),
                     Type::Verbatim(
-                        FromConversionFullComposer::<RustSpecification>::key_in_scope(name.clone(), &kind.to_type(), &source.scope)
+                        ConversionFromComposer::<RustSpecification>::key_in_scope(name.clone(), &kind.to_type(), &source.scope)
                             .compose(source)
                             .present(source)))
             },

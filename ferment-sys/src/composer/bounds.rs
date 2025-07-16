@@ -5,13 +5,12 @@ use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::GenericArgPresentation;
 use crate::ext::{LifetimeProcessor, Mangle, Primitive, Resolve, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::{NameComposable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, Name, ToFFIVariable};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation};
 
 #[derive(ComposerBase)]
 pub struct BoundsComposer<SPEC>
@@ -56,29 +55,16 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
             .keys()
             .enumerate()
             .for_each(|(index, predicate_ty)| {
-                let name = Name::UnnamedArg(index);
+                let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
+                let field_name = <RustSpecification as Specification>::Name::index(index);
                 let ty: Type = predicate_ty.resolve(source);
-                let field_name = Name::Index(index);
                 lifetimes.extend(predicate_ty.unique_lifetimes());
-                let (kind, destroy_expr) = if ty.is_primitive() {
-                    (
-                        ConversionExpressionKind::Primitive,
-                        Expression::default(),
-                    )
-                } else {
-                    (
-                        ConversionExpressionKind::Complex,
-                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
-                    )
-                };
-                let item = GenericArgPresentation::<RustSpecification>::new(
-                    ty.to_direct_var(),
-                    Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
-                    Expression::ConversionExpr(FFIAspect::From, kind, Expression::ffi_ref_with_name(&name).into()),
-                    Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, Expression::obj_name(&field_name).into()).into())));
-                from_conversions.push(item.from_conversion.present(source));
-                to_conversions.push(item.to_conversion.present(source));
-                destroy_conversions.push(item.destructor.present(source));
+                let kind = ConversionExpressionKind::from(&ty);
+                from_conversions.push(Expression::expression_from(kind, Expression::ffi_ref_with_name(&name)).present(source));
+                to_conversions.push(Expression::named(&name, Expression::expression_to(kind, Expression::obj_name(&field_name))).present(source));
+                if !ty.is_primitive() {
+                    destroy_conversions.push(Expression::expression_drop(kind, Expression::dict_expr(DictionaryExpr::self_prop(&name))).present(source));
+                }
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let interfaces = Depunctuated::from_iter([
@@ -86,7 +72,6 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);
-        let aspect = Aspect::raw_struct_ident(ffi_name);
-        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
+        Some(GenericComposerInfo::<RustSpecification>::default(Aspect::raw_struct_ident(ffi_name), &attrs, field_composers, interfaces))
     }
 }

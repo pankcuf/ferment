@@ -3,7 +3,7 @@ use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{AspectPresentable, AttrComposable, DestroyFullConversionComposer, FromConversionFullComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ToConversionFullComposer, VarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ConversionToComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
@@ -23,9 +23,9 @@ fn compose_arg(
     source: &ScopeContext
 ) -> (GenericArgPresentation<ObjCSpecification>, TokenStream2) {
     println!("MapComposer::compose_arg: {} --- {}", arg_name.to_token_stream(), ty.to_token_stream());
-    let from_composer = FromConversionFullComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
-    let to_composer = ToConversionFullComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
-    let destroy_composer = DestroyFullConversionComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let from_composer = ConversionFromComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let to_composer = ConversionToComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
+    let destroy_composer = ConversionDropComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
     let var_composer = VarComposer::<ObjCSpecification>::value(ty);
     let target_composer = TargetVarComposer::<ObjCSpecification>::value(ty);
     let from_expr = from_composer.compose(source);

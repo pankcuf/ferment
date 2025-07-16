@@ -191,7 +191,7 @@ impl<I> SourceFermentable<RustFermentate> for ItemComposer<RustSpecification, I>
         let conversions = self.ffi_conversions_composer
             .as_ref()
             .map(|_| self.compose_interfaces())
-            .unwrap_or_else(|| Depunctuated::new());
+            .unwrap_or_default();
         let comment = self.ffi_object_composer
             .as_ref()
             .map(|_| self.compose_docs())

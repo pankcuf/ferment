@@ -5,7 +5,8 @@ use syn::Type;
 use crate::ast::CommaPunctuated;
 use crate::composer::{SourceComposable, FFIAspect, FieldTypeLocalContext};
 use crate::context::ScopeContext;
-use crate::ext::{ConversionType, Terminated, ToType};
+use crate::conversion::{GenericTypeKind, TypeKind};
+use crate::ext::{Conversion, GenericNestedArg, Terminated, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr};
@@ -23,6 +24,29 @@ pub enum ConversionExpressionKind {
     ComplexOptGroup,
     OpaqueGroup,
     OpaqueOptGroup,
+}
+
+
+impl From<&Type> for ConversionExpressionKind {
+    fn from(value: &Type) -> Self {
+        Self::from(value.clone())
+    }
+}
+impl From<Type> for ConversionExpressionKind {
+    fn from(value: Type) -> Self {
+        match TypeKind::from(value) {
+            TypeKind::Primitive(_) =>
+                ConversionExpressionKind::Primitive,
+            TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
+                Some(TypeKind::Primitive(_)) =>
+                    ConversionExpressionKind::PrimitiveOpt,
+                _ =>
+                    ConversionExpressionKind::ComplexOpt,
+            }
+            _ =>
+                ConversionExpressionKind::Complex,
+        }
+    }
 }
 
 pub trait ExpressionComposable<SPEC>: Clone + Debug + ScopeContextPresentable
@@ -80,11 +104,11 @@ pub enum Expression<SPEC>
     DestroyStringGroup(TokenStream2),
     DestroyBigInt(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
 
-    ConversionType(Box<ConversionType<SPEC>>),
-    Terminated(Box<ConversionType<SPEC>>),
+    ConversionType(Box<Conversion<SPEC>>),
+    Terminated(Box<Conversion<SPEC>>),
 
     Named((TokenStream2, Box<Expression<SPEC>>)),
-    NamedComposer((TokenStream2, Box<ConversionType<SPEC>>)),
+    NamedComposer((TokenStream2, Box<Conversion<SPEC>>)),
 
     FromLambda(Box<Expression<SPEC>>, CommaPunctuated<SPEC::Name>),
     FromLambdaTokens(TokenStream2, CommaPunctuated<SPEC::Name>),
@@ -95,8 +119,17 @@ pub enum Expression<SPEC>
 impl<SPEC> Expression<SPEC>
     where SPEC: Specification<Expr=Self>,
           SPEC::Expr: ScopeContextPresentable {
-    fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
+    pub(crate) fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
+    }
+    pub(crate) fn expression_from(kind: ConversionExpressionKind, expr: Self) -> Self {
+        Self::ConversionExpr(FFIAspect::From, kind, expr.into())
+    }
+    pub(crate) fn expression_to(kind: ConversionExpressionKind, expr: Self) -> Self {
+        Self::ConversionExpr(FFIAspect::To, kind, expr.into())
+    }
+    pub(crate) fn expression_drop(kind: ConversionExpressionKind, expr: Self) -> Self {
+        Self::ConversionExpr(FFIAspect::Drop, kind, expr.into())
     }
 
     #[allow(unused)]
@@ -151,6 +184,12 @@ impl<SPEC> Expression<SPEC>
 
     pub(crate) fn deref_expr(expr: Self) -> Self {
         Self::DerefExpr(expr.into())
+    }
+    pub(crate) fn deref_ref(expr: Self) -> Self {
+        Self::DerefRef(expr.into())
+    }
+    pub(crate) fn deref_mut_ref(expr: Self) -> Self {
+        Self::DerefMutRef(expr.into())
     }
 
     pub(crate) fn map_o_expr(mapper: Self) -> Self {
@@ -319,6 +358,10 @@ impl<SPEC> Expression<SPEC>
     }
     pub(crate) fn cast_destroy<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
         Self::CastConversionExpr(FFIAspect::Drop, kind, expr.into(), ffi_type.to_type(), target_type.to_type())
+    }
+
+    pub(crate) fn named<T: ToTokens>(name: T, expr: Self) -> Self {
+        Self::Named((name.to_token_stream(), expr.into()))
     }
 }
 

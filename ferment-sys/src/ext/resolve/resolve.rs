@@ -15,11 +15,11 @@ pub trait Resolve<T> {
 }
 
 impl Resolve<Type> for Type {
-    fn resolve(&self, source: &ScopeContext) -> Type {
-        source.full_type_for(self)
-    }
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<Type> {
         Some(self.resolve(source))
+    }
+    fn resolve(&self, source: &ScopeContext) -> Type {
+        source.full_type_for(self)
     }
 }
 impl Resolve<ObjectKind> for Type {
@@ -35,14 +35,11 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for Type
     where SPEC: Specification,
           FFIFullDictionaryPath<SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
-        let result = source.maybe_custom_conversion(self)
+        source.maybe_custom_conversion(self)
             .map(SpecialType::Custom)
             .or_else(|| source.maybe_opaque_object::<SPEC>(self)
-                .map(SpecialType::Opaque));
-        // println!("Type::<Option<SpecialType>>::resolve.2({})", result.to_token_stream());
-        result
+                .map(SpecialType::Opaque))
     }
-    // #[ferment_macro::debug_io]
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
         self.maybe_resolve(source).unwrap()
     }
@@ -53,11 +50,10 @@ impl<'a, SPEC> Resolve<SpecialType<SPEC>> for ScopeSearchKey<'a>
           FFIFullDictionaryPath<SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
         let ty = self.to_type();
-        let result = source.maybe_custom_conversion(&ty)
+        source.maybe_custom_conversion(&ty)
             .map(SpecialType::Custom)
             .or_else(|| source.maybe_opaque_object::<SPEC>(&ty)
-                .map(SpecialType::Opaque));
-        result
+                .map(SpecialType::Opaque))
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
         self.maybe_resolve(source).unwrap()
@@ -78,8 +74,7 @@ impl Resolve<TypeModelKind> for Type {
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
-        // println!("Type::<TypeModelKind>::resolve.1({}) in {}", self.to_token_stream(), source.scope.fmt_short());
-        let result = Resolve::<ObjectKind>::maybe_resolve(self, source)
+        Resolve::<ObjectKind>::maybe_resolve(self, source)
             .and_then(|ext_obj_kind| {
                 match ext_obj_kind {
                     ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
@@ -95,16 +90,14 @@ impl Resolve<TypeModelKind> for Type {
                     ObjectKind::Empty => None
                 }
             })
-            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(self));
-        // println!("Type::<TypeModelKind>::resolve.2({}) in {} --> {}", self.to_token_stream(), source.scope.fmt_short(), result);
-        result
+            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(self))
     }
 }
 
 impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
     where SPEC: Specification {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
-        let res = match self {
+        match self {
             Type::Path(TypePath { path, .. }) =>
                 path.maybe_resolve(source),
             Type::Reference(TypeReference { elem, .. }) =>
@@ -125,18 +118,11 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
 
             },
             _ => None
-        };
-        //println!("Type::<Option<FFIFullPath>>::resolve {} --> {:?}", self.to_token_stream(), res);
-        res
+        }
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
-        //println!("Type::<FFIFullPath>::resolve({})", self.to_token_stream());
         Resolve::<FFIFullPath<SPEC>>::maybe_resolve(self, source)
-            .unwrap_or_else(|| {
-                // println!("Type::<FFIFullPath>::resolve else ({})", self.to_token_stream());
-
-                FFIFullPath::External { path: parse_quote!(#self) }
-            })
+            .unwrap_or_else(|| FFIFullPath::External { path: parse_quote!(#self) })
     }
 }
 
@@ -157,14 +143,13 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<RustSpecification> {
-        //println!("GenericTypeKind -> FFIFullPath --> {}", self);
-        let result = match self {
+        match self {
             GenericTypeKind::Map(ty) |
             GenericTypeKind::Group(ty) |
             GenericTypeKind::Result(ty) |
             GenericTypeKind::Box(ty) |
             GenericTypeKind::AnyOther(ty) =>
-                single_generic_ffi_type(ty),
+                single_generic_ffi_full_path(ty),
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
@@ -172,14 +157,14 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
                 FFIFullPath::Generic { ffi_name: kind.ty().mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
-                1 => single_generic_ffi_type(tuple.elems.first().unwrap()),
+                1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),
                 _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
             }
             GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
                     Some(GenericArgument::Type(ty)) => match TypeKind::from(ty) {
                         TypeKind::Generic(gen) => gen.resolve(source),
-                        _ => single_generic_ffi_type(ty),
+                        _ => single_generic_ffi_full_path(ty),
                     },
                     _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
                 },
@@ -188,7 +173,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
                 _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),
             },
             GenericTypeKind::Optional(Type::Array(TypeArray { elem, .. })) =>
-                single_generic_ffi_type(elem),
+                single_generic_ffi_full_path(elem),
             GenericTypeKind::TraitBounds(bounds) => {
                 println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
                 match bounds.len() {
@@ -213,9 +198,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             },
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
-        };
-        //println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
-        result
+        }
     }
 }
 
@@ -227,7 +210,6 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
         self.as_type().maybe_resolve(source)
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
-        // println!("Type::<Option<SpecialType>>::resolve({})", self.to_token_stream());
         self.maybe_resolve(source).unwrap()
     }
 }
@@ -235,8 +217,6 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
 impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
     where SPEC: Specification {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
-        // let config = &source.context.read().unwrap().config;
-
         let segments = &self.segments;
         let first_segment = segments.first()?;
         let last_segment = segments.last()?;
@@ -263,7 +243,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
         } else if last_ident.is_smart_ptr() {
             Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
         } else {
-            let chunk =  if let Some(
+            let chunk = if let Some(
                 ObjectKind::Type(TypeModelKind::Trait(tc, ..)) |
                 ObjectKind::Type(TypeModelKind::TraitType(tc))
             ) = self.maybe_trait_object(source) {
@@ -294,14 +274,12 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
         }
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
-        // println!("Path::<Option<FFIFullPath>>::resolve({})", self.to_token_stream());
         self.maybe_resolve(source).unwrap()
-
     }
 }
 
 
-fn single_generic_ffi_type(ty: &Type) -> FFIFullPath<RustSpecification> {
+fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<RustSpecification> {
     let path: Path = parse_quote!(#ty);
     let first_segment = path.segments.first().unwrap();
     let mut cloned_segments = path.segments.clone();

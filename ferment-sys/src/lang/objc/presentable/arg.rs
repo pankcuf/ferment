@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, FromConversionFullComposer, VariableComposer};
+use crate::composer::{SourceComposable, ConversionFromComposer, VariableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
@@ -130,7 +130,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             ArgKind::DefaultFieldConversion(FieldComposer { name, attrs, kind, .. }) => {
                 //println!("OBJC ArgKind::DefaultFieldConversion: {} {}", name, kind);
                 let ty = kind.to_type();
-                let composer = FromConversionFullComposer::<ObjCSpecification>::key_in_scope(name.clone(), &ty, &source.scope);
+                let composer = ConversionFromComposer::<ObjCSpecification>::key_in_scope(name.clone(), &ty, &source.scope);
                 let from_conversion_expr = composer.compose(source);
                 let from_conversion_presentation = from_conversion_expr.present(source);
                 ArgPresentation::AttrConversion { conversion: quote!() }

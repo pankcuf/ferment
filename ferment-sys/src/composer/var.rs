@@ -179,11 +179,8 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                     let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
                                     let maybe_special = <Type as FFISpecialTypeResolve<RustSpecification>>::maybe_special_type(&nested_ty.to_type(), source);
                                     match maybe_special {
-                                        Some(SpecialType::Custom(custom_ty)) => {
-                                            return FFIVariable::mut_ptr(custom_ty.to_type());
-                                        },
-                                        Some(SpecialType::Opaque(custom_ty)) => {
-                                            return FFIVariable::mut_ptr(custom_ty.to_type());
+                                        Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
+                                            return FFIVariable::mut_ptr(special_ty.to_type());
                                         },
                                         _ => {}
                                     }

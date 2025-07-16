@@ -86,11 +86,25 @@ impl InterfacePresentation {
             conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.clone())
         }
     }
+    pub fn non_generic_conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, lifetimes: &Vec<Lifetime>) -> Self {
+        InterfacePresentation::ConversionFrom {
+            attrs: attrs.clone(),
+            types: types.clone(),
+            conversions: (method_body.to_token_stream(), None, lifetimes.clone())
+        }
+    }
     pub fn conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
         InterfacePresentation::ConversionTo {
             attrs: attrs.clone(),
             types: types.clone(),
             conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.clone())
+        }
+    }
+    pub fn non_generic_conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, lifetimes: &Vec<Lifetime>) -> Self {
+        InterfacePresentation::ConversionTo {
+            attrs: attrs.clone(),
+            types: types.clone(),
+            conversions: (method_body.to_token_stream(), None, lifetimes.clone())
         }
     }
     pub fn drop<T: ToTokens>(attrs: &Vec<Attribute>, ty: Type, body: T) -> Self {

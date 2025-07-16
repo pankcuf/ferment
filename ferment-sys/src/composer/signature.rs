@@ -6,7 +6,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, FieldTypeKind, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, BasicComposer, BasicComposerLink, BasicComposerOwner, CommaPunctuatedArgKinds, ComposerLink, DocsComposable, FromConversionFullComposer, LifetimesComposable, Linkable, NameKind, SourceAccessible, SourceComposable, SourceFermentable, ToConversionFullComposer, TypeAspect};
+use crate::composer::{AspectPresentable, BasicComposer, BasicComposerLink, BasicComposerOwner, CommaPunctuatedArgKinds, ComposerLink, DocsComposable, ConversionFromComposer, LifetimesComposable, Linkable, NameKind, SourceAccessible, SourceComposable, SourceFermentable, ConversionToComposer, TypeAspect};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericTypeKind, TypeKind};
@@ -129,7 +129,7 @@ fn compose_regular_fn(
         ReturnType::Default => (ReturnType::Default, <RustSpecification as Specification>::Expr::simple(Semi::default().to_token_stream())),
         ReturnType::Type(_, ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<RustSpecification>::key_in_scope(ty, &source.scope).compose(source).to_type())),
-            ToConversionFullComposer::<RustSpecification>::key(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty, &source.scope).compose(source)
+            ConversionToComposer::<RustSpecification>::key(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty, &source.scope).compose(source)
         )
     };
 
@@ -169,7 +169,7 @@ fn compose_regular_fn(
                             };
                             (
                                 self_ty,
-                                FromConversionFullComposer::<RustSpecification>::key_in_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_), &qualified_ty, &source.scope).compose(source)
+                                ConversionFromComposer::<RustSpecification>::key_in_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_), &qualified_ty, &source.scope).compose(source)
                             )
                         }
                     },
@@ -181,7 +181,7 @@ fn compose_regular_fn(
                         };
                         (
                             self_ty,
-                            FromConversionFullComposer::<RustSpecification>::key_in_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_), &qualified_ty, &source.scope).compose(source)
+                            ConversionFromComposer::<RustSpecification>::key_in_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_), &qualified_ty, &source.scope).compose(source)
                         )
                     },
                     _ => panic!("Receiver in regular fn")
@@ -207,7 +207,7 @@ fn compose_regular_fn(
                 let name = Name::Pat(*pat.clone());
                 argument_names.push(name.to_token_stream());
                 arguments.push(ArgKind::Named(FieldComposer::typed(name.clone(), ty, true, attrs), Visibility::Inherited));
-                let from_conversion = FromConversionFullComposer::<RustSpecification>::key_in_scope(name.clone(), ty, &source.scope).compose(source);
+                let from_conversion = ConversionFromComposer::<RustSpecification>::key_in_scope(name.clone(), ty, &source.scope).compose(source);
                 argument_conversions.push(ArgKind::AttrExpression(
                     from_conversion.clone(),
                     <RustSpecification as Specification>::Attr::default()

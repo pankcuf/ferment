@@ -6,6 +6,8 @@ use syn::{GenericArgument, PathArguments, Type, TypeImplTrait, TypePath, TypeRef
 use syn::parse::{Parse, ParseStream};
 use crate::ast::CommaPunctuated;
 use crate::conversion::{CallbackKind, GenericTypeKind};
+use crate::ext::{GenericNestedArg, Primitive};
+use crate::presentable::ConversionExpressionKind;
 
 #[derive(Clone, Eq)]
 pub enum TypeKind {
@@ -42,6 +44,14 @@ impl ToTokens for TypeKind {
             TypeKind::Primitive(ty) |
             TypeKind::Complex(ty) => ty.to_tokens(tokens),
             TypeKind::Generic(generic) => generic.to_tokens(tokens),
+        }
+    }
+}
+impl Primitive for TypeKind {
+    fn is_primitive(&self) -> bool {
+        match self {
+            TypeKind::Primitive(..) => true,
+            _ => false
         }
     }
 }
@@ -140,5 +150,22 @@ impl From<Type> for TypeKind {
         // println!("TypeKind::from({}) ==== {:?}", dbg, result);
 
         result
+    }
+}
+
+impl From<TypeKind> for ConversionExpressionKind {
+    fn from(value: TypeKind) -> Self {
+        match value {
+            TypeKind::Primitive(_) =>
+                ConversionExpressionKind::Primitive,
+            TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
+                Some(TypeKind::Primitive(_)) =>
+                    ConversionExpressionKind::PrimitiveOpt,
+                _ =>
+                    ConversionExpressionKind::ComplexOpt,
+            }
+            _ =>
+                ConversionExpressionKind::Complex,
+        }
     }
 }

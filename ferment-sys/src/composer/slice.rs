@@ -7,7 +7,7 @@ use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, Life
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{ExpressionComposer, GenericArgPresentation, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve, Mangle, ToType};
+use crate::ext::{Accessory, FFIVarResolve, FermentableDictionaryType, Mangle, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, DocComposer, FFIVariable, InterfacePresentation, ToFFIVariable};
@@ -67,7 +67,11 @@ impl SourceComposable for SliceComposer<RustSpecification> {
             TypeKind::Complex(arg_0_target_ty) =>
                 GenericArgPresentation::<RustSpecification>::new(
                     FFIVariable::mut_ptr(FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&arg_0_target_ty, source)),
-                    arg_0_destroy(Expression::destroy_complex_group_tokens),
+                    arg_0_destroy(if arg_0_target_ty.is_fermentable_string() {
+                        Expression::destroy_string_group_tokens
+                    } else {
+                        Expression::destroy_complex_group_tokens
+                    }),
                     arg_0_from(Expression::from_complex_group_tokens),
                     arg_0_to(Expression::ffi_to_complex_group_tokens)),
             TypeKind::Generic(arg_0_generic_path_conversion) =>
@@ -91,8 +95,8 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         let to_body = arg_0_presentation.to_conversion.present(source);
 
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from(&attrs, &types, from_body, &None, &vec![]),
-            InterfacePresentation::conversion_to(&attrs, &types, to_body, &None, &vec![]),
+            InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &vec![]),
+            InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &vec![]),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), SemiPunctuated::from_iter(expr_destroy_iterator))
 
         ]);

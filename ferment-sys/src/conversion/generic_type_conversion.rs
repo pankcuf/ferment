@@ -13,19 +13,10 @@ use crate::presentable::{Expression, ScopeContextPresentable};
 use crate::presentation::Name;
 
 pub type ExpressionComposer<SPEC> = Composer<TokenStream2, <SPEC as Specification>::Expr>;
-#[allow(unused)]
-pub type ExprComposer<SPEC> = dyn Fn(TokenStream2) -> <SPEC as Specification>::Expr;
-
 pub const fn primitive_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
     where SPEC: Specification<Expr = Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable {
     GenericArgComposer::new(Some(Expression::from_primitive_opt_tokens), Some(Expression::ffi_to_primitive_opt_tokens), Some(Expression::destroy_primitive_opt_tokens))
-}
-#[allow(unused)]
-pub const fn complex_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr=Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_tokens))
 }
 pub const fn complex_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
     where SPEC: Specification<Expr=Expression<SPEC>>,

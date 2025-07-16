@@ -1,6 +1,7 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::CommaPunctuated;
-use crate::conversion::GenericTypeKind;
+use crate::conversion::{GenericTypeKind, TypeKind};
+use crate::ext::ToType;
 
 pub trait LifetimeProcessor {
     fn clean_lifetimes(&mut self);
@@ -288,6 +289,19 @@ impl LifetimeProcessor for TraitBound {
     }
 }
 
+impl LifetimeProcessor for TypeKind {
+    fn clean_lifetimes(&mut self) {
+        match self {
+            TypeKind::Primitive(ty) |
+            TypeKind::Complex(ty) => ty.clean_lifetimes(),
+            TypeKind::Generic(ty) => ty.clean_lifetimes()
+        }
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        self.to_type().unique_lifetimes()
+    }
+}
 impl LifetimeProcessor for GenericTypeKind {
     fn clean_lifetimes(&mut self) {
         match self {

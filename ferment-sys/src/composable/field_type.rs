@@ -6,7 +6,7 @@ use ferment_macro::Display;
 use crate::composable::CfgAttributes;
 use crate::composer::{FieldPathResolver, SourceFermentable};
 use crate::context::ScopeContext;
-use crate::ext::{ConversionType, ToType};
+use crate::ext::{Conversion, ToType};
 use crate::lang::{FromDictionary, LangAttrSpecification, RustSpecification, Specification};
 use crate::presentable::{Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name, RustFermentate};
@@ -110,19 +110,19 @@ impl<SPEC> FieldComposer<SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable {
     pub const VARIANT_FROM: FieldPathResolver<SPEC> =
-        |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::deref_tokens(&c.name))));
+        |c| (c.name.clone(), Conversion::expr_from(c, Some(Expression::deref_tokens(&c.name))));
     pub const VARIANT_TO: FieldPathResolver<SPEC> =
-        |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::name(&c.name))));
+        |c| (c.name.clone(), Conversion::expr_to(c, Some(Expression::name(&c.name))));
     pub const VARIANT_DROP: FieldPathResolver<SPEC> =
-        |c| (c.name.clone(), ConversionType::expr_destroy(c, Some(Expression::deref_tokens(&c.name))));
+        |c| (c.name.clone(), Conversion::expr_destroy(c, Some(Expression::deref_tokens(&c.name))));
     pub const STRUCT_FROM: FieldPathResolver<SPEC> =
-        |c| (c.name.clone(), ConversionType::expr_from(c, Some(Expression::ffi_ref_with_name(&c.name))));
+        |c| (c.name.clone(), Conversion::expr_from(c, Some(Expression::ffi_ref_with_name(&c.name))));
     pub const STRUCT_TO: FieldPathResolver<SPEC> =
-        |c| (c.name.clone(), ConversionType::expr_to(c, Some(Expression::obj_name(&c.name))));
+        |c| (c.name.clone(), Conversion::expr_to(c, Some(Expression::obj_name(&c.name))));
     pub const STRUCT_DROP: FieldPathResolver<SPEC> =
-        |c| (SPEC::Name::default(), ConversionType::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
+        |c| (SPEC::Name::default(), Conversion::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
     pub const TYPE_TO: FieldPathResolver<SPEC> =
-        |c| (SPEC::Name::default(), ConversionType::expr_to(c, Some(Expression::name(&SPEC::Name::dictionary_name(DictionaryName::Obj)))));
+        |c| (SPEC::Name::default(), Conversion::expr_to(c, Some(Expression::name(&SPEC::Name::dictionary_name(DictionaryName::Obj)))));
 }
 
 impl<SPEC> FieldComposer<SPEC>

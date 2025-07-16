@@ -12,13 +12,13 @@ use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 
 #[derive(Clone, Debug)]
-pub struct DestroyFullConversionComposer<'a, SPEC>
+pub struct ConversionDropComposer<'a, SPEC>
 where SPEC: Specification {
     pub name: SPEC::Name,
     pub search: ScopeSearch<'a>,
     pub expr: Option<SPEC::Expr>,
 }
-impl<'a, SPEC> DestroyFullConversionComposer<'a, SPEC>
+impl<'a, SPEC> ConversionDropComposer<'a, SPEC>
 where SPEC: Specification {
     pub fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
@@ -34,7 +34,7 @@ where SPEC: Specification {
     }
 
 }
-impl<'a, SPEC> SourceComposable for DestroyFullConversionComposer<'a, SPEC>
+impl<'a, SPEC> SourceComposable for ConversionDropComposer<'a, SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
       FFIFullPath<SPEC>: ToType,

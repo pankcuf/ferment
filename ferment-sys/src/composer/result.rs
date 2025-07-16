@@ -4,7 +4,7 @@ use syn::{Attribute, Lifetime, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated, SemiPunctuated, Void};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, ConversionFromComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{complex_opt_arg_composer, GenericArgComposer, GenericArgPresentation, GenericTypeKind, primitive_opt_arg_composer, result_complex_arg_composer, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType};
@@ -36,7 +36,7 @@ impl SourceComposable for ResultComposer<RustSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
         let compose = |arg_name: &Name<RustSpecification>, ty: &Type| {
-            let from_conversion = FromConversionFullComposer::<RustSpecification>::value(Name::dictionary_name(DictionaryName::O), ty)
+            let from_conversion = ConversionFromComposer::<RustSpecification>::value(Name::dictionary_name(DictionaryName::O), ty)
                 .compose(source);
             match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) => {

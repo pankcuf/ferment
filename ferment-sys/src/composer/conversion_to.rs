@@ -2,23 +2,23 @@ use std::fmt::Debug;
 use quote::quote;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
-use crate::composer::{FFIAspect, SourceComposable};
+use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, SpecialType, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposable, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Debug)]
-pub struct ToConversionFullComposer<'a, SPEC>
+pub struct ConversionToComposer<'a, SPEC>
 where SPEC: Specification {
     pub name: SPEC::Name,
     pub search: ScopeSearch<'a>,
     pub expr: Option<SPEC::Expr>,
 }
 
-impl<'a, SPEC> ToConversionFullComposer<'a, SPEC>
+impl<'a, SPEC> ConversionToComposer<'a, SPEC>
 where SPEC: Specification {
     pub fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
@@ -38,7 +38,7 @@ where SPEC: Specification {
     }
 }
 
-impl<'a, SPEC> SourceComposable for ToConversionFullComposer<'a, SPEC>
+impl<'a, SPEC> SourceComposable for ConversionToComposer<'a, SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
       FFIFullPath<SPEC>: ToType,
@@ -78,7 +78,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_parent_ty),
                     }
                 },
-                _ => from_external::<SPEC>(&full_type, ffi_type, if is_ref { Expression::Clone(field_path.into()) } else { field_path })
+                _ => Expression::cast_to(if is_ref { Expression::Clone(field_path.into()) } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type.clone())
             },
             Some(ObjectKind::Item(ty_kind, ..) | ObjectKind::Type(ty_kind)) => {
                 let maybe_special: Option<SpecialType<SPEC>> = full_type.maybe_special_type(source);
@@ -120,7 +120,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty, .. }))) =>
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#ty)),
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ref ty, .. })))) => if let Some(nested_ty) = ty.maybe_first_nested_type_ref() {
-                            match (<Type as FFISpecialTypeResolve<SPEC>>::maybe_special_type(&nested_ty, source),
+                            match (FFISpecialTypeResolve::<SPEC>::maybe_special_type(nested_ty, source),
                                    nested_ty.maybe_object(source)) {
                                 (Some(SpecialType::Opaque(..)),
                                     Some(ObjectKind::Item(
@@ -140,7 +140,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                                     Expression::cast_to(Expression::deref_expr(field_path), ConversionExpressionKind::Complex, ffi_type, nested_ty.clone())
                             }
                         } else {
-                            Expression::ConversionExpr(FFIAspect::To, ConversionExpressionKind::Primitive, field_path.into())
+                            Expression::expression_to(ConversionExpressionKind::Primitive, field_path)
                         },
                         TypeModelKind::Bounds(bounds) => match bounds.bounds.len() {
                             0 => field_path,
@@ -152,24 +152,13 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                             _ =>
                                 Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type.clone())
                         },
-                        _ => from_external::<SPEC>(&full_type, ffi_type, if is_ref { Expression::Clone(field_path.into()) } else { field_path })
+                        _ =>
+                            Expression::cast_to(if is_ref { Expression::Clone(field_path.into()) } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type.clone())
                     }
                 }
             }
-            _ => from_external::<SPEC>(&full_type, ffi_type, if is_ref { Expression::Clone(field_path.into()) } else { field_path })
+            _ =>
+                Expression::cast_to(if is_ref { Expression::Clone(field_path.into()) } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type.clone())
         }
     }
-}
-fn from_external<SPEC>(ty: &Type, ffi_ty: Type, field_path: SPEC::Expr) -> SPEC::Expr
-where SPEC: Specification<Expr=Expression<SPEC>>,
-      SPEC::Expr: ScopeContextPresentable {
-    let (kind, ty) = match TypeKind::from(ty) {
-        TypeKind::Primitive(ty) => (ConversionExpressionKind::Primitive, ty),
-        TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
-            Some(TypeKind::Primitive(ty)) => (ConversionExpressionKind::PrimitiveOpt, ty),
-            _ => (ConversionExpressionKind::ComplexOpt, ty),
-        }
-        _ => (ConversionExpressionKind::Complex, ty.clone()),
-    };
-    Expression::cast_to(field_path, kind, ffi_ty, ty)
 }

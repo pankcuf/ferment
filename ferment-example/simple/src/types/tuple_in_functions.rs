@@ -2,7 +2,9 @@ use crate::nested::HashID;
 
 #[ferment_macro::export]
 pub struct StructWithTuple {
-    pub tuple: (u32, HashID)
+    pub tuple: (u32, HashID),
+    pub tuple2: (Option<u32>, HashID),
+    pub tuple3: (Option<u32>, Vec<HashID>)
 }
 
 #[ferment_macro::export]
@@ -13,6 +15,11 @@ pub fn get_tuple_simple() -> (u32, u32) {
 #[ferment_macro::export]
 pub fn get_tuple_simple_complex() -> (u32, HashID) {
     (0, [0u8; 32])
+}
+
+#[ferment_macro::export]
+pub fn get_tuple_opt_primitive() -> (Option<u32>, HashID) {
+    (Some(0), [0u8; 32])
 }
 
 #[ferment_macro::export]

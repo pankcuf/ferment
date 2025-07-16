@@ -4,7 +4,7 @@ use syn::{Attribute, Lifetime, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ConversionToComposer};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
@@ -104,7 +104,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                     },
                     "Mutex" | "RwLock" => {
 
-                        let expr = ToConversionFullComposer::<RustSpecification>::value(arg_0_name.clone(), nested_ty).compose(source);
+                        let expr = ConversionToComposer::<RustSpecification>::value(arg_0_name.clone(), nested_ty).compose(source);
                         println!("RES expr: {}", expr.present(source));
                         quote!(#arg_0_name.into_inner().expect("Err"))
                     },

@@ -6,7 +6,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, FromConversionFullComposer, Linkable, SigComposerLink, SourceAccessible, SourceComposable, ToConversionFullComposer, TypeAspect, VariableComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, ConversionFromComposer, Linkable, SigComposerLink, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VariableComposer};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
@@ -98,7 +98,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                                 .compose(&method_scope_context)
                                 .to_type();
                             args.push(ArgPresentation::field(attrs, Visibility::Inherited, Some(Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default()), var));
-                            args_conversions.push(ArgPresentation::attr_tokens(attrs, FromConversionFullComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
+                            args_conversions.push(ArgPresentation::attr_tokens(attrs, ConversionFromComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context).present(source)));
                         }
                     }
@@ -112,7 +112,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                             .to_type();
                         (
                             ReturnType::Type(Default::default(), Box::new(var)),
-                            ToConversionFullComposer::<RustSpecification>::key(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty, &method_scope_context.scope)
+                            ConversionToComposer::<RustSpecification>::key(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context)
                         )
                     }

@@ -5,13 +5,12 @@ use syn::token::Comma;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FFIAspect};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{LifetimeProcessor, Mangle, Resolve};
+use crate::ext::{LifetimeProcessor, Mangle, Primitive, Resolve};
 use crate::lang::{NameComposable, RustSpecification, Specification};
 use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation, ToFFIVariable};
+use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation};
 
 #[derive(ComposerBase)]
 pub struct TupleComposer<SPEC>
@@ -38,6 +37,7 @@ impl SourceComposable for TupleComposer<RustSpecification> {
         let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
+        let name = self.type_tuple.mangle_ident_default();
         let mut from_conversions = CommaPunctuated::new();
         let mut to_conversions = CommaPunctuated::new();
         let mut destroy_conversions = SemiPunctuated::new();
@@ -51,30 +51,12 @@ impl SourceComposable for TupleComposer<RustSpecification> {
                 let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
                 let field_name = <RustSpecification as Specification>::Name::index(index);
                 let ty: Type = ty.resolve(source);
-                let (kind, destroy_expr) = match TypeKind::from(&ty) {
-                    TypeKind::Primitive(..) => (
-                        ConversionExpressionKind::Primitive,
-                        Expression::default(),
-                    ),
-                    TypeKind::Generic(GenericTypeKind::Optional(..)) => (
-                        ConversionExpressionKind::ComplexOpt,
-                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
-                    ),
-                    _ => (
-                        ConversionExpressionKind::Complex,
-                        Expression::dict_expr(DictionaryExpr::self_prop(&name)),
-                    ),
-                };
-                let from_expr = Expression::ffi_ref_with_name(&name);
-                let to_expr = Expression::obj_name(&field_name);
-                let item = GenericArgPresentation::<RustSpecification>::new(
-                    ty.to_direct_var(),
-                    Expression::ConversionExpr(FFIAspect::Drop, kind, destroy_expr.into()),
-                    Expression::ConversionExpr(FFIAspect::From, kind, from_expr.into()),
-                    Expression::Named((name.to_token_stream(), Expression::ConversionExpr(FFIAspect::To, kind, to_expr.into()).into())));
-                from_conversions.push(item.from_conversion.present(source));
-                to_conversions.push(item.to_conversion.present(source));
-                destroy_conversions.push(item.destructor.present(source));
+                let kind = ConversionExpressionKind::from(&ty);
+                from_conversions.push(Expression::expression_from(kind, Expression::ffi_ref_with_name(&name)).present(source));
+                to_conversions.push(Expression::Named((name.to_token_stream(), Expression::expression_to(kind, Expression::obj_name(&field_name)).into())).present(source));
+                if !ty.is_primitive() {
+                    destroy_conversions.push(Expression::expression_drop(kind, Expression::dict_expr(DictionaryExpr::self_prop(&name))).present(source));
+                }
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let attrs = self.compose_attributes();
@@ -83,7 +65,6 @@ impl SourceComposable for TupleComposer<RustSpecification> {
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);
-        let aspect = Aspect::raw_struct_ident(self.type_tuple.mangle_ident_default());
-        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
+        Some(GenericComposerInfo::<RustSpecification>::default(Aspect::raw_struct_ident(name), &attrs, field_composers, interfaces))
     }
 }

@@ -848,7 +848,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             GenericTypeKind::Result(ty) |
             GenericTypeKind::Box(ty) |
             GenericTypeKind::AnyOther(ty) =>
-                single_generic_ffi_type(ty),
+                single_generic_ffi_full_path(ty),
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
@@ -856,14 +856,14 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
                 FFIFullPath::Generic { ffi_name: kind.ty().mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
-                1 => single_generic_ffi_type(tuple.elems.first().unwrap()),
+                1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),
                 _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
             }
             GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
                     Some(GenericArgument::Type(ty)) => match TypeKind::from(ty) {
                         TypeKind::Generic(gen) => gen.resolve(source),
-                        _ => single_generic_ffi_type(ty),
+                        _ => single_generic_ffi_full_path(ty),
                     },
                     _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
                 },
@@ -872,7 +872,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
                 _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),
             },
             GenericTypeKind::Optional(Type::Array(TypeArray { elem, .. })) =>
-                single_generic_ffi_type(elem),
+                single_generic_ffi_full_path(elem),
             GenericTypeKind::TraitBounds(bounds) => {
                 println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
                 match bounds.len() {
@@ -904,7 +904,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
     }
 }
 
-fn single_generic_ffi_type(ty: &Type) -> FFIFullPath<ObjCSpecification> {
+fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<ObjCSpecification> {
     let path: Path = parse_quote!(#ty);
     let first_segment = path.segments.first().unwrap();
     let mut cloned_segments = path.segments.clone();

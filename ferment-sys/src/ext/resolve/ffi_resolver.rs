@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Path, Type};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, ObjectKind};
+use crate::conversion::{GenericTypeKind, ObjectKind, TypeKind};
 use crate::ext::{Accessory, LifetimeProcessor, Resolve, ToPath, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
@@ -79,6 +79,15 @@ impl<SPEC> FFISpecialTypeResolve<SPEC> for Type
     }
 }
 
+impl<SPEC> FFISpecialTypeResolve<SPEC> for TypeKind
+where SPEC: Specification,
+      FFIFullDictionaryPath<SPEC>: ToType {
+    fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
+        let ty = self.to_type();
+        FFISpecialTypeResolve::<SPEC>::maybe_special_type(&ty, source)
+    }
+}
+
 pub trait FFIObjectResolve {
     fn maybe_object(&self, source: &ScopeContext) -> Option<ObjectKind>;
 }
@@ -88,16 +97,6 @@ impl FFIObjectResolve for Type {
         source.maybe_object_by_key(self)
     }
 }
-
-// pub trait FFITypeModelKindResolve {
-//     fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind;
-// }
-//
-// impl FFITypeModelKindResolve for Type {
-//     fn type_model_kind(&self, source: &ScopeContext) -> TypeModelKind {
-//         self.resolve(source)
-//     }
-// }
 
 pub trait FFIVarResolve<SPEC>: Clone + LifetimeProcessor + Resolve<FFIFullPath<SPEC>> + Resolve<SpecialType<SPEC>> + ToTokens
     where SPEC: Specification,

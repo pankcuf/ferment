@@ -14,9 +14,9 @@ mod ffi_bindings;
 mod generics_composer;
 pub(crate) mod r#abstract;
 mod variable;
-mod from_conversion;
-mod to_conversion;
-mod destroy_conversion;
+mod conversion_from;
+mod conversion_to;
+mod conversion_drop;
 mod callback;
 mod result;
 mod tuple;
@@ -47,7 +47,7 @@ use crate::ast::{CommaPunctuated, SemiPunctuated};
 use crate::composable::{FieldComposer, NestedArgument};
 use crate::composer::r#abstract::{SequenceComposer, SequenceMixer};
 use crate::composer::vtable::VTableComposer;
-use crate::ext::ConversionType;
+use crate::ext::Conversion;
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, SeqKind};
 use crate::presentation::ArgPresentation;
@@ -62,12 +62,12 @@ pub use self::basic::*;
 pub use self::bounds::*;
 pub use self::callback::*;
 pub use self::constants::*;
-pub use self::destroy_conversion::*;
+pub use self::conversion_drop::*;
 pub use self::enum_composer::*;
 pub use self::enum_variant::*;
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
-pub use self::from_conversion::*;
+pub use self::conversion_from::*;
 pub use self::generic::*;
 pub use self::generics_composer::*;
 pub use self::group::*;
@@ -83,7 +83,7 @@ pub use self::slice::*;
 pub use self::r#struct::*;
 #[allow(unused)]
 pub use self::target_var::*;
-pub use self::to_conversion::*;
+pub use self::conversion_to::*;
 pub use self::trait_composer::*;
 pub use self::tuple::*;
 pub use self::r#type::TypeComposer;
@@ -152,10 +152,7 @@ pub type BindingAccessorContext<SPEC> = (
     VariableComposer<SPEC>,
     TokenStream2,
 );
-pub type FieldTypeLocalContext<SPEC> = (
-    <SPEC as Specification>::Name,
-    ConversionType<SPEC>
-);
+pub type FieldTypeLocalContext<SPEC> = (<SPEC as Specification>::Name, Conversion<SPEC>);
 pub type ArgKindPair<SPEC> = (ArgKind<SPEC>, ArgKind<SPEC>);
 pub type TypePair = (Type, Type);
 pub type ArgKindPairs<SPEC> = Vec<ArgKindPair<SPEC>>;

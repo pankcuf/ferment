@@ -5,7 +5,7 @@ use crate::composable::{FieldComposer, FieldTypeKind};
 use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, GroupComposer, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
-use crate::ext::{Accessory, FFIVarResolve};
+use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
 use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
@@ -19,6 +19,7 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
     type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
+        let nested_type_kind = TypeKind::from(self.ty.maybe_first_nested_type_ref()?);
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
@@ -26,7 +27,7 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
         let from_args = quote! {
             ffi_ref->#arg_0_name #count_name: ffi_ref->#count_name
         };
-        let arg_presentation = match &self.nested_type_kind {
+        let arg_presentation = match &nested_type_kind {
             TypeKind::Primitive(arg_0_target_path) => {
                 let kind = ConversionExpressionKind::PrimitiveGroup;
                 GenericArgPresentation::<ObjCSpecification>::new(

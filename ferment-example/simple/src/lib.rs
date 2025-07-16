@@ -6,7 +6,7 @@ pub mod document;
 // pub mod asyn;
 // #[allow(dead_code)]
 // pub mod identity;
-// pub mod types;
+pub mod types;
 
 extern crate ferment_macro;
 extern crate tokio;

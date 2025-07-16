@@ -4,7 +4,7 @@ use syn::{Attribute, Type, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, FromConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, ConversionFromComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{GenericArgComposer, GenericArgPresentation, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, FermentableDictionaryType, GenericNestedArg, LifetimeProcessor, Mangle, SpecialType};
@@ -50,7 +50,7 @@ impl SourceComposable for MapComposer<RustSpecification> {
         let compose = |arg_name: &<RustSpecification as Specification>::Name, ty: &Type| {
             let from_conversion =
                 Expression::map_o_expr(
-                    FromConversionFullComposer::<RustSpecification>::value(Name::dictionary_name(DictionaryName::O), ty)
+                    ConversionFromComposer::<RustSpecification>::value(Name::dictionary_name(DictionaryName::O), ty)
                         .compose(source));
             let result = match TypeKind::from(ty) {
                 TypeKind::Primitive(arg_ty) =>

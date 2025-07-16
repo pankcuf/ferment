@@ -5,7 +5,7 @@ use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ToConversionFullComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ConversionToComposer};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{CallbackKind, GenericTypeKind, TypeKind};
@@ -133,7 +133,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                 lifetimes.extend(ty.unique_lifetimes());
                 args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
                 ffi_args.push(bare_fn_arg(VarComposer::<RustSpecification>::value(ty).compose(source).to_type()));
-                arg_to_conversions.push(ToConversionFullComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
+                arg_to_conversions.push(ConversionToComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
             });
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
