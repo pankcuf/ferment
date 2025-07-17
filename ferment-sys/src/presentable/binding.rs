@@ -123,7 +123,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
             },
             BindingPresentableContext::Setter(obj_aspect, attrs, generics, field_type, field_name, ) => {
                 let obj_type = obj_aspect.present(source);
-                BindingPresentation::Getter {
+                BindingPresentation::Setter {
                     attrs: attrs.clone(),
                     name: Name::<RustSpecification>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
