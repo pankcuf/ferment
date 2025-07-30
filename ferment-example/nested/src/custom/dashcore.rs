@@ -52,7 +52,7 @@ macro_rules! impl_hash_ferment {
 pub struct dashcore_consensus_Error(pub *mut dashcore::consensus::encode::Error);
 impl ferment::FFIConversionFrom<dashcore::consensus::encode::Error> for dashcore_consensus_Error {
     unsafe fn ffi_from_const(ffi: *const Self) -> dashcore::consensus::encode::Error {
-        *ferment::unbox_any((&*ffi).0)
+        *Box::from_raw((&*ffi).0)
     }
 }
 impl ferment::FFIConversionTo<dashcore::consensus::encode::Error> for dashcore_consensus_Error {

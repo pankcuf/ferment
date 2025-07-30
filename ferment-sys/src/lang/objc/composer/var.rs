@@ -97,8 +97,11 @@ impl<'a> SourceComposable for VarComposer<'a, ObjCSpecification> {
                                     SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                                     SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
                                     SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
+                                    SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                                     SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
+                                    SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                                     SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                                    SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
                                     SmartPointerModelKind::Pin(TypeModel { ty, .. })
                                 ) |
                                 DictFermentableModelKind::Group(
@@ -405,8 +408,11 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                                         SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Pin(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Group(

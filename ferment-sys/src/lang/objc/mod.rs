@@ -119,7 +119,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
                 .filter_map(|(mixin, attrs)| {
                     let attrs = expand_attributes(attrs);
                     let ty_context = TypeContext::mixin(mixin, prefix, attrs.cfg_attributes());
-                    GenericComposer::<ObjCSpecification>::new(mixin, attrs, ty_context, self.context())
+                    GenericComposer::<ObjCSpecification>::new(mixin, ty_context, attrs, self.context())
                 })
                 .flat_map(|composer| composer.borrow().compose(&source)));
         let custom_conversions = Depunctuated::from_iter(

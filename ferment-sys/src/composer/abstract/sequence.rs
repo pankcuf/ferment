@@ -1,4 +1,6 @@
-use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer, SourceContextComposerByRef};
+use quote::ToTokens;
+use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer, SourceContextComposerByRef, FFIInterfaceMethodSpec, FieldSpec, ItemComposerSpec, SharedAspectArgComposer, FieldsOwnedSequenceComposer, InterfaceMethodSequenceComposer};
+use crate::lang::Specification;
 use crate::shared::SharedAccess;
 //pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
@@ -57,5 +59,29 @@ impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<L
             .access(self.get_context);
         let sequence_composition = self.iterator.compose(&source);
         (self.set_output)(sequence_composition)
+    }
+}
+
+// Particular Sequences
+impl<SPEC, SEP, Link> InterfaceMethodSequenceComposer<SPEC, Link, SEP>
+where SPEC: Specification,
+      SEP: ToTokens + Default,
+      Link: SharedAccess {
+    #[allow(unused)]
+    pub const fn interface_method_spec<C>(get_context: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FFIInterfaceMethodSpec<SPEC, SEP> {
+        Self::new(C::SEQ, get_context, C::ITER)
+    }
+}
+impl<SPEC, Link> FieldsOwnedSequenceComposer<SPEC, Link>
+where SPEC: Specification,
+      Link: SharedAccess {
+    pub const fn item_field_from_spec<C>(aspect: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FieldSpec<SPEC> + ItemComposerSpec<SPEC> {
+        Self::new(C::FROM_ROOT_PRESENTER, aspect, C::PRODUCIBLE_FIELDS)
+    }
+    pub const fn item_field_to_spec<C>(aspect: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FieldSpec<SPEC> + ItemComposerSpec<SPEC> {
+        Self::new(C::TO_ROOT_PRESENTER, aspect, C::PRODUCIBLE_FIELDS)
     }
 }

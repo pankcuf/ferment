@@ -4,9 +4,10 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Expr, Pat, Path, Type};
+use crate::composable::{FieldComposer, FieldTypeKind};
 use crate::ext::{Mangle, MangleDefault, ToPath, ToType, usize_to_tokenstream};
 use crate::lang::{FromDictionary, NameComposable, RustSpecification, Specification};
-use crate::presentation::DictionaryName;
+use crate::presentation::{DictionaryExpr, DictionaryName};
 
 
 #[derive(Clone, Debug)]
@@ -17,7 +18,10 @@ pub enum Name<SPEC> where SPEC: Specification {
     Index(usize),
     Constructor(Type),
     Destructor(Type),
+    Read(Type),
+    Write(Type),
     Dictionary(DictionaryName),
+    DictionaryExpr(DictionaryExpr),
     Optional(Option<Ident>),
     UnnamedStructFieldsComp(Type, usize),
     TraitObj(Ident),
@@ -76,7 +80,7 @@ impl<SPEC> Display for Name<SPEC>
 }
 
 impl<SPEC> Name<SPEC>
-    where SPEC: Specification,
+    where SPEC: Specification<Name=Self>,
           Self: ToTokens {
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())
@@ -89,6 +93,9 @@ impl<SPEC> Name<SPEC>
         format_ident!("o_{}", self.to_token_stream().to_string())
     }
 
+    pub fn field_composer(&self, kind: FieldTypeKind<SPEC>) -> FieldComposer<SPEC> {
+        FieldComposer::<SPEC>::named(self.clone(), kind)
+    }
 }
 
 impl<SPEC> NameComposable<SPEC> for Name<SPEC>
@@ -119,7 +126,14 @@ impl ToTokens for Name<RustSpecification> {
             Name::Destructor(ident) => {
                 format_ident!("{}_destroy", ident.mangle_ident_default()).to_token_stream()
             }
+            Name::Read(ident) => {
+                format_ident!("{}_read", ident.mangle_ident_default()).to_token_stream()
+            }
+            Name::Write(ident) => {
+                format_ident!("{}_write", ident.mangle_ident_default()).to_token_stream()
+            }
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream(),
+            Name::DictionaryExpr(dict_field_expr) => dict_field_expr.to_token_stream(),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_token_stream(),
             Name::TraitObj(ident) => ident.to_token_stream(),
             Name::ModFn(path) => path.mangle_tokens_default(),
@@ -188,7 +202,10 @@ impl Mangle<MangleDefault> for Name<RustSpecification> {
             },
             Name::Constructor(ident) => format!("{}_ctor", ident.mangle_ident_default()),
             Name::Destructor(ident) => format!("{}_destroy", ident.mangle_ident_default()),
+            Name::Read(ident) => format!("{}_read", ident.mangle_ident_default()),
+            Name::Write(ident) => format!("{}_write", ident.mangle_ident_default()),
             Name::Dictionary(dict_field_name) => dict_field_name.to_token_stream().to_string(),
+            Name::DictionaryExpr(dict_field_expr) => dict_field_expr.to_token_stream().to_string(),
             Name::ModFn(name) => name.mangle_string(context).to_string().replace("r#", ""),
             Name::TraitObj(ident) => ident.to_string(),
             Name::TraitImplVtable(item_name, trait_vtable_ident) => {

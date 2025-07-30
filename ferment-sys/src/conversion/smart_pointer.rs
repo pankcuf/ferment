@@ -9,8 +9,11 @@ pub enum SmartPointerModelKind {
     Arc(TypeModel),
     Rc(TypeModel),
     Mutex(TypeModel),
+    OnceLock(TypeModel),
     RwLock(TypeModel),
+    Cell(TypeModel),
     RefCell(TypeModel),
+    UnsafeCell(TypeModel),
     Pin(TypeModel)
 }
 
@@ -27,9 +30,12 @@ impl TypeModeled for SmartPointerModelKind {
             SmartPointerModelKind::Arc(model) |
             SmartPointerModelKind::Rc(model) |
             SmartPointerModelKind::Mutex(model) |
+            SmartPointerModelKind::OnceLock(model) |
             SmartPointerModelKind::RwLock(model) |
+            SmartPointerModelKind::Cell(model) |
             SmartPointerModelKind::RefCell(model) |
-            SmartPointerModelKind::Pin(model) => model
+            SmartPointerModelKind::UnsafeCell(model) |
+            SmartPointerModelKind::Pin(model) => model,
         }
     }
     fn type_model_ref(&self) -> &TypeModel {
@@ -38,8 +44,11 @@ impl TypeModeled for SmartPointerModelKind {
             SmartPointerModelKind::Arc(model) |
             SmartPointerModelKind::Rc(model) |
             SmartPointerModelKind::Mutex(model) |
+            SmartPointerModelKind::OnceLock(model) |
             SmartPointerModelKind::RwLock(model) |
+            SmartPointerModelKind::Cell(model) |
             SmartPointerModelKind::RefCell(model) |
+            SmartPointerModelKind::UnsafeCell(model) |
             SmartPointerModelKind::Pin(model) => model
         }
     }
@@ -54,10 +63,16 @@ impl Debug for SmartPointerModelKind {
                 format!("Rc({})", model),
             SmartPointerModelKind::Mutex(model) =>
                 format!("Mutex({})", model),
+            SmartPointerModelKind::OnceLock(model) =>
+                format!("OnceLock({})", model),
             SmartPointerModelKind::RwLock(model) =>
                 format!("RwLock({})", model),
+            SmartPointerModelKind::Cell(model) =>
+                format!("Cell({})", model),
             SmartPointerModelKind::RefCell(model) =>
                 format!("RefCell({})", model),
+            SmartPointerModelKind::UnsafeCell(model) =>
+                format!("UnsafeCell({})", model),
             SmartPointerModelKind::Pin(model) =>
                 format!("Pin({})", model),
             SmartPointerModelKind::Box(model) =>

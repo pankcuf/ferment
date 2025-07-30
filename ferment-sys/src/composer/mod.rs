@@ -31,12 +31,15 @@ mod r#struct;
 mod enum_variant;
 mod type_alias;
 mod vtable;
-#[allow(unused)]
-mod scope_search;
+// #[allow(unused)]
+// mod scope_search;
 mod lifetimes;
 mod array;
 mod target_var;
 mod var;
+mod smart_pointer;
+mod arc_composer;
+mod rc;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -133,7 +136,8 @@ pub type OwnedFieldsIterator<SPEC> =
         OwnerAspectSequence<SPEC, CommaPunctuatedArgKinds<SPEC>>>;
 pub type BindingComposer<SPEC, T> = Composer<T, BindingPresentableContext<SPEC>>;
 pub type PunctuatedArgKinds<SPEC, SEP> = Punctuated<ArgKind<SPEC>, SEP>;
-pub type OwnerAspect<SPEC> = (Aspect<<SPEC as Specification>::TYC>, <SPEC as Specification>::Attr, <SPEC as Specification>::Gen, NameKind);
+pub type SignatureAspect<SPEC> = (<SPEC as Specification>::Attr, <SPEC as Specification>::Lt, <SPEC as Specification>::Gen);
+pub type OwnerAspect<SPEC> = (Aspect<<SPEC as Specification>::TYC>, SignatureAspect<SPEC>, NameKind);
 pub type OwnerAspectSequence<SPEC, T> = (OwnerAspect<SPEC>, T);
 pub type OwnerAspectSequenceComposer<SPEC, T, U> = Composer<OwnerAspectSequence<SPEC, T>, U>;
 pub type PresentableArgsSequenceComposer<SPEC> = OwnerAspectSequenceComposer<SPEC, CommaPunctuatedArgKinds<SPEC>, SeqKind<SPEC>>;
@@ -147,8 +151,7 @@ pub type CommaArgComposers<SPEC> = ArgComposers<SPEC, Comma>;
 
 pub type BindingAccessorContext<SPEC> = (
     Aspect<<SPEC as Specification>::TYC>,
-    <SPEC as Specification>::Attr,
-    <SPEC as Specification>::Gen,
+    SignatureAspect<SPEC>,
     VariableComposer<SPEC>,
     TokenStream2,
 );
@@ -162,11 +165,11 @@ pub type CommaPunctuatedArgKinds<SPEC> = PunctuatedArgKinds<SPEC, Comma>;
 pub type SemiPunctuatedArgKinds<SPEC> = PunctuatedArgKinds<SPEC, Semi>;
 pub type CommaPunctuatedFields = CommaPunctuated<Field>;
 pub type CommaPunctuatedNestedArguments = CommaPunctuated<NestedArgument>;
-pub type FieldPathResolver<SPEC> = ComposerByRef<FieldComposer<SPEC>, FieldTypeLocalContext<SPEC>>;
+pub type ArgProducerByRef<SPEC, OUT> = ComposerByRef<FieldComposer<SPEC>, OUT>;
+pub type FieldPathResolver<SPEC> = ArgProducerByRef<SPEC, FieldTypeLocalContext<SPEC>>;
 pub type AspectSeqKindComposer<SPEC, SEP> = Composer<AspectPresentableArguments<SPEC, SEP>, SeqKind<SPEC>>;
 pub type ConversionSeqKindComposer<SPEC> = AspectSeqKindComposer<SPEC, Comma>;
 pub type DropSeqKindComposer<SPEC> = AspectSeqKindComposer<SPEC, Semi>;
-pub type ArgProducerByRef<SPEC, OUT> = ComposerByRef<FieldComposer<SPEC>, OUT>;
 pub type ArgKindProducerByRef<SPEC> = ArgProducerByRef<SPEC, ArgKind<SPEC>>;
 pub type FieldsSequenceMixer<SPEC, Link, Context, Statement> = SequenceMixer<
     Link,
@@ -187,7 +190,14 @@ pub type InterfaceSequenceMixer<SPEC, Link, SEP> = FieldsSequenceMixer<
     AspectArgComposers<SPEC>,
     AspectPresentableArguments<SPEC, SEP>,
 >;
-pub type ArgsSequenceComposer<SPEC, Link, A, B, C, Presentable> = SequenceComposer<Link, A, FieldComposer<SPEC>, B, C, Presentable>;
+pub type ArgsSequenceComposer<SPEC, Link, A, B, C, Presentable> = SequenceComposer<
+    Link,
+    A,
+    FieldComposer<SPEC>,
+    B,
+    C,
+    Presentable
+>;
 pub type OwnerAspectSequenceSpecComposer<SPEC, Link, Iter, Out> = ArgsSequenceComposer<
     SPEC,
     Link,
@@ -202,6 +212,22 @@ pub type FieldsOwnedSequenceComposer<SPEC, Link> = ArgsSequenceComposer<
     AspectArgComposers<SPEC>,
     ArgKind<SPEC>,
     AspectCommaPunctuatedArguments<SPEC>,
+    SeqKind<SPEC>,
+>;
+pub type CtorSequenceComposer<SPEC, Link, Iter> = ArgsSequenceComposer<
+    SPEC,
+    Link,
+    AspectArgComposers<SPEC>,
+    ArgKindPair<SPEC>,
+    OwnerAspectSequence<SPEC, Iter>,
+    BindingPresentableContext<SPEC>,
+>;
+pub type InterfaceMethodSequenceComposer<SPEC, Link, SEP> = SequenceComposer<
+    Link,
+    AspectArgComposers<SPEC>,
+    FieldTypeLocalContext<SPEC>,
+    <SPEC as Specification>::Expr,
+    AspectPresentableArguments<SPEC, SEP>,
     SeqKind<SPEC>,
 >;
 pub type FieldsOwnedSequenceComposerLink<SPEC, T> = FieldsOwnedSequenceComposer<SPEC, ComposerLink<T>>;

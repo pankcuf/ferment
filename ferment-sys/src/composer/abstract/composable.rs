@@ -93,6 +93,14 @@ pub trait GenericsComposable<T> {
 pub trait LifetimesComposable<T> {
     fn compose_lifetimes(&self) -> T;
 }
+
+#[allow(unused)]
+pub trait SignatureAspectComposable<Attr, Lt, Gen>: AttrComposable<Attr> + LifetimesComposable<Lt> + GenericsComposable<Gen> {
+    fn compose_signature_aspect(&self) -> (Attr, Lt, Gen) {
+        (self.compose_attributes(), self.compose_lifetimes(), self.compose_generics())
+    }
+}
+
 pub trait VariantComposable<SPEC>
     where SPEC: Specification {
     fn compose_variants(&self) -> CommaPunctuated<SeqKind<SPEC>>;

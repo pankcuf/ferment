@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use quote::ToTokens;
 use syn::{parse_quote, Type};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
@@ -35,6 +36,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
+        println!("VarComposer::search_key: {:?}", search_key.to_token_stream());
         let ptr_composer = search_key.ptr_composer();
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
         let full_ty = maybe_obj
@@ -114,6 +116,44 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                     }
                                 }
                             },
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(model))) => {
+                                let ty = model.as_type();
+                                let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
+                                match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(full_nested_ty, source) {
+                                    Some(special) => {
+                                        match source.maybe_object_by_value(full_nested_ty) {
+                                            Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
+                                                 ObjectKind::Type(TypeModelKind::FnPointer(..), ..)) =>
+                                                special.to_direct_var(),
+                                            Some(ObjectKind::Item(TypeModelKind::Trait(..), ..) |
+                                                 ObjectKind::Type(TypeModelKind::TraitType(..), ..) |
+                                                 ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..)) => {
+                                                let ty = special.to_type();
+                                                ptr_composer(parse_quote!(dyn #ty))
+                                            },
+                                            _ => {
+                                                ptr_composer(special.to_type())
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        let object = source.maybe_object_by_value(full_nested_ty);
+                                        let ty_model_kind = match object {
+                                            Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
+                                                source.maybe_trait_or_regular_model_kind(),
+                                            Some(ObjectKind::Type(ref kind) |
+                                                 ObjectKind::Item(ref kind, ..)) =>
+                                                kind.maybe_trait_model_kind_or_same(source),
+                                            _ => None,
+                                        }.unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
+                                        let var_c_type = ty_model_kind.to_type();
+                                        let ffi_path: Option<FFIFullPath<RustSpecification>> = var_c_type.maybe_resolve(source);
+                                        let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));
+                                        let result = resolve_type_variable(var_ty, source);
+                                        result
+                                    }
+                                }
+                            },
                             TypeModelKind::Unknown(TypeModel { ty, .. }) => {
                                 FFIVariable::mut_ptr(ty)
                             },
@@ -141,8 +181,11 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                         SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Pin(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Group(

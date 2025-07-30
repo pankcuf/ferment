@@ -1,4 +1,5 @@
-mod fermented;
+// mod fermented;
+mod fermented_sample;
 mod model;
 mod gen;
 mod entry;
@@ -68,7 +69,7 @@ impl ferment::FFIConversionFrom<serde_json::Error> for serde_json_Error {
         ferment::FFIConversionFrom::ffi_from(ffi.cast_mut())
     }
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Error> for serde_json_Error {
@@ -93,7 +94,7 @@ pub struct dashcore_consensus_Error {
 
 impl ferment::FFIConversionFrom<dashcore::consensus::encode::Error> for dashcore_consensus_Error {
     unsafe fn ffi_from_const(ffi: *const Self) -> dashcore::consensus::encode::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<dashcore::consensus::encode::Error> for dashcore_consensus_Error {
@@ -148,7 +149,7 @@ impl ferment::FFIConversionFrom<versioned_feature_core::FeatureVersion> for vers
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> versioned_feature_core::FeatureVersion {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<versioned_feature_core::FeatureVersion> for versioned_feature_core_FeatureVersion {
@@ -176,7 +177,7 @@ impl ferment::FFIConversionFrom<serde_json::Value> for serde_json_Value {
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Value {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Value> for serde_json_Value {

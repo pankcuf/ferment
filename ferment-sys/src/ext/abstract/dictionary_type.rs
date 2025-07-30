@@ -26,6 +26,7 @@ pub trait DictionaryType {
     fn is_btree_set(&self) -> bool;
     fn is_hash_set(&self) -> bool;
     fn is_box(&self) -> bool;
+    fn is_cow(&self) -> bool;
     fn is_optional(&self) -> bool;
     fn is_lambda_fn(&self) -> bool;
     // fn is_from(&self) -> bool;
@@ -63,7 +64,7 @@ impl DictionaryType for Ident {
     fn is_smart_ptr(&self) -> bool {
         self.is_box() ||
             matches!(self.to_string().as_str(),
-                "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock")
+                "Arc" | "Rc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex" | "OnceLock" | "RwLock")
     }
 
     fn is_special_std_trait(&self) -> bool {
@@ -93,6 +94,9 @@ impl DictionaryType for Ident {
 
     fn is_box(&self) -> bool {
         matches!(self.to_string().as_str(), "Box")
+    }
+    fn is_cow(&self) -> bool {
+        matches!(self.to_string().as_str(), "Cow")
     }
 
     fn is_optional(&self) -> bool {
@@ -170,6 +174,9 @@ impl DictionaryType for PathSegment {
     fn is_box(&self) -> bool {
         self.ident.is_box()
     }
+    fn is_cow(&self) -> bool {
+        self.ident.is_cow()
+    }
 
     fn is_optional(&self) -> bool {
         self.ident.is_optional()
@@ -233,6 +240,9 @@ impl DictionaryType for Colon2Punctuated<PathSegment> {
 
     fn is_box(&self) -> bool {
         self.last().map(|seg| seg.is_box()).unwrap_or_default()
+    }
+    fn is_cow(&self) -> bool {
+        self.last().map(|seg| seg.is_cow()).unwrap_or_default()
     }
 
     fn is_optional(&self) -> bool {
@@ -298,6 +308,9 @@ impl DictionaryType for Path {
 
     fn is_box(&self) -> bool {
         self.segments.is_box()
+    }
+    fn is_cow(&self) -> bool {
+        self.segments.is_cow()
     }
 
     fn is_optional(&self) -> bool {

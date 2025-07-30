@@ -70,6 +70,19 @@ pub trait FFISpecialTypeResolve<SPEC>
     /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
     /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>>;
+
+    #[allow(unused)]
+    fn is_opaque(&self, source: &ScopeContext) -> bool {
+        self.maybe_special_type(source)
+            .map(|special| matches!(special, SpecialType::Opaque(..)))
+            .unwrap_or(false)
+    }
+    #[allow(unused)]
+    fn is_custom(&self, source: &ScopeContext) -> bool {
+        self.maybe_special_type(source)
+            .map(|special| matches!(special, SpecialType::Custom(..)))
+            .unwrap_or(false)
+    }
 }
 impl<SPEC> FFISpecialTypeResolve<SPEC> for Type
     where SPEC: Specification,
@@ -110,6 +123,7 @@ pub trait FFIVarResolve<SPEC>: Clone + LifetimeProcessor + Resolve<FFIFullPath<S
             .map(|special| special.to_type())
             .unwrap_or_else(|| self.ffi_full_path(source).to_type())
     }
+    #[allow(unused)]
     fn special_or_to_ffi_full_path_variable_type(&self, source: &ScopeContext) -> Type {
         self.special_or_to_ffi_full_path_type(source)
             .joined_mut()

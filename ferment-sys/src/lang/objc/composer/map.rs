@@ -110,9 +110,9 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
         let arg_1_var: <ObjCSpecification as Specification>::Var = Accessory::joined_mut(arg_1_ty);
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::<ObjCSpecification>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),
-            FieldComposer::<ObjCSpecification>::named(arg_0_name.clone(), FieldTypeKind::Var(arg_0_var.clone())),
-            FieldComposer::<ObjCSpecification>::named(arg_1_name.clone(), FieldTypeKind::Var(arg_1_var.clone())),
+            count_name.field_composer(FieldTypeKind::Type(parse_quote!(uintptr_t))),
+            arg_0_name.field_composer(FieldTypeKind::Var(arg_0_var.clone())),
+            arg_1_name.field_composer(FieldTypeKind::Var(arg_1_var.clone())),
         ]);
         // FFIMapConversion(TYPE, VarKey, FromKey, ToKey, DestroyKey, VarValue, FromValue, ToValue, DestroyValue)
 

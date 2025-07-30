@@ -1,15 +1,14 @@
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{Attribute, Lifetime, Type, TypeTuple};
-use syn::token::Comma;
+use syn::{Attribute, Lifetime, TypeTuple};
 use ferment_macro::ComposerBase;
-use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
+use crate::ast::{CommaParenWrapped, CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
+use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VariableComposer};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{LifetimeProcessor, Mangle, Primitive, Resolve};
+use crate::ext::{LifetimeProcessor, Mangle};
 use crate::lang::{NameComposable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DocComposer, InterfacePresentation};
 
 #[derive(ComposerBase)]
@@ -49,19 +48,19 @@ impl SourceComposable for TupleComposer<RustSpecification> {
             .for_each(|(index, ty)| {
                 lifetimes.extend(ty.unique_lifetimes());
                 let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
-                let field_name = <RustSpecification as Specification>::Name::index(index);
-                let ty: Type = ty.resolve(source);
-                let kind = ConversionExpressionKind::from(&ty);
-                from_conversions.push(Expression::expression_from(kind, Expression::ffi_ref_with_name(&name)).present(source));
-                to_conversions.push(Expression::Named((name.to_token_stream(), Expression::expression_to(kind, Expression::obj_name(&field_name)).into())).present(source));
-                if !ty.is_primitive() {
-                    destroy_conversions.push(Expression::expression_drop(kind, Expression::dict_expr(DictionaryExpr::self_prop(&name))).present(source));
+                let from_composer = ConversionFromComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::ffi_ref_with_name(&name));
+                let to_composer = ConversionToComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::ObjName(<RustSpecification as Specification>::Name::index(index)));
+                let drop_composer = ConversionDropComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::dict_expr(DictionaryExpr::self_prop(&name)));
+                from_conversions.push(from_composer.compose(source).present(source));
+                to_conversions.push(Expression::named(&name, to_composer.compose(source)).present(source));
+                if let Some(drop_conversion) = drop_composer.compose(source) {
+                    destroy_conversions.push(drop_conversion.present(source));
                 }
-                field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
+                field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Var(VariableComposer::<RustSpecification>::from(ty).compose(source))));
             });
         let attrs = self.compose_attributes();
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &lifetimes),
+            InterfacePresentation::conversion_from_root(&attrs, &types, CommaParenWrapped::new(from_conversions), &None, &lifetimes),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_type, destroy_conversions)
         ]);

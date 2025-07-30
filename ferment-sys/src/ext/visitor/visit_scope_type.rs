@@ -264,6 +264,9 @@ impl<'a> VisitScopeType<'a> for Path {
                 _ if first_ident.is_box() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))))
                 },
+                _ if first_ident.is_cow() => {
+                    ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))
+                },
                 _ if first_ident.is_primitive() => {
                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_non_gen(first_ident.to_type(), None))))
                 },

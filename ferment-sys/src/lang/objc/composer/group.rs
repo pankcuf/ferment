@@ -80,8 +80,8 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
 
         let arg_var: <ObjCSpecification as Specification>::Var = arg_presentation.ty.joined_mut();
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::<ObjCSpecification>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),
-            FieldComposer::<ObjCSpecification>::named(arg_0_name.clone(), FieldTypeKind::Var(arg_var.clone())),
+            count_name.field_composer(FieldTypeKind::Type(parse_quote!(uintptr_t))),
+            arg_0_name.field_composer(FieldTypeKind::Var(arg_var.clone())),
         ]);
         let to_values = arg_presentation.to_conversion.present(source);
         let destroy_value = ArgKind::<ObjCSpecification>::AttrExpression(arg_presentation.destructor, attrs.clone()).present(source);

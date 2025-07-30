@@ -230,7 +230,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
             (last_ident.is_result() && segments.len() == 1) ||
             last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
             Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
-        } else if last_ident.is_optional() || last_ident.is_box() {
+        } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
             match &last_segment.arguments {
                 PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
                     args.iter().find_map(|arg| match arg {

@@ -5,7 +5,7 @@ use quote::ToTokens;
 use syn::{GenericArgument, PathArguments, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use syn::parse::{Parse, ParseStream};
 use crate::ast::CommaPunctuated;
-use crate::conversion::{CallbackKind, GenericTypeKind};
+use crate::conversion::{CallbackKind, GenericTypeKind, SmartPointerKind};
 use crate::ext::{GenericNestedArg, Primitive};
 use crate::presentable::ConversionExpressionKind;
 
@@ -77,7 +77,16 @@ impl From<Type> for TypeKind {
                     PathArguments::AngleBracketed(..) => {
                         match last_ident.to_string().as_str() {
                             "Box" => TypeKind::Generic(GenericTypeKind::Box(ty)),
-                            "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeKind::Generic(GenericTypeKind::AnyOther(ty)),
+                            "Cell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Cell(ty))),
+                            "Rc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Rc(ty))),
+                            "Arc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Arc(ty))),
+                            "Cow" => TypeKind::Generic(GenericTypeKind::Cow(ty)),
+                            "RefCell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::RefCell(ty))),
+                            "UnsafeCell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::UnsafeCell(ty))),
+                            "Mutex" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Mutex(ty))),
+                            "OnceLock" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::OnceLock(ty))),
+                            "RwLock" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::RwLock(ty))),
+                            "Pin" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Pin(ty))),
                             "BTreeMap" | "HashMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                             "IndexMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                             "BTreeSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
@@ -108,7 +117,18 @@ impl From<Type> for TypeKind {
                         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64"
                         | "isize" | "usize" | "bool" => TypeKind::Primitive(ty),
                         "Box" => TypeKind::Generic(GenericTypeKind::Box(ty)),
-                        "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeKind::Generic(GenericTypeKind::AnyOther(ty)),
+                        // "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeKind::Generic(GenericTypeKind::AnyOther(ty)),
+                        "Cell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Cell(ty))),
+                        "Rc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Rc(ty))),
+                        "Arc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Arc(ty))),
+                        "Cow" => TypeKind::Generic(GenericTypeKind::Cow(ty)),
+                        "RefCell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::RefCell(ty))),
+                        "UnsafeCell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::UnsafeCell(ty))),
+                        "Mutex" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Mutex(ty))),
+                        "OnceLock" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::OnceLock(ty))),
+                        "RwLock" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::RwLock(ty))),
+                        "Pin" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Pin(ty))),
+
                         "BTreeMap" | "HashMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "IndexMap" => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "IndexSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),

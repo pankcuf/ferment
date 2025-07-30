@@ -88,6 +88,9 @@ impl<SPEC> FieldComposer<SPEC>
     pub fn named(name: SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
         Self::no_attrs(name, kind, true)
     }
+    pub fn named_ref(name: &SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
+        Self::no_attrs(name.clone(), kind, true)
+    }
     pub fn unnamed(name: SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
         Self { name, kind, named: false, attrs: SPEC::Attr::default() }
     }
@@ -122,7 +125,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
     pub const STRUCT_DROP: FieldPathResolver<SPEC> =
         |c| (SPEC::Name::default(), Conversion::expr_destroy(c, Some(Expression::ffi_ref_with_name(&c.name))));
     pub const TYPE_TO: FieldPathResolver<SPEC> =
-        |c| (SPEC::Name::default(), Conversion::expr_to(c, Some(Expression::name(&SPEC::Name::dictionary_name(DictionaryName::Obj)))));
+        |c| (SPEC::Name::default(), Conversion::expr_to(c, Some(Expression::Name(SPEC::Name::dictionary_name(DictionaryName::Obj)))));
 }
 
 impl<SPEC> FieldComposer<SPEC>

@@ -143,7 +143,6 @@ impl ObjectKind {
         ObjectKind::Item(ty, item)
     }
     pub fn new_obj_item(ty: TypeModel, item: ScopeItemKind) -> ObjectKind {
-        // println!("new_obj_item: {}", ty);
         ObjectKind::Item(TypeModelKind::Object(ty), item)
     }
     pub fn maybe_type_model_kind_ref(&self) -> Option<&TypeModelKind> {

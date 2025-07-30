@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use syn::token::{Comma, Semi};
 use ferment_macro::Display;
-use crate::composer::{AspectSharedComposerLink, AttrComposable, ComposerLink, DropSequenceMixer, FFIConversionsMixer, FFIInterfaceMethodSpec, FieldsContext, GenericsComposable, InterfaceSequenceMixer, Linkable, NameKindComposable, RootSequenceComposer, SequenceSharedComposerLink, SourceComposable, TypeAspect};
+use crate::composer::{AspectSharedComposerLink, AttrComposable, ComposerLink, DropSequenceMixer, FFIConversionsMixer, FFIInterfaceMethodSpec, FieldsContext, GenericsComposable, InterfaceSequenceMixer, LifetimesComposable, Linkable, NameKindComposable, RootSequenceComposer, SequenceSharedComposerLink, SourceComposable, TypeAspect};
 use crate::lang::Specification;
 use crate::presentable::{Aspect, SeqKind};
 use crate::shared::SharedAccess;
@@ -43,6 +43,7 @@ impl<SPEC, C> InterfaceKind<SPEC, ComposerLink<C>>
             + FieldsContext<SPEC>
             + TypeAspect<SPEC::TYC>
             + AttrComposable<SPEC::Attr>
+            + LifetimesComposable<SPEC::Lt>
             + GenericsComposable<SPEC::Gen>
             + NameKindComposable
             + 'static,
@@ -59,6 +60,7 @@ impl<SPEC, C> InterfaceKind<SPEC, ComposerLink<C>>
             + FieldsContext<SPEC>
             + TypeAspect<SPEC::TYC>
             + AttrComposable<SPEC::Attr>
+            + LifetimesComposable<SPEC::Lt>
             + GenericsComposable<SPEC::Gen>
             + NameKindComposable
             + 'static,

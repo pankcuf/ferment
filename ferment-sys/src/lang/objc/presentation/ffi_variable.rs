@@ -200,7 +200,10 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                         SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                         SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                         SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Pin(TypeModel { ty, .. })
                     ) |

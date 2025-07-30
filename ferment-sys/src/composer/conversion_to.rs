@@ -36,6 +36,10 @@ where SPEC: Specification {
     pub fn value_expr(name: SPEC::Name, ty: &'a Type, expr: SPEC::Expr) -> Self {
         Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(expr))
     }
+    #[allow(unused)]
+    pub fn value_maybe_expr(name: SPEC::Name, ty: &'a Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), expr)
+    }
 }
 
 impl<'a, SPEC> SourceComposable for ConversionToComposer<'a, SPEC>
@@ -141,6 +145,18 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                             }
                         } else {
                             Expression::expression_to(ConversionExpressionKind::Primitive, field_path)
+                        },
+                        TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ref ty, .. }))) => if let Some(nested_ty) = ty.maybe_first_nested_type_ref() {
+                            match (FFISpecialTypeResolve::<SPEC>::maybe_special_type(nested_ty, source), nested_ty.maybe_object(source)) {
+                                (Some(SpecialType::Opaque(..)), _any_other) =>
+                                    Expression::boxed(Expression::cow_into_owned(field_path)),
+                                (_, Some(ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..))))) =>
+                                    Expression::cast_to(Expression::cow_into_owned(field_path), ConversionExpressionKind::Primitive, ffi_type, nested_ty.clone()),
+                                _ =>
+                                    Expression::cast_to(Expression::cow_into_owned(field_path), ConversionExpressionKind::Complex, ffi_type, nested_ty.clone())
+                            }
+                        } else {
+                            Expression::expression_to(ConversionExpressionKind::Primitive, Expression::cow_into_owned(field_path))
                         },
                         TypeModelKind::Bounds(bounds) => match bounds.bounds.len() {
                             0 => field_path,

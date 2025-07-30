@@ -6,7 +6,7 @@ use syn::__private::TokenStream2;
 use syn::token::Comma;
 use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
-use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, NameKindComposable, PunctuatedArgKinds, TypeAspect};
+use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, PunctuatedArgKinds, TypeAspect};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
@@ -23,14 +23,14 @@ pub enum Aspect<T> {
 
 impl<T> Aspect<T> where T: NameTreeContext {
     pub fn ffi<SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<SPEC>
-    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
+    where C: AttrComposable<SPEC::Attr> + LifetimesComposable<SPEC::Lt> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
           SPEC: Specification<TYC=T> {
-        ((Aspect::FFI(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
+        ((Aspect::FFI(C::type_context(by_ref)), (C::compose_attributes(by_ref), C::compose_lifetimes(by_ref), C::compose_generics(by_ref)), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
     }
     pub fn target<SPEC, C>(by_ref: &ComposerLinkRef<C>) -> AspectArgComposers<SPEC>
-    where C: AttrComposable<SPEC::Attr> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
+    where C: AttrComposable<SPEC::Attr> + LifetimesComposable<SPEC::Lt> + GenericsComposable<SPEC::Gen> + TypeAspect<SPEC::TYC> + FieldsContext<SPEC> + NameKindComposable,
           SPEC: Specification<TYC=T> {
-        ((Aspect::Target(C::type_context(by_ref)), C::compose_attributes(by_ref), C::compose_generics(by_ref), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
+        ((Aspect::Target(C::type_context(by_ref)), (C::compose_attributes(by_ref), C::compose_lifetimes(by_ref), C::compose_generics(by_ref)), C::compose_name_kind(by_ref)), C::field_composers(by_ref))
     }
 }
 

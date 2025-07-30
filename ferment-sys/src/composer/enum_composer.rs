@@ -8,7 +8,7 @@ use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, Life
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, SourceFermentable, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
 use crate::composer::r#abstract::LinkedContextComposer;
 use crate::context::ScopeContextLink;
-use crate::lang::{LangAttrSpecification, RustSpecification, Specification};
+use crate::lang::{LangAttrSpecification, LangLifetimeSpecification, RustSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, TypeContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DictionaryExpr, DocComposer, DocPresentation, FFIObjectPresentation, InterfacePresentation, Name, RustFermentate};
 
@@ -66,7 +66,7 @@ impl<SPEC> EnumComposer<SPEC>
                         ),
                     },
                 };
-                let aspect_presentable_args = ((ffi_aspect, SPEC::Attr::from_attrs(attrs.cfg_attributes()), SPEC::Gen::default(), NameKind::Named), fields_context);
+                let aspect_presentable_args = ((ffi_aspect, (SPEC::Attr::from_attrs(attrs.cfg_attributes()), SPEC::Lt::from_lifetimes(vec![]), SPEC::Gen::default()), NameKind::Named), fields_context);
                 let variant_composer_wrapper = ItemComposerWrapper::variant(fields, ty_context, attrs, context);
                 (variant_composer_wrapper, (variant_composer, aspect_presentable_args))
             }).unzip();
@@ -120,7 +120,7 @@ impl<SPEC> BindingComposable<SPEC> for EnumComposer<SPEC>
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<SPEC>> {
         let mut bindings = Depunctuated::new();
         bindings.extend(self.variant_composers.iter().filter_map(ItemComposerWrapper::compose_ctor));
-        bindings.push(BindingPresentableContext::<SPEC>::dtor(((self.ffi_type_aspect(), self.compose_attributes(), self.compose_generics(), NameKind::Named), Default::default())));
+        bindings.push(BindingPresentableContext::<SPEC>::dtor(((self.ffi_type_aspect(), (self.compose_attributes(), self.compose_lifetimes(), self.compose_generics()), NameKind::Named), Default::default())));
         bindings
     }
 }
@@ -148,12 +148,9 @@ impl InterfaceComposable<<RustSpecification as Specification>::Interface> for En
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
-        let from_variant_composer = |composer: &ItemComposerWrapper<RustSpecification>|
-            ArgKind::AttrSequence(composer.compose_aspect(FFIAspect::From), composer.compose_attributes());
-        let to_variant_composer = |composer: &ItemComposerWrapper<RustSpecification> |
-            ArgKind::AttrSequence(composer.compose_aspect(FFIAspect::To), composer.compose_attributes());
-        let drop_variant_composer = |composer: &ItemComposerWrapper<RustSpecification>|
-            ArgKind::AttrSequence(composer.compose_aspect(FFIAspect::Drop), composer.compose_attributes());
+
+        let variant_conversion_composer = |composer: &ItemComposerWrapper<RustSpecification>, aspect: FFIAspect|
+            ArgKind::AttrSequence(composer.compose_aspect(aspect), composer.compose_attributes());
 
         let mut from_conversions = CommaPunctuated::new();
         let mut to_conversions = CommaPunctuated::new();
@@ -161,12 +158,9 @@ impl InterfaceComposable<<RustSpecification as Specification>::Interface> for En
 
         self.variant_composers.iter()
             .for_each(|variant_composer| {
-                let from = from_variant_composer(variant_composer);
-                let to = to_variant_composer(variant_composer);
-                let destroy = drop_variant_composer(variant_composer);
-                from_conversions.push(from);
-                to_conversions.push(to);
-                destroy_conversions.push(destroy);
+                from_conversions.push(variant_conversion_composer(variant_composer, FFIAspect::From));
+                to_conversions.push(variant_conversion_composer(variant_composer, FFIAspect::To));
+                destroy_conversions.push(variant_conversion_composer(variant_composer, FFIAspect::Drop));
             });
         to_conversions.push(ArgKind::AttrExhaustive(vec![]));
         destroy_conversions.push(ArgKind::AttrExhaustive(vec![]));

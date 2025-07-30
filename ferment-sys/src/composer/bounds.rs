@@ -1,9 +1,8 @@
 use std::rc::Rc;
 use quote::ToTokens;
 use syn::{Attribute, Lifetime, Type};
-use syn::token::Comma;
 use ferment_macro::ComposerBase;
-use crate::ast::{CommaPunctuated, Depunctuated, ParenWrapped, SemiPunctuated};
+use crate::ast::{CommaParenWrapped, CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenericBoundsModel, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, GenericComposerInfo, BasicComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
@@ -68,7 +67,7 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
                 field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Type(ty)));
             });
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::conversion_from_root(&attrs, &types, ParenWrapped::<_, Comma>::new(from_conversions), &None, &lifetimes),
+            InterfacePresentation::conversion_from_root(&attrs, &types, CommaParenWrapped::new(from_conversions), &None, &lifetimes),
             InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_conversions, &None, &lifetimes),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), destroy_conversions)
         ]);

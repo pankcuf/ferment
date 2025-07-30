@@ -56,6 +56,7 @@ impl<SPEC, T, I> FFIObjectSpec<SPEC, ComposerLink<T>> for TypeAliasComposer<SPEC
 impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for TypeAliasComposer<SPEC, I>
     where SPEC: Specification,
           T: AttrComposable<SPEC::Attr>
+          + LifetimesComposable<SPEC::Lt>
           + GenericsComposable<SPEC::Gen>
           + TypeAspect<SPEC::TYC>
           + FieldsContext<SPEC>
@@ -72,6 +73,7 @@ impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for TypeAlia
 
 impl<SPEC, T, I, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for TypeAliasComposer<SPEC, I>
     where T: AttrComposable<SPEC::Attr>
+            + LifetimesComposable<SPEC::Lt>
             + GenericsComposable<SPEC::Gen>
             + TypeAspect<SPEC::TYC>
             + FieldsContext<SPEC>
@@ -110,6 +112,7 @@ impl<SPEC, I> FieldPathConversionResolveSpec<SPEC> for TypeAliasComposer<SPEC, I
 impl<SPEC, T, I> FFIConversionsSpec<SPEC, ComposerLink<T>> for TypeAliasComposer<SPEC, I>
     where T: FieldsContext<SPEC>
             + AttrComposable<SPEC::Attr>
+            + LifetimesComposable<SPEC::Lt>
             + GenericsComposable<SPEC::Gen>
             + TypeAspect<SPEC::TYC>
             + NameKindComposable

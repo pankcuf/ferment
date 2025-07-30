@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, FnArg, PatType, Receiver, ReturnType, Signature, Visibility};
+use syn::{Attribute, FnArg, PatType, Receiver, ReturnType, Signature};
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -78,10 +78,9 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                 inputs.iter().for_each(|arg| {
                     match arg {
                         FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
-                            args.push(ArgPresentation::field(
+                            args.push(ArgPresentation::inherited_field(
                                 attrs,
-                                Visibility::Inherited,
-                                Some(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_).mangle_ident_default()),
+                                <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_).mangle_ident_default(),
                                 VariableComposer::<RustSpecification>::from(sig_context.receiver_ty())
                                     .compose(&method_scope_context)
                                     .to_type()
@@ -97,7 +96,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                             let var = VarComposer::<RustSpecification>::key_in_scope(ty, &method_scope_context.scope)
                                 .compose(&method_scope_context)
                                 .to_type();
-                            args.push(ArgPresentation::field(attrs, Visibility::Inherited, Some(Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default()), var));
+                            args.push(ArgPresentation::inherited_field(attrs, Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default(), var));
                             args_conversions.push(ArgPresentation::attr_tokens(attrs, ConversionFromComposer::<RustSpecification>::key_in_scope(Name::Pat(*pat.clone()), ty, &method_scope_context.scope)
                                 .compose(&method_scope_context).present(source)));
                         }

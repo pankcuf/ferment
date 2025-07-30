@@ -315,13 +315,17 @@ impl GlobalContext {
                             .then_some(tyc),
                     TypeModelKind::Dictionary(
                         DictTypeModelKind::NonPrimitiveFermentable(
+                            DictFermentableModelKind::Cow(TypeModel { nested_arguments, .. }) |
                             DictFermentableModelKind::SmartPointer(
                                 SmartPointerModelKind::Arc(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::Box(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::Rc(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::Mutex(TypeModel { nested_arguments, .. }) |
+                                SmartPointerModelKind::OnceLock(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::RwLock(TypeModel { nested_arguments, .. }) |
+                                SmartPointerModelKind::Cell(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::RefCell(TypeModel { nested_arguments, .. }) |
+                                SmartPointerModelKind::UnsafeCell(TypeModel { nested_arguments, .. }) |
                                 SmartPointerModelKind::Pin(TypeModel { nested_arguments, .. })
                             ) |
                             DictFermentableModelKind::Group(

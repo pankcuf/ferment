@@ -182,6 +182,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                 ArgPresentation::AttrConversion { conversion }
 
             }
+            ArgKind::DefaultFieldByValueConversion(_, _) => panic!("Not supported")
         }
     }
 }

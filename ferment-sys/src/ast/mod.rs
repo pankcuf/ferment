@@ -26,6 +26,8 @@ pub type BraceWrapped<S, SP> = Wrapped<S, SP, Brace>;
 #[allow(unused)]
 pub type ParenWrapped<S, SP> = Wrapped<S, SP, Paren>;
 #[allow(unused)]
+pub type CommaParenWrapped<S> = Wrapped<S, Comma, Paren>;
+#[allow(unused)]
 pub type SemiPunctuated<T> = Punctuated<T, Semi>;
 #[allow(unused)]
 pub type SemiPunctuatedTokens = SemiPunctuated<TokenStream2>;

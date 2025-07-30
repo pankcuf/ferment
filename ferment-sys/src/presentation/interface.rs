@@ -41,15 +41,6 @@ pub enum InterfacePresentation {
             Vec<Lifetime>
         ),
     },
-    VecConversion {
-        attrs: Vec<Attribute>,
-        types: (
-            Type, // FFI
-            Type // Original
-        ),
-        decode: TokenStream2,
-        encode: TokenStream2,
-    },
     Callback {
         attrs: Vec<Attribute>,
         ffi_type: Type,
@@ -71,7 +62,7 @@ pub enum InterfacePresentation {
 
 impl InterfacePresentation {
     pub fn conversion_from_root<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
-        Self::conversion_from(attrs, types, DictionaryExpr::FromRoot(body.to_token_stream()), generics, lifetimes)
+        Self::conversion_from(attrs, types, DictionaryExpr::from_root(body), generics, lifetimes)
     }
     pub fn conversion_to_boxed<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
         Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body.to_token_stream()), generics, lifetimes)
@@ -123,9 +114,6 @@ impl InterfacePresentation {
     }
     pub fn send_sync(attrs: &Vec<Attribute>, ffi_type: &Type) -> Self {
         InterfacePresentation::SendAndSync { attrs: attrs.clone(), ffi_type: ffi_type.clone() }
-    }
-    pub fn vec(attrs: &Vec<Attribute>, types: &TypePair, decode: TokenStream2, encode: TokenStream2) -> Self {
-        InterfacePresentation::VecConversion { attrs: attrs.clone(), types: types.clone(), decode, encode }
     }
 }
 
@@ -219,18 +207,6 @@ impl ToTokens for InterfacePresentation {
                     }
                 }
             },
-            Self::VecConversion {
-                attrs,
-                types: (ffi_type, target_type),
-                decode,
-                encode } => quote! {
-                #(#attrs)*
-                impl ferment::FFIVecConversion for #ffi_type {
-                    type Value = #target_type;
-                    unsafe fn decode(&self) -> Self::Value { #decode }
-                    unsafe fn encode(obj: Self::Value) -> *mut Self { #encode }
-                }
-            },
             Self::Callback { attrs, ffi_type, inputs, output, lifetimes, body } => {
                 let lifetimes = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam {
                     attrs: vec![],
@@ -238,7 +214,7 @@ impl ToTokens for InterfacePresentation {
                     colon_token: None,
                     bounds: Default::default(),
                 })));
-                let bounds = if lifetimes.is_empty() { quote!() } else { quote!(<#lifetimes>) };
+                let bounds = (!lifetimes.is_empty()).then(|| quote!(<#lifetimes>)).unwrap_or_default();
                 quote! {
                     #(#attrs)*
                     impl #ffi_type {

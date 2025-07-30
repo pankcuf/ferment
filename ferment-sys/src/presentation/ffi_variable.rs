@@ -200,7 +200,8 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                 DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) => {
                 FFIVariable::mut_ptr(parse_quote!([u8; 16]))
             },
-            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) => {
+            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) |
+            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ty, .. }))) => {
                 match ty.maybe_first_nested_type_ref() {
                     Some(nested_full_ty) => {
                         resolve_type_variable(match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(nested_full_ty, source) {
@@ -222,7 +223,10 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                         SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                         SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
+                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                         SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
                         SmartPointerModelKind::Pin(TypeModel { ty, .. })
                     ) |

@@ -44,6 +44,7 @@ impl SourceComposable for VariableComposer<RustSpecification> {
         } else {
             FFIVariable::mut_ptr
         };
+        println!("VariableComposer::search_key: {:?}", self.ty);
 
         let full_ty: Type = Resolve::resolve(&self.ty, source);
         let maybe_obj = source.maybe_object_by_predicate(ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope));
@@ -118,7 +119,8 @@ impl SourceComposable for VariableComposer<RustSpecification> {
                             _ => Some(ty_model_kind.clone()),
                         }.unwrap_or_else(|| ty_model_kind.clone());
                         match conversion {
-                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) |
+                            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(model))) => {
                                 let ty = model.as_type();
                                 let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
                                 let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
@@ -183,8 +185,11 @@ impl SourceComposable for VariableComposer<RustSpecification> {
                                         SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
+                                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
                                         SmartPointerModelKind::Pin(TypeModel { ty, .. })
                                     ) |
                                     DictFermentableModelKind::Group(

@@ -81,6 +81,6 @@ where
         context: SequenceSharedComposerLink<SPEC, C>,
         aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<SPEC>>
     ) -> Self {
-        SequenceMixer::with_sequence(root, context, SequenceComposer::new(C::SEQ, aspect, C::ITER))
+        SequenceMixer::with_sequence(root, context, SequenceComposer::interface_method_spec::<C>(aspect))
     }
 }

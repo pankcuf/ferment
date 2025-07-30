@@ -2,10 +2,10 @@ use std::clone::Clone;
 use syn::Field;
 use crate::ast::CommaPunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{ArgComposers, AspectArgComposers, AspectSharedComposerLink, AttrComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, CtorSpec, FFIBindingsComposer, FFIBindingsComposerLink, FFIComposer, FFIComposerLink, ArgProducerByRef, FieldPathConversionResolveSpec, FieldPathResolver, FieldsContext, FieldsConversionComposable, ArgsSequenceComposer, FieldsSequenceMixer, GenericsComposable, ItemComposerExprSpec, ItemComposerSpec, OwnedArgComposers, MethodComposer, NameKindComposable, OwnerAspectSequence, OwnerAspectSequenceSpec, ArgKindPair, PresentableExprComposerRef, RootSequenceComposer, SequenceComposer, SequenceSharedComposerLink, SourceAccessible, SourceComposerByRef, TypeAspect, IterativeComposer, ItemAspectsSpec, FFIInterfaceMethodSpec};
+use crate::composer::{ArgComposers, AspectSharedComposerLink, AttrComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, CtorSpec, FFIBindingsComposer, FFIBindingsComposerLink, FFIComposer, FFIComposerLink, ArgProducerByRef, FieldPathConversionResolveSpec, FieldPathResolver, FieldsContext, FieldsSequenceMixer, GenericsComposable, ItemComposerExprSpec, ItemComposerSpec, OwnedArgComposers, MethodComposer, NameKindComposable, OwnerAspectSequenceSpec, ArgKindPair, PresentableExprComposerRef, RootSequenceComposer, SequenceComposer, SequenceSharedComposerLink, SourceAccessible, SourceComposerByRef, TypeAspect, IterativeComposer, ItemAspectsSpec, LifetimesComposable};
 use crate::composer::r#abstract::SequenceMixer;
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, InterfaceKind, SeqKind};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, InterfaceKind};
 
 pub(crate) const fn args_composer_iterator_root<SPEC, CTX, Item, OUT>()
     -> SourceComposerByRef<OwnedArgComposers<SPEC, CTX>, ArgProducerByRef<SPEC, Item>, (CTX, OUT)>
@@ -54,7 +54,7 @@ pub(crate) const fn ffi_conversions_composer<SPEC, T, C>(
     drop_root: RootSequenceComposer<SPEC>,
     drop_context: SequenceSharedComposerLink<SPEC, T>,
 ) -> FFIComposerLink<SPEC, T>
-    where T: FieldsContext<SPEC> + AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
+    where T: FieldsContext<SPEC> + AttrComposable<SPEC::Attr> + LifetimesComposable<SPEC::Lt> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
           C: ItemComposerSpec<SPEC> + ItemComposerExprSpec<SPEC> + FieldPathConversionResolveSpec<SPEC>,
           SPEC: Specification {
     FFIComposer::new(
@@ -101,7 +101,7 @@ pub(crate) const fn ffi_conversions_composer2<SPEC, T, C>(
     drop_root: RootSequenceComposer<SPEC>,
     drop_context: SequenceSharedComposerLink<SPEC, T>,
 ) -> FFIComposerLink<SPEC, T>
-    where T: FieldsContext<SPEC> + AttrComposable<SPEC::Attr> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
+    where T: FieldsContext<SPEC> + AttrComposable<SPEC::Attr> + LifetimesComposable<SPEC::Lt> + TypeAspect<SPEC::TYC> + GenericsComposable<SPEC::Gen> + NameKindComposable,
           C: ItemAspectsSpec<SPEC>,
           SPEC: Specification {
     FFIComposer::new(
@@ -109,17 +109,17 @@ pub(crate) const fn ffi_conversions_composer2<SPEC, T, C>(
             SequenceMixer::with_sequence(
                 from_ffi_root,
                 from_context,
-                SequenceComposer::new(C::FROM::SEQ, from_aspect, C::FROM::ITER))),
+                SequenceComposer::interface_method_spec::<C::FROM>(from_aspect))),
         InterfaceKind::To(
             SequenceMixer::with_sequence(
                 to_ffi_root,
                 to_context,
-                SequenceComposer::new(C::INTO::SEQ, Aspect::ffi, C::INTO::ITER))),
+                SequenceComposer::interface_method_spec::<C::INTO>(Aspect::ffi))),
         InterfaceKind::Drop(
             SequenceMixer::with_sequence(
                 drop_root,
                 drop_context,
-                SequenceComposer::new(C::DTOR::SEQ, Aspect::ffi, C::DTOR::ITER)))
+                SequenceComposer::interface_method_spec::<C::DTOR>(Aspect::ffi))),
     )
 }
 
@@ -127,6 +127,7 @@ pub(crate) const fn ffi_bindings_composer<SPEC, T, C, Iter>()
     -> FFIBindingsComposerLink<SPEC, T, Iter>
     where SPEC: Specification,
           T: AttrComposable<SPEC::Attr>
+          + LifetimesComposable<SPEC::Lt>
           + GenericsComposable<SPEC::Gen>
           + TypeAspect<SPEC::TYC>
           + FieldsContext<SPEC>
@@ -136,7 +137,7 @@ pub(crate) const fn ffi_bindings_composer<SPEC, T, C, Iter>()
           C: CtorSpec<SPEC, ComposerLink<T>, Iter>,
           Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     FFIBindingsComposer::new(
-        ArgsSequenceComposer::with_iterator_setup(C::ROOT, C::ASPECT, C::ITER, C::ARG),
+        C::COMPOSER,
         MethodComposer::new(Aspect::ffi, BindingPresentableContext::dtor),
         MethodComposer::new(Aspect::ffi, BindingPresentableContext::get),
         MethodComposer::new(Aspect::ffi, BindingPresentableContext::set),
@@ -148,6 +149,7 @@ pub(crate) const fn ffi_bindings_composer2<SPEC, T, C, Iter>()
     -> FFIBindingsComposerLink<SPEC, T, Iter>
     where SPEC: Specification,
           T: AttrComposable<SPEC::Attr>
+          + LifetimesComposable<SPEC::Lt>
               + GenericsComposable<SPEC::Gen>
               + TypeAspect<SPEC::TYC>
               + FieldsContext<SPEC>
@@ -166,19 +168,19 @@ pub(crate) const fn ffi_bindings_composer2<SPEC, T, C, Iter>()
 }
 
 
-#[allow(unused)]
-pub const fn fields_sequence<SPEC, T, C, Iter>()
-    -> ArgsSequenceComposer<SPEC, ComposerLink<T>, AspectArgComposers<SPEC>, Iter::Item, OwnerAspectSequence<SPEC, Iter>, SeqKind<SPEC>>
-    where C: OwnerAspectSequenceSpec<SPEC, ComposerLink<T>, Iter, ArgKind<SPEC>, SeqKind<SPEC>>,
-    T: AttrComposable<SPEC::Attr>
-        + GenericsComposable<SPEC::Gen>
-        + TypeAspect<SPEC::TYC>
-        + NameKindComposable
-        + FieldsContext<SPEC>
-        + FieldsConversionComposable<SPEC>
-        + SourceAccessible
-        + 'static,
-    SPEC: Specification,
-    Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKind<SPEC>> {
-    ArgsSequenceComposer::with_iterator_setup(C::ROOT, C::ASPECT, C::ITER, C::ARG)
-}
+// #[allow(unused)]
+// pub const fn fields_sequence<SPEC, T, C, Iter>()
+//     -> ArgsSequenceComposer<SPEC, ComposerLink<T>, AspectArgComposers<SPEC>, Iter::Item, OwnerAspectSequence<SPEC, Iter>, SeqKind<SPEC>>
+//     where C: OwnerAspectSequenceSpec<SPEC, ComposerLink<T>, Iter, ArgKind<SPEC>, SeqKind<SPEC>>,
+//     T: AttrComposable<SPEC::Attr>
+//         + GenericsComposable<SPEC::Gen>
+//         + TypeAspect<SPEC::TYC>
+//         + NameKindComposable
+//         + FieldsContext<SPEC>
+//         + FieldsConversionComposable<SPEC>
+//         + SourceAccessible
+//         + 'static,
+//     SPEC: Specification,
+//     Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKind<SPEC>> {
+//     SequenceComposer::owner_aspect_sequence_spec::<C>()
+// }

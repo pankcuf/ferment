@@ -14,6 +14,7 @@ pub enum BindingPresentation {
     Empty,
     Constructor {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
@@ -22,6 +23,7 @@ pub enum BindingPresentation {
     },
     VariantConstructor {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
@@ -30,12 +32,14 @@ pub enum BindingPresentation {
     },
     Destructor {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         ty: Type,
         generics: Option<Generics>,
     },
     Getter {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
@@ -44,6 +48,7 @@ pub enum BindingPresentation {
     },
     Setter {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
@@ -52,6 +57,7 @@ pub enum BindingPresentation {
     },
     GetterOpaque {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
@@ -60,6 +66,7 @@ pub enum BindingPresentation {
     },
     SetterOpaque {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
@@ -135,9 +142,14 @@ pub enum BindingPresentation {
         bindings: Depunctuated<BindingPresentation>,
         fq_trait_vtable: TokenStream2,
     },
+
+    Any {
+        attrs: Vec<Attribute>,
+        body: TokenStream2
+    }
 }
 
-fn present_pub_function<T: ToTokens, U: ToTokens>(
+pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     attrs: &Vec<Attribute>,
     name: U,
     args: CommaPunctuated<T>,
@@ -209,7 +221,7 @@ impl ToTokens for BindingPresentation {
         match self {
             Self::Empty =>
                 quote!(),
-            Self::Constructor { attrs, name, ty, generics, ctor_arguments, body_presentation} => {
+            Self::Constructor { attrs, lifetimes, name, ty, generics, ctor_arguments, body_presentation} => {
                 let ffi_path = ty.to_path().arg_less();
                 present_pub_function(
                     attrs,
@@ -217,10 +229,10 @@ impl ToTokens for BindingPresentation {
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
                     generics.clone(),
-                    vec![],
+                    lifetimes.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
-            Self::VariantConstructor { attrs, name, ty, generics, ctor_arguments, body_presentation} => {
+            Self::VariantConstructor { attrs, lifetimes, name, ty, generics, ctor_arguments, body_presentation} => {
                 let variant_path = ty.to_path();
                 present_pub_function(
                     attrs,
@@ -228,10 +240,10 @@ impl ToTokens for BindingPresentation {
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                     generics.clone(),
-                    vec![],
+                    lifetimes.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
-            Self::Destructor { attrs, name, ty, generics } => {
+            Self::Destructor { attrs, lifetimes, name, ty, generics } => {
                 let ty = ty.joined_mut();
                 present_pub_function(
                     attrs,
@@ -239,7 +251,7 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote!(ffi: #ty)]),
                     ReturnType::Default,
                     generics.clone(),
-                    vec![],
+                    lifetimes.clone(),
                     InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
                 )
             },
@@ -269,8 +281,8 @@ impl ToTokens for BindingPresentation {
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
-            BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, generics } |
-            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
+            BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, lifetimes, generics } |
+            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, lifetimes, generics } => {
                 let var = obj_type.joined_const();
                 present_pub_function(
                     attrs,
@@ -278,12 +290,12 @@ impl ToTokens for BindingPresentation {
                     CommaPunctuated::from_iter([quote! { obj: #var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     generics.clone(),
-                    vec![],
+                    lifetimes.clone(),
                     quote!((*obj).#field_name)
                 )
             },
-            BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, generics } |
-            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, generics } => {
+            BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, lifetimes, generics } |
+            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, lifetimes, generics } => {
                 let var = obj_type.joined_mut();
                 present_pub_function(
                     attrs,
@@ -294,7 +306,7 @@ impl ToTokens for BindingPresentation {
                     ]),
                     ReturnType::Default,
                     generics.clone(),
-                    vec![],
+                    lifetimes.clone(),
                     quote!((*obj).#field_name = value;))
             },
             BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
@@ -420,6 +432,11 @@ impl ToTokens for BindingPresentation {
             },
             BindingPresentation::StaticVTableInnerFnDeclaration { name, fn_name } =>
                 quote!(#fn_name: #name),
+            BindingPresentation::Any { attrs, body } =>
+                quote! {
+                    #(#attrs)*
+                    #body
+                }
 
         }.to_tokens(tokens)
      }

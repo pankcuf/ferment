@@ -13,6 +13,7 @@ pub enum DictFermentableModelKind {
     String(TypeModel),
     Str(TypeModel),
     Other(TypeModel),
+    Cow(TypeModel),
     I128(TypeModel),
     U128(TypeModel),
 }
@@ -29,8 +30,9 @@ impl<'a> AsType<'a> for DictFermentableModelKind {
             DictFermentableModelKind::Str(model) |
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::Other(model) |
+            DictFermentableModelKind::Cow(model) |
             DictFermentableModelKind::I128(model) |
-            DictFermentableModelKind::U128(model) => model.as_type()
+            DictFermentableModelKind::U128(model) => model.as_type(),
         }
     }
 }
@@ -44,6 +46,7 @@ impl TypeModeled for DictFermentableModelKind {
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::I128(model) |
             DictFermentableModelKind::U128(model) |
+            DictFermentableModelKind::Cow(model) |
             DictFermentableModelKind::Other(model) => model
         }
     }
@@ -55,6 +58,7 @@ impl TypeModeled for DictFermentableModelKind {
             DictFermentableModelKind::String(model) |
             DictFermentableModelKind::I128(model) |
             DictFermentableModelKind::U128(model) |
+            DictFermentableModelKind::Cow(model) |
             DictFermentableModelKind::Other(model) => model
         }
     }
@@ -71,6 +75,8 @@ impl Debug for DictFermentableModelKind {
                 format!("Str({})", model),
             DictFermentableModelKind::String(model) =>
                 format!("String({})", model),
+            DictFermentableModelKind::Cow(model) =>
+                format!("Cow({})", model),
             DictFermentableModelKind::Other(model) =>
                 format!("Other({})", model),
             DictFermentableModelKind::I128(model) =>

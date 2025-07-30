@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Path, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::conversion::ObjectKind;
@@ -157,14 +157,12 @@ impl<'a> ScopeSearchKey<'a> {
 pub enum ScopeSearch<'a> {
     KeyInScope(ScopeSearchKey<'a>, &'a ScopeChain),
     Value(ScopeSearchKey<'a>),
-    ValueInScope(ScopeSearchKey<'a>, &'a ScopeChain),
 }
 impl<'a> Display for ScopeSearch<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::KeyInScope(key, scope) => format!("KeyInScope({} in {})", key, scope.fmt_short()),
             Self::Value(key) => format!("Value({})", key),
-            Self::ValueInScope(key, scope) => format!("ValueInScope({} in {})", key, scope.fmt_short()),
         }.as_str())
     }
 }
@@ -173,8 +171,7 @@ impl<'a> ScopeSearch<'a> {
     pub fn search_key(&'a self) -> &'a ScopeSearchKey<'a> {
         match self {
             ScopeSearch::KeyInScope(search_key, _) |
-            ScopeSearch::Value(search_key) |
-            ScopeSearch::ValueInScope(search_key, _) => search_key,
+            ScopeSearch::Value(search_key) => search_key,
         }
     }
 }
@@ -217,7 +214,7 @@ impl<'a> ScopeSearchKey<'a> {
     }
     pub fn find<K, T: Fn(&Type) -> K>(&self, finder: T) -> K {
         match self {
-            ScopeSearchKey::PathRef(path, ..) => finder(&path.to_type()),
+            ScopeSearchKey::PathRef(ref path, ..) => finder(&Type::Path(TypePath { qself: None, path: (*path).clone() })),
             ScopeSearchKey::TypeRef(ty, ..) => finder(&ty),
             ScopeSearchKey::Type(ty, ..) => finder(ty),
         }
@@ -279,14 +276,6 @@ impl ScopeResolver {
                         search_key.find(|ty|
                             chain.get_by_key(ty)
                                 .or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))));
-                result
-            },
-            ScopeSearch::ValueInScope(search_key, scope) => {
-                let result = self.get(scope)
-                    .and_then(|chain|
-                        search_key.find(|ty|
-                            chain.get_by_value(ty)
-                                .or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
                 result
             },
             ScopeSearch::Value(search_key) => {

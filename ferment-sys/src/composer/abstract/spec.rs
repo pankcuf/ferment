@@ -3,7 +3,7 @@ use quote::ToTokens;
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::{DelimiterTrait, Void};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer, LifetimesComposable};
+use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer, LifetimesComposable, CtorSequenceComposer};
 use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
 use crate::shared::SharedAccess;
@@ -46,6 +46,8 @@ pub trait CtorSpec<SPEC, L, Iter>
     const ASPECT: SharedAspectArgComposer<SPEC, L>;
     const ARG: PresentableArgumentPairComposerRef<SPEC>;
     const ITER: AspectArgSourceComposer<SPEC, Iter>;
+    const COMPOSER: CtorSequenceComposer<SPEC, L, Iter> =
+        SequenceComposer::with_iterator_setup(Self::ROOT, Self::ASPECT, Self::ITER, Self::ARG);
 }
 
 pub trait FieldSpec<SPEC>
@@ -82,17 +84,10 @@ impl<SPEC, T, C> FFIFieldsSpec<SPEC, ComposerLink<T>> for C
               + 'static,
           C: ItemComposerSpec<SPEC> + FieldSpec<SPEC> {
     const FROM: FieldsOwnedSequenceComposerLink<SPEC, T> =
-        SequenceComposer::new(
-            C::FROM_ROOT_PRESENTER,
-            Aspect::ffi,
-            C::PRODUCIBLE_FIELDS);
+        SequenceComposer::item_field_from_spec::<C>(Aspect::ffi);
     const TO: FieldsOwnedSequenceComposerLink<SPEC, T> =
-        SequenceComposer::new(
-            C::TO_ROOT_PRESENTER,
-            Aspect::target,
-            C::PRODUCIBLE_FIELDS);
+        SequenceComposer::item_field_to_spec::<C>(Aspect::target);
 }
-
 
 pub trait ItemComposerSpec<SPEC>
     where SPEC: Specification {

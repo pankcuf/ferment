@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Attribute, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypeParamBound, Visibility};
+use syn::{parse_quote, Attribute, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypeParamBound};
 use syn::__private::TokenStream2;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
@@ -131,7 +131,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
             .for_each(|(index, ty)| {
                 let name = Name::UnnamedArg(index);
                 lifetimes.extend(ty.unique_lifetimes());
-                args.push(ArgPresentation::field(&vec![], Visibility::Inherited, Some(name.mangle_ident_default()), ty.clone()));
+                args.push(ArgPresentation::inherited_field(&vec![], name.mangle_ident_default(), ty.clone()));
                 ffi_args.push(bare_fn_arg(VarComposer::<RustSpecification>::value(ty).compose(source).to_type()));
                 arg_to_conversions.push(ConversionToComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
             });

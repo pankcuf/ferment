@@ -317,6 +317,8 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Other(model.clone())))
         } else if ident.is_box() {
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model.clone()))))
+        } else if ident.is_cow() {
+            Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(model.clone())))
         // } else if ident.is_smart_ptr() {
         //     refine_ty_with_import_path(&mut model.ty, crate_named_import_path);
         //
@@ -328,7 +330,10 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
                 "Mutex" => Some(SmartPointerModelKind::Mutex(model.clone())),
                 "Pin" => Some(SmartPointerModelKind::Pin(model.clone())),
                 "Rc" => Some(SmartPointerModelKind::Rc(model.clone())),
+                "Cell" => Some(SmartPointerModelKind::Cell(model.clone())),
                 "RefCell" => Some(SmartPointerModelKind::RefCell(model.clone())),
+                "UnsafeCell" => Some(SmartPointerModelKind::UnsafeCell(model.clone())),
+                "OnceLock" => Some(SmartPointerModelKind::OnceLock(model.clone())),
                 "RwLock" => Some(SmartPointerModelKind::RwLock(model.clone())),
                 _ => None
             }.map(|smart_ptr_model| {
@@ -406,13 +411,17 @@ impl RefineInScope for TypeModelKind {
             }
             TypeModelKind::Dictionary(
                 DictTypeModelKind::NonPrimitiveFermentable(
+                    DictFermentableModelKind::Cow(model) |
                     DictFermentableModelKind::SmartPointer(
                         SmartPointerModelKind::Arc(model) |
                         SmartPointerModelKind::Box(model) |
                         SmartPointerModelKind::Rc(model) |
                         SmartPointerModelKind::Mutex(model) |
+                        SmartPointerModelKind::OnceLock(model) |
                         SmartPointerModelKind::RwLock(model) |
+                        SmartPointerModelKind::Cell(model) |
                         SmartPointerModelKind::RefCell(model) |
+                        SmartPointerModelKind::UnsafeCell(model) |
                         SmartPointerModelKind::Pin(model)
                     ) |
                     DictFermentableModelKind::Group(

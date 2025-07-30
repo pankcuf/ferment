@@ -23,7 +23,7 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 expr.to_token_stream(),
             Self::InterfacesExpr(expr) => expr.to_token_stream(),
             Self::MapExpression(presentable, mapper) =>
-                DictionaryExpr::Mapper(presentable.present(source).to_token_stream(), mapper.present(source).to_token_stream()).to_token_stream(),
+                DictionaryExpr::mapper(presentable.present(source), mapper.present(source)).to_token_stream(),
             Self::DestroyString(presentable, _path) => {
                 let expr = presentable.present(source);
                 quote!([NSString ffi_destroy: #expr])
@@ -76,9 +76,6 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 }
                 // Self::Named((l_value.clone(), expression.into())).present(source)
             },
-            Self::NewBox(expr) =>
-                Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
-                    .present(source),
             Self::MapIntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::MapIntoBox(expr.present(source)))
                     .present(source),

@@ -18,6 +18,7 @@ pub enum ConversionExpressionKind {
     PrimitiveOpt,
     Complex,
     ComplexOpt,
+    OpaqueOpt,
     PrimitiveGroup,
     PrimitiveOptGroup,
     ComplexGroup,
@@ -93,10 +94,10 @@ pub enum Expression<SPEC>
     DerefMutRef(Box<Expression<SPEC>>),
     Clone(Box<Expression<SPEC>>),
     FromPtrClone(Box<Expression<SPEC>>),
+    FromPtrRead(Box<Expression<SPEC>>),
     DerefExpr(Box<Expression<SPEC>>),
     MapExpression(Box<Expression<SPEC>>, Box<Expression<SPEC>>),
     MapIntoBox(Box<Expression<SPEC>>),
-    NewBox(Box<Expression<SPEC>>),
     FromRawBox(Box<Expression<SPEC>>),
 
     CastDestroy(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
@@ -114,6 +115,9 @@ pub enum Expression<SPEC>
     FromLambdaTokens(TokenStream2, CommaPunctuated<SPEC::Name>),
     Boxed(Box<Expression<SPEC>>),
     LeakBox(Box<Expression<SPEC>>),
+    NewSmth(Box<Expression<SPEC>>, TokenStream2),
+    NewCow(Box<Expression<SPEC>>),
+    CowIntoOwned(Box<Expression<SPEC>>),
 }
 
 impl<SPEC> Expression<SPEC>
@@ -149,6 +153,12 @@ impl<SPEC> Expression<SPEC>
     }
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
         Self::Empty
+    }
+
+
+
+    pub(crate) fn black_hole<T: ToTokens>(name: T) -> Self {
+        Self::InterfacesExpr(InterfacesMethodExpr::BlackHole(name.to_token_stream()))
     }
 
     pub(crate) fn bypass(context: &FieldTypeLocalContext<SPEC>) -> Self {
@@ -200,12 +210,13 @@ impl<SPEC> Expression<SPEC>
         Self::FromLambda(expr.into(), args)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_ptr_clone(expr: Self) -> Self {
         Self::FromPtrClone(expr.into())
     }
-
-    pub(crate) fn new_box(expr: Self) -> Self {
-        Self::NewBox(expr.into())
+    #[allow(unused)]
+    pub(crate) fn from_ptr_read(expr: Self) -> Self {
+        Self::FromPtrRead(expr.into())
     }
 
     pub(crate) fn map_into_box(expr: Self) -> Self {
@@ -222,6 +233,18 @@ impl<SPEC> Expression<SPEC>
 
     pub(crate) fn boxed(expr: Self) -> Self {
         Self::Boxed(expr.into())
+    }
+    pub(crate) fn new_smth(expr: Self, smth: impl ToTokens) -> Self {
+        Self::NewSmth(expr.into(), smth.to_token_stream())
+    }
+    pub(crate) fn new_box(expr: Self) -> Self {
+        Self::new_smth(expr, DictionaryExpr::Box)
+    }
+    pub(crate) fn new_cow(expr: Self) -> Self {
+        Self::NewCow(expr.into())
+    }
+    pub(crate) fn cow_into_owned(expr: Self) -> Self {
+        Self::CowIntoOwned(expr.into())
     }
 
     pub(crate) fn destroy_string<T: ToTokens>(expr: Self, token_stream: T) -> Self {
@@ -270,10 +293,12 @@ impl<SPEC> Expression<SPEC>
         Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveGroup, expr)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr)
     }
@@ -281,14 +306,17 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn from_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn from_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueGroup, expr)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr)
     }
 
+    #[allow(unused)]
     pub(crate) fn from_complex_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexOptGroup, expr)
     }
@@ -307,9 +335,11 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn ffi_to_primitive_opt_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOpt, expr)
     }
+    #[allow(unused)]
     pub(crate) fn ffi_to_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn ffi_to_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr)
     }
@@ -317,14 +347,17 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn ffi_to_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn ffi_to_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn ffi_to_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr)
     }
 
 
+    #[allow(unused)]
     pub(crate) fn ffi_to_complex_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexOptGroup, expr)
     }
@@ -340,12 +373,15 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn destroy_complex_opt_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr)
     }
+    #[allow(unused)]
     pub(crate) fn destroy_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn destroy_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
         Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr)
     }
+    #[allow(unused)]
     pub(crate) fn destroy_string_group_tokens<T: ToTokens>(expr: T) -> Self {
         Expression::DestroyStringGroup(expr.to_token_stream())
     }
@@ -412,6 +448,9 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::FromPtrClone(field_path) =>
                 Self::DictionaryExpr(DictionaryExpr::FromPtrClone(field_path.present(source)))
                     .present(source),
+            Self::FromPtrRead(field_path) =>
+                Self::DictionaryExpr(DictionaryExpr::FromPtrRead(field_path.present(source)))
+                    .present(source),
             Self::DerefExpr(presentable) =>
                 Self::DictionaryExpr(DictionaryExpr::Deref(presentable.present(source)))
                     .present(source),
@@ -422,9 +461,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
 
             Self::MapIntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::MapIntoBox(expr.present(source)))
-                    .present(source),
-            Self::NewBox(expr) =>
-                Self::DictionaryExpr(DictionaryExpr::NewBox(expr.present(source)))
                     .present(source),
             Self::FromRawBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
@@ -467,6 +503,18 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::Boxed(expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source).to_token_stream()))
                     .present(source),
+            Self::NewSmth(expr, smth) => {
+                let expr = expr.present(source);
+                quote!(#smth::new(#expr))
+            },
+            Self::NewCow(expr) => {
+                let expr = expr.present(source);
+                quote!(std::borrow::Cow::Owned(#expr))
+            },
+            Self::CowIntoOwned(expr) => {
+                let expr = expr.present(source);
+                quote!(#expr.into_owned())
+            },
 
             Self::CastConversionExpr(aspect, kind, expr, target_type, ffi_type) =>
                 Self::CastConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source), target_type.clone(), ffi_type.clone())
@@ -480,6 +528,9 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 expr.to_token_stream(),
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(expr.to_token_stream()))
+                    .present(source),
+            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOpt, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::FromOptOpaque(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromPrimitiveGroup(expr.to_token_stream()))
@@ -500,6 +551,10 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromOpt, expr.to_token_stream()))
                     .present(source),
+            // Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOpt, expr) =>
+            //     Self::InterfacesExpr(InterfacesMethodExpr::FromOptOpaque(expr.to_token_stream()))
+            //         .present(source),
+
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromComplexGroup(expr.to_token_stream()))
                     .present(source),
@@ -511,6 +566,9 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 expr.present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitive(expr.to_token_stream()))
+                    .present(source),
+            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::OpaqueOpt, expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::ToOptOpaque(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToPrimitiveGroup(expr.to_token_stream()))
@@ -550,8 +608,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxVecPtr(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(.., ConversionExpressionKind::ComplexGroup, expr) =>
-
-
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyVecPtr(expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(.., _, expr) =>
@@ -564,6 +620,9 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                     .present(source),
             Self::CastConversionExprTokens(aspect, ConversionExpressionKind::PrimitiveOpt, expr, ..) =>
                 Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::PrimitiveOpt, expr.clone())
+                    .present(source),
+            Self::CastConversionExprTokens(aspect, ConversionExpressionKind::OpaqueOpt, expr, ..) =>
+                Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::OpaqueOpt, expr.clone())
                     .present(source),
             Self::CastConversionExprTokens(aspect, ConversionExpressionKind::PrimitiveGroup, expr, ..) =>
                 Self::ConversionExprTokens(aspect.clone(), ConversionExpressionKind::PrimitiveGroup, expr.clone())
@@ -626,7 +685,8 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             }
             Self::DestroyStringGroup(expr) => {
                 let pres = expr.present(source);
-                InterfacesMethodExpr::UnboxAnyVecPtrComposer(quote!(#pres, ferment::unbox_string)).to_token_stream()
+                InterfacesMethodExpr::UnboxGroup(quote!(#pres, ferment::unbox_string)).to_token_stream()
+                // InterfacesMethodExpr::UnboxAnyVecPtrComposer(quote!(#pres, ferment::unbox_string)).to_token_stream()
             },
         }
     }

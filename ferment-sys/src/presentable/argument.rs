@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{Pat, PatWild, Type, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
@@ -25,6 +25,7 @@ pub enum ArgKind<SPEC>
     BindingFieldName(FieldComposer<SPEC>),
     CallbackArg(FieldComposer<SPEC>),
     DefaultFieldConversion(FieldComposer<SPEC>),
+    DefaultFieldByValueConversion(FieldComposer<SPEC>, SPEC::Expr),
     Unnamed(FieldComposer<SPEC>),
     Named(FieldComposer<SPEC>, Visibility),
 }
@@ -49,6 +50,10 @@ impl<SPEC> ArgKind<SPEC>
     pub fn public_named(composer: &FieldComposer<SPEC>) -> Self {
         Self::Named(composer.clone(), Visibility::Public(Default::default()))
     }
+    pub fn inherited_named(composer: &FieldComposer<SPEC>) -> Self {
+        Self::Named(composer.clone(), Visibility::Inherited)
+    }
+
     pub fn attr_name(composer: &FieldComposer<SPEC>) -> Self {
         Self::AttrName(composer.tokenized_name(), composer.attrs.clone())
     }
@@ -62,10 +67,10 @@ impl<SPEC> ArgKind<SPEC>
         (Self::binding_arg(composer), Self::binding_field_name(composer))
     }
     pub fn named_struct_ctor_pair(composer: &FieldComposer<SPEC>) -> (Self, Self) {
-        (Self::Named(composer.clone(), Visibility::Inherited), Self::attr_name(composer))
+        (Self::inherited_named(composer), Self::attr_name(composer))
     }
     pub fn opaque_named_struct_ctor_pair(composer: &FieldComposer<SPEC>) -> (Self, Self) {
-        (Self::Named(composer.clone(), Visibility::Inherited), Self::default_field_conversion(composer))
+        (Self::inherited_named(composer), Self::default_field_conversion(composer))
     }
 }
 
@@ -80,62 +85,40 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 ArgPresentation::attr_tokens(attrs, expr.present(source)),
             ArgKind::AttrExpressionComposer(field_composer, field_path_resolver, expr_composer) => {
                 let template = field_path_resolver(field_composer);
-                let expr = expr_composer(&template);
-                ArgPresentation::attr_tokens(&field_composer.attrs, expr.present(source))
+                ArgPresentation::attr_tokens(&field_composer.attrs, expr_composer(&template).present(source))
             },
             ArgKind::AttrName(name, attrs) =>
-                ArgPresentation::attr_tokens(attrs, name.to_token_stream()),
+                ArgPresentation::attr_tokens(attrs, name),
             ArgKind::AttrSequence(seq, attrs) =>
                 ArgPresentation::attr_tokens(attrs, seq.present(source)),
-            ArgKind::BindingArg(FieldComposer { name, kind, named, attrs, .. }) => {
-                let (ident, ty) = match kind {
-                    FieldTypeKind::Type(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
-                        Resolve::<<RustSpecification as Specification>::Var>::resolve(field_type, source).to_type()
-                    ),
-                    FieldTypeKind::Var(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
-                        field_type.to_type()
-                    ),
-                    FieldTypeKind::Conversion(conversion) => (
-                        Some(name.mangle_ident_default()), Type::Verbatim(conversion.clone()))
-                };
-                ArgPresentation::field(attrs, Visibility::Inherited, ident, ty)
-            },
-            ArgKind::BindingFieldName(FieldComposer { name, named, attrs, .. }) =>
-                ArgPresentation::attr_tokens(
-                    attrs,
-                    named.then(|| name.to_token_stream())
-                        .unwrap_or_else(|| name.anonymous().to_token_stream())),
+            ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Type(ty), named: true, attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), Resolve::<<RustSpecification as Specification>::Var>::resolve(ty, source).to_type()),
+            ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Type(ty), named: false, attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.anonymous(), Resolve::<<RustSpecification as Specification>::Var>::resolve(ty, source).to_type()),
+            ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Var(var), named: true, attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), var.to_type()),
+            ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Var(var), named: false, attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.anonymous(), var.to_type()),
+            ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Conversion(conversion), attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), Type::Verbatim(conversion.clone())),
+            ArgKind::BindingFieldName(FieldComposer { name, named: true, attrs, .. }) =>
+                ArgPresentation::attr_tokens(attrs, name),
+            ArgKind::BindingFieldName(FieldComposer { name, named: false, attrs, .. }) =>
+                ArgPresentation::attr_tokens(attrs, name.anonymous()),
             ArgKind::CallbackArg(FieldComposer { attrs, name, kind, .. }) =>
-                ArgPresentation::field(
-                    attrs,
-                    Visibility::Inherited,
-                    Some(name.mangle_ident_default()),
-                    kind.to_type()),
-            ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) => {
-                ArgPresentation::field(
-                    attrs,
-                    Visibility::Inherited,
-                    Some(name.mangle_ident_default()),
-                    Type::Verbatim(
-                        ConversionFromComposer::<RustSpecification>::key_in_scope(name.clone(), &kind.to_type(), &source.scope)
-                            .compose(source)
-                            .present(source)))
-            },
-            ArgKind::Unnamed(composer) =>
-                ArgPresentation::attr_tokens(
-                    &composer.attrs,
-                    Resolve::<<RustSpecification as Specification>::Var>::resolve(composer.ty(), source)
-                        .to_token_stream()),
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), kind.to_type()),
+            ArgKind::DefaultFieldConversion(FieldComposer { name, kind, attrs, .. }) =>
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), Type::Verbatim(ConversionFromComposer::<RustSpecification>::key_in_scope(name.clone(), &kind.to_type(), &source.scope).compose(source).present(source))),
+            ArgKind::DefaultFieldByValueConversion(FieldComposer { name, attrs, .. }, expr) =>
+                ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), Type::Verbatim(expr.present(source))),
+            ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Type(ty), .. }) =>
+                ArgPresentation::attr_tokens(attrs, Resolve::<<RustSpecification as Specification>::Var>::resolve(ty, source)),
+            ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Var(var), .. }) =>
+                ArgPresentation::attr_tokens(attrs, var),
+            ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Conversion(conversion), .. }) =>
+                ArgPresentation::attr_tokens(attrs, conversion),
             ArgKind::Named(FieldComposer { attrs, name, kind, ..}, visibility) =>
-                ArgPresentation::field(
-                    attrs,
-                    visibility.clone(),
-                    Some(name.mangle_ident_default()),
-                    VariableComposer::<RustSpecification>::from(&kind.to_type())
-                        .compose(source)
-                        .to_type()),
+                ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), VariableComposer::<RustSpecification>::from(&kind.to_type()).compose(source).to_type()),
         }
     }
 }

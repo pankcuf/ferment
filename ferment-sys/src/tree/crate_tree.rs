@@ -1,24 +1,15 @@
-// #[cfg(not(feature = "cbindgen_only"))]
 use std::collections::HashMap;
-// #[cfg(not(feature = "cbindgen_only"))]
 use quote::quote;
-// #[cfg(not(feature = "cbindgen_only"))]
 use syn::parse_quote;
 use syn::Attribute;
-// #[cfg(not(feature = "cbindgen_only"))]
 use crate::{Crate, error, print_phase};
 use crate::ast::{Depunctuated, SemiPunctuated};
-use crate::composable::CfgAttributes;
 use crate::composer::{SourceComposable, GenericComposer, SourceAccessible, SourceFermentable};
 use crate::context::ScopeContextLink;
-use crate::conversion::expand_attributes;
-// #[cfg(not(feature = "cbindgen_only"))]
 use crate::ext::RefineUnrefined;
 use crate::lang::RustSpecification;
-use crate::presentable::TypeContext;
 use crate::presentation::RustFermentate;
 use crate::tree::ScopeTree;
-// #[cfg(not(feature = "cbindgen_only"))]
 use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTreeExportItem};
 
 /// Main entry point for resulting expansion
@@ -86,13 +77,8 @@ impl SourceFermentable<RustFermentate> for CrateTree {
                 .unwrap()
                 .refined_mixins
                 .iter()
-                .filter_map(|(mixin, attrs)| {
-                    let attrs = expand_attributes(attrs);
-                    let tyc = TypeContext::mixin(mixin, attrs.cfg_attributes());
-                    GenericComposer::<RustSpecification>::new(mixin, attrs, tyc, self.context())
-                })
-                .flat_map(|composer|
-                    composer.borrow().compose(&source)));
+                .filter_map(|mixin_context| GenericComposer::<RustSpecification>::mixin(mixin_context, self.context()))
+                .flat_map(|composer| composer.borrow().compose(&source)));
 
         RustFermentate::Root {
             mods: Depunctuated::from_iter([

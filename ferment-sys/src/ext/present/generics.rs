@@ -4,6 +4,9 @@ use crate::conversion::TypeKind;
 #[allow(unused)]
 pub trait GenericNestedArg {
     fn maybe_first_nested_type_ref(&self) -> Option<&Type>;
+    fn maybe_first_nested_type(&self) -> Option<Type> {
+        self.maybe_first_nested_type_ref().cloned()
+    }
     fn nested_types(&self) -> Vec<&Type>;
     fn maybe_first_nested_type_kind(&self) -> Option<TypeKind> {
         self.maybe_first_nested_type_ref()

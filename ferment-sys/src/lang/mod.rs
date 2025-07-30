@@ -11,7 +11,7 @@ use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Lifetime, Type};
-use crate::composer::VarComposable;
+use crate::composer::{ConversionFromComposer, ConversionToComposer, VarComposable, VarComposer};
 #[cfg(any(feature = "objc", feature = "java"))]
 use crate::error;
 #[cfg(feature = "objc")]
@@ -58,6 +58,17 @@ pub trait Specification: Clone + Debug {
     type Var: VarComposable<Self> + ToType;
     type Name: Clone + Default + Display + ToTokens + Mangle<MangleDefault> + FromDictionary + NameComposable<Self>;
     type Fermentate: LangFermentable + ToTokens;
+
+    fn value_var(ty: &Type) -> VarComposer<Self> {
+        VarComposer::<Self>::value(ty)
+    }
+
+    fn value_expr_from(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionFromComposer<Self> {
+        ConversionFromComposer::<Self>::value_expr(name, ty, expr)
+    }
+    fn value_expr_to(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionToComposer<Self> {
+        ConversionToComposer::<Self>::value_expr(name, ty, expr)
+    }
 }
 
 #[derive(Clone, Debug)]

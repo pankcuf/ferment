@@ -220,7 +220,7 @@ fn compose_regular_fn(
             }
         }
     }
-    let aspect_with_args = (aspect, attrs.clone(), generics.clone(), NameKind::Named);
+    let aspect_with_args = (aspect, (attrs.clone(), used_lifetimes.clone(), generics.clone()), NameKind::Named);
     let input_conversions = SeqKind::FromUnnamedFields((aspect_with_args, argument_conversions));
     BindingPresentableContext::RegFn(
         path,
@@ -230,8 +230,8 @@ fn compose_regular_fn(
         input_conversions,
         return_type_conversion,
         attrs,
-        generics,
-        used_lifetimes
+        used_lifetimes,
+        generics
     )
     // BindingPresentableContext::RegFn2(
     //     path,

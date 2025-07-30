@@ -34,6 +34,15 @@ pub enum DictionaryExpr {
     MapOr(TokenStream2, TokenStream2, TokenStream2),
     NullMut,
     CChar,
+    Arc,
+    Rc,
+    Box,
+    Mutex,
+    OnceLock,
+    RwLock,
+    Cell,
+    RefCell,
+    UnsafeCell,
     AsSlice(TokenStream2),
     ToVec(TokenStream2),
     MapCollect(TokenStream2, TokenStream2),
@@ -47,7 +56,7 @@ pub enum DictionaryExpr {
     FromRoot(TokenStream2),
     CountRange,
     Range(TokenStream2),
-    NewBox(TokenStream2),
+    NewSmth(TokenStream2, TokenStream2),
     LeakBox(TokenStream2),
     MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
@@ -64,6 +73,9 @@ pub enum DictionaryExpr {
     CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
     FromPtrClone(TokenStream2),
+    FromPtrRead(TokenStream2),
+    FromArc(TokenStream2),
+    FromRc(TokenStream2),
     SelfAsTrait(TokenStream2, TokenStream2),
 }
 
@@ -74,8 +86,28 @@ impl DictionaryExpr {
     pub fn ffi_ref_prop<T: ToTokens>(name: T) -> Self {
         Self::FfiRefProp(name.to_token_stream())
     }
+    pub fn deref_ref<T: ToTokens>(name: T) -> Self {
+        Self::DerefRef(name.to_token_stream())
+    }
     pub fn self_destruct<T: ToTokens>(name: T) -> Self {
         Self::SelfDestructuring(name.to_token_stream())
+    }
+
+    pub fn from_root<T: ToTokens>(body: T) -> Self {
+        Self::FromRoot(body.to_token_stream())
+    }
+    pub fn from_ptr_read<T: ToTokens>(body: T) -> Self {
+        Self::FromPtrRead(body.to_token_stream())
+    }
+    pub fn from_arc<T: ToTokens>(body: T) -> Self {
+        Self::FromArc(body.to_token_stream())
+    }
+    pub fn from_rc<T: ToTokens>(body: T) -> Self {
+        Self::FromRc(body.to_token_stream())
+    }
+
+    pub fn mapper<T: ToTokens, U: ToTokens>(item: T, result: U) -> Self {
+        Self::Mapper(item.to_token_stream(), result.to_token_stream())
     }
 }
 
@@ -131,9 +163,6 @@ impl ToTokens for DictionaryExpr {
                 expr.to_tokens(tokens)
             }
             Self::AsRef(expr) => {
-
-                // let result = quote!(Box::leak(Box::new(#expr)));
-                // result.to_tokens(tokens);
                 quote!(&).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
@@ -172,6 +201,24 @@ impl ToTokens for DictionaryExpr {
                 quote!(std::ptr::null_mut()).to_tokens(tokens),
             Self::CChar =>
                 quote!(std::os::raw::c_char).to_tokens(tokens),
+            Self::Arc =>
+                quote!(std::sync::Arc).to_tokens(tokens),
+            Self::Rc =>
+                quote!(std::rc::Rc).to_tokens(tokens),
+            Self::Box =>
+                quote!(Box).to_tokens(tokens),
+            Self::Mutex =>
+                quote!(std::sync::Mutex).to_tokens(tokens),
+            Self::OnceLock =>
+                quote!(std::sync::OnceLock).to_tokens(tokens),
+            Self::RwLock =>
+                quote!(std::sync::RwLock).to_tokens(tokens),
+            Self::Cell =>
+                quote!(std::cell::Cell).to_tokens(tokens),
+            Self::RefCell =>
+                quote!(std::cell::RefCell).to_tokens(tokens),
+            Self::UnsafeCell =>
+                quote!(std::cell::UnsafeCell).to_tokens(tokens),
             Self::AsSlice(expr) => {
                 expr.to_tokens(tokens);
                 quote!(.as_slice()).to_tokens(tokens);
@@ -212,8 +259,8 @@ impl ToTokens for DictionaryExpr {
                 let field_path = DictionaryName::Obj;
                 let arg_path = DictionaryName::O;
                 Self::MatchFields(field_path.to_token_stream(), CommaPunctuated::from_iter([
-                    ArgPresentation::arm(&vec![], Pat::Verbatim(quote!(Ok(#arg_path))), quote!((#to_ok_conversion, #null_mut))),
-                    ArgPresentation::arm(&vec![], Pat::Verbatim(quote!(Err(#arg_path))), quote!((#null_mut, #to_error_conversion))),
+                    ArgPresentation::attr_less_arm(Pat::Verbatim(quote!(Ok(#arg_path))), quote!((#to_ok_conversion, #null_mut))),
+                    ArgPresentation::attr_less_arm(Pat::Verbatim(quote!(Err(#arg_path))), quote!((#null_mut, #to_error_conversion))),
                 ])).to_tokens(tokens)
             },
             Self::FromRoot(conversion) => {
@@ -224,8 +271,8 @@ impl ToTokens for DictionaryExpr {
                 quote!((0..count)).to_tokens(tokens),
             Self::Range(expr) =>
                 quote!((0..#expr)).to_tokens(tokens),
-            Self::NewBox(conversion) =>
-                quote!(Box::new(#conversion)).to_tokens(tokens),
+            Self::NewSmth(conversion, smth) =>
+                quote!(#smth::new(#conversion)).to_tokens(tokens),
             Self::LeakBox(conversion) =>
                 quote!(Box::leak(Box::new(#conversion))).to_tokens(tokens),
             Self::MapIntoBox(conversion) => {
@@ -249,6 +296,12 @@ impl ToTokens for DictionaryExpr {
 
             Self::FromPtrClone(expr) =>
                 quote!((&*#expr).clone()).to_tokens(tokens),
+            Self::FromPtrRead(expr) =>
+                quote!(std::ptr::read(#expr)).to_tokens(tokens),
+            Self::FromArc(expr) =>
+                quote!(std::sync::Arc::clone(#expr)).to_tokens(tokens),
+            Self::FromRc(expr) =>
+                quote!(std::rc::Rc::clone(#expr)).to_tokens(tokens),
             Self::SelfAsTrait(self_ty, acc) =>
                 quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 

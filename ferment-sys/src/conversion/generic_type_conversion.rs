@@ -6,77 +6,13 @@ use syn::{AngleBracketedGenericArguments, Field, FieldMutability, GenericArgumen
 use syn::__private::TokenStream2;
 use crate::ast::AddPunctuated;
 use crate::composable::{FieldComposer, GenericBoundsModel};
-use crate::composer::{Composer, SourceComposable, VariableComposer};
+use crate::composer::{SourceComposable, VariableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType, AsType};
-use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::Name;
-
-pub type ExpressionComposer<SPEC> = Composer<TokenStream2, <SPEC as Specification>::Expr>;
-pub const fn primitive_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr = Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    GenericArgComposer::new(Some(Expression::from_primitive_opt_tokens), Some(Expression::ffi_to_primitive_opt_tokens), Some(Expression::destroy_primitive_opt_tokens))
-}
-pub const fn complex_opt_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr=Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    GenericArgComposer::new(Some(Expression::from_complex_opt_tokens), Some(Expression::ffi_to_complex_opt_tokens), Some(Expression::destroy_complex_opt_tokens))
-}
-pub const fn result_complex_arg_composer<SPEC>() -> GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr=Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    GenericArgComposer::new(Some(Expression::from_complex_tokens), Some(Expression::ffi_to_complex_tokens), Some(Expression::destroy_complex_opt_tokens))
-}
-
-pub struct GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr=Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    pub from_composer: Option<ExpressionComposer<SPEC>>,
-    pub to_composer: Option<ExpressionComposer<SPEC>>,
-    pub destroy_composer: Option<ExpressionComposer<SPEC>>,
-}
-
-impl<SPEC> GenericArgComposer<SPEC>
-    where SPEC: Specification<Expr=Expression<SPEC>>,
-          SPEC::Expr: ScopeContextPresentable {
-    pub const fn new(
-        from_composer: Option<ExpressionComposer<SPEC>>,
-        to_composer: Option<ExpressionComposer<SPEC>>,
-        destroy_composer: Option<ExpressionComposer<SPEC>>
-    ) -> Self {
-        Self { from_composer, to_composer, destroy_composer }
-    }
-
-    pub fn from<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
-        self.from_composer.map(|c| c(expr.to_token_stream()))
-            .unwrap_or_default()
-    }
-    pub fn to<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
-        self.to_composer.map(|c| c(expr.to_token_stream()))
-            .unwrap_or_default()
-    }
-    pub fn destroy<T: ToTokens>(&self, expr: T) -> SPEC::Expr {
-        self.destroy_composer.map(|c| c(expr.to_token_stream()))
-            .unwrap_or_default()
-    }
-}
-
-pub type GenericNestedArgComposer<SPEC> = fn(arg_name: &Name<SPEC>, arg_ty: &Type) -> GenericArgPresentation<SPEC>;
+use crate::presentable::{Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SmartPointerPresentableContext};
+use crate::presentation::DictionaryExpr;
 
 #[allow(unused)]
-pub trait GenericNamedArgComposer<SPEC>
-    where SPEC: Specification {
-    fn compose_with(&self, name: &Name<SPEC> , composer: GenericNestedArgComposer<SPEC>) -> GenericArgPresentation<SPEC>;
-}
-
-impl<SPEC> GenericNamedArgComposer<SPEC> for Type
-    where SPEC: Specification {
-    fn compose_with(&self, name: &Name<SPEC> , composer: GenericNestedArgComposer<SPEC>) -> GenericArgPresentation<SPEC> {
-        composer(name, self)
-    }
-}
-
 pub struct GenericArgPresentation<SPEC>
     where SPEC: Specification {
     pub ty: SPEC::Var,
@@ -101,6 +37,7 @@ impl<SPEC> Display for GenericArgPresentation<SPEC>
 
 impl<SPEC> GenericArgPresentation<SPEC>
     where SPEC: Specification {
+    #[allow(unused)]
     pub fn new(ty: SPEC::Var, destructor: SPEC::Expr, from_conversion: SPEC::Expr, to_conversion: SPEC::Expr) -> Self {
         Self { ty, destructor, from_conversion, to_conversion }
     }
@@ -188,6 +125,17 @@ impl ToTokens for CallbackKind {
     }
 }
 
+impl ToType for CallbackKind {
+    fn to_type(&self) -> Type {
+        match self {
+            CallbackKind::FnOnce(ty) |
+            CallbackKind::Fn(ty) |
+            CallbackKind::FnMut(ty) |
+            CallbackKind::FnPointer(ty) => ty.clone(),
+        }
+    }
+}
+
 impl CallbackKind {
     pub fn ty(&self) -> &Type {
         match self {
@@ -208,11 +156,127 @@ impl CallbackKind {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+pub enum SmartPointerKind {
+    Box(Type),
+    Cell(Type),
+    Rc(Type),
+    Arc(Type),
+    RefCell(Type),
+    UnsafeCell(Type),
+    Mutex(Type),
+    OnceLock(Type),
+    RwLock(Type),
+    Pin(Type),
+}
+impl SmartPointerKind {
+    pub fn is_once_lock(&self) -> bool {
+        match self {
+            SmartPointerKind::OnceLock(_) => true,
+            _ => false
+        }
+    }
+    pub fn dictionary_type(&self) -> DictionaryExpr {
+        match self {
+            SmartPointerKind::Box(_) => DictionaryExpr::Box,
+            SmartPointerKind::Arc(_) => DictionaryExpr::Arc,
+            SmartPointerKind::Rc(_) => DictionaryExpr::Rc,
+            SmartPointerKind::Mutex(_) => DictionaryExpr::Mutex,
+            SmartPointerKind::OnceLock(_) => DictionaryExpr::OnceLock,
+            SmartPointerKind::RwLock(_) => DictionaryExpr::RwLock,
+            SmartPointerKind::Cell(_) => DictionaryExpr::Cell,
+            SmartPointerKind::RefCell(_) => DictionaryExpr::RefCell,
+            SmartPointerKind::UnsafeCell(_) => DictionaryExpr::UnsafeCell,
+            _ => panic!("SmartPointerKind::dictionary_type")
+        }
+    }
+    pub fn wrap_arg_to<SPEC>(&self, expr: Expression<SPEC>) -> Expression<SPEC>
+    where SPEC: Specification<Expr=Expression<SPEC>>,
+          Expression<SPEC>: ScopeContextPresentable {
+        match self {
+            SmartPointerKind::Cell(_) => expr,
+            _ => Expression::Clone(expr.into()),
+        }
+    }
+    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, attrs: &SPEC::Attr, lifetimes: &SPEC::Lt, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
+        BindingPresentableContext::smart_pointer(self, aspect, attrs, lifetimes, context)
+
+    }
+}
+impl Debug for SmartPointerKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("SmartPointerKind::{}({})", match self {
+            SmartPointerKind::Box(_) => "Box",
+            SmartPointerKind::Rc(_) => "Rc",
+            SmartPointerKind::Arc(_) => "Arc",
+            SmartPointerKind::Cell(_) => "Cell",
+            SmartPointerKind::RefCell(_) => "RefCell",
+            SmartPointerKind::UnsafeCell(_) => "UnsafeCell",
+            SmartPointerKind::Mutex(_) => "Mutex",
+            SmartPointerKind::RwLock(_) => "RwLock",
+            SmartPointerKind::OnceLock(_) => "OnceLock",
+            SmartPointerKind::Pin(_) => "Pin",
+        }, self.to_token_stream()))
+    }
+}
+
+impl ToTokens for SmartPointerKind {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            SmartPointerKind::Box(ty) |
+            SmartPointerKind::Rc(ty) |
+            SmartPointerKind::Arc(ty) |
+            SmartPointerKind::Cell(ty) |
+            SmartPointerKind::RefCell(ty) |
+            SmartPointerKind::UnsafeCell(ty) |
+            SmartPointerKind::Mutex(ty) |
+            SmartPointerKind::RwLock(ty) |
+            SmartPointerKind::OnceLock(ty) |
+            SmartPointerKind::Pin(ty) => ty.to_tokens(tokens),
+        }
+    }
+}
+
+impl<'a> AsType<'a> for SmartPointerKind{
+    fn as_type(&'a self) -> &'a Type {
+        match self {
+            SmartPointerKind::Box(ty) |
+            SmartPointerKind::Rc(ty) |
+            SmartPointerKind::Arc(ty) |
+            SmartPointerKind::Cell(ty) |
+            SmartPointerKind::RefCell(ty) |
+            SmartPointerKind::UnsafeCell(ty) |
+            SmartPointerKind::Mutex(ty) |
+            SmartPointerKind::RwLock(ty) |
+            SmartPointerKind::OnceLock(ty) |
+            SmartPointerKind::Pin(ty) => ty,
+        }
+    }
+}
+impl ToType for SmartPointerKind {
+    fn to_type(&self) -> Type {
+        match self {
+            SmartPointerKind::Box(ty) |
+            SmartPointerKind::Rc(ty) |
+            SmartPointerKind::Arc(ty) |
+            SmartPointerKind::Cell(ty) |
+            SmartPointerKind::RefCell(ty) |
+            SmartPointerKind::UnsafeCell(ty) |
+            SmartPointerKind::Mutex(ty) |
+            SmartPointerKind::OnceLock(ty) |
+            SmartPointerKind::RwLock(ty) |
+            SmartPointerKind::Pin(ty) => ty.clone(),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub enum GenericTypeKind {
     Map(Type),
     Group(Type),
     Result(Type),
     Box(Type),
+    SmartPointer(SmartPointerKind),
+    Cow(Type),
     AnyOther(Type),
     Array(Type),
     Slice(Type),
@@ -228,6 +292,8 @@ impl Debug for GenericTypeKind {
             GenericTypeKind::Group(_) => "Group",
             GenericTypeKind::Result(_) => "Result",
             GenericTypeKind::Box(_) => "Box",
+            GenericTypeKind::Cow(_) => "Cow",
+            GenericTypeKind::SmartPointer(_) => "SmartPointer",
             GenericTypeKind::AnyOther(_) => "AnyOther",
             GenericTypeKind::Array(_) => "Array",
             GenericTypeKind::Slice(_) => "Slice",
@@ -255,7 +321,9 @@ impl ToTokens for GenericTypeKind {
             GenericTypeKind::Slice(ty) |
             GenericTypeKind::AnyOther(ty) |
             GenericTypeKind::Optional(ty) |
+            GenericTypeKind::Cow(ty) |
             GenericTypeKind::Tuple(ty) => ty.to_tokens(tokens),
+            GenericTypeKind::SmartPointer(kind) => kind.to_tokens(tokens),
             GenericTypeKind::Callback(kind) => kind.to_tokens(tokens),
             GenericTypeKind::TraitBounds(bounds) => bounds.to_tokens(tokens),
         }
@@ -272,6 +340,7 @@ impl GenericTypeKind {
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) |
             GenericTypeKind::AnyOther(ty) |
+            GenericTypeKind::Cow(ty) |
             GenericTypeKind::Tuple(ty) => Some(ty),
             GenericTypeKind::Optional(Type::Path(TypePath { qself: _, path })) => match path.segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
@@ -285,6 +354,7 @@ impl GenericTypeKind {
                 // TODO: Make mixin here
                 None
             },
+            GenericTypeKind::SmartPointer(ptr) => Some(ptr.as_type()),
             conversion => panic!("TODO: Non-supported generic conversion: {}", conversion),
         }
     }

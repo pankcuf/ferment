@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::{Attribute, Lifetime, PathSegment, Type};
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composable::{AttrsModel, FieldComposer, FieldTypeKind, GenModel, LifetimesModel};
+use crate::composable::{AttrsModel, FieldTypeKind, GenModel, LifetimesModel};
 use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, GenericComposerInfo, SourceComposable, ConversionToComposer};
 use crate::composer::var::VarComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
@@ -103,7 +103,6 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                         }
                     },
                     "Mutex" | "RwLock" => {
-
                         let expr = ConversionToComposer::<RustSpecification>::value(arg_0_name.clone(), nested_ty).compose(source);
                         println!("RES expr: {}", expr.present(source));
                         quote!(#arg_0_name.into_inner().expect("Err"))
@@ -219,13 +218,13 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
         interfaces.push(InterfacePresentation::conversion_from_root(&attrs, &types, from_body, &None, &lifetimes));
         if let Some(to_conversion) = to_conversion {
             let expr_to_iter = [
-                FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Conversion(to_conversion.present(source)))
+                arg_0_name.field_composer(FieldTypeKind::Conversion(to_conversion.present(source)))
             ];
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
             interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &lifetimes));
         }
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::<RustSpecification>::named(arg_0_name.clone(), FieldTypeKind::Type(ffi_var))
+            arg_0_name.field_composer(FieldTypeKind::Type(ffi_var))
         ]);
         let expr_destroy_iterator = [
             destroy_conversion.present(source)

@@ -44,7 +44,7 @@ impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<SPEC>>;
     fn compose(&self, _source: &Self::Source) -> Self::Output {
-        let ((aspect, _attrs, generics, _name_kind), context) = self.parent
+        let ((aspect, (_attrs, lifetimes, generics), _name_kind), context) = self.parent
             .as_ref()
             .expect("no parent")
             .access(self.context);
@@ -53,8 +53,7 @@ impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
                 .map(|composer| {
                     (self.seq_iterator_item)((
                         aspect.clone(),
-                        composer.attrs.clone(),
-                        generics.clone(),
+                        (composer.attrs.clone(), lifetimes.clone(), generics.clone()),
                         VariableComposer::<SPEC>::from(composer.ty()),
                         composer.tokenized_name()
                     ))

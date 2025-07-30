@@ -132,8 +132,8 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
             SeqKind::DropStub(..) |
             SeqKind::StubStruct(..) =>
                 quote!(),
-            SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) |
-            SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::FromUnnamedFields(((aspect, ..), fields)) |
+            SeqKind::ToUnnamedFields(((aspect, ..), fields)) => {
                 let name = aspect.present(source);
                 let presentation = fields.present(source);
                 quote!(#name ( #presentation ) )
@@ -149,7 +149,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 fields.present(source)
                     .to_token_stream()
             },
-            SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedVariantFields(((aspect, ..), fields)) => {
                 let attrs = aspect.attrs();
                 let path: Path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
@@ -159,7 +159,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     #ident #presentation
                 }
             }
-            SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedVariantFields(((aspect, ..), fields)) => {
                 let attrs = aspect.attrs();
                 let path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
@@ -177,7 +177,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     #name #presentation
                 }
             },
-            SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedStruct(((aspect, ..), fields)) => {
                 let ffi_type = aspect.present(source);
                 let fields = fields.present(source);
                 present_struct(
@@ -185,7 +185,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     aspect.attrs(),
                     quote!((#fields);))
             },
-            SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedStruct(((aspect, ..), fields)) => {
                 let ffi_type = aspect.present(source);
                 let fields = fields.present(source);
                 present_struct(
@@ -220,7 +220,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 aspect.present(source)
                     .to_token_stream()
             },
-            SeqKind::EnumUnitFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::EnumUnitFields(((aspect, ..), fields)) => {
                 Assignment::new(
                     aspect.present(source).to_path().segments.last().unwrap().ident.clone(),
                     fields.present(source))
