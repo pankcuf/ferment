@@ -4,7 +4,7 @@ use syn::{Pat, PatWild, Type, Visibility};
 use syn::__private::TokenStream2;
 use ferment_macro::Display;
 use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, ConversionFromComposer, VariableComposer, FieldPathResolver, PresentableExprComposerRef};
+use crate::composer::{SourceComposable, ConversionFromComposer, FieldPathResolver, PresentableExprComposerRef, VariableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
 use crate::lang::{RustSpecification, Specification};
@@ -28,6 +28,7 @@ pub enum ArgKind<SPEC>
     DefaultFieldByValueConversion(FieldComposer<SPEC>, SPEC::Expr),
     Unnamed(FieldComposer<SPEC>),
     Named(FieldComposer<SPEC>, Visibility),
+    NamedReady(FieldComposer<SPEC>, Visibility),
 }
 
 impl<SPEC> ArgKind<SPEC>
@@ -50,8 +51,14 @@ impl<SPEC> ArgKind<SPEC>
     pub fn public_named(composer: &FieldComposer<SPEC>) -> Self {
         Self::Named(composer.clone(), Visibility::Public(Default::default()))
     }
+    pub fn public_named_ready(composer: &FieldComposer<SPEC>) -> Self {
+        Self::NamedReady(composer.clone(), Visibility::Public(Default::default()))
+    }
     pub fn inherited_named(composer: &FieldComposer<SPEC>) -> Self {
         Self::Named(composer.clone(), Visibility::Inherited)
+    }
+    pub fn inherited_named_ready(composer: &FieldComposer<SPEC>) -> Self {
+        Self::NamedReady(composer.clone(), Visibility::Inherited)
     }
 
     pub fn attr_name(composer: &FieldComposer<SPEC>) -> Self {
@@ -68,6 +75,9 @@ impl<SPEC> ArgKind<SPEC>
     }
     pub fn named_struct_ctor_pair(composer: &FieldComposer<SPEC>) -> (Self, Self) {
         (Self::inherited_named(composer), Self::attr_name(composer))
+    }
+    pub fn named_ready_struct_ctor_pair(composer: &FieldComposer<SPEC>) -> (Self, Self) {
+        (Self::inherited_named_ready(composer), Self::attr_name(composer))
     }
     pub fn opaque_named_struct_ctor_pair(composer: &FieldComposer<SPEC>) -> (Self, Self) {
         (Self::inherited_named(composer), Self::default_field_conversion(composer))
@@ -119,6 +129,8 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 ArgPresentation::attr_tokens(attrs, conversion),
             ArgKind::Named(FieldComposer { attrs, name, kind, ..}, visibility) =>
                 ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), VariableComposer::<RustSpecification>::from(&kind.to_type()).compose(source).to_type()),
+            ArgKind::NamedReady(FieldComposer { attrs, name, kind, ..}, visibility) =>
+                ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), kind.to_type()),
         }
     }
 }

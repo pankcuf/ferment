@@ -20,7 +20,7 @@ impl FFIConversionFrom<versioned_feature_core::FeatureVersion> for versioned_fea
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> versioned_feature_core::FeatureVersion {
-        *unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl FFIConversionTo<versioned_feature_core::FeatureVersion> for versioned_feature_core_FeatureVersion {

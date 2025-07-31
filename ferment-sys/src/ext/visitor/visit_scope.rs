@@ -5,7 +5,7 @@ use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem,
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
-use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel};
+use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::composer::MaybeMacroLabeled;
 use crate::context::ScopeChain;
 use crate::conversion::{MacroType, ObjectKind, ScopeItemKind, TypeModelKind};
@@ -211,10 +211,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
     let ident = &item_trait.ident;
     let type_compo = TypeModel::new(scope.to_type(), Some(item_trait.generics.clone()), Punctuated::new());
     let itself = ObjectKind::new_item(
-        TypeModelKind::Trait(
-            type_compo,
-            TraitDecompositionPart1::from_trait_items(ident, &item_trait.items),
-            add_bounds(visitor, &item_trait.supertraits, scope, true)),
+        TypeModelKind::Trait(TraitModel::new(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items), add_bounds(visitor, &item_trait.supertraits, scope, true))),
         ScopeItemKind::Item(Item::Trait(item_trait.clone()), scope.self_path_holder()));
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>

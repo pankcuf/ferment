@@ -4,7 +4,7 @@ use quote::ToTokens;
 use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature, Type};
 use syn::__private::TokenStream2;
 use crate::ast::PathHolder;
-use crate::composable::{CfgAttributes, TraitDecompositionPart1, TypeModel};
+use crate::composable::{CfgAttributes, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::conversion::{TypeModelKind};
 use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToPath, ToType};
 use crate::formatter::format_token_stream;
@@ -91,9 +91,7 @@ impl ScopeItemKind {
         match self {
             ScopeItemKind::Item(item, ..) => match item {
                 Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
-                    Some(TypeModelKind::Trait(
-                        ty_to_replace.clone(),
-                        TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits))),
+                    Some(TypeModelKind::Trait(TraitModel::new(ty_to_replace.clone(), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)))),
                 Item::Enum(..) |
                 Item::Struct(..) |
                 Item::Fn(..) |

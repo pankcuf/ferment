@@ -40,7 +40,7 @@ impl<SPEC, Link, LinkCtx, CTX> Linkable<Link> for MethodComposer<SPEC, Link, Lin
 }
 impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
     where Link: SharedAccess,
-          SPEC: Specification {
+          SPEC: Specification + 'static {
     type Source = ScopeContext;
     type Output = Vec<BindingPresentableContext<SPEC>>;
     fn compose(&self, _source: &Self::Source) -> Self::Output {
@@ -54,6 +54,7 @@ impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
                     (self.seq_iterator_item)((
                         aspect.clone(),
                         (composer.attrs.clone(), lifetimes.clone(), generics.clone()),
+                        // VarComposer::key_in_scope(composer.ty(), &_source.scope),
                         VariableComposer::<SPEC>::from(composer.ty()),
                         composer.tokenized_name()
                     ))

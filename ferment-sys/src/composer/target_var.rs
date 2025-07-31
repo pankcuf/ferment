@@ -3,7 +3,7 @@ use syn::{Type, TypeInfer};
 use crate::composer::SourceComposable;
 use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{ObjectKind, TypeModelKind};
-use crate::ext::{AsType, ResolveTrait, ToType};
+use crate::ext::ToType;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentation::FFIVariable;
 
@@ -57,19 +57,10 @@ impl<'a> SourceComposable for TargetVarComposer<'a, RustSpecification> {
             .unwrap_or_else(|| search_key.to_type());
         accessor_composer(match maybe_obj {
             Some(ObjectKind::Type(ref ty_model_kind)) |
-            Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
-                let conversion = match ty_model_kind {
-                    TypeModelKind::Trait(ty, ..) => {
-                        ty.as_type()
-                            .maybe_trait_object_model_kind(source)
-                    },
-                    _ => Some(ty_model_kind.clone()),
-                }.unwrap_or_else(|| ty_model_kind.clone());
-                match conversion {
-                    TypeModelKind::Bounds(..) =>
-                        Type::Infer(TypeInfer { underscore_token: Default::default() }),
-                    _ => full_ty,
-                }
+            Some(ObjectKind::Item(ref ty_model_kind, ..)) => match ty_model_kind.maybe_trait_object_maybe_model_kind_or_same(source) {
+                TypeModelKind::Bounds(..) =>
+                    Type::Infer(TypeInfer { underscore_token: Default::default() }),
+                _ => full_ty,
             },
             _ => full_ty,
         })

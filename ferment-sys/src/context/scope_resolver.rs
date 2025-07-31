@@ -156,6 +156,7 @@ impl<'a> ScopeSearchKey<'a> {
 #[derive(Clone, Debug)]
 pub enum ScopeSearch<'a> {
     KeyInScope(ScopeSearchKey<'a>, &'a ScopeChain),
+    KeyInComposerScope(ScopeSearchKey<'a>),
     Value(ScopeSearchKey<'a>),
 }
 impl<'a> Display for ScopeSearch<'a> {
@@ -163,6 +164,7 @@ impl<'a> Display for ScopeSearch<'a> {
         f.write_str(match self {
             Self::KeyInScope(key, scope) => format!("KeyInScope({} in {})", key, scope.fmt_short()),
             Self::Value(key) => format!("Value({})", key),
+            Self::KeyInComposerScope(key) => format!("KeyInComposerScope({})", key),
         }.as_str())
     }
 }
@@ -171,7 +173,8 @@ impl<'a> ScopeSearch<'a> {
     pub fn search_key(&'a self) -> &'a ScopeSearchKey<'a> {
         match self {
             ScopeSearch::KeyInScope(search_key, _) |
-            ScopeSearch::Value(search_key) => search_key,
+            ScopeSearch::Value(search_key) |
+            ScopeSearch::KeyInComposerScope(search_key) => search_key
         }
     }
 }
@@ -268,26 +271,20 @@ impl ScopeResolver {
         let maybe_entry = self.inner.entry(scope.clone());
         maybe_entry.or_default()
     }
-    pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
-        let result = match predicate {
-            ScopeSearch::KeyInScope(search_key, scope) => {
-                let result = self.get(scope)
-                    .and_then(|chain|
-                        search_key.find(|ty|
-                            chain.get_by_key(ty)
-                                .or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))));
-                result
-            },
-            ScopeSearch::Value(search_key) => {
-                let result = self.inner.values()
-                    .find_map(|chain|
-                        search_key.find(|ty|
-                            chain.get_by_value(ty)
-                                .or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))));
-                result
-            },
-        };
-        result
+
+    pub fn maybe_object_ref_by_key_in_scope<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
+        self.get(scope)
+            .and_then(|chain|
+                search_key.find(|ty|
+                    chain.get_by_key(ty)
+                        .or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))))
+    }
+    pub fn maybe_object_ref_by_value<'a>(&'a self, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
+        self.inner.values()
+            .find_map(|chain|
+                search_key.find(|ty|
+                    chain.get_by_value(ty)
+                        .or_else(|| chain.get_by_value(&ty.lifetimes_cleaned()))))
     }
 
     pub fn get(&self, scope: &ScopeChain) -> Option<&TypeChain> {

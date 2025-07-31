@@ -4,7 +4,7 @@ use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, Pa
 use syn::spanned::Spanned;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer, VariableComposer};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{path_arguments_to_type_conversions, AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
@@ -39,12 +39,7 @@ impl<'a> SourceComposable for VarComposer<'a, ObjCSpecification> {
                         .map_or(search_key.to_token_stream(), ToTokens::into_token_stream)),
                 Some(ObjectKind::Type(ref ty_model_kind)) |
                 Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
-                    let conversion = match ty_model_kind {
-                        TypeModelKind::Trait(ty, ..) =>
-                            ty.as_type()
-                                .maybe_trait_object_model_kind(source),
-                        _ => Some(ty_model_kind.clone()),
-                    }.unwrap_or_else(|| ty_model_kind.clone());
+                    let conversion = ty_model_kind.maybe_trait_object_maybe_model_kind_or_same(source);
                     match conversion {
                         TypeModelKind::Dictionary(
                             DictTypeModelKind::NonPrimitiveFermentable(
@@ -57,14 +52,8 @@ impl<'a> SourceComposable for VarComposer<'a, ObjCSpecification> {
                                     ptr_composer(special.to_token_stream()),
                                 None => {
                                     let object = source.maybe_object_by_value(full_nested_ty);
-                                    let var_ty = match object {
-                                        Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
-                                            source.maybe_trait_or_regular_model_kind(),
-                                        Some(ObjectKind::Type(ref kind) |
-                                             ObjectKind::Item(ref kind, ..)) =>
-                                            kind.maybe_trait_model_kind_or_same(source),
-                                        _ => None,
-                                    }.unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
+                                    let var_ty = object.and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
+                                        .unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
                                     let var_c_type = var_ty.to_type();
                                     let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                     let var_ty = ffi_path.map(|p| p.to_type())
@@ -203,7 +192,7 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
         let full_ty: Type = Resolve::resolve(&self.ty, source);
         // println!("VariableComposer (compose): {} ({}) in {}", self.ty.to_token_stream(), full_ty.to_token_stream(), source.scope.fmt_short());
 
-        let maybe_obj = source.maybe_object_by_predicate(ScopeSearch::KeyInScope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope));
+        let maybe_obj = source.maybe_object_ref_by_key_in_scope(ScopeSearchKey::TypeRef(&self.ty, None), &source.scope);
         let maybe_special: Option<SpecialType<ObjCSpecification>> = full_ty.maybe_resolve(source);
         let result = match maybe_special {
             Some(special) => match maybe_obj {
@@ -283,8 +272,8 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                                     Some(special) => special.to_type(),
                                     None => {
                                         match ty_conversion {
-                                            TypeModelKind::Trait(ty, _decomposition, _super_bounds) =>
-                                                ty.as_type()
+                                            TypeModelKind::Trait(model) =>
+                                                model.as_type()
                                                     .maybe_trait_object(source)
                                                     .and_then(|oc| oc.maybe_type_model_kind_ref().map(|c| c.to_type()))
                                                     .unwrap_or_else(|| ty_conversion.to_type()),
@@ -303,15 +292,8 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                     },
                     Some(ObjectKind::Type(ref ty_model_kind)) |
                     Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
-                        let conversion = match ty_model_kind {
-                            TypeModelKind::Trait(ty, ..) => {
-                                ty.as_type()
-                                    .maybe_trait_object_model_kind(source)
-                            },
-                            _ => Some(ty_model_kind.clone()),
-                        }.unwrap_or_else(|| ty_model_kind.clone());
+                        let conversion = ty_model_kind.maybe_trait_object_maybe_model_kind_or_same(source);
                         match conversion {
-                            // TypeModelKind::Optional(_) |
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
                                 // println!("VariableComposer (Boxed conversion): {}", conversion);
                                 // let nested_ty = ty.first_nested_type().unwrap();
@@ -355,14 +337,8 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                                     None => {
                                         let object = Resolve::<ObjectKind>::maybe_resolve(nested_ty, source);
                                         // println!("VariableComposer (Nested Boxed Type Conversion (Object?)): {}", object.as_ref().map_or("None".to_string(), |o| format!("{}", o)));
-                                        let var_ty = match object {
-                                            Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
-                                                source.maybe_trait_or_regular_model_kind(),
-                                            Some(ObjectKind::Type(ref kind) |
-                                                 ObjectKind::Item(ref kind, ..)) =>
-                                                kind.maybe_trait_model_kind_or_same(source),
-                                            _ => None,
-                                        }.unwrap_or_else(|| TypeModelKind::unknown_type_ref(nested_ty));
+                                        let var_ty = object.and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
+                                            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(nested_ty));
                                         let var_c_type = var_ty.to_type();
                                         let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                         let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));
@@ -461,58 +437,14 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                                 let object = Resolve::<ObjectKind>::maybe_resolve(&self.ty, source);
                                 // println!("VariableComposer (Regular Fermentable Conversion (Object?)): {}", object.as_ref().map_or("None".to_string(), |o| format!("{}", o)));
                                 let var_ty = match object {
-                                    Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => {
-                                        let parent_object = &source.scope.parent_object().unwrap();
-                                        match parent_object {
-                                            ObjectKind::Type(ref ty_conversion) |
-                                            ObjectKind::Item(ref ty_conversion, ..) => {
-                                                match ty_conversion {
-                                                    TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
-                                                        // println!("VariableComposer (Regular Fermentable Trait Fn Conversion): {}", conversion);
-                                                        ty.as_type().maybe_trait_object_maybe_model_kind(source)
-                                                    },
-                                                    _ => {
-                                                        None
-                                                    },
-                                                }.unwrap_or_else(|| {
-                                                    // println!("VariableComposer (Regular Fermentable Non-Trait Fn Conversion): {}", conversion);
-                                                    parent_object.maybe_type_model_kind_ref().cloned()
-                                                })
-                                            },
-                                            ObjectKind::Empty => {
-                                                // println!("Type::<TypeModelKind> Has no object2 --> {}", parent_object.type_conversion().to_token_stream());
-                                                None
-                                            }
-                                        }
-                                    },
+                                    Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
+                                        source.maybe_parent_trait_or_regular_model_kind(),
                                     Some(ObjectKind::Type(..) |
-                                         ObjectKind::Item(..)) => {
-                                        // cnv
-                                        match &cnv {
-                                            TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
-                                                // println!("VariableComposer (Regular Fermentable Trait Conversion): {}", conversion);
-                                                ty.as_type().maybe_trait_object_maybe_model_kind(source)
-                                            },
-                                            // TypeModelKind::Bounds(bounds) =>
-                                            //     bounds.resolve(source),
-
-                                            _ => {
-                                                // println!("VariableComposer (Regular Fermentable Non-Trait Conversion): {}", conversion);
-                                                None
-                                            },
-                                        }.unwrap_or_else(|| {
-                                            // println!("VariableComposer (Regular Fermentable Non Trait Conversion): {}", cnv);
-                                            Some(cnv.clone())
-                                        })
-
-                                    },
+                                         ObjectKind::Item(..)) =>
+                                        cnv.maybe_trait_object_maybe_model_kind(source)
+                                            .unwrap_or_else(|| Some(cnv.clone())),
                                     _ => None,
-                                }.unwrap_or_else(|| {
-                                    // println!("VariableComposer (Regular Fermentable Unknown Conversion): {}", cnv);
-                                    cnv.clone()
-                                    // TypeModelKind::Unknown(TypeComposition::new(conversion_ty.clone(), None, Punctuated::new()))
-                                });
-                                // println!("VariableComposer (Regular Fermentable Conversion): {}", var_ty.to_token_stream());
+                                }.unwrap_or_else(|| cnv.clone());
                                 let var_c_type = var_ty.to_type();
                                 let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                 let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));

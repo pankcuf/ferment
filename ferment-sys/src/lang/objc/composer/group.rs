@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use syn::parse_quote;
 use crate::ast::Depunctuated;
-use crate::composable::{FieldComposer, FieldTypeKind};
+use crate::composable::FieldTypeKind;
 use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, GroupComposer, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};

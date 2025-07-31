@@ -77,7 +77,7 @@ where Self: SourceAccessible
             });
 
         self.variant_presenters.iter()
-            .for_each(|(_c, ((aspect, _attrs, _generics, _is_round), args))| {
+            .for_each(|(_c, ((aspect, (_attrs, _lifetimes, _generics), _is_round), args))| {
 
                 args.iter().for_each(|arg| {
                     let asp = aspect.present(&source);

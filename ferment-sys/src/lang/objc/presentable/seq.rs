@@ -88,7 +88,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     #conversions
                 }
             }
-            SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::FromUnnamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
                 // presentation
                 let name = aspect.present(source).mangle_ident_default();
@@ -98,7 +98,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     case #name
                 }
             }
-            SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::ToUnnamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
                 // presentation
                 let name = aspect.present(source).mangle_ident_default();
@@ -108,17 +108,17 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     case #name
                 }
             },
-            SeqKind::FromNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::FromNamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
                 println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
-            SeqKind::ToNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::ToNamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
                 println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
-            SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedVariantFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path: Path = aspect.present(source).to_path();
@@ -128,7 +128,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                 <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
-            SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedVariantFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path = aspect.present(source).to_path();
@@ -144,7 +144,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                 println!("OBJC SEQ Variants ({}, {})", name, presentation.to_token_stream());
                 <ObjCSpecification as Specification>::Attr::wrap(attrs, quote!(#name #presentation))
             },
-            SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedStruct(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let ffi_type = aspect.present(source);
                 let presentation = ParenWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ UnnamedStruct ({}, {})", ffi_type.to_token_stream(), presentation);
@@ -153,7 +153,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     <ObjCSpecification as Specification>::Attr::from(aspect.attrs()),
                     presentation.terminated())
             },
-            SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedStruct(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let ffi_type = aspect.present(source);
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ NamedStruct ({}, {:?})", ffi_type.to_token_stream(), presentation);
@@ -198,7 +198,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                 presentation
                     .to_token_stream()
             },
-            SeqKind::EnumUnitFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::EnumUnitFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let aspect = aspect.present(source).to_path();
                 let ffi_name = &aspect.segments.last().unwrap().ident;
                 let fields = fields.present(source);
@@ -256,7 +256,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
             //     println!("OBJC UnboxedRoot ({})", presentation);
             //     presentation
             // },
-            SeqKind::StructDropBody(((tyc, _attrs, _generics, _is_round), items)) => {
+            SeqKind::StructDropBody(((tyc, (_attrs, _lifetimes, _generics), _is_round), items)) => {
                 let aspect = tyc.present(source);
                 let field_dtors = items.present(source);
                 println!("OBJC StructDropBody: {} {}", aspect.to_token_stream(), field_dtors.to_token_stream());

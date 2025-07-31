@@ -3,10 +3,9 @@ use quote::ToTokens;
 use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use syn::punctuated::{IterMut, Punctuated};
 use crate::composable::nested_arg::NestedArgument;
+use crate::composable::TraitDecompositionPart1;
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::ScopeContext;
-use crate::conversion::TypeModelKind;
-use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ResolveTrait, ToPath, ToType, LifetimeProcessor};
+use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor};
 
 pub trait TypeModeled {
     fn type_model_mut(&mut self) -> &mut TypeModel;
@@ -39,7 +38,19 @@ pub struct TypeModel {
     pub nested_arguments: CommaPunctuatedNestedArguments,
 }
 
+#[derive(Clone)]
+pub struct TraitModel {
+    pub ty: TypeModel,
+    pub decomposition: TraitDecompositionPart1,
+    pub bounds: Vec<Path>
+}
 
+impl TraitModel {
+    pub fn new(ty: TypeModel, decomposition: TraitDecompositionPart1, bounds: Vec<Path>) -> Self {
+        Self { ty, decomposition, bounds }
+    }
+
+}
 impl TypeModeled for TypeModel {
     fn type_model_mut(&mut self) -> &mut TypeModel {
         self
@@ -74,10 +85,6 @@ impl TypeModel {
     pub fn first_nested_argument(&self) -> Option<&NestedArgument> {
         self.nested_arguments_ref().first()
     }
-    pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
-        self.as_type().maybe_trait_object_maybe_model_kind(source)
-    }
-
     pub fn refine(&mut self, import_path: &Path) {
         let _ = self.ty.refine_with_nested_args(&self.nested_arguments);
         let _ = refine_ty_with_import_path(&mut self.ty, import_path);
@@ -134,6 +141,18 @@ impl ToType for TypeModel {
     }
 }
 
+impl<'a> AsType<'a> for TraitModel {
+    fn as_type(&'a self) -> &'a Type {
+        self.ty.as_type()
+    }
+}
+
+impl ToType for TraitModel {
+    fn to_type(&self) -> Type {
+        self.as_type().clone()
+    }
+}
+
 impl Debug for TypeModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(
@@ -146,6 +165,17 @@ impl Debug for TypeModel {
 }
 
 impl Display for TypeModel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self, f)
+    }
+}
+impl Debug for TraitModel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(format!("$Trait({})", self.ty).as_str())
+    }
+}
+
+impl Display for TraitModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }

@@ -4,10 +4,10 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::AddPunctuated;
-use crate::composable::{GenericBoundsModel, TypeModel};
+use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToType};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
+use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullPath, FFIVariable};
 
@@ -224,7 +224,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                 ) |
                 DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })
             ) |
-            TypeModelKind::Trait(TypeModel { ty, .. }, ..) |
+            TypeModelKind::Trait(TraitModel { ty: TypeModel { ty, .. }, .. }, ..) |
             TypeModelKind::TraitType(TypeModel { ty, .. }) |
             TypeModelKind::Object(TypeModel { ty, .. }) |
             TypeModelKind::Optional(TypeModel { ty, .. }) |
@@ -236,35 +236,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                     .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
                     .unwrap_or_else(|| {
                         resolve_type_variable(Resolve::<ObjectKind>::maybe_resolve(ty, source)
-                          .and_then(|external_type| {
-                              match external_type {
-                                  ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
-                                      let parent_object = &source.scope.parent_object().unwrap();
-                                      match parent_object {
-                                          ObjectKind::Type(ref ty_conversion) |
-                                          ObjectKind::Item(ref ty_conversion, ..) => {
-                                              match ty_conversion {
-                                                  TypeModelKind::Trait(ty, ..) =>
-                                                      ty.as_type().maybe_trait_object_maybe_model_kind(source),
-                                                  _ => None,
-                                              }.unwrap_or_else(|| parent_object.maybe_type_model_kind_ref().cloned())
-                                          },
-                                          ObjectKind::Empty => {
-                                              None
-                                          }
-                                      }
-                                  },
-                                  ObjectKind::Type(ref ty_conversion) |
-                                  ObjectKind::Item(ref ty_conversion, ..) => {
-                                      match ty_conversion {
-                                          TypeModelKind::Trait(ty, ..) =>
-                                              ty.as_type().maybe_trait_object_maybe_model_kind(source),
-                                          _ => None,
-                                      }.unwrap_or_else(|| external_type.maybe_type_model_kind_ref().cloned())
-                                  },
-                                  ObjectKind::Empty => None
-                              }
-                          })
+                          .and_then(|external_type| external_type.maybe_fn_or_trait_or_same_kind(source))
                           .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty))
                           .to_type(), source)
                     })

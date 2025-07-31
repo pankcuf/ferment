@@ -163,6 +163,15 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                     }
                 }
             },
+            ArgKind::NamedReady(FieldComposer { attrs, name, kind, ..}, visibility) => {
+                let ty = kind.to_type();
+                ArgPresentation::AttrConversion {
+                    conversion: quote! {
+                        #ty
+                    }
+                }
+            }
+
             ArgKind::AttrExhaustive(attrs) => {
                 ArgPresentation::AttrConversion { conversion: quote!() }
             },
@@ -182,7 +191,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                 ArgPresentation::AttrConversion { conversion }
 
             }
-            ArgKind::DefaultFieldByValueConversion(_, _) => panic!("Not supported")
+            ArgKind::DefaultFieldByValueConversion(_, _) => panic!("Not supported"),
         }
     }
 }

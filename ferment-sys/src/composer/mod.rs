@@ -31,15 +31,11 @@ mod r#struct;
 mod enum_variant;
 mod type_alias;
 mod vtable;
-// #[allow(unused)]
-// mod scope_search;
 mod lifetimes;
 mod array;
+mod smart_pointer;
 mod target_var;
 mod var;
-mod smart_pointer;
-mod arc_composer;
-mod rc;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -83,6 +79,7 @@ pub use self::opaque_struct::*;
 pub use self::result::*;
 pub use self::signature::*;
 pub use self::slice::*;
+pub use self::smart_pointer::*;
 pub use self::r#struct::*;
 #[allow(unused)]
 pub use self::target_var::*;
@@ -91,7 +88,6 @@ pub use self::trait_composer::*;
 pub use self::tuple::*;
 pub use self::r#type::TypeComposer;
 pub use self::type_alias::*;
-#[allow(unused)]
 pub use self::var::*;
 pub use self::variable::*;
 
@@ -152,6 +148,7 @@ pub type CommaArgComposers<SPEC> = ArgComposers<SPEC, Comma>;
 pub type BindingAccessorContext<SPEC> = (
     Aspect<<SPEC as Specification>::TYC>,
     SignatureAspect<SPEC>,
+    // VarComposer<SPEC>,
     VariableComposer<SPEC>,
     TokenStream2,
 );

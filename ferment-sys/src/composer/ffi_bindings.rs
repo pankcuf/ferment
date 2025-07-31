@@ -51,7 +51,7 @@ impl<SPEC, Link, Iter> Linkable<Link> for FFIBindingsComposer<SPEC, Link, Iter>
 }
 
 impl<SPEC, Link, Iter> SourceComposable for FFIBindingsComposer<SPEC, Link, Iter>
-    where SPEC: Specification,
+    where SPEC: Specification + 'static,
           Link: SharedAccess,
           Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> {
     type Source = ScopeContext;

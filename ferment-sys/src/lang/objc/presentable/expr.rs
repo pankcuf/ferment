@@ -285,7 +285,30 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 quote!([#ffi_ty ffi_to_opt:#expr]),
             Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex | ConversionExpressionKind::ComplexOpt, expr, ffi_ty, _ty) =>
                 quote!([#ffi_ty ffi_destroy:#expr]),
+            Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOpt, expr, ffi_ty, _ty) =>
+                quote!([#ffi_ty ffi_from_opaque_opt:#expr]),
+            Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::OpaqueOpt, expr, ffi_ty, _ty) =>
+                quote!([#ffi_ty ffi_to_opaque_opt:#expr]),
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::OpaqueOpt, expr, ..) => {
+                quote!([DSFerment destroy_opaque_opt_complex_group:#expr])
+            },
 
+            Self::FromPtrRead(expr) => {
+                let expr = expr.present(source);
+                quote!(#expr)
+            }
+            Self::NewSmth(expr, smth) => {
+                let expr = expr.present(source);
+                quote!(#expr #smth)
+            }
+            Self::NewCow(expr) => {
+                let expr = expr.present(source);
+                quote!(#expr)
+            }
+            Self::CowIntoOwned(expr) => {
+                let expr = expr.present(source);
+                quote!(#expr)
+            }
         };
         // println!("OBJC: Expression => {}", result);
 

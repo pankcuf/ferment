@@ -14,8 +14,9 @@ impl SourceComposable for GenericComposer<ObjCSpecification> {
                       field_composer: _,
                       ffi_aspect: _,
                       attrs: _,
-                      binding_composer: _,
-                      interfaces: implementations }| {
+                      interfaces: implementations,
+                      bindings: _
+                  }| {
                 // println!("OBJC GEN1");
                 // let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
                 // println!("OBJC GEN2");

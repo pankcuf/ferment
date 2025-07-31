@@ -50,14 +50,9 @@ impl<'a> SourceComposable for TargetVarComposer<'a, ObjCSpecification> {
                                 Some(special) =>
                                     ptr_composer(special.to_token_stream()),
                                 None => {
-                                    let var_ty = match source.maybe_object_by_value(full_nested_ty) {
-                                        Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) =>
-                                            source.maybe_trait_or_regular_model_kind(),
-                                        Some(ObjectKind::Type(ref kind) |
-                                             ObjectKind::Item(ref kind, ..)) =>
-                                            kind.maybe_trait_model_kind_or_same(source),
-                                        _ => None,
-                                    }.unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
+                                    let var_ty = source.maybe_object_by_value(full_nested_ty)
+                                        .and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
+                                        .unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
                                     let var_c_type = var_ty.to_type();
                                     let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                                     let var_ty = ffi_path.map(|p| p.to_type())

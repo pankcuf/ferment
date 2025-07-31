@@ -2,7 +2,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
-use crate::composable::{FieldComposer, FieldTypeKind};
+use crate::composable::FieldTypeKind;
 use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ConversionToComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};

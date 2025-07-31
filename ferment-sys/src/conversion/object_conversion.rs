@@ -4,7 +4,7 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Signature, Type};
 use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, PathHolder};
-use crate::composable::{NestedArgument, TraitDecompositionPart1, TypeModel, TypeModeled};
+use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::conversion::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
@@ -44,23 +44,33 @@ impl ObjectKind {
     pub fn maybe_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
             ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
-                source.maybe_trait_or_regular_model_kind(),
-            ObjectKind::Type(ref kind) |
-            ObjectKind::Item(ref kind, ..) =>
-                kind.maybe_trait_model_kind_or_same(source),
+                source.maybe_parent_trait_or_regular_model_kind(),
+            ObjectKind::Type(ref type_model_kind) |
+            ObjectKind::Item(ref type_model_kind, ..) =>
+                type_model_kind.maybe_trait_model_kind_or_same(source),
+            ObjectKind::Empty => None
+        }
+    }
+    pub fn maybe_fn_or_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
+        match self {
+            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+                source.maybe_parent_trait_or_regular_model_kind(),
+            ObjectKind::Type(ref type_model_kind) |
+            ObjectKind::Item(ref type_model_kind, ..) =>
+                type_model_kind.maybe_trait_object_maybe_model_kind(source)
+                    .unwrap_or_else(|| Some(type_model_kind.clone())),
             ObjectKind::Empty => None
         }
     }
 
-    pub fn maybe_trait_or_regular_model_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
+    pub fn maybe_fn_or_trait_or_same_kind2(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
-            ObjectKind::Type(ref kind) |
-            ObjectKind::Item(ref kind, ..) => match kind {
-                TypeModelKind::Trait(ty, ..) =>
-                    ty.maybe_trait_object_maybe_model_kind(source),
-                _ => None,
-            }.unwrap_or_else(|| self.maybe_type_model_kind_ref().cloned()),
-            ObjectKind::Empty => None
+            ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
+                source.maybe_parent_trait_or_regular_model_kind(),
+            ObjectKind::Type(ref type_model_kind) |
+                 ObjectKind::Item(ref type_model_kind, ..) =>
+                type_model_kind.maybe_trait_model_kind_or_same(source),
+            _ => None,
         }
     }
 
@@ -152,6 +162,9 @@ impl ObjectKind {
             ObjectKind::Empty => None
         }
     }
+    pub fn maybe_type_model_kind(&self) -> Option<TypeModelKind> {
+        self.maybe_type_model_kind_ref().cloned()
+    }
     pub fn maybe_generic_type_kind(&self) -> Option<GenericTypeKind> {
         match self.maybe_type_model_kind_ref() {
             Some(kind) => match TypeKind::from(kind.to_type()) {
@@ -182,9 +195,7 @@ impl TryFrom<(&Item, &PathHolder)> for ObjectKind {
         match value {
             Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) => {
                 Ok(ObjectKind::new_item(
-                    TypeModelKind::Trait(
-                        TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                        TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)),
+                    TypeModelKind::Trait(TraitModel::new(TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits))),
                     ScopeItemKind::Item(value.clone(), scope.clone())))
             },
             Item::Struct(ItemStruct { ident, generics, .. }) => {

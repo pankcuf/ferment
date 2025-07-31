@@ -4,10 +4,10 @@ use quote::{quote, ToTokens};
 use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use ferment_macro::Display;
 use crate::ast::AddPunctuated;
-use crate::composable::{GenericBoundsModel, TypeModel};
+use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{path_arguments_to_type_conversions, Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToType};
+use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::ext::{path_arguments_to_type_conversions, Accessory, DictionaryType, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
@@ -15,11 +15,16 @@ pub trait ToFFIVariable<SPEC, T>
     where T: ToTokens,
           SPEC: Specification {
     fn to_direct_var(&self) -> FFIVariable<SPEC, T>;
+    fn to_dyn_var(&self) -> FFIVariable<SPEC, T>;
 }
 
 impl<SPEC> ToFFIVariable<SPEC, Type> for Type where SPEC: Specification {
     fn to_direct_var(&self) -> FFIVariable<SPEC, Type> {
         FFIVariable::direct(self.clone())
+    }
+
+    fn to_dyn_var(&self) -> FFIVariable<SPEC, Type> {
+        FFIVariable::r#dyn(self.clone())
     }
 }
 
@@ -30,6 +35,10 @@ impl<SPEC> ToFFIVariable<SPEC, Type> for SpecialType<SPEC> where SPEC: Specifica
             SpecialType::Opaque(ty) => ty.to_direct_var(),
             _ => panic!("")
         }
+    }
+
+    fn to_dyn_var(&self) -> FFIVariable<SPEC, Type> {
+        self.to_type().to_dyn_var()
     }
 }
 
@@ -118,6 +127,31 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for Path {
     }
 }
 
+pub fn resolve_type_variable_via_maybe_object(
+    maybe_object: Option<ObjectKind>,
+    ty: &Type,
+    source: &ScopeContext
+) -> FFIVariable<RustSpecification, Type> {
+    resolve_type_variable_via_ffi_full_path(
+        maybe_object.and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
+            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty)), source)
+}
+
+pub fn resolve_type_variable_via_ffi_full_path_and_trait(
+    nested_ty: &Type,
+    source: &ScopeContext
+) -> FFIVariable<RustSpecification, Type> {
+    resolve_type_variable_via_maybe_object(Resolve::<ObjectKind>::maybe_resolve(nested_ty, source), nested_ty, source)
+}
+pub fn resolve_type_variable_via_ffi_full_path(ty_model_kind: TypeModelKind, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
+    resolve_type_variable_via_type(ty_model_kind.to_type(), source)
+}
+pub fn resolve_type_variable_via_type(ty: Type, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
+    resolve_type_variable(
+        Resolve::<FFIFullPath<RustSpecification>>::maybe_resolve(&ty, source)
+            .map(|path| path.to_type())
+            .unwrap_or_else(|| parse_quote!(#ty)), source)
+}
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
     match ty {
         Type::Path(TypePath { path, .. }) =>
@@ -245,7 +279,7 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                 ) |
                 DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })
             ) |
-            TypeModelKind::Trait(TypeModel { ty, .. }, ..) |
+            TypeModelKind::Trait(TraitModel { ty: TypeModel { ty, .. }, .. }, ..) |
             TypeModelKind::TraitType(TypeModel { ty, .. }) |
             TypeModelKind::Object(TypeModel { ty, .. }) |
             TypeModelKind::Optional(TypeModel { ty, .. }) |
@@ -258,59 +292,17 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
                     .unwrap_or_else(|| {
                         let maybe_object_kind = Resolve::<ObjectKind>::maybe_resolve(ty, source);
                         let ty_model_kind_to_resolve = maybe_object_kind
-                            .and_then(|external_type| {
-                                match external_type {
-                                    ObjectKind::Item(.., ScopeItemKind::Fn(..)) => {
-                                        let parent_object = &source.scope.parent_object().unwrap();
-                                        match parent_object {
-                                            ObjectKind::Type(ref ty_conversion) |
-                                            ObjectKind::Item(ref ty_conversion, ..) => {
-                                                match ty_conversion {
-                                                    TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
-                                                        ty.as_type().maybe_trait_object_maybe_model_kind(source)
-                                                    },
-                                                    _ => {
-                                                        None
-                                                    },
-                                                }.unwrap_or_else(|| {
-                                                    parent_object.maybe_type_model_kind_ref().cloned()
-                                                })
-                                            },
-                                            ObjectKind::Empty => {
-                                                None
-                                            }
-                                        }
-                                    },
-                                    ObjectKind::Type(ref ty_conversion) |
-                                    ObjectKind::Item(ref ty_conversion, ..) => {
-                                        match ty_conversion {
-                                            TypeModelKind::Trait(ty, _decomposition, _super_bounds) => {
-                                                ty.as_type().maybe_trait_object_maybe_model_kind(source)
-                                            },
-                                            _ => {
-                                                None
-                                            },
-                                        }.unwrap_or_else(|| {
-                                            external_type.maybe_type_model_kind_ref().cloned()
-                                        })
-                                    },
-                                    ObjectKind::Empty => {
-                                        None
-                                    }
-                                }
-                            })
+                            .and_then(|external_type| external_type.maybe_fn_or_trait_or_same_kind(source))
                             .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty));
-                        let ty_to_resolve = ty_model_kind_to_resolve.to_type();
-                        resolve_type_variable(ty_to_resolve, source)
+                        resolve_type_variable(ty_model_kind_to_resolve.to_type(), source)
                     })
             },
             TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
                 panic!("error: Arg conversion (Fn) ({}) not supported", ty.to_token_stream())
             },
 
-            TypeModelKind::Bounds(bounds) => {
-                bounds.resolve(source)
-            },
+            TypeModelKind::Bounds(bounds) =>
+                bounds.resolve(source),
             ty =>
                 panic!("error: Arg conversion ({}) not supported", ty),
         };

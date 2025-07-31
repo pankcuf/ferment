@@ -4,18 +4,18 @@ use syn::{parse_quote, ParenthesizedGenericArguments, Path, PathArguments, PathS
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::ast::CommaPunctuated;
-pub use crate::composable::{GenericBoundsModel, TraitDecompositionPart1, TypeModel};
-use crate::composable::TypeModeled;
+pub use crate::composable::{GenericBoundsModel, TypeModel};
+use crate::composable::{TraitModel, TypeModeled};
 use crate::context::ScopeContext;
 use crate::conversion::dict::DictTypeModelKind;
-use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ToType};
+use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ResolveTrait, ToType};
 use crate::lang::{NameComposable, Specification};
 
 
 #[derive(Clone)]
 pub enum TypeModelKind {
     Dictionary(DictTypeModelKind),
-    Trait(TypeModel, TraitDecompositionPart1, Vec<Path>),
+    Trait(TraitModel),
     TraitType(TypeModel),
     Object(TypeModel),
     Optional(TypeModel),
@@ -35,7 +35,6 @@ pub enum TypeModelKind {
 impl TypeModeled for TypeModelKind {
     fn type_model_mut(&mut self) -> &mut TypeModel {
         match self {
-            TypeModelKind::Trait(model, ..) |
             TypeModelKind::TraitType(model) |
             TypeModelKind::Object(model, ..) |
             TypeModelKind::Optional(model, ..) |
@@ -46,6 +45,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Unknown(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
+            TypeModelKind::Trait(model) => &mut model.ty,
             TypeModelKind::Bounds(model) => model.type_model_mut(),
             TypeModelKind::Dictionary(kind) => kind.type_model_mut()
         }
@@ -53,7 +53,6 @@ impl TypeModeled for TypeModelKind {
 
     fn type_model_ref(&self) -> &TypeModel {
         match self {
-            TypeModelKind::Trait(model, ..) |
             TypeModelKind::TraitType(model) |
             TypeModelKind::Object(model, ..) |
             TypeModelKind::Optional(model, ..) |
@@ -64,6 +63,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Tuple(model) |
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
+            TypeModelKind::Trait(model) => &model.ty,
             TypeModelKind::Bounds(model) => model.type_model_ref(),
             TypeModelKind::Dictionary(kind) => kind.type_model_ref()
         }
@@ -135,19 +135,31 @@ impl TypeModelKind {
         }
     }
 
+
+
+    pub(crate) fn maybe_trait_object_maybe_model_kind_or_same(&self, source: &ScopeContext) -> TypeModelKind {
+        match self {
+            TypeModelKind::Trait(model) =>
+                model.as_type().maybe_trait_object_model_kind(source),
+            _ =>
+                Some(self.clone()),
+        }.unwrap_or_else(|| self.clone())
+    }
     pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         match self {
-            TypeModelKind::Trait(ty, ..) => {
-                ty.maybe_trait_object_maybe_model_kind(source)
-            },
+            TypeModelKind::Trait(model) => model.as_type().maybe_trait_object_maybe_model_kind(source),
             _ => None
         }
     }
+
+
 
     pub fn maybe_trait_model_kind_or_same(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         self.maybe_trait_object_maybe_model_kind(source)
             .unwrap_or_else(|| Some(self.clone()))
     }
+
+
     pub fn is_refined(&self) -> bool {
         match self {
             TypeModelKind::Imported(..) |
@@ -182,7 +194,6 @@ impl<'a> AsType<'a> for TypeModelKind {
         match self {
             TypeModelKind::Bounds(model) => model.as_type(),
             TypeModelKind::Dictionary(kind) => kind.as_type(),
-            TypeModelKind::Trait(model, _, _) |
             TypeModelKind::TraitType(model) |
             TypeModelKind::Object(model) |
             TypeModelKind::Optional(model) |
@@ -192,6 +203,7 @@ impl<'a> AsType<'a> for TypeModelKind {
             TypeModelKind::Slice(model) |
             TypeModelKind::Tuple(model) |
             TypeModelKind::Unknown(model) => model.as_type(),
+            TypeModelKind::Trait(model) => model.as_type(),
             TypeModelKind::Imported(model, _) => model.as_type(),
             // TODO: Should we use import chunk here as well?
         }
@@ -224,32 +236,32 @@ impl ToType for TypeModelKind {
 impl Debug for TypeModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            TypeModelKind::Trait(ty, _decomposition, _super_bounds) =>
-                format!("Trait({})", ty),
+            TypeModelKind::Trait(model) =>
+                format!("Trait({model})"),
             TypeModelKind::Object(ty) =>
-                format!("Object({})", ty),
+                format!("Object({ty})"),
             TypeModelKind::Optional(ty) =>
-                format!("Optional({})", ty),
+                format!("Optional({ty})"),
             TypeModelKind::Unknown(ty) =>
-               format!("Unknown({})", ty),
+               format!("Unknown({ty})"),
             TypeModelKind::TraitType(ty) =>
-                format!("TraitType({})", ty),
+                format!("TraitType({ty})"),
             TypeModelKind::Bounds(gbc) =>
-                format!("Bounds({})", gbc),
+                format!("Bounds({gbc})"),
             TypeModelKind::Fn(ty) =>
-                format!("Fn({})", ty),
+                format!("Fn({ty})"),
             TypeModelKind::Imported(ty, import_path) =>
-                format!("Imported({}, {})", ty, import_path.to_token_stream()),
+                format!("Imported({ty}, {})", import_path.to_token_stream()),
             TypeModelKind::Array(ty) =>
-                format!("Array({})", ty),
+                format!("Array({ty})"),
             TypeModelKind::Slice(ty) =>
-                format!("Slice({})", ty),
+                format!("Slice({ty})"),
             TypeModelKind::Tuple(ty) =>
-                format!("Tuple({})", ty),
+                format!("Tuple({ty})"),
             TypeModelKind::FnPointer(ty) =>
-                format!("FnPointer({})", ty),
+                format!("FnPointer({ty})"),
             TypeModelKind::Dictionary(ty) =>
-                format!("Dictionary({})", ty),
+                format!("Dictionary({ty})"),
         }.as_str())
     }
 }

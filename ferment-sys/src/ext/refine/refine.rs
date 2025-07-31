@@ -2,7 +2,7 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{parse_quote, AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::{Colon2Punctuated, PathHolder};
-use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModeled};
+use crate::composable::{GenericBoundsModel, NestedArgument, TraitModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
@@ -443,8 +443,8 @@ impl RefineInScope for TypeModelKind {
             TypeModelKind::FnPointer(model, ..) |
             TypeModelKind::Object(model) |
             TypeModelKind::Optional(model) |
-            TypeModelKind::Trait(model, ..) |
-            TypeModelKind::TraitType(model) =>
+            TypeModelKind::TraitType(model) |
+                TypeModelKind::Trait(TraitModel { ty: model, ..}) =>
                 refine_nested_arguments(model, scope, source),
             TypeModelKind::Array(model) |
             TypeModelKind::Slice(model) |

@@ -2,11 +2,12 @@ use proc_macro2::Ident;
 use quote::{quote_spanned, ToTokens};
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath, TypeReference, TypeTraitObject};
 use syn::spanned::Spanned;
+use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::conversion::{GenericTypeKind, ObjectKind, ScopeItemKind, TypeModelKind, TypeKind};
+use crate::conversion::{GenericTypeKind, ObjectKind, TypeModelKind, TypeKind};
 use crate::ext::{AsType, CrateExtension, DictionaryType, FFISpecialTypeResolve, Mangle, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::lang::{RustSpecification, Specification};
-use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
 pub trait Resolve<T> {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<T>;
@@ -69,27 +70,29 @@ impl<'a> Resolve<TypeModelKind> for ScopeSearchKey<'a>  {
     }
 }
 
+impl<'a> Resolve<FFIVariable<RustSpecification, Type>> for ScopeSearchKey<'a> {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustSpecification, Type>> {
+        Some(self.resolve(source))
+    }
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
+        Resolve::<SpecialType<RustSpecification>>::maybe_resolve(self, source)
+            .map(FFIFullPath::from)
+            .or_else(|| Resolve::<TypeModelKind>::resolve(self, source)
+                .to_type()
+                .maybe_resolve(source))
+            .map(|ffi_path| ffi_path.to_type())
+            .unwrap_or_else(|| self.to_type())
+            .resolve(source)
+    }
+}
+
 impl Resolve<TypeModelKind> for Type {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> TypeModelKind {
         Resolve::<ObjectKind>::maybe_resolve(self, source)
-            .and_then(|ext_obj_kind| {
-                match ext_obj_kind {
-                    ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
-                        source.maybe_trait_or_regular_model_kind(),
-                    ObjectKind::Type(ref kind) |
-                    ObjectKind::Item(ref kind, ..) => {
-                        match kind {
-                            TypeModelKind::Trait(ty, ..) =>
-                                ty.maybe_trait_object_maybe_model_kind(source),
-                            _ => None,
-                        }.unwrap_or_else(|| ext_obj_kind.maybe_type_model_kind_ref().cloned())
-                    },
-                    ObjectKind::Empty => None
-                }
-            })
+            .and_then(|ext_obj_kind| ext_obj_kind.maybe_fn_or_trait_or_same_kind(source))
             .unwrap_or_else(|| TypeModelKind::unknown_type_ref(self))
     }
 }
@@ -244,10 +247,10 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
             Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
         } else {
             let chunk = if let Some(
-                ObjectKind::Type(TypeModelKind::Trait(tc, ..)) |
-                ObjectKind::Type(TypeModelKind::TraitType(tc))
+                ObjectKind::Type(TypeModelKind::Trait(TraitModel { ty: model, .. })) |
+                ObjectKind::Type(TypeModelKind::TraitType(model))
             ) = self.maybe_trait_object(source) {
-                &tc.as_type().to_path().segments
+                &model.as_type().to_path().segments
             } else {
                 segments
             };

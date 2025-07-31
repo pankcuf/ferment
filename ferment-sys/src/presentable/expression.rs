@@ -151,6 +151,9 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn dict_expr(expr: DictionaryExpr) -> Self {
         Self::DictionaryExpr(expr)
     }
+    pub(crate) fn interface_expr(expr: InterfacesMethodExpr) -> Self {
+        Self::InterfacesExpr(expr)
+    }
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
         Self::Empty
     }

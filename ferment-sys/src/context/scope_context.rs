@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
-use crate::context::{GlobalContext, ScopeChain, ScopeSearch};
+use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
 use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, SpecialType, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
 use crate::lang::Specification;
@@ -111,8 +111,8 @@ impl ScopeContext {
                 match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self) {
                     Some(special) => Some(special.to_type()),
                     None => match ty_conversion {
-                        TypeModelKind::Trait(ty, ..) =>
-                            Some(ty.as_type()
+                        TypeModelKind::Trait(model) =>
+                            Some(model.as_type()
                                 .maybe_trait_object(self)
                                 .and_then(|oc| oc.maybe_type_model_kind_ref().map(TypeModelKind::to_type))
                                 .unwrap_or_else(|| ty_conversion.to_type())),
@@ -124,11 +124,10 @@ impl ScopeContext {
         }
     }
 
-    pub fn maybe_trait_or_regular_model_kind(&self) -> Option<TypeModelKind> {
+    pub fn maybe_parent_trait_or_regular_model_kind(&self) -> Option<TypeModelKind> {
         self.scope
             .parent_object()
-            .and_then(|parent_obj|
-                parent_obj.maybe_trait_or_regular_model_kind(self))
+            .and_then(|parent_obj| parent_obj.maybe_fn_or_trait_or_same_kind(self))
     }
 
     pub fn maybe_special_or_regular_ffi_full_path<SPEC>(&self, ty: &Type) -> Option<FFIFullPath<SPEC>>
@@ -212,18 +211,34 @@ impl ScopeContext {
         result
     }
 
+    pub fn maybe_object_ref_by_key_in_scope(&self, search_key: ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
+        let lock = self.context.read().unwrap();
+        let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope);
+        result.cloned()
+    }
+
+    pub fn maybe_object_ref_by_value(&self, search_key: ScopeSearchKey) -> Option<ObjectKind> {
+        let lock = self.context.read().unwrap();
+        let result = lock.scope_register.maybe_object_ref_by_value(search_key);
+        result.cloned()
+    }
+
     pub fn maybe_object_by_value(&self, ty: &Type) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
         let result = lock.maybe_object_ref_by_value(ty).cloned();
         result
     }
     pub fn maybe_object_by_predicate_ref<'a>(&self, predicate: &'a ScopeSearch<'a>) -> Option<ObjectKind> {
-        self.maybe_object_by_predicate(predicate.clone())
-    }
-    pub fn maybe_object_by_predicate<'a>(&self, predicate: ScopeSearch<'a>) -> Option<ObjectKind> {
-        let lock = self.context.read().unwrap();
-        let result = lock.maybe_object_ref_by_predicate(predicate).cloned();
-        result
+        match predicate {
+            ScopeSearch::KeyInScope(search_key, scope) =>
+                self.maybe_object_ref_by_key_in_scope(search_key.clone(), scope),
+            ScopeSearch::Value(search_key) =>
+                self.maybe_object_ref_by_value(search_key.clone()),
+            ScopeSearch::KeyInComposerScope(search_key) => {
+                self.maybe_object_ref_by_key_in_scope(search_key.clone(), &self.scope)
+            }
+        }
+
     }
 
     pub fn maybe_type_model_kind(&self, ty: &Type) -> Option<TypeModelKind> {

@@ -11,7 +11,7 @@ impl FFIConversionFrom<jsonschema::ValidationError<'static>> for jsonschema_Vali
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> jsonschema::ValidationError<'static> {
-        *unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl FFIConversionTo<jsonschema::ValidationError<'static>> for jsonschema_ValidationError {

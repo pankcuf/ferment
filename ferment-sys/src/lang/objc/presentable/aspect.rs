@@ -60,6 +60,10 @@ impl Aspect<TypeContext> {
             }
         }
     }
+    // pub fn raw_struct_ident(ident: Ident, prefix: String, attrs: Vec<Attribute>) -> Self {
+    //     Aspect::RawTarget(TypeContext::Struct { ident, prefix, attrs })
+    // }
+
 }
 
 impl ScopeContextPresentable for Aspect<TypeContext> {

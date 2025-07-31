@@ -1,5 +1,5 @@
 use syn::{parse_quote, Path, Type};
-use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::conversion::{ObjectKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, ToType};
 
@@ -14,7 +14,7 @@ pub trait ResolveTrait where Self: Sized + ToType {
                 // check maybe it's really known
                 if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
                     let search_key = ScopeSearchKey::maybe_from(parse_quote!(Self)).unwrap();
-                    if let Some(obj) = lock.maybe_object_ref_by_predicate(ScopeSearch::KeyInScope(search_key, trait_scope)) {
+                    if let Some(obj) = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, trait_scope) {
                         maybe_trait = Some(obj);
                     }
                 }
@@ -26,11 +26,11 @@ pub trait ResolveTrait where Self: Sized + ToType {
 
     fn maybe_trait_object_model_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         self.maybe_trait_object(source)
-            .and_then(|oc| oc.maybe_type_model_kind_ref().cloned())
+            .and_then(|oc| oc.maybe_type_model_kind())
     }
     fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         self.maybe_trait_object(source)
-            .map(|oc| oc.maybe_type_model_kind_ref().cloned())
+            .map(|oc| oc.maybe_type_model_kind())
     }
 
 

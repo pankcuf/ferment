@@ -8,7 +8,7 @@ use crate::{print_phase, Config};
 use crate::ast::PathHolder;
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearch, ScopeSearchKey, TraitsResolver, TypeChain};
+use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
 use crate::formatter::{format_global_context, format_mixin_kinds};
@@ -78,26 +78,23 @@ impl GlobalContext {
             if let Some(scope) = root_scope {
                 //maybe_trait = self.maybe_local_scope_object_ref_by_key(&ty, scope);
                 maybe_trait = ScopeSearchKey::maybe_from(ty)
-                    .map(|key| ScopeSearch::KeyInScope(key, scope))
-                    .and_then(move |predicate| self.scope_register.maybe_object_ref_by_predicate(predicate));
-
+                    .and_then(|key| self.scope_register.maybe_object_ref_by_key_in_scope(key, scope));
             }
             //maybe_trait = self.maybe_scope_type(&ty, &root);
             if i > 0 {
                 match maybe_trait {
-                    Some(ObjectKind::Item(TypeModelKind::Trait(_trait_ty, decomposition, _super_bounds), _)) |
-                    Some(ObjectKind::Type(TypeModelKind::Trait(_trait_ty, decomposition, _super_bounds))) => {
+                    Some(ObjectKind::Item(TypeModelKind::Trait(model), _)) |
+                    Some(ObjectKind::Type(TypeModelKind::Trait(model))) => {
                         let ident = &head.0.segments.last()?.ident;
                         // println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
-                        if let Some(trait_type) = decomposition.types.get(ident) {
+                        if let Some(trait_type) = model.decomposition.types.get(ident) {
                             // println!("FFI (first bound) {:?}", trait_type);
                             if let Some(first_bound) = trait_type.trait_bounds.first() {
                                 // println!("FFI (first bound) {}", format_token_stream(&first_bound.path));
                                 let tt_type = first_bound.to_type();
                                 if let Some(scope) = root_scope {
                                     maybe_trait = ScopeSearchKey::maybe_from(tt_type)
-                                        .map(|key| ScopeSearch::KeyInScope(key, scope))
-                                        .and_then(move |predicate| self.scope_register.maybe_object_ref_by_predicate(predicate));
+                                        .and_then(|key| self.scope_register.maybe_object_ref_by_key_in_scope(key, scope));
                                 }
                                 // println!("FFI (first bound full) {:?}", maybe_trait);
                             }
@@ -458,9 +455,17 @@ impl GlobalContext {
     pub fn scope_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.scope_register.type_chain_mut(scope)
     }
-    pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
-        self.scope_register.maybe_object_ref_by_predicate(predicate)
-    }
+    // pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
+    //     // self.scope_register.maybe_object_ref_by_predicate(predicate)
+    //     match predicate {
+    //         ScopeSearch::KeyInScope(search_key, scope) =>
+    //             self.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope),
+    //         ScopeSearch::Value(search_key) =>
+    //             self.scope_register.maybe_object_ref_by_value(search_key),
+    //     }
+    //
+    // }
+
     pub fn maybe_scope_ref(&self, path: &Path) -> Option<&ScopeChain> {
         self.scope_register.maybe_scope(path)
     }
@@ -476,10 +481,11 @@ impl GlobalContext {
             .and_then(|search_key| self.maybe_object_ref_by_search_key_in_scope(search_key, scope))
     }
     fn maybe_object_ref_by_search_key_in_scope<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
-        self.maybe_object_ref_by_predicate(ScopeSearch::KeyInScope(search_key, scope))
+        self.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope)
+
     }
     fn maybe_object_ref_by_search_value<'a>(&'a self, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
-        self.maybe_object_ref_by_predicate(ScopeSearch::Value(search_key))
+        self.scope_register.maybe_object_ref_by_value(search_key)
     }
 }
 

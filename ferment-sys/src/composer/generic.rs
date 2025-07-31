@@ -4,11 +4,7 @@ use std::rc::Rc;
 use syn::{Attribute, Type, TypeTuple};
 use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
 use crate::composable::{CfgAttributes, FieldComposer, GenericBoundsModel};
-use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, NameKind};
-use crate::composer::arc_composer::ArcComposer;
-use crate::composer::array::ArrayComposer;
-use crate::composer::rc::RcComposer;
-use crate::composer::smart_pointer::SmartPointerComposer;
+use crate::composer::{AnyOtherComposer, ArrayComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, SmartPointerComposer, TupleComposer, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::conversion::{expand_attributes, CallbackKind, GenericTypeKind, MixinKind, SmartPointerKind, TypeKind};
 use crate::ext::{AsType, GenericNestedArg};
@@ -57,7 +53,7 @@ impl<SPEC> GenericComposerInfo<SPEC>
         interfaces: Depunctuated<SPEC::Interface>,
         ) -> Self {
         let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
-        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_struct_ctor_pair)));
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
         let bindings = Depunctuated::from_iter([
             BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
             BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
@@ -69,7 +65,7 @@ impl<SPEC> GenericComposerInfo<SPEC>
             field_composers,
             interfaces,
             bindings,
-            field_composer: ArgKind::public_named,
+            field_composer: ArgKind::public_named_ready,
         }
     }
 
@@ -86,7 +82,7 @@ impl<SPEC> GenericComposerInfo<SPEC>
             field_composers,
             interfaces,
             bindings,
-            field_composer: ArgKind::public_named,
+            field_composer: ArgKind::public_named_ready,
         }
     }
 }
@@ -102,8 +98,6 @@ pub enum GenericComposerWrapper<SPEC>
     Slice(SliceComposer<SPEC>),
     Tuple(TupleComposer<SPEC>),
     AnyOther(AnyOtherComposer<SPEC>),
-    Arc(ArcComposer<SPEC>),
-    Rc(RcComposer<SPEC>),
     SmartPointer(SmartPointerComposer<SPEC>),
     Map(MapComposer<SPEC>),
 }
@@ -134,14 +128,8 @@ where SPEC: Specification {
     pub fn map(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
         Self::Map(MapComposer::new(ty, type_context, attrs, scope_context))
     }
-    pub fn arc(ty: &Type, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
-        Self::Arc(ArcComposer::new(ty, smart_pointer_kind, type_context, attrs, scope_context))
-    }
-    pub fn rc(ty: &Type, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
-        Self::Rc(RcComposer::new(ty, smart_pointer_kind, type_context, attrs, scope_context))
-    }
-    pub fn smart_ptr(ty: &Type, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
-        Self::SmartPointer(SmartPointerComposer::new(ty, smart_pointer_kind, type_context, attrs, scope_context))
+    pub fn smart_ptr(root_kind: &SmartPointerKind, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::SmartPointer(SmartPointerComposer::new(root_kind, smart_pointer_kind, type_context, attrs, scope_context))
     }
     pub fn any_other(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
         Self::AnyOther(AnyOtherComposer::new(ty, type_context, attrs, scope_context))
@@ -158,8 +146,6 @@ impl<SPEC> SourceComposable for GenericComposerWrapper<SPEC>
           SliceComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
           TupleComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
           AnyOtherComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
-          ArcComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
-          RcComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
           SmartPointerComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
           MapComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
 {
@@ -184,10 +170,6 @@ impl<SPEC> SourceComposable for GenericComposerWrapper<SPEC>
                 composer.compose(source),
             GenericComposerWrapper::AnyOther(composer) =>
                 composer.compose(source),
-            GenericComposerWrapper::Arc(composer) =>
-                composer.compose(source),
-            GenericComposerWrapper::Rc(composer) =>
-                composer.compose(source),
             GenericComposerWrapper::SmartPointer(composer) =>
                 composer.compose(source),
             GenericComposerWrapper::Map(composer) =>
@@ -209,8 +191,8 @@ impl<SPEC> GenericComposer<SPEC>
         let wrapper = match kind {
             MixinKind::Bounds(model) =>
                 GenericComposerWrapper::bounds(model, ty_context, attrs, scope_context),
-            MixinKind::Generic(GenericTypeKind::Callback(ty)) =>
-                GenericComposerWrapper::callback(ty, ty_context, attrs, scope_context),
+            MixinKind::Generic(GenericTypeKind::Callback(kind)) =>
+                GenericComposerWrapper::callback(kind, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Group(ty)) =>
                 GenericComposerWrapper::group(ty, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Array(ty)) =>
@@ -223,24 +205,26 @@ impl<SPEC> GenericComposer<SPEC>
                 GenericComposerWrapper::tuple(type_tuple, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Map(ty)) =>
                 GenericComposerWrapper::map(ty, ty_context, attrs, scope_context),
-            // MixinKind::Generic(GenericTypeKind::Cow(ty)) =>
-            //     GenericComposerWrapper::cow(ty, ty_context, attrs, scope_context),
-            MixinKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Arc(ty))) => match TypeKind::from(ty.maybe_first_nested_type_ref()?) {
-                TypeKind::Generic(GenericTypeKind::SmartPointer(smart_pointer_kind)) => GenericComposerWrapper::arc(ty, smart_pointer_kind, ty_context, attrs, scope_context),
-                _ => GenericComposerWrapper::any_other(ty, ty_context, attrs, scope_context),
-            },
-            MixinKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Rc(ty))) => match TypeKind::from(ty.maybe_first_nested_type_ref()?) {
-                TypeKind::Generic(GenericTypeKind::SmartPointer(smart_pointer_kind)) => GenericComposerWrapper::rc(ty, smart_pointer_kind, ty_context, attrs, scope_context),
-                _ => GenericComposerWrapper::any_other(ty, ty_context, attrs, scope_context),
-            },
-            MixinKind::Generic(GenericTypeKind::SmartPointer(kind)) => match kind {
-                SmartPointerKind::Mutex(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                SmartPointerKind::OnceLock(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                SmartPointerKind::RwLock(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                SmartPointerKind::Cell(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                SmartPointerKind::RefCell(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                SmartPointerKind::UnsafeCell(ty) => GenericComposerWrapper::smart_ptr(ty, kind.clone(), ty_context, attrs, scope_context),
-                _ => GenericComposerWrapper::any_other(kind.as_type(), ty_context, attrs, scope_context),
+            MixinKind::Generic(GenericTypeKind::SmartPointer(root_kind)) => {
+                match root_kind {
+                    SmartPointerKind::Cell(..) |
+                    SmartPointerKind::RefCell(..) |
+                    SmartPointerKind::UnsafeCell(..) |
+                    SmartPointerKind::Mutex(..) |
+                    SmartPointerKind::OnceLock(..) |
+                    SmartPointerKind::RwLock(..) =>
+                        GenericComposerWrapper::smart_ptr(root_kind, root_kind.clone(), ty_context, attrs, scope_context),
+                    SmartPointerKind::Rc(ty) |
+                    SmartPointerKind::Arc(ty) => match TypeKind::from(ty.maybe_first_nested_type_ref()?) {
+                        TypeKind::Generic(GenericTypeKind::SmartPointer(smart_pointer_kind)) =>
+                            GenericComposerWrapper::smart_ptr(root_kind, smart_pointer_kind, ty_context, attrs, scope_context),
+                        _ =>
+                            GenericComposerWrapper::any_other(root_kind.as_type(), ty_context, attrs, scope_context),
+                    },
+
+                    _ =>
+                        GenericComposerWrapper::any_other(root_kind.as_type(), ty_context, attrs, scope_context),
+                }
             }
             MixinKind::Generic(GenericTypeKind::AnyOther(ty)) =>
                 GenericComposerWrapper::any_other(ty, ty_context, attrs, scope_context),

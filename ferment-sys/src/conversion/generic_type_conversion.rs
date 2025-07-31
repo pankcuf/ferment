@@ -8,8 +8,8 @@ use crate::ast::AddPunctuated;
 use crate::composable::{FieldComposer, GenericBoundsModel};
 use crate::composer::{SourceComposable, VariableComposer};
 use crate::context::ScopeContext;
-use crate::ext::{Mangle, Resolve, ToType, AsType};
-use crate::presentable::{Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SmartPointerPresentableContext};
+use crate::ext::{Mangle, Resolve, ToType, AsType, GenericNestedArg};
+use crate::presentable::{Aspect, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable, SmartPointerPresentableContext};
 use crate::presentation::DictionaryExpr;
 
 #[allow(unused)]
@@ -158,14 +158,17 @@ impl CallbackKind {
 #[derive(Clone, PartialEq, Eq)]
 pub enum SmartPointerKind {
     Box(Type),
-    Cell(Type),
     Rc(Type),
     Arc(Type),
+
+    Cell(Type),
     RefCell(Type),
     UnsafeCell(Type),
+
     Mutex(Type),
     OnceLock(Type),
     RwLock(Type),
+
     Pin(Type),
 }
 impl SmartPointerKind {
@@ -187,6 +190,41 @@ impl SmartPointerKind {
             SmartPointerKind::RefCell(_) => DictionaryExpr::RefCell,
             SmartPointerKind::UnsafeCell(_) => DictionaryExpr::UnsafeCell,
             _ => panic!("SmartPointerKind::dictionary_type")
+        }
+    }
+
+    pub fn wrapped_arg_type(&self) -> Option<&Type> {
+        match self {
+            SmartPointerKind::Rc(_) |
+            SmartPointerKind::Arc(_) =>
+                self.as_type().maybe_first_nested_type_ref()?.maybe_first_nested_type_ref(),
+            _ => self.as_type().maybe_first_nested_type_ref()
+        }
+    }
+    pub fn wrap_alloc<SPEC, T>(&self, expr: Expression<SPEC>) -> Expression<SPEC>
+        where SPEC: Specification<Expr=Expression<SPEC>>,
+              Expression<SPEC>: ScopeContextPresentable,
+              T: ToTokens {
+        match self {
+            SmartPointerKind::Rc(_) |
+            SmartPointerKind::Arc(_) => Expression::<SPEC>::new_smth(expr, self.dictionary_type()),
+            _ => expr,
+        }
+    }
+    pub fn wrap_from<SPEC, T>(&self, expr: T) -> Expression<SPEC>
+        where SPEC: Specification<Expr=Expression<SPEC>>,
+              Expression<SPEC>: ScopeContextPresentable,
+              T: ToTokens {
+        match self {
+            SmartPointerKind::Rc(_) => Expression::dict_expr(DictionaryExpr::from_rc(DictionaryExpr::deref_ref(expr))),
+            SmartPointerKind::Arc(_) => Expression::dict_expr(DictionaryExpr::from_arc(DictionaryExpr::deref_ref(expr))),
+            SmartPointerKind::Mutex(_) |
+            SmartPointerKind::OnceLock(_) |
+            SmartPointerKind::RwLock(_) |
+            SmartPointerKind::Cell(_) |
+            SmartPointerKind::RefCell(_) |
+            SmartPointerKind::UnsafeCell(_) => Expression::dict_expr(DictionaryExpr::from_ptr_read(expr)),
+            _ => Expression::simple(expr),
         }
     }
     pub fn wrap_arg_to<SPEC>(&self, expr: Expression<SPEC>) -> Expression<SPEC>

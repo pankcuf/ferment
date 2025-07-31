@@ -67,6 +67,12 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
                 format!("{ident}_Body")
                     .replace("r#", ""),
             Name::Expr(expr) =>
+                expr.to_token_stream().to_string(),
+            Name::Read(expr) =>
+                expr.to_token_stream().to_string(),
+            Name::Write(expr) =>
+                expr.to_token_stream().to_string(),
+            Name::DictionaryExpr(expr) =>
                 expr.to_token_stream().to_string()
         }
     }
