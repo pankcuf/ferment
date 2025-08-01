@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use crate::ast::PathHolder;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::ItemExtension;
 
 #[derive(Clone, Eq)]

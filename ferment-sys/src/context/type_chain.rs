@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::{Generics, Path, Type};
 use crate::ast::TypeHolder;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{AsType, Constraints, ContainsSubType, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
 

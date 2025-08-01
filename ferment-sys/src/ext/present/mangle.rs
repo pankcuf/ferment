@@ -5,7 +5,7 @@ use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, 
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{AsType, LifetimeProcessor, ToPath};
 
 #[derive(Default, Copy, Clone)]

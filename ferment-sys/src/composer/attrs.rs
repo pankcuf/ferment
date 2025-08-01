@@ -65,7 +65,7 @@ impl<SPEC, Link> SourceComposable for AttrsComposer<SPEC, Link>
 //             let composer = signature_decomposition.borrow();
 //             // TraitComposer::from_item_trait()
 //             // composer.expand()
-//             let FnReturnTypeComposition { presentation: output_expression, conversion: output_conversions } = signature_decomposition.return_type;
+//             let FnReturnTypeComposition { presentation: output_expression, kind: output_conversions } = signature_decomposition.return_type;
 //             let fn_name = signature_decomposition.ident.unwrap();
 //             let ffi_fn_name = format_ident!("{}_{}", item_name, fn_name);
 //             let arguments_presentation = Wrapped::<_, Paren>::new(signature_decomposition
@@ -143,7 +143,7 @@ impl<SPEC, Link> SourceComposable for AttrsComposer<SPEC, Link>
 //             // dec.compose()
 //             // TraitComposer::from_item_trait()
 //             // composer.expand()
-//             let FnReturnTypeComposer { presentation: output, conversion: output_conversions } = dec;
+//             let FnReturnTypeComposer { presentation: output, kind: output_conversions } = dec;
 //             let fn_name = signature_decomposition.ident.unwrap();
 //             let args = Punctuated::<OwnedItemPresentableContext, Comma>::from_iter(signature_decomposition
 //                 .arguments

@@ -4,7 +4,7 @@ use syn::{ItemTrait, Path,};
 use crate::ast::PathHolder;
 use crate::composable::TraitModelPart1;
 use crate::context::ScopeChain;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 
 #[derive(Clone, Default)]
 pub struct TraitsResolver {

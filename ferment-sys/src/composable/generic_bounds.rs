@@ -7,7 +7,7 @@ use crate::ast::CommaPunctuated;
 use crate::composable::{TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{AsType, Mangle, MaybeLambdaArgs};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::lang::Specification;

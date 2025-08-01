@@ -4,7 +4,7 @@ use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, TargetVarComposer};
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::{objc_primitive, resolve_type_variable};

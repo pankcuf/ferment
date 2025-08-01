@@ -2,7 +2,7 @@ use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericPar
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use crate::ast::AddPunctuated;
-use crate::conversion::TypeKind;
+use crate::kind::TypeKind;
 use crate::tree::ScopeTreeExportID;
 
 pub trait ItemExtension {

@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use syn::{Ident, parse_quote, Path, Type};
 use crate::{Config, Crate};
 use crate::context::{GlobalContext, ScopeChain, ScopeContext};
-use crate::conversion::TypeKind;
+use crate::kind::TypeKind;
 use crate::ext::Mangle;
 
 #[cfg(test)]

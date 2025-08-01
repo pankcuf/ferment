@@ -9,7 +9,7 @@ use crate::ast::PathHolder;
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
 use crate::formatter::{format_global_context, format_mixin_kinds};
 
@@ -360,7 +360,7 @@ impl GlobalContext {
                 let maybe_lambda = conversion.is_lambda();
                 let skip = all_of_them_are_non_fermentable && maybe_custom.is_none() && !maybe_lambda;
                 // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
-                //println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), conversion);
+                //println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), kind);
                 skip
             }
             None => false

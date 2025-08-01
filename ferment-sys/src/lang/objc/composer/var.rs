@@ -5,7 +5,7 @@ use syn::spanned::Spanned;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer, VariableComposer};
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{path_arguments_to_type_conversions, AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ResolveTrait, SpecialType, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
@@ -295,24 +295,24 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                         let conversion = ty_model_kind.maybe_trait_object_maybe_model_kind_or_same(source);
                         match conversion {
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
-                                // println!("VariableComposer (Boxed conversion): {}", conversion);
+                                // println!("VariableComposer (Boxed kind): {}", kind);
                                 // let nested_ty = ty.first_nested_type().unwrap();
                                 let ty = model.as_type();
                                 let nested_ty = self.ty.maybe_first_nested_type_ref().unwrap();
                                 let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
                                 match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => {
-                                        // println!("VariableComposer (Special Boxed conversion): Nested Type: {}", special.to_token_stream());
+                                        // println!("VariableComposer (Special Boxed kind): Nested Type: {}", special.to_token_stream());
                                         match source.maybe_object_by_key(nested_ty) {
                                             Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
                                                  ObjectKind::Type(TypeModelKind::FnPointer(..), ..)) => {
-                                                // println!("VariableComposer (Special Boxed conversion): Nested Special FnPointer: {}", nested_ty.to_token_stream());
+                                                // println!("VariableComposer (Special Boxed kind): Nested Special FnPointer: {}", nested_ty.to_token_stream());
                                                 FFIVariable::direct(special.to_token_stream())
                                             }
                                             Some(ObjectKind::Item(TypeModelKind::Trait(..), ..) |
                                                  ObjectKind::Type(TypeModelKind::TraitType(..), ..) |
                                                  ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..)) => {
-                                                // println!("VariableComposer (Special Boxed conversion): Nested Special Trait: {}", nested_ty.to_token_stream());
+                                                // println!("VariableComposer (Special Boxed kind): Nested Special Trait: {}", nested_ty.to_token_stream());
                                                 let ty = special.to_type();
                                                 // let ty = parse_quote!(dyn #ty);
                                                 if is_const_ptr {
@@ -323,7 +323,7 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
 
                                             },
                                             _ => {
-                                                // println!("VariableComposer (Boxed conversion): Nested Special MutPtr: {}", nested_ty.to_token_stream());
+                                                // println!("VariableComposer (Boxed kind): Nested Special MutPtr: {}", nested_ty.to_token_stream());
                                                 let ty = special.to_type();
                                                 if is_const_ptr {
                                                     FFIVariable::const_ptr(ty.to_token_stream())
@@ -421,7 +421,7 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) => {
                                 // Dictionary generics should be fermented
                                 // Others should be treated as opaque
-                                // println!("VariableComposer (Dictionary NonPrimitiveOpaque Conversion): {}", conversion.to_token_stream());
+                                // println!("VariableComposer (Dictionary NonPrimitiveOpaque Conversion): {}", kind.to_token_stream());
                                 let result = Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&conversion, source);
                                 // println!("VariableComposer (Dictionary NonPrimitiveOpaque Variable): {}", result.to_token_stream());
                                 result
@@ -431,9 +431,9 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                             }
 
                             ref cnv => {
-                                // println!("VariableComposer (Regular Fermentable Conversion): {}", conversion);
-                                // let result: FFIVariable = conversion.resolve(source);
-                                // let conversion_ty = conversion.ty();
+                                // println!("VariableComposer (Regular Fermentable Conversion): {}", kind);
+                                // let result: FFIVariable = kind.resolve(source);
+                                // let conversion_ty = kind.ty();
                                 let object = Resolve::<ObjectKind>::maybe_resolve(&self.ty, source);
                                 // println!("VariableComposer (Regular Fermentable Conversion (Object?)): {}", object.as_ref().map_or("None".to_string(), |o| format!("{}", o)));
                                 let var_ty = match object {
@@ -468,7 +468,7 @@ impl SourceComposable for VariableComposer<ObjCSpecification> {
                     }
                 }
 
-                // let conversion = Resolve::<TypeModelKind>::resolve(&self.ty, source);
+                // let kind = Resolve::<TypeModelKind>::resolve(&self.ty, source);
 
             }
         };
@@ -610,14 +610,14 @@ pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
 //                         resolve_type_variable(match Resolve::<Option<SpecialType>>::resolve(nested_full_ty, source) {
 //                             Some(special) => special.to_type(),
 //                             None => {
-//                                 let conversion = Resolve::<TypeModelKind>::resolve(nested_full_ty, source);
-//                                 Resolve::<Option<FFIFullPath<ObjCFermentate, SPEC>>>::resolve(&conversion.to_type(), source)
+//                                 let kind = Resolve::<TypeModelKind>::resolve(nested_full_ty, source);
+//                                 Resolve::<Option<FFIFullPath<ObjCFermentate, SPEC>>>::resolve(&kind.to_type(), source)
 //                                     .map(|full_path| full_path.to_type())
 //                                     .unwrap_or_else(|| nested_full_ty.clone())
 //                             }
 //                         }, source)
 //                     }
-//                     None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
+//                     None => panic!("error: Arg kind ({}) not supported", ty.to_token_stream())
 //                 }
 //             },
 //             TypeModelKind::Dictionary(
@@ -708,7 +708,7 @@ pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
 //             },
 //             TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
 //                 // ty.to_path().popped()
-//                 panic!("error: Arg conversion (Fn) ({}) not supported", ty.to_token_stream())
+//                 panic!("error: Arg kind (Fn) ({}) not supported", ty.to_token_stream())
 //             },
 //
 //             TypeModelKind::Bounds(bounds) => {
@@ -716,7 +716,7 @@ pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
 //                 bounds.resolve(source)
 //             },
 //             ty =>
-//                 panic!("error: Arg conversion ({}) not supported", ty),
+//                 panic!("error: Arg kind ({}) not supported", ty),
 //         };
 //         // println!("TypeModelKind::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
 //         result

@@ -105,7 +105,7 @@ impl Builder {
     /// This function expects the primary Rust file to be named `lib.rs` and located inside
     /// the `src/` directory. Any deviation from this naming and structure might lead to errors.
     ///
-    /// The resulting module will only contain the necessary imports and types suitable for FFI conversion.
+    /// The resulting module will only contain the necessary imports and types suitable for FFI kind.
     ///
     pub fn generate(self) -> Result<(), error::Error> {
         Writer::from(self.config)

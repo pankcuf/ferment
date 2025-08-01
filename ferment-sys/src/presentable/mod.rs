@@ -7,7 +7,7 @@ use crate::context::ScopeContext;
 mod binding;
 mod expression;
 mod name;
-mod argument;
+mod arg;
 mod sequence;
 mod aspect;
 #[allow(unused)]
@@ -17,7 +17,7 @@ pub use aspect::*;
 pub use binding::*;
 pub use expression::*;
 pub use name::*;
-pub use argument::*;
+pub use arg::*;
 pub use interface::*;
 pub use sequence::*;
 use syn::{Attribute, Path};

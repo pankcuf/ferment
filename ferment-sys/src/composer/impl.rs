@@ -3,15 +3,14 @@ use std::rc::Rc;
 use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
-use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink, VTableComposerLink, SourceAccessible};
+use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, BasicComposerLink, VTableComposerLink, SourceAccessible};
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
-use crate::presentation::{DocComposer, DocPresentation, RustFermentate};
+use crate::presentation::{DocComposer, DocPresentation};
 
 #[derive(ComposerBase)]
 pub struct ImplComposer<SPEC>
@@ -90,23 +89,6 @@ impl<SPEC> DocsComposable for ImplComposer<SPEC>
     where SPEC: Specification {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(self.context()))
-    }
-}
-
-impl SourceFermentable<RustFermentate> for ImplComposer<RustSpecification> {
-    fn ferment(&self) -> RustFermentate {
-        let mut items = Depunctuated::<RustFermentate>::new();
-        self.methods.iter().for_each(|sig_composer| {
-            let fermentate = sig_composer.borrow().ferment();
-            items.push(fermentate);
-        });
-        let vtable = self.vtable.as_ref()
-            .map(|composer| {
-                let composer = composer.borrow();
-                let composer_source = composer.source_ref();
-                composer.compose(&composer_source)
-            });
-        RustFermentate::Impl { comment: DocPresentation::Empty, items, vtable }
     }
 }
 

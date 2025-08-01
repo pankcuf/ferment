@@ -8,7 +8,7 @@ use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
 use crate::composer::MaybeMacroLabeled;
 use crate::context::Scope;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 

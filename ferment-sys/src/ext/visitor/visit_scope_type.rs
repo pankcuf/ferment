@@ -5,7 +5,7 @@ use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, ToPath, ToType};
 use crate::nprint;
 

@@ -3,11 +3,11 @@ use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, ItemFn, ItemI
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
 use crate::ast::Void;
-use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, SourceFermentable, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposerLink};
+use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::Specification;
 use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind, Expression};
-use crate::presentation::{Name, RustFermentate};
+use crate::presentation::Name;
 
 #[allow(unused)]
 pub enum ItemComposerWrapper<SPEC>
@@ -152,23 +152,3 @@ impl<SPEC> AttrComposable<SPEC::Attr> for ItemComposerWrapper<SPEC>
         }
     }
 }
-
-impl ItemComposerWrapper<RustSpecification> {
-    pub fn ferment(&self) -> RustFermentate {
-        match self {
-            ItemComposerWrapper::Enum(composer) => composer.borrow().ferment(),
-            ItemComposerWrapper::EnumVariantNamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::EnumVariantUnnamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::EnumVariantUnit(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::StructNamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::StructUnnamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::OpaqueStructUnnamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::OpaqueStructNamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::Sig(composer) => composer.borrow().ferment(),
-            ItemComposerWrapper::TypeAlias(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::Trait(composer) => composer.borrow().ferment(),
-            ItemComposerWrapper::Impl(composer) => composer.borrow().ferment(),
-        }
-    }
-}
-

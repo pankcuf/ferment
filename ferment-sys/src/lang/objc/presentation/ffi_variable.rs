@@ -6,7 +6,7 @@ use syn::{parse_quote, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBoun
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullPath, FFIVariable};
@@ -191,7 +191,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                             }
                         }, source)
                     }
-                    None => panic!("error: Arg conversion ({}) not supported", ty.to_token_stream())
+                    None => panic!("error: Arg kind ({}) not supported", ty.to_token_stream())
                 }
             },
             TypeModelKind::Dictionary(
@@ -243,7 +243,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
             },
             TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
                 // ty.to_path().popped()
-                panic!("error: Arg conversion (Fn) ({}) not supported", ty.to_token_stream())
+                panic!("error: Arg kind (Fn) ({}) not supported", ty.to_token_stream())
             },
 
             TypeModelKind::Bounds(bounds) => {
@@ -251,7 +251,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
                 bounds.resolve(source)
             },
             ty =>
-                panic!("error: Arg conversion ({}) not supported", ty),
+                panic!("error: Arg kind ({}) not supported", ty),
         };
         // println!("TypeModelKind::<FFIVariable>::resolve.2({}) --> {}", self, result.to_token_stream());
         result

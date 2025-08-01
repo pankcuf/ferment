@@ -3,7 +3,7 @@ use syn::{ImplItemFn, Item, Signature, TraitItemFn};
 use syn::punctuated::Punctuated;
 use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
+use crate::kind::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::item::ItemExtension;
 use crate::ext::ToType;
 

@@ -5,7 +5,7 @@ use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
 use crate::composer::PunctuatedArgKinds;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, MixinKind};
+use crate::kind::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::presentable::ty_context::TypeContext;

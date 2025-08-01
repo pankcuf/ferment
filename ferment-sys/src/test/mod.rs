@@ -5,7 +5,7 @@ use syn::punctuated::Punctuated;
 use crate::ast::PathHolder;
 use crate::composable::TypeModel;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, TypeKind};
+use crate::kind::{GenericTypeKind, TypeKind};
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
 use crate::presentation::FFIFullPath;
 

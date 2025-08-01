@@ -8,7 +8,7 @@ use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::composer::MaybeMacroLabeled;
 use crate::context::ScopeChain;
-use crate::conversion::{MacroType, ObjectKind, ScopeItemKind, TypeModelKind};
+use crate::kind::{MacroKind, ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{Join, ToType};
 use crate::ext::item::collect_bounds;
 use crate::tree::Visitor;
@@ -306,8 +306,8 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
                     Item::Enum(..) |
                     Item::Type(..) |
                     Item::Impl(..) => {
-                        match MacroType::try_from(item) {
-                            Ok(MacroType::Export | MacroType::Opaque | MacroType::Register(_)) => {
+                        match MacroKind::try_from(item) {
+                            Ok(MacroKind::Export | MacroKind::Opaque | MacroKind::Register(_)) => {
                                 item.add_to_scope(&scope.joined(item), visitor)
                             }
                             Err(_) => {}

@@ -3,12 +3,10 @@ use quote::quote;
 use syn::parse_quote;
 use syn::Attribute;
 use crate::{Crate, error, print_phase};
-use crate::ast::{Depunctuated, SemiPunctuated};
-use crate::composer::{SourceComposable, GenericComposer, SourceAccessible, SourceFermentable};
+use crate::ast::Depunctuated;
+use crate::composer::SourceAccessible;
 use crate::context::ScopeContextLink;
 use crate::ext::RefineUnrefined;
-use crate::lang::RustSpecification;
-use crate::presentation::RustFermentate;
 use crate::tree::ScopeTree;
 use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTreeExportItem};
 
@@ -65,26 +63,3 @@ impl CrateTree {
     }
 }
 
-impl SourceFermentable<RustFermentate> for CrateTree {
-    fn ferment(&self) -> RustFermentate {
-        let Self { attrs, crates, generics_tree: ScopeTree { imported, .. }} = self;
-        let source = self.source_ref();
-        let reg_conversions = Depunctuated::from_iter(crates.iter().map(SourceFermentable::<RustFermentate>::ferment));
-        let generic_imports = SemiPunctuated::from_iter(imported.iter().cloned());
-        let generic_conversions = Depunctuated::from_iter(
-            source.context
-                .read()
-                .unwrap()
-                .refined_mixins
-                .iter()
-                .filter_map(|mixin_context| GenericComposer::<RustSpecification>::mixin(mixin_context, self.context()))
-                .flat_map(|composer| composer.borrow().compose(&source)));
-
-        RustFermentate::Root {
-            mods: Depunctuated::from_iter([
-                RustFermentate::types(attrs, reg_conversions),
-                RustFermentate::generics(attrs, generic_imports, generic_conversions)
-            ])
-        }
-    }
-}

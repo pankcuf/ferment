@@ -1,56 +1,17 @@
 use std::fmt::{Debug, Display, Formatter};
-use syn::{parse_quote, Attribute, Field, Type};
+use syn::{Attribute, Field, Type};
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
-use ferment_macro::Display;
+use quote::ToTokens;
 use crate::composable::CfgAttributes;
 use crate::composer::{FieldPathResolver, SourceFermentable};
 use crate::context::ScopeContext;
-use crate::ext::{Conversion, ToType};
-use crate::lang::{FromDictionary, LangAttrSpecification, RustSpecification, Specification};
+use crate::ext::Conversion;
+use crate::kind::FieldTypeKind;
+use crate::lang::{FromDictionary, LangAttrSpecification, Specification};
 use crate::presentable::{Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryName, Name, RustFermentate};
+use crate::presentation::{DictionaryName, Name};
 
-#[derive(Clone, Debug, Display)]
-pub enum FieldTypeKind<SPEC>
-    where SPEC: Specification {
-    Type(Type),
-    Conversion(TokenStream2),
-    Var(SPEC::Var)
-}
-impl<SPEC> ToTokens for FieldTypeKind<SPEC>
-    where SPEC: Specification {
-    fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            FieldTypeKind::Type(ty) => ty.to_tokens(tokens),
-            FieldTypeKind::Conversion(conversion) => conversion.to_tokens(tokens),
-            FieldTypeKind::Var(var) => var.to_tokens(tokens)
-        }
-    }
-}
-impl<SPEC> ToType for FieldTypeKind<SPEC>
-    where SPEC: Specification {
-    fn to_type(&self) -> Type {
-        match self {
-            FieldTypeKind::Type(ty) => ty.clone(),
-            FieldTypeKind::Var(var) => var.to_type(),
-            _ => panic!("improper use of conversion as type")
-        }
-    }
-}
-impl<SPEC> FieldTypeKind<SPEC>
-    where SPEC: Specification {
 
-    pub fn conversion<T: ToTokens>(conversion: T) -> Self {
-        Self::Conversion(conversion.to_token_stream())
-    }
-    pub fn r#type(ty: &Type) -> Self {
-        Self::Type(ty.clone())
-    }
-    pub fn type_count() -> Self {
-        Self::Type(parse_quote!(usize))
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct FieldComposer<SPEC>
@@ -67,14 +28,6 @@ impl<SPEC> Display for FieldComposer<SPEC>
         let Self { name, kind, named, attrs, .. } = self;
         f.write_str(format!("FieldComposer({name}({}), {kind}({}), {named}, {attrs}", name.to_token_stream(), kind.to_token_stream()).as_str())
     }
-}
-
-impl FieldComposer<RustSpecification> {
-    pub fn self_typed(ty: Type, attrs: &Vec<Attribute>) -> Self {
-        Self::new(Name::dictionary_name(DictionaryName::Self_), FieldTypeKind::Type(ty), true, attrs.cfg_attributes())
-    }
-
-
 }
 
 impl<SPEC> FieldComposer<SPEC>
@@ -104,7 +57,7 @@ impl<SPEC> FieldComposer<SPEC>
         if let FieldTypeKind::Type(ty) = &self.kind {
             ty
         } else {
-            panic!("improper use of conversion as type")
+            panic!("improper use of kind as type")
         }
     }
 
@@ -158,12 +111,6 @@ impl<SPEC> ToTokens for FieldComposer<SPEC>
     }
 }
 
-impl SourceFermentable<RustFermentate> for FieldComposer<RustSpecification> {
-    fn ferment(&self) -> RustFermentate {
-        let Self { name, kind, attrs, .. } = self;
-        RustFermentate::TokenStream(quote!(#(#attrs)* #name: #kind))
-    }
-}
 
 impl<SPEC> ScopeContextPresentable for FieldComposer<SPEC>
     where Self: ToTokens,

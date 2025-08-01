@@ -31,7 +31,7 @@ pub use xcproj::Config as XCodeConfig;
 use crate::ast::{Depunctuated, SemiPunctuated};
 use crate::composable::CfgAttributes;
 use crate::composer::{SourceComposable, GenericComposer, MaybeComposer, SourceAccessible, SourceFermentable};
-use crate::conversion::expand_attributes;
+use crate::kind::expand_attributes;
 use crate::presentable::Expression;
 use crate::presentation::{FFIVariable, Name};
 

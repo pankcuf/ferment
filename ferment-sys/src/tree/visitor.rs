@@ -6,7 +6,7 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
-use crate::conversion::{MacroType, ObjectKind};
+use crate::kind::{MacroKind, ObjectKind};
 use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
 use crate::nprint;
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
@@ -239,8 +239,8 @@ impl Visitor {
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
-        match (MacroType::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
-            (Ok(MacroType::Export | MacroType::Opaque), Ok(_)) => {
+        match (MacroKind::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
+            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => {
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);
@@ -251,7 +251,7 @@ impl Visitor {
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroType::Register(custom_type)), Ok(_)) => {
+            (Ok(MacroKind::Register(custom_type)), Ok(_)) => {
                 if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
                     let scope_context_borrowed = scope_context.borrow();
                     scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));

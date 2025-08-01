@@ -6,7 +6,7 @@ use quote::ToTokens;
 use syn::{Path, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{LifetimeProcessor, RefineMut, ToType};
 use crate::formatter::types_dict;
 use crate::lang::Specification;

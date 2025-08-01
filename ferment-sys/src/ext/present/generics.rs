@@ -1,5 +1,5 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type};
-use crate::conversion::TypeKind;
+use crate::kind::TypeKind;
 
 #[allow(unused)]
 pub trait GenericNestedArg {

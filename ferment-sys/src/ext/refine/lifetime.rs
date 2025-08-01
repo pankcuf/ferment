@@ -1,6 +1,6 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::{AddPunctuated, CommaPunctuated};
-use crate::conversion::{CallbackKind, GenericTypeKind, SmartPointerKind, TypeKind};
+use crate::kind::{CallbackKind, GenericTypeKind, SmartPointerKind, TypeKind};
 use crate::ext::ToType;
 
 pub trait LifetimeProcessor {

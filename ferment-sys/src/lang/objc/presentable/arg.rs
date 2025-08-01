@@ -113,7 +113,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             },
             ArgKind::AttrSequence(seq, attrs) => {
                 let conversion = seq.present(source);
-                //println!("OBJC ArgKind::AttrSequence: {}", conversion);
+                //println!("OBJC ArgKind::AttrSequence: {}", kind);
                 ArgPresentation::AttrConversion { conversion }
             },
             ArgKind::Unnamed(FieldComposer{ kind, name, attrs, .. }) => {
@@ -158,25 +158,18 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                     .compose(source)
                     .to_token_stream();
                 ArgPresentation::AttrConversion {
-                    conversion: quote! {
-                        #ty
-                    }
+                    conversion: quote! { #ty }
                 }
             },
             ArgKind::NamedReady(FieldComposer { attrs, name, kind, ..}, visibility) => {
                 let ty = kind.to_type();
-                ArgPresentation::AttrConversion {
-                    conversion: quote! {
-                        #ty
-                    }
-                }
+                ArgPresentation::AttrConversion { conversion: quote! { #ty } }
             }
 
             ArgKind::AttrExhaustive(attrs) => {
                 ArgPresentation::AttrConversion { conversion: quote!() }
             },
             ArgKind::CallbackArg(composer) => {
-                //println!("OBJC ArgKind::CallbackArg: {} {}", composer.name, composer.kind);
                 ArgPresentation::AttrConversion { conversion: quote!() }
             }
             ArgKind::AttrExpressionComposer(

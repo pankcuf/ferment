@@ -3,7 +3,7 @@ mod builder;
 mod composable;
 mod composer;
 mod context;
-mod conversion;
+mod kind;
 mod ext;
 mod error;
 mod formatter;
@@ -16,6 +16,7 @@ mod tree;
 mod lang;
 mod config;
 pub(crate) mod writer;
+mod cbindgen;
 
 pub use self::error::Error;
 pub use self::builder::Builder;

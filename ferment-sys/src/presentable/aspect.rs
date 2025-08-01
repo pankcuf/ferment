@@ -1,16 +1,14 @@
 use syn::{Attribute, parse_quote, Type, TypeSlice};
 use std::fmt::{Debug, Display};
-use proc_macro2::{Group, Ident, TokenTree};
-use quote::{quote, ToTokens};
+use proc_macro2::Ident;
+use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::token::Comma;
-use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::{FnSignatureContext, TypeModeled};
-use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, PunctuatedArgKinds, TypeAspect};
+use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, TypeAspect};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, MixinKind};
+use crate::kind::{GenericTypeKind, MixinKind};
 use crate::ext::{AsType, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::Specification;
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
 use crate::presentation::DictionaryName;
 
@@ -51,26 +49,6 @@ impl Aspect<TypeContext> {
             Aspect::RawTarget(context) => context.attrs(),
         }
     }
-    #[allow(unused)]
-    pub fn allocate<I>(&self, fields: Wrapped<PunctuatedArgKinds<RustSpecification, Comma>, Comma, I>, source: &ScopeContext) -> TokenStream2
-    where I: DelimiterTrait {
-        let aspect_presentation = self.present(source);
-        match self {
-            Aspect::Target(_context) => {
-                let fields_presentation = TokenTree::Group(Group::new(I::delimiter(), fields.content.present(source).to_token_stream()));
-                quote! {
-                    #aspect_presentation #fields_presentation
-                }
-            }
-            Aspect::FFI(_context) | Aspect::RawTarget(_context) => {
-                let fields_presentation = TokenTree::Group(Group::new(I::delimiter(), fields.content.present(source).to_token_stream()));
-                quote! {
-                    #aspect_presentation #fields_presentation
-                }
-            }
-        }
-    }
-
     pub fn raw_struct_ident(ident: Ident) -> Self {
         Aspect::RawTarget(TypeContext::struct_ident(ident))
     }

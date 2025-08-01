@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::formatter::types_dict;
 
 #[derive(Clone, Default)]

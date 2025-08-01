@@ -7,18 +7,15 @@ mod sequence_mixer;
 mod spec;
 mod var_composable;
 
-use syn::{Field, Item, Meta, Path, Type, Visibility, Attribute, FieldMutability};
+use syn::{Item, Meta, Path, Attribute};
 use syn::parse::Parser;
-use syn::token::Pub;
-use crate::ast::{CommaPunctuated, PathHolder, TypeHolder};
-use crate::composable::CfgAttributes;
-use crate::composer::{ItemComposerWrapper, SigComposer};
-use crate::composer::type_alias::TypeAliasComposer;
+use crate::ast::{CommaPunctuated, TypeHolder};
+use crate::composer::ItemComposerWrapper;
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::conversion::{MacroType, ScopeItemKind};
-use crate::ext::{CrateExtension, ItemExtension, ToPath, ToType};
-use crate::lang::{RustSpecification, Specification};
-use crate::presentable::{TypeContext, ScopeContextPresentable, Expression};
+use crate::kind::{MacroKind, ScopeItemKind};
+use crate::ext::{ItemExtension, ToType};
+use crate::lang::Specification;
+use crate::presentable::{ScopeContextPresentable, Expression};
 pub use self::composable::*;
 pub use self::context::*;
 pub use self::iterative::*;
@@ -29,23 +26,23 @@ pub use self::spec::*;
 pub use self::var_composable::*;
 
 pub trait MaybeMacroLabeled {
-    fn maybe_macro_labeled(&self) -> Option<MacroType>;
+    fn maybe_macro_labeled(&self) -> Option<MacroKind>;
     fn is_labeled_for_export(&self) -> bool {
-        if let Some(MacroType::Export) = self.maybe_macro_labeled() {
+        if let Some(MacroKind::Export) = self.maybe_macro_labeled() {
             true
         } else {
             false
         }
     }
     fn is_labeled_for_opaque_export(&self) -> bool {
-        if let Some(MacroType::Opaque) = self.maybe_macro_labeled() {
+        if let Some(MacroKind::Opaque) = self.maybe_macro_labeled() {
             true
         } else {
             false
         }
     }
     fn is_labeled_for_register(&self) -> bool {
-        if let Some(MacroType::Register(_)) = self.maybe_macro_labeled() {
+        if let Some(MacroKind::Register(_)) = self.maybe_macro_labeled() {
             true
         } else {
             false
@@ -67,26 +64,26 @@ pub trait SourceComposable {
 }
 
 impl MaybeMacroLabeled for Item {
-    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+    fn maybe_macro_labeled(&self) -> Option<MacroKind> {
         self.maybe_attrs()
             .and_then(MaybeMacroLabeled::maybe_macro_labeled)
     }
 }
 
 impl MaybeMacroLabeled for ScopeItemKind {
-    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+    fn maybe_macro_labeled(&self) -> Option<MacroKind> {
         self.maybe_attrs().and_then(MaybeMacroLabeled::maybe_macro_labeled)
     }
 }
 
 impl MaybeMacroLabeled for Vec<Attribute> {
-    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+    fn maybe_macro_labeled(&self) -> Option<MacroKind> {
         self.iter().find_map(MaybeMacroLabeled::maybe_macro_labeled)
     }
 }
 
 impl MaybeMacroLabeled for Attribute {
-    fn maybe_macro_labeled(&self) -> Option<MacroType> {
+    fn maybe_macro_labeled(&self) -> Option<MacroKind> {
         let mut arguments = Vec::<Path>::new();
         let mut macro_name: Option<String> = None;
 
@@ -143,60 +140,14 @@ impl MaybeMacroLabeled for Attribute {
         let detected_macro = macro_name?;
 
         match detected_macro.as_str() {
-            "export" => Some(MacroType::Export),
-            "opaque" => Some(MacroType::Opaque),
+            "export" => Some(MacroKind::Export),
+            "opaque" => Some(MacroKind::Opaque),
             "register" => {
                 let first_argument = arguments.first()?;
-                Some(MacroType::Register(TypeHolder(first_argument.to_type())))
+                Some(MacroKind::Register(TypeHolder(first_argument.to_type())))
             }
             _ => None,
         }
     }
 }
 
-impl MaybeComposer<RustSpecification> for Item {
-    fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<RustSpecification>> {
-        self.maybe_macro_labeled()
-            .and_then(|macro_type| {
-                let source = scope_context.borrow();
-                let crate_ident = source.scope.crate_ident_as_path();
-                match (macro_type, self) {
-                    (MacroType::Opaque, Item::Struct(item)) =>
-                        Some(ItemComposerWrapper::opaque_struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
-                    (MacroType::Export, Item::Struct(item)) =>
-                        Some(ItemComposerWrapper::r#struct(item, TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
-                    (MacroType::Export, Item::Enum(item)) =>
-                        Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), scope_context)),
-                    (MacroType::Export, Item::Type(item)) => match &*item.ty {
-                        Type::BareFn(type_bare_fn) =>
-                            Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
-                        _ => {
-                            let fields = CommaPunctuated::from_iter([Field {
-                                vis: Visibility::Public(Pub::default()),
-                                ty: *item.ty.clone(),
-                                attrs: vec![],
-                                ident: None,
-                                colon_token: None,
-                                mutability: FieldMutability::None,
-                            }]);
-                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
-                        }
-                    },
-                    (MacroType::Export, Item::Fn(item)) =>
-                        Some(ItemComposerWrapper::r#fn(item, TypeContext::mod_fn(scope.self_path().crate_named(&crate_ident), item), scope_context)),
-                    (MacroType::Export, Item::Trait(item)) =>
-                        Some(ItemComposerWrapper::r#trait(item, TypeContext::r#trait(item), scope, scope_context)),
-                    (MacroType::Export, Item::Impl(item)) => {
-                        let mut full_fn_path = scope.self_path_holder();
-                        if full_fn_path.is_crate_based() {
-                            full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident_ref().to_path()));
-                        }
-                        let trait_path = item.trait_.as_ref().map(|(_, trait_, _)| trait_.clone());
-                        Some(ItemComposerWrapper::r#impl(item, TypeContext::r#impl(full_fn_path.0, trait_path, item.attrs.cfg_attributes()), scope, scope_context))
-                    }
-                    _ => None
-                }
-            })
-
-    }
-}

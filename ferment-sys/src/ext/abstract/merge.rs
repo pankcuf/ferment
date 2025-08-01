@@ -2,7 +2,7 @@ use std::collections::hash_map::{Entry, OccupiedEntry};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::tree::ScopeTreeExportItem;
 
 pub trait MergePolicy<K, V>: Clone + Copy + Sized {

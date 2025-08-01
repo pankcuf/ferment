@@ -1,8 +1,4 @@
-use std::marker::PhantomData;
-use syn::{parse_quote, Path, Type};
 use ferment_macro::Display;
-use crate::ext::{ToPath, ToType};
-use crate::lang::{RustSpecification, Specification};
 
 #[allow(unused)]
 #[derive(Display)]
@@ -41,28 +37,4 @@ pub enum GlobalType {
     Result, // For error handling.
 }
 
-#[derive(Debug)]
-pub enum FFIFullDictionaryPath<SPEC>
-    where SPEC: Specification {
-    Void,
-    CChar,
-    Phantom(PhantomData<SPEC>)
-}
 
-impl ToType for FFIFullDictionaryPath<RustSpecification> {
-    fn to_type(&self) -> Type {
-        match self {
-            FFIFullDictionaryPath::Void => parse_quote!(std::os::raw::c_void),
-            FFIFullDictionaryPath::CChar => parse_quote!(std::os::raw::c_char),
-            FFIFullDictionaryPath::Phantom(_) => panic!("")
-        }
-    }
-}
-impl<SPEC> ToPath for FFIFullDictionaryPath<SPEC>
-    where SPEC: Specification,
-          FFIFullDictionaryPath<SPEC>: ToType {
-    fn to_path(&self) -> Path {
-        self.to_type()
-            .to_path()
-    }
-}

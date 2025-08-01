@@ -9,7 +9,7 @@ use crate::ast::Depunctuated;
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::composer::{SigComposer, SigComposerLink};
 use crate::context::ScopeContextLink;
-use crate::conversion::TypeModelKind;
+use crate::kind::TypeModelKind;
 use crate::ext::{Join, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::lang::Specification;

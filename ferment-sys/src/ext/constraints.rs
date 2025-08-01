@@ -134,12 +134,6 @@ impl Constraints for AngleBracketedGenericArguments {
     }
 }
 
-// impl Constraints for Binding {
-//     fn has_self(&self) -> bool {
-//         self.ident.to_string().as_str().eq("Self") || self.ty.has_self()
-//     }
-// }
-
 impl Constraints for ReturnType {
     fn has_self(&self) -> bool {
         if let ReturnType::Type(_, ty) = self {

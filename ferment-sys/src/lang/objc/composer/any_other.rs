@@ -140,11 +140,11 @@ impl SourceComposable for AnyOtherComposer<ObjCSpecification> {
         //     types: types.clone(),
         //     conversions: (
         //         {
-        //             let conversion = from_conversion.present(source);
+        //             let kind = from_conversion.present(source);
         //             let from = maybe_opaque.as_ref().map_or(quote!(new), |_| quote!(from_raw));
         //             quote! {
         //             let ffi_ref = &*ffi;
-        //             #ctor_path::#from(#conversion)
+        //             #ctor_path::#from(#kind)
         //         }
         //         },
         //         None

@@ -3,7 +3,7 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Path, PathSegment, Type};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum ScopeTreeExportID {

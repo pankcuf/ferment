@@ -29,7 +29,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         let value_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Value);
 
         // let from_body = Expression::<ObjCSpecification>::dict_expr(DictionaryExpr::from_root(self.root_kind.wrap_from::<ObjCSpecification, DictionaryExpr>(DictionaryExpr::ffi_ref_prop(&arg_0_name)).present(source)));
-        // let to_body = Expression::<ObjCSpecification>::interface_expr(InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(arg_0_name.field_composer(FieldTypeKind::conversion(InterfacesMethodExpr::Boxed(arg_0_name.to_token_stream()))).present(source)).to_token_stream()));
+        // let to_body = Expression::<ObjCSpecification>::interface_expr(InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(arg_0_name.field_composer(FieldTypeKind::kind(InterfacesMethodExpr::Boxed(arg_0_name.to_token_stream()))).present(source)).to_token_stream()));
         // let drop_body = Expression::<ObjCSpecification>::interface_expr(InterfacesMethodExpr::UnboxAny(DictionaryExpr::self_prop(&arg_0_name).to_token_stream()));
 
         let interfaces = Depunctuated::<InterfaceImplementation>::new();

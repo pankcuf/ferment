@@ -8,7 +8,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
 
-/// The `export` procedural macro facilitates FFI (Foreign Function Interface) conversion
+/// The `export` procedural macro facilitates FFI (Foreign Function Interface) kind
 /// for a given function. It handles both input arguments and output types, converting them into a format
 /// suitable for FFI boundaries.
 ///
@@ -36,12 +36,12 @@ use syn::token::Comma;
 /// ## Function Conversion
 ///
 /// The macro processes the function's input arguments and return type, performing necessary transformations
-/// like memory allocation/deallocation, pointer conversion, etc., to make them FFI-compatible.
+/// like memory allocation/deallocation, pointer kind, etc., to make them FFI-compatible.
 ///
 /// # Panics
 ///
-/// - The macro will panic if any of the function's argument types are not supported for conversion.
-/// - The macro will also panic if the function's return type is not supported for conversion.
+/// - The macro will panic if any of the function's argument types are not supported for kind.
+/// - The macro will also panic if the function's return type is not supported for kind.
 ///
 /// # Example
 ///

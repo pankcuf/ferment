@@ -3,7 +3,7 @@ use syn::parse::Parser;
 use crate::ast::{CommaPunctuated, TypeHolder};
 use crate::composable::GenericBoundsModel;
 use crate::composer::MaybeMacroLabeled;
-use crate::conversion::ScopeItemKind;
+use crate::kind::ScopeItemKind;
 use crate::ext::UniqueNestedItems;
 
 #[allow(unused)]

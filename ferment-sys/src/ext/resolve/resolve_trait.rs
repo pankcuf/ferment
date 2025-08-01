@@ -1,6 +1,6 @@
 use syn::{parse_quote, Path, Type};
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::conversion::{ObjectKind, TypeKind, TypeModelKind};
+use crate::kind::{ObjectKind, TypeKind, TypeModelKind};
 use crate::ext::{AsType, ToType};
 
 pub trait ResolveTrait where Self: Sized + ToType {

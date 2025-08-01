@@ -1,3 +1,12 @@
+mod composer;
+mod kind;
+mod presentable;
+mod composable;
+mod ext;
+mod presentation;
+mod tree;
+mod writer;
+
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};

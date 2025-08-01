@@ -7,11 +7,11 @@ use syn::token::{Brace, Paren};
 use ferment_macro::ComposerBase;
 use crate::ast::{DelimiterTrait, Depunctuated, Void};
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{AspectPresentable, AttrComposable, BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, GenericsComposable, InterfaceComposable, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, SourceFermentable, TypeAspect, ArgKindPairs, LifetimesComposable};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, ArgKindPairs};
 use crate::context::ScopeContextLink;
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::Specification;
 use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind};
-use crate::presentation::{DocComposer, DocPresentation, FFIObjectPresentation, InterfacePresentation, RustFermentate};
+use crate::presentation::{DocComposer, DocPresentation, FFIObjectPresentation};
 
 
 #[derive(ComposerBase)]
@@ -158,54 +158,6 @@ impl<SPEC, I> BindingComposable<SPEC> for ItemComposer<SPEC, I>
     }
 }
 
-impl<I> InterfaceComposable<<RustSpecification as Specification>::Interface> for ItemComposer<RustSpecification, I>
-    where I: DelimiterTrait + ?Sized,
-          Self: GenericsComposable<<RustSpecification as Specification>::Gen>
-            + LifetimesComposable<<RustSpecification as Specification>::Lt>
-            + AttrComposable<<RustSpecification as Specification>::Attr>
-            + TypeAspect<<RustSpecification as Specification>::TYC>
-            + NameKindComposable {
-
-    fn compose_interfaces(&self) -> Depunctuated<<RustSpecification as Specification>::Interface> {
-        let generics = self.compose_generics();
-        let lifetimes = self.compose_lifetimes();
-        let attrs = self.compose_attributes();
-        let source = self.source_ref();
-        let from = self.compose_aspect(FFIAspect::From).present(&source);
-        let to = self.compose_aspect(FFIAspect::To).present(&source);
-        let drop = self.compose_aspect(FFIAspect::Drop).present(&source);
-        let ffi_type = self.present_ffi_aspect();
-        let types = (ffi_type.clone(), self.present_target_aspect());
-        Depunctuated::from_iter([
-            InterfacePresentation::conversion_from(&attrs, &types, from, &generics, &lifetimes),
-            InterfacePresentation::conversion_to(&attrs, &types, to, &generics, &lifetimes),
-            InterfacePresentation::drop(&attrs, ffi_type, drop)
-        ])
-    }
-}
-
-impl<I> SourceFermentable<RustFermentate> for ItemComposer<RustSpecification, I>
-    where I: DelimiterTrait + ?Sized,
-          Self: NameKindComposable {
-    fn ferment(&self) -> RustFermentate {
-        let conversions = self.ffi_conversions_composer
-            .as_ref()
-            .map(|_| self.compose_interfaces())
-            .unwrap_or_default();
-        let comment = self.ffi_object_composer
-            .as_ref()
-            .map(|_| self.compose_docs())
-            .unwrap_or_default();
-        RustFermentate::Item {
-            attrs: self.compose_attributes(),
-            comment,
-            ffi_presentation: self.compose_object(),
-            conversions,
-            bindings: self.compose_bindings().present(&self.source_ref()),
-            traits: Depunctuated::new()
-        }
-    }
-}
 
 
 

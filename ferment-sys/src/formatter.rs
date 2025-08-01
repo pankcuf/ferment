@@ -6,7 +6,7 @@ use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
 use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
-use crate::conversion::{MixinKind, ObjectKind};
+use crate::kind::{MixinKind, ObjectKind};
 use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]

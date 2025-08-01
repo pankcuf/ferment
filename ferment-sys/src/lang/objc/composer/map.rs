@@ -5,7 +5,7 @@ use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composable::FieldTypeKind;
 use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ConversionToComposer, VarComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
+use crate::kind::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
 use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::ObjCSpecification;
@@ -21,7 +21,7 @@ fn compose_arg(
     arg_item_name: TokenStream2,
     ty: &Type,
     source: &ScopeContext
-) -> (GenericArgPresentation<ObjCSpecification>, TokenStream2) {
+) -> ((FFIVariable<ObjCSpecification, TokenStream2>, Expression<ObjCSpecification>, Expression<ObjCSpecification>, Expression<ObjCSpecification>), TokenStream2) {
     println!("MapComposer::compose_arg: {} --- {}", arg_name.to_token_stream(), ty.to_token_stream());
     let from_composer = ConversionFromComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
     let to_composer = ConversionToComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
@@ -44,14 +44,14 @@ fn compose_arg(
 
     match TypeKind::from(ty) {
         TypeKind::Primitive(arg_ty) =>
-            (GenericArgPresentation::<ObjCSpecification>::new(
+            ((
                 <ObjCSpecification as Specification>::Var::direct(objc_primitive(&arg_ty)),
                 destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty)),
         TypeKind::Complex(arg_ty) => {
-            (GenericArgPresentation::<ObjCSpecification>::new(
+            ((
                 FFIVariable::direct(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(&arg_ty, source).to_token_stream()),
                 destroy_expr.unwrap_or_default(),
                 from_expr,
@@ -71,7 +71,7 @@ fn compose_arg(
                 //     Some(Expression::destroy_complex_group_tokens)),
                 FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source).to_token_stream()
             };
-            (GenericArgPresentation::<ObjCSpecification>::new(
+            ((
                 FFIVariable::direct(arg_ty),
                 destroy_expr.unwrap_or_default(),
                 from_expr,
@@ -102,10 +102,10 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
         let nested_types = self.ty.nested_types();
         let arg_0_target_ty = nested_types[0];
         let arg_1_target_ty = nested_types[1];
-        let (arg_0_presentation, c0_type) = compose_arg(&arg_0_name, quote!(key), arg_0_target_ty, source);
-        let (arg_1_presentation, c1_type) = compose_arg(&arg_1_name, quote!(obj[key]), arg_1_target_ty, source);
-        let arg_0_ty = &arg_0_presentation.ty;
-        let arg_1_ty = &arg_1_presentation.ty;
+        let ((arg_0_var, arg_0_destructor, arg_0_from_conversion, arg_0_to_conversion), c0_type) = compose_arg(&arg_0_name, quote!(key), arg_0_target_ty, source);
+        let ((arg_1_var, arg_1_destructor, arg_1_from_conversion, arg_1_to_conversion), c1_type) = compose_arg(&arg_1_name, quote!(obj[key]), arg_1_target_ty, source);
+        let arg_0_ty = &arg_0_var;
+        let arg_1_ty = &arg_1_var;
         let arg_0_var: <ObjCSpecification as Specification>::Var = Accessory::joined_mut(arg_0_ty);
         let arg_1_var: <ObjCSpecification as Specification>::Var = Accessory::joined_mut(arg_1_ty);
 
@@ -169,8 +169,8 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
         // }
         //
         // @end
-        let to_0_values = arg_0_presentation.to_conversion.present(source);
-        let to_1_values = arg_1_presentation.to_conversion.present(source);
+        let to_0_values = arg_0_to_conversion.present(source);
+        let to_1_values = arg_1_to_conversion.present(source);
 
 
 
@@ -179,8 +179,8 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
                 objc_name: objc_name.to_token_stream(),
                 c_name: c_name.clone(),
                 from_conversions_statements: {
-                    let from_key = arg_0_presentation.from_conversion.present(source);
-                    let from_value = arg_1_presentation.from_conversion.present(source);
+                    let from_key = arg_0_from_conversion.present(source);
+                    let from_value = arg_1_from_conversion.present(source);
                     quote! {
                         uintptr_t count = ffi_ref->count;
                         NSMutableDictionary *obj = [NSMutableDictionary dictionaryWithCapacity:count];
@@ -217,8 +217,8 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
 
                 },
                 destroy_body: {
-                    let destroy_key = arg_0_presentation.destructor.present(source);
-                    let destroy_value = arg_1_presentation.destructor.present(source);
+                    let destroy_key = arg_0_destructor.present(source);
+                    let destroy_value = arg_1_destructor.present(source);
                     quote! {
                         if (!ffi_ref) return;
                         if (ffi_ref->count > 0) {

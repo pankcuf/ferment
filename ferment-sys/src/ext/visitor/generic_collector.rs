@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ParenthesizedGenericArguments, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::TypeHolder;
-use crate::conversion::ScopeItemKind;
+use crate::kind::ScopeItemKind;
 use crate::ext::item::segment_arguments_to_types;
 use crate::ext::visitor::TypeCollector;
 

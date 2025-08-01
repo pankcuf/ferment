@@ -17,7 +17,7 @@ use crate::error;
 #[cfg(feature = "objc")]
 use crate::Config;
 #[cfg(feature = "objc")]
-use crate::conversion::GenericTypeKind;
+use crate::kind::GenericTypeKind;
 #[cfg(feature = "objc")]
 use crate::ext::FFIVarResolve;
 use crate::ext::{Mangle, MangleDefault, ToType};

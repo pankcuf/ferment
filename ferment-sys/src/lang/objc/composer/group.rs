@@ -4,7 +4,7 @@ use crate::ast::Depunctuated;
 use crate::composable::FieldTypeKind;
 use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, GroupComposer, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
+use crate::kind::{GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
 use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::ObjCSpecification;
@@ -27,10 +27,10 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
         let from_args = quote! {
             ffi_ref->#arg_0_name #count_name: ffi_ref->#count_name
         };
-        let arg_presentation = match &nested_type_kind {
+        let (var, destructor, from_conversion, to_conversion) = match &nested_type_kind {
             TypeKind::Primitive(arg_0_target_path) => {
                 let kind = ConversionExpressionKind::PrimitiveGroup;
-                GenericArgPresentation::<ObjCSpecification>::new(
+                (
                     <ObjCSpecification as Specification>::Var::direct(objc_primitive(arg_0_target_path)),
                     Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
@@ -39,7 +39,7 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
             }
             TypeKind::Complex(arg_0_target_ty) => {
                 let kind = ConversionExpressionKind::ComplexGroup;
-                GenericArgPresentation::<ObjCSpecification>::new(
+                (
                     <ObjCSpecification as Specification>::Var::mut_ptr(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_type(arg_0_target_ty, source).to_token_stream()),
                     Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
@@ -64,7 +64,7 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
                         (ConversionExpressionKind::ComplexGroup, VarComposer::<ObjCSpecification>::value(arg_0_generic_path_conversion.ty()?).compose(source))
                     }
                 };
-                GenericArgPresentation::<ObjCSpecification>::new(
+                (
                     arg_ty,
                     Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
@@ -78,14 +78,14 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
 
         // let from_conversions_statements = ;
 
-        let arg_var: <ObjCSpecification as Specification>::Var = arg_presentation.ty.joined_mut();
+        let arg_var: <ObjCSpecification as Specification>::Var = var.joined_mut();
         let field_composers = Depunctuated::from_iter([
             count_name.field_composer(FieldTypeKind::Type(parse_quote!(uintptr_t))),
             arg_0_name.field_composer(FieldTypeKind::Var(arg_var.clone())),
         ]);
-        let to_values = arg_presentation.to_conversion.present(source);
-        let destroy_value = ArgKind::<ObjCSpecification>::AttrExpression(arg_presentation.destructor, attrs.clone()).present(source);
-        let from_value = arg_presentation.from_conversion.present(source);
+        let to_values = to_conversion.present(source);
+        let destroy_value = ArgKind::<ObjCSpecification>::AttrExpression(destructor, attrs.clone()).present(source);
+        let from_value = from_conversion.present(source);
         let interfaces = Depunctuated::from_iter([
             // InterfaceImplementation::Default {
             //     objc_name: objc_name.clone(),

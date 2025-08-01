@@ -1,8 +1,9 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
-use syn::{parse_quote, Path, Type};
-use crate::ext::{SpecialType, ToPath, ToType};
-use crate::lang::{RustSpecification, Specification};
+use syn::Path;
+use crate::ext::{ToPath, ToType};
+use crate::kind::SpecialType;
+use crate::lang::Specification;
 use crate::presentation::FFIFullDictionaryPath;
 
 #[derive(Debug)]
@@ -45,17 +46,3 @@ impl<SPEC> ToTokens for FFIFullPath<SPEC>
     }
 }
 
-impl ToType for FFIFullPath<RustSpecification> {
-    fn to_type(&self) -> Type {
-        match self {
-            FFIFullPath::Type { crate_ident, ffi_name } =>
-                parse_quote!(crate::fermented::types::#crate_ident::#ffi_name),
-            FFIFullPath::Generic { ffi_name } =>
-                parse_quote!(crate::fermented::generics::#ffi_name),
-            FFIFullPath::External { path } =>
-                parse_quote!(#path),
-            FFIFullPath::Dictionary { path } =>
-                path.to_type(),
-        }
-    }
-}

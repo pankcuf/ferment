@@ -1,59 +1,11 @@
-use std::fmt::{Debug, Display, Formatter};
-use std::marker::PhantomData;
-use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{Path, Type};
+use syn::Type;
 use crate::context::ScopeContext;
-use crate::conversion::{GenericTypeKind, ObjectKind, TypeKind};
-use crate::ext::{Accessory, LifetimeProcessor, Resolve, ToPath, ToType};
-use crate::lang::{RustSpecification, Specification};
+use crate::kind::{ObjectKind, SpecialType, TypeKind};
+use crate::ext::{Accessory, LifetimeProcessor, Resolve, ToType};
+use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
-#[derive(Debug)]
-pub enum SpecialType<SPEC>
-    where SPEC: Specification {
-    Custom(Type),
-    Opaque(Type),
-    Phantom(PhantomData<SPEC>)
-}
-
-impl<SPEC> Display for SpecialType<SPEC>
-    where SPEC: Specification {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            SpecialType::Custom(ty) => format!("Custom({})", ty.to_token_stream()),
-            SpecialType::Opaque(ty) => format!("Opaque({})", ty.to_token_stream()),
-            SpecialType::Phantom(..) => "Phantom".to_string(),
-        }.as_str())
-    }
-}
-
-impl<SPEC> ToTokens for SpecialType<SPEC>
-    where SPEC: Specification {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.to_type().to_tokens(tokens)
-    }
-}
-impl<SPEC> ToType for SpecialType<SPEC>
-    where SPEC: Specification {
-    fn to_type(&self) -> Type {
-        match self {
-            SpecialType::Custom(ty) |
-            SpecialType::Opaque(ty) => ty.clone(),
-            _ => panic!("")
-        }
-    }
-}
-impl<SPEC> ToPath for SpecialType<SPEC>
-    where SPEC: Specification {
-    fn to_path(&self) -> Path {
-        match self {
-            SpecialType::Custom(ty) |
-            SpecialType::Opaque(ty) => ty.to_path(),
-            _ => panic!()
-        }
-    }
-}
 
 pub trait FFITypeResolve {
     fn full_type(&self, source: &ScopeContext) -> Type;
@@ -68,7 +20,7 @@ impl FFITypeResolve for Type {
 pub trait FFISpecialTypeResolve<SPEC>
     where SPEC: Specification {
     /// Types that are exported with [ferment_macro::register] or [ferment_macro::opaque]
-    /// so it's custom conversion or opaque pointer therefore we should use direct paths for ffi export
+    /// so it's custom kind or opaque pointer therefore we should use direct paths for ffi export
     fn maybe_special_type(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>>;
 
     #[allow(unused)]
@@ -133,4 +85,3 @@ impl<SPEC> FFIVarResolve<SPEC> for Type
     where SPEC: Specification,
           FFIFullPath<SPEC>: ToType,
           FFIFullDictionaryPath<SPEC>: ToType{}
-impl FFIVarResolve<RustSpecification> for GenericTypeKind {}
