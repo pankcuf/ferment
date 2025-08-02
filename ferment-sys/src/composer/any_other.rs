@@ -9,7 +9,7 @@ use crate::lang::Specification;
 
 #[derive(ComposerBase)]
 pub struct AnyOtherComposer<SPEC>
-    where SPEC: Specification + 'static {
+where SPEC: Specification + 'static {
     pub ty: Type,
     base: BasicComposerLink<SPEC, Self>,
 }

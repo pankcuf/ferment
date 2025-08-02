@@ -7,7 +7,7 @@ use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle};
 use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name};
+use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl SourceComposable for ArrayComposer<RustSpecification> {
     type Source = ScopeContext;
@@ -30,22 +30,13 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let to_conversion_value = Expression::map_o_expr(to_conversion_expr_value).present(source);
         let destroy_conversion_value = Expression::map_o_expr(destroy_conversion_expr_value).present(source);
         let from_body = quote! {
-            let ffi_ref = &*ffi;
-            let vec: Vec<#nested_ty> = ferment::from_group(ffi_ref.#count_name, ffi_ref.#arg_0_name, #from_conversion_value);
-            vec.try_into().unwrap()
+            let Self { #count_name, #arg_0_name } = &*ffi;
+            TryFrom::<Vec<#nested_ty>>::try_from(ferment::from_group(#count_name, #arg_0_name, #from_conversion_value)).unwrap()
         };
-        let to_body = quote! {
-            let #count_name = obj.len();
-            let #arg_0_name = ferment::to_group(obj.into_iter(), #to_conversion_value);
-            ferment::boxed(Self { #count_name, #arg_0_name })
-        };
-        let drop_body = quote! {
-            unsafe {
-                ferment::unbox_group(self.#arg_0_name, self.#count_name, #destroy_conversion_value);
-            }
-        };
+        let arg_0_conversion = InterfacesMethodExpr::ToGroup(quote!(obj.into_iter(), #to_conversion_value));
+        let to_body = InterfacesMethodExpr::Boxed(quote!(Self { #count_name: obj.len(), #arg_0_name: #arg_0_conversion }));
+        let drop_body = InterfacesMethodExpr::UnboxGroup(quote!(self.#arg_0_name, self.#count_name, #destroy_conversion_value));
         let arr_var = var_value.joined_mut();
-        println!("ArrayComposer::var: {}", arr_var.to_token_stream());
         Some(GenericComposerInfo::<RustSpecification>::default(
             Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,

@@ -779,8 +779,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<ObjCSpecification> {
-        // println!("GenericTypeKind -> FFIFullPath --> {}", self);
-        let result = match self {
+        match self {
             GenericTypeKind::Map(ty) |
             GenericTypeKind::Group(ty) |
             GenericTypeKind::Result(ty) |
@@ -836,9 +835,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             },
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
-        };
-        // println!("GenericTypeKind -> FFIFullPath <-- {}", result.to_token_stream());
-        result
+        }
     }
 }
 

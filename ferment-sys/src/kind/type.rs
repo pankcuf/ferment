@@ -117,7 +117,6 @@ impl From<Type> for TypeKind {
                         "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" | "f64"
                         | "isize" | "usize" | "bool" => TypeKind::Primitive(ty),
                         "Box" => TypeKind::Generic(GenericTypeKind::Box(ty)),
-                        // "Arc" | "Rc" | "Cell" | "RefCell" | "Mutex" | "RwLock" | "Pin" => TypeKind::Generic(GenericTypeKind::AnyOther(ty)),
                         "Cell" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Cell(ty))),
                         "Rc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Rc(ty))),
                         "Arc" => TypeKind::Generic(GenericTypeKind::SmartPointer(SmartPointerKind::Arc(ty))),

@@ -79,17 +79,13 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             match TypeKind::from(field_type) {
                 TypeKind::Primitive(_) => from_primitive_result(),
                 TypeKind::Complex(_) =>  from_complex_result(),
-                TypeKind::Generic(generic_ty) => match generic_ty {
-                    GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
-                    GenericTypeKind::Optional(ty) => {
-                        opt_conversion(match TypeKind::from(ty) {
-                            TypeKind::Primitive(_) => from_opt_primitive_result(),
-                            TypeKind::Complex(_) |
-                            TypeKind::Generic(_) => from_complex_result(),
-                        })
-                    }
-                    _ => from_complex_result()
-                }
+                TypeKind::Generic(GenericTypeKind::TraitBounds(_)) => unimplemented!("TODO: mixins+traits+generics"),
+                TypeKind::Generic(GenericTypeKind::Optional(ty)) => opt_conversion(match TypeKind::from(ty) {
+                    TypeKind::Primitive(_) => from_opt_primitive_result(),
+                    TypeKind::Complex(_) |
+                    TypeKind::Generic(_) => from_complex_result(),
+                }),
+                TypeKind::Generic(..) => from_complex_result()
             }
         ),
         ReturnType::Default => (ReturnType::Default, ReturnType::Default, from_primitive_result()),

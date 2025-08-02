@@ -63,21 +63,17 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                                     quote!((*#arg_0_name).clone())
                                 }
                             },
-                            TypeKind::Generic(nested_generic_ty) => {
-                                match nested_generic_ty {
-                                    GenericTypeKind::AnyOther(ty) => {
-                                        let path = ty.to_path();
-                                        match &path.segments.last() {
-                                            Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
-                                                "RwLock" | "Mutex" => quote!(std::sync::#ident::new(obj.read().expect("Poisoned").clone())),
-                                                _ => quote!((*#arg_0_name).clone())
-                                            },
-                                            None => quote!((*#arg_0_name).clone())
-                                        }
+                            TypeKind::Generic(GenericTypeKind::AnyOther(ty)) => {
+                                match &ty.to_path().segments.last() {
+                                    Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+                                        "RwLock" | "Mutex" => quote!(std::sync::#ident::new(obj.read().expect("Poisoned").clone())),
+                                        _ => quote!((*#arg_0_name).clone())
                                     },
-                                    _ => quote!((*#arg_0_name).clone())
+                                    None => quote!((*#arg_0_name).clone())
                                 }
                             },
+                            TypeKind::Generic(..) =>
+                                quote!((*#arg_0_name).clone()),
                         }
                     },
                     "Mutex" | "RwLock" => {

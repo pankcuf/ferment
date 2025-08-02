@@ -90,7 +90,7 @@ impl<SPEC, T, I, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for TypeAliasCompos
         BindingPresentableContext::ctor;
     const ASPECT: AspectSharedComposerLink<SPEC, T> =
         Aspect::ffi;
-    const ARG: PresentableArgumentPairComposerRef<SPEC> =
+    const ARG: PresentableArgKindPairComposerRef<SPEC> =
         ArgKind::unnamed_struct_ctor_pair;
     const ITER: AspectArgSourceComposer<SPEC, Iter> =
         args_composer_iterator_root();

@@ -5,7 +5,7 @@ use quote::ToTokens;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, LifetimesModel};
-use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
+use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArgKinds, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
 use crate::context::ScopeContextLink;
 use crate::lang::{LangAttrSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
@@ -17,7 +17,7 @@ pub struct EnumComposer<SPEC>
     pub base: BasicComposerLink<SPEC, Self>,
     pub ffi_object_composer: SeqKindComposerLink<SPEC, Self>,
     pub variant_composers: Vec<ItemComposerWrapper<SPEC>>,
-    pub variant_presenters: Vec<(VariantComposerRef<SPEC>, AspectCommaPunctuatedArguments<SPEC>)>,
+    pub variant_presenters: Vec<(VariantComposerRef<SPEC>, AspectCommaPunctuatedArgKinds<SPEC>)>,
 }
 
 impl<SPEC> NameKindComposable for EnumComposer<SPEC>

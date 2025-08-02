@@ -4,7 +4,7 @@ use quote::ToTokens;
 use syn::Type;
 use ferment_macro::Display;
 use crate::ast::CommaPunctuated;
-use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments, CommaPunctuatedArgKinds};
+use crate::composer::{AspectCommaPunctuatedArgKinds, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArgKinds, AspectPresentableArgKinds, CommaPunctuatedArgKinds};
 use crate::lang::Specification;
 use crate::presentable::Aspect;
 
@@ -12,24 +12,24 @@ use crate::presentable::Aspect;
 #[derive(Clone, Debug, Display)]
 pub enum SeqKind<SPEC>
     where SPEC: Specification {
-    FromStub(AspectCommaPunctuatedArguments<SPEC>),
-    FromNamedFields(AspectCommaPunctuatedArguments<SPEC>),
-    ToNamedFields(AspectCommaPunctuatedArguments<SPEC>),
-    FromUnnamedFields(AspectCommaPunctuatedArguments<SPEC>),
+    FromStub(AspectCommaPunctuatedArgKinds<SPEC>),
+    FromNamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
+    ToNamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
+    FromUnnamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
     TraitImplFnCall(Type, Type, Ident, CommaPunctuatedArgKinds<SPEC>),
-    ToUnnamedFields(AspectCommaPunctuatedArguments<SPEC>),
-    ToStub(AspectCommaPunctuatedArguments<SPEC>),
-    NamedVariantFields(AspectCommaPunctuatedArguments<SPEC>),
-    UnnamedVariantFields(AspectCommaPunctuatedArguments<SPEC>),
-    EnumUnitFields(AspectCommaPunctuatedArguments<SPEC>),
+    ToUnnamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
+    ToStub(AspectCommaPunctuatedArgKinds<SPEC>),
+    NamedVariantFields(AspectCommaPunctuatedArgKinds<SPEC>),
+    UnnamedVariantFields(AspectCommaPunctuatedArgKinds<SPEC>),
+    EnumUnitFields(AspectCommaPunctuatedArgKinds<SPEC>),
 
     Variants(Aspect<SPEC::TYC>, SPEC::Attr, CommaPunctuated<SeqKind<SPEC>>),
     Unit(Aspect<SPEC::TYC>),
     NoFieldsConversion(Aspect<SPEC::TYC>),
-    TypeAliasFromConversion(AspectCommaPunctuatedArguments<SPEC>),
-    NamedStruct(AspectCommaPunctuatedArguments<SPEC>),
-    UnnamedStruct(AspectCommaPunctuatedArguments<SPEC>),
-    StubStruct(AspectCommaPunctuatedArguments<SPEC>),
+    TypeAliasFromConversion(AspectCommaPunctuatedArgKinds<SPEC>),
+    NamedStruct(AspectCommaPunctuatedArgKinds<SPEC>),
+    UnnamedStruct(AspectCommaPunctuatedArgKinds<SPEC>),
+    StubStruct(AspectCommaPunctuatedArgKinds<SPEC>),
     Enum(Box<SeqKind<SPEC>>),
 
     StructFrom(Box<SeqKind<SPEC>>, Box<SeqKind<SPEC>>),
@@ -43,9 +43,9 @@ pub enum SeqKind<SPEC>
     Obj,
     Empty,
 
-    DropStub(AspectTerminatedArguments<SPEC>),
-    StructDropBody(AspectTerminatedArguments<SPEC>),
-    DropCode(AspectTerminatedArguments<SPEC>),
+    DropStub(AspectTerminatedArgKinds<SPEC>),
+    StructDropBody(AspectTerminatedArgKinds<SPEC>),
+    DropCode(AspectTerminatedArgKinds<SPEC>),
 }
 
 impl<SPEC> SeqKind<SPEC>
@@ -69,13 +69,13 @@ impl<SPEC> SeqKind<SPEC>
         right
     }
 
-    pub fn no_fields<SEP: ToTokens>(((aspect, ..), _): AspectPresentableArguments<SPEC, SEP>) -> Self {
+    pub fn no_fields<SEP: ToTokens>(((aspect, ..), _): AspectPresentableArgKinds<SPEC, SEP>) -> Self {
         Self::NoFieldsConversion(match &aspect {
             Aspect::Target(context) => Aspect::RawTarget(context.clone()),
             _ => aspect.clone(),
         })
     }
-    pub fn unit(((aspect, ..), _): &AspectCommaPunctuatedArguments<SPEC>) -> Self {
+    pub fn unit(((aspect, ..), _): &AspectCommaPunctuatedArgKinds<SPEC>) -> Self {
         Self::Unit(aspect.clone())
     }
     pub fn variants<C>(composer_ref: &ComposerLinkRef<C>) -> Self
@@ -91,13 +91,13 @@ impl<SPEC> SeqKind<SPEC>
     pub fn obj<C>(_ctx: &ComposerLinkRef<C>) -> Self {
         Self::Obj
     }
-    pub fn unit_fields(context: &AspectCommaPunctuatedArguments<SPEC>) -> Self {
+    pub fn unit_fields(context: &AspectCommaPunctuatedArgKinds<SPEC>) -> Self {
         Self::EnumUnitFields(context.clone())
     }
-    pub fn brace_variants(context: &AspectCommaPunctuatedArguments<SPEC>) -> Self {
+    pub fn brace_variants(context: &AspectCommaPunctuatedArgKinds<SPEC>) -> Self {
         Self::NamedVariantFields(context.clone())
     }
-    pub fn paren_variants(context: &AspectCommaPunctuatedArguments<SPEC>) -> Self {
+    pub fn paren_variants(context: &AspectCommaPunctuatedArgKinds<SPEC>) -> Self {
         Self::UnnamedVariantFields(context.clone())
     }
     pub fn empty_root(_: SeqKind<SPEC>) -> Self {

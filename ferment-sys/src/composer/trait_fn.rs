@@ -19,9 +19,6 @@ use crate::presentation::{DictionaryExpr, DictionaryName, DocPresentation, FFIFu
 pub struct TraitFnImplComposer<SPEC>
 where SPEC: Specification + 'static {
     pub base: BasicComposerLink<SPEC, Self>,
-    // pub path: Path,
-    // pub self_ty: Type,
-    // pub trait_ty: Type,
 }
 
 impl<SPEC> TraitFnImplComposer<SPEC>
@@ -80,10 +77,13 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
     let mut used_lifetimes = SPEC::Lt::default();
     let Signature { output, inputs, asyncness, ident, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
-        ReturnType::Default => (ReturnType::Default, SPEC::Expr::simple(Semi::default())),
+        ReturnType::Default => (
+            ReturnType::Default,
+            SPEC::Expr::simple(Semi::default())
+        ),
         ReturnType::Type(_, ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(ty).compose(source).to_type())),
-            ConversionToComposer::<SPEC>::key_in_composer_scope(SPEC::Name::dictionary_name(DictionaryName::Obj), ty).compose(source)
+            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), ty).compose(source)
         )
     };
 
@@ -99,7 +99,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
                 let expr_composer = match (mutability, reference) {
                     (Some(..), _) => |expr: SPEC::Expr| SPEC::Expr::AsMutRef(expr.into()),
                     (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::AsRef(expr.into()),
-                    (..) => |expr: SPEC::Expr| expr.into(),
+                    _ => |expr: SPEC::Expr| expr.into(),
                 };
 
                 let name = Name::dictionary_name(DictionaryName::Self_);
@@ -130,76 +130,3 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
     )
 }
 
-pub fn compose_trait_impl_fn_as_trait_type<SPEC>(
-    path: &Path,
-    self_ty: &Type,
-    trait_ty: &Type,
-    attrs: &SPEC::Attr,
-    generics: SPEC::Gen,
-    sig: &Signature,
-    source: &ScopeContext
-
-) -> BindingPresentableContext<SPEC>
-where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
-      SPEC::Expr: ScopeContextPresentable,
-      SPEC::Lt: IntoIterator + Extend<<SPEC::Lt as IntoIterator>::Item>,
-      SPEC::Name: ToTokens,
-      CommaPunctuatedArgKinds<SPEC>: Extend<ArgKind<SPEC>>,
-      FFIFullPath<SPEC>: ToType,
-      FFIFullDictionaryPath<SPEC>: ToType,
-      VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=SPEC::Var> {
-    let full_self_ty: Type = self_ty.resolve(source);
-    let full_trait_ty: Type = trait_ty.resolve(source);
-
-    let mut used_lifetimes = SPEC::Lt::default();
-    let Signature { output, inputs, asyncness, ident, .. } = sig;
-    let (return_type_presentation, return_type_conversion) = match output {
-        ReturnType::Default => (ReturnType::Default, SPEC::Expr::simple(Semi::default())),
-        ReturnType::Type(_, ty) => (
-            ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(ty).compose(source).to_type())),
-            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), ty).compose(source)
-        )
-    };
-
-    let mut arguments = CommaPunctuatedArgKinds::<SPEC>::new();
-    let mut argument_names = CommaPunctuatedTokens::new();
-    let mut argument_conversions = CommaPunctuatedArgKinds::<SPEC>::new();
-    for arg in inputs {
-        match arg {
-            FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
-                if let Some((_, Some(lt))) = reference {
-                    used_lifetimes.add_lifetime(lt.clone());
-                }
-                let qualified_ty = match (mutability, reference) {
-                    (Some(..), _) => parse_quote!(&mut #self_ty),
-                    (_, Some(..)) => parse_quote!(&#self_ty),
-                    (..) => self_ty.clone(),
-                };
-                let name = Name::dictionary_name(DictionaryName::Self_);
-                argument_names.push(name.to_token_stream());
-                arguments.push(ArgKind::inherited_named_var(name.clone(), VarComposer::<SPEC>::key_ref_in_composer_scope(self_ty).compose(source), SPEC::Attr::from_cfg_attrs(attrs)));
-                argument_conversions.push(ArgKind::expr(ConversionFromComposer::<SPEC>::key_in_composer_scope(name, &qualified_ty).compose(source)));
-            },
-            FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
-                used_lifetimes.extend(SPEC::Lt::from_lifetimes(ty.unique_lifetimes()));
-                let name = Name::Pat(*pat.clone());
-                argument_names.push(name.to_token_stream());
-                arguments.push(ArgKind::inherited_named_type(name.clone(), ty, SPEC::Attr::from_cfg_attrs(attrs)));
-                argument_conversions.push(ArgKind::expr(ConversionFromComposer::<SPEC>::key_in_composer_scope(name, ty).compose(source)));
-            }
-        }
-    }
-    let input_conversions = SeqKind::TraitImplFnCall(full_self_ty, full_trait_ty, ident.clone(), argument_conversions);
-    BindingPresentableContext::RegFn(
-        path.clone(),
-        asyncness.is_some(),
-        arguments,
-        return_type_presentation,
-        input_conversions,
-        return_type_conversion,
-        attrs.clone(),
-        used_lifetimes,
-        generics
-    )
-
-}

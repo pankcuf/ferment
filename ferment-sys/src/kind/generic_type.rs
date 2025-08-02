@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, PathSegment, Type, TypeParamBound, TypePath};
+use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeParamBound, TypePath};
 use syn::__private::TokenStream2;
 use crate::ast::AddPunctuated;
 use crate::kind::{CallbackKind, SmartPointerKind};
@@ -79,12 +79,12 @@ impl GenericTypeKind {
             GenericTypeKind::AnyOther(ty) |
             GenericTypeKind::Cow(ty) |
             GenericTypeKind::Tuple(ty) => Some(ty),
-            GenericTypeKind::Optional(Type::Path(TypePath { qself: _, path })) => match path.segments.last() {
+            GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
                     Some(GenericArgument::Type(ty)) => Some(ty),
-                    _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", self.to_token_stream()),
+                    _ => None,
                 },
-                _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", self.to_token_stream()),
+                _ => None,
             }
             GenericTypeKind::Callback(kind) => Some(kind.as_type()),
             GenericTypeKind::TraitBounds(_) => {

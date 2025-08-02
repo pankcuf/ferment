@@ -78,7 +78,6 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), ty).compose(source)
         )
     };
-
     let mut arguments = CommaPunctuatedArgKinds::<SPEC>::new();
     let mut argument_names = CommaPunctuatedTokens::new();
     let mut argument_conversions = CommaPunctuatedArgKinds::<SPEC>::new();

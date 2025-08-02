@@ -1,5 +1,5 @@
 use quote::{quote, ToTokens};
-use syn::parse_quote;
+use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypePath};
 use crate::ast::Depunctuated;
 use crate::composer::{ArrayComposer, AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
@@ -46,29 +46,34 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
                     Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
-            TypeKind::Generic(arg_0_generic_path_conversion) => {
-                let (kind, arg_ty) = {
-                    if let GenericTypeKind::Optional(..) = arg_0_generic_path_conversion {
-                        match arg_0_generic_path_conversion.ty() {
-                            None => unimplemented!("Mixin inside generic: {}", arg_0_generic_path_conversion),
-                            Some(ty) => {
-                                (match TypeKind::from(ty) {
-                                    TypeKind::Primitive(_) =>
-                                        ConversionExpressionKind::PrimitiveOptGroup,
-                                    _ =>
-                                        ConversionExpressionKind::ComplexOptGroup,
-                                }, VarComposer::<ObjCSpecification>::value(ty).compose(source))
-                            }
-                        }
-                    } else {
-                        (ConversionExpressionKind::ComplexGroup, VarComposer::<ObjCSpecification>::value(arg_0_generic_path_conversion.ty()?).compose(source))
-                    }
+            TypeKind::Generic(GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. }))) => {
+                let (kind, arg_ty) = match segments.last() {
+                    Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
+                        Some(GenericArgument::Type(ty)) => (match TypeKind::from(ty) {
+                            TypeKind::Primitive(_) =>
+                                ConversionExpressionKind::PrimitiveOptGroup,
+                            _ =>
+                                ConversionExpressionKind::ComplexOptGroup,
+
+                        }, VarComposer::<ObjCSpecification>::value(ty).compose(source)),
+                        c => unimplemented!("Mixin inside generic: {c:?}"),
+                    },
+                    c => unimplemented!("Mixin inside generic: {c:?}"),
                 };
                 (
                     arg_ty,
                     Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
                     Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                )
+            },
+            TypeKind::Generic(arg_0_generic_path_conversion) => {
+                let kind = ConversionExpressionKind::ComplexGroup;
+                (
+                    VarComposer::<ObjCSpecification>::value(arg_0_generic_path_conversion.ty()?).compose(source),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
         };

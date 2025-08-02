@@ -5,7 +5,7 @@ use syn::{Attribute, Generics, Lifetime};
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::DelimiterTrait;
 use crate::composable::{AttrsModel, FieldComposer};
-use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, ArgKindPairs, FieldSpec, ArgKindProducerByRef, FieldNameSpec, FieldComposerProducer, AspectArgSourceComposer, ItemAspectsSpec, FFIInterfaceMethodSpec, FromStub, FieldPathConversionResolveSpec, FieldPathResolver, AspectSeqKindComposer, ToStub, DropStub, LifetimesComposable};
+use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgKindPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, ArgKindPairs, FieldSpec, ArgKindProducerByRef, FieldNameSpec, FieldComposerProducer, AspectArgSourceComposer, ItemAspectsSpec, FFIInterfaceMethodSpec, FromStub, FieldPathConversionResolveSpec, FieldPathResolver, AspectSeqKindComposer, ToStub, DropStub, LifetimesComposable};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
@@ -77,7 +77,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructCompos
         BindingPresentableContext::ctor;
     const ASPECT: AspectSharedComposerLink<SPEC, T> =
         Aspect::target;
-    const ARG: PresentableArgumentPairComposerRef<SPEC> =
+    const ARG: PresentableArgKindPairComposerRef<SPEC> =
         ArgKind::unnamed_struct_ctor_pair;
     const ITER: AspectArgSourceComposer<SPEC, Iter> =
         constants::args_composer_iterator_root();
@@ -97,7 +97,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructCompos
         BindingPresentableContext::ctor;
     const ASPECT: AspectSharedComposerLink<SPEC, T> =
         Aspect::target;
-    const ARG: PresentableArgumentPairComposerRef<SPEC> =
+    const ARG: PresentableArgKindPairComposerRef<SPEC> =
         ArgKind::opaque_named_struct_ctor_pair;
     const ITER: AspectArgSourceComposer<SPEC, Iter> =
         constants::args_composer_iterator_root();

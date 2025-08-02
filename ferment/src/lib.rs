@@ -232,7 +232,6 @@ where Iter: FromIterator<TargetType> {
         .collect()
 }
 
-
 /// # Safety
 pub unsafe fn from_primitive_group<Iter, T: Copy>(ptr: *mut T, count: usize) -> Iter
 where Iter: FromIterator<T> {
