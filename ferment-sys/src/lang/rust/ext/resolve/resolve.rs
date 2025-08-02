@@ -2,12 +2,12 @@ use quote::{quote_spanned, ToTokens};
 use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath};
 use syn::spanned::Spanned;
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::ext::{DictionaryType, FFISpecialTypeResolve, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, Resolve, ToPath, ToType};
 use crate::kind::{GenericTypeKind, SpecialType, TypeKind, TypeModelKind};
 use crate::lang::RustSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
-impl<'a> Resolve<FFIVariable<RustSpecification, Type>> for ScopeSearchKey<'a> {
+impl Resolve<FFIVariable<RustSpecification, Type>> for ScopeSearchKey {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<RustSpecification, Type>> {
         Some(self.resolve(source))
     }
@@ -39,7 +39,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
             GenericTypeKind::Callback(kind) =>
-                FFIFullPath::Generic { ffi_name: kind.ty().mangle_ident_default().to_path() },
+                FFIFullPath::Generic { ffi_name: kind.as_type().mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),

@@ -11,6 +11,7 @@ use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Lifetime, Type};
+use crate::composable::CfgAttributes;
 use crate::composer::{ConversionFromComposer, ConversionToComposer, VarComposable, VarComposer};
 #[cfg(any(feature = "objc", feature = "java"))]
 use crate::error;
@@ -88,13 +89,18 @@ impl Specification for RustSpecification {
 
 pub trait LangAttrSpecification<T: Clone>: Clone + Default {
     fn from_attrs(attrs: Vec<Attribute>) -> Self;
+    fn from_cfg_attrs(attrs: &Vec<Attribute>) -> Self {
+        Self::from_attrs(attrs.cfg_attributes())
+    }
 }
 pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
     fn from_generics(generics: Option<Generics>) -> Self;
 }
 pub trait LangLifetimeSpecification<T: Clone>: Clone + Default + Debug {
+    // type Iter: FromIterator<Lifetime> + IntoIterator<Item = Lifetime> + Default;
     #[allow(unused)]
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self;
+    fn add_lifetime(&mut self, lifetime: Lifetime);
 }
 
 impl<T> LangAttrSpecification<T> for Vec<Attribute> where T: Clone {
@@ -108,8 +114,14 @@ impl<T> LangGenSpecification<T> for Option<Generics> where T: Clone {
     }
 }
 impl<T> LangLifetimeSpecification<T> for Vec<Lifetime> where T: Clone {
+    // type Iter = Vec<Lifetime>;
+
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self {
         lifetimes
+    }
+
+    fn add_lifetime(&mut self, lifetime: Lifetime) {
+        self.push(lifetime);
     }
 }
 #[cfg(feature = "objc")]

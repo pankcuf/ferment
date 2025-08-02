@@ -67,8 +67,8 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let var_error = error_is_primitive.then(|| var_error.joined_mut()).unwrap_or(var_error);
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::named(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Ok), FieldTypeKind::Var(var_ok)),
-            FieldComposer::named(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Error), FieldTypeKind::Var(var_error))
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Ok), FieldTypeKind::Var(var_ok)),
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Error), FieldTypeKind::Var(var_error))
         ]);
 
         Some(GenericComposerInfo::<RustSpecification>::default(

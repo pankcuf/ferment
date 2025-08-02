@@ -140,7 +140,7 @@ where SPEC: Specification<Name=Name<SPEC>>,
       I: DelimiterTrait {
     const COMPOSER: FieldComposerProducer<SPEC> =
         |Field { ty, attrs, .. }, index|
-            FieldComposer::typed(Name::UnnamedStructFieldsComp(ty.clone(), index), ty, false, attrs);
+            FieldComposer::unnamed_typed(Name::UnnamedStructFieldsComp(ty.clone(), index), ty, attrs);
 }
 
 impl<SPEC, I> FieldSpec<SPEC> for TypeAliasComposer<SPEC, I>

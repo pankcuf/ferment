@@ -47,8 +47,8 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         };
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::named(count_name, FieldTypeKind::type_count()),
-            FieldComposer::named(arg_0_name, FieldTypeKind::Var(var_value.joined_mut()))
+            FieldComposer::named_no_attrs(count_name, FieldTypeKind::type_count()),
+            FieldComposer::named_no_attrs(arg_0_name, FieldTypeKind::Var(var_value.joined_mut()))
         ]);
 
         let interfaces = Depunctuated::from_iter([

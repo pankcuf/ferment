@@ -6,38 +6,11 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
 use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
-use crate::composer::MaybeMacroLabeled;
-use crate::context::Scope;
+use crate::context::{Scope, ScopeInfo};
 use crate::kind::ObjectKind;
 use crate::ext::{CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
-#[derive(Clone, Eq)]
-pub struct ScopeInfo {
-    pub attrs: Vec<Attribute>,
-    pub crate_ident: Ident,
-    pub self_scope: Scope
-}
-impl PartialEq<Self> for ScopeInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.self_scope.eq(&other.self_scope) &&
-            self.crate_ident.eq(&other.crate_ident)
-    }
-}
-
-impl ScopeInfo {
-    pub fn fmt_export_type(&self) -> String {
-        self.attrs.is_labeled_for_opaque_export()
-            .then(|| "Opaque")
-            .or_else(|| self.attrs.is_labeled_for_export()
-                .then(|| "Fermented"))
-            .or_else(|| self.attrs.is_labeled_for_opaque_export().then(|| "Opaque"))
-            .unwrap_or("Unknown").to_string()
-    }
-    pub fn self_path(&self) -> &Path {
-        &self.self_scope.self_scope.0
-    }
-}
 
 #[derive(Clone, Eq)]
 #[repr(u8)]
@@ -96,15 +69,15 @@ impl PartialEq<Self> for ScopeChain {
             (ScopeChain::Impl { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
                 ScopeChain::Impl { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
             (ScopeChain::CrateRoot { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
-                ScopeChain::CrateRoot { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
-            (ScopeChain::Mod { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Mod { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Trait { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Trait { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Fn { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Fn { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Object { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Object { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) =>
+                ScopeChain::CrateRoot { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
+            (ScopeChain::Mod { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Mod { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Trait { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Trait { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Fn { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Fn { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Object { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Object { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) =>
                 self_scope.eq(&other_self_scope) && crate_ident.eq(other_crate_ident),
             _ => false
         }

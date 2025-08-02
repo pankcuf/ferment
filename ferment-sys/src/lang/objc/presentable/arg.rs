@@ -1,10 +1,11 @@
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, ConversionFromComposer, VariableComposer};
+use crate::composable::FieldComposer;
+use crate::composer::{SourceComposable, ConversionFromComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToType};
+use crate::kind::FieldTypeKind;
 use crate::lang::objc::ObjCSpecification;
 use crate::presentable::{ArgKind, ScopeContextPresentable};
 use crate::presentation::FFIVariable;
@@ -130,7 +131,7 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             ArgKind::DefaultFieldConversion(FieldComposer { name, attrs, kind, .. }) => {
                 //println!("OBJC ArgKind::DefaultFieldConversion: {} {}", name, kind);
                 let ty = kind.to_type();
-                let composer = ConversionFromComposer::<ObjCSpecification>::key_in_scope(name.clone(), &ty, &source.scope);
+                let composer = ConversionFromComposer::<ObjCSpecification>::key_in_composer_scope(name.clone(), &ty);
                 let from_conversion_expr = composer.compose(source);
                 let from_conversion_presentation = from_conversion_expr.present(source);
                 ArgPresentation::AttrConversion { conversion: quote!() }
@@ -146,7 +147,6 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                         Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
                             var.clone()
                         ),
-
                     FieldTypeKind::Conversion(conversion) => (
                         Some(name.mangle_ident_default()), FFIVariable::direct(conversion.clone())),
                 };
@@ -154,9 +154,8 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             },
             ArgKind::Named(FieldComposer { attrs, name, kind, ..}, visibility) => {
                 //println!("OBJC ArgKind::Named: {} {}", name, kind);
-                let ty = VariableComposer::<ObjCSpecification>::new(kind.to_type())
-                    .compose(source)
-                    .to_token_stream();
+                let ty = VarComposer::<ObjCSpecification>::key_ref_in_composer_scope(&kind.to_type())
+                    .compose(source);
                 ArgPresentation::AttrConversion {
                     conversion: quote! { #ty }
                 }

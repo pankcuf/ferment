@@ -7,7 +7,7 @@ use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MixinKind, ObjectKind};
-use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
+use crate::tree::{ScopeTreeID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]
 pub fn format_imported_set(dict: &HashSet<ItemUse>) -> String {
@@ -93,7 +93,7 @@ pub fn format_imports(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> 
 }
 
 #[allow(unused)]
-pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> String {
+pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeID, ScopeTreeExportItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("{}: {}", ident, tree_item))
         .collect::<Vec<_>>()
@@ -101,7 +101,7 @@ pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExpo
 }
 
 #[allow(unused)]
-pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeItem>) -> String {
+pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeID, ScopeTreeItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("\t{}: {:?}", ident, tree_item))
         .collect::<Vec<_>>()

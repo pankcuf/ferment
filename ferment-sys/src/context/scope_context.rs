@@ -2,14 +2,14 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, ImplItemFn, Item, ItemType, parse_quote, Path, TraitBound, TraitItemFn, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
+use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
 use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
 use crate::kind::{ObjectKind, ScopeItemKind, SpecialType, TypeModelKind};
-use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, Join, ToObjectKind, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToObjectKind, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -228,7 +228,7 @@ impl ScopeContext {
         let result = lock.maybe_object_ref_by_value(ty).cloned();
         result
     }
-    pub fn maybe_object_by_predicate_ref<'a>(&self, predicate: &'a ScopeSearch<'a>) -> Option<ObjectKind> {
+    pub fn maybe_object_by_predicate_ref(&self, predicate: &ScopeSearch) -> Option<ObjectKind> {
         match predicate {
             ScopeSearch::KeyInScope(search_key, scope) =>
                 self.maybe_object_ref_by_key_in_scope(search_key.clone(), scope),
@@ -275,17 +275,5 @@ impl ScopeContext {
     pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
         let lock = self.context.read().unwrap();
         lock.maybe_item_trait(trait_path)
-    }
-}
-
-impl Join<ImplItemFn> for ScopeContext {
-    fn joined(&self, other: &ImplItemFn) -> Self {
-        Self::with(self.scope.joined(other), self.context.clone())
-    }
-}
-
-impl Join<TraitItemFn> for ScopeContext {
-    fn joined(&self, other: &TraitItemFn) -> Self {
-        Self::with(self.scope.joined(other), self.context.clone())
     }
 }

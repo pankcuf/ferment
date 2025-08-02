@@ -3,11 +3,10 @@ use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer};
 use crate::context::ScopeContextLink;
 use crate::kind::CallbackKind;
 use crate::lang::Specification;
-use crate::presentation::DocComposer;
 
 #[derive(ComposerBase)]
 pub struct CallbackComposer<SPEC>

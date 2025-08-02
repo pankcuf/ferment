@@ -9,7 +9,7 @@ use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
 use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
 use crate::nprint;
-use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
+use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
@@ -219,7 +219,7 @@ impl Visitor {
 
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
+        for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
             match current_tree {
                 ScopeTreeExportItem::Item(..) =>
                     panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate

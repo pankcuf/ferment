@@ -2,7 +2,7 @@ use quote::ToTokens;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
-use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
 use crate::ext::{FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
@@ -10,41 +10,36 @@ use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposa
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone)]
-pub struct ConversionFromComposer<'a, SPEC>
+pub struct ConversionFromComposer<SPEC>
     where SPEC: Specification {
     pub name: SPEC::Name,
-    pub search: ScopeSearch<'a>,
+    pub search: ScopeSearch,
     pub field_expr: Option<SPEC::Expr>,
 }
 
-impl<'a, SPEC> ConversionFromComposer<'a, SPEC>
+impl<SPEC> ConversionFromComposer<SPEC>
     where SPEC: Specification {
-    fn new(name: SPEC::Name, search: ScopeSearch<'a>, field_expr: Option<SPEC::Expr>) -> Self {
+    fn new(name: SPEC::Name, search: ScopeSearch, field_expr: Option<SPEC::Expr>) -> Self {
         Self { name, search , field_expr }
     }
-    pub fn expr_less(name: SPEC::Name, search: ScopeSearch<'a>) -> Self {
-        Self::new(name, search, None)
+    pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), field_expr)
     }
-    pub fn key_expr(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain, field_expr: Option<SPEC::Expr>) -> Self {
-        Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), field_expr)
+    pub fn value_maybe_expr(name: SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_value(ty), field_expr)
     }
-    pub fn key_in_scope(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain) -> Self {
-        Self::expr_less(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
+    pub fn key_in_composer_scope(name: SPEC::Name, ty: &Type) -> Self {
+        Self::key_expr_in_composer_scope(name, ty, None)
     }
-    pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
-        Self::expr_less(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
+    pub fn value_expr(name: SPEC::Name, ty: &Type, field_expr: SPEC::Expr) -> Self {
+        Self::value_maybe_expr(name, ty, Some(field_expr))
     }
-    #[allow(unused)]
-    pub fn value_expr(name: SPEC::Name, ty: &'a Type, field_expr: SPEC::Expr) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(field_expr))
-    }
-    #[allow(unused)]
-    pub fn value_maybe_expr(name: SPEC::Name, ty: &'a Type, field_expr: Option<SPEC::Expr>) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), field_expr)
+    pub fn value(name: SPEC::Name, ty: &Type) -> Self {
+        Self::value_maybe_expr(name, ty, None)
     }
 }
 
-impl<'a, SPEC> SourceComposable for ConversionFromComposer<'a, SPEC>
+impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
     where SPEC: Specification<Expr=Expression<SPEC>>,
           SPEC::Expr: ScopeContextPresentable,
           FFIFullPath<SPEC>: ToType,
@@ -73,10 +68,6 @@ impl<'a, SPEC> SourceComposable for ConversionFromComposer<'a, SPEC>
             .unwrap_or_else(|| TypeModelKind::unknown_type(search_key.to_type()));
 
         let maybe_special: Option<SpecialType<SPEC>> = full_type.maybe_special_type(source);
-        println!("ConversionFromComposer: {is_ref}/{is_mut_ref} full_type={}, search_key={search_key:?}, maybe_special={maybe_special:?}",
-                 full_type.to_token_stream());
-        // let mut wrap_to_box = is_ref;
-        // let mut wrap_to_box = false;
         let is_opaque = matches!(maybe_special, Some(SpecialType::Opaque(..)));
         let expression = match maybe_special {
             Some(SpecialType::Opaque(..)) => {

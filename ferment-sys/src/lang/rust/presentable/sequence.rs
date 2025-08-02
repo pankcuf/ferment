@@ -25,6 +25,10 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 let presentation = fields.present(source);
                 quote!(#name ( #presentation ) )
             },
+            SeqKind::TraitImplFnCall(self_ty, trait_ty, fn_ident, fields) => {
+                let presentation = fields.present(source);
+                quote!(<#self_ty as #trait_ty>::#fn_ident(#presentation))
+            },
             SeqKind::FromNamedFields(((aspect, ..), fields)) |
             SeqKind::ToNamedFields(((aspect, ..), fields)) => {
                 let name = aspect.present(source);

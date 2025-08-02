@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
-use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
 use crate::ext::{FFISpecialTypeResolve, GenericNestedArg, Primitive, Resolve, ToType};
 use crate::lang::Specification;
@@ -12,33 +12,36 @@ use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 
 #[derive(Clone, Debug)]
-pub struct ConversionDropComposer<'a, SPEC>
+pub struct ConversionDropComposer<SPEC>
 where SPEC: Specification {
     pub name: SPEC::Name,
-    pub search: ScopeSearch<'a>,
+    pub search: ScopeSearch,
     pub expr: Option<SPEC::Expr>,
 }
-impl<'a, SPEC> ConversionDropComposer<'a, SPEC>
+impl<SPEC> ConversionDropComposer<SPEC>
 where SPEC: Specification {
-    fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
+    fn new(name: SPEC::Name, search: ScopeSearch, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
     }
-
-    pub fn key_expr(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain, expr: Option<SPEC::Expr>) -> Self {
-        Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), expr)
+    #[allow(unused)]
+    pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), expr)
+    }
+    fn value_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_value(ty), expr)
     }
 
     #[allow(unused)]
-    pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), None)
+    pub fn value(name: SPEC::Name, ty: &Type) -> Self {
+        Self::value_expr_in_composer_scope(name, ty, None)
     }
     #[allow(unused)]
-    pub fn value_expr(name: SPEC::Name, ty: &'a Type, expr: SPEC::Expr) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(expr))
+    pub fn value_expr(name: SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
+        Self::value_expr_in_composer_scope(name, ty, Some(expr))
     }
 
 }
-impl<'a, SPEC> SourceComposable for ConversionDropComposer<'a, SPEC>
+impl<SPEC> SourceComposable for ConversionDropComposer<SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
       FFIFullPath<SPEC>: ToType,
@@ -103,10 +106,10 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     },
                     TypeModelKind::Slice(TypeModel { ref ty, .. }) => {
                         let maybe_nested_ty = ty.maybe_first_nested_type_ref();
-                        destroy_other::<SPEC>(&search_key.to_type(), ffi_type, parse_quote!(Vec<#maybe_nested_ty>), field_path)
+                        destroy_other::<SPEC, _>(search_key, ffi_type, parse_quote!(Vec<#maybe_nested_ty>), field_path)
                     },
                     _ => {
-                        destroy_other::<SPEC>(&search_key.to_type(), ffi_type, full_type, field_path)
+                        destroy_other::<SPEC, _>(search_key, ffi_type, full_type, field_path)
                     }
                 }
             }
@@ -116,10 +119,10 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
 }
 
 
-fn destroy_other<SPEC>(ty: &Type, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
+fn destroy_other<SPEC, T: ToType>(ty: &T, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable {
-    match TypeKind::from(ty) {
+    match TypeKind::from(ty.to_type()) {
         TypeKind::Primitive(_) =>
             None,
         TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {

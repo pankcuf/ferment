@@ -171,6 +171,9 @@ impl VisitScope for Item {
                             let ImplItemFn { sig, .. } = impl_method;
                             let Signature { ident, inputs, output, generics, .. } = sig;
                             let fn_scope = scope.joined(impl_method);
+                            if let Some((_, path, _)) = trait_ {
+                                visitor.add_full_qualified_type_match(&fn_scope, &path.to_type(), false);
+                            }
                             visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
                             visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                             if let ReturnType::Type(_arrow_token, ty) = output {
@@ -209,6 +212,7 @@ impl VisitScope for Item {
 }
 fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope: &ScopeChain) {
     let ident = &item_trait.ident;
+    let trait_type = ident.to_type();
     let type_compo = TypeModel::new(scope.to_type(), Some(item_trait.generics.clone()), Punctuated::new());
     let itself = ObjectKind::new_item(
         TypeModelKind::Trait(TraitModel::new(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items), add_bounds(visitor, &item_trait.supertraits, scope, true))),
@@ -228,6 +232,9 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 let Signature { ident, generics, inputs, output, .. } = sig;
                 let fn_scope = scope.joined(trait_item_method);
                 // visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
+                // let fn_scope = scope.joined(impl_method);
+                // println!("ADDD IMPL METHOD: {} : {} : {}", ident.to_token_stream(), self_ty.to_token_stream(), fn_scope);
+                visitor.add_full_qualified_type_match(&fn_scope, &trait_type, false);
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                 if let ReturnType::Type(_arrow_token, ty) = output {
                     visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);

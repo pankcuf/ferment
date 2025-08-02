@@ -30,14 +30,17 @@ impl ArgPresentation {
     pub fn attr_tokens<T: ToTokens>(attrs: &Vec<Attribute>, tokens: T) -> Self {
         Self::AttrTokens(attrs.clone(), tokens.to_token_stream())
     }
+    pub fn no_attr_tokens<T: ToTokens>(tokens: T) -> Self {
+        Self::AttrTokens(vec![], tokens.to_token_stream())
+    }
 
 }
 impl ToTokens for ArgPresentation {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
-            ArgPresentation::Arm(arm) => arm.to_tokens(tokens),
-            ArgPresentation::Field(field) => field.to_tokens(tokens),
-            ArgPresentation::AttrTokens(attr, expr) => {
+            Self::Arm(arm) => arm.to_tokens(tokens),
+            Self::Field(field) => field.to_tokens(tokens),
+            Self::AttrTokens(attr, expr) => {
                 quote!(#(#attr)*) .to_tokens(tokens);
                 expr.to_tokens(tokens);
             }

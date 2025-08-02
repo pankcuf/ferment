@@ -1,13 +1,13 @@
 use std::marker::PhantomData;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
+use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullPath, FFIVariable};
 
@@ -70,6 +70,17 @@ impl Accessory for FFIVariable<ObjCSpecification, TokenStream2> {
 
     fn joined_mut_ref(&self) -> Self {
         todo!()
+    }
+
+    fn joined_ident(&self, ident: &Ident) -> Self {
+        match self {
+            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Ref { ty , .. } => FFIVariable::Ref { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+        }
     }
 }
 
@@ -164,7 +175,6 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TypeModelKind {
     }
 
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-        println!("TypeModelKind::<FFIVariable>::resolve({}) in {}", self, source.scope.fmt_short());
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
             TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>

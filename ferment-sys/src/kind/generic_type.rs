@@ -86,7 +86,7 @@ impl GenericTypeKind {
                 },
                 _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", self.to_token_stream()),
             }
-            GenericTypeKind::Callback(kind) => Some(kind.ty()),
+            GenericTypeKind::Callback(kind) => Some(kind.as_type()),
             GenericTypeKind::TraitBounds(_) => {
                 // TODO: Make mixin here
                 None

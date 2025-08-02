@@ -7,12 +7,12 @@ use quote::ToTokens;
 use syn::{Generics, ItemTrait, TraitItem, TraitItemFn, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, FnSignatureContext, GenModel, LifetimesModel, TraitTypeModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, BasicComposerLink};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceComposable};
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
 use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
-use crate::presentation::{DocComposer, DocPresentation};
+use crate::presentation::DocPresentation;
 
 #[derive(ComposerBase)]
 pub struct TraitComposer<SPEC>
@@ -40,7 +40,7 @@ impl<SPEC> TraitComposer<SPEC>
             .for_each(|trait_item| match trait_item {
                 TraitItem::Fn(trait_item_method) => {
                     let TraitItemFn { sig, attrs, .. } = trait_item_method;
-                    let sig_context = FnSignatureContext::TraitInner(self_ty.clone(), Some(self_ty.clone()), sig.clone());
+                    let sig_context = FnSignatureContext::TraitInner(sig.clone(), self_ty.clone(), self_ty.clone());
                     let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
                     let ty_context = ty_context.join_fn(
                         scope.joined_path_holder(&sig.ident).0,

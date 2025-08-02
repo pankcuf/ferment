@@ -4,13 +4,13 @@ use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, BasicComposerLink, VTableComposerLink, SourceAccessible};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceComposable, VTableComposerLink};
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
 use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
-use crate::presentation::{DocComposer, DocPresentation};
+use crate::presentation::DocPresentation;
 
 #[derive(ComposerBase)]
 pub struct ImplComposer<SPEC>
@@ -37,7 +37,7 @@ impl<SPEC> ImplComposer<SPEC>
 
                             let trait_ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
-                                FnSignatureContext::Impl(*self_ty.clone(), Some(path.to_type()), item.sig.clone()),
+                                FnSignatureContext::TraitImpl(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
                             let composer = SigComposer::from_impl_item_method(item, trait_ty_context, &method_scope_context);
@@ -46,13 +46,13 @@ impl<SPEC> ImplComposer<SPEC>
 
                             let impl_ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
-                                FnSignatureContext::TraitAsType(*self_ty.clone(), path.to_type(), item.sig.clone()),
+                                FnSignatureContext::TraitAsType(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
                             methods.push(SigComposer::from_impl_item_method(item, impl_ty_context, &method_scope_context));
                         }
                         None => {
-                            let sig_context = FnSignatureContext::Impl(*self_ty.clone(), None, item.sig.clone());
+                            let sig_context = FnSignatureContext::Impl(item.sig.clone(), *self_ty.clone());
                             let ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
                                 sig_context,

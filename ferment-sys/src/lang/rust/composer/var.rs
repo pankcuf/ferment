@@ -1,4 +1,4 @@
-use syn::{parse_quote, Type};
+use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer};
 use crate::context::ScopeContext;
@@ -11,21 +11,23 @@ use crate::presentation::{FFIFullPath, FFIVariable, ToFFIVariable};
 // Dictionary generics and strings should be fermented
 // Others should be treated as opaque
 
-impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
+impl SourceComposable for VarComposer<RustSpecification> {
     type Source = ScopeContext;
     type Output = <RustSpecification as Specification>::Var;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let search_key = self.search.search_key();
         let ptr_composer = search_key.ptr_composer();
+        //println!("VarComposer:search {}", self.search);
         let maybe_obj = source.maybe_object_by_predicate_ref(&self.search);
+        //println!("VarComposer:maybe_obj {}", maybe_obj.as_ref().map(|obj| obj.to_token_stream()).unwrap_or_default());
         let full_ty = maybe_obj
             .as_ref()
             .and_then(ObjectKind::maybe_type)
             .unwrap_or_else(|| search_key.to_type());
         let maybe_special = Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_ty, source);
-
-        let result = match maybe_special {
+        //println!("VarComposer:full_ty {}", full_ty.to_token_stream());
+        match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_, ScopeItemKind::Fn(..))) =>
                     ptr_composer(source.maybe_to_fn_type().unwrap_or_else(|| search_key.to_type())),
@@ -68,8 +70,7 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustSpecification>>::resolve(&ty, source).to_type()),
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) |
                             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(model))) => {
-                                let ty = model.as_type();
-                                let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
+                                let full_nested_ty = model.as_type().maybe_first_nested_type_ref().unwrap();
                                 match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(full_nested_ty, source) {
                                     Some(special) => match source.maybe_object_by_value(full_nested_ty) {
                                         Some(ObjectKind::Item(TypeModelKind::FnPointer(..), ..) |
@@ -118,10 +119,9 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                                 conversion.resolve(source),
 
                             ref cnv => {
-
                                 if cnv.is_optional() {
                                     let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
-                                    match <Type as FFISpecialTypeResolve<RustSpecification>>::maybe_special_type(&nested_ty.to_type(), source) {
+                                    match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&nested_ty.to_type(), source) {
                                         Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
                                             return FFIVariable::mut_ptr(special_ty.to_type());
                                         },
@@ -140,7 +140,6 @@ impl<'a> SourceComposable for VarComposer<'a, RustSpecification> {
                     _ => search_key.resolve(source)
                 }
             }
-        };
-        result
+        }
     }
 }

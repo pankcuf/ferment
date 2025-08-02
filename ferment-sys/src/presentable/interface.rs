@@ -78,7 +78,7 @@ impl<SPEC, Link> Linkable<Link> for InterfaceKind<SPEC, Link>
           SPEC: Specification {
     fn link(&mut self, parent: &Link) {
         match self {
-            InterfaceKind::Ctor(c) => c.link(parent),
+            InterfaceKind::Ctor(c) |
             InterfaceKind::From(c) |
             InterfaceKind::To(c) => c.link(parent),
             InterfaceKind::Drop(c) => c.link(parent),
@@ -88,7 +88,7 @@ impl<SPEC, Link> Linkable<Link> for InterfaceKind<SPEC, Link>
 
 impl<SPEC, Link> SourceComposable for InterfaceKind<SPEC, Link>
     where Link: SharedAccess,
-      SPEC: Specification {
+          SPEC: Specification {
     type Source = ();
     type Output = SeqKind<SPEC>;
 

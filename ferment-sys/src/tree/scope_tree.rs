@@ -10,7 +10,7 @@ use crate::context::{ScopeChain, ScopeContextLink};
 use crate::kind::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
-use crate::tree::{ScopeTreeExportID, ScopeTreeItem};
+use crate::tree::{ScopeTreeID, ScopeTreeItem};
 use crate::tree::ScopeTreeExportItem;
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ pub struct ScopeTree {
     pub attrs: Vec<Attribute>,
     pub scope: ScopeChain,
     pub imported: HashSet<ItemUse>,
-    pub exported: HashMap<ScopeTreeExportID, ScopeTreeItem>,
+    pub exported: HashMap<ScopeTreeID, ScopeTreeItem>,
     pub scope_context: ScopeContextLink,
 }
 impl Debug for ScopeTree {
@@ -79,7 +79,7 @@ pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
+    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
     // print_phase!("PHASE 2: SCOPE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
@@ -91,7 +91,7 @@ pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeExportID, ScopeTreeExportItem>,
+    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
     let exported = HashMap::from_iter(exported.into_iter()

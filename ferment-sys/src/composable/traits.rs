@@ -116,7 +116,7 @@ impl<SPEC> TraitVTableComposer<SPEC>
                 TraitItem::Fn(trait_item_fn) => {
                     let name_context = ty_context.join_fn(
                         source.scope.joined_path_holder(&trait_item_fn.sig.ident).0,
-                        FnSignatureContext::Impl(self_ty.clone(), Some(trait_ident.to_type()), trait_item_fn.sig.clone()),
+                        FnSignatureContext::TraitImpl(trait_item_fn.sig.clone(), self_ty.clone(), trait_ident.to_type()),
                         trait_item_fn.attrs.cfg_attributes()
                     );
                     let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_fn)));

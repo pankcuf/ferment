@@ -27,64 +27,64 @@ pub enum SmartPointerKind {
 impl SmartPointerKind {
     pub fn is_once_lock(&self) -> bool {
         match self {
-            SmartPointerKind::OnceLock(_) => true,
+            Self::OnceLock(_) => true,
             _ => false
         }
     }
     pub fn dictionary_type(&self) -> DictionaryExpr {
         match self {
-            SmartPointerKind::Box(_) => DictionaryExpr::Box,
-            SmartPointerKind::Arc(_) => DictionaryExpr::Arc,
-            SmartPointerKind::Rc(_) => DictionaryExpr::Rc,
-            SmartPointerKind::Mutex(_) => DictionaryExpr::Mutex,
-            SmartPointerKind::OnceLock(_) => DictionaryExpr::OnceLock,
-            SmartPointerKind::RwLock(_) => DictionaryExpr::RwLock,
-            SmartPointerKind::Cell(_) => DictionaryExpr::Cell,
-            SmartPointerKind::RefCell(_) => DictionaryExpr::RefCell,
-            SmartPointerKind::UnsafeCell(_) => DictionaryExpr::UnsafeCell,
+            Self::Box(_) => DictionaryExpr::Box,
+            Self::Arc(_) => DictionaryExpr::Arc,
+            Self::Rc(_) => DictionaryExpr::Rc,
+            Self::Mutex(_) => DictionaryExpr::Mutex,
+            Self::OnceLock(_) => DictionaryExpr::OnceLock,
+            Self::RwLock(_) => DictionaryExpr::RwLock,
+            Self::Cell(_) => DictionaryExpr::Cell,
+            Self::RefCell(_) => DictionaryExpr::RefCell,
+            Self::UnsafeCell(_) => DictionaryExpr::UnsafeCell,
             _ => panic!("SmartPointerKind::dictionary_type")
         }
     }
 
     pub fn wrapped_arg_type(&self) -> Option<&Type> {
         match self {
-            SmartPointerKind::Rc(_) |
-            SmartPointerKind::Arc(_) =>
+            Self::Rc(_) |
+            Self::Arc(_) =>
                 self.as_type().maybe_first_nested_type_ref()?.maybe_first_nested_type_ref(),
             _ => self.as_type().maybe_first_nested_type_ref()
         }
     }
-    pub fn wrap_alloc<SPEC, T>(&self, expr: Expression<SPEC>) -> Expression<SPEC>
+    pub fn wrap_alloc<SPEC, T>(&self, expr: SPEC::Expr) -> SPEC::Expr
     where SPEC: Specification<Expr=Expression<SPEC>>,
           Expression<SPEC>: ScopeContextPresentable,
           T: ToTokens {
         match self {
-            SmartPointerKind::Rc(_) |
-            SmartPointerKind::Arc(_) => Expression::<SPEC>::new_smth(expr, self.dictionary_type()),
+            Self::Rc(_) |
+            Self::Arc(_) => SPEC::Expr::new_smth(expr, self.dictionary_type()),
             _ => expr,
         }
     }
-    pub fn wrap_from<SPEC, T>(&self, expr: T) -> Expression<SPEC>
+    pub fn wrap_from<SPEC, T>(&self, expr: T) -> SPEC::Expr
     where SPEC: Specification<Expr=Expression<SPEC>>,
           Expression<SPEC>: ScopeContextPresentable,
           T: ToTokens {
         match self {
-            SmartPointerKind::Rc(_) => Expression::dict_expr(DictionaryExpr::from_rc(DictionaryExpr::deref_ref(expr))),
-            SmartPointerKind::Arc(_) => Expression::dict_expr(DictionaryExpr::from_arc(DictionaryExpr::deref_ref(expr))),
-            SmartPointerKind::Mutex(_) |
-            SmartPointerKind::OnceLock(_) |
-            SmartPointerKind::RwLock(_) |
-            SmartPointerKind::Cell(_) |
-            SmartPointerKind::RefCell(_) |
-            SmartPointerKind::UnsafeCell(_) => Expression::dict_expr(DictionaryExpr::from_ptr_read(expr)),
-            _ => Expression::simple(expr),
+            Self::Rc(_) => SPEC::Expr::dict_expr(DictionaryExpr::from_rc(DictionaryExpr::deref_ref(expr))),
+            Self::Arc(_) => SPEC::Expr::dict_expr(DictionaryExpr::from_arc(DictionaryExpr::deref_ref(expr))),
+            Self::Mutex(_) |
+            Self::OnceLock(_) |
+            Self::RwLock(_) |
+            Self::Cell(_) |
+            Self::RefCell(_) |
+            Self::UnsafeCell(_) => SPEC::Expr::dict_expr(DictionaryExpr::from_ptr_read(expr)),
+            _ => SPEC::Expr::simple(expr),
         }
     }
     pub fn wrap_arg_to<SPEC>(&self, expr: Expression<SPEC>) -> Expression<SPEC>
     where SPEC: Specification<Expr=Expression<SPEC>>,
           Expression<SPEC>: ScopeContextPresentable {
         match self {
-            SmartPointerKind::Cell(_) => expr,
+            Self::Cell(_) => expr,
             _ => Expression::Clone(expr.into()),
         }
     }
@@ -96,66 +96,44 @@ impl SmartPointerKind {
 impl Debug for SmartPointerKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("SmartPointerKind::{}({})", match self {
-            SmartPointerKind::Box(_) => "Box",
-            SmartPointerKind::Rc(_) => "Rc",
-            SmartPointerKind::Arc(_) => "Arc",
-            SmartPointerKind::Cell(_) => "Cell",
-            SmartPointerKind::RefCell(_) => "RefCell",
-            SmartPointerKind::UnsafeCell(_) => "UnsafeCell",
-            SmartPointerKind::Mutex(_) => "Mutex",
-            SmartPointerKind::RwLock(_) => "RwLock",
-            SmartPointerKind::OnceLock(_) => "OnceLock",
-            SmartPointerKind::Pin(_) => "Pin",
+            Self::Box(_) => "Box",
+            Self::Rc(_) => "Rc",
+            Self::Arc(_) => "Arc",
+            Self::Cell(_) => "Cell",
+            Self::RefCell(_) => "RefCell",
+            Self::UnsafeCell(_) => "UnsafeCell",
+            Self::Mutex(_) => "Mutex",
+            Self::RwLock(_) => "RwLock",
+            Self::OnceLock(_) => "OnceLock",
+            Self::Pin(_) => "Pin",
         }, self.to_token_stream()))
     }
 }
 
 impl ToTokens for SmartPointerKind {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        match self {
-            SmartPointerKind::Box(ty) |
-            SmartPointerKind::Rc(ty) |
-            SmartPointerKind::Arc(ty) |
-            SmartPointerKind::Cell(ty) |
-            SmartPointerKind::RefCell(ty) |
-            SmartPointerKind::UnsafeCell(ty) |
-            SmartPointerKind::Mutex(ty) |
-            SmartPointerKind::RwLock(ty) |
-            SmartPointerKind::OnceLock(ty) |
-            SmartPointerKind::Pin(ty) => ty.to_tokens(tokens),
-        }
+        self.as_type().to_tokens(tokens);
     }
 }
 
 impl<'a> AsType<'a> for SmartPointerKind{
     fn as_type(&'a self) -> &'a Type {
         match self {
-            SmartPointerKind::Box(ty) |
-            SmartPointerKind::Rc(ty) |
-            SmartPointerKind::Arc(ty) |
-            SmartPointerKind::Cell(ty) |
-            SmartPointerKind::RefCell(ty) |
-            SmartPointerKind::UnsafeCell(ty) |
-            SmartPointerKind::Mutex(ty) |
-            SmartPointerKind::RwLock(ty) |
-            SmartPointerKind::OnceLock(ty) |
-            SmartPointerKind::Pin(ty) => ty,
+            Self::Box(ty) |
+            Self::Rc(ty) |
+            Self::Arc(ty) |
+            Self::Cell(ty) |
+            Self::RefCell(ty) |
+            Self::UnsafeCell(ty) |
+            Self::Mutex(ty) |
+            Self::RwLock(ty) |
+            Self::OnceLock(ty) |
+            Self::Pin(ty) => ty,
         }
     }
 }
 impl ToType for SmartPointerKind {
     fn to_type(&self) -> Type {
-        match self {
-            SmartPointerKind::Box(ty) |
-            SmartPointerKind::Rc(ty) |
-            SmartPointerKind::Arc(ty) |
-            SmartPointerKind::Cell(ty) |
-            SmartPointerKind::RefCell(ty) |
-            SmartPointerKind::UnsafeCell(ty) |
-            SmartPointerKind::Mutex(ty) |
-            SmartPointerKind::OnceLock(ty) |
-            SmartPointerKind::RwLock(ty) |
-            SmartPointerKind::Pin(ty) => ty.clone(),
-        }
+        self.as_type().clone()
     }
 }

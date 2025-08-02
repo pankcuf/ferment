@@ -6,7 +6,7 @@ use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, CallbackComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::kind::{CallbackKind, FieldTypeKind, GenericTypeKind, SpecialType, TypeKind};
-use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, AsType, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
 use crate::lang::{FromDictionary, RustSpecification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name};
@@ -118,21 +118,21 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustSpecification>::callback(
-            Aspect::raw_struct_ident(kind.ty().mangle_ident_default()),
+            Aspect::raw_struct_ident(kind.as_type().mangle_ident_default()),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
-                    FieldComposer::named(Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
+                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
+                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
                 ])
             } else {
                 Depunctuated::from_iter([
-                    FieldComposer::named(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
+                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Default))),
                 ])
             },
             Depunctuated::from_iter([
-                InterfacePresentation::callback(&attrs, &ffi_type, args, return_type, &lifetimes, arg_to_conversions, from_result_conversion),
-                InterfacePresentation::send_sync(&attrs, &ffi_type)
+                InterfacePresentation::send_sync(&attrs, &ffi_type),
+                InterfacePresentation::callback(&attrs, ffi_type, args, return_type, &lifetimes, arg_to_conversions, from_result_conversion),
             ])
         ))
     }

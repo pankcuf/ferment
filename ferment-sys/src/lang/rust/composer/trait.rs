@@ -33,10 +33,10 @@ impl SourceFermentable<RustFermentate> for TraitComposer<RustSpecification> {
                 name: Name::<RustSpecification>::TraitObj(mangled_ty).to_path(),
                 fields: BraceWrapped::new(
                     CommaPunctuated::from_iter([
-                        FieldComposer::<RustSpecification>::named(
+                        FieldComposer::<RustSpecification>::named_no_attrs(
                             Name::dictionary_name(DictionaryName::Object),
                             FieldTypeKind::Type(parse_quote!(*const ()))),
-                        FieldComposer::<RustSpecification>::named(
+                        FieldComposer::<RustSpecification>::named_no_attrs(
                             Name::dictionary_name(DictionaryName::Vtable),
                             FieldTypeKind::Type(parse_quote!(*const #vtable_name))),
                     ])).present(&self.context().borrow())

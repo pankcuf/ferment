@@ -44,7 +44,7 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for Type
     }
 }
 
-impl<'a, SPEC> Resolve<SpecialType<SPEC>> for ScopeSearchKey<'a>
+impl<SPEC> Resolve<SpecialType<SPEC>> for ScopeSearchKey
     where SPEC: Specification,
           FFIFullDictionaryPath<SPEC>: ToType {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
@@ -59,7 +59,7 @@ impl<'a, SPEC> Resolve<SpecialType<SPEC>> for ScopeSearchKey<'a>
     }
 }
 
-impl<'a> Resolve<TypeModelKind> for ScopeSearchKey<'a>  {
+impl Resolve<TypeModelKind> for ScopeSearchKey  {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         Some(self.resolve(source))
     }
@@ -136,9 +136,26 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
         self.maybe_resolve(source).unwrap()
     }
 }
+impl Resolve<Type> for Ident {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<Type> {
+        Resolve::<Type>::maybe_resolve(&self.to_type(), source)
+    }
 
+    fn resolve(&self, source: &ScopeContext) -> Type {
+        Resolve::<Type>::resolve(&self.to_type(), source)
+    }
+}
+impl Resolve<Type> for Path {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<Type> {
+        Resolve::<Type>::maybe_resolve(&self.to_type(), source)
+    }
+
+    fn resolve(&self, source: &ScopeContext) -> Type {
+        Resolve::<Type>::resolve(&self.to_type(), source)
+    }
+}
 impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
-    where SPEC: Specification {
+where SPEC: Specification {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
         let segments = &self.segments;
         let first_segment = segments.first()?;

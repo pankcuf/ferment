@@ -1,10 +1,9 @@
 use quote::{quote, ToTokens};
 use syn::parse_quote;
 use crate::ast::Depunctuated;
-use crate::composable::FieldTypeKind;
 use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, GroupComposer, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
-use crate::kind::{GenericTypeKind, TypeKind};
+use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
 use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::ObjCSpecification;
@@ -32,18 +31,18 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
                 let kind = ConversionExpressionKind::PrimitiveGroup;
                 (
                     <ObjCSpecification as Specification>::Var::direct(objc_primitive(arg_0_target_path)),
-                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
             TypeKind::Complex(arg_0_target_ty) => {
                 let kind = ConversionExpressionKind::ComplexGroup;
                 (
                     <ObjCSpecification as Specification>::Var::mut_ptr(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_type(arg_0_target_ty, source).to_token_stream()),
-                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
             TypeKind::Generic(arg_0_generic_path_conversion) => {

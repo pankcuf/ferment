@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
-use crate::context::{ScopeChain, ScopeContext, ScopeSearch, ScopeSearchKey};
+use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
 use crate::ext::{AsType, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, ToType};
 use crate::lang::Specification;
@@ -11,38 +11,36 @@ use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposa
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Debug)]
-pub struct ConversionToComposer<'a, SPEC>
+pub struct ConversionToComposer<SPEC>
 where SPEC: Specification {
     pub name: SPEC::Name,
-    pub search: ScopeSearch<'a>,
+    pub search: ScopeSearch,
     pub expr: Option<SPEC::Expr>,
 }
 
-impl<'a, SPEC> ConversionToComposer<'a, SPEC>
+impl<SPEC> ConversionToComposer<SPEC>
 where SPEC: Specification {
-    pub fn new(name: SPEC::Name, search: ScopeSearch<'a>, expr: Option<SPEC::Expr>) -> Self {
+    pub fn new(name: SPEC::Name, search: ScopeSearch, expr: Option<SPEC::Expr>) -> Self {
         Self { name, search, expr }
     }
-    pub fn key(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain) -> Self {
-        Self::key_expr(name, ty, scope, None)
+    pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), expr)
     }
-    pub fn key_expr(name: SPEC::Name, ty: &'a Type, scope: &'a ScopeChain, expr: Option<SPEC::Expr>) -> Self {
-        Self::new(name, ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope), expr)
+    pub fn value_maybe_expr(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::new(name, ScopeSearch::type_ref_value(ty), expr)
     }
-    pub fn value(name: SPEC::Name, ty: &'a Type) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), None)
+    pub fn key_in_composer_scope(name: SPEC::Name, ty: &Type) -> Self {
+        Self::key_expr_in_composer_scope(name, ty, None)
     }
-    #[allow(unused)]
-    pub fn value_expr(name: SPEC::Name, ty: &'a Type, expr: SPEC::Expr) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), Some(expr))
+    pub fn value(name: SPEC::Name, ty: &Type) -> Self {
+        Self::value_maybe_expr(name, ty, None)
     }
-    #[allow(unused)]
-    pub fn value_maybe_expr(name: SPEC::Name, ty: &'a Type, expr: Option<SPEC::Expr>) -> Self {
-        Self::new(name, ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()), expr)
+    pub fn value_expr(name: SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
+        Self::value_maybe_expr(name, ty, Some(expr))
     }
 }
 
-impl<'a, SPEC> SourceComposable for ConversionToComposer<'a, SPEC>
+impl<SPEC> SourceComposable for ConversionToComposer<SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
       FFIFullPath<SPEC>: ToType,
@@ -100,7 +98,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                             Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type),
                         TypeModelKind::Optional(TypeModel { ty, .. }) => {
                             let nested_ty = ty.maybe_first_nested_type_kind().unwrap();
-                            let maybe_special = <Type as FFISpecialTypeResolve<SPEC>>::maybe_special_type(&nested_ty.to_type(), source);
+                            let maybe_special = FFISpecialTypeResolve::<SPEC>::maybe_special_type(&nested_ty.to_type(), source);
                             let (expr_kind, ffi_type) = match maybe_special {
                                 Some(SpecialType::Custom(custom_ty)) => {
                                     (ConversionExpressionKind::ComplexOpt, custom_ty)

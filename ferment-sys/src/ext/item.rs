@@ -3,10 +3,10 @@ use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use crate::ast::AddPunctuated;
 use crate::kind::TypeKind;
-use crate::tree::ScopeTreeExportID;
+use crate::tree::ScopeTreeID;
 
 pub trait ItemExtension {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID;
+    fn scope_tree_export_id(&self) -> ScopeTreeID;
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
     fn maybe_ident(&self) -> Option<&Ident>;
     fn ident_string(&self) -> String {
@@ -24,7 +24,7 @@ pub trait ItemExtension {
 
 
 impl ItemExtension for Item {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
+    fn scope_tree_export_id(&self) -> ScopeTreeID {
         match self {
             Item::Mod(ItemMod { ident, .. }, ..) |
             Item::Struct(ItemStruct { ident, .. }, ..) |
@@ -33,9 +33,9 @@ impl ItemExtension for Item {
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }, ..) |
             Item::Trait(ItemTrait { ident, .. }, ..) |
             Item::Const(ItemConst { ident, .. }, ..) =>
-                ScopeTreeExportID::Ident(ident.clone()),
+                ScopeTreeID::Ident(ident.clone()),
             Item::Impl(ItemImpl { self_ty, trait_, generics, .. }, ..) =>
-                ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path), generics.clone()),
+                ScopeTreeID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path), generics.clone()),
             item => panic!("ScopeTreeExportID Not supported for {}", quote!(#item)),
         }
 
@@ -168,8 +168,8 @@ fn type_ident_ref(ty: &Type) -> Option<&Ident> {
 }
 
 impl ItemExtension for Signature {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
-        ScopeTreeExportID::Ident(self.ident.clone())
+    fn scope_tree_export_id(&self) -> ScopeTreeID {
+        ScopeTreeID::Ident(self.ident.clone())
     }
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>> {
         None

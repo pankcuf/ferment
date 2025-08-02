@@ -139,7 +139,7 @@ impl GlobalContext {
                 _ => None,
             })
     }
-    fn maybe_obj_or_parent_object_ref_by_tree_search_key<'a>(&'a self, self_scope: &'a ScopeChain, parent_chain: &'a ScopeChain, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
+    fn maybe_obj_or_parent_object_ref_by_tree_search_key<'a>(&'a self, self_scope: &'a ScopeChain, parent_chain: &'a ScopeChain, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
         self.maybe_object_ref_by_search_key_in_scope(search_key.clone(), self_scope)
             .or_else(move || match parent_chain {
                 ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
@@ -167,7 +167,7 @@ impl GlobalContext {
                         }),
         })
     }
-    fn maybe_fn_object_ref_by_tree_search_key<'a>(&'a self, fn_scope: &'a ScopeChain, parent_scope: &'a ScopeChain, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
+    fn maybe_fn_object_ref_by_tree_search_key<'a>(&'a self, fn_scope: &'a ScopeChain, parent_scope: &'a ScopeChain, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
         self.maybe_object_ref_by_search_key_in_scope(search_key.clone(), fn_scope)
             .or_else(move || match parent_scope {
                 ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
@@ -187,7 +187,7 @@ impl GlobalContext {
         })
     }
 
-    pub fn maybe_object_ref_by_tree_search_key<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
+    pub fn maybe_object_ref_by_tree_search_key<'a>(&'a self, search_key: ScopeSearchKey, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
         match scope {
             ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
                 self.maybe_object_ref_by_search_key_in_scope(search_key, scope),
@@ -455,17 +455,6 @@ impl GlobalContext {
     pub fn scope_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
         self.scope_register.type_chain_mut(scope)
     }
-    // pub fn maybe_object_ref_by_predicate<'a>(&'a self, predicate: ScopeSearch<'a>) -> Option<&'a ObjectKind> {
-    //     // self.scope_register.maybe_object_ref_by_predicate(predicate)
-    //     match predicate {
-    //         ScopeSearch::KeyInScope(search_key, scope) =>
-    //             self.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope),
-    //         ScopeSearch::Value(search_key) =>
-    //             self.scope_register.maybe_object_ref_by_value(search_key),
-    //     }
-    //
-    // }
-
     pub fn maybe_scope_ref(&self, path: &Path) -> Option<&ScopeChain> {
         self.scope_register.maybe_scope(path)
     }
@@ -480,11 +469,11 @@ impl GlobalContext {
         ScopeSearchKey::maybe_from_ref(ty)
             .and_then(|search_key| self.maybe_object_ref_by_search_key_in_scope(search_key, scope))
     }
-    fn maybe_object_ref_by_search_key_in_scope<'a>(&'a self, search_key: ScopeSearchKey<'a>, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
+    fn maybe_object_ref_by_search_key_in_scope<'a>(&'a self, search_key: ScopeSearchKey, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
         self.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope)
 
     }
-    fn maybe_object_ref_by_search_value<'a>(&'a self, search_key: ScopeSearchKey<'a>) -> Option<&'a ObjectKind> {
+    fn maybe_object_ref_by_search_value<'a>(&'a self, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
         self.scope_register.maybe_object_ref_by_value(search_key)
     }
 }

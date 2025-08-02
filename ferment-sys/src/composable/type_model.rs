@@ -1,34 +1,9 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
-use syn::punctuated::{IterMut, Punctuated};
-use crate::composable::nested_arg::NestedArgument;
+use syn::{Generics, Lifetime, Path, punctuated::Punctuated, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
+use crate::composable::{NestedArgument, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor};
-
-pub trait TypeModeled {
-    fn type_model_mut(&mut self) -> &mut TypeModel;
-    fn type_model_ref(&self) -> &TypeModel;
-    fn type_model_and_nested_arguments_mut(&mut self) -> (&mut Type, &mut CommaPunctuatedNestedArguments) {
-        let model = self.type_model_mut();
-        (&mut model.ty, &mut model.nested_arguments)
-    }
-    fn nested_arguments_mut(&mut self) -> &mut CommaPunctuatedNestedArguments {
-        &mut self.type_model_mut().nested_arguments
-    }
-    fn nested_arguments_iter_mut(&mut self) -> IterMut<NestedArgument> {
-        self.nested_arguments_mut().iter_mut()
-    }
-    fn nested_arguments_ref(&self) -> &CommaPunctuatedNestedArguments {
-        &self.type_model_ref().nested_arguments
-    }
-    fn ty_mut(&mut self) -> &mut Type {
-        &mut self.type_model_mut().ty
-    }
-    fn replace_model_type(&mut self, with_ty: Type) {
-        *self.ty_mut() = with_ty;
-    }
-}
 
 #[derive(Clone)]
 pub struct TypeModel {

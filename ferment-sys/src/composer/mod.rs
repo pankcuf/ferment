@@ -13,11 +13,11 @@ mod opaque_struct;
 mod ffi_bindings;
 mod generics;
 pub(crate) mod r#abstract;
-mod variable;
 mod conversion_from;
 mod conversion_to;
 mod conversion_drop;
 mod callback;
+mod doc;
 mod result;
 mod tuple;
 mod map;
@@ -35,7 +35,13 @@ mod array;
 mod smart_pointer;
 mod target_var;
 mod var;
-pub mod vtable;
+mod vtable;
+mod trait_fn;
+mod signature_wrapper;
+mod mod_fn;
+mod bare_fn;
+mod impl_fn;
+mod trait_inner_fn;
 
 use std::rc::Rc;
 use syn::__private::TokenStream2;
@@ -45,7 +51,6 @@ use syn::token::{Comma, Semi};
 use crate::ast::{CommaPunctuated, SemiPunctuated};
 use crate::composable::{FieldComposer, NestedArgument};
 use crate::composer::r#abstract::{SequenceComposer, SequenceMixer};
-use crate::composer::vtable::VTableComposer;
 use crate::ext::Conversion;
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, SeqKind};
@@ -58,10 +63,12 @@ pub use self::any_other::*;
 pub use self::array::*;
 pub use self::attrs::*;
 pub use self::basic::*;
+pub use self::bare_fn::*;
 pub use self::bounds::*;
 pub use self::callback::*;
 pub use self::constants::*;
 pub use self::conversion_drop::*;
+pub use self::doc::*;
 pub use self::r#enum::*;
 pub use self::enum_variant::*;
 pub use self::ffi_bindings::*;
@@ -71,10 +78,13 @@ pub use self::generic::*;
 pub use self::generics::*;
 pub use self::group::*;
 pub use self::r#impl::*;
+pub use self::impl_fn::*;
 pub use self::item::*;
 pub use self::item_wrapper::*;
+pub use self::lifetimes::*;
 pub use self::map::*;
 pub use self::method::*;
+pub use self::mod_fn::*;
 pub use self::opaque_struct::*;
 pub use self::result::*;
 pub use self::signature::*;
@@ -85,12 +95,13 @@ pub use self::r#struct::*;
 pub use self::target_var::*;
 pub use self::conversion_to::*;
 pub use self::r#trait::*;
+pub use self::trait_fn::*;
+pub use self::trait_inner_fn::*;
 pub use self::tuple::*;
 pub use self::r#type::TypeComposer;
 pub use self::type_alias::*;
 pub use self::var::*;
-pub use self::variable::*;
-// pub use self::vtable::*;
+pub use self::vtable::*;
 
 /// Composer Context Presenters
 pub type ComposerLink<T> = Rc<std::cell::RefCell<T>>;
@@ -149,8 +160,7 @@ pub type CommaArgComposers<SPEC> = ArgComposers<SPEC, Comma>;
 pub type BindingAccessorContext<SPEC> = (
     Aspect<<SPEC as Specification>::TYC>,
     SignatureAspect<SPEC>,
-    // VarComposer<SPEC>,
-    VariableComposer<SPEC>,
+    VarComposer<SPEC>,
     TokenStream2,
 );
 pub type FieldTypeLocalContext<SPEC> = (<SPEC as Specification>::Name, Conversion<SPEC>);

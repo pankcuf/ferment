@@ -1,4 +1,5 @@
-use proc_macro2::TokenStream;
+use std::marker::PhantomData;
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{parse_quote, Path, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::AddPunctuated;
@@ -43,6 +44,16 @@ impl Accessory for FFIVariable<RustSpecification, Type> {
     }
     fn joined_mut_ref(&self) -> Self {
         FFIVariable::mut_ref(self.to_type())
+    }
+    fn joined_ident(&self, ident: &Ident) -> Self {
+        match self {
+            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Ref { ty, .. } =>  FFIVariable::Ref { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: parse_quote!(#ty::#ident), _marker: PhantomData }
+        }
     }
 }
 
@@ -272,9 +283,9 @@ pub fn resolve_type_variable_via_maybe_object(
             .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty)), source)
 }
 
-pub fn resolve_type_variable_via_ffi_full_path_and_trait(
-    nested_ty: &Type,
-    source: &ScopeContext
-) -> FFIVariable<RustSpecification, Type> {
-    resolve_type_variable_via_maybe_object(Resolve::<ObjectKind>::maybe_resolve(nested_ty, source), nested_ty, source)
-}
+// pub fn resolve_type_variable_via_ffi_full_path_and_trait(
+//     nested_ty: &Type,
+//     source: &ScopeContext
+// ) -> FFIVariable<RustSpecification, Type> {
+//     resolve_type_variable_via_maybe_object(Resolve::<ObjectKind>::maybe_resolve(nested_ty, source), nested_ty, source)
+// }

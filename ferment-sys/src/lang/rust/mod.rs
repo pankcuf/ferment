@@ -1,7 +1,6 @@
 mod composer;
 mod kind;
 mod presentable;
-mod composable;
 mod ext;
 mod presentation;
 mod tree;

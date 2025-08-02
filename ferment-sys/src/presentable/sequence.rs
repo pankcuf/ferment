@@ -1,8 +1,10 @@
 use std::fmt::Debug;
+use proc_macro2::Ident;
 use quote::ToTokens;
+use syn::Type;
 use ferment_macro::Display;
 use crate::ast::CommaPunctuated;
-use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments};
+use crate::composer::{AspectCommaPunctuatedArguments, AttrComposable, TypeAspect, VariantComposable, FieldsConversionComposable, SourceComposable, ComposerLinkRef, AspectTerminatedArguments, AspectPresentableArguments, CommaPunctuatedArgKinds};
 use crate::lang::Specification;
 use crate::presentable::Aspect;
 
@@ -14,6 +16,7 @@ pub enum SeqKind<SPEC>
     FromNamedFields(AspectCommaPunctuatedArguments<SPEC>),
     ToNamedFields(AspectCommaPunctuatedArguments<SPEC>),
     FromUnnamedFields(AspectCommaPunctuatedArguments<SPEC>),
+    TraitImplFnCall(Type, Type, Ident, CommaPunctuatedArgKinds<SPEC>),
     ToUnnamedFields(AspectCommaPunctuatedArguments<SPEC>),
     ToStub(AspectCommaPunctuatedArguments<SPEC>),
     NamedVariantFields(AspectCommaPunctuatedArguments<SPEC>),

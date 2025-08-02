@@ -6,18 +6,18 @@ use crate::context::{Scope, ScopeChain, ScopeInfo};
 use crate::kind::ObjectKind;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
-pub enum ScopeTreeExportID {
+pub enum ScopeTreeID {
     Ident(Ident),
     Impl(Type, Option<Path>, Generics)
 }
 
-impl From<&PathSegment> for ScopeTreeExportID {
+impl From<&PathSegment> for ScopeTreeID {
     fn from(value: &PathSegment) -> Self {
         Self::from_ident(&value.ident)
     }
 }
 
-impl std::fmt::Debug for ScopeTreeExportID {
+impl std::fmt::Debug for ScopeTreeID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ident(ident) =>
@@ -28,13 +28,13 @@ impl std::fmt::Debug for ScopeTreeExportID {
     }
 }
 
-impl std::fmt::Display for ScopeTreeExportID {
+impl std::fmt::Display for ScopeTreeID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self, f)
     }
 }
 
-impl ScopeTreeExportID {
+impl ScopeTreeID {
     pub fn from_ident(ident: &Ident) -> Self {
         Self::Ident(ident.clone())
     }

@@ -1,4 +1,4 @@
-use syn::{parse_quote, Path, PathSegment};
+use syn::{Path, PathSegment};
 use syn::punctuated::Punctuated;
 use crate::ast::{Colon2Punctuated, PathHolder};
 use crate::ext::CrateExtension;
@@ -22,23 +22,5 @@ impl Pop for Path {
 impl Pop for Colon2Punctuated<PathSegment> {
     fn popped(&self) -> Self {
         self.ident_less()
-    }
-}
-
-#[allow(unused)]
-pub trait Neighbour {
-    fn neighbour(&self, chunk: &Self) -> Self;
-}
-
-impl Neighbour for Colon2Punctuated<PathSegment> {
-    fn neighbour(&self, chunk: &Self) -> Self {
-        let reexport_chunk = self.popped();
-        parse_quote!(#reexport_chunk::#chunk)
-    }
-}
-impl Neighbour for Path {
-    fn neighbour(&self, chunk: &Self) -> Self {
-        let reexport_chunk = self.popped();
-        parse_quote!(#reexport_chunk::#chunk)
     }
 }

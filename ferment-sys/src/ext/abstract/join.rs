@@ -2,7 +2,7 @@ use quote::ToTokens;
 use syn::{ImplItemFn, Item, Signature, TraitItemFn};
 use syn::punctuated::Punctuated;
 use crate::composable::TypeModel;
-use crate::context::{Scope, ScopeChain, ScopeInfo};
+use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::kind::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::item::ItemExtension;
 use crate::ext::ToType;
@@ -78,3 +78,14 @@ impl Join<TraitItemFn> for ScopeChain {
     }
 }
 
+impl Join<ImplItemFn> for ScopeContext {
+    fn joined(&self, other: &ImplItemFn) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}
+
+impl Join<TraitItemFn> for ScopeContext {
+    fn joined(&self, other: &TraitItemFn) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}

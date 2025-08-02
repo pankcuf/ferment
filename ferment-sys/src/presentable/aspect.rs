@@ -1,13 +1,13 @@
-use syn::{Attribute, parse_quote, Type, TypeSlice};
+use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature};
 use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use crate::composable::{FnSignatureContext, TypeModeled};
+use crate::composable::FnSignatureContext;
 use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, TypeAspect};
 use crate::context::ScopeContext;
 use crate::kind::{GenericTypeKind, MixinKind};
-use crate::ext::{AsType, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
+use crate::ext::{Accessory, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::Specification;
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
 use crate::presentation::DictionaryName;
@@ -69,131 +69,71 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         match self {
-            Aspect::Target(context) => {
-                match context {
-                    TypeContext::Enum { ident, .. } |
-                    TypeContext::Struct { ident, .. } => {
-                        let result: Type = ident.to_type()
-                            .resolve(source);
-                        result
-                    },
-                    TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {
-                        let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);
-                        let ty = full_ty.lifetimes_cleaned();
-                        parse_quote!(#ty::#variant_ident)
-                    },
-                    TypeContext::Fn { path, .. } => {
-                        path.to_type()
-                    }
-                    TypeContext::Trait { path , ..} |
-                    TypeContext::Impl { path , ..} =>
-                        path.to_type().resolve(source),
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(GenericTypeKind::Slice(ty)), ..} => {
-                        let type_slice: TypeSlice = parse_quote!(#ty);
-                        let elem_type = &type_slice.elem;
-                        parse_quote!(Vec<#elem_type>)
-                    }
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
-                        kind.ty().cloned().unwrap(),
-                    TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
-                        model.as_type().clone()
-                }
-            },
-            Aspect::FFI(context) => {
-                match context {
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), ..} =>
-                        kind.ty().cloned().unwrap().mangle_ident_default().to_type(),
-                    TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), ..} =>
-                        model.mangle_ident_default().to_type(),
-                    TypeContext::Enum { ident , .. } |
-                    TypeContext::Struct { ident , .. } => {
-                        Resolve::<Type>::resolve(&ident.to_type(), source)
-                            .mangle_ident_default()
-                            .to_type()
-                    }
-                    TypeContext::Trait { path , .. } =>
-                        Resolve::<Type>::resolve(&path.to_type(), source)
-                            .mangle_ident_default()
-                            .to_type(),
-                    TypeContext::Impl { path , .. } =>
-                        Resolve::<Type>::resolve(&path.to_type(), source)
-                            .mangle_ident_default()
-                            .to_type(),
-                    TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {
-                        let mangled_ty = Resolve::<Type>::resolve(&ident.to_type(), source).mangle_ident_default();
-                        parse_quote!(#mangled_ty::#variant_ident)
-                    },
-                    TypeContext::Fn { path, sig_context, .. } => {
-                        match sig_context {
-                            FnSignatureContext::ModFn(item_fn) => {
-                                Resolve::<Type>::resolve(&item_fn.sig.ident.to_type(), source)
-                                    .mangle_ident_default()
-                                    .to_type()
-                            }
-                            FnSignatureContext::TraitInner(self_ty, _trait_ty, _sig) => {
-                                Resolve::<Type>::resolve(self_ty, source)
-                                    .mangle_ident_default()
-                                    .to_type()
-                            },
-                            FnSignatureContext::Impl(self_ty, trait_ty, _sig) => {
-                                let self_ty = Resolve::<Type>::resolve(self_ty, source);
-                                let trait_ty = trait_ty.as_ref()
-                                    .and_then(|trait_ty|
-                                        Resolve::<Type>::resolve(trait_ty, source)
-                                            .maybe_trait_ty(source));
-
-                                match trait_ty {
-                                    Some(trait_ty) => {
-                                        let fn_name = &path.segments.last().unwrap().ident;
-                                        parse_quote!(<#self_ty as #trait_ty>::#fn_name)
-                                    }
-                                    None => path.to_type()
-                                }
-                            }
-                            FnSignatureContext::TraitAsType(self_ty, trait_ty, _sig) => {
-                                let self_ty = Resolve::<Type>::resolve(self_ty, source);
-                                let trait_ty = Resolve::<Type>::resolve(trait_ty, source)
-                                    .maybe_trait_ty(source);
-
-                                match trait_ty {
-                                    Some(trait_ty) => {
-                                        let fn_name = &path.segments.last().unwrap().ident;
-                                        parse_quote!(<#self_ty as #trait_ty>::#fn_name)
-                                    }
-                                    None => path.to_type()
-                                }
-                            }
-                            FnSignatureContext::Bare(ident, _type_bare_fn) => {
-                                Resolve::<Type>::resolve(&ident.to_type(), source)
-                                    .mangle_ident_default()
-                                    .to_type()
-                            }
-                        }
-                    }
-                }
-            },
-            Aspect::RawTarget(context) => {
-                match context {
-                    TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
-                        kind.ty().cloned().unwrap(),
-                    TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
-                        model.type_model_ref().ty.clone(),
-                    TypeContext::Enum { ident , attrs: _, generics: _ } |
-                    TypeContext::Struct { ident , attrs: _, generics: _ } =>
-                        ident.to_type(),
-                    TypeContext::EnumVariant { parent: _, ident, variant_ident, attrs: _ } => {
-                        let full_ty = Resolve::<Type>::resolve(&ident.to_type(), source);
-                        parse_quote!(#full_ty::#variant_ident)
-                    },
-                    TypeContext::Fn { path, .. } => path.to_type(),
-                    TypeContext::Trait { path , attrs: _ } => path.to_type(),
-                    TypeContext::Impl { path , trait_, attrs: _ } =>
-                        trait_.as_ref()
-                            .map(|trait_| trait_.to_type())
-                            .unwrap_or_else(|| path.to_type())
-                            .resolve(source)
-                }
-            }
+            Aspect::Target(TypeContext::Fn { path, .. }) |
+            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::Impl(..), .. }) |
+            Aspect::RawTarget(TypeContext::Fn { path, .. } | TypeContext::Trait { path, .. }) =>
+                path.to_type(),
+            Aspect::Target(TypeContext::Enum { ident, .. } | TypeContext::Struct { ident, .. }) |
+            Aspect::RawTarget(TypeContext::Enum { ident, .. } | TypeContext::Struct { ident, .. }) =>
+                Resolve::<Type>::resolve(ident, source),
+            Aspect::Target(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
+                Resolve::<Type>::resolve(ident, source)
+                    .lifetimes_cleaned()
+                    .joined_ident(variant_ident),
+            Aspect::Target(TypeContext::Trait { path, .. } | TypeContext::Impl { path, .. }) =>
+                path.to_type()
+                    .resolve(source),
+            Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(GenericTypeKind::Slice(Type::Slice(TypeSlice { elem, ..}))), .. }) =>
+                parse_quote!(Vec<#elem>),
+            Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) | Aspect::RawTarget(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
+                kind.ty()
+                    .cloned()
+                    .unwrap(),
+            Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) |
+            Aspect::RawTarget(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
+                model.to_type(),
+            Aspect::FFI(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
+                kind.ty()
+                    .cloned()
+                    .unwrap()
+                    .mangle_ident_default()
+                    .to_type(),
+            Aspect::FFI(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
+                model.mangle_ident_default()
+                    .to_type(),
+            Aspect::FFI(TypeContext::Enum { ident , .. } | TypeContext::Struct { ident , .. } | TypeContext::Fn { sig_context: FnSignatureContext::ModFn(ItemFn { sig: Signature { ident, .. }, .. }) | FnSignatureContext::Bare(ident, _), .. }) =>
+                Resolve::<Type>::resolve(ident, source)
+                    .mangle_ident_default()
+                    .to_type(),
+            Aspect::FFI(TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
+                Resolve::<Type>::resolve(path, source)
+                    .mangle_ident_default()
+                    .to_type(),
+            Aspect::FFI(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
+                Resolve::<Type>::resolve(ident, source)
+                    .mangle_ident_default()
+                    .to_type()
+                    .joined_ident(variant_ident),
+            Aspect::FFI(TypeContext::Fn { sig_context: FnSignatureContext::TraitInner(_, self_ty, _), .. }) =>
+                Resolve::<Type>::resolve(self_ty, source)
+                    .mangle_ident_default()
+                    .to_type(),
+            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitImpl(_, self_ty, trait_ty) | FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) =>
+                Resolve::<Type>::resolve(trait_ty, source)
+                    .maybe_trait_ty(source)
+                    .map(|full_trait_ty| {
+                        let fn_name = &path.segments.last().unwrap().ident;
+                        let self_ty = Resolve::<Type>::resolve(self_ty, source);
+                        parse_quote!(<#self_ty as #full_trait_ty>::#fn_name)
+                    }).unwrap_or_else(|| path.to_type()),
+            Aspect::RawTarget(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
+                Resolve::<Type>::resolve(ident, source)
+                    .joined_ident(variant_ident),
+            Aspect::RawTarget(TypeContext::Impl { path , trait_, .. }) =>
+                trait_.as_ref()
+                    .map(|trait_| trait_.to_type())
+                    .unwrap_or_else(|| path.to_type())
+                    .resolve(source),
         }
     }
 }

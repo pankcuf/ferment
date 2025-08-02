@@ -46,9 +46,9 @@ impl<I> InterfaceComposable<<ObjCSpecification as Specification>::Interface> for
         self.field_composers
             .iter()
             .for_each(|FieldComposer { name, kind, .. }| {
-                let var = VarComposer::<ObjCSpecification>::key_in_scope(&kind.to_type(), &source.scope)
+                let var = VarComposer::<ObjCSpecification>::key_ref_in_composer_scope(&kind.to_type())
                     .compose(&source);
-                let to_conversion = ConversionToComposer::<ObjCSpecification>::key_expr(name.clone(), &kind.to_type(), &source.scope, Some(Expression::ObjName(name.clone())))
+                let to_conversion = ConversionToComposer::<ObjCSpecification>::key_expr_in_composer_scope(name.clone(), &kind.to_type(), Some(Expression::ObjName(name.clone())))
                     .compose(&source)
                     .present(&source);
 

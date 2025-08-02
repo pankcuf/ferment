@@ -102,10 +102,10 @@ impl InterfacePresentation {
         InterfacePresentation::Drop { attrs: attrs.clone(), ty, body: body.to_token_stream() }
     }
 
-    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, ffi_type: &Type, inputs: CommaPunctuatedArgs, output: ReturnType, lifetimes: &Vec<Lifetime>, args_conversions: T, result_conversion: U) -> Self {
+    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, lifetimes: &Vec<Lifetime>, args_conversions: T, result_conversion: U) -> Self {
         InterfacePresentation::Callback {
             attrs: attrs.clone(),
-            ffi_type: ffi_type.clone(),
+            ffi_type,
             inputs,
             output,
             lifetimes: lifetimes.clone(),

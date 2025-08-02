@@ -50,7 +50,7 @@ impl Into<GetIdentityByPublicKeyHashRequest> for GetIdentityByPublicKeyHashReque
     }
 }
 
-#[ferment_macro::export]
+// #[ferment_macro::export]
 impl FromProof for Identity {
     type Request = GetIdentityByPublicKeyHashRequest;
     type Response = GetIdentityByPublicKeyHashResponse;

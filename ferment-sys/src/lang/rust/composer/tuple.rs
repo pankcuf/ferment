@@ -1,7 +1,7 @@
 use syn::Lifetime;
 use crate::ast::{CommaParenWrapped, CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VariableComposer, TupleComposer};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, TupleComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::ext::{LifetimeProcessor, Mangle};
 use crate::kind::FieldTypeKind;
@@ -37,7 +37,7 @@ impl SourceComposable for TupleComposer<RustSpecification> {
                 if let Some(drop_conversion) = drop_composer.compose(source) {
                     destroy_conversions.push(drop_conversion.present(source));
                 }
-                field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Var(VariableComposer::<RustSpecification>::from(ty).compose(source))));
+                field_composers.push(FieldComposer::unnamed(name, FieldTypeKind::Var(VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(source))));
             });
         let attrs = self.compose_attributes();
         let interfaces = Depunctuated::from_iter([

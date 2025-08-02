@@ -2,7 +2,6 @@ use std::fmt::{Debug, Display, Formatter};
 use syn::{Attribute, Field, Type};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::ToTokens;
-use crate::composable::CfgAttributes;
 use crate::composer::{FieldPathResolver, SourceFermentable};
 use crate::context::ScopeContext;
 use crate::ext::Conversion;
@@ -10,8 +9,6 @@ use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, LangAttrSpecification, Specification};
 use crate::presentable::{Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, Name};
-
-
 
 #[derive(Clone, Debug)]
 pub struct FieldComposer<SPEC>
@@ -32,24 +29,43 @@ impl<SPEC> Display for FieldComposer<SPEC>
 
 impl<SPEC> FieldComposer<SPEC>
     where SPEC: Specification {
-    pub fn typed(name: SPEC::Name, ty: &Type, named: bool, attrs: &Vec<Attribute>) -> Self {
-        Self { name, kind: FieldTypeKind::r#type(ty), named, attrs: SPEC::Attr::from_attrs(attrs.cfg_attributes()) }
-    }
-    pub fn new(name: SPEC::Name, kind: FieldTypeKind<SPEC>, named: bool, attrs: SPEC::Attr) -> Self {
+    fn new(name: SPEC::Name, kind: FieldTypeKind<SPEC>, named: bool, attrs: SPEC::Attr) -> Self {
         Self { name, kind, named, attrs }
     }
-    pub fn named(name: SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
-        Self::no_attrs(name, kind, true)
+    fn no_attrs(name: SPEC::Name, kind: FieldTypeKind<SPEC>, named: bool) -> Self {
+        Self { name, kind, named, attrs: SPEC::Attr::default() }
     }
-    pub fn named_ref(name: &SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
-        Self::no_attrs(name.clone(), kind, true)
+    fn named(name: SPEC::Name, kind: FieldTypeKind<SPEC>, attrs: SPEC::Attr) -> Self {
+        Self::new(name, kind, true, attrs)
+    }
+    fn typed(name: SPEC::Name, ty: &Type, named: bool, attrs: &Vec<Attribute>) -> Self {
+        Self::new(name, FieldTypeKind::r#type(ty), named, SPEC::Attr::from_cfg_attrs(attrs))
+    }
+    pub fn named_typed(name: SPEC::Name, ty: &Type, attrs: &Vec<Attribute>) -> Self {
+        Self::typed(name, ty, true, attrs)
+    }
+    pub fn unnamed_typed(name: SPEC::Name, ty: &Type, attrs: &Vec<Attribute>) -> Self {
+        Self::typed(name, ty, false, attrs)
+    }
+    pub fn named_type(name: SPEC::Name, ty: &Type, attrs: SPEC::Attr) -> Self {
+        Self::named(name, FieldTypeKind::Type(ty.clone()), attrs)
+    }
+    pub fn named_var(name: SPEC::Name, var: SPEC::Var, attrs: SPEC::Attr) -> Self {
+        Self::named(name, FieldTypeKind::Var(var), attrs)
+    }
+    pub fn named_no_attrs(name: SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
+        Self::no_attrs(name, kind, true)
     }
     pub fn unnamed(name: SPEC::Name, kind: FieldTypeKind<SPEC>) -> Self {
         Self { name, kind, named: false, attrs: SPEC::Attr::default() }
     }
-    pub fn no_attrs(name: SPEC::Name, kind: FieldTypeKind<SPEC>, named: bool) -> Self {
-        Self { name, kind, named, attrs: SPEC::Attr::default() }
+    pub fn self_var(var: SPEC::Var, attrs: &Vec<Attribute>) -> Self {
+        Self::new(SPEC::Name::dictionary_name(DictionaryName::Self_), FieldTypeKind::Var(var), true, SPEC::Attr::from_cfg_attrs(attrs))
     }
+    pub fn self_typed(ty: Type, attrs: &Vec<Attribute>) -> Self {
+        Self::new(SPEC::Name::dictionary_name(DictionaryName::Self_), FieldTypeKind::Type(ty), true, SPEC::Attr::from_cfg_attrs(attrs))
+    }
+
     pub fn tokenized_name(&self) -> TokenStream2 {
         self.name.to_token_stream()
     }
@@ -60,6 +76,7 @@ impl<SPEC> FieldComposer<SPEC>
             panic!("improper use of kind as type")
         }
     }
+
 
 }
 impl<SPEC> FieldComposer<SPEC>
@@ -94,7 +111,7 @@ impl<SPEC> FieldComposer<SPEC>
     pub fn unit_variant_producer(field: &Field, _index: usize) -> Self {
         // Actually just a stab
         let Field { ty, attrs, .. } = field;
-        Self::typed(Name::Empty, ty, false, attrs)
+        Self::unnamed_typed(Name::Empty, ty, attrs)
     }
     pub fn named_producer(field: &Field, _index: usize) -> Self {
         let Field { ident, ty, attrs, .. } = field;

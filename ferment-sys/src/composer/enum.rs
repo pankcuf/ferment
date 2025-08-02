@@ -1,16 +1,15 @@
-use syn::{Field, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, Variant, Visibility};
+use syn::{Field, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, Variant};
 use std::rc::Rc;
 use std::cell::RefCell;
 use quote::ToTokens;
 use ferment_macro::ComposerBase;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, LifetimesModel};
-use crate::composer::{AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
-use crate::composer::r#abstract::LinkedContextComposer;
+use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArguments, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
 use crate::context::ScopeContextLink;
-use crate::lang::{LangAttrSpecification, LangLifetimeSpecification, Specification};
+use crate::lang::{LangAttrSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
-use crate::presentation::{DocComposer, DocPresentation, FFIObjectPresentation, Name};
+use crate::presentation::{DocPresentation, FFIObjectPresentation, Name};
 
 #[derive(ComposerBase)]
 pub struct EnumComposer<SPEC>
@@ -46,7 +45,7 @@ impl<SPEC> EnumComposer<SPEC>
                     Some((_, expr)) => (
                         SeqKind::unit_fields,
                         CommaPunctuated::from_iter([
-                            ArgKind::AttrName(expr.to_token_stream(), SPEC::Attr::from_attrs(attrs.cfg_attributes())) ])
+                            ArgKind::AttrName(expr.to_token_stream(), SPEC::Attr::from_cfg_attrs(attrs)) ])
                     ),
                     None => match fields {
                         Fields::Unit => (SeqKind::unit, CommaPunctuated::new()),
@@ -55,18 +54,18 @@ impl<SPEC> EnumComposer<SPEC>
                             CommaPunctuated::from_iter(unnamed
                                 .iter()
                                 .map(|Field { attrs, ty, .. }|
-                                    ArgKind::Unnamed(FieldComposer::typed(Name::default(), ty, false, attrs)))),
+                                    ArgKind::Unnamed(FieldComposer::unnamed_typed(Name::default(), ty, attrs)))),
                         ),
                         Fields::Named(FieldsNamed { named, .. }) => (
                             SeqKind::brace_variants,
                             CommaPunctuated::from_iter(named
                                 .iter()
                                 .map(|Field { ident, attrs, ty, .. }|
-                                    ArgKind::Named(FieldComposer::typed(Name::Optional(ident.clone()), ty, true, attrs), Visibility::Inherited))),
+                                    ArgKind::inherited_named_type(Name::Optional(ident.clone()), ty, SPEC::Attr::from_cfg_attrs(attrs)))),
                         ),
                     },
                 };
-                let aspect_presentable_args = ((ffi_aspect, (SPEC::Attr::from_attrs(attrs.cfg_attributes()), SPEC::Lt::from_lifetimes(vec![]), SPEC::Gen::default()), NameKind::Named), fields_context);
+                let aspect_presentable_args = ((ffi_aspect, (SPEC::Attr::from_cfg_attrs(attrs), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named), fields_context);
                 let variant_composer_wrapper = ItemComposerWrapper::variant(fields, ty_context, attrs, context);
                 (variant_composer_wrapper, (variant_composer, aspect_presentable_args))
             }).unzip();

@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::Type;
-use crate::ext::ToType;
+use crate::ext::{AsType, ToType};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum CallbackKind {
@@ -41,17 +41,12 @@ impl ToTokens for CallbackKind {
 
 impl ToType for CallbackKind {
     fn to_type(&self) -> Type {
-        match self {
-            CallbackKind::FnOnce(ty) |
-            CallbackKind::Fn(ty) |
-            CallbackKind::FnMut(ty) |
-            CallbackKind::FnPointer(ty) => ty.clone(),
-        }
+        self.as_type().clone()
     }
 }
 
-impl CallbackKind {
-    pub fn ty(&self) -> &Type {
+impl<'a> AsType<'a> for CallbackKind {
+    fn as_type(&'a self) -> &'a Type {
         match self {
             CallbackKind::FnOnce(ty) |
             CallbackKind::Fn(ty) |
@@ -59,6 +54,9 @@ impl CallbackKind {
             CallbackKind::FnPointer(ty) => ty,
         }
     }
+}
+
+impl CallbackKind {
     pub fn ty_mut(&mut self) -> &mut Type {
         match self {
             CallbackKind::FnOnce(ty) |

@@ -1,28 +1,27 @@
 use std::marker::PhantomData;
 use syn::Type;
-use crate::context::{ScopeChain, ScopeSearch, ScopeSearchKey};
+use crate::context::ScopeSearch;
 use crate::lang::Specification;
 
 // Dictionary generics and strings should be fermented
 // Others should be treated as opaque
 
 #[derive(Clone, Debug)]
-pub struct VarComposer<'a, SPEC>
+pub struct VarComposer<SPEC>
     where SPEC: Specification {
-    pub search: ScopeSearch<'a>,
+    pub search: ScopeSearch,
     _marker: PhantomData<SPEC>,
 }
 
-impl<'a, SPEC> VarComposer<'a, SPEC>
+impl<SPEC> VarComposer<SPEC>
     where SPEC: Specification {
-    fn new(search: ScopeSearch<'a>) -> Self {
+    fn new(search: ScopeSearch) -> Self {
         Self { search, _marker: PhantomData }
     }
-    pub fn key_in_scope(ty: &'a Type, scope: &'a ScopeChain) -> Self {
-        Self::new(ScopeSearch::KeyInScope(ScopeSearchKey::maybe_from_ref(ty).unwrap(), scope))
+    pub fn key_ref_in_composer_scope(ty: &Type) -> Self {
+        Self::new(ScopeSearch::type_ref_key_in_composer_scope(ty))
     }
-
-    pub fn value(ty: &'a Type) -> Self {
-        Self::new(ScopeSearch::Value(ScopeSearchKey::maybe_from_ref(ty).unwrap()))
+    pub fn value(ty: &Type) -> Self {
+        Self::new(ScopeSearch::type_ref_value(ty))
     }
 }

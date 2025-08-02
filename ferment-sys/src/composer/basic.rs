@@ -1,9 +1,8 @@
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{AttrComposable, AttrsComposer, SourceComposable, ComposerLink, DocsComposable, GenericsComposable, GenericsComposer, Linkable, SourceAccessible, TypeAspect, TypeComposer, LifetimesComposable};
-use crate::composer::lifetimes::LifetimesComposer;
+use crate::composer::{AttrComposable, AttrsComposer, ComposerLink, DocComposer, DocsComposable, GenericsComposable, GenericsComposer, LifetimesComposer, Linkable, SourceAccessible, SourceComposable, TypeAspect, TypeComposer, LifetimesComposable};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentation::{DocComposer, DocPresentation};
+use crate::presentation::DocPresentation;
 use crate::shared::SharedAccess;
 
 pub type BasicComposerLink<SPEC, T> = BasicComposer<SPEC, ComposerLink<T>>;

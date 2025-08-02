@@ -98,6 +98,12 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     case #name
                 }
             }
+            SeqKind::TraitImplFnCall(self_ty, trait_ty, fn_name, fields) => {
+                let fields = fields.present(source);
+                quote! {
+                    #self_ty #trait_ty #fn_name #fields
+                }
+            }
             SeqKind::ToUnnamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
                 // presentation

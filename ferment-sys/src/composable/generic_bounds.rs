@@ -8,7 +8,7 @@ use crate::composable::{TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::kind::ObjectKind;
-use crate::ext::{AsType, Mangle, MaybeLambdaArgs};
+use crate::ext::{AsType, Mangle, MaybeLambdaArgs, ToType};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::lang::Specification;
 use crate::presentable::{Expression, ScopeContextPresentable};
@@ -16,7 +16,7 @@ use crate::presentable::{Expression, ScopeContextPresentable};
 #[derive(Clone)]
 pub struct GenericBoundsModel {
     // 'T'
-    type_model: TypeModel,
+    pub type_model: TypeModel,
     // 'Fn(u32) -> Result<bool, ProtocolError>' or 'Clone + Debug + Smth'
     pub bounds: Vec<ObjectKind>,
     pub predicates: HashMap<Type, Vec<ObjectKind>>,
@@ -29,6 +29,11 @@ pub struct GenericBoundsModel {
 impl<'a> AsType<'a> for GenericBoundsModel {
     fn as_type(&'a self) -> &'a Type {
         self.type_model.as_type()
+    }
+}
+impl ToType for GenericBoundsModel {
+    fn to_type(&self) -> Type {
+        self.type_model.to_type()
     }
 }
 impl TypeModeled for GenericBoundsModel {

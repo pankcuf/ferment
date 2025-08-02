@@ -57,9 +57,9 @@ impl SourceComposable for MapComposer<RustSpecification> {
             Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::type_count()),
-                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Var(var_key.joined_mut())),
-                FieldComposer::<RustSpecification>::named(arg_1_name, FieldTypeKind::Var(var_value.joined_mut()))
+                FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
+                FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name, FieldTypeKind::Var(var_key.joined_mut())),
+                FieldComposer::<RustSpecification>::named_no_attrs(arg_1_name, FieldTypeKind::Var(var_value.joined_mut()))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &lifetimes),

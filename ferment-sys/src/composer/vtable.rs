@@ -4,10 +4,9 @@ use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, Linkable, SigComposerLink};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, Linkable, SigComposerLink};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentation::DocComposer;
 
 #[derive(ComposerBase)]
 pub struct VTableComposer<SPEC>

@@ -4,13 +4,13 @@ use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, TargetVarComposer};
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericNestedArg, Mangle, Resolve, SpecialType, ToType};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeModelKind};
+use crate::ext::{AsType, GenericNestedArg, Mangle, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::{objc_primitive, resolve_type_variable};
 use crate::presentation::{FFIFullPath, FFIVariable};
 
-impl<'a> SourceComposable for TargetVarComposer<'a, ObjCSpecification> {
+impl SourceComposable for TargetVarComposer<ObjCSpecification> {
     type Source = ScopeContext;
     type Output = FFIVariable<ObjCSpecification, TokenStream2>;
 

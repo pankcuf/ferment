@@ -1,9 +1,9 @@
 use quote::ToTokens;
 use crate::ast::Depunctuated;
-use crate::composable::FieldTypeKind;
 use crate::composer::{AttrComposable, GenericComposerInfo, NameKind, SmartPointerComposer, SourceComposable, TypeAspect};
 use crate::context::ScopeContext;
 use crate::ext::{AsType, LifetimeProcessor, ToType};
+use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCSpecification;

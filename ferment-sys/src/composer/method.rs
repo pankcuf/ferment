@@ -1,4 +1,4 @@
-use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer, VariableComposer};
+use crate::composer::{BindingAccessorContext, BindingComposer, AspectArgComposers, SharedComposer, VarComposer};
 use crate::composer::r#abstract::{SourceComposable, Linkable};
 use crate::context::ScopeContext;
 use crate::lang::Specification;
@@ -54,8 +54,7 @@ impl<SPEC, Link> SourceComposable for AccessorMethodComposer<SPEC, Link>
                     (self.seq_iterator_item)((
                         aspect.clone(),
                         (composer.attrs.clone(), lifetimes.clone(), generics.clone()),
-                        // VarComposer::key_in_scope(composer.ty(), &_source.scope),
-                        VariableComposer::<SPEC>::from(composer.ty()),
+                        VarComposer::<SPEC>::key_ref_in_composer_scope(composer.ty()),
                         composer.tokenized_name()
                     ))
                 })

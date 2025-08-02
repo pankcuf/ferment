@@ -23,7 +23,6 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let types = (ffi_type.clone(), self.present_target_aspect());
         let map_var_name = Name::dictionary_name(DictionaryName::O);
         let var_value = VarComposer::<RustSpecification>::value(nested_ty).compose(source);
-        println!("ArrayComposer::var: {}", var_value.to_token_stream());
         let from_conversion_expr_value = ConversionFromComposer::<RustSpecification>::value_expr(map_var_name.clone(), nested_ty, Expression::dict_expr(DictionaryExpr::Deref(map_var_name.to_token_stream()))).compose(source);
         let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value(map_var_name.clone(), nested_ty).compose(source);
         let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), nested_ty).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
@@ -51,8 +50,8 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
             Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
             &attrs,
             Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named(count_name, FieldTypeKind::type_count()),
-                FieldComposer::<RustSpecification>::named(arg_0_name, FieldTypeKind::Var(arr_var))
+                FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
+                FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name, FieldTypeKind::Var(arr_var))
             ]),
             Depunctuated::from_iter([
                 InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &lifetimes),

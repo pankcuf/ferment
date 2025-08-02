@@ -1,3 +1,4 @@
+use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
@@ -14,6 +15,8 @@ pub trait Accessory: ToTokens {
 
     #[allow(unused)]
     fn joined_mut_ref(&self) -> Self;
+    #[allow(unused)]
+    fn joined_ident(&self, ident: &Ident) -> Self;
 }
 #[macro_export]
 macro_rules! impl_accessory {
@@ -33,6 +36,9 @@ macro_rules! impl_accessory {
             }
             fn joined_mut_ref(&self) -> Self {
                 parse_quote!(&mut #self)
+            }
+            fn joined_ident(&self, ident: &Ident) -> Self {
+                parse_quote!(#self::#ident)
             }
         }
     };

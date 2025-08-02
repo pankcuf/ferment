@@ -3,10 +3,9 @@ use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenericBoundsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, ComposerLink, BasicComposerLink};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentation::DocComposer;
 
 #[derive(ComposerBase)]
 pub struct BoundsComposer<SPEC>

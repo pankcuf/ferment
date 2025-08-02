@@ -4,11 +4,11 @@ use quote::ToTokens;
 use syn::{parse_quote, Attribute, Field, FieldMutability, Generics, ImplItemFn, ItemFn, Lifetime, Signature, TraitItemFn, Type, TypePtr, Visibility};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocsComposable, Linkable, SourceAccessible, SourceComposable};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{FFITypeResolve, ItemExtension, Mangle};
 use crate::lang::Specification;
-use crate::presentation::{DocComposer, DocPresentation};
+use crate::presentation::DocPresentation;
 
 #[derive(ComposerBase)]
 pub struct SigComposer<SPEC>

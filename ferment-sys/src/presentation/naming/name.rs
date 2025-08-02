@@ -95,7 +95,7 @@ impl<SPEC> Name<SPEC>
     }
 
     pub fn field_composer(&self, kind: FieldTypeKind<SPEC>) -> FieldComposer<SPEC> {
-        FieldComposer::<SPEC>::named(self.clone(), kind)
+        FieldComposer::<SPEC>::named_no_attrs(self.clone(), kind)
     }
 }
 

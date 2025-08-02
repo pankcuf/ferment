@@ -8,7 +8,7 @@ use crate::composable::{CfgAttributes, TraitDecompositionPart1, TraitModel, Type
 use crate::kind::{TypeModelKind};
 use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToPath, ToType};
 use crate::formatter::format_token_stream;
-use crate::tree::ScopeTreeExportID;
+use crate::tree::ScopeTreeID;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ScopeItemKind {
@@ -57,7 +57,7 @@ impl ResolveAttrs for ScopeItemKind {
 }
 
 impl ItemExtension for ScopeItemKind {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
+    fn scope_tree_export_id(&self) -> ScopeTreeID {
         match self {
             ScopeItemKind::Item(item, ..) => item.scope_tree_export_id(),
             ScopeItemKind::Fn(sig, ..) => sig.scope_tree_export_id()

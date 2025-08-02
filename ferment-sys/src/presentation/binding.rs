@@ -117,9 +117,12 @@ pub enum BindingPresentation {
         ffi_args: CommaPunctuated<BareFnArg>,
         result: ReturnType,
         conversion: InterfacePresentation,
+        generics: Option<Generics>,
+        lifetimes: Vec<Lifetime>,
     },
 
     TraitVTableInnerFn {
+        attrs: Vec<Attribute>,
         name: TokenStream2,
         name_and_args: TokenStream2,
         output_expression: ReturnType,
@@ -129,6 +132,7 @@ pub enum BindingPresentation {
         fn_name: Ident
     },
     StaticVTableInnerFn {
+        attrs: Vec<Attribute>,
         name: TokenStream2,
         args: CommaPunctuatedArgs,
         output: ReturnType,
@@ -157,18 +161,18 @@ pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     generics: Option<Generics>,
     lifetimes: Vec<Lifetime>,
     body: TokenStream2) -> TokenStream2 {
-    present_function(attrs, Pub::default().to_token_stream(), name.to_token_stream(), args, output, generics, lifetimes, body)
+    present_function(Visibility::Public(Pub::default()), attrs, name.to_token_stream(), args, output, generics, lifetimes, body)
 }
 pub fn present_function<T: ToTokens>(
+    acc: Visibility,
     attrs: &Vec<Attribute>,
-    acc: TokenStream2,
     name: TokenStream2,
     args: CommaPunctuated<T>,
     output: ReturnType,
     generics: Option<Generics>,
     lifetimes: Vec<Lifetime>,
     body: TokenStream2) -> TokenStream2 {
-    match generics {
+    let signature = match generics {
         None => {
             let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter_map(|lt| {
                 if lt.ident.to_string().eq("static") {
@@ -177,27 +181,25 @@ pub fn present_function<T: ToTokens>(
                     Some(lt.to_token_stream())
                 }
             }));
-            let lifetime_tokens = if comma_lifetimes.is_empty() {
-                quote!()
+            if comma_lifetimes.is_empty() {
+                quote!(#name(#args) #output)
             } else {
-                quote!(<#comma_lifetimes>)
-            };
-            quote! {
-               #(#attrs)*
-               #[no_mangle]
-               #acc unsafe extern "C" fn #name #lifetime_tokens(#args) #output {
-                    #body
-                }
+                quote!(#name<#comma_lifetimes>(#args) #output)
             }
         },
         Some(Generics { params, where_clause, .. }) => {
-            quote! {
-               #(#attrs)*
-               #[no_mangle]
-               #acc unsafe extern "C" fn #name<#params>(#args) #output #where_clause {
-                    #body
-                }
+            if params.is_empty() {
+                quote!(#name(#args) #output #where_clause)
+            } else {
+                quote!(#name<#params>(#args) #output #where_clause)
             }
+        }
+    };
+    quote! {
+        #(#attrs)*
+        #[no_mangle]
+        #acc unsafe extern "C" fn #signature {
+            #body
         }
     }
 }
@@ -390,7 +392,7 @@ impl ToTokens for BindingPresentation {
                     )
                 }
             },
-            BindingPresentation::Callback { name, attrs, ffi_args, result, conversion } => {
+            BindingPresentation::Callback { name, attrs, ffi_args, result, conversion, lifetimes: _, generics: _ } => {
                 let result_impl = match result {
                     ReturnType::Default => quote! {},
                     ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
@@ -415,13 +417,16 @@ impl ToTokens for BindingPresentation {
                     #bindings
                 }
             },
-            BindingPresentation::TraitVTableInnerFn { name, name_and_args, output_expression } => {
-                quote!(pub #name: #name_and_args #output_expression)
+            BindingPresentation::TraitVTableInnerFn { attrs, name, name_and_args, output_expression } => {
+                quote! {
+                    #(#attrs)*
+                    pub #name: #name_and_args #output_expression
+                }
             }
-            BindingPresentation::StaticVTableInnerFn { name, args, output, body } => {
+            BindingPresentation::StaticVTableInnerFn { attrs, name, args, output, body } => {
                 present_function(
-                    &vec![],
-                    quote!(),
+                    Visibility::Inherited,
+                    attrs,
                     name.to_token_stream(),
                     args.clone(),
                     output.clone(),
