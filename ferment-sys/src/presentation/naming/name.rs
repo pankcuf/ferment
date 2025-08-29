@@ -21,6 +21,12 @@ pub enum Name<SPEC> where SPEC: Specification {
     Destructor(Type),
     Read(Type),
     Write(Type),
+    GetValueAtIndex(Type),
+    SetValueAtIndex(Type),
+    GetKeyByValue(Type),
+    SetKeyForValue(Type),
+    GetValueByKey(Type),
+    SetValueForKey(Type),
     Dictionary(DictionaryName),
     DictionaryExpr(DictionaryExpr),
     Optional(Option<Ident>),
@@ -88,6 +94,10 @@ impl<SPEC> Name<SPEC>
     }
     pub fn setter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Setter(path, field_name.clone())
+    }
+
+    pub fn pat(pat: &Pat) -> Self {
+        Self::Pat(pat.clone())
     }
 
     pub fn anonymous(&self) -> Ident {

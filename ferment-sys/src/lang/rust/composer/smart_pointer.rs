@@ -19,6 +19,7 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
 
         let ffi_name = root_ty_ref.mangle_tokens_default();
         let lifetimes = arg_ty.unique_lifetimes();
+        let generics = <RustSpecification as Specification>::Gen::default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
 
@@ -69,10 +70,10 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
                 self.kind.dictionary_type()));
 
         let bindings = Depunctuated::from_iter([
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Dtor(<RustSpecification as Specification>::Gen::default(), NameKind::Named)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Dtor(NameKind::Named)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
         ]);
         Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
             aspect,

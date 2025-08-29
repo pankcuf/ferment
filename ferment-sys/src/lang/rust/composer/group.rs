@@ -1,12 +1,13 @@
 use quote::{quote, ToTokens};
-use crate::ast::Depunctuated;
+use syn::{Expr, ExprAssign, ExprCall};
+use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, ConversionToComposer, GenericComposerInfo, GroupComposer, SourceComposable, VarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, ConversionToComposer, GenericComposerInfo, GroupComposer, NameKind, SourceComposable, VarComposer};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle};
+use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name};
 
 impl SourceComposable for GroupComposer<RustSpecification> {
@@ -16,6 +17,7 @@ impl SourceComposable for GroupComposer<RustSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let nested_ty = self.ty.maybe_first_nested_type_ref()?;
         let arg_0_name = Name::dictionary_name(DictionaryName::Values);
+        let arg_0_name_tokens = arg_0_name.to_token_stream();
         let count_name = Name::dictionary_name(DictionaryName::Count);
         let lifetimes = nested_ty.unique_lifetimes();
         let attrs = self.compose_attributes();
@@ -43,18 +45,44 @@ impl SourceComposable for GroupComposer<RustSpecification> {
                 ferment::unbox_group(self.#arg_0_name, self.#count_name, #destroy_conversion_value);
             }
         };
-        Some(GenericComposerInfo::default(
-            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
+        let field_composers = Depunctuated::from_iter([
+            FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
+            FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name, FieldTypeKind::Var(var_value.joined_mut()))
+        ]);
+        let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
+        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
+        let get_value_at_index_expr = Expr::Call(ExprCall {
+            attrs: vec![],
+            func: Box::new(Expr::Verbatim(quote!(*(*ffi).#arg_0_name_tokens.add))),
+            paren_token: Default::default(),
+            args: CommaPunctuated::from_iter([Expr::Verbatim(quote!(index))]),
+        });
+        let set_value_at_index_expr = Expr::Assign(ExprAssign {
+            attrs: vec![],
+            left: Box::new(get_value_at_index_expr.clone()),
+            eq_token: Default::default(),
+            right: Box::new(Expr::Verbatim(DictionaryName::Value.to_token_stream())),
+        });
+
+        Some(GenericComposerInfo::default_with_bindings(
+            aspect,
             &attrs,
-            Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
-                FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name, FieldTypeKind::Var(var_value.joined_mut()))
-            ]),
+            field_composers,
             Depunctuated::from_iter([
                 InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &lifetimes),
                 InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &lifetimes),
                 InterfacePresentation::drop(&attrs, ffi_type, drop_body)
+            ]),
+            Depunctuated::from_iter([
+                BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone(), get_value_at_index_expr),
+                BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context, set_value_at_index_expr)
             ])
+
         ))
     }
 }

@@ -1,13 +1,16 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{FnArg, PatType, Receiver, ReturnType, Signature};
-use syn::token::Semi;
+use syn::__private::TokenStream2;
+use syn::token::{Const, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, ConversionFromComposer, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VarComposer, VTableComposer};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Resolve, ToPath, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Expression, ExpressionComposable, ScopeContextPresentable, TypeContext};
+use crate::presentable::{ExpressionComposable, ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, FFIFullPath, Name};
+
+pub type ExpressionWrapper<SPEC> = fn(<SPEC as Specification>::Expr) -> <SPEC as Specification>::Expr;
 
 impl SourceComposable for VTableComposer<RustSpecification> {
     type Source = ScopeContext;
@@ -16,8 +19,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let target_type = self.present_target_aspect();
         let ffi_aspect = self.present_ffi_aspect();
-        let trait_ty = self.raw_target_type_aspect().present(&source);
-        // TODO: External traits
+        let trait_ty = self.raw_target_type_aspect().present(source);
         let full_target_type = source.full_type_for(&target_type);
         let full_type = source.full_type_for(&trait_ty);
         let maybe_item_trait = source.maybe_item_trait(&full_type.to_path());
@@ -42,43 +44,37 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                 let name = Name::<RustSpecification>::TraitImplVtableFn(trait_ty.mangle_ident_default(), method_scope_context.scope.to_type().mangle_ident_default());
                 let mut args = CommaPunctuated::new();
                 let mut args_conversions = CommaPunctuated::new();
-                inputs.iter().for_each(|arg| {
-                    match arg {
-                        FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
-                            let arg_pres = ArgPresentation::inherited_field(
-                                attrs,
-                                <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_).mangle_ident_default(),
-                                VarComposer::<RustSpecification>::key_ref_in_composer_scope(sig_context.receiver_ty())
-                                    .compose(&method_scope_context)
-                                    .to_type()
-                            );
-                            args.push(arg_pres);
-                            args_conversions.push(ArgPresentation::attr_tokens(attrs, match (mutability, reference) {
-                                (Some(..), _) => <RustSpecification as Specification>::Expr::AsMutRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(mut))).into()),
-                                (_, Some(..)) => <RustSpecification as Specification>::Expr::AsRef(Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into()),
-                                (..) => Expression::dict_expr(DictionaryExpr::SelfAsTrait(full_target_type.to_token_stream(), quote!(const))).into(),
-                            }.present(source)));
-
-                        },
-                        FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
-                            args.push(ArgPresentation::inherited_field(attrs, Name::<RustSpecification>::Pat(*pat.clone()).mangle_ident_default(), VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(&method_scope_context).to_type()));
-                            args_conversions.push(ArgPresentation::attr_tokens(attrs, ConversionFromComposer::<RustSpecification>::key_in_composer_scope(Name::Pat(*pat.clone()), ty).compose(&method_scope_context).present(source)));
-                        }
+                inputs.iter().for_each(|arg| match arg {
+                    FnArg::Receiver(Receiver { mutability, reference, attrs, .. }) => {
+                        let arg_pres = ArgPresentation::inherited_field(
+                            attrs,
+                            <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Self_).mangle_ident_default(),
+                            VarComposer::<RustSpecification>::key_ref_in_composer_scope(sig_context.receiver_ty())
+                                .compose(&method_scope_context)
+                                .to_type()
+                        );
+                        args.push(arg_pres);
+                        let (acc, expr): (TokenStream2, ExpressionWrapper<RustSpecification>) = match (mutability, reference) {
+                            (Some(r#mut), _) => (r#mut.to_token_stream(), <RustSpecification as Specification>::Expr::mut_ref),
+                            (_, Some(..)) => (Const::default().to_token_stream(), <RustSpecification as Specification>::Expr::r#ref),
+                            (..) => (Const::default().to_token_stream(), <RustSpecification as Specification>::Expr::wrap),
+                        };
+                        args_conversions.push(ArgPresentation::attr_tokens(attrs, expr(<RustSpecification as Specification>::Expr::dict_expr(DictionaryExpr::self_as_trait(&full_target_type, acc))).present(source)));
+                    },
+                    FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
+                        let name = Name::<RustSpecification>::pat(pat);
+                        args.push(ArgPresentation::inherited_field(attrs, name.mangle_ident_default(), VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(&method_scope_context).to_type()));
+                        args_conversions.push(ArgPresentation::attr_tokens(attrs, ConversionFromComposer::<RustSpecification>::key_in_composer_scope(name, ty).compose(&method_scope_context).present(source)));
                     }
                 });
 
                 let (out, presentable_output_conversion) = match &output {
                     ReturnType::Default => (ReturnType::Default, <RustSpecification as Specification>::Expr::simple(Semi::default())),
-                    ReturnType::Type(_, ty) => {
-                        let var = VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty)
+                    ReturnType::Type(_, ty) => (
+                        ReturnType::Type(Default::default(), Box::new(VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(&method_scope_context).to_type())),
+                        ConversionToComposer::<RustSpecification>::key_in_composer_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty)
                             .compose(&method_scope_context)
-                            .to_type();
-                        (
-                            ReturnType::Type(Default::default(), Box::new(var)),
-                            ConversionToComposer::<RustSpecification>::key_in_composer_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty)
-                                .compose(&method_scope_context)
-                        )
-                    }
+                    )
                 };
                 let output_conversion = presentable_output_conversion.present(&method_scope_context);
                 methods_declarations.push(BindingPresentation::StaticVTableInnerFnDeclaration {

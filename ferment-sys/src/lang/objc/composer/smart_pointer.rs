@@ -71,12 +71,12 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
                     .then(|| Expression::Empty)
                     .unwrap_or_else(|| from_arg_conversion),
                 self.kind.dictionary_type()));
-
+        let generics = <ObjCSpecification as Specification>::Gen::default();
         let bindings = Depunctuated::from_iter([
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Dtor(<ObjCSpecification as Specification>::Gen::default(), NameKind::Named)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Dtor(NameKind::Named)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
+            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
         ]);
         Some(GenericComposerInfo::<ObjCSpecification>::default_with_bindings(
             aspect,

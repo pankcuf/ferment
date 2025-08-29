@@ -243,7 +243,7 @@ impl GlobalContext {
 
     pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
         match self.maybe_scope_item_ref_obj_first(trait_path) {
-            Some(ScopeItemKind::Item(Item::Trait(item_trait), _path)) => Some(item_trait.clone()),
+            Some(ScopeItemKind::Item(Item::Trait(item_trait), ..)) => Some(item_trait.clone()),
             _ => None
         }
     }

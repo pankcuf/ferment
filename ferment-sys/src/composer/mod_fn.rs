@@ -1,15 +1,16 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{FnArg, Generics, Lifetime, PatType, Path, ReturnType, Signature};
+use syn::{FnArg, Generics, Lifetime, Path, ReturnType, Signature};
 use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, CommaPunctuatedArgKinds, VarComposer, ConversionToComposer, ConversionFromComposer, NameKind};
+use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, CommaPunctuatedArgKinds, VarComposer, ConversionToComposer, NameKind};
+use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{LifetimeProcessor, ToType};
-use crate::lang::{FromDictionary, LangAttrSpecification, LangLifetimeSpecification, Specification};
+use crate::ext::ToType;
+use crate::lang::{FromDictionary, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DictionaryName, DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
 
@@ -84,24 +85,24 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
     for arg in inputs {
         match arg {
             FnArg::Receiver(..) => panic!("Receiver in regular fn"),
-            FnArg::Typed(PatType { ty, attrs, pat, .. }) => {
-                used_lifetimes.extend(SPEC::Lt::from_lifetimes(ty.unique_lifetimes()));
-                let name = Name::Pat(*pat.clone());
-                argument_names.push(name.to_token_stream());
-                arguments.push(ArgKind::inherited_named_type(name.clone(), ty, SPEC::Attr::from_cfg_attrs(attrs)));
-                argument_conversions.push(ArgKind::expr(ConversionFromComposer::<SPEC>::key_in_composer_scope(name, ty).compose(source)));
+            FnArg::Typed(pat_type) => {
+                let (lifetimes, tokenized_name, arg_kind, arg_conversion) = PatTypeComposer::new(pat_type).compose(source);
+                used_lifetimes.extend(lifetimes);
+                argument_names.push(tokenized_name);
+                arguments.push(arg_kind);
+                argument_conversions.push(arg_conversion);
             }
         }
     }
     BindingPresentableContext::RegFn(
         path.clone(),
+        attrs.clone(),
+        used_lifetimes.clone(),
+        generics.clone(),
         asyncness.is_some(),
         arguments,
         return_type_presentation,
-        SeqKind::FromUnnamedFields(((aspect, (attrs.clone(), used_lifetimes.clone(), generics.clone()), NameKind::Named), argument_conversions)),
-        return_type_conversion,
-        attrs.clone(),
-        used_lifetimes,
-        generics
+        SeqKind::FromUnnamedFields(((aspect, (attrs.clone(), used_lifetimes, generics), NameKind::Named), argument_conversions)),
+        return_type_conversion
     )
 }

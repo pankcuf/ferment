@@ -1,13 +1,13 @@
 use quote::{quote, ToTokens};
-use syn::{parse_quote, TypeSlice};
-use crate::ast::Depunctuated;
+use syn::{parse_quote, Expr, ExprAssign, ExprCall, TypeSlice};
+use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, SliceComposer};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, SliceComposer, NameKind};
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, Mangle, ToType};
 use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name};
 
 impl SourceComposable for SliceComposer<RustSpecification> {
@@ -19,9 +19,11 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         let ffi_name = ty.mangle_tokens_default();
         let type_slice: TypeSlice = parse_quote!(#ty);
         let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
+        let arg_0_name_tokens = arg_0_name.to_token_stream();
         let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
         let nested_ty = &type_slice.elem;
-        let types = (self.present_ffi_aspect(), self.present_target_aspect());
+        let ffi_type = self.present_ffi_aspect();
+        let types = (ffi_type.clone(), self.present_target_aspect());
         let attrs = self.compose_attributes();
         let map_var_name = Name::dictionary_name(DictionaryName::O);
         let var_value = VarComposer::<RustSpecification>::value(nested_ty).compose(source);
@@ -58,6 +60,34 @@ impl SourceComposable for SliceComposer<RustSpecification> {
 
         ]);
         let aspect = Aspect::raw_struct_ident(ty.mangle_ident_default());
-        Some(GenericComposerInfo::<RustSpecification>::default(aspect, &attrs, field_composers, interfaces))
+        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
+        let get_value_at_index_expr = Expr::Call(ExprCall {
+            attrs: vec![],
+            func: Box::new(Expr::Verbatim(quote!(*(*ffi).#arg_0_name_tokens.add))),
+            paren_token: Default::default(),
+            args: CommaPunctuated::from_iter([Expr::Verbatim(quote!(index))]),
+        });
+        let set_value_at_index_expr = Expr::Assign(ExprAssign {
+            attrs: vec![],
+            left: Box::new(get_value_at_index_expr.clone()),
+            eq_token: Default::default(),
+            right: Box::new(Expr::Verbatim(DictionaryName::Value.to_token_stream())),
+        });
+
+        Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
+            aspect,
+            &attrs,
+            field_composers,
+            interfaces,
+            Depunctuated::from_iter([
+                BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone(), get_value_at_index_expr),
+                BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context, set_value_at_index_expr)
+            ])
+        ))
     }
 }

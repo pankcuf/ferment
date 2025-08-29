@@ -53,6 +53,8 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
             Self::LeakBox(field_path) =>
                 DictionaryExpr::LeakBox(field_path.present(source))
                     .to_token_stream(),
+            Self::Wrap(expr) =>
+                expr.present(source),
             Self::AsMutRef(field_path) =>
                 DictionaryExpr::AsMutRef(field_path.present(source))
                     .to_token_stream(),

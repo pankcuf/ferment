@@ -15,6 +15,8 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::Empty => quote!(),
             Self::Simple(expr) =>
                 expr.to_token_stream(),
+            Self::SimpleExpr(expr) =>
+                expr.present(source),
             Self::DictionaryName(expr) =>
                 expr.to_token_stream(),
             Self::DictionaryExpr(expr) =>
@@ -45,6 +47,9 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::DictionaryExpr(DictionaryExpr::LeakBox(field_path.present(source)))
                     .present(source)
             },
+            Self::Wrap(expr) =>
+                expr
+                    .present(source),
             Self::AsMutRef(field_path) =>
                 Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
                     .present(source),

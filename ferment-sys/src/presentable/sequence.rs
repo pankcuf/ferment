@@ -16,7 +16,7 @@ pub enum SeqKind<SPEC>
     FromNamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
     ToNamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
     FromUnnamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
-    TraitImplFnCall(Type, Type, Ident, CommaPunctuatedArgKinds<SPEC>),
+    TraitImplFnCall(((Type, Type, Ident), CommaPunctuatedArgKinds<SPEC>)),
     ToUnnamedFields(AspectCommaPunctuatedArgKinds<SPEC>),
     ToStub(AspectCommaPunctuatedArgKinds<SPEC>),
     NamedVariantFields(AspectCommaPunctuatedArgKinds<SPEC>),

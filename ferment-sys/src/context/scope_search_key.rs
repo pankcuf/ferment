@@ -9,7 +9,6 @@ use crate::presentation::FFIVariable;
 #[derive(Clone, Debug)]
 pub enum ScopeSearchKey {
     Path(Path, Option<Box<ScopeSearchKey>>),
-    // TypeRef(&'static Type, Option<Box<ScopeSearchKey>>),
     Type(Type, Option<Box<ScopeSearchKey>>)
 }
 impl Display for ScopeSearchKey {
@@ -160,7 +159,7 @@ impl ScopeSearchKey {
             Type::TraitObject(TypeTraitObject { bounds , .. }) => match bounds.len() {
                 1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(ScopeSearchKey::Type(path.to_type(), Some(Box::new(original)))),
+                        Some(ScopeSearchKey::Path(path.clone(), Some(Box::new(original)))),
                     _ =>
                         None
                 },

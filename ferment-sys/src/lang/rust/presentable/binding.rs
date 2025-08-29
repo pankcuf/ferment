@@ -1,13 +1,13 @@
 use quote::{quote, ToTokens};
-use syn::ReturnType;
+use syn::{parse_quote, ReturnType};
 use syn::token::RArrow;
 use crate::composer::{NameKind, SourceComposable, CommaPunctuatedArgs};
 use crate::context::ScopeContext;
 use crate::kind::SmartPointerKind;
-use crate::ext::{Mangle, ToPath, ToType};
+use crate::ext::{Accessory, Mangle, Primitive, ToPath, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, BindingPresentableContext, ScopeContextPresentable, SmartPointerPresentableContext};
-use crate::presentation::{present_pub_function, BindingPresentation, InterfacePresentation, Name};
+use crate::presentation::{present_pub_function, ArgPresentation, BindingPresentation, DictionaryExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
     type Presentation = BindingPresentation;
@@ -24,9 +24,9 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: generics.clone(),
                     ctor_arguments: args.present(&source),
                     body_presentation
                 }
@@ -43,9 +43,9 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::VariantConstructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: generics.clone(),
                     ctor_arguments: args.present(&source),
                     body_presentation
                 }
@@ -55,9 +55,9 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: generics.clone()
                 }
             },
             Self::Getter(obj_aspect, attrs, lifetimes, generics, field_type, field_name) => {
@@ -66,11 +66,11 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::Getter {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
                     field_type: field_type.compose(source).to_type(),
-                    generics: generics.clone(),
                 }
             },
             Self::Setter(obj_aspect, attrs, lifetimes, generics, field_type, field_name, ) => {
@@ -78,26 +78,28 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::Setter {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
                     obj_type: obj_type.clone(),
                     field_type: field_type.compose(source).to_type(),
-                    generics: generics.clone(),
                 }
             },
-            Self::RegFn(path, is_async, arguments, return_type, input_conversions, return_type_conversion, attrs, lifetimes, generics) => BindingPresentation::RegularFunction {
+            Self::RegFn(path, attrs, lifetimes, generics, is_async, arguments, return_type, input_conversions, return_type_conversion) => BindingPresentation::RegularFunction {
                 attrs: attrs.clone(),
+                lifetimes: lifetimes.clone(),
+                generics: generics.clone(),
                 is_async: *is_async,
                 arguments: arguments.present(&source),
                 name: Name::<RustSpecification>::ModFn(path.clone()).mangle_tokens_default(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
-                generics: generics.clone(),
-                lifetimes: lifetimes.clone(),
                 output_conversions: <<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
             },
-            Self::RegFn2(path, is_async, argument_names, arguments, return_type, full_fn_path, input_conversions, return_type_conversion, attrs, lifetimes, generics) => BindingPresentation::RegularFunction2 {
+            Self::RegFn2(path, attrs, lifetimes, generics, is_async, argument_names, arguments, return_type, full_fn_path, input_conversions, return_type_conversion) => BindingPresentation::RegularFunction2 {
                 attrs: attrs.clone(),
+                lifetimes: lifetimes.clone(),
+                generics: generics.clone(),
                 is_async: *is_async,
                 argument_names: argument_names.clone(),
                 arguments: arguments.present(&source),
@@ -105,8 +107,6 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 full_fn_path: full_fn_path.clone(),
                 input_conversions: input_conversions.present(&source),
                 return_type: return_type.clone(),
-                generics: generics.clone(),
-                lifetimes: lifetimes.clone(),
                 output_conversions: <<RustSpecification as Specification>::Expr as ScopeContextPresentable>::present(return_type_conversion, source).to_token_stream()
             },
             Self::TraitVTableInnerFn(attrs, ident, name_and_args, return_type_conversion) => {
@@ -131,7 +131,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
             //     }
             // },
 
-            Self::SmartPointer(SmartPointerKind::Mutex(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Mutex(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
@@ -139,33 +139,33 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     lifetimes: lifetimes.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
+                    generics: generics.clone(),
                     ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(&source)]),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Mutex(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Mutex(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty,
-                    generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Mutex(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Mutex(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.lock().unwrap();
@@ -174,21 +174,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Mutex(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Mutex(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let lock = #from_root_conversion;
                             let mut obj = lock.lock().unwrap();
@@ -197,7 +197,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RwLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RwLock(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
@@ -205,12 +205,12 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     lifetimes: lifetimes.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
+                    generics: generics.clone(),
                     ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(&source)]),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RwLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RwLock(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
@@ -220,18 +220,18 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RwLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RwLock(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.read().unwrap();
@@ -240,21 +240,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RwLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RwLock(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let lock = #from_root_conversion;
                             let mut obj = lock.write().unwrap();
@@ -263,7 +263,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::OnceLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::OnceLock(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
@@ -271,12 +271,12 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     lifetimes: lifetimes.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
+                    generics: generics.clone(),
                     ctor_arguments: CommaPunctuatedArgs::new(),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::OnceLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::OnceLock(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
@@ -286,18 +286,18 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::OnceLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::OnceLock(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.get().unwrap();
@@ -306,21 +306,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::OnceLock(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::OnceLock(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let lock = #from_root_conversion;
                             _ = lock.set(#from_inner_conversion);
@@ -328,41 +328,41 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Cell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Cell(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
                     ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(&source)]),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Cell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Cell(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty,
-                    generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Cell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Cell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.get();
@@ -371,21 +371,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::Cell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::Cell(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let lock = #from_root_conversion;
                             lock.set(#from_inner_conversion);
@@ -393,41 +393,41 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RefCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RefCell(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
                     ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(&source)]),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RefCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RefCell(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty,
-                    generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RefCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RefCell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.borrow();
@@ -436,21 +436,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::RefCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::RefCell(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let lock = #from_root_conversion;
                             match lock.try_borrow_mut() {
@@ -462,41 +462,41 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            BindingPresentableContext::SmartPointer(SmartPointerKind::UnsafeCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
+            BindingPresentableContext::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::UnsafeCell(..), SmartPointerPresentableContext::Ctor(ctor_arg_composer, from_arg_conversion)) => {
                 let ty = aspect.present(source);
                 let body = ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source);
                 BindingPresentation::Constructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Constructor(ty.clone()).mangle_tokens_default(),
                     ty: ty.clone(),
-                    generics: None,
                     ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(&source)]),
                     body_presentation: quote!({#body})
                 }
             },
-            Self::SmartPointer(SmartPointerKind::UnsafeCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Dtor(generics, _name_kind)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::UnsafeCell(..), SmartPointerPresentableContext::Dtor(_name_kind)) => {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
                     ty,
-                    generics: generics.clone()
                 }
             },
-            Self::SmartPointer(SmartPointerKind::UnsafeCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::UnsafeCell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let to_inner_conversion = to_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(&source)]),
                         ReturnType::Type(RArrow::default(), arg_type.clone().into()),
-                        None,
-                        lifetimes.clone(),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = &*lock.get();
@@ -505,21 +505,21 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     )
                 }
             },
-            Self::SmartPointer(SmartPointerKind::UnsafeCell(..), aspect, attrs, lifetimes, SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
+            Self::SmartPointer(aspect, attrs, lifetimes, generics, SmartPointerKind::UnsafeCell(..), SmartPointerPresentableContext::Write(arg_field_composer, arg_var_composer, from_root_conversion, from_inner_conversion)) => {
                 let from_root_conversion = from_root_conversion.present(source);
                 let from_inner_conversion = from_inner_conversion.present(source);
                 BindingPresentation::Any {
                     attrs: attrs.clone(),
                     body: present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         Name::<RustSpecification>::Write(aspect.present(source)).mangle_tokens_default(),
                         CommaPunctuatedArgs::from_iter([
                             ArgKind::inherited_named_by_ref(arg_field_composer).present(&source),
                             ArgKind::inherited_named_by_ref(arg_var_composer).present(source)
                         ]),
                         ReturnType::Default,
-                        None,
-                        lifetimes.clone(),
                         quote! {
                             let obj = #from_root_conversion;
                             *obj.get() = #from_inner_conversion;
@@ -528,27 +528,140 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 }
             },
             Self::SmartPointer(..) => panic!(""),
-            Self::Callback(aspect, attrs, lifetimes, generics, ident, arg_target_fields, return_type, arg_to_conversions, post_processing, ffi_return_type, ffi_args) => {
-                let ffi_type = aspect.present(source);
-
+            Self::Callback(aspect, attrs, lifetimes, generics, ident, arg_target_fields, return_type, arg_to_conversions, post_processing, ffi_return_type, ffi_args) =>
                 BindingPresentation::Callback {
-                    name: ident.clone(),
                     attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: ident.clone(),
                     ffi_args: ffi_args.clone(),
                     result: ffi_return_type.clone(),
                     conversion: InterfacePresentation::callback(
                         attrs,
-                        ffi_type,
+                        aspect.present(source),
                         arg_target_fields.clone(),
                         return_type.clone(),
                         lifetimes,
                         arg_to_conversions.present(source),
                         post_processing
                     ),
-                    generics: generics.clone(),
+                },
+            Self::ArrayGetAtIndex(aspect, attrs, lifetimes, generics, arr_type, nested_type, to_conversion_expr_value) =>
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
                     lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::GetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #arr_type)),
+                        ArgPresentation::no_attr_tokens(quote!(index: usize))
+                    ]),
+                    return_type: ReturnType::Type(RArrow::default(), Box::new(nested_type.clone())),
+                    body: to_conversion_expr_value.to_token_stream(),
+                },
+            Self::ArraySetAtIndex(aspect, attrs, lifetimes, generics, map_type, nested_type, from_conversion_expr_value) =>
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::SetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(index: usize)),
+                        ArgPresentation::no_attr_tokens(quote!(value: #nested_type)),
+                    ]),
+                    return_type: ReturnType::Default,
+                    body: from_conversion_expr_value.to_token_stream(),
+                },
+            Self::ValueByKey(aspect, attrs, lifetimes, generics, map_type, key_type, value_type, to_conversion_expr_value) => {
+                let return_type = value_type.is_primitive().then(|| value_type.joined_mut()).unwrap_or_else(|| value_type.clone());
+
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::GetValueByKey(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(key: #key_type))
+                    ]),
+                    return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
+                    body: to_conversion_expr_value.to_token_stream(),
+                }
+            },
+            Self::SetValueForKey(aspect, attrs, lifetimes, generics, map_type, key_type, value_type, from_conversion_expr_value) => {
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::SetValueForKey(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(key: #key_type)),
+                        ArgPresentation::no_attr_tokens(quote!(value: #value_type)),
+                    ]),
+                    return_type: ReturnType::Default,
+                    body: from_conversion_expr_value.to_token_stream(),
+                }
+            },
+            Self::KeyByValue(aspect, attrs, lifetimes, generics, map_type, key_type, value_type, to_conversion_expr_value) => {
+                let return_type = key_type.is_primitive().then(|| key_type.joined_mut()).unwrap_or_else(|| key_type.clone());
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::GetKeyByValue(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(value: #value_type))
+                    ]),
+                    return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
+                    body: to_conversion_expr_value.to_token_stream(),
+                }
+            },
+            Self::SetKeyForValue(aspect, attrs, lifetimes, generics, map_type, key_type, value_type, from_conversion_expr_value) =>
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::SetKeyForValue(aspect.present(source)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(key: #key_type)),
+                        ArgPresentation::no_attr_tokens(quote!(value: #value_type)),
+                    ]),
+                    return_type: ReturnType::Default,
+                    body: from_conversion_expr_value.to_token_stream(),
+                },
+            Self::ResultOk(attrs, lifetimes, generics, result_type, ok_type) => {
+                let null = DictionaryExpr::NullMut;
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Ok)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(ok: #ok_type)),
+                    ]),
+                    return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
+                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { ok, error: #null })).to_token_stream(),
+                }
+            }
+            Self::ResultError(attrs, lifetimes, generics, result_type, error_type) => {
+                let null = DictionaryExpr::NullMut;
+                BindingPresentation::RegularFunctionWithBody {
+                    attrs: attrs.clone(),
+                    lifetimes: lifetimes.clone(),
+                    generics: generics.clone(),
+                    name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Error)).mangle_tokens_default(),
+                    arguments: CommaPunctuatedArgs::from_iter([
+                        ArgPresentation::no_attr_tokens(quote!(error: #error_type)),
+                    ]),
+                    return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
+                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { ok: #null, error })).to_token_stream(),
                 }
             }
         }
     }
 }
+

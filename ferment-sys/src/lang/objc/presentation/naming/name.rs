@@ -13,8 +13,6 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
             Name::UnnamedArg(index) => format!("o_{}", index),
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
                 Type::Path(..) | Type::Array(..) => format!("_{}", *index),
-                    // usize_to_tokenstream(*index).to_string(),
-                // Type::Array(..) => usize_to_tokenstream(*index).to_string(),
                 Type::Ptr(..) => DictionaryName::Obj.to_string(),
                 _ => unimplemented!(
                     "Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}",
@@ -25,6 +23,11 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
                 format!("{}_ctor", ident.mangle_string_default().replace("r#", "")),
             Name::Destructor(ident) =>
                 format!("{}_destroy", ident.mangle_string_default().replace("r#", "")),
+            Name::GetValueAtIndex(ident) =>
+                format!("{}_get_at_index", ident.mangle_ident_default()),
+            Name::SetValueAtIndex(ident) =>
+                format!("{}_set_at_index", ident.mangle_ident_default()),
+
             Name::Dictionary(dict_field_name) =>
                 dict_field_name.to_token_stream().to_string(),
             Name::ModFn(name) =>
@@ -90,6 +93,11 @@ impl ToTokens for Name<ObjCSpecification> {
                 format_ident!("{}_ctor", ident.mangle_ident_default()).to_tokens(tokens),
             Name::Destructor(ident) =>
                 format_ident!("{}_destroy", ident.mangle_ident_default()).to_tokens(tokens),
+            Name::GetValueAtIndex(ident) =>
+                format_ident!("{}_get_at_index", ident.mangle_ident_default()).to_tokens(tokens),
+            Name::SetValueAtIndex(ident) =>
+                format_ident!("{}_set_at_index", ident.mangle_ident_default()).to_tokens(tokens),
+
             Name::Dictionary(dict_field_name) => dict_field_name.to_tokens(tokens),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_tokens(tokens),
             Name::ModFn(path) => path.mangle_tokens_default().to_tokens(tokens),

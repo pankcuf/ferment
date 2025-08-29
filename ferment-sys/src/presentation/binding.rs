@@ -82,24 +82,35 @@ pub enum BindingPresentation {
     },
     ObjAsTraitDestructor {
         attrs: Vec<Attribute>,
+        generics: Option<Generics>,
         name: TokenStream2,
         item_type: TokenStream2,
         trait_type: TokenStream2,
-        generics: Option<Generics>,
     },
     RegularFunction {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
+        generics: Option<Generics>,
         name: TokenStream2,
         is_async: bool,
         arguments: CommaPunctuatedArgs,
         input_conversions: TokenStream2,
         return_type: ReturnType,
         output_conversions: TokenStream2,
-        generics: Option<Generics>,
+    },
+    RegularFunctionWithBody {
+        attrs: Vec<Attribute>,
         lifetimes: Vec<Lifetime>,
+        generics: Option<Generics>,
+        name: TokenStream2,
+        arguments: CommaPunctuatedArgs,
+        return_type: ReturnType,
+        body: TokenStream2,
     },
     RegularFunction2 {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
+        generics: Option<Generics>,
         name: TokenStream2,
         is_async: bool,
         argument_names: CommaPunctuatedTokens,
@@ -108,8 +119,6 @@ pub enum BindingPresentation {
         input_conversions: SemiPunctuatedArgs,
         return_type: ReturnType,
         output_conversions: TokenStream2,
-        generics: Option<Generics>,
-        lifetimes: Vec<Lifetime>,
     },
     Callback {
         name: Ident,
@@ -155,12 +164,13 @@ pub enum BindingPresentation {
 
 pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     attrs: &Vec<Attribute>,
+    lifetimes: Vec<Lifetime>,
+    generics: Option<Generics>,
     name: U,
     args: CommaPunctuated<T>,
     output: ReturnType,
-    generics: Option<Generics>,
-    lifetimes: Vec<Lifetime>,
-    body: TokenStream2) -> TokenStream2 {
+    body: TokenStream2
+) -> TokenStream2 {
     present_function(Visibility::Public(Pub::default()), attrs, name.to_token_stream(), args, output, generics, lifetimes, body)
 }
 pub fn present_function<T: ToTokens>(
@@ -227,33 +237,33 @@ impl ToTokens for BindingPresentation {
                 let ffi_path = ty.to_path().arg_less();
                 present_pub_function(
                     attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
                     name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
-                    generics.clone(),
-                    lifetimes.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
             Self::VariantConstructor { attrs, lifetimes, name, ty, generics, ctor_arguments, body_presentation} => {
                 let variant_path = ty.to_path();
                 present_pub_function(
                     attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
                     name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
-                    generics.clone(),
-                    lifetimes.clone(),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
             Self::Destructor { attrs, lifetimes, name, ty, generics } => {
                 let ty = ty.joined_mut();
                 present_pub_function(
                     attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
                     name,
                     CommaPunctuated::from_iter([quote!(ffi: #ty)]),
                     ReturnType::Default,
-                    generics.clone(),
-                    lifetimes.clone(),
                     InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
                 )
             },
@@ -261,11 +271,11 @@ impl ToTokens for BindingPresentation {
                 let ty = item_type.joined_const();
                 present_pub_function(
                     attrs,
+                    vec![],
+                    None,
                     name,
                     CommaPunctuated::from_iter([quote!(obj: #ty)]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
-                    None,
-                    vec![],
                     quote!(#trait_type {
                         object: obj as *const (),
                         vtable: &#vtable_name
@@ -275,11 +285,11 @@ impl ToTokens for BindingPresentation {
             BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs, generics } => {
                 present_pub_function(
                     attrs,
+                    vec![],
+                    generics.clone(),
                     name,
                     CommaPunctuated::from_iter([quote! { #(#attrs)* obj: #trait_type }]),
                     ReturnType::Default,
-                    generics.clone(),
-                    vec![],
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
@@ -288,11 +298,11 @@ impl ToTokens for BindingPresentation {
                 let var = obj_type.joined_const();
                 present_pub_function(
                     attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
                     name,
                     CommaPunctuated::from_iter([quote! { obj: #var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
-                    generics.clone(),
-                    lifetimes.clone(),
                     quote!((*obj).#field_name)
                 )
             },
@@ -301,48 +311,58 @@ impl ToTokens for BindingPresentation {
                 let var = obj_type.joined_mut();
                 present_pub_function(
                     attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
                     name,
                     CommaPunctuated::from_iter([
                         quote!(obj: #var),
                         quote!(value: #field_type),
                     ]),
                     ReturnType::Default,
-                    generics.clone(),
-                    lifetimes.clone(),
                     quote!((*obj).#field_name = value;))
             },
-            BindingPresentation::RegularFunction { attrs, is_async, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
-                if *is_async {
-                    let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
-                    ]);
-                    args.extend(arguments.clone());
-                    present_pub_function(
-                        attrs,
-                        name,
-                        args,
-                        return_type.clone(),
-                        generics.clone(),
-                        lifetimes.clone(),
-                        quote! {
+            BindingPresentation::RegularFunction { attrs, is_async: true, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+                let mut args = Punctuated::from_iter([
+                    ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
+                ]);
+                args.extend(arguments.clone());
+                present_pub_function(
+                    attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
+                    name,
+                    args,
+                    return_type.clone(),
+                    quote! {
                             let rt = &*(runtime as *const tokio::runtime::Runtime);
                             let obj = rt.block_on(async {
                                 #input_conversions .await
                             });
                             #output_conversions
                         }
-                    )
-                } else {
-                    present_pub_function(
-                        attrs,
-                        name,
-                        arguments.clone(),
-                        return_type.clone(),
-                        generics.clone(),
-                        lifetimes.clone(),
-                        quote!(let obj = #input_conversions; #output_conversions)
-                    )
-                }
+                )
+            },
+            BindingPresentation::RegularFunction { attrs, is_async: false, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+                present_pub_function(
+                    attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
+                    name,
+                    arguments.clone(),
+                    return_type.clone(),
+                    quote!(let obj = #input_conversions; #output_conversions)
+                )
+            },
+            BindingPresentation::RegularFunctionWithBody { attrs, lifetimes, generics, name, arguments, return_type, body } => {
+                present_pub_function(
+                    attrs,
+                    lifetimes.clone(),
+                    generics.clone(),
+                    name,
+                    arguments.clone(),
+                    return_type.clone(),
+                    body.to_token_stream()
+                )
             },
             BindingPresentation::RegularFunction2 { attrs, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions, generics, lifetimes } => {
                 if *is_async {
@@ -352,11 +372,11 @@ impl ToTokens for BindingPresentation {
                     args.extend(arguments.clone());
                     present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         name,
                         args.clone(),
                         return_type.clone(),
-                        generics.clone(),
-                        lifetimes.clone(),
                         quote! {
                             let rt = unsafe { &*(runtime as *const tokio::runtime::Runtime) };
                             #input_conversions;
@@ -379,11 +399,11 @@ impl ToTokens for BindingPresentation {
                 } else {
                     present_pub_function(
                         attrs,
+                        lifetimes.clone(),
+                        generics.clone(),
                         name,
                         arguments.clone(),
                         return_type.clone(),
-                        generics.clone(),
-                        lifetimes.clone(),
                         quote! {
                             #input_conversions;
                             let obj = #full_fn_path(#argument_names);

@@ -1,12 +1,13 @@
 use quote::quote;
+use syn::{Expr, Pat};
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VarComposer, MapComposer};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VarComposer, MapComposer, NameKind};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle};
+use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, Primitive, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, InterfacePresentation, Name};
 
 impl SourceComposable for MapComposer<RustSpecification> {
@@ -32,7 +33,7 @@ impl SourceComposable for MapComposer<RustSpecification> {
         let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value(map_var_name.clone(), value_type).compose(source);
         let destroy_conversion_expr_key = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), key_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
         let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), value_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
-        let from_conversion_key = Expression::map_o_expr(from_conversion_expr_key).present(source);
+        let from_conversion_key = Expression::map_o_expr(from_conversion_expr_key.clone()).present(source);
         let from_conversion_value = Expression::map_o_expr(from_conversion_expr_value).present(source);
         let to_conversion_key = Expression::map_o_expr(to_conversion_expr_key).present(source);
         let to_conversion_value = Expression::map_o_expr(to_conversion_expr_value).present(source);
@@ -52,20 +53,116 @@ impl SourceComposable for MapComposer<RustSpecification> {
                 ferment::unbox_group(self.#arg_1_name, self.#count_name, #destroy_conversion_value);
             }
         };
+        let field_composers = Depunctuated::from_iter([
+            FieldComposer::<RustSpecification>::named_no_attrs(count_name.clone(), FieldTypeKind::type_count()),
+            FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name.clone(), FieldTypeKind::Var(var_key.joined_mut())),
+            FieldComposer::<RustSpecification>::named_no_attrs(arg_1_name.clone(), FieldTypeKind::Var(var_value.joined_mut()))
+        ]);
+        let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
         let attrs = self.compose_attributes();
-        Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
+        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        let get_context = (aspect.clone(), signature_context, ffi_type.clone(), var_key.to_type(), var_value.to_type());
+
+        let from_key_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(key))), key_type).compose(source).present(source);
+        let from_key_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(*ffi_ref.keys.add(i)))), key_type).compose(source).present(source);
+        let return_value_expr = value_type.is_primitive().then(|| quote!(ferment::boxed(*ffi_ref.values.add(i)))).unwrap_or_else(|| quote!(*ffi_ref.values.add(i)));
+        let get_value_expr = Expr::Verbatim(quote! {
+            let ffi_ref = &*ffi;
+            let key_rust = #from_key_conversion;
+            for i in 0..ffi_ref.count {
+                let k_val = #from_key_2_conversion;
+                if key_rust == k_val {
+                    return #return_value_expr;
+                }
+            }
+            std::ptr::null_mut()
+        });
+        let destroy_value = if let Some(maybe_destroy_value_expr) = ConversionDropComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(old))), value_type).compose(source) {
+            let destroy_pres = maybe_destroy_value_expr.present(source);
+            quote! {
+                if !old.is_null() {
+                    #destroy_pres;
+                }
+            }
+        } else {
+            quote! {}
+        };
+        let set_value_expr = Expr::Verbatim(quote! {
+            let ffi_ref = &*ffi;
+            let target_key = #from_key_conversion;
+            for i in 0..ffi_ref.count {
+                let candidate_key = #from_key_2_conversion;
+                if candidate_key.eq(&target_key) {
+                    let slot = (*ffi).values.add(i);
+                    let old = *slot;
+                    #destroy_value
+                    *slot = value;
+                    break;
+                }
+            }
+        });
+        // This will only work when V: PartialEq, which is not always the case.
+        // let from_value_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(value))), value_type).compose(source).present(source);
+        // let from_value_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(*ffi_ref.values.add(i)))), value_type).compose(source).present(source);
+        // let return_key_expr = key_type.is_primitive().then(|| quote!(ferment::boxed(*ffi_ref.keys.add(i)))).unwrap_or_else(|| quote!(*ffi_ref.keys.add(i)));
+        // let get_key_expr = Expr::Verbatim(quote! {
+        //     let ffi_ref = &*ffi;
+        //     let key_rust = #from_value_conversion;
+        //     for i in 0..ffi_ref.count {
+        //         let k_val = #from_value_2_conversion;
+        //         if key_rust == k_val {
+        //             return #return_key_expr;
+        //         }
+        //     }
+        //     std::ptr::null_mut()
+        // });
+        // let destroy_key = if let Some(maybe_destroy_key_expr) = ConversionDropComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(old))), key_type).compose(source) {
+        //     let destroy_pres = maybe_destroy_key_expr.present(source);
+        //     quote! {
+        //         if !old.is_null() {
+        //             #destroy_pres;
+        //         }
+        //     }
+        // } else {
+        //     quote! {}
+        // };
+        // let set_key_expr = Expr::Verbatim(quote! {
+        //     let ffi_ref = &*ffi;
+        //     let target_key = #from_value_conversion;
+        //     for i in 0..ffi_ref.count {
+        //         let candidate_key = #from_value_2_conversion;
+        //         if candidate_key.eq(&target_key) {
+        //             let slot = (*ffi).keys.add(i);
+        //             let old = *slot;
+        //             #destroy_key
+        //             *slot = key;
+        //             break;
+        //         }
+        //     }
+        // });
+
+
+
+        Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
+            aspect,
             &attrs,
-            Depunctuated::from_iter([
-                FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
-                FieldComposer::<RustSpecification>::named_no_attrs(arg_0_name, FieldTypeKind::Var(var_key.joined_mut())),
-                FieldComposer::<RustSpecification>::named_no_attrs(arg_1_name, FieldTypeKind::Var(var_value.joined_mut()))
-            ]),
+            field_composers,
             Depunctuated::from_iter([
                 InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &lifetimes),
                 InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &lifetimes),
                 InterfacePresentation::drop(&attrs, ffi_type, drop_body)
+            ]),
+            Depunctuated::from_iter([
+                BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                // BindingPresentableContext::<RustSpecification>::key_by_value(get_context.clone(), get_key_expr),
+                // BindingPresentableContext::<RustSpecification>::set_key_for_value(get_context.clone(), set_key_expr),
+                BindingPresentableContext::<RustSpecification>::value_by_key(get_context.clone(), get_value_expr),
+                BindingPresentableContext::<RustSpecification>::set_value_for_key(get_context, set_value_expr)
             ])
+
         ))
     }
 }

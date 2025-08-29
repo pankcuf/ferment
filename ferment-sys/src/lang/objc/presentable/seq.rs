@@ -98,7 +98,7 @@ impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
                     case #name
                 }
             }
-            SeqKind::TraitImplFnCall(self_ty, trait_ty, fn_name, fields) => {
+            SeqKind::TraitImplFnCall(((self_ty, trait_ty, fn_name), fields)) => {
                 let fields = fields.present(source);
                 quote! {
                     #self_ty #trait_ty #fn_name #fields

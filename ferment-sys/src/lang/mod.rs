@@ -97,9 +97,9 @@ pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
     fn from_generics(generics: Option<Generics>) -> Self;
 }
 pub trait LangLifetimeSpecification<T: Clone>: Clone + Default + Debug {
-    // type Iter: FromIterator<Lifetime> + IntoIterator<Item = Lifetime> + Default;
     #[allow(unused)]
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self;
+    #[allow(unused)]
     fn add_lifetime(&mut self, lifetime: Lifetime);
 }
 

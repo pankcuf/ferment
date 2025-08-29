@@ -1,6 +1,6 @@
 use syn::ItemFn;
 use crate::composable::FnSignatureContext;
-use crate::composer::{DocsComposable, LifetimesComposable, SourceAccessible, SourceFermentable, TypeAspect, SigComposer,  compose_trait_impl_fn, compose_trait_impl_fn_as_trait_type, compose_mod_fn, compose_impl_fn, compose_bare_fn, compose_trait_inner_fn};
+use crate::composer::{DocsComposable, LifetimesComposable, SourceAccessible, SourceFermentable, TypeAspect, SigComposer, compose_trait_impl_fn, compose_mod_fn, compose_impl_fn, compose_bare_fn, compose_trait_inner_fn, FnImplContext};
 use crate::lang::RustSpecification;
 use crate::presentable::{ScopeContextPresentable, TypeContext};
 use crate::presentation::RustFermentate;
@@ -13,11 +13,11 @@ impl SourceFermentable<RustFermentate> for SigComposer<RustSpecification> {
                 FnSignatureContext::ModFn(ItemFn { sig, .. }) =>
                     compose_mod_fn(path, self.target_type_aspect(), attrs, None, sig, &source),
                 FnSignatureContext::Impl(sig, self_ty) =>
-                    compose_impl_fn(path, self_ty, self.ffi_type_aspect(), attrs, None, sig, &source),
+                    compose_impl_fn(path, FnImplContext::TypeImpl { self_ty, aspect: self.ffi_type_aspect() } , attrs, None, sig, &source),
                 FnSignatureContext::TraitImpl(sig, self_ty, trait_ty) =>
                     compose_trait_impl_fn(path, self_ty, trait_ty, attrs, None, sig, &source),
                 FnSignatureContext::TraitAsType(sig, self_ty, trait_ty) =>
-                    compose_trait_impl_fn_as_trait_type(path, self_ty, trait_ty, attrs, None, sig, &source),
+                    compose_impl_fn(path, FnImplContext::TraitImpl { self_ty, trait_ty } , attrs, None, sig, &source),
                 FnSignatureContext::TraitInner(sig, _, trait_ty) =>
                     compose_trait_inner_fn(trait_ty, attrs, sig, &source),
                 FnSignatureContext::Bare(_, type_bare_fn) =>

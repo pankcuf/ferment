@@ -88,9 +88,8 @@ impl SmartPointerKind {
             _ => Expression::Clone(expr.into()),
         }
     }
-    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, attrs: &SPEC::Attr, lifetimes: &SPEC::Lt, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
-        BindingPresentableContext::smart_pointer(self, aspect, attrs, lifetimes, context)
-
+    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, attrs: &SPEC::Attr, lifetimes: &SPEC::Lt, generics: &SPEC::Gen, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
+        BindingPresentableContext::smart_pointer(self, aspect, attrs, lifetimes, generics, context)
     }
 }
 impl Debug for SmartPointerKind {

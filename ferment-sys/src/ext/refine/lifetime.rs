@@ -1,4 +1,4 @@
-use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, Receiver, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::{AddPunctuated, CommaPunctuated};
 use crate::kind::{CallbackKind, GenericTypeKind, SmartPointerKind, TypeKind};
 use crate::ext::ToType;
@@ -305,17 +305,17 @@ impl LifetimeProcessor for TypeKind {
 impl LifetimeProcessor for GenericTypeKind {
     fn clean_lifetimes(&mut self) {
         match self {
-            GenericTypeKind::Map(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Group(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Result(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Box(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Cow(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::SmartPointer(kind) => kind.clean_lifetimes(),
-            GenericTypeKind::AnyOther(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Array(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Slice(ty) => ty.clean_lifetimes(),
-            GenericTypeKind::Tuple(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::Map(ty) |
+            GenericTypeKind::Group(ty) |
+            GenericTypeKind::Result(ty) |
+            GenericTypeKind::Box(ty) |
+            GenericTypeKind::Cow(ty) |
+            GenericTypeKind::AnyOther(ty) |
+            GenericTypeKind::Array(ty) |
+            GenericTypeKind::Slice(ty) |
+            GenericTypeKind::Tuple(ty) |
             GenericTypeKind::Optional(ty) => ty.clean_lifetimes(),
+            GenericTypeKind::SmartPointer(kind) => kind.clean_lifetimes(),
             GenericTypeKind::Callback(kind) => kind.ty_mut().clean_lifetimes(),
             GenericTypeKind::TraitBounds(bounds) => {
                 *bounds = bounds.iter().filter_map(|b| match b {
@@ -398,5 +398,25 @@ impl LifetimeProcessor for SmartPointerKind {
 
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
         self.to_type().unique_lifetimes()
+    }
+}
+
+impl LifetimeProcessor for Receiver {
+    fn clean_lifetimes(&mut self) {
+        self.ty.clean_lifetimes();
+        if let Some((_, maybe_lifetime)) = &mut self.reference {
+            if maybe_lifetime.is_some() {
+                *maybe_lifetime = None;
+            }
+        }
+    }
+
+    fn unique_lifetimes(&self) -> Vec<Lifetime> {
+        let Self { reference, ty, .. } = self;
+        let mut lifetimes = ty.unique_lifetimes();
+        if let Some((_, Some(lt))) = reference {
+            lifetimes.push(lt.clone());
+        }
+        lifetimes
     }
 }

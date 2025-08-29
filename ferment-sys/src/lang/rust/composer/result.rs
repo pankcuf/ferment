@@ -2,12 +2,12 @@ use quote::{quote, ToTokens};
 use syn::Lifetime;
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, VarComposer, ConversionToComposer, ConversionDropComposer, ResultComposer};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, VarComposer, ConversionToComposer, ConversionDropComposer, ResultComposer, NameKind};
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, Primitive};
 use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name};
 
 impl SourceComposable for ResultComposer<RustSpecification> {
@@ -67,18 +67,30 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let var_error = error_is_primitive.then(|| var_error.joined_mut()).unwrap_or(var_error);
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Ok), FieldTypeKind::Var(var_ok)),
-            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Error), FieldTypeKind::Var(var_error))
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Ok), FieldTypeKind::Var(var_ok.clone())),
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Error), FieldTypeKind::Var(var_error.clone()))
         ]);
+        let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
+        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        let ok_context = (signature_context.clone(), ffi_type.clone(), var_ok);
+        let error_context = (signature_context, ffi_type.clone(), var_error);
 
-        Some(GenericComposerInfo::<RustSpecification>::default(
-            Aspect::raw_struct_ident(self.ty.mangle_ident_default()),
+        Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
+            aspect,
             &attrs,
             field_composers,
             Depunctuated::from_iter([
                 InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &lifetimes),
                 InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &lifetimes),
                 InterfacePresentation::drop(&attrs, ffi_type, drop_body)
+            ]),
+            Depunctuated::from_iter([
+                BindingPresentableContext::<RustSpecification>::ctor(ctor_context),
+                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                BindingPresentableContext::<RustSpecification>::ctor_result_ok(ok_context),
+                BindingPresentableContext::<RustSpecification>::ctor_result_error(error_context),
             ])
         ))
     }

@@ -83,6 +83,9 @@ impl DictionaryExpr {
     pub fn self_prop<T: ToTokens>(name: T) -> Self {
         Self::SelfProp(name.to_token_stream())
     }
+    pub fn self_as_trait<T: ToTokens, U: ToTokens>(ty: T, acc: U) -> Self {
+        Self::SelfAsTrait(ty.to_token_stream(), acc.to_token_stream())
+    }
     pub fn ffi_ref_prop<T: ToTokens>(name: T) -> Self {
         Self::FfiRefProp(name.to_token_stream())
     }

@@ -34,7 +34,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
                 FnArg::Receiver(Receiver { attrs, .. }) =>
                     FieldComposer::self_var(VarComposer::<SPEC>::key_ref_in_composer_scope(trait_ty).compose(source), attrs),
                 FnArg::Typed(PatType { ty, attrs, pat, .. }) =>
-                    FieldComposer::named_typed(Name::Pat(*pat.clone()), ty, attrs)
+                    FieldComposer::named_typed(Name::pat(pat), ty, attrs)
             })
         }));
     BindingPresentableContext::TraitVTableInnerFn(attrs.clone(), sig.ident.clone(), arguments, return_type)

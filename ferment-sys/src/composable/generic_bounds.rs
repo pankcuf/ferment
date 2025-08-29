@@ -133,7 +133,7 @@ impl GenericBoundsModel {
     }
 }
 impl GenericBoundsModel {
-    pub fn expr_from<SPEC>(&self, field_path: Expression<SPEC>) -> Expression<SPEC>
+    pub fn expr_from<SPEC>(&self, field_path: SPEC::Expr) -> SPEC::Expr
         where SPEC: Specification<Expr=Expression<SPEC>>,
               SPEC::Expr: ScopeContextPresentable {
         if self.bounds.is_empty() {

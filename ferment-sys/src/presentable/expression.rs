@@ -52,6 +52,8 @@ impl From<Type> for ConversionExpressionKind {
 pub trait ExpressionComposable<SPEC>: Clone + Debug + ScopeContextPresentable
     where SPEC: Specification {
     fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr;
+    fn simple_expr(expr: SPEC::Expr) -> SPEC::Expr;
+    fn leak_box(expr: SPEC::Expr) -> SPEC::Expr;
 }
 
 impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
@@ -59,6 +61,12 @@ impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
           SPEC::Expr: ScopeContextPresentable {
     fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr {
         Expression::Simple(tokens.to_token_stream())
+    }
+    fn simple_expr(expr: SPEC::Expr) -> SPEC::Expr {
+        Expression::SimpleExpr(expr.into())
+    }
+    fn leak_box(expr: SPEC::Expr) -> SPEC::Expr {
+        Expression::LeakBox(expr.into())
     }
 }
 
@@ -81,12 +89,14 @@ pub enum Expression<SPEC>
 
     Empty,
     Simple(TokenStream2),
+    SimpleExpr(Box<Expression<SPEC>>),
     DictionaryName(DictionaryName),
     Name(SPEC::Name),
     FfiRefWithName(SPEC::Name),
     ObjName(SPEC::Name),
     DictionaryExpr(DictionaryExpr),
     InterfacesExpr(InterfacesMethodExpr),
+    Wrap(Box<Expression<SPEC>>),
     AsRef(Box<Expression<SPEC>>),
     AsMutRef(Box<Expression<SPEC>>),
     DerefRef(Box<Expression<SPEC>>),
@@ -133,6 +143,16 @@ impl<SPEC> Expression<SPEC>
     }
     pub(crate) fn expression_drop(kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(FFIAspect::Drop, kind, expr.into())
+    }
+
+    pub(crate) fn wrap(expr: Self) -> Self {
+        Self::Wrap(expr.into())
+    }
+    pub(crate) fn mut_ref(expr: Self) -> Self {
+        Self::AsMutRef(expr.into())
+    }
+    pub(crate) fn r#ref(expr: Self) -> Self {
+        Self::AsRef(expr.into())
     }
 
     #[allow(unused)]
