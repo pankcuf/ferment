@@ -9,9 +9,9 @@ use crate::composable::{AttrsModel, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, CommaPunctuatedArgKinds, VarComposer, ConversionToComposer, NameKind};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::ToType;
+use crate::ext::{ExpressionComposable, ToType};
 use crate::lang::{FromDictionary, Specification};
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DictionaryName, DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
 
 

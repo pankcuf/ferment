@@ -5,9 +5,9 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
-use crate::ext::{AsType, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, ToType};
+use crate::ext::{AsType, ExpressionComposable, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Resolve, ToType};
 use crate::lang::Specification;
-use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposable, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Debug)]

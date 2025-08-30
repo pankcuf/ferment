@@ -4,80 +4,10 @@ use syn::__private::TokenStream2;
 use syn::Type;
 use crate::ast::CommaPunctuated;
 use crate::composer::{FFIAspect, FieldTypeLocalContext};
-use crate::kind::{GenericTypeKind, TypeKind};
-use crate::ext::{Conversion, GenericNestedArg, ToType};
+use crate::ext::{Conversion, ExpressionComposable, ToType};
 use crate::lang::Specification;
-use crate::presentable::ScopeContextPresentable;
+use crate::presentable::{ConversionExpressionKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
-
-
-#[derive(Clone, Copy, Debug)]
-pub enum ConversionExpressionKind {
-    Primitive,
-    PrimitiveOpt,
-    Complex,
-    ComplexOpt,
-    OpaqueOpt,
-    PrimitiveGroup,
-    PrimitiveOptGroup,
-    ComplexGroup,
-    ComplexOptGroup,
-    OpaqueGroup,
-    OpaqueOptGroup,
-}
-
-
-impl From<&Type> for ConversionExpressionKind {
-    fn from(value: &Type) -> Self {
-        Self::from(value.clone())
-    }
-}
-impl From<Type> for ConversionExpressionKind {
-    fn from(value: Type) -> Self {
-        match TypeKind::from(value) {
-            TypeKind::Primitive(_) =>
-                ConversionExpressionKind::Primitive,
-            TypeKind::Generic(GenericTypeKind::Optional(ty)) => match ty.maybe_first_nested_type_kind() {
-                Some(TypeKind::Primitive(_)) =>
-                    ConversionExpressionKind::PrimitiveOpt,
-                _ =>
-                    ConversionExpressionKind::ComplexOpt,
-            }
-            _ =>
-                ConversionExpressionKind::Complex,
-        }
-    }
-}
-
-pub trait ExpressionComposable<SPEC>: Clone + Debug + ScopeContextPresentable
-    where SPEC: Specification {
-    fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr;
-    fn simple_expr(expr: SPEC::Expr) -> SPEC::Expr;
-    fn leak_box(expr: SPEC::Expr) -> SPEC::Expr;
-}
-
-impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
-    where SPEC: Specification<Expr=Self>,
-          SPEC::Expr: ScopeContextPresentable {
-    fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr {
-        Expression::Simple(tokens.to_token_stream())
-    }
-    fn simple_expr(expr: SPEC::Expr) -> SPEC::Expr {
-        Expression::SimpleExpr(expr.into())
-    }
-    fn leak_box(expr: SPEC::Expr) -> SPEC::Expr {
-        Expression::LeakBox(expr.into())
-    }
-}
-
-impl<SPEC> Default for Expression<SPEC>
-where SPEC: Specification<Expr=Self>,
-      Self: ScopeContextPresentable {
-    fn default() -> Self {
-        Self::Empty
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum Expression<SPEC>
     where SPEC: Specification<Expr=Self>,
@@ -423,3 +353,24 @@ impl<SPEC> Expression<SPEC>
     }
 }
 
+impl<SPEC> ExpressionComposable<SPEC> for Expression<SPEC>
+where SPEC: Specification<Expr=Self>,
+      SPEC::Expr: ScopeContextPresentable {
+    fn simple<T: ToTokens>(tokens: T) -> SPEC::Expr {
+        Expression::Simple(tokens.to_token_stream())
+    }
+    fn simple_expr(expr: SPEC::Expr) -> SPEC::Expr {
+        Expression::SimpleExpr(expr.into())
+    }
+    fn leak_box(expr: SPEC::Expr) -> SPEC::Expr {
+        Expression::LeakBox(expr.into())
+    }
+}
+
+impl<SPEC> Default for Expression<SPEC>
+where SPEC: Specification<Expr=Self>,
+      Self: ScopeContextPresentable {
+    fn default() -> Self {
+        Self::Empty
+    }
+}

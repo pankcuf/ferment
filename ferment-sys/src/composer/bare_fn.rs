@@ -7,10 +7,10 @@ use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, field, CommaPunctuatedArgKinds};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{Mangle, Resolve, ToType};
+use crate::ext::{ExpressionComposable, Mangle, Resolve, ToType};
 use crate::kind::{GenericTypeKind, TypeKind};
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable};
+use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, DocPresentation, FFIConversionFromMethodExpr, FFIFullDictionaryPath, FFIFullPath, Name};
 
 #[allow(unused)]

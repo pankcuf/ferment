@@ -21,10 +21,10 @@ use crate::Config;
 use crate::kind::GenericTypeKind;
 #[cfg(feature = "objc")]
 use crate::ext::FFIVarResolve;
-use crate::ext::{Mangle, MangleDefault, ToType};
+use crate::ext::{ExpressionComposable, Mangle, MangleDefault, ToType};
 #[cfg(feature = "objc")]
 use crate::lang::objc::composers::AttrWrapper;
-use crate::presentable::{NameTreeContext, TypeContext, Expression, ExpressionComposable};
+use crate::presentable::{NameTreeContext, TypeContext, Expression};
 use crate::presentation::{DictionaryName, FFIVariable, InterfacePresentation, Name, RustFermentate};
 #[cfg(any(feature = "objc", feature = "java"))]
 use crate::tree::CrateTree;

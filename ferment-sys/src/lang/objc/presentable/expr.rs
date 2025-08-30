@@ -1,6 +1,6 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use crate::composer::{SourceComposable, FFIAspect};
+use crate::composer::{FFIAspect, SourceComposable};
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
 use crate::lang::objc::ObjCSpecification;

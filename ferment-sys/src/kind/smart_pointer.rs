@@ -2,9 +2,9 @@ use std::fmt::{Debug, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::Type;
-use crate::ext::{AsType, GenericNestedArg, ToType};
+use crate::ext::{AsType, ExpressionComposable, GenericNestedArg, ToType};
 use crate::lang::Specification;
-use crate::presentable::{Aspect, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable, SmartPointerPresentableContext};
+use crate::presentable::{Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SmartPointerPresentableContext};
 use crate::presentation::DictionaryExpr;
 
 

@@ -5,9 +5,9 @@ use syn::token::{Const, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, ConversionFromComposer, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VarComposer, VTableComposer};
 use crate::context::ScopeContext;
-use crate::ext::{Mangle, Resolve, ToPath, ToType};
+use crate::ext::{ExpressionComposable, Mangle, Resolve, ToPath, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
-use crate::presentable::{ExpressionComposable, ScopeContextPresentable, TypeContext};
+use crate::presentable::{ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, FFIFullPath, Name};
 
 pub type ExpressionWrapper<SPEC> = fn(<SPEC as Specification>::Expr) -> <SPEC as Specification>::Expr;

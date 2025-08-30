@@ -5,9 +5,9 @@ use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{CommaPunctuatedArgKinds, ConversionFromComposer, ConversionToComposer, FnImplContext, NameKind, SourceComposable, VarComposer};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::ScopeContext;
-use crate::ext::{LifetimeProcessor, Resolve, ToType};
+use crate::ext::{ExpressionComposable, LifetimeProcessor, Resolve, ToType};
 use crate::lang::{FromDictionary, LangAttrSpecification, LangLifetimeSpecification, Specification};
-use crate::presentable::{ArgKind, BindingPresentableContext, Expression, ExpressionComposable, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ArgKind, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DictionaryName, FFIFullDictionaryPath, FFIFullPath, Name};
 
 

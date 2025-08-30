@@ -3,9 +3,9 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
-use crate::ext::{FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
+use crate::ext::{ExpressionComposable, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
-use crate::presentable::{ConversionExpressionKind, Expression, ExpressionComposable, ScopeContextPresentable};
+use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone)]
@@ -96,14 +96,14 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                     Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type)
                 },
                 TypeModelKind::Optional(..) => {
-                    let full_nested_ty = full_type.maybe_first_nested_type_kind().unwrap();
-                    let (expr_kind, ffi_type) = match full_nested_ty.maybe_special_type(source) {
+                    let full_nested_ty_kind = full_type.maybe_first_nested_type_kind().unwrap();
+                    let (expr_kind, ffi_type) = match full_nested_ty_kind.maybe_special_type(source) {
                         Some(SpecialType::Custom(custom_ffi_type)) => (ConversionExpressionKind::ComplexOpt, custom_ffi_type),
                         Some(SpecialType::Opaque(..)) => (ConversionExpressionKind::OpaqueOpt, ffi_type),
-                        _ if full_nested_ty.is_primitive() => (ConversionExpressionKind::PrimitiveOpt, ffi_type),
+                        _ if full_nested_ty_kind.is_primitive() => (ConversionExpressionKind::PrimitiveOpt, ffi_type),
                         _ => (ConversionExpressionKind::ComplexOpt, ffi_type)
                     };
-                    Expression::cast_from(field_path, expr_kind, ffi_type, full_nested_ty.to_type())
+                    Expression::cast_from(field_path, expr_kind, ffi_type, full_nested_ty_kind.to_type())
                 }
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) =>
                     Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty)),

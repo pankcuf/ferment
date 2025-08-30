@@ -1,12 +1,13 @@
 use syn::{Lifetime, Type};
 use crate::ast::{CommaParenWrapped, CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, BoundsComposer};
+use crate::composer::{AspectPresentable, AttrComposable, BoundsComposer, GenericComposerInfo, SourceComposable};
 use crate::context::ScopeContext;
 use crate::ext::{LifetimeProcessor, Mangle, Primitive, Resolve, ToType};
 use crate::kind::FieldTypeKind;
 use crate::lang::{NameComposable, RustSpecification, Specification};
-use crate::presentable::{Aspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+use crate::presentable::ConversionExpressionKind;
 use crate::presentation::{DictionaryExpr, InterfacePresentation};
 impl SourceComposable for BoundsComposer<RustSpecification> {
     type Source = ScopeContext;
