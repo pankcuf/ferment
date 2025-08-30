@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::Type;
+use crate::composer::SignatureAspect;
 use crate::ext::{AsType, ExpressionComposable, GenericNestedArg, ToType};
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SmartPointerPresentableContext};
@@ -88,8 +89,8 @@ impl SmartPointerKind {
             _ => Expression::Clone(expr.into()),
         }
     }
-    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, attrs: &SPEC::Attr, lifetimes: &SPEC::Lt, generics: &SPEC::Gen, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
-        BindingPresentableContext::smart_pointer(self, aspect, attrs, lifetimes, generics, context)
+    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, signature_aspect: &SignatureAspect<SPEC>, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
+        BindingPresentableContext::smart_pointer(self, aspect, signature_aspect, context)
     }
 }
 impl Debug for SmartPointerKind {

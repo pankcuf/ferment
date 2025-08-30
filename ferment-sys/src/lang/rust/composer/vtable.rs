@@ -82,7 +82,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                     fn_name: ident.clone()
                 });
                 methods_implementations.push(BindingPresentation::StaticVTableInnerFn {
-                    attrs: vec![],
+                    aspect: (vec![], vec![], None),
                     name: name.to_token_stream(),
                     args,
                     output: out,
@@ -107,18 +107,17 @@ impl SourceComposable for VTableComposer<RustSpecification> {
             methods_implementations,
             bindings: Depunctuated::from_iter([
                 BindingPresentation::ObjAsTrait {
-                    attrs: attrs.clone(),
+                    aspect: (attrs.clone(), vec![], None),
                     name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()).to_token_stream(),
                     item_type: target_type.clone(),
                     trait_type: full_trait_type.to_token_stream(),
                     vtable_name: name.to_token_stream(),
                 },
                 BindingPresentation::ObjAsTraitDestructor {
-                    attrs,
+                    aspect: (attrs.clone(), vec![], None),
                     name: Name::<RustSpecification>::TraitDestructor(target_type.clone(), full_trait_type.clone()).to_token_stream(),
                     item_type: target_type.to_token_stream(),
                     trait_type: full_trait_type.to_token_stream(),
-                    generics: None,
                 }
             ])
         };

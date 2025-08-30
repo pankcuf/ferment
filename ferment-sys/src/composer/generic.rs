@@ -23,6 +23,23 @@ pub struct GenericComposerInfo<SPEC>
 impl<SPEC> GenericComposerInfo<SPEC>
     where SPEC: Specification {
 
+    fn new(
+        ffi_aspect: Aspect<SPEC::TYC>,
+        attrs: SPEC::Attr,
+        field_composers: Depunctuated<FieldComposer<SPEC>>,
+        interfaces: Depunctuated<SPEC::Interface>,
+        bindings: Depunctuated<BindingPresentableContext<SPEC>>,
+        field_composer: PresentableArgKindComposerRef<SPEC>,
+    ) -> Self {
+        Self {
+            ffi_aspect,
+            attrs,
+            field_composers,
+            interfaces,
+            bindings,
+            field_composer,
+        }
+    }
     pub fn callback(
         ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
@@ -31,40 +48,37 @@ impl<SPEC> GenericComposerInfo<SPEC>
     ) -> Self {
         let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
         let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::callback_ctor_pair)));
-        let bindings = Depunctuated::from_iter([
-            BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
-            BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
-        ]);
-        Self {
-            ffi_aspect: ffi_name,
-            attrs: attrs.clone(),
+        Self::new(
+            ffi_name,
+            attrs.clone(),
             field_composers,
             interfaces,
-            bindings,
-            field_composer: ArgKind::callback_arg,
-        }
+            Depunctuated::from_iter([
+                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+            ]),
+            ArgKind::callback_arg
+        )
     }
     pub fn default(
         ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
         field_composers: Depunctuated<FieldComposer<SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>,
-        ) -> Self {
+    ) -> Self {
         let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
         let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
-        let bindings = Depunctuated::from_iter([
-            BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
-            BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
-        ]);
-
-        Self {
-            ffi_aspect: ffi_name,
-            attrs: attrs.clone(),
+        Self::new(
+            ffi_name,
+            attrs.clone(),
             field_composers,
             interfaces,
-            bindings,
-            field_composer: ArgKind::public_named_ready,
-        }
+            Depunctuated::from_iter([
+                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+            ]),
+            ArgKind::public_named_ready
+        )
     }
 
     pub fn default_with_bindings(
@@ -74,14 +88,14 @@ impl<SPEC> GenericComposerInfo<SPEC>
         interfaces: Depunctuated<SPEC::Interface>,
         bindings: Depunctuated<BindingPresentableContext<SPEC>>,
     ) -> Self {
-        Self {
-            ffi_aspect: ffi_name,
-            attrs: attrs.clone(),
+        Self::new(
+            ffi_name,
+            attrs.clone(),
             field_composers,
             interfaces,
             bindings,
-            field_composer: ArgKind::public_named_ready,
-        }
+            ArgKind::public_named_ready
+        )
     }
 }
 

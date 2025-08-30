@@ -6,7 +6,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, CommaPunctuatedArgKinds, VarComposer, ConversionToComposer, NameKind};
+use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, CommaPunctuatedArgKinds, VarComposer, ConversionToComposer, NameKind, SignatureAspect};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{ExpressionComposable, ToType};
@@ -52,9 +52,8 @@ where SPEC: Specification {
 
 pub fn compose_mod_fn<SPEC>(
     path: &Path,
+    signature_aspect: SignatureAspect<SPEC>,
     aspect: Aspect<SPEC::TYC>,
-    attrs: &SPEC::Attr,
-    generics: SPEC::Gen,
     sig: &Signature,
     source: &ScopeContext
 ) -> BindingPresentableContext<SPEC>
@@ -67,7 +66,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
       FFIFullDictionaryPath<SPEC>: ToType,
       VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output: ToType>
 {
-    let mut used_lifetimes = SPEC::Lt::default();
+    let mut used_lifetimes = signature_aspect.1.clone();
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (
@@ -94,15 +93,14 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             }
         }
     }
+    let signature_aspect_ext = (signature_aspect.0, used_lifetimes, signature_aspect.2);
     BindingPresentableContext::RegFn(
         path.clone(),
-        attrs.clone(),
-        used_lifetimes.clone(),
-        generics.clone(),
+        signature_aspect_ext.clone(),
         asyncness.is_some(),
         arguments,
         return_type_presentation,
-        SeqKind::FromUnnamedFields(((aspect, (attrs.clone(), used_lifetimes, generics), NameKind::Named), argument_conversions)),
+        SeqKind::FromUnnamedFields(((aspect, signature_aspect_ext, NameKind::Named), argument_conversions)),
         return_type_conversion
     )
 }

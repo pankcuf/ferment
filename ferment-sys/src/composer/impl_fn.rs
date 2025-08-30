@@ -2,7 +2,7 @@ use quote::ToTokens;
 use syn::{parse_quote, FnArg, Path, Receiver, ReturnType, Signature};
 use syn::token::Semi;
 use crate::ast::CommaPunctuatedTokens;
-use crate::composer::{CommaPunctuatedArgKinds, ConversionFromComposer, ConversionToComposer, FnImplContext, NameKind, SourceComposable, VarComposer};
+use crate::composer::{CommaPunctuatedArgKinds, ConversionFromComposer, ConversionToComposer, FnImplContext, NameKind, SignatureAspect, SourceComposable, VarComposer};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::ScopeContext;
 use crate::ext::{ExpressionComposable, LifetimeProcessor, Resolve, ToType};
@@ -13,9 +13,8 @@ use crate::presentation::{DictionaryName, FFIFullDictionaryPath, FFIFullPath, Na
 
 pub fn compose_impl_fn<SPEC>(
     path: &Path,
+    aspect: SignatureAspect<SPEC>,
     context: FnImplContext<SPEC>,
-    attrs: &SPEC::Attr,
-    generics: SPEC::Gen,
     sig: &Signature,
     source: &ScopeContext
 ) -> BindingPresentableContext<SPEC>
@@ -29,7 +28,7 @@ where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
       VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=SPEC::Var>
 {
     let self_ty = context.self_ty();
-    let mut used_lifetimes = SPEC::Lt::default();
+    let mut used_lifetimes = aspect.1.clone();
     let Signature { output, inputs, asyncness, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (
@@ -74,17 +73,16 @@ where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
             }
         }
     }
+    let aspect_ext = (aspect.0, used_lifetimes, aspect.2);
     let sequence = match context {
         FnImplContext::TypeImpl { aspect, .. } =>
-            SeqKind::FromUnnamedFields(((aspect, (attrs.clone(), used_lifetimes.clone(), generics.clone()), NameKind::Named), argument_conversions)),
+            SeqKind::FromUnnamedFields(((aspect, aspect_ext.clone(), NameKind::Named), argument_conversions)),
         FnImplContext::TraitImpl { self_ty, trait_ty } =>
             SeqKind::TraitImplFnCall(((self_ty.resolve(source), trait_ty.resolve(source), sig.ident.clone()), argument_conversions))
     };
     BindingPresentableContext::RegFn(
         path.clone(),
-        attrs.clone(),
-        used_lifetimes,
-        generics,
+        aspect_ext,
         asyncness.is_some(),
         arguments,
         return_type_presentation,

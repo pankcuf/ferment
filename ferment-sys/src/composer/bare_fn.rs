@@ -5,7 +5,7 @@ use syn::{BareFnArg, Generics, Lifetime, Path, ReturnType, Type, TypeBareFn};
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, field, CommaPunctuatedArgKinds};
+use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, field, CommaPunctuatedArgKinds, SignatureAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{ExpressionComposable, Mangle, Resolve, ToType};
 use crate::kind::{GenericTypeKind, TypeKind};
@@ -49,11 +49,9 @@ where SPEC: Specification {
 
 pub fn compose_bare_fn<SPEC>(
     full_fn_path: &Path,
+    signature_aspect: SignatureAspect<SPEC>,
     aspect: Aspect<SPEC::TYC>,
     type_bare_fn: &TypeBareFn,
-    attrs: &SPEC::Attr,
-    generics: SPEC::Gen,
-    lifetimes: SPEC::Lt,
     source: &ScopeContext
 ) -> BindingPresentableContext<SPEC>
 where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
@@ -124,9 +122,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
         });
     BindingPresentableContext::Callback(
         aspect,
-        attrs.clone(),
-        lifetimes.clone(),
-        generics.clone(),
+        signature_aspect,
         full_fn_path.mangle_ident_default(),
         arg_target_fields,
         return_type,

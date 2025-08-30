@@ -43,10 +43,10 @@ pub enum InterfacePresentation {
     },
     Callback {
         attrs: Vec<Attribute>,
+        lifetimes: Vec<Lifetime>,
         ffi_type: Type,
         inputs: CommaPunctuatedArgs,
         output: ReturnType,
-        lifetimes: Vec<Lifetime>,
         body: TokenStream2,
     },
     SendAndSync {
@@ -102,7 +102,7 @@ impl InterfacePresentation {
         InterfacePresentation::Drop { attrs: attrs.clone(), ty, body: body.to_token_stream() }
     }
 
-    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, lifetimes: &Vec<Lifetime>, args_conversions: T, result_conversion: U) -> Self {
+    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, lifetimes: &Vec<Lifetime>, ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, args_conversions: T, result_conversion: U) -> Self {
         InterfacePresentation::Callback {
             attrs: attrs.clone(),
             ffi_type,

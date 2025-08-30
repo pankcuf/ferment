@@ -311,6 +311,7 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 let expr = expr.present(source);
                 quote!(#expr)
             }
+            Self::SimpleExpr(expr) => expr.present(source),
         };
         // println!("OBJC: Expression => {}", result);
 

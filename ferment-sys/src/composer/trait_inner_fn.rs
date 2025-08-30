@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::{FnArg, PatType, Receiver, ReturnType, Signature, Type};
 use crate::composable::FieldComposer;
-use crate::composer::{CommaPunctuatedArgKinds, SourceComposable, VarComposer};
+use crate::composer::{CommaPunctuatedArgKinds, SignatureAspect, SourceComposable, VarComposer};
 use crate::context::ScopeContext;
 use crate::ext::ToType;
 use crate::lang::Specification;
@@ -10,7 +10,7 @@ use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
 
 pub fn compose_trait_inner_fn<SPEC>(
     trait_ty: &Type,
-    attrs: &SPEC::Attr,
+    aspect: SignatureAspect<SPEC>,
     sig: &Signature,
     source: &ScopeContext
 ) -> BindingPresentableContext<SPEC>
@@ -37,5 +37,5 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
                     FieldComposer::named_typed(Name::pat(pat), ty, attrs)
             })
         }));
-    BindingPresentableContext::TraitVTableInnerFn(attrs.clone(), sig.ident.clone(), arguments, return_type)
+    BindingPresentableContext::TraitVTableInnerFn(aspect, sig.ident.clone(), arguments, return_type)
 }

@@ -1,11 +1,12 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, Lifetime, FieldMutability};
+use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, FieldMutability};
 use syn::punctuated::Punctuated;
 use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
-use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs};
+use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs, SignatureAspect};
 use crate::ext::{Accessory, CrateExtension, Pop, Terminated, ToPath, ToType};
+use crate::lang::RustSpecification;
 use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr};
 
 #[derive(Clone, Debug)]
@@ -13,84 +14,67 @@ use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation
 pub enum BindingPresentation {
     Empty,
     Constructor {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         ty: Type,
-        generics: Option<Generics>,
         ctor_arguments: CommaPunctuatedArgs,
         body_presentation: TokenStream2,
     },
     VariantConstructor {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         ty: Type,
-        generics: Option<Generics>,
         ctor_arguments: CommaPunctuatedArgs,
         body_presentation: TokenStream2,
     },
     Destructor {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         ty: Type,
-        generics: Option<Generics>,
     },
     Getter {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
-        generics: Option<Generics>,
     },
     Setter {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
-        generics: Option<Generics>,
     },
     GetterOpaque {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
-        generics: Option<Generics>,
     },
     SetterOpaque {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
         obj_type: Type,
         field_type: Type,
-        generics: Option<Generics>,
     },
     ObjAsTrait {
-        attrs: Vec<Attribute>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         item_type: Type,
         trait_type: TokenStream2,
         vtable_name: TokenStream2,
     },
     ObjAsTraitDestructor {
-        attrs: Vec<Attribute>,
-        generics: Option<Generics>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         item_type: TokenStream2,
         trait_type: TokenStream2,
     },
     RegularFunction {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
-        generics: Option<Generics>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         is_async: bool,
         arguments: CommaPunctuatedArgs,
@@ -99,18 +83,14 @@ pub enum BindingPresentation {
         output_conversions: TokenStream2,
     },
     RegularFunctionWithBody {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
-        generics: Option<Generics>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         arguments: CommaPunctuatedArgs,
         return_type: ReturnType,
         body: TokenStream2,
     },
     RegularFunction2 {
-        attrs: Vec<Attribute>,
-        lifetimes: Vec<Lifetime>,
-        generics: Option<Generics>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         is_async: bool,
         argument_names: CommaPunctuatedTokens,
@@ -121,13 +101,11 @@ pub enum BindingPresentation {
         output_conversions: TokenStream2,
     },
     Callback {
+        aspect: SignatureAspect<RustSpecification>,
         name: Ident,
-        attrs: Vec<Attribute>,
         ffi_args: CommaPunctuated<BareFnArg>,
         result: ReturnType,
         conversion: InterfacePresentation,
-        generics: Option<Generics>,
-        lifetimes: Vec<Lifetime>,
     },
 
     TraitVTableInnerFn {
@@ -141,7 +119,7 @@ pub enum BindingPresentation {
         fn_name: Ident
     },
     StaticVTableInnerFn {
-        attrs: Vec<Attribute>,
+        aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         args: CommaPunctuatedArgs,
         output: ReturnType,
@@ -163,24 +141,20 @@ pub enum BindingPresentation {
 }
 
 pub fn present_pub_function<T: ToTokens, U: ToTokens>(
-    attrs: &Vec<Attribute>,
-    lifetimes: Vec<Lifetime>,
-    generics: Option<Generics>,
+    aspect: &SignatureAspect<RustSpecification>,
     name: U,
     args: CommaPunctuated<T>,
     output: ReturnType,
     body: TokenStream2
 ) -> TokenStream2 {
-    present_function(Visibility::Public(Pub::default()), attrs, name.to_token_stream(), args, output, generics, lifetimes, body)
+    present_function(Visibility::Public(Pub::default()), aspect, name.to_token_stream(), args, output, body)
 }
 pub fn present_function<T: ToTokens>(
     acc: Visibility,
-    attrs: &Vec<Attribute>,
+    (attrs, lifetimes, generics): &SignatureAspect<RustSpecification>,
     name: TokenStream2,
     args: CommaPunctuated<T>,
     output: ReturnType,
-    generics: Option<Generics>,
-    lifetimes: Vec<Lifetime>,
     body: TokenStream2) -> TokenStream2 {
     let signature = match generics {
         None => {
@@ -233,46 +207,38 @@ impl ToTokens for BindingPresentation {
         match self {
             Self::Empty =>
                 quote!(),
-            Self::Constructor { attrs, lifetimes, name, ty, generics, ctor_arguments, body_presentation} => {
+            Self::Constructor { aspect, name, ty, ctor_arguments, body_presentation} => {
                 let ffi_path = ty.to_path().arg_less();
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
-            Self::VariantConstructor { attrs, lifetimes, name, ty, generics, ctor_arguments, body_presentation} => {
+            Self::VariantConstructor { aspect, name, ty, ctor_arguments, body_presentation} => {
                 let variant_path = ty.to_path();
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     ctor_arguments.clone(),
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
-            Self::Destructor { attrs, lifetimes, name, ty, generics } => {
+            Self::Destructor { aspect, name, ty } => {
                 let ty = ty.joined_mut();
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     CommaPunctuated::from_iter([quote!(ffi: #ty)]),
                     ReturnType::Default,
                     InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
                 )
             },
-            Self::ObjAsTrait { name, item_type, trait_type, vtable_name, attrs } => {
+            Self::ObjAsTrait { aspect, name, item_type, trait_type, vtable_name } => {
                 let ty = item_type.joined_const();
                 present_pub_function(
-                    attrs,
-                    vec![],
-                    None,
+                    aspect,
                     name,
                     CommaPunctuated::from_iter([quote!(obj: #ty)]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
@@ -282,37 +248,32 @@ impl ToTokens for BindingPresentation {
                     })
                 )
             },
-            BindingPresentation::ObjAsTraitDestructor { name, item_type, trait_type, attrs, generics } => {
+            BindingPresentation::ObjAsTraitDestructor { aspect, name, item_type, trait_type } => {
+                let attrs = &aspect.0;
                 present_pub_function(
-                    attrs,
-                    vec![],
-                    generics.clone(),
+                    aspect,
                     name,
                     CommaPunctuated::from_iter([quote! { #(#attrs)* obj: #trait_type }]),
                     ReturnType::Default,
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
-            BindingPresentation::Getter { name, field_name, obj_type, field_type, attrs, lifetimes, generics } |
-            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, attrs, lifetimes, generics } => {
+            BindingPresentation::Getter { name, field_name, obj_type, field_type, aspect } |
+            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, aspect } => {
                 let var = obj_type.joined_const();
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     CommaPunctuated::from_iter([quote! { obj: #var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     quote!((*obj).#field_name)
                 )
             },
-            BindingPresentation::Setter { name, field_name, obj_type, field_type, attrs, lifetimes, generics } |
-            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, attrs, lifetimes, generics } => {
+            BindingPresentation::Setter { name, field_name, obj_type, field_type, aspect } |
+            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, aspect } => {
                 let var = obj_type.joined_mut();
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     CommaPunctuated::from_iter([
                         quote!(obj: #var),
@@ -321,15 +282,13 @@ impl ToTokens for BindingPresentation {
                     ReturnType::Default,
                     quote!((*obj).#field_name = value;))
             },
-            BindingPresentation::RegularFunction { attrs, is_async: true, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+            BindingPresentation::RegularFunction { aspect, is_async: true, name, arguments, input_conversions, return_type, output_conversions } => {
                 let mut args = Punctuated::from_iter([
                     ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
                 ]);
                 args.extend(arguments.clone());
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     args,
                     return_type.clone(),
@@ -342,38 +301,32 @@ impl ToTokens for BindingPresentation {
                         }
                 )
             },
-            BindingPresentation::RegularFunction { attrs, is_async: false, name, arguments, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+            BindingPresentation::RegularFunction { aspect, is_async: false, name, arguments, input_conversions, return_type, output_conversions } => {
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     arguments.clone(),
                     return_type.clone(),
                     quote!(let obj = #input_conversions; #output_conversions)
                 )
             },
-            BindingPresentation::RegularFunctionWithBody { attrs, lifetimes, generics, name, arguments, return_type, body } => {
+            BindingPresentation::RegularFunctionWithBody { aspect, name, arguments, return_type, body } => {
                 present_pub_function(
-                    attrs,
-                    lifetimes.clone(),
-                    generics.clone(),
+                    aspect,
                     name,
                     arguments.clone(),
                     return_type.clone(),
                     body.to_token_stream()
                 )
             },
-            BindingPresentation::RegularFunction2 { attrs, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions, generics, lifetimes } => {
+            BindingPresentation::RegularFunction2 { aspect, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions } => {
                 if *is_async {
                     let mut args = Punctuated::from_iter([
                         ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
                     ]);
                     args.extend(arguments.clone());
                     present_pub_function(
-                        attrs,
-                        lifetimes.clone(),
-                        generics.clone(),
+                        aspect,
                         name,
                         args.clone(),
                         return_type.clone(),
@@ -398,9 +351,7 @@ impl ToTokens for BindingPresentation {
                     )
                 } else {
                     present_pub_function(
-                        attrs,
-                        lifetimes.clone(),
-                        generics.clone(),
+                        aspect,
                         name,
                         arguments.clone(),
                         return_type.clone(),
@@ -412,7 +363,7 @@ impl ToTokens for BindingPresentation {
                     )
                 }
             },
-            BindingPresentation::Callback { name, attrs, ffi_args, result, conversion, lifetimes: _, generics: _ } => {
+            BindingPresentation::Callback { aspect: (attrs, ..), name, ffi_args, result, conversion } => {
                 let result_impl = match result {
                     ReturnType::Default => quote! {},
                     ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
@@ -443,15 +394,13 @@ impl ToTokens for BindingPresentation {
                     pub #name: #name_and_args #output_expression
                 }
             }
-            BindingPresentation::StaticVTableInnerFn { attrs, name, args, output, body } => {
+            BindingPresentation::StaticVTableInnerFn { aspect, name, args, output, body } => {
                 present_function(
                     Visibility::Inherited,
-                    attrs,
+                    aspect,
                     name.to_token_stream(),
                     args.clone(),
                     output.clone(),
-                    None,
-                    vec![],
                     body.clone()
                 )
             },

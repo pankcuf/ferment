@@ -71,10 +71,13 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
         match self {
             Aspect::Target(TypeContext::Fn { path, .. }) |
             Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::Impl(..), .. }) |
-            Aspect::RawTarget(TypeContext::Fn { path, .. } | TypeContext::Trait { path, .. }) =>
+            Aspect::RawTarget(TypeContext::Fn { path, .. } |
+                              TypeContext::Trait { path, .. }) =>
                 path.to_type(),
-            Aspect::Target(TypeContext::Enum { ident, .. } | TypeContext::Struct { ident, .. }) |
-            Aspect::RawTarget(TypeContext::Enum { ident, .. } | TypeContext::Struct { ident, .. }) =>
+            Aspect::Target(TypeContext::Enum { ident, .. } |
+                           TypeContext::Struct { ident, .. }) |
+            Aspect::RawTarget(TypeContext::Enum { ident, .. } |
+                              TypeContext::Struct { ident, .. }) =>
                 Resolve::<Type>::resolve(ident, source),
             Aspect::Target(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
                 Resolve::<Type>::resolve(ident, source)
@@ -85,7 +88,8 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                     .resolve(source),
             Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(GenericTypeKind::Slice(Type::Slice(TypeSlice { elem, ..}))), .. }) =>
                 parse_quote!(Vec<#elem>),
-            Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) | Aspect::RawTarget(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
+            Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) |
+            Aspect::RawTarget(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
                 kind.ty()
                     .cloned()
                     .unwrap(),
@@ -101,11 +105,16 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
             Aspect::FFI(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
                 model.mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Enum { ident , .. } | TypeContext::Struct { ident , .. } | TypeContext::Fn { sig_context: FnSignatureContext::ModFn(ItemFn { sig: Signature { ident, .. }, .. }) | FnSignatureContext::Bare(ident, _), .. }) =>
+            Aspect::FFI(TypeContext::Enum { ident , .. } |
+                        TypeContext::Struct { ident , .. } |
+                        TypeContext::Fn { sig_context:
+                            FnSignatureContext::ModFn(ItemFn { sig: Signature { ident, .. }, .. }) |
+                            FnSignatureContext::Bare(ident, _), .. }) =>
                 Resolve::<Type>::resolve(ident, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
+            Aspect::FFI(TypeContext::Trait { path , .. } |
+                        TypeContext::Impl { path , .. }) =>
                 Resolve::<Type>::resolve(path, source)
                     .mangle_ident_default()
                     .to_type(),
@@ -118,7 +127,9 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(self_ty, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitImpl(_, self_ty, trait_ty) | FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) =>
+            Aspect::FFI(TypeContext::Fn { path, sig_context:
+                FnSignatureContext::TraitImpl(_, self_ty, trait_ty) |
+                FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) =>
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {

@@ -6,7 +6,7 @@ use syn::token::Semi;
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, CommaPunctuatedArgKinds, ComposerLink, ConversionToComposer, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer};
+use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, CommaPunctuatedArgKinds, ComposerLink, ConversionToComposer, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, SignatureAspect};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{ExpressionComposable, LifetimeProcessor, Resolve, ToType};
@@ -56,8 +56,7 @@ pub fn compose_trait_impl_fn<SPEC>(
     path: &Path,
     self_ty: &Type,
     trait_ty: &Type,
-    attrs: &SPEC::Attr,
-    generics: SPEC::Gen,
+    aspect: SignatureAspect<SPEC>,
     sig: &Signature,
     source: &ScopeContext
 ) -> BindingPresentableContext<SPEC>
@@ -75,7 +74,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
     let path = parse_quote!(#path<#trait_ty>::#last_segment);
     let full_self_ty: Type = self_ty.resolve(source);
     let full_trait_ty: Type = trait_ty.resolve(source);
-    let mut used_lifetimes = SPEC::Lt::default();
+    let mut used_lifetimes = aspect.1.clone();
     let Signature { output, inputs, asyncness, ident, .. } = sig;
     let (return_type_presentation, return_type_conversion) = match output {
         ReturnType::Default => (
@@ -120,11 +119,10 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             }
         }
     }
+
     BindingPresentableContext::RegFn(
         path,
-        attrs.clone(),
-        used_lifetimes,
-        generics,
+        (aspect.0, used_lifetimes, aspect.2),
         asyncness.is_some(),
         arguments,
         return_type_presentation,

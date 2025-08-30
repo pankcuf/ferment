@@ -13,7 +13,6 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
     type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-
         let root_ty_ref = self.root_kind.as_type();
         let arg_ty = self.root_kind.wrapped_arg_type()?;
 
@@ -68,16 +67,16 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
                     .then(|| Expression::Empty)
                     .unwrap_or_else(|| from_arg_conversion),
                 self.kind.dictionary_type()));
-
+        let signature_aspect = (attrs, lifetimes, generics);
         let bindings = Depunctuated::from_iter([
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Dtor(NameKind::Named)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
-            self.kind.binding_presentable(&aspect, &attrs, &lifetimes, &generics, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
+            self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
+            self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Dtor(NameKind::Named)),
+            self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Read(root_arg_composer.clone(), ctor_arg_type, from_root_obj_conversion.clone(), to_arg_conversion)),
+            self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Write(root_arg_composer, arg_field_composer, from_root_obj_conversion, from_arg_value_conversion))
         ]);
         Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
             aspect,
-            &attrs,
+            &signature_aspect.0,
             Depunctuated::from_iter([root_field_composer]),
             interfaces,
             bindings

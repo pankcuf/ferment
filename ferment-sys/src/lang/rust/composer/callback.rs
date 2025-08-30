@@ -132,7 +132,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
             },
             Depunctuated::from_iter([
                 InterfacePresentation::send_sync(&attrs, &ffi_type),
-                InterfacePresentation::callback(&attrs, ffi_type, args, return_type, &lifetimes, arg_to_conversions, from_result_conversion),
+                InterfacePresentation::callback(&attrs, &lifetimes, ffi_type, args, return_type, arg_to_conversions, from_result_conversion),
             ])
         ))
     }

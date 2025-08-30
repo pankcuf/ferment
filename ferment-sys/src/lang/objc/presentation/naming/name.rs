@@ -76,7 +76,9 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
             Name::Write(expr) =>
                 expr.to_token_stream().to_string(),
             Name::DictionaryExpr(expr) =>
-                expr.to_token_stream().to_string()
+                expr.to_token_stream().to_string(),
+
+            _ => unimplemented!("Name::mangle_string: unsupported variant {:?}", self)
         }
     }
 }
