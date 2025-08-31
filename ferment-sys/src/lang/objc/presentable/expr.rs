@@ -5,7 +5,7 @@ use crate::context::ScopeContext;
 use crate::ext::Terminated;
 use crate::lang::objc::ObjCSpecification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, InterfacesMethodExpr};
+use crate::presentation::{DictionaryExpr, FFIConversionFromMethod, InterfacesMethodExpr};
 
 
 impl ScopeContextPresentable for Expression<ObjCSpecification> {
@@ -27,56 +27,34 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
             Self::DestroyString(presentable, _path) => {
                 let expr = presentable.present(source);
                 quote!([NSString ffi_destroy: #expr])
-                // Self::ca
-                // quote!()
-                //
-                // Self::CastDestroy(
-                //     presentable.clone(),
-                //     path.to_token_stream(),
-                //     quote!(NSString))
-                //     .present(source)
             },
             Self::DestroyBigInt(presentable, _ffi_ty, _target_ty) => {
                 let field_path = presentable.present(source);
                 quote! { if (#field_path) free(#field_path); }
             },
 
-            Self::CastDestroy(args, ffi_ty, ty) => {
-                let package = DictionaryName::Package;
-                let interface = DictionaryName::InterfaceDestroy;
-                let method = FFIConversionDestroyMethod::Destroy;
-                DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), args.present(source)).to_token_stream()
-            }
             Self::AsRef(field_path) =>
-                DictionaryExpr::AsRef(field_path.present(source))
-                    .to_token_stream(),
+                Self::DictionaryExpr(DictionaryExpr::AsRef(field_path.present(source)))
+                    .present(source),
             Self::LeakBox(field_path) =>
-                DictionaryExpr::LeakBox(field_path.present(source))
-                    .to_token_stream(),
-            Self::Wrap(expr) =>
-                expr.present(source),
+                Self::DictionaryExpr(DictionaryExpr::LeakBox(field_path.present(source)))
+                    .present(source),
             Self::AsMutRef(field_path) =>
-                DictionaryExpr::AsMutRef(field_path.present(source))
-                    .to_token_stream(),
-            Self::DerefRef(field_path) => {
-                DictionaryExpr::DerefRef(field_path.present(source))
-                    .to_token_stream()
-            },
-            Self::DerefMutRef(field_path) => {
-                DictionaryExpr::DerefMutRef(field_path.present(source))
-                    .to_token_stream()
-            },
+                Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
+                    .present(source),
+            Self::DerefRef(field_path) =>
+                Self::DictionaryExpr(DictionaryExpr::DerefRef(field_path.present(source)))
+                    .present(source),
+            Self::DerefMutRef(field_path) =>
+                Self::DictionaryExpr(DictionaryExpr::DerefMutRef(field_path.present(source)))
+                    .present(source),
             Self::Named((l_value, presentable)) => {
                 let ty = presentable.present(source);
                 quote!(#l_value: #ty)
             }
             Self::NamedComposer((l_value, composer)) => {
-                let expression = composer.compose(source);
-                let presentation = expression.present(source);
-                quote! {
-                    #l_value = #presentation
-                }
-                // Self::Named((l_value.clone(), expression.into())).present(source)
+                let presentation = composer.compose(source).present(source);
+                quote!(#l_value = #presentation)
             },
             Self::MapIntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::MapIntoBox(expr.present(source)))
@@ -110,10 +88,6 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                     .present(source),
             Self::FromLambdaTokens(field_path, lambda_args) =>
                 quote!(move |#lambda_args| unsafe { #field_path.call(#lambda_args) }),
-            Self::FromPtrClone(field_path) => {
-                field_path.present(source)
-                // quote!((&*#field_path).clone())
-            }
             Self::Boxed(expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source)))
                     .present(source),
@@ -303,15 +277,12 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 let expr = expr.present(source);
                 quote!(#expr #smth)
             }
-            Self::NewCow(expr) => {
-                let expr = expr.present(source);
-                quote!(#expr)
-            }
-            Self::CowIntoOwned(expr) => {
-                let expr = expr.present(source);
-                quote!(#expr)
-            }
-            Self::SimpleExpr(expr) => expr.present(source),
+            Self::NewCow(expr) =>
+                expr.present(source),
+            Self::CowIntoOwned(expr) =>
+                expr.present(source),
+            Self::SimpleExpr(expr) =>
+                expr.present(source),
         };
         // println!("OBJC: Expression => {}", result);
 

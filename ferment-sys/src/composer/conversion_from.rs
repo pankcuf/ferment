@@ -106,11 +106,11 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                     Expression::cast_from(field_path, expr_kind, ffi_type, full_nested_ty_kind.to_type())
                 }
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) =>
-                    Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty)),
+                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
-                    Expression::cast_from(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(i128)),
+                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(i128)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
-                    Expression::cast_from(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128)),
+                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) => {
                     let full_nested_ty = full_ty.maybe_first_nested_type_ref().unwrap();
                     let maybe_special: Option<SpecialType<SPEC>> = full_nested_ty.maybe_resolve(source);
@@ -169,7 +169,7 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                     bounds.expr_from::<SPEC>(field_path),
                 TypeModelKind::Slice(TypeModel { ref ty, .. }) => {
                     let maybe_nested_ty = ty.maybe_first_nested_type_ref();
-                    Expression::cast_from(field_path, ConversionExpressionKind::from(search_key.to_type()), ffi_type, parse_quote!(Vec<#maybe_nested_ty>))
+                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::from(search_key.to_type()), ffi_type, parse_quote!(Vec<#maybe_nested_ty>))
                 },
                 _ =>
                     Expression::cast_from(field_path, ConversionExpressionKind::from(search_key.to_type()), ffi_type, full_type)

@@ -86,10 +86,15 @@ impl SmartPointerKind {
           Expression<SPEC>: ScopeContextPresentable {
         match self {
             Self::Cell(_) => expr,
-            _ => Expression::Clone(expr.into()),
+            _ => expr.cloned(),
         }
     }
-    pub fn binding_presentable<SPEC: Specification>(&self, aspect: &Aspect<SPEC::TYC>, signature_aspect: &SignatureAspect<SPEC>, context: SmartPointerPresentableContext<SPEC>) -> BindingPresentableContext<SPEC> {
+    pub fn binding_presentable<SPEC: Specification>(
+        &self,
+        aspect: &Aspect<SPEC::TYC>,
+        signature_aspect: &SignatureAspect<SPEC>,
+        context: SmartPointerPresentableContext<SPEC>
+    ) -> BindingPresentableContext<SPEC> {
         BindingPresentableContext::smart_pointer(self, aspect, signature_aspect, context)
     }
 }

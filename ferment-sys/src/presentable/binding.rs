@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{BareFnArg, Expr, Path, ReturnType, Type};
+use syn::{BareFnArg, Path, ReturnType, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens};
 use crate::composable::FieldComposer;
@@ -31,13 +31,13 @@ pub enum BindingPresentableContext<SPEC>
 
     TraitVTableInnerFn(SignatureAspect<SPEC>, Ident, CommaPunctuatedArgKinds<SPEC>, ReturnType),
 
-    ArrayGetAtIndex(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Expr),
-    ArraySetAtIndex(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Expr),
+    ArrayGetAtIndex(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type),
+    ArraySetAtIndex(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type),
 
-    ValueByKey(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Expr),
-    SetValueForKey(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Expr),
-    KeyByValue(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Expr),
-    SetKeyForValue(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Expr),
+    ValueByKey(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type),
+    SetValueForKey(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Type),
+    KeyByValue(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type),
+    SetKeyForValue(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Type, Type, Type, Type),
     ResultOk(SignatureAspect<SPEC>, Type, SPEC::Var),
     ResultError(SignatureAspect<SPEC>, Type, SPEC::Var),
 }
@@ -75,18 +75,18 @@ impl<SPEC> BindingPresentableContext<SPEC>
         SignatureAspect<SPEC>,
         Type,
         Type,
-    ), to_conversion_expr_value: Expr) -> Self {
+    )) -> Self {
         let (obj_type, signature_context, arr_type, nested_type) = context;
-        Self::ArrayGetAtIndex(obj_type, signature_context, arr_type, nested_type, to_conversion_expr_value)
+        Self::ArrayGetAtIndex(obj_type, signature_context, arr_type, nested_type)
     }
     pub fn set_at_index(context: (
         Aspect<<SPEC as Specification>::TYC>,
         SignatureAspect<SPEC>,
         Type,
         Type,
-    ), from_conversion_expr_value: Expr) -> Self {
+    )) -> Self {
         let (obj_type, signature_context, arr_type, nested_type) = context;
-        Self::ArraySetAtIndex(obj_type, signature_context, arr_type, nested_type, from_conversion_expr_value)
+        Self::ArraySetAtIndex(obj_type, signature_context, arr_type, nested_type)
     }
     pub fn key_by_value(context: (
         Aspect<<SPEC as Specification>::TYC>,
@@ -94,9 +94,9 @@ impl<SPEC> BindingPresentableContext<SPEC>
         Type,
         Type,
         Type,
-    ), to_conversion_expr_value: Expr) -> Self {
+    )) -> Self {
         let (obj_type, signature_context, map_type, key_type, value_type) = context;
-        Self::KeyByValue(obj_type, signature_context, map_type, key_type, value_type, to_conversion_expr_value)
+        Self::KeyByValue(obj_type, signature_context, map_type, key_type, value_type)
     }
     pub fn value_by_key(context: (
         Aspect<<SPEC as Specification>::TYC>,
@@ -104,9 +104,9 @@ impl<SPEC> BindingPresentableContext<SPEC>
         Type,
         Type,
         Type,
-    ), to_conversion_expr_value: Expr) -> Self {
+    )) -> Self {
         let (obj_type, signature_context, map_type, key_type, value_type) = context;
-        Self::ValueByKey(obj_type, signature_context, map_type, key_type, value_type, to_conversion_expr_value)
+        Self::ValueByKey(obj_type, signature_context, map_type, key_type, value_type)
     }
     pub fn set_key_for_value(context: (
         Aspect<<SPEC as Specification>::TYC>,
@@ -114,9 +114,9 @@ impl<SPEC> BindingPresentableContext<SPEC>
         Type,
         Type,
         Type,
-    ), to_conversion_expr_value: Expr) -> Self {
-        let (obj_type, signature_context, map_type, key_type, value_type) = context;
-        Self::SetKeyForValue(obj_type, signature_context, map_type, key_type, value_type, to_conversion_expr_value)
+    ), key_type: Type) -> Self {
+        let (obj_type, signature_context, map_type, key_var, value_var) = context;
+        Self::SetKeyForValue(obj_type, signature_context, map_type, key_var, value_var, key_type)
     }
     pub fn set_value_for_key(context: (
         Aspect<<SPEC as Specification>::TYC>,
@@ -124,9 +124,9 @@ impl<SPEC> BindingPresentableContext<SPEC>
         Type,
         Type,
         Type,
-    ), to_conversion_expr_value: Expr) -> Self {
-        let (obj_type, signature_context, map_type, key_type, value_type) = context;
-        Self::SetValueForKey(obj_type, signature_context, map_type, key_type, value_type, to_conversion_expr_value)
+    ), value_type: Type) -> Self {
+        let (obj_type, signature_context, map_type, key_var, value_var) = context;
+        Self::SetValueForKey(obj_type, signature_context, map_type, key_var, value_var, value_type)
     }
 
     pub fn ctor_result_ok(context: (

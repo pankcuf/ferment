@@ -28,4 +28,8 @@ pub mod nested {
     pub fn pair_simple_err(err: HashMap<String, u32>) {
         println!("{:?}", err);
     }
+    #[ferment_macro::export]
+    pub fn pair_simple_err2(err: HashMap<u32, String>) {
+        println!("{:?}", err);
+    }
 }

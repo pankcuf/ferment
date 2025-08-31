@@ -1,6 +1,5 @@
 use quote::{quote, ToTokens};
-use syn::{Expr, ExprAssign, ExprCall};
-use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, ArrayComposer, NameKind};
 use crate::context::ScopeContext;
@@ -9,6 +8,7 @@ use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::DictionaryName::Package;
 
 impl SourceComposable for ArrayComposer<RustSpecification> {
     type Source = ScopeContext;
@@ -18,7 +18,6 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let nested_ty = self.ty.maybe_first_nested_type_ref()?;
         let lifetimes = nested_ty.unique_lifetimes();
         let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
-        let arg_0_name_tokens = arg_0_name.to_token_stream();
         let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
@@ -34,7 +33,7 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let destroy_conversion_value = Expression::map_o_expr(destroy_conversion_expr_value).present(source);
         let from_body = quote! {
             let ffi_ref = &*ffi;
-            TryFrom::<Vec<#nested_ty>>::try_from(ferment::from_group(ffi_ref.#count_name, ffi_ref.#arg_0_name, #from_conversion_value)).unwrap()
+            TryFrom::<Vec<#nested_ty>>::try_from(#Package::from_group(ffi_ref.#count_name, ffi_ref.#arg_0_name, #from_conversion_value)).unwrap()
         };
         let arg_0_conversion = InterfacesMethodExpr::ToGroup(quote!(obj.into_iter(), #to_conversion_value));
         let to_body = InterfacesMethodExpr::Boxed(quote!(Self { #count_name: obj.len(), #arg_0_name: #arg_0_conversion }));
@@ -49,18 +48,6 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
         let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
         let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
         let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
-        let get_value_at_index_expr = Expr::Call(ExprCall {
-            attrs: vec![],
-            func: Box::new(Expr::Verbatim(quote!(*(*ffi).#arg_0_name_tokens.add))),
-            paren_token: Default::default(),
-            args: CommaPunctuated::from_iter([Expr::Verbatim(quote!(index))]),
-        });
-        let set_value_at_index_expr = Expr::Assign(ExprAssign {
-            attrs: vec![],
-            left: Box::new(get_value_at_index_expr.clone()),
-            eq_token: Default::default(),
-            right: Box::new(Expr::Verbatim(DictionaryName::Value.to_token_stream())),
-        });
         Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
             aspect,
             &attrs,
@@ -73,8 +60,8 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
             Depunctuated::from_iter([
                 BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
                 BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
-                BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone(), get_value_at_index_expr),
-                BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context, set_value_at_index_expr)
+                BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone()),
+                BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context)
             ])
         ))
     }

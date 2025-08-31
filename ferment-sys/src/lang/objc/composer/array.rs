@@ -81,8 +81,6 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
         let ffi_type = self.present_ffi_aspect();
         let c_name = ffi_type.to_token_stream();
 
-        // let from_conversions_statements = ;
-
         let arg_var: <ObjCSpecification as Specification>::Var = var.joined_mut();
         let field_composers = Depunctuated::from_iter([
             count_name.field_composer(FieldTypeKind::Type(parse_quote!(uintptr_t))),

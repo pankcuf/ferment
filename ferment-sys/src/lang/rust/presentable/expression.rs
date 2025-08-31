@@ -1,20 +1,25 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
+use crate::ast::CommaPunctuated;
 use crate::composer::{FFIAspect, SourceComposable};
 use crate::context::ScopeContext;
 use crate::ext::Terminated;
 use crate::lang::RustSpecification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethodExpr};
+use crate::presentation::{DictionaryExpr, DictionaryName, FFIConversionFromMethod, FFIConversionToMethod, InterfacesMethod, InterfacesMethodExpr};
 
 impl ScopeContextPresentable for Expression<RustSpecification> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         match self {
-            Self::Empty => quote!(),
-            Self::Simple(expr) =>
+            Self::Simple(expr) |
+            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Primitive, expr) |
+            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Primitive, expr) =>
                 expr.to_token_stream(),
+            Self::Empty |
+            Self::ConversionExprTokens(_, ConversionExpressionKind::Primitive, _) =>
+                quote!(),
             Self::SimpleExpr(expr) =>
                 expr.present(source),
             Self::DictionaryName(expr) =>
@@ -23,53 +28,42 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 expr.to_token_stream(),
             Self::InterfacesExpr(expr) =>
                 expr.to_token_stream(),
+            Self::Name(name) =>
+                name.to_token_stream(),
 
             Self::ObjName(name) =>
                 quote!(obj.#name),
-            Self::FfiRefWithName(name) =>
-                DictionaryExpr::ffi_ref_prop(name).to_token_stream(),
-            Self::Name(name) => name
-                .to_token_stream(),
 
-            Self::AsRef(field_path) => {
-                Self::DictionaryExpr(DictionaryExpr::AsRef(field_path.present(source)))
-                    .present(source)
-            },
-            Self::DerefRef(field_path) => {
-                Self::DictionaryExpr(DictionaryExpr::DerefRef(field_path.present(source)))
-                    .present(source)
-            },
-            Self::DerefMutRef(field_path) => {
-                Self::DictionaryExpr(DictionaryExpr::DerefMutRef(field_path.present(source)))
-                    .present(source)
-            },
-            Self::LeakBox(field_path) => {
-                Self::DictionaryExpr(DictionaryExpr::LeakBox(field_path.present(source)))
-                    .present(source)
-            },
-            Self::Wrap(expr) =>
-                expr
+            Self::FfiRefWithName(name) =>
+                Self::DictionaryExpr(DictionaryExpr::ffi_ref_prop(name))
                     .present(source),
-            Self::AsMutRef(field_path) =>
-                Self::DictionaryExpr(DictionaryExpr::AsMutRef(field_path.present(source)))
+            Self::AsRef(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::AsRef(expr.present(source)))
+                    .present(source),
+            Self::DerefRef(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::DerefRef(expr.present(source)))
+                    .present(source),
+            Self::DerefMutRef(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::DerefMutRef(expr.present(source)))
+                    .present(source),
+            Self::LeakBox(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::LeakBox(expr.present(source)))
+                    .present(source),
+            Self::AsMutRef(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::AsMutRef(expr.present(source)))
                     .present(source),
             Self::Clone(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::Clone(expr.present(source)))
                     .present(source),
-            Self::FromPtrClone(field_path) =>
-                Self::DictionaryExpr(DictionaryExpr::FromPtrClone(field_path.present(source)))
+            Self::FromPtrRead(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::FromPtrRead(expr.present(source)))
                     .present(source),
-            Self::FromPtrRead(field_path) =>
-                Self::DictionaryExpr(DictionaryExpr::FromPtrRead(field_path.present(source)))
+            Self::DerefExpr(expr) =>
+                Self::DictionaryExpr(DictionaryExpr::Deref(expr.present(source)))
                     .present(source),
-            Self::DerefExpr(presentable) =>
-                Self::DictionaryExpr(DictionaryExpr::Deref(presentable.present(source)))
+            Self::MapExpression(expr, mapper) =>
+                Self::DictionaryExpr(DictionaryExpr::Mapper(expr.present(source), mapper.present(source)))
                     .present(source),
-
-            Self::MapExpression(presentable, mapper) =>
-                Self::DictionaryExpr(DictionaryExpr::Mapper(presentable.present(source), mapper.present(source)))
-                    .present(source),
-
             Self::MapIntoBox(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::MapIntoBox(expr.present(source)))
                     .present(source),
@@ -77,43 +71,38 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::DictionaryExpr(DictionaryExpr::FromRawBox(expr.present(source)))
                     .present(source),
 
-            Self::DestroyString(presentable, _ty) => {
-                InterfacesMethodExpr::UnboxString(presentable.present(source))
-                    .to_token_stream()
-            },
-            Self::DestroyBigInt(presentable, _target_ty, _ffi_ty) => {
-                InterfacesMethodExpr::UnboxAnyOpt(presentable.present(source))
-                    .to_token_stream()
-            },
-            Self::Named((l_value, presentable)) => {
-                let ty = presentable.present(source).to_token_stream();
+            Self::Boxed(expr) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source)))
+                    .present(source),
+            Self::DestroyString(expr, _ty) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxString(expr.present(source)))
+                    .present(source),
+            Self::DestroyBigInt(expr, _target_ty, _ffi_ty) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyOpt(expr.present(source)))
+                    .present(source),
+
+            Self::Named((l_value, expr)) => {
+                let ty = expr.present(source);
                 quote!(#l_value: #ty)
             }
-            Self::NamedComposer((l_value, composer)) => {
-                let expression = composer.compose(source);
-                Self::Named((l_value.clone(), expression.into()))
-                    .present(source)
-            },
+            Self::NamedComposer((l_value, composer)) =>
+                Self::Named((l_value.clone(), composer.compose(source).into()))
+                    .present(source),
 
-            Self::ConversionType(expr) => {
+            Self::ConversionType(expr) =>
                 expr.compose(source)
-                    .present(source)
-            },
-            Self::Terminated(expr) => {
+                    .present(source),
+            Self::Terminated(expr) =>
                 expr.compose(source)
                     .present(source)
                     .to_token_stream()
-                    .terminated()
-            },
-            Self::FromLambda(field_path, lambda_args) =>
-                Self::FromLambdaTokens(field_path.present(source), lambda_args.clone())
+                    .terminated(),
+            Self::FromLambda(expr, lambda_args) =>
+                Self::FromLambdaTokens(expr.present(source), lambda_args.clone())
                     .present(source),
             Self::FromLambdaTokens(field_path, lambda_args) =>
                 quote!(move |#lambda_args| unsafe { #field_path.call(#lambda_args) }),
 
-            Self::Boxed(expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::Boxed(expr.present(source).to_token_stream()))
-                    .present(source),
             Self::NewSmth(expr, smth) => {
                 let expr = expr.present(source);
                 quote!(#smth::new(#expr))
@@ -126,6 +115,13 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 let expr = expr.present(source);
                 quote!(#expr.into_owned())
             },
+            Self::DestroyStringGroup(expr) => {
+                let package = DictionaryName::Package;
+                let method = InterfacesMethod::UnboxString;
+                let args = CommaPunctuated::from_iter([expr.present(source), quote!(#package::#method)]);
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxGroup(args.to_token_stream()))
+                    .present(source)
+            },
 
             Self::CastConversionExpr(aspect, kind, expr, target_type, ffi_type) =>
                 Self::CastConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source), target_type.clone(), ffi_type.clone())
@@ -135,8 +131,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::ConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source))
                     .present(source),
 
-            Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Primitive, expr) =>
-                expr.to_token_stream(),
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptPrimitive(expr.to_token_stream()))
                     .present(source),
@@ -162,9 +156,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromOpt, expr.to_token_stream()))
                     .present(source),
-            // Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::OpaqueOpt, expr) =>
-            //     Self::InterfacesExpr(InterfacesMethodExpr::FromOptOpaque(expr.to_token_stream()))
-            //         .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromComplexGroup(expr.to_token_stream()))
@@ -173,8 +164,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::InterfacesExpr(InterfacesMethodExpr::FromOptComplexGroup(expr.to_token_stream()))
                     .present(source),
 
-            Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Primitive, expr) =>
-                expr.present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptPrimitive(expr.to_token_stream()))
                     .present(source),
@@ -207,8 +196,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 Self::InterfacesExpr(InterfacesMethodExpr::ToOptComplexGroup(expr.to_token_stream()))
                     .present(source),
 
-            Self::ConversionExprTokens(.., ConversionExpressionKind::Primitive, _expr) =>
-                quote!(),
             Self::ConversionExprTokens(.., ConversionExpressionKind::PrimitiveOpt, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(expr.to_token_stream()))
                     .present(source),
@@ -221,7 +208,7 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::ConversionExprTokens(.., ConversionExpressionKind::ComplexGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyVecPtr(expr.to_token_stream()))
                     .present(source),
-            Self::ConversionExprTokens(.., _, expr) =>
+            Self::ConversionExprTokens(.., expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyOpt(expr.to_token_stream()))
                     .present(source),
 
@@ -258,47 +245,32 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceFrom;
                 let method = FFIConversionFromMethod::FfiFrom;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
-                    .present(source)
+                quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceFrom;
                 let method = FFIConversionFromMethod::FfiFromOpt;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
-                    .present(source)
+                quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceTo;
                 let method = FFIConversionToMethod::FfiTo;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
-                    .present(source)
+                quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceTo;
                 let method = FFIConversionToMethod::FfiToOpt;
-                Self::DictionaryExpr(DictionaryExpr::CallMethod(quote!(<#ffi_ty as #package::#interface<#ty>>::#method), expr.present(source)))
-                    .present(source)
+                quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
-            Self::CastDestroy(expr, ..) => {
-                InterfacesMethodExpr::UnboxAny(expr.present(source))
-                    .to_token_stream()
-            }
-            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr, ..) => {
-                InterfacesMethodExpr::UnboxAny(expr.to_token_stream())
-                    .to_token_stream()
-            }
-            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr, ..) => {
-                InterfacesMethodExpr::UnboxAnyOpt(expr.to_token_stream())
-                    .to_token_stream()
-            }
-            Self::DestroyStringGroup(expr) => {
-                let pres = expr.present(source);
-                InterfacesMethodExpr::UnboxGroup(quote!(#pres, ferment::unbox_string)).to_token_stream()
-                // InterfacesMethodExpr::UnboxAnyVecPtrComposer(quote!(#pres, ferment::unbox_string)).to_token_stream()
-            },
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr, ..) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxAny(expr.to_token_stream()))
+                    .present(source),
+            Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr, ..) =>
+                Self::InterfacesExpr(InterfacesMethodExpr::UnboxAnyOpt(expr.to_token_stream()))
+                    .present(source),
         }
     }
 }

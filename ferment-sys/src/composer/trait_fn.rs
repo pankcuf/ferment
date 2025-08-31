@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::{parse_quote, FnArg, Generics, Lifetime, Path, Receiver, ReturnType, Signature, Type};
-use syn::token::Semi;
+use syn::token::{Const, Semi};
 use ferment_macro::ComposerBase;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
@@ -100,14 +100,14 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
                 let expr_composer = match (mutability, reference) {
                     (Some(..), _) => |expr: SPEC::Expr| SPEC::Expr::mut_ref(expr),
                     (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::r#ref(expr),
-                    _ => |expr: SPEC::Expr| SPEC::Expr::wrap(expr),
+                    _ => |expr: SPEC::Expr| SPEC::Expr::simple_expr(expr),
                 };
                 let name = Name::dictionary_name(DictionaryName::Self_);
                 let tokenized_name = name.to_token_stream();
                 argument_names.push(tokenized_name);
                 let arg_kind = ArgKind::inherited_named_var(name.clone(), VarComposer::<SPEC>::key_ref_in_composer_scope(trait_ty).compose(source), attrs);
                 arguments.push(arg_kind);
-                let arg_conversion = expr_composer(SPEC::Expr::dict_expr(DictionaryExpr::self_as_trait(&full_self_ty, if mutability.is_some() { quote!(mut) } else { quote!(const) })));
+                let arg_conversion = expr_composer(SPEC::Expr::dict_expr(DictionaryExpr::self_as_trait(&full_self_ty, mutability.map(|m| m.to_token_stream()).unwrap_or_else(|| Const::default().to_token_stream()))));
                 argument_conversions.push(ArgKind::expr(arg_conversion));
             },
             FnArg::Typed(pat_type) => {

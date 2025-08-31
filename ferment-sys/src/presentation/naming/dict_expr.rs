@@ -13,9 +13,7 @@ pub enum DictionaryExpr {
     Depunctuated(Depunctuated<TokenStream2>),
     SelfDestructuring(TokenStream2),
     BoxedSelfDestructuring(TokenStream2),
-    ObjLen,
     ObjIntoIter,
-    ObjToVec,
     FfiDeref,
     FfiDerefAsRef,
     LetFfiRef,
@@ -55,24 +53,16 @@ pub enum DictionaryExpr {
     MatchResult(TokenStream2, TokenStream2),
     FromRoot(TokenStream2),
     CountRange,
-    Range(TokenStream2),
     NewSmth(TokenStream2, TokenStream2),
     LeakBox(TokenStream2),
     MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
-    Add(TokenStream2, TokenStream2),
-    CastAs(TokenStream2, TokenStream2),
-    CallMethod(TokenStream2, TokenStream2),
     TryIntoUnwrap(TokenStream2),
     CallbackCaller(TokenStream2, TokenStream2),
     CallbackDestructor(TokenStream2, TokenStream2),
-    CastedFFIConversionMethod(TokenStream2, TokenStream2, TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
-    CastedFFIConversionFromOpaqueOpt(TokenStream2, TokenStream2, TokenStream2),
-    CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
-    FromPtrClone(TokenStream2),
     FromPtrRead(TokenStream2),
     FromArc(TokenStream2),
     FromRc(TokenStream2),
@@ -129,14 +119,6 @@ impl ToTokens for DictionaryExpr {
                 name.to_tokens(tokens),
             Self::Depunctuated(sequence) =>
                 sequence.to_tokens(tokens),
-            Self::ObjLen => {
-                DictionaryName::Obj.to_tokens(tokens);
-                quote!(.len()).to_tokens(tokens);
-            },
-            Self::ObjToVec => {
-                DictionaryName::Obj.to_tokens(tokens);
-                quote!(.to_vec()).to_tokens(tokens);
-            }
             Self::ObjIntoIter => {
                 DictionaryName::Obj.to_tokens(tokens);
                 quote!(.into_iter()).to_tokens(tokens)
@@ -226,8 +208,6 @@ impl ToTokens for DictionaryExpr {
                 expr.to_tokens(tokens);
                 quote!(.as_slice()).to_tokens(tokens);
             },
-            // Self::FromRawParts(data, len) =>
-            //     quote!(std::slice::from_raw_parts(#data, #len)).to_tokens(tokens),
             Self::MapCollect(iter, mapper) => {
                 iter.to_tokens(tokens);
                 quote!(.map(#mapper).collect()).to_tokens(tokens);
@@ -272,8 +252,6 @@ impl ToTokens for DictionaryExpr {
             },
             Self::CountRange =>
                 quote!((0..count)).to_tokens(tokens),
-            Self::Range(expr) =>
-                quote!((0..#expr)).to_tokens(tokens),
             Self::NewSmth(conversion, smth) =>
                 quote!(#smth::new(#conversion)).to_tokens(tokens),
             Self::LeakBox(conversion) =>
@@ -284,21 +262,9 @@ impl ToTokens for DictionaryExpr {
             },
             Self::FromRawBox(conversion) =>
                 quote!(Box::from_raw(#conversion)).to_tokens(tokens),
-            Self::Add(field_path, index) => {
-                field_path.to_tokens(tokens);
-                quote!(.add(#index));
-            }
-            Self::CastAs(ty, as_ty) =>
-                quote!(<#ty as #as_ty>).to_tokens(tokens),
-            Self::CallMethod(ns, args) => {
-                ns.to_tokens(tokens);
-                quote!((#args)).to_tokens(tokens)
-            }
             Self::Clone(expr) =>
                 quote!(#expr.clone()).to_tokens(tokens),
 
-            Self::FromPtrClone(expr) =>
-                quote!((&*#expr).clone()).to_tokens(tokens),
             Self::FromPtrRead(expr) =>
                 quote!(std::ptr::read(#expr)).to_tokens(tokens),
             Self::FromArc(expr) =>
@@ -324,17 +290,10 @@ impl ToTokens for DictionaryExpr {
                     (self.destructor)(#ffi_result);
                     result
                 ).to_tokens(tokens),
-            Self::CastedFFIConversionMethod(interface, method, ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as #interface<#target_type>>::#method(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
-            Self::CastedFFIConversionFromOpaqueOpt(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
-            Self::CastedFFIConversionDestroy(ffi_type, target_type, expr) => {
-                quote!(<#ffi_type as ferment::FFIConversionDestroy<#target_type>>::destroy(#expr)).to_tokens(tokens)
-            }
             Self::BoxedSelfDestructuring(expr) =>
                 InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr).to_token_stream()).to_tokens(tokens),
 

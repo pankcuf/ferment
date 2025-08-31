@@ -7,7 +7,7 @@ use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs, SignatureAspect};
 use crate::ext::{Accessory, CrateExtension, Pop, Terminated, ToPath, ToType};
 use crate::lang::RustSpecification;
-use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr};
+use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 #[derive(Clone, Debug)]
 #[allow(unused)]
@@ -30,46 +30,46 @@ pub enum BindingPresentation {
     Destructor {
         aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
-        ty: Type,
+        var: Type,
     },
     Getter {
         aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
-        obj_type: Type,
+        obj_var: Type,
         field_type: Type,
     },
     Setter {
         aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
-        obj_type: Type,
+        obj_var: Type,
         field_type: Type,
     },
     GetterOpaque {
         aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
-        obj_type: Type,
+        obj_var: Type,
         field_type: Type,
     },
     SetterOpaque {
         aspect: SignatureAspect<RustSpecification>,
         name: TokenStream2,
         field_name: TokenStream2,
-        obj_type: Type,
+        obj_var: Type,
         field_type: Type,
     },
     ObjAsTrait {
         aspect: SignatureAspect<RustSpecification>,
-        name: TokenStream2,
-        item_type: Type,
+        name: Name<RustSpecification>,
+        item_var: Type,
         trait_type: TokenStream2,
         vtable_name: TokenStream2,
     },
     ObjAsTraitDestructor {
         aspect: SignatureAspect<RustSpecification>,
-        name: TokenStream2,
+        name: Name<RustSpecification>,
         item_type: TokenStream2,
         trait_type: TokenStream2,
     },
@@ -147,12 +147,12 @@ pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     output: ReturnType,
     body: TokenStream2
 ) -> TokenStream2 {
-    present_function(Visibility::Public(Pub::default()), aspect, name.to_token_stream(), args, output, body)
+    present_function(Visibility::Public(Pub::default()), aspect, name, args, output, body)
 }
-pub fn present_function<T: ToTokens>(
+pub fn present_function<T: ToTokens, N: ToTokens>(
     acc: Visibility,
     (attrs, lifetimes, generics): &SignatureAspect<RustSpecification>,
-    name: TokenStream2,
+    name: N,
     args: CommaPunctuated<T>,
     output: ReturnType,
     body: TokenStream2) -> TokenStream2 {
@@ -225,30 +225,26 @@ impl ToTokens for BindingPresentation {
                     ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
-            Self::Destructor { aspect, name, ty } => {
-                let ty = ty.joined_mut();
+            Self::Destructor { aspect, name, var } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote!(ffi: #ty)]),
+                    CommaPunctuated::from_iter([quote!(ffi: #var)]),
                     ReturnType::Default,
                     InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
-                )
-            },
-            Self::ObjAsTrait { aspect, name, item_type, trait_type, vtable_name } => {
-                let ty = item_type.joined_const();
+                ),
+            Self::ObjAsTrait { aspect, name, item_var, trait_type, vtable_name } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote!(obj: #ty)]),
+                    CommaPunctuated::from_iter([quote!(obj: #item_var)]),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     quote!(#trait_type {
                         object: obj as *const (),
                         vtable: &#vtable_name
                     })
-                )
-            },
-            BindingPresentation::ObjAsTraitDestructor { aspect, name, item_type, trait_type } => {
+                ),
+            Self::ObjAsTraitDestructor { aspect, name, item_type, trait_type } => {
                 let attrs = &aspect.0;
                 present_pub_function(
                     aspect,
@@ -258,31 +254,24 @@ impl ToTokens for BindingPresentation {
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
             },
-            BindingPresentation::Getter { name, field_name, obj_type, field_type, aspect } |
-            BindingPresentation::GetterOpaque { name, field_name, obj_type, field_type, aspect } => {
-                let var = obj_type.joined_const();
+            Self::Getter { name, field_name, obj_var, field_type, aspect } |
+            Self::GetterOpaque { name, field_name, obj_var, field_type, aspect } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote! { obj: #var }]),
+                    CommaPunctuated::from_iter([quote! { obj: #obj_var }]),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     quote!((*obj).#field_name)
-                )
-            },
-            BindingPresentation::Setter { name, field_name, obj_type, field_type, aspect } |
-            BindingPresentation::SetterOpaque { name, field_name, obj_type, field_type, aspect } => {
-                let var = obj_type.joined_mut();
+                ),
+            Self::Setter { name, field_name, obj_var, field_type, aspect } |
+            Self::SetterOpaque { name, field_name, obj_var, field_type, aspect } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([
-                        quote!(obj: #var),
-                        quote!(value: #field_type),
-                    ]),
+                    CommaPunctuated::from_iter([quote!(obj: #obj_var), quote!(value: #field_type)]),
                     ReturnType::Default,
-                    quote!((*obj).#field_name = value;))
-            },
-            BindingPresentation::RegularFunction { aspect, is_async: true, name, arguments, input_conversions, return_type, output_conversions } => {
+                    quote!((*obj).#field_name = value;)),
+            Self::RegularFunction { aspect, is_async: true, name, arguments, input_conversions, return_type, output_conversions } => {
                 let mut args = Punctuated::from_iter([
                     ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
                 ]);
@@ -293,77 +282,73 @@ impl ToTokens for BindingPresentation {
                     args,
                     return_type.clone(),
                     quote! {
-                            let rt = &*(runtime as *const tokio::runtime::Runtime);
-                            let obj = rt.block_on(async {
-                                #input_conversions .await
-                            });
-                            #output_conversions
-                        }
+                        let rt = &*(runtime as *const tokio::runtime::Runtime);
+                        let obj = rt.block_on(async {
+                            #input_conversions .await
+                        });
+                        #output_conversions
+                    }
                 )
             },
-            BindingPresentation::RegularFunction { aspect, is_async: false, name, arguments, input_conversions, return_type, output_conversions } => {
+            Self::RegularFunction { aspect, is_async: false, name, arguments, input_conversions, return_type, output_conversions } =>
                 present_pub_function(
                     aspect,
                     name,
                     arguments.clone(),
                     return_type.clone(),
                     quote!(let obj = #input_conversions; #output_conversions)
-                )
-            },
-            BindingPresentation::RegularFunctionWithBody { aspect, name, arguments, return_type, body } => {
+                ),
+            Self::RegularFunctionWithBody { aspect, name, arguments, return_type, body } =>
                 present_pub_function(
                     aspect,
                     name,
                     arguments.clone(),
                     return_type.clone(),
                     body.to_token_stream()
+                ),
+            Self::RegularFunction2 { aspect, is_async: true, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions } => {
+                let mut args = Punctuated::from_iter([
+                    ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
+                ]);
+                args.extend(arguments.clone());
+                present_pub_function(
+                    aspect,
+                    name,
+                    args.clone(),
+                    return_type.clone(),
+                    quote! {
+                        let rt = unsafe { &*(runtime as *const tokio::runtime::Runtime) };
+                        #input_conversions;
+                        let obj = rt.block_on(async {
+                            #full_fn_path(#argument_names).await
+                        });
+                        #output_conversions
+                    }
+                    // quote! {
+                    //     let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
+                    //     #input_conversions;
+                    //     let obj = rt.block_on(tokio::task::spawn_blocking(move || {
+                    //         tokio::runtime::Handle::current().block_on(async {
+                    //             #full_fn_path(#argument_names).await
+                    //         })
+                    //     })).unwrap();
+                    //     #output_conversions
+                    // }
                 )
             },
-            BindingPresentation::RegularFunction2 { aspect, is_async, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions } => {
-                if *is_async {
-                    let mut args = Punctuated::from_iter([
-                        ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
-                    ]);
-                    args.extend(arguments.clone());
-                    present_pub_function(
-                        aspect,
-                        name,
-                        args.clone(),
-                        return_type.clone(),
-                        quote! {
-                            let rt = unsafe { &*(runtime as *const tokio::runtime::Runtime) };
-                            #input_conversions;
-                            let obj = rt.block_on(async {
-                                #full_fn_path(#argument_names).await
-                            });
-                            #output_conversions
-                        }
-                        // quote! {
-                        //     let rt = unsafe { &*(runtime as *mut tokio::runtime::Runtime) };
-                        //     #input_conversions;
-                        //     let obj = rt.block_on(tokio::task::spawn_blocking(move || {
-                        //         tokio::runtime::Handle::current().block_on(async {
-                        //             #full_fn_path(#argument_names).await
-                        //         })
-                        //     })).unwrap();
-                        //     #output_conversions
-                        // }
-                    )
-                } else {
-                    present_pub_function(
-                        aspect,
-                        name,
-                        arguments.clone(),
-                        return_type.clone(),
-                        quote! {
-                            #input_conversions;
-                            let obj = #full_fn_path(#argument_names);
-                            #output_conversions
-                        }
-                    )
-                }
-            },
-            BindingPresentation::Callback { aspect: (attrs, ..), name, ffi_args, result, conversion } => {
+            Self::RegularFunction2 { aspect, is_async: false, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions } =>
+                present_pub_function(
+                    aspect,
+                    name,
+                    arguments.clone(),
+                    return_type.clone(),
+                    quote! {
+                        #input_conversions;
+                        let obj = #full_fn_path(#argument_names);
+                        #output_conversions
+                    }
+                ),
+            Self::Callback { aspect: (attrs, ..), name, ffi_args, result, conversion } => {
                 let result_impl = match result {
                     ReturnType::Default => quote! {},
                     ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
@@ -375,42 +360,23 @@ impl ToTokens for BindingPresentation {
                     #conversion
                 }
             }
-            BindingPresentation::StaticVTable { attrs, name, fq_trait_vtable, methods_declarations, methods_implementations, bindings } => {
-                quote! {
-                    #[no_mangle]
-                    #(#attrs)*
-                    pub static #name: #fq_trait_vtable = {
-                        #methods_implementations
-                        #fq_trait_vtable {
-                            #methods_declarations
-                        }
-                    };
-                    #bindings
-                }
+            Self::StaticVTable { attrs, name, fq_trait_vtable, methods_declarations, methods_implementations, bindings } => quote! {
+                #[no_mangle]
+                #(#attrs)*
+                pub static #name: #fq_trait_vtable = {
+                    #methods_implementations
+                    #fq_trait_vtable { #methods_declarations }
+                };
+                #bindings
             },
-            BindingPresentation::TraitVTableInnerFn { attrs, name, name_and_args, output_expression } => {
-                quote! {
-                    #(#attrs)*
-                    pub #name: #name_and_args #output_expression
-                }
-            }
-            BindingPresentation::StaticVTableInnerFn { aspect, name, args, output, body } => {
-                present_function(
-                    Visibility::Inherited,
-                    aspect,
-                    name.to_token_stream(),
-                    args.clone(),
-                    output.clone(),
-                    body.clone()
-                )
-            },
-            BindingPresentation::StaticVTableInnerFnDeclaration { name, fn_name } =>
+            Self::TraitVTableInnerFn { attrs, name, name_and_args, output_expression } =>
+                quote!(#(#attrs)* pub #name: #name_and_args #output_expression),
+            Self::StaticVTableInnerFn { aspect, name, args, output, body } =>
+                present_function(Visibility::Inherited, aspect, name, args.clone(), output.clone(), body.clone()),
+            Self::StaticVTableInnerFnDeclaration { name, fn_name } =>
                 quote!(#fn_name: #name),
-            BindingPresentation::Any { attrs, body } =>
-                quote! {
-                    #(#attrs)*
-                    #body
-                }
+            Self::Any { attrs, body } =>
+                quote!(#(#attrs)* #body)
 
         }.to_tokens(tokens)
      }

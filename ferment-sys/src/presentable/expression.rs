@@ -26,20 +26,17 @@ pub enum Expression<SPEC>
     ObjName(SPEC::Name),
     DictionaryExpr(DictionaryExpr),
     InterfacesExpr(InterfacesMethodExpr),
-    Wrap(Box<Expression<SPEC>>),
     AsRef(Box<Expression<SPEC>>),
     AsMutRef(Box<Expression<SPEC>>),
     DerefRef(Box<Expression<SPEC>>),
     DerefMutRef(Box<Expression<SPEC>>),
     Clone(Box<Expression<SPEC>>),
-    FromPtrClone(Box<Expression<SPEC>>),
     FromPtrRead(Box<Expression<SPEC>>),
     DerefExpr(Box<Expression<SPEC>>),
     MapExpression(Box<Expression<SPEC>>, Box<Expression<SPEC>>),
     MapIntoBox(Box<Expression<SPEC>>),
     FromRawBox(Box<Expression<SPEC>>),
 
-    CastDestroy(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
     DestroyString(Box<Expression<SPEC>>, TokenStream2),
     DestroyStringGroup(TokenStream2),
     DestroyBigInt(Box<Expression<SPEC>>, /*ffi*/TokenStream2, /*target*/TokenStream2),
@@ -62,6 +59,10 @@ pub enum Expression<SPEC>
 impl<SPEC> Expression<SPEC>
     where SPEC: Specification<Expr=Self>,
           SPEC::Expr: ScopeContextPresentable {
+    pub(crate) fn cloned(self) -> Self {
+        Self::Clone(self.into())
+    }
+
     pub(crate) fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
     }
@@ -75,9 +76,6 @@ impl<SPEC> Expression<SPEC>
         Self::ConversionExpr(FFIAspect::Drop, kind, expr.into())
     }
 
-    pub(crate) fn wrap(expr: Self) -> Self {
-        Self::Wrap(expr.into())
-    }
     pub(crate) fn mut_ref(expr: Self) -> Self {
         Self::AsMutRef(expr.into())
     }
@@ -85,16 +83,8 @@ impl<SPEC> Expression<SPEC>
         Self::AsRef(expr.into())
     }
 
-    #[allow(unused)]
-    fn cast_expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self, ffi_ty: Type, target_ty: Type) -> Self {
-        Self::CastConversionExpr(aspect, kind, expr.into(), ffi_ty, target_ty)
-    }
     fn tokens<T: ToTokens>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: T) -> Self {
         Self::ConversionExprTokens(aspect, kind, expr.to_token_stream())
-    }
-    #[allow(unused)]
-    fn cast_tokens<T: ToTokens>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: T, ffi_ty: Type, target_ty: Type) -> Self {
-        Self::CastConversionExprTokens(aspect, kind, expr.to_token_stream(), ffi_ty, target_ty)
     }
 
     pub(crate) fn dict_expr(expr: DictionaryExpr) -> Self {
@@ -106,6 +96,8 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
         Self::Empty
     }
+
+
 
 
 
@@ -162,10 +154,6 @@ impl<SPEC> Expression<SPEC>
         Self::FromLambda(expr.into(), args)
     }
 
-    #[allow(unused)]
-    pub(crate) fn from_ptr_clone(expr: Self) -> Self {
-        Self::FromPtrClone(expr.into())
-    }
     #[allow(unused)]
     pub(crate) fn from_ptr_read(expr: Self) -> Self {
         Self::FromPtrRead(expr.into())
@@ -338,14 +326,18 @@ impl<SPEC> Expression<SPEC>
         Expression::DestroyStringGroup(expr.to_token_stream())
     }
 
-    pub(crate) fn cast_from(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
-        Self::CastConversionExpr(FFIAspect::From, kind, expr.into(), ffi_type, target_type)
+    #[allow(unused)]
+    fn cast_expression<T: ToType, U: ToType>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self, ffi_ty: T, target_ty: U) -> Self {
+        Self::CastConversionExpr(aspect, kind, expr.into(), ffi_ty.to_type(), target_ty.to_type())
     }
-    pub(crate) fn cast_to(expr: Self, kind: ConversionExpressionKind, ffi_type: Type, target_type: Type) -> Self {
-        Self::CastConversionExpr(FFIAspect::To, kind, expr.into(), ffi_type, target_type)
+    pub(crate) fn cast_from<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
+        Self::cast_expression(FFIAspect::From, kind, expr, ffi_type, target_type)
+    }
+    pub(crate) fn cast_to<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
+        Self::cast_expression(FFIAspect::To, kind, expr, ffi_type, target_type)
     }
     pub(crate) fn cast_destroy<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
-        Self::CastConversionExpr(FFIAspect::Drop, kind, expr.into(), ffi_type.to_type(), target_type.to_type())
+        Self::cast_expression(FFIAspect::Drop, kind, expr, ffi_type, target_type)
     }
 
     pub(crate) fn named<T: ToTokens>(name: T, expr: Self) -> Self {

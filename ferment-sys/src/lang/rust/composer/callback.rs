@@ -29,9 +29,8 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                 } else { None }).unwrap()
             }
 
-            CallbackKind::FnPointer(Type::BareFn(TypeBareFn { inputs, output, .. })) => {
-                (inputs.iter().map(|b| b.ty.clone()).collect(), output.clone())
-            }
+            CallbackKind::FnPointer(Type::BareFn(TypeBareFn { inputs, output, .. })) =>
+                (inputs.iter().map(|b| b.ty.clone()).collect(), output.clone()),
             CallbackKind::FnOnce(Type::Path(path)) |
             CallbackKind::Fn(Type::Path(path)) |
             CallbackKind::FnMut(Type::Path(path)) |
@@ -50,57 +49,50 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                 #conversion
             }
         };
-
-        let from_ = |result_conversion: TokenStream2|
-            DictionaryExpr::CallbackDestructor(result_conversion, quote!(#ffi_result));
-
-        let from_complex_result = |ty: TokenStream2, ffi_ty: Type|
-            from_(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
-        let from_opt_complex_result = |ty: TokenStream2, ffi_ty: Type|
-            from_(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty, quote!(#ffi_result)).to_token_stream()).to_token_stream();
-
-        let from_primitive_result = || quote!(ffi_result);
-        let from_opt_primitive_result = || quote!(*#ffi_result);
         let (return_type, from_result_conversion, dtor_arg) = match output {
             ReturnType::Type(token, field_type) => {
                 let full_ty: Type = field_type.resolve(source);
                 lifetimes.extend(field_type.unique_lifetimes());
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
-                    TypeKind::Primitive(_) => (full_ty.clone(), from_primitive_result()),
+                    TypeKind::Primitive(_) => (full_ty.clone(), ffi_result.to_token_stream()),
                     TypeKind::Complex(ty) => {
                         let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
                         let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                         (ffi_ty.joined_mut(), match maybe_special {
-                            Some(SpecialType::Opaque(..)) => quote!((&*#ffi_result).clone()),
-                            _ => from_complex_result(ty.to_token_stream(), ffi_ty)
+                            Some(SpecialType::Opaque(..)) =>
+                                quote!((&*#ffi_result).clone()),
+                            _ =>
+                                DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), quote!(#ffi_result)).to_token_stream()
                         })
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
                         GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
-                            TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(from_opt_primitive_result())),
+                            TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(quote!(*#ffi_result))),
                             TypeKind::Complex(ty) => {
                                 let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), opt_conversion(match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => quote!(Some((&*#ffi_result).clone())),
-                                    _ => from_opt_complex_result(ty.to_token_stream(), ffi_ty)
+                                    Some(SpecialType::Opaque(..)) =>
+                                        quote!(Some((&*#ffi_result).clone())),
+                                    _ =>
+                                        DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream()
                                 }))
                             },
                             TypeKind::Generic(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
-                                (ffi_ty.joined_mut(), from_opt_complex_result(ty.ty().to_token_stream(), ffi_ty))
+                                (ffi_ty.joined_mut(), DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.ty().to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream())
                             },
                         },
                         GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                         _ => {
                             let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&full_ty, source);
-                            (ffi_ty.joined_mut(), from_complex_result(generic_ty.to_token_stream(), ffi_ty))
+                            (ffi_ty.joined_mut(), DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), generic_ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream())
                         }
                     }
                 };
                 (ReturnType::Type(token, Box::new(full_ty)), from_result_conversion, Some(ffi_ty))
             },
-            ReturnType::Default => (ReturnType::Default, from_primitive_result(), None),
+            ReturnType::Default => (ReturnType::Default, ffi_result.to_token_stream(), None),
         };
         let mut args = CommaPunctuated::new();
         let mut ffi_args = CommaPunctuated::new();

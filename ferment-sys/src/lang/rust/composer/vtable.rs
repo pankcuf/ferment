@@ -5,7 +5,7 @@ use syn::token::{Const, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, ConversionFromComposer, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VarComposer, VTableComposer};
 use crate::context::ScopeContext;
-use crate::ext::{ExpressionComposable, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{Accessory, ExpressionComposable, Mangle, Resolve, ToPath, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, FFIFullPath, Name};
@@ -57,7 +57,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                         let (acc, expr): (TokenStream2, ExpressionWrapper<RustSpecification>) = match (mutability, reference) {
                             (Some(r#mut), _) => (r#mut.to_token_stream(), <RustSpecification as Specification>::Expr::mut_ref),
                             (_, Some(..)) => (Const::default().to_token_stream(), <RustSpecification as Specification>::Expr::r#ref),
-                            (..) => (Const::default().to_token_stream(), <RustSpecification as Specification>::Expr::wrap),
+                            (..) => (Const::default().to_token_stream(), <RustSpecification as Specification>::Expr::simple_expr),
                         };
                         args_conversions.push(ArgPresentation::attr_tokens(attrs, expr(<RustSpecification as Specification>::Expr::dict_expr(DictionaryExpr::self_as_trait(&full_target_type, acc))).present(source)));
                     },
@@ -108,16 +108,16 @@ impl SourceComposable for VTableComposer<RustSpecification> {
             bindings: Depunctuated::from_iter([
                 BindingPresentation::ObjAsTrait {
                     aspect: (attrs.clone(), vec![], None),
-                    name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()).to_token_stream(),
-                    item_type: target_type.clone(),
+                    item_var: target_type.joined_const(),
                     trait_type: full_trait_type.to_token_stream(),
+                    name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()),
                     vtable_name: name.to_token_stream(),
                 },
                 BindingPresentation::ObjAsTraitDestructor {
                     aspect: (attrs.clone(), vec![], None),
-                    name: Name::<RustSpecification>::TraitDestructor(target_type.clone(), full_trait_type.clone()).to_token_stream(),
                     item_type: target_type.to_token_stream(),
                     trait_type: full_trait_type.to_token_stream(),
+                    name: Name::<RustSpecification>::TraitDestructor(target_type, full_trait_type),
                 }
             ])
         };

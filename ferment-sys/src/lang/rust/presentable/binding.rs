@@ -1,13 +1,14 @@
 use quote::{quote, ToTokens};
-use syn::{parse_quote, ReturnType};
+use syn::{parse_quote, Expr, ExprAssign, ExprCall, Pat, ReturnType};
 use syn::token::RArrow;
-use crate::composer::{NameKind, SourceComposable, CommaPunctuatedArgs};
+use crate::ast::CommaPunctuated;
+use crate::composer::{NameKind, SourceComposable, CommaPunctuatedArgs, ConversionDropComposer, ConversionFromComposer};
 use crate::context::ScopeContext;
 use crate::kind::SmartPointerKind;
-use crate::ext::{Accessory, Mangle, Primitive, ToPath, ToType};
+use crate::ext::{Accessory, Mangle, Primitive, Terminated, ToPath, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, BindingPresentableContext, ScopeContextPresentable, SmartPointerPresentableContext};
-use crate::presentation::{present_pub_function, ArgPresentation, BindingPresentation, DictionaryExpr, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{present_pub_function, ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
     type Presentation = BindingPresentation;
@@ -51,7 +52,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty: ty.clone(),
+                    var: ty.joined_mut(),
                 }
             },
             Self::Getter(obj_aspect, signature_aspect, field_type, field_name) => {
@@ -61,7 +62,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::getter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
-                    obj_type: obj_type.clone(),
+                    obj_var: obj_type.joined_const(),
                     field_type: field_type.compose(source).to_type(),
                 }
             },
@@ -71,7 +72,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::setter(obj_type.to_path(), &field_name).mangle_tokens_default(),
                     field_name: field_name.clone(),
-                    obj_type: obj_type.clone(),
+                    obj_var: obj_type.joined_mut(),
                     field_type: field_type.compose(source).to_type(),
                 }
             },
@@ -119,8 +120,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::Mutex(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -177,8 +178,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::RwLock(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -235,8 +236,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::OnceLock(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -292,8 +293,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::Cell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -349,8 +350,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::RefCell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -410,8 +411,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ty = aspect.present(source);
                 BindingPresentation::Destructor {
                     aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Destructor(ty.clone()).mangle_tokens_default(),
-                    ty,
+                    var: ty.joined_mut(),
+                    name: Name::<RustSpecification>::Destructor(ty).mangle_tokens_default(),
                 }
             },
             Self::SmartPointer(aspect, signature_aspect, SmartPointerKind::UnsafeCell(..), SmartPointerPresentableContext::Read(arg_field_composer, arg_type, from_root_conversion, to_inner_conversion)) => {
@@ -469,103 +470,234 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                         post_processing
                     ),
                 },
-            Self::ArrayGetAtIndex(aspect, signature_aspect, arr_type, nested_type, to_conversion_expr_value) =>
+            Self::ArrayGetAtIndex(aspect, signature_aspect, arr_type, nested_type) => {
+                let ffi = DictionaryName::Ffi;
+                let values = DictionaryName::Values;
+                let index = DictionaryName::Index;
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::GetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #arr_type)),
-                        ArgPresentation::no_attr_tokens(quote!(index: usize))
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *const #arr_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#index: usize))
                     ]),
                     return_type: ReturnType::Type(RArrow::default(), Box::new(nested_type.clone())),
-                    body: to_conversion_expr_value.to_token_stream(),
-                },
-            Self::ArraySetAtIndex(aspect, signature_aspect, map_type, nested_type, from_conversion_expr_value) =>
+                    body: Expr::Call(ExprCall {
+                        attrs: vec![],
+                        func: Box::new(Expr::Verbatim(quote!(*(*#ffi).#values.add))),
+                        paren_token: Default::default(),
+                        args: CommaPunctuated::from_iter([Expr::Verbatim(index.to_token_stream())]),
+                    }).to_token_stream(),
+                }
+            },
+            Self::ArraySetAtIndex(aspect, signature_aspect, map_type, nested_type) => {
+                let ffi = DictionaryName::Ffi;
+                let value = DictionaryName::Value;
+                let values = DictionaryName::Values;
+                let index = DictionaryName::Index;
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::SetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(index: usize)),
-                        ArgPresentation::no_attr_tokens(quote!(value: #nested_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#index: usize)),
+                        ArgPresentation::no_attr_tokens(quote!(#value: #nested_type)),
                     ]),
                     return_type: ReturnType::Default,
-                    body: from_conversion_expr_value.to_token_stream(),
-                },
-            Self::ValueByKey(aspect, signature_aspect, map_type, key_type, value_type, to_conversion_expr_value) => {
-                let return_type = value_type.is_primitive().then(|| value_type.joined_mut()).unwrap_or_else(|| value_type.clone());
+                    body: Expr::Assign(ExprAssign {
+                        attrs: vec![],
+                        left: Box::new(Expr::Call(ExprCall {
+                            attrs: vec![],
+                            func: Box::new(Expr::Verbatim(quote!(*(*#ffi).#values.add))),
+                            paren_token: Default::default(),
+                            args: CommaPunctuated::from_iter([Expr::Verbatim(index.to_token_stream())]),
+                        })),
+                        eq_token: Default::default(),
+                        right: Box::new(Expr::Verbatim(value.to_token_stream())),
+                    }).to_token_stream(),
+                }
+            },
+            Self::ValueByKey(aspect, signature_aspect, map_type, key_var, value_var) => {
+                let ffi = DictionaryName::Ffi;
+                let ffi_ref = DictionaryName::FfiRef;
+                let key = DictionaryName::Key;
+                let keys = DictionaryName::Keys;
+                let values = DictionaryName::Values;
+                let value_is_primitive = value_var.is_primitive();
+                let return_type = value_is_primitive
+                    .then(|| value_var.joined_mut())
+                    .unwrap_or_else(|| value_var.clone());
+                let get_key = quote!(*#ffi_ref.#keys.add(i));
+                let from_key_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(key.to_token_stream())), key_var).compose(source).present(source);
+                let from_key_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(get_key)), key_var).compose(source).present(source);
+                let get_value = quote!(*#ffi_ref.#values.add(i));
+                let return_value_expr = value_is_primitive
+                    .then(|| InterfacesMethodExpr::Boxed(get_value.to_token_stream()).to_token_stream())
+                    .unwrap_or(get_value);
 
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::GetValueByKey(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(key: #key_type))
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#key: #key_var))
                     ]),
                     return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
-                    body: to_conversion_expr_value.to_token_stream(),
+                    body: quote! {
+                        let #ffi_ref = &*#ffi;
+                        let key = #from_key_conversion;
+                        for i in 0..#ffi_ref.count {
+                            if key == #from_key_2_conversion {
+                                return #return_value_expr;
+                            }
+                        }
+                        std::ptr::null_mut()
+                    },
                 }
-            },
-            Self::SetValueForKey(aspect, signature_aspect, map_type, key_type, value_type, from_conversion_expr_value) => {
+            }
+            Self::SetValueForKey(aspect, signature_aspect, map_type, key_type, value_type, _) => {
+                let ffi = DictionaryName::Ffi;
+                let ffi_ref = DictionaryName::FfiRef;
+                let key = DictionaryName::Key;
+                let value = DictionaryName::Value;
+                let keys = DictionaryName::Keys;
+                let values = DictionaryName::Values;
+                let old_value = DictionaryName::OldValue;
+                let new_value = DictionaryName::NewValue;
+                let from_key_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(key.to_token_stream())), key_type).compose(source).present(source);
+                let from_key_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(*#ffi_ref.#keys.add(i)))), key_type).compose(source).present(source);
+                let destroy_value = ConversionDropComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(old_value.to_token_stream())), value_type)
+                    .compose(source)
+                    .map(|expr| DictionaryExpr::IfNotNull(old_value.to_token_stream(), expr.present(source).terminated()).to_token_stream())
+                    .unwrap_or_default();
+
+
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::SetValueForKey(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(key: #key_type)),
-                        ArgPresentation::no_attr_tokens(quote!(value: #value_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#key: #key_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#value: #value_type)),
                     ]),
                     return_type: ReturnType::Default,
-                    body: from_conversion_expr_value.to_token_stream(),
+                    body: quote! {
+                        let #ffi_ref = &*#ffi;
+                        let target_key = #from_key_conversion;
+                        for i in 0..#ffi_ref.count {
+                            let candidate_key = #from_key_2_conversion;
+                            if candidate_key.eq(&target_key) {
+                                let #new_value = (*#ffi).#values.add(i);
+                                let #old_value = *#new_value;
+                                #destroy_value
+                                *#new_value = #value;
+                                break;
+                            }
+                        }
+                    },
                 }
             },
-            Self::KeyByValue(aspect, signature_aspect, map_type, key_type, value_type, to_conversion_expr_value) => {
-                let return_type = key_type.is_primitive().then(|| key_type.joined_mut()).unwrap_or_else(|| key_type.clone());
+            Self::KeyByValue(aspect, signature_aspect, map_type, key_var, value_var) => {
+                let ffi = DictionaryName::Ffi;
+                let ffi_ref = DictionaryName::FfiRef;
+                let value = DictionaryName::Value;
+                let keys = DictionaryName::Keys;
+                let values = DictionaryName::Values;
+                let return_type = key_var.is_primitive().then(|| key_var.joined_mut()).unwrap_or_else(|| key_var.clone());
+                let from_value_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(value.to_token_stream())), value_var).compose(source).present(source);
+                let from_value_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(*#ffi_ref.#values.add(i)))), value_var).compose(source).present(source);
+                let get_key = quote!(*#ffi_ref.#keys.add(i));
+                let return_key_expr = key_var.is_primitive()
+                    .then(|| InterfacesMethodExpr::Boxed(get_key.to_token_stream()).to_token_stream())
+                    .unwrap_or(get_key);
+
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::GetKeyByValue(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *const #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(value: #value_type))
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#value: #value_var))
                     ]),
                     return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
-                    body: to_conversion_expr_value.to_token_stream(),
+                    body: quote! {
+                        let #ffi_ref = &*#ffi;
+                        let key = #from_value_conversion;
+                        for i in 0..#ffi_ref.count {
+                            if key == #from_value_2_conversion {
+                                return #return_key_expr;
+                            }
+                        }
+                        std::ptr::null_mut()
+                    },
                 }
-            },
-            Self::SetKeyForValue(aspect, signature_aspect, map_type, key_type, value_type, from_conversion_expr_value) =>
+            }
+            Self::SetKeyForValue(aspect, signature_aspect, map_type, key_var, value_var, _) => {
+                let ffi = DictionaryName::Ffi;
+                let ffi_ref = DictionaryName::FfiRef;
+                let key = DictionaryName::Key;
+                let value = DictionaryName::Value;
+                let keys = DictionaryName::Keys;
+                let values = DictionaryName::Values;
+                let old_value = DictionaryName::OldValue;
+                let new_value = DictionaryName::NewValue;
+                let from_value_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(value.to_token_stream())), value_var).compose(source).present(source);
+                let from_value_2_conversion = ConversionFromComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(quote!(*ffi_ref.#values.add(i)))), value_var).compose(source).present(source);
+                let destroy_key = ConversionDropComposer::<RustSpecification>::value(Name::Pat(Pat::Verbatim(old_value.to_token_stream())), key_var)
+                    .compose(source)
+                    .map(|expr| DictionaryExpr::IfNotNull(old_value.to_token_stream(), expr.present(source).terminated()).to_token_stream())
+                    .unwrap_or_default();
+
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::SetKeyForValue(aspect.present(source)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ffi: *mut #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(key: #key_type)),
-                        ArgPresentation::no_attr_tokens(quote!(value: #value_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#key: #key_var)),
+                        ArgPresentation::no_attr_tokens(quote!(#value: #value_var)),
                     ]),
                     return_type: ReturnType::Default,
-                    body: from_conversion_expr_value.to_token_stream(),
-                },
+                    body: quote! {
+                        let #ffi_ref = &*#ffi;
+                        let target_key = #from_value_conversion;
+                        for i in 0..#ffi_ref.count {
+                            let candidate_key = #from_value_2_conversion;
+                            if candidate_key.eq(&target_key) {
+                                let #new_value = (*#ffi).#keys.add(i);
+                                let #old_value = *#new_value;
+                                #destroy_key
+                                *#new_value = #key;
+                                break;
+                            }
+                        }
+                    },
+                }
+            }
             Self::ResultOk(signature_aspect, result_type, ok_type) => {
+                let ok = DictionaryName::Ok;
+                let error = DictionaryName::Error;
                 let null = DictionaryExpr::NullMut;
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Ok)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(ok: #ok_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#ok: #ok_type)),
                     ]),
                     return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
-                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { ok, error: #null })).to_token_stream(),
+                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok, #error: #null })).to_token_stream(),
                 }
             }
             Self::ResultError(signature_aspect, result_type, error_type) => {
+                let ok = DictionaryName::Ok;
+                let error = DictionaryName::Error;
                 let null = DictionaryExpr::NullMut;
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Error)).mangle_tokens_default(),
                     arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(error: #error_type)),
+                        ArgPresentation::no_attr_tokens(quote!(#error: #error_type)),
                     ]),
                     return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
-                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { ok: #null, error })).to_token_stream(),
+                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok: #null, #error })).to_token_stream(),
                 }
             }
         }
