@@ -20,8 +20,8 @@ pub trait SourceAccessible {
     fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
 }
 /// Ferments to specific language representation using stack information in scope
-pub trait SourceFermentable<LANG> {
-    fn ferment(&self) -> LANG;
+pub trait SourceFermentable<Fermentate> {
+    fn ferment(&self) -> Fermentate;
 }
 /// Provides different aspects for types
 pub trait TypeAspect<TYC>

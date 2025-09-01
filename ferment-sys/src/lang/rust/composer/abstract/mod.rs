@@ -34,7 +34,7 @@ impl MaybeComposer<RustSpecification> for Item {
                                 colon_token: None,
                                 mutability: FieldMutability::None,
                             }]);
-                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), &item.attrs, &item.generics, &vec![], &fields, scope_context)))
+                            Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, item.attrs.cfg_attributes(), item.generics.clone()), &item.attrs, &vec![], &item.generics, &fields, scope_context)))
                         }
                     },
                     (MacroKind::Export, Item::Fn(item)) =>

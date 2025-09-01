@@ -59,11 +59,11 @@ impl<SPEC> ItemComposerWrapper<SPEC>
         let ItemStruct { attrs, fields: ref f, generics, .. } = item_struct;
         match f {
             Fields::Unnamed(ref fields) =>
-                ItemComposerWrapper::StructUnnamed(StructComposer::<SPEC, Paren>::new(ty_context, attrs, generics, &vec![], &fields.unnamed, context)),
+                ItemComposerWrapper::StructUnnamed(StructComposer::<SPEC, Paren>::new(ty_context, attrs, &vec![], generics, &fields.unnamed, context)),
             Fields::Named(ref fields) =>
-                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, generics, &vec![], &fields.named, context)),
+                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &vec![], generics, &fields.named, context)),
             Fields::Unit =>
-                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, generics, &vec![], &Punctuated::new(), context)),
+                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &vec![], generics, &Punctuated::new(), context)),
         }
     }
     pub fn opaque_struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
@@ -72,13 +72,13 @@ impl<SPEC> ItemComposerWrapper<SPEC>
         match f {
             Fields::Unnamed(FieldsUnnamed { ref unnamed, .. }) =>
                 ItemComposerWrapper::OpaqueStructUnnamed(
-                    OpaqueStructComposer::<SPEC, Paren>::new(ty_context, attrs, generics, &lifetimes, unnamed, context)),
+                    OpaqueStructComposer::<SPEC, Paren>::new(ty_context, attrs, &lifetimes, generics, unnamed, context)),
             Fields::Named(FieldsNamed { ref named, .. }) =>
                 ItemComposerWrapper::OpaqueStructNamed(
-                    OpaqueStructComposer::<SPEC, Brace>::new(ty_context, attrs, generics, &lifetimes, named, context)),
+                    OpaqueStructComposer::<SPEC, Brace>::new(ty_context, attrs, &lifetimes, generics, named, context)),
             Fields::Unit =>
                 ItemComposerWrapper::OpaqueStructNamed(
-                    OpaqueStructComposer::<SPEC, Brace>::new(ty_context, attrs, generics, &lifetimes, &Punctuated::new(), context))
+                    OpaqueStructComposer::<SPEC, Brace>::new(ty_context, attrs, &lifetimes, generics, &Punctuated::new(), context))
         }
     }
 

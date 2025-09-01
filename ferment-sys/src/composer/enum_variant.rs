@@ -40,9 +40,9 @@ impl<SPEC, I> EnumVariantComposer<SPEC, I>
         Rc::new(RefCell::new(Self {
             composer: ItemComposer::new::<Self>(
                 ty_context,
-                None,
-                vec![],
                 AttrsModel::from(attrs),
+                vec![],
+                None,
                 fields,
                 context) }))
     }

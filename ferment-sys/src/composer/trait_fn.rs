@@ -28,9 +28,9 @@ where SPEC: Specification {
     #[allow(unused)]
     fn new(
         ty_context: SPEC::TYC,
-        generics: Option<Generics>,
-        lifetimes: Vec<Lifetime>,
         attrs: AttrsModel,
+        lifetimes: Vec<Lifetime>,
+        generics: Option<Generics>,
         context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),

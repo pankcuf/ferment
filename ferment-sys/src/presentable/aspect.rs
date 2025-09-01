@@ -1,8 +1,6 @@
 use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature};
 use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
-use quote::ToTokens;
-use syn::__private::TokenStream2;
 use crate::composable::FnSignatureContext;
 use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, TypeAspect};
 use crate::context::ScopeContext;
@@ -10,7 +8,6 @@ use crate::kind::{GenericTypeKind, MixinKind};
 use crate::ext::{Accessory, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::Specification;
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
-use crate::presentation::DictionaryName;
 
 #[derive(Clone, Debug)]
 pub enum Aspect<T> {
@@ -33,15 +30,6 @@ impl<T> Aspect<T> where T: NameTreeContext {
 }
 
 impl Aspect<TypeContext> {
-    #[allow(unused)]
-    pub fn alloc_field_name(&self) -> TokenStream2 {
-        match self {
-            Aspect::Target(_) => DictionaryName::Obj.to_token_stream(),
-            Aspect::FFI(_) => DictionaryName::FfiRef.to_token_stream(),
-            Aspect::RawTarget(_) => DictionaryName::Obj.to_token_stream(),
-        }
-    }
-
     pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
@@ -83,7 +71,8 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(ident, source)
                     .lifetimes_cleaned()
                     .joined_ident(variant_ident),
-            Aspect::Target(TypeContext::Trait { path, .. } | TypeContext::Impl { path, .. }) =>
+            Aspect::Target(TypeContext::Trait { path, .. } | TypeContext::Impl { path, .. }) |
+            Aspect::RawTarget(TypeContext::Impl { trait_: Some(path), .. } | TypeContext::Impl { path, .. }) =>
                 path.to_type()
                     .resolve(source),
             Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Generic(GenericTypeKind::Slice(Type::Slice(TypeSlice { elem, ..}))), .. }) =>
@@ -127,9 +116,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(self_ty, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Fn { path, sig_context:
-                FnSignatureContext::TraitImpl(_, self_ty, trait_ty) |
-                FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) =>
+            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitImpl(_, self_ty, trait_ty) | FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) =>
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {
@@ -140,11 +127,6 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
             Aspect::RawTarget(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
                 Resolve::<Type>::resolve(ident, source)
                     .joined_ident(variant_ident),
-            Aspect::RawTarget(TypeContext::Impl { path , trait_, .. }) =>
-                trait_.as_ref()
-                    .map(|trait_| trait_.to_type())
-                    .unwrap_or_else(|| path.to_type())
-                    .resolve(source),
         }
     }
 }

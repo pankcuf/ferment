@@ -30,17 +30,17 @@ impl<SPEC, I> StructComposer<SPEC, I>
     pub fn new(
         ty_context: SPEC::TYC,
         attrs: &Vec<Attribute>,
-        generics: &Generics,
         lifetimes: &Vec<Lifetime>,
+        generics: &Generics,
         fields: &CommaPunctuatedFields,
         context: &ScopeContextLink,
     ) -> ComposerLink<Self> {
         Rc::new(RefCell::new(Self {
             composer: ItemComposer::new::<Self>(
                 ty_context,
-                Some(generics.clone()),
-                lifetimes.clone(),
                 AttrsModel::from(attrs),
+                lifetimes.clone(),
+                Some(generics.clone()),
                 fields,
                 context)
         }))
