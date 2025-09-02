@@ -5,9 +5,9 @@ use syn::punctuated::Punctuated;
 use crate::ast::PathHolder;
 use crate::composable::TypeModel;
 use crate::context::ScopeContext;
-use crate::kind::{GenericTypeKind, TypeKind};
+use crate::kind::TypeKind;
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
-use crate::lang::Specification;
+use crate::lang::{RustSpecification, Specification};
 use crate::presentation::FFIFullPath;
 
 pub mod composing;
@@ -35,14 +35,14 @@ impl TypeKind {
             .collect::<Vec<_>>()
     }
 
-    pub fn as_generic_arg_type<SPEC: Specification>(&self, source: &ScopeContext) -> TokenStream2 {
+    pub fn as_generic_arg_type(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
             TypeKind::Primitive(path) =>
                 quote!(#path),
             TypeKind::Complex(ty) =>
-                Resolve::<FFIFullPath<SPEC>>::resolve(ty, source).to_token_stream(),
+                Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source).to_token_stream(),
             TypeKind::Generic(conversion) =>
-                Resolve::<FFIFullPath<SPEC>>::resolve(conversion, source).to_token_stream(),
+                Resolve::<FFIFullPath<RustSpecification>>::resolve(conversion, source).to_token_stream(),
         }
     }
 
@@ -53,20 +53,16 @@ impl PathHolder {
         Self::crate_and(quote!(fermented))
     }
     pub fn ffi_generics_scope() -> Self {
-        Self::ffi_expansion_scope().joined_path(parse_quote!(generics))
+        PathHolder(Self::ffi_expansion_scope().joined_path(parse_quote!(generics)))
     }
     pub fn ffi_types_scope() -> Self {
-        Self::ffi_expansion_scope().joined_path(parse_quote!(types))
+        PathHolder(Self::ffi_expansion_scope().joined_path(parse_quote!(types)))
     }
 
     pub fn crate_and(path: TokenStream2) -> Self {
-        Self::crate_root().joined_path(path.to_path())
+        PathHolder(Self::crate_root().joined_path(path.to_path()))
     }
     pub fn ffi_types_and(path: TokenStream2) -> Self {
-        Self::ffi_types_scope().joined_path(path.to_path())
+        PathHolder(Self::ffi_types_scope().joined_path(path.to_path()))
     }
-    pub fn joined_path(&self, path: Path) -> PathHolder {
-        parse_quote!(#self::#path)
-    }
-
 }

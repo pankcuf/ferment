@@ -1,4 +1,4 @@
-mod fermented;
+pub mod fermented;
 // mod fermented_sample;
 mod model;
 mod gen;

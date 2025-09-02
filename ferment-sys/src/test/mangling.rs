@@ -127,7 +127,7 @@ fn mangle_generic_ident_test() {
 
 #[test]
 fn mangle_generic_arguments_types_test() {
-    let global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new())));
+    let global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()));
     let global_context_ptr = Arc::new(RwLock::new(global_context));
     let scope_context = ScopeContext::with(ScopeChain::crate_root(format_ident!("crate"), vec![]), global_context_ptr.clone());
     // Vec<Simple>

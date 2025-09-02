@@ -1,9 +1,7 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::parse_quote;
 use syn::__private::TokenStream2;
 use crate::{Config, Crate};
@@ -15,10 +13,10 @@ use crate::kind::DictTypeModelKind;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeID, ScopeTreeExportItem};
 
 
-#[test]
-fn decompose_module() {
-    println!("{}", root_scope_tree().to_token_stream());
-}
+// #[test]
+// fn decompose_module() {
+//     println!("{}", root_scope_tree().to_token_stream());
+// }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
     ScopeChain::CrateRoot {
         info: ScopeInfo {
@@ -34,7 +32,7 @@ fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContex
 }
 
 fn root_scope_tree() -> ScopeTree {
-    let mut global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new())));
+    let mut global_context = GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()));
     let root_scope = ScopeChain::crate_root(format_ident!("crate"), vec![]);
     global_context
         .scope_mut(&root_scope)

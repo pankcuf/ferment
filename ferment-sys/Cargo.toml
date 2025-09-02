@@ -19,9 +19,9 @@ ferment-macro.workspace = true
 syn = { version = "2.0.104", features = ["default", "full", "visit", "extra-traits"] }
 quote = "1.0.40"
 proc-macro2 = "1.0.95"
-cargo_metadata = "0.20"
+cargo_metadata = "0.20.0"
 env_logger = "0.11"
-cbindgen = "0.29.0"
+cbindgen.workspace = true
 
 [lib]
 name = "ferment_sys"
