@@ -2,7 +2,7 @@ use quote::{format_ident, ToTokens};
 use syn::{Ident, parse_quote, Path, PathArguments, PathSegment};
 use syn::punctuated::Punctuated;
 use crate::ast::{Colon2Punctuated, Holder};
-use crate::ext::CrateExtension;
+use crate::ext::{CRATE, CrateExtension};
 use crate::impl_holder;
 
 #[allow(unused)]
@@ -110,7 +110,9 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
     }
 
     fn is_crate_based(&self) -> bool {
-        self.first().unwrap().ident == format_ident!("crate")
+        self.first()
+            .map(|PathSegment { ident, .. }| format_ident!("{CRATE}").eq(ident))
+            .unwrap_or_default()
     }
 
     fn crate_less(&self) -> Self {
@@ -130,10 +132,6 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
         segments.extend(self.crate_less());
         self.clear();
         self.extend(segments);
-        // match self.first_mut() {
-        //     Some(first) => first.ident = chunk.clone(),
-        //     None => {}
-        // }
     }
 
     fn replaced_first_with_ident(&self, chunk: &Self) -> Self {
@@ -143,16 +141,21 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
     }
 
     fn replace_last_with(&mut self, chunk: &Self) {
-        // let mut new_segments = self.clone();
-        let last_segment = self.pop().unwrap();
-        self.extend(chunk.clone());
-        self.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+        if let Some(last_popped_segment) = self.pop() {
+            self.extend(chunk.clone());
+            if let Some(last_segment) = self.last_mut() {
+                last_segment.arguments = last_popped_segment.into_value().arguments;
+            }
+        }
     }
     fn replaced_last_with(&self, chunk: &Self) -> Self {
         let mut new_segments = self.clone();
-        let last_segment = new_segments.pop().unwrap();
-        new_segments.extend(chunk.clone());
-        new_segments.last_mut().unwrap().arguments = last_segment.into_value().arguments;
+        if let Some(last_popped_segment) = new_segments.pop() {
+            new_segments.extend(chunk.clone());
+            if let Some(last_segment) = new_segments.last_mut() {
+                last_segment.arguments = last_popped_segment.into_value().arguments;
+            }
+        }
         new_segments
     }
 
@@ -165,6 +168,7 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
         self.replaced_first_with_ident(leading_chunk)
             .replaced_last_with(trailing_chunk)
     }
+
 }
 
 impl PathHolder {
@@ -183,16 +187,19 @@ impl PathHolder {
         self.0.segments.is_empty()
     }
     pub fn root(&self) -> Ident {
-        self.0.segments.first().unwrap().ident.clone()
+        self.0.segments.first().expect("Should have first segment here").ident.clone()
     }
     pub fn head(&self) -> Ident {
-        self.0.segments.last().unwrap().ident.clone()
+        self.0.segments.last().expect("Should have last segment here").ident.clone()
     }
 
     pub fn joined(&self, name: &Ident) -> PathHolder {
         let mut segments = self.0.segments.clone();
         segments.push(PathSegment::from(name.clone()));
         PathHolder::from(Path { leading_colon: None, segments })
+    }
+    pub fn joined_path(&self, path: Path) -> Path {
+        parse_quote!(#self::#path)
     }
 
     pub fn split(&self, head_size: usize) -> (PathHolder, PathHolder) {

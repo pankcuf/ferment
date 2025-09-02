@@ -4,7 +4,7 @@ use crate::entry::provider::CoreProvider;
 
 #[ferment_macro::opaque]
 pub struct Processor {
-    pub provider: Arc<dyn CoreProvider>,
+    pub _provider: Arc<dyn CoreProvider>,
 }
 
 #[ferment_macro::opaque]
@@ -13,14 +13,15 @@ pub struct Cache {
 }
 
 impl Processor {
-    pub fn new(provider: Arc<dyn CoreProvider>) -> Self {
-        Self { provider }
+    #[allow(unused)]
+    pub fn new(_provider: Arc<dyn CoreProvider>) -> Self {
+        Self { _provider }
     }
 }
 
 #[ferment_macro::export]
 impl Processor {
-    pub fn register_initial_usernames(&mut self, model: &mut Cache, context: *const c_void) {
+    pub fn register_initial_usernames(&mut self, _model: &mut Cache, _context: *const c_void) {
 
     }
 

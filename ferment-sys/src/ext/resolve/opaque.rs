@@ -26,6 +26,28 @@ impl Primitive for Type {
     }
 }
 
+#[allow(unused)]
+pub trait Optional {
+    fn is_optional(&self) -> bool;
+}
+
+impl<T> Optional for T where T: ItemExtension {
+    fn is_optional(&self) -> bool {
+        self.maybe_ident()
+            .map(DictionaryType::is_optional)
+            .unwrap_or_default()
+    }
+}
+
+impl Optional for Type {
+    fn is_optional(&self) -> bool {
+        match self {
+            Type::Path(TypePath { path, .. }) => path.is_primitive(),
+            _ => false
+        }
+    }
+}
+
 pub trait FermentableDictionaryType {
     fn is_fermentable_dictionary_type(&self) -> bool;
     fn is_fermentable_string(&self) -> bool;
@@ -48,6 +70,7 @@ impl FermentableDictionaryType for PathSegment {
             self.is_str() ||
             self.is_optional() ||
             self.is_box() ||
+            self.is_cow() ||
             self.is_lambda_fn() ||
             self.is_128_digit()
     }
@@ -70,7 +93,7 @@ impl FermentableDictionaryType for Type {
     fn is_fermentable_dictionary_type(&self) -> bool {
         match self {
             Type::Path(TypePath { path, .. }) =>
-                path.is_optional() || path.is_box() || path.is_fermentable_dictionary_type(),
+                path.is_optional() || path.is_box() || path.is_cow() || path.is_fermentable_dictionary_type(),
             _ => false
         }
     }

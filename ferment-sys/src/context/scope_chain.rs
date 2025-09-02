@@ -6,38 +6,11 @@ use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
 use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
-use crate::composer::MaybeMacroLabeled;
-use crate::context::Scope;
-use crate::conversion::ObjectKind;
-use crate::ext::{CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
+use crate::context::{Scope, ScopeInfo};
+use crate::kind::ObjectKind;
+use crate::ext::{CRATE, CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
-#[derive(Clone, Eq)]
-pub struct ScopeInfo {
-    pub attrs: Vec<Attribute>,
-    pub crate_ident: Ident,
-    pub self_scope: Scope
-}
-impl PartialEq<Self> for ScopeInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.self_scope.eq(&other.self_scope) &&
-            self.crate_ident.eq(&other.crate_ident)
-    }
-}
-
-impl ScopeInfo {
-    pub fn fmt_export_type(&self) -> String {
-        self.attrs.is_labeled_for_opaque_export()
-            .then(|| "Opaque")
-            .or_else(|| self.attrs.is_labeled_for_export()
-                .then(|| "Fermented"))
-            .or_else(|| self.attrs.is_labeled_for_opaque_export().then(|| "Opaque"))
-            .unwrap_or("Unknown").to_string()
-    }
-    pub fn self_path(&self) -> &Path {
-        &self.self_scope.self_scope.0
-    }
-}
 
 #[derive(Clone, Eq)]
 #[repr(u8)]
@@ -96,15 +69,15 @@ impl PartialEq<Self> for ScopeChain {
             (ScopeChain::Impl { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
                 ScopeChain::Impl { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
             (ScopeChain::CrateRoot { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
-                ScopeChain::CrateRoot { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
-            (ScopeChain::Mod { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Mod { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Trait { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Trait { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Fn { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Fn { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Object { info: ScopeInfo {crate_ident, self_scope, ..}, .. },
-                ScopeChain::Object { info: ScopeInfo {crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) =>
+                ScopeChain::CrateRoot { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
+            (ScopeChain::Mod { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Mod { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Trait { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Trait { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Fn { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Fn { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
+            (ScopeChain::Object { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
+                ScopeChain::Object { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) =>
                 self_scope.eq(&other_self_scope) && crate_ident.eq(other_crate_ident),
             _ => false
         }
@@ -114,7 +87,6 @@ impl Hash for ScopeChain {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.variant_code().hash(state);
         self.self_scope().hash(state);
-        // self.self_path_holder_ref().hash(state);
     }
 }
 
@@ -222,6 +194,14 @@ impl ScopeChain {
     fn new_mod(crate_ident: Ident, self_scope: Scope, parent_scope: &ScopeChain, attrs: Vec<Attribute>) -> Self {
         ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident, self_scope }, parent_scope_chain: Box::new(parent_scope.clone()) }
     }
+
+    pub fn crate_name(&self) -> TokenStream2 {
+        if self.is_crate_root() {
+            self.crate_ident_ref().to_token_stream()
+        } else {
+            self.head().to_token_stream()
+        }
+    }
     pub fn crate_ident_ref(&self) -> &Ident {
         &self.info().crate_ident
     }
@@ -285,10 +265,11 @@ impl ScopeChain {
 
     pub(crate) fn is_crate_root(&self) -> bool {
         if let ScopeChain::CrateRoot { info, .. } = self {
-            info.self_path().segments.last().unwrap().ident == format_ident!("crate")
-        } else {
-            false
+            if let Some(last_segment) = info.self_path().segments.last() {
+                return last_segment.ident == format_ident!("{CRATE}")
+            }
         }
+        false
     }
 
     pub fn head(&self) -> Ident {
@@ -307,8 +288,7 @@ impl ScopeChain {
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
-        //println!("maybe_generic_bound_for_path.... {} in [{}]", path.to_token_stream(), self.self_path_holder_ref());
-        let result = match self {
+        match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
             ScopeChain::Trait { info, .. } |
@@ -318,11 +298,7 @@ impl ScopeChain {
             ScopeChain::Fn { info, parent_scope_chain, .. } =>
                 info.self_scope.maybe_generic_bound_for_path(path)
                     .or(parent_scope_chain.maybe_generic_bound_for_path(path)),
-        };
-        // if result.is_some() {
-        //     println!("maybe_generic_bound_for_path: FOUND: {}", result.as_ref().map_or("None".to_string(), |(g, tp)| format!("{} ----- {}", g.to_token_stream(), tp.to_token_stream())));
-        // }
-        result
+        }
     }
 }
 

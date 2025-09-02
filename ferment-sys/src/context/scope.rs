@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use crate::ast::PathHolder;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::ItemExtension;
 
 #[derive(Clone, Eq)]
@@ -44,17 +44,14 @@ impl Scope {
         Scope { self_scope, object }
     }
     pub fn joined(&self, item: &Item) -> Self {
-        //println!("Scope::joined: {} + {}", self, item.ident_string());
         let child_self_scope = item.maybe_ident()
             .map(|ident| self.self_scope.joined(ident))
-            .unwrap_or(self.self_scope.clone());
-        // println!(":::: joined: {} in [{}] --> [{}] ", item.ident_string(), self, child_self_scope);
-        let object = ObjectKind::try_from((item, &child_self_scope)).unwrap();
+            .unwrap_or_else(|| self.self_scope.clone());
+        let object = ObjectKind::try_from((item, &child_self_scope)).expect("Can't obtain ObjectKind for Item for child scope");
         Scope::new(child_self_scope, object)
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
-        // println!("Scope::maybe_generic_bound_for_path: {} in [{}]", format_token_stream(path), self);
         match &self.object {
             ObjectKind::Item(_, item) => item.maybe_generic_bound_for_path(path),
             _ => None

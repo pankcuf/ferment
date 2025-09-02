@@ -12,7 +12,7 @@ ferment-macro.workspace = true
 example-traits = { path = "../traits" }
 
 [build-dependencies]
-cbindgen = "0.28.0"
+cbindgen.workspace = true
 ferment-sys.workspace = true
 toml = "0.8.8"
 

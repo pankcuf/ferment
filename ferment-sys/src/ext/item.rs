@@ -1,16 +1,12 @@
-use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMacro2, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{AngleBracketedGenericArguments, Attribute, GenericArgument, GenericParam, Generics, Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacro, ItemMod, ItemStatic, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, Path, PathArguments, PathSegment, Signature, TraitBound, Type, TypeArray, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
-use syn::punctuated::Punctuated;
 use quote::{quote, ToTokens};
-use crate::ast::{AddPunctuated, CommaPunctuated};
-use crate::composable::NestedArgument;
-use crate::composer::CommaPunctuatedNestedArguments;
-use crate::conversion::TypeKind;
-use crate::ext::VisitScopeType;
-use crate::tree::ScopeTreeExportID;
+use crate::ast::AddPunctuated;
+use crate::kind::TypeKind;
+use crate::tree::ScopeTreeID;
 
 pub trait ItemExtension {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID;
+    fn scope_tree_export_id(&self) -> ScopeTreeID;
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>>;
     fn maybe_ident(&self) -> Option<&Ident>;
     fn ident_string(&self) -> String {
@@ -28,7 +24,7 @@ pub trait ItemExtension {
 
 
 impl ItemExtension for Item {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
+    fn scope_tree_export_id(&self) -> ScopeTreeID {
         match self {
             Item::Mod(ItemMod { ident, .. }, ..) |
             Item::Struct(ItemStruct { ident, .. }, ..) |
@@ -37,9 +33,9 @@ impl ItemExtension for Item {
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }, ..) |
             Item::Trait(ItemTrait { ident, .. }, ..) |
             Item::Const(ItemConst { ident, .. }, ..) =>
-                ScopeTreeExportID::Ident(ident.clone()),
+                ScopeTreeID::Ident(ident.clone()),
             Item::Impl(ItemImpl { self_ty, trait_, generics, .. }, ..) =>
-                ScopeTreeExportID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path), generics.clone()),
+                ScopeTreeID::Impl(*self_ty.clone(), trait_.clone().map(|(_, path, _)| path), generics.clone()),
             item => panic!("ScopeTreeExportID Not supported for {}", quote!(#item)),
         }
 
@@ -54,7 +50,7 @@ impl ItemExtension for Item {
             Item::ForeignMod(item) => Some(&item.attrs),
             Item::Impl(item) => Some(&item.attrs),
             Item::Macro(item) => Some(&item.attrs),
-            Item::Macro2(item) => Some(&item.attrs),
+            // Item::Macro2(item) => Some(&item.attrs),
             Item::Mod(item) => Some(&item.attrs),
             Item::Static(item) => Some(&item.attrs),
             Item::Struct(item) => Some(&item.attrs),
@@ -73,7 +69,7 @@ impl ItemExtension for Item {
             Item::Enum(ItemEnum { ident, .. }) |
             Item::ExternCrate(ItemExternCrate { ident, .. }) |
             Item::Fn(ItemFn { sig: Signature { ident, .. }, .. }) |
-            Item::Macro2(ItemMacro2 { ident, .. }) |
+            // Item::Macro2(ItemMacro2 { ident, .. }) |
             Item::Mod(ItemMod { ident, .. }) |
             Item::Struct(ItemStruct { ident, ..  }) |
             Item::Static(ItemStatic { ident, ..  }) |
@@ -104,7 +100,6 @@ impl ItemExtension for Item {
 
 
 fn maybe_generic_type_bound<'a>(path: &'a Path, generics: &'a Generics) -> Option<&'a TypeParam> {
-    // println!("maybe_generic_type_bound.1: {} in: [{}] where: [{}]", path.to_token_stream(), generics.params.to_token_stream(), generics.where_clause.to_token_stream());
     path.segments.last()
         .and_then(|last_segment|
             generics.params.iter()
@@ -118,20 +113,10 @@ fn maybe_generic_type_bound<'a>(path: &'a Path, generics: &'a Generics) -> Optio
 }
 
 pub fn segment_arguments_to_types(segment: &PathSegment) -> Vec<&Type> {
-    match &segment.arguments {
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-            args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(ty) => Some(ty),
-                _ => None
-            }).collect(),
-        // PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) =>
-
-        _ => Vec::new(),
-    }
+    path_arguments_to_types(&segment.arguments)
 }
 
 pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
-    // println!("path_arguments_to_types: {}", arguments.to_token_stream());
     match arguments {
         PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
             args.iter().filter_map(|arg| match arg {
@@ -139,34 +124,6 @@ pub fn path_arguments_to_types(arguments: &PathArguments) -> Vec<&Type> {
                 _ => None
             }).collect(),
         _ => Vec::new(),
-    }
-}
-
-#[allow(unused)]
-pub fn path_arguments_to_nested_objects(arguments: &PathArguments, source: &<Type as VisitScopeType>::Source) -> CommaPunctuatedNestedArguments {
-    match arguments {
-        PathArguments::None => Punctuated::new(),
-        PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-            let mut nested = CommaPunctuated::new();
-            inputs.iter().for_each(|arg| {
-                nested.push(NestedArgument::Object(arg.visit_scope_type(source)));
-            });
-            match output {
-                ReturnType::Default => {}
-                ReturnType::Type(_, ty) => {
-                    nested.push(NestedArgument::Object(ty.visit_scope_type(source)));
-                }
-            }
-            nested
-        },
-        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-            args.iter().filter_map(|arg| match arg {
-                GenericArgument::Type(inner_type) =>
-                    Some(NestedArgument::Object(inner_type.visit_scope_type(source))),
-                _ => None
-            }
-            ).collect()
-        }
     }
 }
 
@@ -185,7 +142,7 @@ pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
 pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
     bounds.iter().filter_map(|bound| match bound {
         TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
-        TypeParamBound::Lifetime(_lifetime) => None
+        _ => None
     }).collect()
 }
 fn path_ident_ref(path: &Path) -> Option<&Ident> {
@@ -211,8 +168,8 @@ fn type_ident_ref(ty: &Type) -> Option<&Ident> {
 }
 
 impl ItemExtension for Signature {
-    fn scope_tree_export_id(&self) -> ScopeTreeExportID {
-        ScopeTreeExportID::Ident(self.ident.clone())
+    fn scope_tree_export_id(&self) -> ScopeTreeID {
+        ScopeTreeID::Ident(self.ident.clone())
     }
     fn maybe_attrs(&self) -> Option<&Vec<Attribute>> {
         None

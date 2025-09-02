@@ -12,7 +12,7 @@ fn main() {
    let c_header = format!("target/{}.h", SELF_NAME);
    match Ferment::with_crate_name(SELF_NAME)
        .with_default_mod_name()
-       .with_crates(vec!["platform-value", "platform-version", "dpp"])
+       .with_crates(vec!["platform-value", "platform-version", "dpp", "versioned_feature_core"])
        .with_languages(languages)
        .generate() {
       Ok(()) => match Command::new("cbindgen")

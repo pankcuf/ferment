@@ -3,7 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Generics, ItemFn, ItemTrait, Path, TypeBareFn};
 use crate::composable::{CfgAttributes, FnSignatureContext};
-use crate::conversion::MixinKind;
+use crate::kind::MixinKind;
 use crate::ext::{AsType, ToPath};
 use crate::presentable::NameTreeContext;
 
@@ -62,6 +62,9 @@ impl TypeContext {
     pub fn r#struct(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
         Self::Struct { ident: ident.clone(), attrs, generics }
     }
+    pub fn struct_ident(ident: Ident) -> Self {
+        Self::Struct { ident, attrs: vec![], generics: Generics::default() }
+    }
     pub fn r#enum(ident: &Ident, attrs: Vec<Attribute>, generics: Generics) -> Self {
         Self::Enum { ident: ident.clone(), attrs, generics }
     }
@@ -81,15 +84,6 @@ impl TypeContext {
     pub fn r#trait(item: &ItemTrait) -> Self {
         Self::Trait { path: item.ident.to_path(), attrs: item.attrs.cfg_attributes() }
     }
-
-    #[allow(unused)]
-    pub(crate) fn sig_context(&self) -> &FnSignatureContext {
-        match self {
-            TypeContext::Fn { sig_context, .. } => sig_context,
-            _ => panic!("Not a function")
-        }
-    }
-
 }
 impl Display for TypeContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
 use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::formatter::types_dict;
 
 #[derive(Clone, Default)]
@@ -75,14 +75,11 @@ impl CustomResolver {
                     TypeParamBound::Trait(TraitBound { path, .. }) => {
                         replace_segments(path);
                     },
-                    TypeParamBound::Lifetime(_) => {}
+                    _ => {}
                 })
             },
             _ => {}
         }
-        // if replaced {
-        //     println!("replace_conversion.2: {}: {}", replaced, custom_type.to_token_stream());
-        // }
         replaced.then(|| custom_type)
     }
 

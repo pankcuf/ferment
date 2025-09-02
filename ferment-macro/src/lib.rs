@@ -2,13 +2,13 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, FieldsUnnamed, FnArg, ItemFn, Lit, Meta, MetaNameValue, parse_macro_input, parse_quote, Path, PatType, Signature, Variant, Expr, ExprLit, Attribute};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use syn::token::Comma;
 
 
-/// The `export` procedural macro facilitates FFI (Foreign Function Interface) conversion
+/// The `export` procedural macro facilitates FFI (Foreign Function Interface) kind
 /// for a given function. It handles both input arguments and output types, converting them into a format
 /// suitable for FFI boundaries.
 ///
@@ -36,12 +36,12 @@ use syn::token::Comma;
 /// ## Function Conversion
 ///
 /// The macro processes the function's input arguments and return type, performing necessary transformations
-/// like memory allocation/deallocation, pointer conversion, etc., to make them FFI-compatible.
+/// like memory allocation/deallocation, pointer kind, etc., to make them FFI-compatible.
 ///
 /// # Panics
 ///
-/// - The macro will panic if any of the function's argument types are not supported for conversion.
-/// - The macro will also panic if the function's return type is not supported for conversion.
+/// - The macro will panic if any of the function's argument types are not supported for kind.
+/// - The macro will also panic if the function's return type is not supported for kind.
 ///
 /// # Example
 ///
@@ -68,17 +68,29 @@ use syn::token::Comma;
 ///
 #[proc_macro_attribute]
 pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    input
+    // input
+    let input = TokenStream2::from(input);
+    let expanded = quote! {
+        #[doc = "@ferment::export"]
+        #input
+    };
+    TokenStream::from(expanded)
+
 }
 
 
 #[proc_macro_attribute]
-pub fn register(_attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn register(attr: TokenStream, input: TokenStream) -> TokenStream {
+    let ty = syn::parse::<Path>(attr).expect("Expected a path");
+    let ty_str = quote!(#ty).to_string();
     let input = TokenStream2::from(input);
+
     let expanded = quote! {
+        #[doc = concat!("@ferment::register(", #ty_str, ")")]
         #[repr(C)]
         #input
     };
+
     TokenStream::from(expanded)
 }
 
@@ -89,8 +101,16 @@ pub fn opaque(_attr: TokenStream, input: TokenStream) -> TokenStream {
     //     #[repr(C)]
     //     #input
     // };
-    input
+    // input
     // TokenStream::from(expanded)
+
+    let input = TokenStream2::from(input);
+    let expanded = quote! {
+        #[doc = "@ferment::opaque"]
+        #input
+    };
+    TokenStream::from(expanded)
+
 }
 
 
@@ -108,11 +128,37 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
 pub fn method_call_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
+    // let namespace = input.attrs.iter()
+    //     .find(|attr| attr.path().is_ident("namespace"))
+    //     .and_then(|attr| match attr.parse_meta() {
+    //         Ok(Meta::NameValue(MetaNameValue { lit: Lit::Str(lit), .. })) => Some(lit.parse::<Path>().expect("Invalid namespace")),
+    //         _ => None
+    //     })
+    //     .expect("namespace attribute is required");
+
+    // let namespace = input.attrs.iter()
+    //     .find(|attr| attr.path().is_ident("namespace"))
+    //     .and_then(|attr| {
+    //         attr.parse_args::<Lit>().ok().and_then(|lit| {
+    //             if let Lit::Str(s) = lit {
+    //                 Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //     })
+    //     .expect("namespace attribute is required");
     let namespace = input.attrs.iter()
-        .find(|attr| attr.path.is_ident("namespace"))
-        .and_then(|attr| match attr.parse_meta() {
-            Ok(Meta::NameValue(MetaNameValue { lit: Lit::Str(lit), .. })) => Some(lit.parse::<Path>().expect("Invalid namespace")),
-            _ => None
+        .find_map(|Attribute { ref meta, .. }| {
+            if let Meta::NameValue(MetaNameValue { path, value: Expr::Lit(ExprLit { lit: Lit::Str(s), .. }), .. }) = meta {
+                if path.is_ident("namespace") {
+                    Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         })
         .expect("namespace attribute is required");
 
@@ -133,7 +179,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
                     exprs.push(quote!(#expression_enum_name::#ident(#(#field_names,)* expr) => expr));
                 },
                 Fields::Named(FieldsNamed { named, .. }) => {
-                    let field_names = named.iter().map(|f| f.ident.clone().unwrap()).collect::<Vec<_>>();
+                    let field_names = named.iter().filter_map(|f| f.ident.clone()).collect::<Vec<_>>();
                     let field_types = named.iter().map(|f| &f.ty).collect::<Vec<_>>();
                     expression_variants.push(quote!(#ident { #(#field_names: #field_types,)* expr: syn::__private::TokenStream2 }));
                     methods.push(quote!(#expression_enum_name::#ident { #(#field_names,)* .. } => #name::#ident { #(#field_names: #field_names.clone(),)* }.to_token_stream()));
@@ -159,7 +205,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
                 let method = match self {
                     #methods
                 };
-                let ns = syn::punctuated::Punctuated::<_, syn::token::Colon2>::from_iter([quote!(#namespace), method]);
+                let ns = syn::punctuated::Punctuated::<_, syn::token::PathSep>::from_iter([quote!(#namespace), method]);
                 tokens.append_all(vec![ns.to_token_stream()]);
                 tokens
             }
@@ -219,8 +265,8 @@ pub fn basic_composer_owner_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
-        impl #impl_generics crate::composer::BasicComposerOwner<crate::presentable::Context, LANG, SPEC, Gen> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>, LANG> {
+        impl #impl_generics crate::composer::BasicComposerOwner<crate::presentable::Context, SPEC, Gen> for #ident #ty_generics #where_clause {
+            fn base(&self) -> &crate::composer::BasicComposer<crate::composer::ParentComposer<Self>> {
                 &self.base
             }
         }
@@ -232,8 +278,8 @@ pub fn composer_base_derive(input: TokenStream) -> TokenStream {
     let DeriveInput { ident, generics, .. } = parse_macro_input!(input as DeriveInput);
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let expanded = quote! {
-        impl #impl_generics crate::composer::BasicComposerOwner<LANG, SPEC> for #ident #ty_generics #where_clause {
-            fn base(&self) -> &crate::composer::BasicComposerLink<LANG, SPEC, Self> {
+        impl #impl_generics crate::composer::BasicComposerOwner<SPEC> for #ident #ty_generics #where_clause {
+            fn base(&self) -> &crate::composer::BasicComposerLink<SPEC, Self> {
                 &self.base
             }
         }

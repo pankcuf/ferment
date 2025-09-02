@@ -5,8 +5,9 @@ use syn::Path;
 use crate::ast::{Assignment, BraceWrapped, ParenWrapped};
 use crate::context::ScopeContext;
 use crate::ext::{Mangle, Terminated, ToPath};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composers::AttrWrapper;
+use crate::lang::Specification;
 use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::DictionaryName;
 
@@ -57,8 +58,7 @@ pub fn present_struct<T: ToTokens>(
     })
 }
 
-impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ScopeContextPresentable for SeqKind<ObjCSpecification> {
     type Presentation = TokenStream2;
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
@@ -88,7 +88,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                     #conversions
                 }
             }
-            SeqKind::FromUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::FromUnnamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
                 // presentation
                 let name = aspect.present(source).mangle_ident_default();
@@ -98,7 +98,13 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                     case #name
                 }
             }
-            SeqKind::ToUnnamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::TraitImplFnCall(((self_ty, trait_ty, fn_name), fields)) => {
+                let fields = fields.present(source);
+                quote! {
+                    #self_ty #trait_ty #fn_name #fields
+                }
+            }
+            SeqKind::ToUnnamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(ParenWrapped::new(fields.clone()), source);
                 // presentation
                 let name = aspect.present(source).mangle_ident_default();
@@ -108,58 +114,58 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                     case #name
                 }
             },
-            SeqKind::FromNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::FromNamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
                 println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
-            SeqKind::ToNamedFields(((aspect, _attrs, _generics, _name_kind), fields)) => {
+            SeqKind::ToNamedFields(((aspect, (_attrs, _lifetimes, _generics), _name_kind), fields)) => {
                 let presentation = aspect.allocate(BraceWrapped::new(fields.clone()), source);
                 println!("OBJC SEQ NamedFields: {}", presentation);
                 presentation
             },
-            SeqKind::UnnamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedVariantFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path: Path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = ParenWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ UnnamedVariantFields ({}, {})", ident, presentation);
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
-            SeqKind::NamedVariantFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedVariantFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 //println!("SequenceOutput::{}({}, {:?})", self, aspect, fields);
                 let attrs = aspect.attrs();
                 let path = aspect.present(source).to_path();
                 let ident = &path.segments.last().unwrap().ident;
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ NamedVariantFields ({}, {})", ident, presentation);
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(quote!(#ident #presentation))
             }
             SeqKind::Variants(aspect, attrs, fields) => {
                 let name = aspect.present(source).mangle_ident_default();
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ Variants ({}, {})", name, presentation.to_token_stream());
-                SPEC::Attr::wrap(attrs, quote!(#name #presentation))
+                <ObjCSpecification as Specification>::Attr::wrap(attrs, quote!(#name #presentation))
             },
-            SeqKind::UnnamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::UnnamedStruct(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let ffi_type = aspect.present(source);
                 let presentation = ParenWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ UnnamedStruct ({}, {})", ffi_type.to_token_stream(), presentation);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
-                    SPEC::Attr::from(aspect.attrs()),
+                    <ObjCSpecification as Specification>::Attr::from(aspect.attrs()),
                     presentation.terminated())
             },
-            SeqKind::NamedStruct(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::NamedStruct(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let ffi_type = aspect.present(source);
                 let presentation = BraceWrapped::new(fields.clone()).present(source);
                 println!("OBJC SEQ NamedStruct ({}, {:?})", ffi_type.to_token_stream(), presentation);
                 present_struct(
                     &ffi_type.to_path().segments.last().unwrap().ident,
-                    SPEC::Attr::from(aspect.attrs()),
+                    <ObjCSpecification as Specification>::Attr::from(aspect.attrs()),
                     presentation)
             },
             SeqKind::Enum(context) => {
@@ -188,7 +194,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 let last_segment = path.segments
                     .last()
                     .expect("Empty path");
-                SPEC::Attr::from(attrs)
+                <ObjCSpecification as Specification>::Attr::from(attrs)
                     .wrap(last_segment)
                     .to_token_stream()
             },
@@ -198,7 +204,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
                 presentation
                     .to_token_stream()
             },
-            SeqKind::EnumUnitFields(((aspect, _attrs, _generics, _is_round), fields)) => {
+            SeqKind::EnumUnitFields(((aspect, (_attrs, _lifetimes, _generics), _is_round), fields)) => {
                 let aspect = aspect.present(source).to_path();
                 let ffi_name = &aspect.segments.last().unwrap().ident;
                 let fields = fields.present(source);
@@ -256,7 +262,7 @@ impl<SPEC> ScopeContextPresentable for SeqKind<ObjCFermentate, SPEC>
             //     println!("OBJC UnboxedRoot ({})", presentation);
             //     presentation
             // },
-            SeqKind::StructDropBody(((tyc, _attrs, _generics, _is_round), items)) => {
+            SeqKind::StructDropBody(((tyc, (_attrs, _lifetimes, _generics), _is_round), items)) => {
                 let aspect = tyc.present(source);
                 let field_dtors = items.present(source);
                 println!("OBJC StructDropBody: {} {}", aspect.to_token_stream(), field_dtors.to_token_stream());

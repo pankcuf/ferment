@@ -1,11 +1,10 @@
 use crate::composer::{SourceComposable, GenericComposerInfo, TupleComposer};
 use crate::context::ScopeContext;
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 
-impl<SPEC> SourceComposable for TupleComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for TupleComposer<ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     #[allow(unused_variables)]
     fn compose(&self, source: &Self::Source) -> Self::Output {

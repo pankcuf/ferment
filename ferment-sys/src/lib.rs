@@ -3,7 +3,7 @@ mod builder;
 mod composable;
 mod composer;
 mod context;
-mod conversion;
+mod kind;
 mod ext;
 mod error;
 mod formatter;
@@ -15,13 +15,14 @@ mod test;
 mod tree;
 mod lang;
 mod config;
+pub(crate) mod writer;
+mod cbindgen;
 
 pub use self::error::Error;
 pub use self::builder::Builder;
 pub use self::config::Config;
 pub use self::lang::{Lang, rust::Crate};
 pub use self::builder::Builder as Ferment;
-// pub use self::tree::create_headers;
 
 #[cfg(feature = "objc")]
 pub use self::lang::objc::Config as ObjC;

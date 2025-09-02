@@ -32,9 +32,10 @@ pub trait FFIConversion2<'a, T> {
 }
 
 pub mod types {
+    use std::borrow::Cow;
     use std::ffi::{CStr, CString};
     use std::os::raw::c_char;
-    use crate::{boxed, FFIConversionDestroy, FFIConversionFrom, FFIConversionTo, unbox_any, unbox_string};
+    use crate::{boxed, FFIConversionFrom, FFIConversionTo, unbox_string};
     use crate::fermented::FFIConversion2;
 
     impl FFIConversionFrom<u128> for [u8; 16] {
@@ -48,12 +49,6 @@ pub mod types {
             boxed(obj.to_le_bytes())
         }
     }
-    impl FFIConversionDestroy<u128> for [u8; 16] {
-        unsafe fn destroy(ffi: *mut Self) {
-            unbox_any(ffi);
-        }
-    }
-
     impl FFIConversionFrom<i128> for [u8; 16] {
         unsafe fn ffi_from_const(ffi: *const Self) -> i128 {
             let arr = &*ffi;
@@ -65,12 +60,6 @@ pub mod types {
             boxed(obj.to_le_bytes())
         }
     }
-    impl FFIConversionDestroy<i128> for [u8; 16] {
-        unsafe fn destroy(ffi: *mut Self) {
-            unbox_any(ffi);
-        }
-    }
-
 
     impl FFIConversionFrom<String> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> String {
@@ -83,20 +72,10 @@ pub mod types {
 
     impl FFIConversionTo<String> for c_char {
         unsafe fn ffi_to_const(obj: String) -> *const Self {
-            let s = CString::new(obj).unwrap();
-            s.as_ptr()
+            Self::ffi_to(obj).cast_const()
         }
         unsafe fn ffi_to(obj: String) -> *mut Self {
             CString::new(obj).unwrap().into_raw()
-        }
-    }
-
-    impl FFIConversionDestroy<String> for c_char {
-        unsafe fn destroy(ffi: *mut Self) {
-            if ffi.is_null() {
-                return;
-            }
-            unbox_string(ffi);
         }
     }
 
@@ -126,11 +105,6 @@ pub mod types {
             Self::ffi_to_const(obj).cast_mut()
         }
     }
-    impl FFIConversionDestroy<&[u8]> for ByteArray {
-        unsafe fn destroy(_ffi: *mut Self) {
-            // TODO: check
-        }
-    }
 
     impl FFIConversionFrom<&str> for c_char {
         unsafe fn ffi_from_const(ffi: *const Self) -> &'static str {
@@ -149,14 +123,6 @@ pub mod types {
             CString::new(obj).unwrap().into_raw()
         }
     }
-    impl FFIConversionDestroy<&str> for c_char {
-        unsafe fn destroy(ffi: *mut Self) {
-            if ffi.is_null() {
-                return;
-            }
-            unbox_string(ffi);
-        }
-    }
     /// # Safety
     #[no_mangle]
     pub unsafe extern "C" fn str_destroy(str: *mut c_char) {
@@ -173,7 +139,22 @@ pub mod types {
             <Self as FFIConversionTo<T>>::ffi_to_const(*obj)
         }
     }
-    impl<T, FFI> FFIConversionDestroy<Box<T>> for FFI where FFI: FFIConversionDestroy<T> {}
+
+    impl<'a, T, FFI> FFIConversionFrom<Cow<'a, T>> for FFI where T: Clone, FFI: FFIConversionFrom<T> {
+        unsafe fn ffi_from_const(ffi: *const Self) -> Cow<'a, T> {
+            Cow::Owned(<FFI as FFIConversionFrom<T>>::ffi_from_const(ffi))
+        }
+    }
+
+    impl<'a, T, FFI> FFIConversionTo<Cow<'a, T>> for FFI where T: Clone, FFI: FFIConversionTo<T> {
+        unsafe fn ffi_to_const(obj: Cow<'a, T>) -> *const Self {
+            match obj {
+                Cow::Borrowed(v) => <FFI as FFIConversionTo<T>>::ffi_to_const(v.clone()),
+                Cow::Owned(v) => <FFI as FFIConversionTo<T>>::ffi_to_const(v),
+            }
+        }
+    }
+
 
     impl<'a, T, FFI> FFIConversion2<'a, T> for FFI where FFI: From<&'a T> + 'a, T: From<&'a FFI> + 'a {
         unsafe fn ffi_from_const(ffi: *const Self) -> T {

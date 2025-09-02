@@ -25,7 +25,7 @@ serde = { version = "1.0.215", features = ["derive"], optional = true }
 serde_json = "1.0.85"
 
 [build-dependencies]
-cbindgen = "0.28.0"
+cbindgen.workspace = true
 ferment-sys.workspace = true
 #ferment-sys = { path = "../../ferment-sys", features = ["objc"] }
 #ferment-sys = { path = "../../ferment-sys", features = ["objc", "cbindgen_only"] }
@@ -70,5 +70,4 @@ validation = ["dpp/validation"]
 
 [lib]
 name = "example_nested"
-crate-type = ["staticlib", "cdylib"]
-
+crate-type = ["rlib", "staticlib", "cdylib"]

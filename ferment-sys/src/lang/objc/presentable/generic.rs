@@ -3,7 +3,7 @@
 // use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 // use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, Composer, GenericComposer};
 // use crate::context::ScopeContext;
-// use crate::conversion::{GenericBoundsModel, GenericTypeKind, MixinKind};
+// use crate::kind::{GenericBoundsModel, GenericTypeKind, MixinKind};
 // use crate::ext::Mangle;
 // use crate::lang::objc::composers::AttrWrapper;
 // use crate::lang::objc::ObjCFermentate;

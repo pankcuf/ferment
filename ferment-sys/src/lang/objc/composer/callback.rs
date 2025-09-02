@@ -1,11 +1,10 @@
 use crate::composer::{CallbackComposer, SourceComposable, GenericComposerInfo};
 use crate::context::ScopeContext;
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 
-impl<SPEC> SourceComposable for CallbackComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for CallbackComposer<ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     fn compose(&self, _source: &Self::Source) -> Self::Output {
         None

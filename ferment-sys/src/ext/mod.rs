@@ -1,18 +1,20 @@
-mod constraints;
+mod r#abstract;
 mod collection;
+mod constraints;
+mod item;
+mod present;
 mod refine;
 mod resolve;
+mod to_object_kind;
 mod visitor;
-mod present;
-mod r#abstract;
-mod item;
 
-pub use self::constraints::*;
 pub use self::r#abstract::*;
+pub use self::constraints::*;
 pub use self::item::*;
 pub use self::present::*;
 pub use self::refine::*;
 pub use self::resolve::*;
+pub use self::to_object_kind::*;
 pub use self::visitor::*;
 
 pub trait CrateExtension {

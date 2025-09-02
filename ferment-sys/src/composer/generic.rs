@@ -1,94 +1,168 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::ToTokens;
-use syn::{Attribute, Type};
-use crate::ast::{BraceWrapped, CommaPunctuated, Depunctuated};
-use crate::composable::FieldComposer;
-use crate::composer::{AnyOtherComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, PresentableArgumentPairComposerRef, GroupComposer, MapComposer, PresentableArgumentComposerRef, ResultComposer, SliceComposer, TupleComposer, arg_conversions_iterator, NameKind};
-use crate::composer::array::ArrayComposer;
+use syn::{Attribute, Type, TypeTuple};
+use crate::ast::Depunctuated;
+use crate::composable::{FieldComposer, GenericBoundsModel};
+use crate::composer::{AnyOtherComposer, ArrayComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, GroupComposer, MapComposer, PresentableArgKindComposerRef, ResultComposer, SliceComposer, SmartPointerComposer, TupleComposer, NameKind};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::conversion::{GenericTypeKind, MixinKind};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, ArgKind, ScopeContextPresentable};
-use crate::presentation::{DocPresentation, FFIObjectPresentation, present_struct, RustFermentate};
+use crate::kind::{CallbackKind, GenericTypeKind, MixinKind, SmartPointerKind, TypeKind};
+use crate::ext::{AsType, GenericNestedArg};
+use crate::lang::Specification;
+use crate::presentable::{Aspect, BindingPresentableContext, ArgKind};
 
-pub struct GenericComposerInfo<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub binding_composer: PresentableArgumentPairComposerRef<LANG, SPEC>,
-    pub field_composer: PresentableArgumentComposerRef<LANG, SPEC>,
-
+pub struct GenericComposerInfo<SPEC>
+    where SPEC: Specification + 'static {
+    pub field_composer: PresentableArgKindComposerRef<SPEC>,
     pub ffi_aspect: Aspect<SPEC::TYC>,
     pub attrs: SPEC::Attr,
-    pub field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
+    pub field_composers: Depunctuated<FieldComposer<SPEC>>,
     pub interfaces: Depunctuated<SPEC::Interface>,
+    pub bindings: Depunctuated<BindingPresentableContext<SPEC>>,
 }
 
-impl<LANG, SPEC> GenericComposerInfo<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> GenericComposerInfo<SPEC>
+    where SPEC: Specification {
+
+    fn new(
+        ffi_aspect: Aspect<SPEC::TYC>,
+        attrs: SPEC::Attr,
+        field_composers: Depunctuated<FieldComposer<SPEC>>,
+        interfaces: Depunctuated<SPEC::Interface>,
+        bindings: Depunctuated<BindingPresentableContext<SPEC>>,
+        field_composer: PresentableArgKindComposerRef<SPEC>,
+    ) -> Self {
+        Self {
+            ffi_aspect,
+            attrs,
+            field_composers,
+            interfaces,
+            bindings,
+            field_composer,
+        }
+    }
     pub fn callback(
         ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
-        field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
+        field_composers: Depunctuated<FieldComposer<SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>
     ) -> Self {
-        Self {
-            ffi_aspect: ffi_name,
-            attrs: attrs.clone(),
+        let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::callback_ctor_pair)));
+        Self::new(
+            ffi_name,
+            attrs.clone(),
             field_composers,
             interfaces,
-            binding_composer: ArgKind::callback_ctor_pair,
-            field_composer: ArgKind::callback_arg,
-        }
+            Depunctuated::from_iter([
+                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+            ]),
+            ArgKind::callback_arg
+        )
     }
     pub fn default(
         ffi_name: Aspect<SPEC::TYC>,
         attrs: &SPEC::Attr,
-        field_composers: Depunctuated<FieldComposer<LANG, SPEC>>,
+        field_composers: Depunctuated<FieldComposer<SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>,
-        ) -> Self {
-        Self {
-            ffi_aspect: ffi_name,
-            attrs: attrs.clone(),
+    ) -> Self {
+        let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
+        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        Self::new(
+            ffi_name,
+            attrs.clone(),
             field_composers,
             interfaces,
-            binding_composer: ArgKind::named_struct_ctor_pair,
-            field_composer: ArgKind::public_named,
-        }
+            Depunctuated::from_iter([
+                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+            ]),
+            ArgKind::public_named_ready
+        )
+    }
+
+    pub fn default_with_bindings(
+        ffi_name: Aspect<SPEC::TYC>,
+        attrs: &SPEC::Attr,
+        field_composers: Depunctuated<FieldComposer<SPEC>>,
+        interfaces: Depunctuated<SPEC::Interface>,
+        bindings: Depunctuated<BindingPresentableContext<SPEC>>,
+    ) -> Self {
+        Self::new(
+            ffi_name,
+            attrs.clone(),
+            field_composers,
+            interfaces,
+            bindings,
+            ArgKind::public_named_ready
+        )
     }
 }
 
 #[allow(unused)]
-pub enum GenericComposerWrapper<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    Bounds(BoundsComposer<LANG, SPEC>),
-    Callback(CallbackComposer<LANG, SPEC>),
-    Array(ArrayComposer<LANG, SPEC>),
-    Group(GroupComposer<LANG, SPEC>),
-    Result(ResultComposer<LANG, SPEC>),
-    Slice(SliceComposer<LANG, SPEC>),
-    Tuple(TupleComposer<LANG, SPEC>),
-    AnyOther(AnyOtherComposer<LANG, SPEC>),
-    Map(MapComposer<LANG, SPEC>),
+pub enum GenericComposerWrapper<SPEC>
+    where SPEC: Specification + 'static {
+    Bounds(BoundsComposer<SPEC>),
+    Callback(CallbackComposer<SPEC>),
+    Array(ArrayComposer<SPEC>),
+    Group(GroupComposer<SPEC>),
+    Result(ResultComposer<SPEC>),
+    Slice(SliceComposer<SPEC>),
+    Tuple(TupleComposer<SPEC>),
+    AnyOther(AnyOtherComposer<SPEC>),
+    SmartPointer(SmartPointerComposer<SPEC>),
+    Map(MapComposer<SPEC>),
 }
 
-impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          BoundsComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          CallbackComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          ArrayComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          GroupComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          ResultComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          SliceComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          TupleComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          AnyOtherComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
-          MapComposer<LANG, SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<LANG, SPEC>>>,
+impl<SPEC> GenericComposerWrapper<SPEC>
+where SPEC: Specification {
+    pub fn bounds(model: &GenericBoundsModel, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Bounds(BoundsComposer::new(model, type_context, attrs, scope_context))
+    }
+    pub fn callback(kind: &CallbackKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Callback(CallbackComposer::new(kind, type_context, attrs, scope_context))
+    }
+    pub fn group(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Group(GroupComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn array(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Array(ArrayComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn result(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Result(ResultComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn slice(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Slice(SliceComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn tuple(ty: &TypeTuple, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Tuple(TupleComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn map(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::Map(MapComposer::new(ty, type_context, attrs, scope_context))
+    }
+    pub fn smart_ptr(root_kind: &SmartPointerKind, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::SmartPointer(SmartPointerComposer::new(root_kind, smart_pointer_kind, type_context, attrs, scope_context))
+    }
+    pub fn any_other(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::AnyOther(AnyOtherComposer::new(ty, type_context, attrs, scope_context))
+    }
+}
+
+impl<SPEC> SourceComposable for GenericComposerWrapper<SPEC>
+    where SPEC: Specification,
+          BoundsComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          CallbackComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          ArrayComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          GroupComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          ResultComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          SliceComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          TupleComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          AnyOtherComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          SmartPointerComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
+          MapComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=Option<GenericComposerInfo<SPEC>>>,
 {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<LANG, SPEC>>;
+    type Output = Option<GenericComposerInfo<SPEC>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         match self {
@@ -108,6 +182,8 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
                 composer.compose(source),
             GenericComposerWrapper::AnyOther(composer) =>
                 composer.compose(source),
+            GenericComposerWrapper::SmartPointer(composer) =>
+                composer.compose(source),
             GenericComposerWrapper::Map(composer) =>
                 composer.compose(source),
         }
@@ -115,83 +191,57 @@ impl<LANG, SPEC> SourceComposable for GenericComposerWrapper<LANG, SPEC>
 }
 
 #[allow(unused)]
-pub struct GenericComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub wrapper: GenericComposerWrapper<LANG, SPEC>,
+pub struct GenericComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub wrapper: GenericComposerWrapper<SPEC>,
 }
 
-impl<LANG, SPEC> GenericComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    pub fn new(kind: &MixinKind, attrs: Vec<Attribute>, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Option<ComposerLink<Self>> {
+impl<SPEC> GenericComposer<SPEC>
+    where SPEC: Specification {
+
+    pub fn new(kind: &MixinKind, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Option<ComposerLink<Self>> {
         let wrapper = match kind {
             MixinKind::Bounds(model) =>
-                GenericComposerWrapper::Bounds(BoundsComposer::new(model, ty_context, attrs, scope_context)),
-            MixinKind::Generic(GenericTypeKind::Callback(ty)) =>
-                GenericComposerWrapper::Callback(CallbackComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::bounds(model, ty_context, attrs, scope_context),
+            MixinKind::Generic(GenericTypeKind::Callback(kind)) =>
+                GenericComposerWrapper::callback(kind, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Group(ty)) =>
-                GenericComposerWrapper::Group(GroupComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::group(ty, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Array(ty)) =>
-                GenericComposerWrapper::Array(ArrayComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::array(ty, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Result(ty)) =>
-                GenericComposerWrapper::Result(ResultComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::result(ty, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Slice(ty)) =>
-                GenericComposerWrapper::Slice(SliceComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::slice(ty, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Tuple(Type::Tuple(type_tuple))) =>
-                GenericComposerWrapper::Tuple(TupleComposer::new(type_tuple, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::tuple(type_tuple, ty_context, attrs, scope_context),
             MixinKind::Generic(GenericTypeKind::Map(ty)) =>
-                GenericComposerWrapper::Map(MapComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::map(ty, ty_context, attrs, scope_context),
+            MixinKind::Generic(GenericTypeKind::SmartPointer(root_kind)) => match root_kind {
+                SmartPointerKind::Cell(..) |
+                SmartPointerKind::RefCell(..) |
+                SmartPointerKind::UnsafeCell(..) |
+                SmartPointerKind::Mutex(..) |
+                SmartPointerKind::OnceLock(..) |
+                SmartPointerKind::RwLock(..) =>
+                    GenericComposerWrapper::smart_ptr(root_kind, root_kind.clone(), ty_context, attrs, scope_context),
+                SmartPointerKind::Rc(ty) |
+                SmartPointerKind::Arc(ty) => match TypeKind::from(ty.maybe_first_nested_type_ref()?) {
+                    TypeKind::Generic(GenericTypeKind::SmartPointer(smart_pointer_kind)) =>
+                        GenericComposerWrapper::smart_ptr(root_kind, smart_pointer_kind, ty_context, attrs, scope_context),
+                    _ =>
+                        GenericComposerWrapper::any_other(root_kind.as_type(), ty_context, attrs, scope_context),
+                },
+                _ =>
+                    GenericComposerWrapper::any_other(root_kind.as_type(), ty_context, attrs, scope_context),
+            }
             MixinKind::Generic(GenericTypeKind::AnyOther(ty)) =>
-                GenericComposerWrapper::AnyOther(AnyOtherComposer::new(ty, ty_context, attrs, scope_context)),
+                GenericComposerWrapper::any_other(ty, ty_context, attrs, scope_context),
             _ => {
                 return None;
             }
         };
-        let root = Rc::new(RefCell::new(Self { wrapper, }));
-        {
-            let mut root_borrowed = root.borrow_mut();
-            root_borrowed.setup_composers(&root);
-        }
-        Some(root)
-    }
-    fn setup_composers(&mut self, _root: &ComposerLink<Self>) {
-        // self.base.link(root);
+        Some(Rc::new(RefCell::new(Self { wrapper })))
     }
 }
 
-impl<SPEC> SourceComposable for GenericComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
-    type Source = ScopeContext;
-    type Output = Option<RustFermentate>;
-
-    fn compose(&self, source: &Self::Source) -> Self::Output {
-        self.wrapper
-            .compose(source)
-            .map(|GenericComposerInfo {
-                      field_composers,
-                      field_composer,
-                      ffi_aspect,
-                      attrs,
-                      binding_composer,
-                      interfaces }| {
-                let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
-                let ffi_name_tokens = ffi_aspect.present(source).to_token_stream();
-                let ffi_presentation = FFIObjectPresentation::Full(present_struct(&ffi_name_tokens, &attrs, BraceWrapped::new(fields).present(source)));
-                let dtor_context = (ffi_aspect, attrs.clone(), SPEC::Gen::default(), NameKind::Named);
-                let ctor_context = (dtor_context.clone(), arg_conversions_iterator(&field_composers, binding_composer));
-                let bindings = Depunctuated::from_iter([
-                    BindingPresentableContext::ctor::<Vec<_>>(ctor_context),
-                    BindingPresentableContext::dtor((dtor_context, Default::default()))
-                ]);
-                RustFermentate::Item {
-                    attrs,
-                    comment: DocPresentation::Empty,
-                    ffi_presentation,
-                    conversions: interfaces,
-                    bindings: bindings.present(source),
-                    traits: Default::default(),
-                }
-            })
-    }
-}

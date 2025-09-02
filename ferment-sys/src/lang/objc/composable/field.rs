@@ -1,11 +1,11 @@
 use quote::quote;
 use crate::composable::FieldComposer;
 use crate::composer::SourceFermentable;
+use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 
-impl<SPEC> SourceFermentable<crate::lang::objc::ObjCFermentate> for FieldComposer<crate::lang::objc::ObjCFermentate, SPEC>
-    where SPEC: crate::lang::objc::ObjCSpecification {
-    fn ferment(&self) -> crate::lang::objc::ObjCFermentate {
+impl SourceFermentable<ObjCFermentate> for FieldComposer<ObjCSpecification> {
+    fn ferment(&self) -> ObjCFermentate {
         let Self { name, kind, attrs, .. } = self;
-        crate::lang::objc::ObjCFermentate::TokenStream(attrs.wrap(quote!((#kind)#name)))
+        ObjCFermentate::TokenStream(attrs.wrap(quote!((#kind)#name)))
     }
 }

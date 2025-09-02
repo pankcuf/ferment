@@ -1,7 +1,15 @@
+mod composer;
+mod kind;
+mod presentable;
+mod ext;
+mod presentation;
+mod tree;
+mod writer;
+
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{MetadataCommand, Package, Target};
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::Attribute;
@@ -40,25 +48,19 @@ impl Crate {
 }
 
 pub(crate) fn find_crates_paths(crate_names: Vec<&str>) -> Vec<Crate> {
-    let metadata = MetadataCommand::new().exec().unwrap();
-    crate_names.into_iter()
-        .filter_map(|crate_name| {
-            metadata.packages
-                .iter()
-                .find_map(|p| {
-                    if p.name.as_str() == crate_name {
-                        if let Some(target) = p.targets.first() {
-                            return Some(
-                                Crate::new(
-                                    p.name
-                                        .replace("-", "_")
-                                        .as_str(),
-                                    PathBuf::from(target.src_path.parent()
-                                        .unwrap())))
-                        }
-                    }
-                    None
-                })
-        })
-        .collect()
+    MetadataCommand::new()
+        .exec()
+        .map(|metadata| crate_names.into_iter()
+            .filter_map(|crate_name|
+                metadata.packages
+                    .iter()
+                    .find_map(|Package { targets, name, .. }| match targets.first() {
+                        Some(Target { src_path, .. }) if name.as_str() == crate_name =>
+                            src_path.parent().map(|parent_path| Crate::new(name.replace("-", "_").as_str(), PathBuf::from(parent_path))),
+                        _ =>
+                            None
+                    }))
+            .collect())
+        .unwrap_or_default()
+
 }

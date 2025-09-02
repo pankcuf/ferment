@@ -2,48 +2,31 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Type};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
-use crate::composable::{FieldComposer, FieldTypeKind};
-use crate::composer::{SourceComposable, GenericComposerInfo, MapComposer, AspectPresentable, AttrComposable, FromConversionFullComposer, ToConversionFullComposer, DestroyFullConversionComposer, VarComposer, TargetVarComposer};
+use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer, ConversionFromComposer, GenericComposerInfo, MapComposer, SourceComposable, TargetVarComposer, ConversionToComposer, VarComposer};
 use crate::context::ScopeContext;
-use crate::conversion::{GenericArgPresentation, GenericTypeKind, TypeKind};
+use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
-use crate::lang::FromDictionary;
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::{FromDictionary, Specification};
+use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::TypeContext;
-use crate::presentable::{Expression, ScopeContextPresentable, Aspect};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryName, FFIVariable, Name};
-// NSMutableDictionary<DSdash_spv_masternode_processor_common_block_Block *, DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey *> *obj = [NSMutableDictionary dictionaryWithCapacity:ffi_ref->count];
-// for (int i = 0; i < ffi_ref->count; i++) {
-//      [obj setObject:[DSdash_spv_masternode_processor_common_block_Block ffi_from:ffi_ref->values[i]]
-//              forKey:[DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_from:ffi_ref->keys[i]]];
-// }
-//    dash_spv_masternode_processor_common_block_Block **keys = malloc(count * sizeof(struct dash_spv_masternode_processor_common_block_Block));
-//     dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey **values = malloc(count * sizeof(struct dash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey));
-//     for (DSdash_spv_masternode_processor_common_block_Block *key in obj) {
-//         keys[i] = [DSdash_spv_masternode_processor_common_block_Block ffi_to:key];
-//         values[i] = [DSdash_spv_masternode_processor_models_operator_public_key_OperatorPublicKey ffi_to:obj[key]];
-//     }
-//     ffi_ref->count = [obj count];
-//     ffi_ref->keys = keys;
-//     ffi_ref->values = values;
-//     return ffi_ref;
 
-fn compose_arg<SPEC>(
-    arg_name: &Name<ObjCFermentate, SPEC>,
+fn compose_arg(
+    arg_name: &Name<ObjCSpecification>,
     arg_item_name: TokenStream2,
     ty: &Type,
     source: &ScopeContext
-) -> (GenericArgPresentation<ObjCFermentate, SPEC>, TokenStream2)
-    where SPEC: ObjCSpecification {
+) -> ((FFIVariable<ObjCSpecification, TokenStream2>, Expression<ObjCSpecification>, Expression<ObjCSpecification>, Expression<ObjCSpecification>), TokenStream2) {
     println!("MapComposer::compose_arg: {} --- {}", arg_name.to_token_stream(), ty.to_token_stream());
-    let from_composer = FromConversionFullComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
-    let to_composer = ToConversionFullComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
-    let destroy_composer = DestroyFullConversionComposer::<ObjCFermentate, SPEC>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
-    let var_composer = VarComposer::<ObjCFermentate, SPEC>::value(ty);
-    let target_composer = TargetVarComposer::<ObjCFermentate, SPEC>::value(ty);
+    let from_composer = ConversionFromComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let to_composer = ConversionToComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
+    let destroy_composer = ConversionDropComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let var_composer = VarComposer::<ObjCSpecification>::value(ty);
+    let target_composer = TargetVarComposer::<ObjCSpecification>::value(ty);
     let from_expr = from_composer.compose(source);
     let to_expr = to_composer.compose(source);
     let destroy_expr = destroy_composer.compose(source);
@@ -51,7 +34,7 @@ fn compose_arg<SPEC>(
     let target_expr = target_composer.compose(source);
     println!("MapComposer:: OBJC FROM EXPR: {}", from_expr.present(source));
     println!("MapComposer:: OBJC TO EXPR: {}", to_expr.present(source));
-    println!("MapComposer:: OBJC DESTROY EXPR: {}", destroy_expr.as_ref().map(|e| e.present(source)).unwrap_or(quote!()));
+    println!("MapComposer:: OBJC DESTROY EXPR: {}", destroy_expr.as_ref().map(|e| e.present(source)).unwrap_or_default());
     println!("MapComposer:: OBJC VAR EXPR: {}", var_expr.to_token_stream());
     println!("MapComposer:: OBJC TARGET EXPR: {}", target_expr.to_token_stream());
     // let arg_args = |arg_name: &Name<ObjCFermentate, SPEC>| CommaPunctuated::from_iter([
@@ -60,16 +43,16 @@ fn compose_arg<SPEC>(
 
     match TypeKind::from(ty) {
         TypeKind::Primitive(arg_ty) =>
-            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
-                SPEC::Var::direct(objc_primitive(&arg_ty).to_token_stream()),
-                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+            ((
+                <ObjCSpecification as Specification>::Var::direct(objc_primitive(&arg_ty)),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty)),
         TypeKind::Complex(arg_ty) => {
-            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
-                FFIVariable::direct(FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&arg_ty, source).to_token_stream()),
-                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+            ((
+                FFIVariable::direct(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(&arg_ty, source).to_token_stream()),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty))
@@ -78,18 +61,18 @@ fn compose_arg<SPEC>(
             let arg_ty = if let GenericTypeKind::Optional(..) = generic_arg_ty {
                 match generic_arg_ty.ty() {
                     None => unimplemented!("Mixin inside generic: {}", generic_arg_ty),
-                    Some(ty) => FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(ty, source).to_token_stream(),
+                    Some(ty) => FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(ty, source).to_token_stream(),
                 }
             } else {
                 // GenericArgComposer::<ObjCFermentate, SPEC>::new(
                 //     Some(Expression::from_complex_tokens),
                 //     Some(Expression::ffi_to_complex_group_tokens),
                 //     Some(Expression::destroy_complex_group_tokens)),
-                FFIVarResolve::<ObjCFermentate, SPEC>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source).to_token_stream()
+                FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_variable_type(&generic_arg_ty, source).to_token_stream()
             };
-            (GenericArgPresentation::<ObjCFermentate, SPEC>::new(
+            ((
                 FFIVariable::direct(arg_ty),
-                destroy_expr.unwrap_or(SPEC::Expr::empty()),
+                destroy_expr.unwrap_or_default(),
                 from_expr,
                 to_expr,
             ), objc_primitive(ty))
@@ -97,22 +80,20 @@ fn compose_arg<SPEC>(
     }
 }
 
-impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for MapComposer<ObjCSpecification> {
     type Source = ScopeContext;
-    type Output = Option<GenericComposerInfo<ObjCFermentate, SPEC>>;
+    type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let count = DictionaryName::Count;
         let keys = DictionaryName::Keys;
         let values = DictionaryName::Values;
-        let count_name = SPEC::Name::dictionary_name(count.clone());
-        let arg_0_name = SPEC::Name::dictionary_name(keys.clone());
-        let arg_1_name = SPEC::Name::dictionary_name(values.clone());
+        let count_name = <ObjCSpecification as Specification>::Name::dictionary_name(count.clone());
+        let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(keys.clone());
+        let arg_1_name = <ObjCSpecification as Specification>::Name::dictionary_name(values.clone());
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: format_ident!("Dictionary"), prefix: "NS".to_string(), attrs: vec![] });
 
         let objc_name = aspect.present(source);
-        // let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         let c_name = ffi_type.to_token_stream();
@@ -120,17 +101,17 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         let nested_types = self.ty.nested_types();
         let arg_0_target_ty = nested_types[0];
         let arg_1_target_ty = nested_types[1];
-        let (arg_0_presentation, c0_type) = compose_arg(&arg_0_name, quote!(key), arg_0_target_ty, source);
-        let (arg_1_presentation, c1_type) = compose_arg(&arg_1_name, quote!(obj[key]), arg_1_target_ty, source);
-        let arg_0_ty = &arg_0_presentation.ty;
-        let arg_1_ty = &arg_1_presentation.ty;
-        let arg_0_var: SPEC::Var = Accessory::joined_mut(arg_0_ty);
-        let arg_1_var: SPEC::Var = Accessory::joined_mut(arg_1_ty);
+        let ((arg_0_var, arg_0_destructor, arg_0_from_conversion, arg_0_to_conversion), c0_type) = compose_arg(&arg_0_name, quote!(key), arg_0_target_ty, source);
+        let ((arg_1_var, arg_1_destructor, arg_1_from_conversion, arg_1_to_conversion), c1_type) = compose_arg(&arg_1_name, quote!(obj[key]), arg_1_target_ty, source);
+        let arg_0_ty = &arg_0_var;
+        let arg_1_ty = &arg_1_var;
+        let arg_0_var: <ObjCSpecification as Specification>::Var = Accessory::joined_mut(arg_0_ty);
+        let arg_1_var: <ObjCSpecification as Specification>::Var = Accessory::joined_mut(arg_1_ty);
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::<ObjCFermentate, SPEC>::named(count_name.clone(), FieldTypeKind::Type(parse_quote!(uintptr_t))),
-            FieldComposer::<ObjCFermentate, SPEC>::named(arg_0_name.clone(), FieldTypeKind::Var(arg_0_var.clone())),
-            FieldComposer::<ObjCFermentate, SPEC>::named(arg_1_name.clone(), FieldTypeKind::Var(arg_1_var.clone())),
+            count_name.field_composer(FieldTypeKind::Type(parse_quote!(uintptr_t))),
+            arg_0_name.field_composer(FieldTypeKind::Var(arg_0_var.clone())),
+            arg_1_name.field_composer(FieldTypeKind::Var(arg_1_var.clone())),
         ]);
         // FFIMapConversion(TYPE, VarKey, FromKey, ToKey, DestroyKey, VarValue, FromValue, ToValue, DestroyValue)
 
@@ -187,8 +168,8 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
         // }
         //
         // @end
-        let to_0_values = arg_0_presentation.to_conversion.present(source);
-        let to_1_values = arg_1_presentation.to_conversion.present(source);
+        let to_0_values = arg_0_to_conversion.present(source);
+        let to_1_values = arg_1_to_conversion.present(source);
 
 
 
@@ -197,8 +178,8 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
                 objc_name: objc_name.to_token_stream(),
                 c_name: c_name.clone(),
                 from_conversions_statements: {
-                    let from_key = arg_0_presentation.from_conversion.present(source);
-                    let from_value = arg_1_presentation.from_conversion.present(source);
+                    let from_key = arg_0_from_conversion.present(source);
+                    let from_value = arg_1_from_conversion.present(source);
                     quote! {
                         uintptr_t count = ffi_ref->count;
                         NSMutableDictionary *obj = [NSMutableDictionary dictionaryWithCapacity:count];
@@ -235,8 +216,8 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
 
                 },
                 destroy_body: {
-                    let destroy_key = arg_0_presentation.destructor.present(source);
-                    let destroy_value = arg_1_presentation.destructor.present(source);
+                    let destroy_key = arg_0_destructor.present(source);
+                    let destroy_value = arg_1_destructor.present(source);
                     quote! {
                         if (!ffi_ref) return;
                         if (ffi_ref->count > 0) {
@@ -268,7 +249,7 @@ impl<SPEC> SourceComposable for MapComposer<ObjCFermentate, SPEC>
             }
         ]);
         println!("OBJC MAP => \n{}", format_interface_implementations(&interfaces));
-        Some(GenericComposerInfo::<ObjCFermentate, SPEC>::default(
+        Some(GenericComposerInfo::<ObjCSpecification>::default(
             aspect,
             &attrs,
             field_composers,

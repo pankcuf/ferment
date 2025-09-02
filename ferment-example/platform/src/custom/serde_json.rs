@@ -42,7 +42,7 @@ impl ferment::FFIConversionFrom<serde_json::Error> for serde_json_Error {
         ferment::FFIConversionFrom::ffi_from(ffi as *mut Self)
     }
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Error> for serde_json_Error {
@@ -71,7 +71,7 @@ impl ferment::FFIConversionFrom<serde_json::Map<String, platform_value::Value>> 
         ferment::FFIConversionFrom::ffi_from(ffi as *mut Self)
     }
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Map<String, platform_value::Value> {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Map<String, platform_value::Value>> for serde_json_Map_keys_String_values_platform_value_Value {

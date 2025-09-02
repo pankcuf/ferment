@@ -2,7 +2,7 @@ use syn::Type;
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
-use crate::conversion::{ObjectKind, TypeModelKind};
+use crate::kind::{ObjectKind, TypeModelKind};
 use crate::ext::{AsType, ToType};
 
 #[derive(Clone)]

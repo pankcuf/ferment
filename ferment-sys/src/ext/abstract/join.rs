@@ -1,9 +1,9 @@
 use quote::ToTokens;
-use syn::{ImplItemMethod, Item, Signature, TraitItemMethod};
+use syn::{ImplItemFn, Item, Signature, TraitItemFn};
 use syn::punctuated::Punctuated;
 use crate::composable::TypeModel;
-use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::conversion::{ObjectKind, ScopeItemKind, TypeModelKind};
+use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
+use crate::kind::{ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::item::ItemExtension;
 use crate::ext::ToType;
 
@@ -33,9 +33,9 @@ impl Join<Item> for ScopeChain {
         }
     }
 }
-impl Join<ImplItemMethod> for ScopeChain {
-    fn joined(&self, item: &ImplItemMethod) -> Self {
-        let ImplItemMethod { attrs, sig, .. } = item;
+impl Join<ImplItemFn> for ScopeChain {
+    fn joined(&self, item: &ImplItemFn) -> Self {
+        let ImplItemFn { attrs, sig, .. } = item;
         let Signature { ident, generics, .. } = sig;
         let self_scope = self.self_scope();
         let self_scope_holder = &self_scope.self_scope;
@@ -52,9 +52,9 @@ impl Join<ImplItemMethod> for ScopeChain {
         )
     }
 }
-impl Join<TraitItemMethod> for ScopeChain {
-    fn joined(&self, item: &TraitItemMethod) -> Self {
-        let TraitItemMethod { attrs, sig, .. } = item;
+impl Join<TraitItemFn> for ScopeChain {
+    fn joined(&self, item: &TraitItemFn) -> Self {
+        let TraitItemFn { attrs, sig, .. } = item;
         let Signature { ident, generics, .. } = sig;
         let self_scope = self.self_scope();
         let self_scope_holder = &self_scope.self_scope;
@@ -78,3 +78,14 @@ impl Join<TraitItemMethod> for ScopeChain {
     }
 }
 
+impl Join<ImplItemFn> for ScopeContext {
+    fn joined(&self, other: &ImplItemFn) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}
+
+impl Join<TraitItemFn> for ScopeContext {
+    fn joined(&self, other: &TraitItemFn) -> Self {
+        Self::with(self.scope.joined(other), self.context.clone())
+    }
+}

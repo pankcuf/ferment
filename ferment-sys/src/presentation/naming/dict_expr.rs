@@ -13,9 +13,7 @@ pub enum DictionaryExpr {
     Depunctuated(Depunctuated<TokenStream2>),
     SelfDestructuring(TokenStream2),
     BoxedSelfDestructuring(TokenStream2),
-    ObjLen,
     ObjIntoIter,
-    ObjToVec,
     FfiDeref,
     FfiDerefAsRef,
     LetFfiRef,
@@ -27,12 +25,22 @@ pub enum DictionaryExpr {
     AsMutRef(TokenStream2),
     Mapper(TokenStream2, TokenStream2),
     SelfProp(TokenStream2),
+    FfiRefProp(TokenStream2),
     AsMut_(TokenStream2),
     IfNotNull(TokenStream2, TokenStream2),
     IfThen(TokenStream2, TokenStream2),
     MapOr(TokenStream2, TokenStream2, TokenStream2),
     NullMut,
     CChar,
+    Arc,
+    Rc,
+    Box,
+    Mutex,
+    OnceLock,
+    RwLock,
+    Cell,
+    RefCell,
+    UnsafeCell,
     AsSlice(TokenStream2),
     ToVec(TokenStream2),
     MapCollect(TokenStream2, TokenStream2),
@@ -45,26 +53,55 @@ pub enum DictionaryExpr {
     MatchResult(TokenStream2, TokenStream2),
     FromRoot(TokenStream2),
     CountRange,
-    Range(TokenStream2),
-    NewBox(TokenStream2),
+    NewSmth(TokenStream2, TokenStream2),
     LeakBox(TokenStream2),
     MapIntoBox(TokenStream2),
     FromRawBox(TokenStream2),
-    Add(TokenStream2, TokenStream2),
-    CastAs(TokenStream2, TokenStream2),
-    CallMethod(TokenStream2, TokenStream2),
     TryIntoUnwrap(TokenStream2),
     CallbackCaller(TokenStream2, TokenStream2),
     CallbackDestructor(TokenStream2, TokenStream2),
-    CastedFFIConversionMethod(TokenStream2, TokenStream2, TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
     CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
-    CastedFFIConversionFromOpaqueOpt(TokenStream2, TokenStream2, TokenStream2),
-    CastedFFIConversionDestroy(TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
-    FromPtrClone(TokenStream2),
+    FromPtrRead(TokenStream2),
+    FromArc(TokenStream2),
+    FromRc(TokenStream2),
     SelfAsTrait(TokenStream2, TokenStream2),
+}
 
+impl DictionaryExpr {
+    pub fn self_prop<T: ToTokens>(name: T) -> Self {
+        Self::SelfProp(name.to_token_stream())
+    }
+    pub fn self_as_trait<T: ToTokens, U: ToTokens>(ty: T, acc: U) -> Self {
+        Self::SelfAsTrait(ty.to_token_stream(), acc.to_token_stream())
+    }
+    pub fn ffi_ref_prop<T: ToTokens>(name: T) -> Self {
+        Self::FfiRefProp(name.to_token_stream())
+    }
+    pub fn deref_ref<T: ToTokens>(name: T) -> Self {
+        Self::DerefRef(name.to_token_stream())
+    }
+    pub fn self_destruct<T: ToTokens>(name: T) -> Self {
+        Self::SelfDestructuring(name.to_token_stream())
+    }
+
+    pub fn from_root<T: ToTokens>(body: T) -> Self {
+        Self::FromRoot(body.to_token_stream())
+    }
+    pub fn from_ptr_read<T: ToTokens>(body: T) -> Self {
+        Self::FromPtrRead(body.to_token_stream())
+    }
+    pub fn from_arc<T: ToTokens>(body: T) -> Self {
+        Self::FromArc(body.to_token_stream())
+    }
+    pub fn from_rc<T: ToTokens>(body: T) -> Self {
+        Self::FromRc(body.to_token_stream())
+    }
+
+    pub fn mapper<T: ToTokens, U: ToTokens>(item: T, result: U) -> Self {
+        Self::Mapper(item.to_token_stream(), result.to_token_stream())
+    }
 }
 
 
@@ -82,14 +119,6 @@ impl ToTokens for DictionaryExpr {
                 name.to_tokens(tokens),
             Self::Depunctuated(sequence) =>
                 sequence.to_tokens(tokens),
-            Self::ObjLen => {
-                DictionaryName::Obj.to_tokens(tokens);
-                quote!(.len()).to_tokens(tokens);
-            },
-            Self::ObjToVec => {
-                DictionaryName::Obj.to_tokens(tokens);
-                quote!(.to_vec()).to_tokens(tokens);
-            }
             Self::ObjIntoIter => {
                 DictionaryName::Obj.to_tokens(tokens);
                 quote!(.into_iter()).to_tokens(tokens)
@@ -119,9 +148,6 @@ impl ToTokens for DictionaryExpr {
                 expr.to_tokens(tokens)
             }
             Self::AsRef(expr) => {
-
-                // let result = quote!(Box::leak(Box::new(#expr)));
-                // result.to_tokens(tokens);
                 quote!(&).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
@@ -133,6 +159,10 @@ impl ToTokens for DictionaryExpr {
                 quote!(|#context| ).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
+            Self::FfiRefProp(prop) => {
+                quote!(ffi_ref.).to_tokens(tokens);
+                prop.to_tokens(tokens);
+            },
             Self::SelfProp(prop) => {
                 quote!(self.).to_tokens(tokens);
                 prop.to_tokens(tokens);
@@ -156,12 +186,28 @@ impl ToTokens for DictionaryExpr {
                 quote!(std::ptr::null_mut()).to_tokens(tokens),
             Self::CChar =>
                 quote!(std::os::raw::c_char).to_tokens(tokens),
+            Self::Arc =>
+                quote!(std::sync::Arc).to_tokens(tokens),
+            Self::Rc =>
+                quote!(std::rc::Rc).to_tokens(tokens),
+            Self::Box =>
+                quote!(Box).to_tokens(tokens),
+            Self::Mutex =>
+                quote!(std::sync::Mutex).to_tokens(tokens),
+            Self::OnceLock =>
+                quote!(std::sync::OnceLock).to_tokens(tokens),
+            Self::RwLock =>
+                quote!(std::sync::RwLock).to_tokens(tokens),
+            Self::Cell =>
+                quote!(std::cell::Cell).to_tokens(tokens),
+            Self::RefCell =>
+                quote!(std::cell::RefCell).to_tokens(tokens),
+            Self::UnsafeCell =>
+                quote!(std::cell::UnsafeCell).to_tokens(tokens),
             Self::AsSlice(expr) => {
                 expr.to_tokens(tokens);
                 quote!(.as_slice()).to_tokens(tokens);
             },
-            // Self::FromRawParts(data, len) =>
-            //     quote!(std::slice::from_raw_parts(#data, #len)).to_tokens(tokens),
             Self::MapCollect(iter, mapper) => {
                 iter.to_tokens(tokens);
                 quote!(.map(#mapper).collect()).to_tokens(tokens);
@@ -196,8 +242,8 @@ impl ToTokens for DictionaryExpr {
                 let field_path = DictionaryName::Obj;
                 let arg_path = DictionaryName::O;
                 Self::MatchFields(field_path.to_token_stream(), CommaPunctuated::from_iter([
-                    ArgPresentation::arm(&vec![], Pat::Verbatim(quote!(Ok(#arg_path))), quote!((#to_ok_conversion, #null_mut))),
-                    ArgPresentation::arm(&vec![], Pat::Verbatim(quote!(Err(#arg_path))), quote!((#null_mut, #to_error_conversion))),
+                    ArgPresentation::attr_less_arm(Pat::Verbatim(quote!(Ok(#arg_path))), quote!((#to_ok_conversion, #null_mut))),
+                    ArgPresentation::attr_less_arm(Pat::Verbatim(quote!(Err(#arg_path))), quote!((#null_mut, #to_error_conversion))),
                 ])).to_tokens(tokens)
             },
             Self::FromRoot(conversion) => {
@@ -206,10 +252,8 @@ impl ToTokens for DictionaryExpr {
             },
             Self::CountRange =>
                 quote!((0..count)).to_tokens(tokens),
-            Self::Range(expr) =>
-                quote!((0..#expr)).to_tokens(tokens),
-            Self::NewBox(conversion) =>
-                quote!(Box::new(#conversion)).to_tokens(tokens),
+            Self::NewSmth(conversion, smth) =>
+                quote!(#smth::new(#conversion)).to_tokens(tokens),
             Self::LeakBox(conversion) =>
                 quote!(Box::leak(Box::new(#conversion))).to_tokens(tokens),
             Self::MapIntoBox(conversion) => {
@@ -218,21 +262,15 @@ impl ToTokens for DictionaryExpr {
             },
             Self::FromRawBox(conversion) =>
                 quote!(Box::from_raw(#conversion)).to_tokens(tokens),
-            Self::Add(field_path, index) => {
-                field_path.to_tokens(tokens);
-                quote!(.add(#index));
-            }
-            Self::CastAs(ty, as_ty) =>
-                quote!(<#ty as #as_ty>).to_tokens(tokens),
-            Self::CallMethod(ns, args) => {
-                ns.to_tokens(tokens);
-                quote!((#args)).to_tokens(tokens)
-            }
             Self::Clone(expr) =>
                 quote!(#expr.clone()).to_tokens(tokens),
 
-            Self::FromPtrClone(expr) =>
-                quote!((&*#expr).clone()).to_tokens(tokens),
+            Self::FromPtrRead(expr) =>
+                quote!(std::ptr::read(#expr)).to_tokens(tokens),
+            Self::FromArc(expr) =>
+                quote!(std::sync::Arc::clone(#expr)).to_tokens(tokens),
+            Self::FromRc(expr) =>
+                quote!(std::rc::Rc::clone(#expr)).to_tokens(tokens),
             Self::SelfAsTrait(self_ty, acc) =>
                 quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 
@@ -252,19 +290,12 @@ impl ToTokens for DictionaryExpr {
                     (self.destructor)(#ffi_result);
                     result
                 ).to_tokens(tokens),
-            Self::CastedFFIConversionMethod(interface, method, ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as #interface<#target_type>>::#method(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
-            Self::CastedFFIConversionFromOpaqueOpt(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
-            Self::CastedFFIConversionDestroy(ffi_type, target_type, expr) => {
-                quote!(<#ffi_type as ferment::FFIConversionDestroy<#target_type>>::destroy(#expr)).to_tokens(tokens)
-            }
             Self::BoxedSelfDestructuring(expr) =>
-                InterfacesMethodExpr::Boxed(DictionaryExpr::SelfDestructuring(expr.to_token_stream()).to_token_stream()).to_tokens(tokens),
+                InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr).to_token_stream()).to_tokens(tokens),
 
         }
     }

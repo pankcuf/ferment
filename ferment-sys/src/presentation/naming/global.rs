@@ -1,9 +1,4 @@
-use std::marker::PhantomData;
-use syn::{parse_quote, Path, Type};
 use ferment_macro::Display;
-use crate::ext::{ToPath, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
-use crate::presentation::RustFermentate;
 
 #[allow(unused)]
 #[derive(Display)]
@@ -42,49 +37,4 @@ pub enum GlobalType {
     Result, // For error handling.
 }
 
-#[derive(Debug)]
-pub enum FFIFullDictionaryPath<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    Void,
-    CChar,
-    Phantom(PhantomData<(LANG, SPEC)>)
-}
-// #[allow(unused)]
-// pub enum FFIFullDictionaryVariable {
-//     Void,
-//     CChar
-// }
-// impl ToType for FFIFullDictionaryVariable {
-//     fn to_type(&self) -> Type {
-//         match self {
-//             FFIFullDictionaryVariable::Void => FFIFullDictionaryPath::Void.to_type(),
-//             FFIFullDictionaryVariable::CChar => FFIFullDictionaryPath::CChar.to_type(),
-//         }
-//     }
-// }
-// impl ToPath for FFIFullDictionaryVariable {
-//     fn to_path(&self) -> Path {
-//         self.to_type()
-//             .to_path()
-//     }
-// }
 
-impl<SPEC> ToType for FFIFullDictionaryPath<RustFermentate, SPEC> where SPEC: RustSpecification {
-    fn to_type(&self) -> Type {
-        match self {
-            FFIFullDictionaryPath::Void => parse_quote!(std::os::raw::c_void),
-            FFIFullDictionaryPath::CChar => parse_quote!(std::os::raw::c_char),
-            FFIFullDictionaryPath::Phantom(_) => panic!("")
-        }
-    }
-}
-impl<LANG, SPEC> ToPath for FFIFullDictionaryPath<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
-          FFIFullDictionaryPath<LANG, SPEC>: ToType {
-    fn to_path(&self) -> Path {
-        self.to_type()
-            .to_path()
-    }
-}

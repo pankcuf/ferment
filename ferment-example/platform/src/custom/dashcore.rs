@@ -92,7 +92,7 @@ impl ferment::FFIConversionFrom<dashcore::consensus::encode::Error> for dashcore
         ferment::FFIConversionFrom::ffi_from(ffi as *mut Self)
     }
     unsafe fn ffi_from(ffi: *mut Self) -> dashcore::consensus::encode::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<dashcore::consensus::encode::Error> for dashcore_consensus_encode_Error {

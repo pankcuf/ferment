@@ -6,10 +6,10 @@ use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod,
 use syn::visit::Visit;
 use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
-use crate::conversion::{MacroType, ObjectKind};
+use crate::kind::{MacroKind, ObjectKind};
 use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
 use crate::nprint;
-use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem};
+use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
@@ -50,8 +50,6 @@ impl<'ast> Visit<'ast> for Visitor {
         self.add_conversion(Item::Impl(node.clone()));
     }
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
-        // let context = self.context.read().unwrap();
-        // // let fermented_mod_name = &context.config.mod_name;
         if node.ident.to_string().eq("fermented") {
             return;
         }
@@ -126,21 +124,17 @@ impl Visitor {
         lock.traits.add_trait(scope, item_trait, itself);
     }
     pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
-        //println!("add_generic_chain: [add_2_parent: {}] {} in [{}]", add_to_parent, generics.to_token_stream(), scope);
         let generics = create_generics_chain(self, generics, scope, add_to_parent);
         let mut lock = self.context.write().unwrap();
-        // println!("Visitor::add_generic_chain: {:?}", generics); // TODO: always empty
         lock.generics.extend_in_scope(scope, generics)
     }
 
     fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
-        // println!("scope_add_many: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
     pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectKind, scope: &ScopeChain) {
-        // println!("scope_add_one: {}", scope.self_path_holder_ref());
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
@@ -151,15 +145,6 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits
             .add_used_traits(scope, trait_names)
-        // let trait_names = extract_trait_names(item_trait_attrs);
-        // let self_scope = scope.joined(ident);
-        // trait_names.iter().for_each(|trait_name|
-        //     self.add_full_qualified_type_match(&scope, &self_scope,&parse_quote!(#trait_name), &VisitorContext::Object));
-        // let mut lock = self.context.write().unwrap();
-        // lock.used_traits_dictionary
-        //     .entry(self_scope)
-        //     .or_default()
-        //     .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
     }
 
     pub(crate) fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
@@ -232,7 +217,7 @@ impl Visitor {
 
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        for ident in scope.crate_less().iter().map(ScopeTreeExportID::from) {
+        for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
             match current_tree {
                 ScopeTreeExportItem::Item(..) =>
                     panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
@@ -252,8 +237,8 @@ impl Visitor {
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
         let self_scope = current_scope.self_scope().clone().self_scope;
-        match (MacroType::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
-            (Ok(MacroType::Export | MacroType::Opaque), Ok(_)) => {
+        match (MacroKind::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
+            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => {
                 if let Some(scope) = item.join_scope(&current_scope, self) {
                     self.find_scope_tree(&self_scope)
                         .add_item(item, scope);
@@ -264,7 +249,7 @@ impl Visitor {
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroType::Register(custom_type)), Ok(_)) => {
+            (Ok(MacroKind::Register(custom_type)), Ok(_)) => {
                 if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
                     let scope_context_borrowed = scope_context.borrow();
                     scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));

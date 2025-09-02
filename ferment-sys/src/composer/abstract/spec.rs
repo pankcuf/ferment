@@ -3,158 +3,139 @@ use quote::ToTokens;
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::{DelimiterTrait, Void};
 use crate::composable::FieldComposer;
-use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgumentPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer, LifetimesComposable};
-use crate::lang::{LangFermentable, Specification};
+use crate::composer::{AspectSeqKindComposer, AttrComposable, ComposerLink, PresentableArgKindPairComposerRef, ConversionSeqKindComposer, DropSeqKindComposer, FFIBindingsComposer, FFIComposer, ArgProducerByRef, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposer, FieldsOwnedSequenceComposerLink, GenericsComposable, MaybeSequenceOutputComposer, NameKindComposable, OwnerAspectSequenceComposer, OwnerAspectSequenceSpecComposer, ArgKindPair, PresentableExprComposerRef, SequenceComposer, SharedAspectArgComposer, SourceAccessible, TypeAspect, PresentableArgsSequenceComposer, IterativeComposer, FFIInterfaceMethodIterator, ArgKindProducerByRef, FieldComposerProducer, OwnerAspect, OwnedArgComposers, CommaPunctuatedArgKinds, OwnerAspectSequence, constants, AspectArgSourceComposer, LifetimesComposable, CtorSequenceComposer};
+use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
 use crate::shared::SharedAccess;
 
-pub trait FFIObjectSpec<LANG, SPEC, L>
+pub trait FFIObjectSpec<SPEC, L>
     where L: SharedAccess,
-          LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const COMPOSER: MaybeSequenceOutputComposer<LANG, SPEC, L>;
+          SPEC: Specification {
+    const COMPOSER: MaybeSequenceOutputComposer<SPEC, L>;
 }
 
-pub trait FFIConversionsSpec<LANG, SPEC, L>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait FFIConversionsSpec<SPEC, L>
+    where SPEC: Specification,
           L: SharedAccess {
-    const COMPOSER: Option<FFIComposer<LANG, SPEC, L>>;
+    const COMPOSER: Option<FFIComposer<SPEC, L>>;
 }
-pub trait FFIBindingsSpec<LANG, SPEC, L, Iter>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait FFIBindingsSpec<SPEC, L, Iter>
+    where SPEC: Specification,
           L: SharedAccess,
-          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<LANG, SPEC>> +  {
-    const COMPOSER: Option<FFIBindingsComposer<LANG, SPEC, L, Iter>>;
+          Iter: FromIterator<Iter::Item> + IntoIterator<Item=ArgKindPair<SPEC>> +  {
+    const COMPOSER: Option<FFIBindingsComposer<SPEC, L, Iter>>;
 }
 
 #[allow(unused)]
-pub trait OwnerAspectSequenceSpec<LANG, SPEC, L, Iter, IterMap, Out>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait OwnerAspectSequenceSpec<SPEC, L, Iter, IterMap, Out>
+    where SPEC: Specification,
           L: SharedAccess,
           Iter: FromIterator<Iter::Item> + IntoIterator<Item=IterMap> {
-    const ROOT: OwnerAspectSequenceComposer<LANG, SPEC, Iter, Out>;
-    const ASPECT: SharedAspectArgComposer<LANG, SPEC, L>;
-    const ITER: AspectArgSourceComposer<LANG, SPEC, Iter>;
-    const ARG: ArgProducerByRef<LANG, SPEC, Iter::Item>;
-    const COMPOSER: OwnerAspectSequenceSpecComposer<LANG, SPEC, L, Iter, Out> =
+    const ROOT: OwnerAspectSequenceComposer<SPEC, Iter, Out>;
+    const ASPECT: SharedAspectArgComposer<SPEC, L>;
+    const ITER: AspectArgSourceComposer<SPEC, Iter>;
+    const ARG: ArgProducerByRef<SPEC, Iter::Item>;
+    const COMPOSER: OwnerAspectSequenceSpecComposer<SPEC, L, Iter, Out> =
         SequenceComposer::with_iterator_setup(Self::ROOT, Self::ASPECT, Self::ITER, Self::ARG);
 }
-pub trait CtorSpec<LANG, SPEC, L, Iter>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait CtorSpec<SPEC, L, Iter>
+    where SPEC: Specification,
           L: SharedAccess,
-          Iter: IntoIterator<Item=ArgKindPair<LANG, SPEC>> {
-    const ROOT: OwnerAspectSequenceComposer<LANG, SPEC, Iter, BindingPresentableContext<LANG, SPEC>>;
-    const ASPECT: SharedAspectArgComposer<LANG, SPEC, L>;
-    const ARG: PresentableArgumentPairComposerRef<LANG, SPEC>;
-    const ITER: AspectArgSourceComposer<LANG, SPEC, Iter>;
+          Iter: IntoIterator<Item=ArgKindPair<SPEC>> {
+    const ROOT: OwnerAspectSequenceComposer<SPEC, Iter, BindingPresentableContext<SPEC>>;
+    const ASPECT: SharedAspectArgComposer<SPEC, L>;
+    const ARG: PresentableArgKindPairComposerRef<SPEC>;
+    const ITER: AspectArgSourceComposer<SPEC, Iter>;
+    const COMPOSER: CtorSequenceComposer<SPEC, L, Iter> =
+        SequenceComposer::with_iterator_setup(Self::ROOT, Self::ASPECT, Self::ITER, Self::ARG);
 }
 
-pub trait FieldSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const FIELD_PRODUCER: ArgKindProducerByRef<LANG, SPEC>;
-    const PRODUCIBLE_FIELDS: IterativeComposer<OwnedArgComposers<LANG, SPEC, OwnerAspect<LANG, SPEC>>, FieldComposer<LANG, SPEC>, ArgKind<LANG, SPEC>, OwnerAspectSequence<LANG, SPEC, CommaPunctuatedArgKinds<LANG, SPEC>>> =
+pub trait FieldSpec<SPEC>
+    where SPEC: Specification {
+    const FIELD_PRODUCER: ArgKindProducerByRef<SPEC>;
+    const PRODUCIBLE_FIELDS: IterativeComposer<OwnedArgComposers<SPEC, OwnerAspect<SPEC>>, FieldComposer<SPEC>, ArgKind<SPEC>, OwnerAspectSequence<SPEC, CommaPunctuatedArgKinds<SPEC>>> =
         IterativeComposer::aspect_fields(Self::FIELD_PRODUCER);
 }
 
-pub trait FieldNameSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const COMPOSER: FieldComposerProducer<LANG, SPEC>;
-    const FIELDS: FieldsComposerRef<LANG, SPEC> =
+pub trait FieldNameSpec<SPEC>
+    where SPEC: Specification {
+    const COMPOSER: FieldComposerProducer<SPEC>;
+    const FIELDS: FieldsComposerRef<SPEC> =
         |fields| constants::field_composers_iterator(fields, Self::COMPOSER);
 }
 
-pub trait FFIFieldsSpec<LANG, SPEC, L>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait FFIFieldsSpec<SPEC, L>
+    where SPEC: Specification,
           L: SharedAccess {
-    const FROM: FieldsOwnedSequenceComposer<LANG, SPEC, L>;
-    const TO: FieldsOwnedSequenceComposer<LANG, SPEC, L>;
+    const FROM: FieldsOwnedSequenceComposer<SPEC, L>;
+    const TO: FieldsOwnedSequenceComposer<SPEC, L>;
 }
 
-impl<LANG, SPEC, T, C> FFIFieldsSpec<LANG, SPEC, ComposerLink<T>> for C
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+impl<SPEC, T, C> FFIFieldsSpec<SPEC, ComposerLink<T>> for C
+    where SPEC: Specification,
           T: AttrComposable<SPEC::Attr>
               + GenericsComposable<SPEC::Gen>
               + LifetimesComposable<SPEC::Lt>
               + TypeAspect<SPEC::TYC>
               + NameKindComposable
-              + FieldsContext<LANG, SPEC>
-              + FieldsConversionComposable<LANG, SPEC>
+              + FieldsContext<SPEC>
+              + FieldsConversionComposable<SPEC>
               + SourceAccessible
               + 'static,
-          C: ItemComposerSpec<LANG, SPEC> + FieldSpec<LANG, SPEC> {
-    const FROM: FieldsOwnedSequenceComposerLink<LANG, SPEC, T> =
-        SequenceComposer::new(
-            C::FROM_ROOT_PRESENTER,
-            Aspect::ffi,
-            C::PRODUCIBLE_FIELDS);
-    const TO: FieldsOwnedSequenceComposerLink<LANG, SPEC, T> =
-        SequenceComposer::new(
-            C::TO_ROOT_PRESENTER,
-            Aspect::target,
-            C::PRODUCIBLE_FIELDS);
+          C: ItemComposerSpec<SPEC> + FieldSpec<SPEC> {
+    const FROM: FieldsOwnedSequenceComposerLink<SPEC, T> =
+        SequenceComposer::item_field_from_spec::<C>(Aspect::ffi);
+    const TO: FieldsOwnedSequenceComposerLink<SPEC, T> =
+        SequenceComposer::item_field_to_spec::<C>(Aspect::target);
 }
 
-
-pub trait ItemComposerSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const FROM_ROOT_PRESENTER: PresentableArgsSequenceComposer<LANG, SPEC>;
-    const TO_ROOT_PRESENTER: PresentableArgsSequenceComposer<LANG, SPEC>;
-    const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC>;
-    const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<LANG, SPEC>;
-    const DROP_ROOT_CONVERSION_PRESENTER: DropSeqKindComposer<LANG, SPEC>;
-    const FIELD_COMPOSERS: FieldsComposerRef<LANG, SPEC>;
+pub trait ItemComposerSpec<SPEC>
+    where SPEC: Specification {
+    const FROM_ROOT_PRESENTER: PresentableArgsSequenceComposer<SPEC>;
+    const TO_ROOT_PRESENTER: PresentableArgsSequenceComposer<SPEC>;
+    const FROM_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<SPEC>;
+    const TO_ROOT_CONVERSION_PRESENTER: ConversionSeqKindComposer<SPEC>;
+    const DROP_ROOT_CONVERSION_PRESENTER: DropSeqKindComposer<SPEC>;
+    const FIELD_COMPOSERS: FieldsComposerRef<SPEC>;
 }
 
-pub trait FieldPathConversionResolveSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const FROM: FieldPathResolver<LANG, SPEC>;
-    const TO: FieldPathResolver<LANG, SPEC>;
-    const DROP: FieldPathResolver<LANG, SPEC>;
+pub trait FieldPathConversionResolveSpec<SPEC>
+    where SPEC: Specification {
+    const FROM: FieldPathResolver<SPEC>;
+    const TO: FieldPathResolver<SPEC>;
+    const DROP: FieldPathResolver<SPEC>;
 }
 
 #[allow(unused)]
-pub trait FFIInterfaceMethodSpec<LANG, SPEC, SEP>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG>,
+pub trait FFIInterfaceMethodSpec<SPEC, SEP>
+    where SPEC: Specification,
           SEP: ToTokens + Default {
-    const RESOLVER: FieldPathResolver<LANG, SPEC>;
-    const SEQ: AspectSeqKindComposer<LANG, SPEC, SEP>;
-    const EXPR: PresentableExprComposerRef<LANG, SPEC>;
-    const ITER: FFIInterfaceMethodIterator<LANG, SPEC, SEP> =
+    const RESOLVER: FieldPathResolver<SPEC>;
+    const SEQ: AspectSeqKindComposer<SPEC, SEP>;
+    const EXPR: PresentableExprComposerRef<SPEC>;
+    const ITER: FFIInterfaceMethodIterator<SPEC, SEP> =
         IterativeComposer::aspect_sequence_expr::<Self, SEP>();
 }
 
-pub trait ItemComposerExprSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    const FROM_CONVERSION: PresentableExprComposerRef<LANG, SPEC>;
-    const TO_CONVERSION: PresentableExprComposerRef<LANG, SPEC>;
-    const DROP_CONVERSION: PresentableExprComposerRef<LANG, SPEC>;
+pub trait ItemComposerExprSpec<SPEC>
+    where SPEC: Specification {
+    const FROM_CONVERSION: PresentableExprComposerRef<SPEC>;
+    const TO_CONVERSION: PresentableExprComposerRef<SPEC>;
+    const DROP_CONVERSION: PresentableExprComposerRef<SPEC>;
 }
 
 #[allow(unused)]
-pub trait ItemAspectsSpec<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
-    // type CTOR: FFIInterfaceMethodSpec<LANG, SPEC, Comma>
+pub trait ItemAspectsSpec<SPEC>
+    where SPEC: Specification {
+    // type CTOR: FFIInterfaceMethodSpec<SPEC, Comma>
     //     + AttrComposable<SPEC::Attr>
     //     + GenericsComposable<SPEC::Gen>
     //     + TypeAspect<SPEC::TYC>
-    //     + FieldsContext<LANG, SPEC>
+    //     + FieldsContext<SPEC>
     //     + NameKindComposable;
-    type DTOR: FFIInterfaceMethodSpec<LANG, SPEC, Semi>;
-    type FROM: FFIInterfaceMethodSpec<LANG, SPEC, Comma>;
-    type INTO: FFIInterfaceMethodSpec<LANG, SPEC, Comma>;
+    type DTOR: FFIInterfaceMethodSpec<SPEC, Semi>;
+    type FROM: FFIInterfaceMethodSpec<SPEC, Comma>;
+    type INTO: FFIInterfaceMethodSpec<SPEC, Comma>;
 }
 
 #[allow(unused)]
@@ -169,40 +150,37 @@ pub struct ToStrategy<I: DelimiterTrait + 'static>(PhantomData<I>);
 #[allow(unused)]
 pub struct DropStrategy<I: DelimiterTrait + 'static>(PhantomData<I>);
 
-impl<LANG, SPEC> FFIInterfaceMethodSpec<LANG, SPEC, Comma> for FromStrategy<Brace>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-      Self: FieldPathConversionResolveSpec<LANG, SPEC>,
+impl<SPEC> FFIInterfaceMethodSpec<SPEC, Comma> for FromStrategy<Brace>
+where SPEC: Specification<Expr=Expression<SPEC>>,
+      Self: FieldPathConversionResolveSpec<SPEC>,
       SPEC::Expr: ScopeContextPresentable {
-    const RESOLVER: FieldPathResolver<LANG, SPEC> =
+    const RESOLVER: FieldPathResolver<SPEC> =
         Self::FROM;
-    const SEQ: AspectSeqKindComposer<LANG, SPEC, Comma> =
+    const SEQ: AspectSeqKindComposer<SPEC, Comma> =
         SeqKind::FromNamedFields;
-    const EXPR: PresentableExprComposerRef<LANG, SPEC> =
+    const EXPR: PresentableExprComposerRef<SPEC> =
         SPEC::Expr::named_conversion;
 }
 
-impl<LANG, SPEC> FFIInterfaceMethodSpec<LANG, SPEC, Comma> for FromStrategy<Paren>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-      Self: FieldPathConversionResolveSpec<LANG, SPEC>,
+impl<SPEC> FFIInterfaceMethodSpec<SPEC, Comma> for FromStrategy<Paren>
+where SPEC: Specification<Expr=Expression<SPEC>>,
+      Self: FieldPathConversionResolveSpec<SPEC>,
       SPEC::Expr: ScopeContextPresentable {
-    const RESOLVER: FieldPathResolver<LANG, SPEC> =
+    const RESOLVER: FieldPathResolver<SPEC> =
         Self::FROM;
-    const SEQ: AspectSeqKindComposer<LANG, SPEC, Comma> =
+    const SEQ: AspectSeqKindComposer<SPEC, Comma> =
         SeqKind::FromUnnamedFields;
-    const EXPR: PresentableExprComposerRef<LANG, SPEC> =
+    const EXPR: PresentableExprComposerRef<SPEC> =
         SPEC::Expr::bypass;
 }
-impl<LANG, SPEC> FFIInterfaceMethodSpec<LANG, SPEC, Comma> for FromStrategy<Void>
-where LANG: LangFermentable,
-      SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-      Self: FieldPathConversionResolveSpec<LANG, SPEC>,
+impl<SPEC> FFIInterfaceMethodSpec<SPEC, Comma> for FromStrategy<Void>
+where SPEC: Specification<Expr=Expression<SPEC>>,
+      Self: FieldPathConversionResolveSpec<SPEC>,
       SPEC::Expr: ScopeContextPresentable {
-    const RESOLVER: FieldPathResolver<LANG, SPEC> =
+    const RESOLVER: FieldPathResolver<SPEC> =
         Self::FROM;
-    const SEQ: AspectSeqKindComposer<LANG, SPEC, Comma> =
+    const SEQ: AspectSeqKindComposer<SPEC, Comma> =
         SeqKind::no_fields;
-    const EXPR: PresentableExprComposerRef<LANG, SPEC> =
+    const EXPR: PresentableExprComposerRef<SPEC> =
         SPEC::Expr::bypass;
 }

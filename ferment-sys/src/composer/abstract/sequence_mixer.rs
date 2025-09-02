@@ -1,6 +1,6 @@
 use quote::ToTokens;
 use crate::composer::{SourceComposable, Composer, ComposerByRef, Linkable, SequenceComposer, SharedComposer, SourceContextComposerByRef, SourceComposerByRef, ComposerLink, AspectArgComposers, FFIInterfaceMethodSpec, ComposerLinkRef, SequenceSharedComposerLink, RootSequenceComposer, InterfaceSequenceMixer};
-use crate::lang::{LangFermentable, Specification};
+use crate::lang::Specification;
 use crate::shared::SharedAccess;
 
 pub struct SequenceMixer<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out>
@@ -71,16 +71,16 @@ impl<Link, LinkCtx, SeqCtx, SeqMap, SeqOut, SeqMixOut, MixCtx, Out> SequenceMixe
     }
 }
 
-impl<LANG, SPEC, C, SEP> InterfaceSequenceMixer<LANG, SPEC, ComposerLink<C>, SEP>
-    where LANG: LangFermentable,
-        SPEC: Specification<LANG>,
-        C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + 'static,
-        SEP: ToTokens + Default {
+impl<SPEC, C, SEP> InterfaceSequenceMixer<SPEC, ComposerLink<C>, SEP>
+where
+    SPEC: Specification,
+    C: FFIInterfaceMethodSpec<SPEC, SEP> + 'static,
+    SEP: ToTokens + Default {
     pub const fn with_aspect(
-        root: RootSequenceComposer<LANG, SPEC>,
-        context: SequenceSharedComposerLink<LANG, SPEC, C>,
-        aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<LANG, SPEC>>
+        root: RootSequenceComposer<SPEC>,
+        context: SequenceSharedComposerLink<SPEC, C>,
+        aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<SPEC>>
     ) -> Self {
-        SequenceMixer::with_sequence(root, context, SequenceComposer::new(C::SEQ, aspect, C::ITER))
+        SequenceMixer::with_sequence(root, context, SequenceComposer::interface_method_spec::<C>(aspect))
     }
 }

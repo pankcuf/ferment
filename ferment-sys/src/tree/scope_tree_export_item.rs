@@ -5,14 +5,14 @@ use syn::{Attribute, Item, ItemMod, ItemUse};
 use crate::context::{GlobalContext, ScopeChain, ScopeContext, ScopeContextLink};
 use crate::ext::ItemExtension;
 use crate::formatter::{format_imported_set, format_tree_exported_dict};
-use crate::tree::ScopeTreeExportID;
+use crate::tree::ScopeTreeID;
 
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum ScopeTreeExportItem {
     Item(ScopeContextLink, Item),
-    Tree(ScopeContextLink, HashSet<ItemUse>, HashMap<ScopeTreeExportID, ScopeTreeExportItem>, Vec<Attribute>),
+    Tree(ScopeContextLink, HashSet<ItemUse>, HashMap<ScopeTreeID, ScopeTreeExportItem>, Vec<Attribute>),
 }
 
 impl std::fmt::Debug for ScopeTreeExportItem {
@@ -50,7 +50,7 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(ctx, ..) => ctx.borrow().scope.clone(),
         }
     }
-    pub fn tree_with_context_and_exports(context: ScopeContextLink, exports: HashMap<ScopeTreeExportID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
+    pub fn tree_with_context_and_exports(context: ScopeContextLink, exports: HashMap<ScopeTreeID, ScopeTreeExportItem>, attrs: Vec<Attribute>) -> Self {
         Self::Tree(context, HashSet::default(), exports, attrs)
     }
     pub fn tree_with_context(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
@@ -95,11 +95,7 @@ impl ScopeTreeExportItem {
         // println!("---- add_non_mod_item: {} -- {}", item.maybe_ident().to_token_stream(), scope);
         match self {
             ScopeTreeExportItem::Item(..) => panic!("Can't add item to non-tree item"),
-            ScopeTreeExportItem::Tree(
-                scope_context,
-                _,
-                exported,
-                _attrs) => {
+            ScopeTreeExportItem::Tree(scope_context, _, exported, _attrs) => {
                 exported.insert(
                     item.scope_tree_export_id(),
                     ScopeTreeExportItem::item_with_context(scope.clone(), scope_context.borrow().context.clone(), item.clone()));
@@ -119,13 +115,13 @@ impl ScopeTreeExportItem {
                 ScopeTreeExportItem::Tree(context, _, exported, _) => {
                     let mut inner_tree = new_export_item(context);
                     inner_tree.add_items(items, scope);
-                    exported.insert(ScopeTreeExportID::from_ident(ident), inner_tree);
+                    exported.insert(ScopeTreeID::from_ident(ident), inner_tree);
                 }
             },
             None => match self {
                 ScopeTreeExportItem::Item(..) => {},
                 ScopeTreeExportItem::Tree(context, _, exported, _) => {
-                    exported.insert(ScopeTreeExportID::from_ident(ident), new_export_item(context));
+                    exported.insert(ScopeTreeID::from_ident(ident), new_export_item(context));
                 }
             }
         }

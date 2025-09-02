@@ -1,4 +1,5 @@
-mod fermented;
+pub mod fermented;
+// mod fermented_sample;
 mod model;
 mod gen;
 mod entry;
@@ -20,7 +21,6 @@ pub struct SomeStruct {
 }
 
 #[allow(non_camel_case_types)]
-#[repr(C)]
 #[ferment_macro::register(std::time::Duration)]
 pub struct std_time_Duration2 {
     secs: u64,
@@ -60,6 +60,7 @@ impl Drop for regex_Regex {
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(serde_json::Error)]
+/// @ferment_macro::export(serde_json::Error)
 pub struct serde_json_Error {
     raw: *mut serde_json::Error,
 }
@@ -68,7 +69,7 @@ impl ferment::FFIConversionFrom<serde_json::Error> for serde_json_Error {
         ferment::FFIConversionFrom::ffi_from(ffi.cast_mut())
     }
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Error> for serde_json_Error {
@@ -93,7 +94,7 @@ pub struct dashcore_consensus_Error {
 
 impl ferment::FFIConversionFrom<dashcore::consensus::encode::Error> for dashcore_consensus_Error {
     unsafe fn ffi_from_const(ffi: *const Self) -> dashcore::consensus::encode::Error {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<dashcore::consensus::encode::Error> for dashcore_consensus_Error {
@@ -113,7 +114,6 @@ impl Drop for dashcore_consensus_Error {
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(anyhow::Error)]
 #[derive(Clone)]
-#[repr(C)]
 pub struct anyhow_Error {
     raw_err: *mut anyhow::Error,
 }
@@ -149,7 +149,7 @@ impl ferment::FFIConversionFrom<versioned_feature_core::FeatureVersion> for vers
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> versioned_feature_core::FeatureVersion {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<versioned_feature_core::FeatureVersion> for versioned_feature_core_FeatureVersion {
@@ -177,7 +177,7 @@ impl ferment::FFIConversionFrom<serde_json::Value> for serde_json_Value {
     }
 
     unsafe fn ffi_from(ffi: *mut Self) -> serde_json::Value {
-        *ferment::unbox_any((&*ffi).raw)
+        *Box::from_raw((&*ffi).raw)
     }
 }
 impl ferment::FFIConversionTo<serde_json::Value> for serde_json_Value {
@@ -219,5 +219,5 @@ impl Manager {
 
 #[ferment_macro::export]
 pub fn identity_public_key_test(identity: Identity) -> IdentityPublicKey {
-    identity.public_keys().first_key_value().unwrap().1.clone()
+    identity.public_keys().first_key_value().expect("").1.clone()
 }

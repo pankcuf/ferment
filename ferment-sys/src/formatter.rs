@@ -4,10 +4,10 @@ use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
 use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
-use crate::composable::{GenericBoundsModel, GenericConversion, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
+use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
-use crate::conversion::{MixinKind, ObjectKind};
-use crate::tree::{ScopeTreeExportID, ScopeTreeExportItem, ScopeTreeItem};
+use crate::kind::{MixinKind, ObjectKind};
+use crate::tree::{ScopeTreeID, ScopeTreeExportItem, ScopeTreeItem};
 
 #[allow(unused)]
 pub fn format_imported_set(dict: &HashSet<ItemUse>) -> String {
@@ -56,13 +56,6 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_generic_conversions(dict: &HashMap<GenericConversion, HashSet<Option<Attribute>>>) -> String {
-    dict.iter()
-        .map(|(item, attrs)| format!("{}: {}", format_unique_attrs(attrs), item.object.to_token_stream()))
-        .collect::<Vec<_>>()
-        .join("\n\t")
-}
-#[allow(unused)]
 pub fn format_mixin_kinds(dict: &HashMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
         .map(|(item, attrs)| format!("{}:\t {}", item, format_unique_attrs(attrs)))
@@ -100,7 +93,7 @@ pub fn format_imports(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> 
 }
 
 #[allow(unused)]
-pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExportItem>) -> String {
+pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeID, ScopeTreeExportItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("{}: {}", ident, tree_item))
         .collect::<Vec<_>>()
@@ -108,7 +101,7 @@ pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeExpo
 }
 
 #[allow(unused)]
-pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeExportID, ScopeTreeItem>) -> String {
+pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeID, ScopeTreeItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("\t{}: {:?}", ident, tree_item))
         .collect::<Vec<_>>()
@@ -147,8 +140,8 @@ pub fn ident_signature_conversion_pair(dict: (&Ident, &Signature)) -> String {
 #[allow(unused)]
 pub fn ident_trait_type_decomposition_conversion_pair(dict: (&Ident, &TraitTypeModel)) -> String {
     format!("\t{}: {}", format_token_stream(dict.0), {
-        let TraitTypeModel { ident, trait_bounds, generics } = dict.1;
-        quote!(#ident: [bounds: #(#trait_bounds)*, generics: #generics])
+        let TraitTypeModel { ident, trait_bounds } = dict.1;
+        quote!(#ident: [bounds: #(#trait_bounds)*])
     })
 }
 fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
@@ -291,16 +284,6 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
                         formatted_string.push('>');
                         space_needed = true;
                     }
-                    // '[' => {
-                    //     inside_square_brackets += 1;
-                    //     formatted_string.push('[');
-                    //     space_needed = false;
-                    // }
-                    // ']' => {
-                    //     inside_square_brackets -= 1;
-                    //     formatted_string.push(']');
-                    //     space_needed = false;
-                    // }
                     ',' => {
                         formatted_string.push(',');
                         last_token_was_comma = true;
@@ -430,8 +413,6 @@ fn scope_traits_dict(dict: &HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>
 
 
 fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<PathHolder>>) -> Vec<String> {
-    // nested_scope_dict(dict, |scope, sub_dict|
-    //     format!("\t{}:\n\t\t{}", scope, mapper(sub_dict).join("\n\t\t")))
     let mut iter = dict.iter()
         .filter_map(|(key, value)| {
             let scopes = quote!(#(#value),*);
@@ -473,21 +454,6 @@ pub fn format_trait_decomposition_part1(dict: &TraitDecompositionPart1) -> Strin
         vec!["-- types:".to_string()], ident_trait_type_decomposition_dict(&dict.types),
     ])
 }
-
-// #[allow(unused)]
-// pub fn format_type_composition(dict: &TypeComposition) -> String {
-//     format_complex_obj(vec![
-//         vec!["-- type:".to_string(), format_token_stream(&dict.ty), "-- generics:".to_string(), dict.generics.as_ref().map_or(format!("None"), |generics| format_token_stream(generics))],
-//     ])
-// }
-
-// #[allow(unused)]
-// pub fn format_trait_decomposition_part2(dict: &TraitDecompositionPart2) -> String {
-//     format_complex_obj(vec![
-//         vec!["-- methods: ".to_string()], ident_signatures_dict(&dict.methods),
-//         vec!["-- types: ".to_string()], ident_trait_type_decomposition_dict(&dict.types),
-//     ])
-// }
 
 #[allow(dead_code)]
 pub enum Emoji {

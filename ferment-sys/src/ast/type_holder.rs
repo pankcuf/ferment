@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use syn::Type;
 use crate::ast::Holder;
-use crate::conversion::TypeModelKind;
+use crate::kind::TypeModelKind;
 use crate::ext::ToType;
 use crate::impl_holder;
 

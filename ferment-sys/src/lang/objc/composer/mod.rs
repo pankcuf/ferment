@@ -17,6 +17,8 @@ mod item_wrapper;
 mod maybe;
 mod var;
 mod custom;
+mod target_var;
+mod smart_pointer;
 
 #[allow(unused_imports)]
 pub use self::any_other::*;
@@ -26,3 +28,5 @@ pub use self::callback::*;
 pub use self::item::*;
 #[allow(unused_imports)]
 pub use self::result::*;
+#[allow(unused_imports)]
+pub use self::smart_pointer::*;

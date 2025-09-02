@@ -41,8 +41,7 @@ impl_to_type!(TokenStream2);
 impl_to_type!(crate::ast::PathHolder);
 impl_to_type!(crate::ast::TypeHolder);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
-impl_to_type!(crate::conversion::TypeKind);
-// impl_to_type!(crate::presentation::Name<LANG, SPEC>);
+impl_to_type!(crate::kind::TypeKind);
 impl_to_type!(AddPunctuated<syn::TypeParamBound>);
 
 impl_to_path!(Ident);
@@ -50,7 +49,6 @@ impl_to_path!(Type);
 impl_to_path!(TokenStream2);
 impl_to_path!(Colon2Punctuated<syn::PathSegment>);
 impl_to_path!(AddPunctuated<syn::TypeParamBound>);
-impl_to_path!(crate::conversion::ObjectKind);
-// impl_to_path!(crate::presentation::Name);
+impl_to_path!(crate::kind::ObjectKind);
 impl_to_path!(syn::TypePath);
 

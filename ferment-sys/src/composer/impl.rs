@@ -3,27 +3,24 @@ use std::rc::Rc;
 use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
-use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerOwner, SourceComposable, ComposerLink, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceFermentable, BasicComposerLink, VTableComposerLink, SourceAccessible};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, DocsComposable, Linkable, SigComposer, SigComposerLink, SourceAccessible, SourceComposable, VTableComposerLink};
 use crate::composer::vtable::VTableComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::{Join, ToType};
-use crate::lang::{LangFermentable, RustSpecification, Specification};
+use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
-use crate::presentation::{DocComposer, DocPresentation, RustFermentate};
+use crate::presentation::DocPresentation;
 
 #[derive(ComposerBase)]
-pub struct ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable + 'static,
-          SPEC: Specification<LANG> + 'static {
-    pub base: BasicComposerLink<LANG, SPEC, Self>,
-    pub methods: Vec<SigComposerLink<LANG, SPEC>>,
-    pub vtable: Option<VTableComposerLink<LANG, SPEC>>,
+pub struct ImplComposer<SPEC>
+    where SPEC: Specification + 'static {
+    pub base: BasicComposerLink<SPEC, Self>,
+    pub methods: Vec<SigComposerLink<SPEC>>,
+    pub vtable: Option<VTableComposerLink<SPEC>>,
 }
-impl<LANG, SPEC> ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> ImplComposer<SPEC>
+    where SPEC: Specification {
     pub fn from_item_impl(item_impl: &ItemImpl, ty_context: SPEC::TYC, scope: &ScopeChain, scope_context: &ScopeContextLink) -> ComposerLink<Self> {
         let ItemImpl { attrs, generics, trait_, self_ty, items, ..  } = item_impl;
         let source = scope_context.borrow();
@@ -32,7 +29,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
         let attrs_model = AttrsModel::from(attrs);
         items.iter().for_each(|impl_item| {
             match impl_item {
-                ImplItem::Method(item) => {
+                ImplItem::Fn(item) => {
                     let method_scope_context = Rc::new(RefCell::new(source.joined(item)));
                     // TMP strategy to provide both trait vtable based and implementor based bindings
                     match trait_.as_ref() {
@@ -40,7 +37,7 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
 
                             let trait_ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
-                                FnSignatureContext::Impl(*self_ty.clone(), Some(path.to_type()), item.sig.clone()),
+                                FnSignatureContext::TraitImpl(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
                             let composer = SigComposer::from_impl_item_method(item, trait_ty_context, &method_scope_context);
@@ -49,21 +46,19 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
 
                             let impl_ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
-                                FnSignatureContext::TraitAsType(*self_ty.clone(), path.to_type(), item.sig.clone()),
+                                FnSignatureContext::TraitAsType(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
                             methods.push(SigComposer::from_impl_item_method(item, impl_ty_context, &method_scope_context));
                         }
                         None => {
-                            let sig_context = FnSignatureContext::Impl(*self_ty.clone(), None, item.sig.clone());
+                            let sig_context = FnSignatureContext::Impl(item.sig.clone(), *self_ty.clone());
                             let ty_context = ty_context.join_fn(
                                 scope.joined_path_holder(&item.sig.ident).0,
                                 sig_context,
                                 item.attrs.cfg_attributes()
                             );
-
                             methods.push(SigComposer::from_impl_item_method(item, ty_context, &method_scope_context));
-
                         }
                     }
                 },
@@ -90,31 +85,10 @@ impl<LANG, SPEC> ImplComposer<LANG, SPEC>
     }
 }
 
-impl<LANG, SPEC> DocsComposable for ImplComposer<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+impl<SPEC> DocsComposable for ImplComposer<SPEC>
+    where SPEC: Specification {
     fn compose_docs(&self) -> DocPresentation {
         DocPresentation::Direct(self.base.doc.compose(self.context()))
-    }
-}
-
-impl<SPEC> SourceFermentable<RustFermentate> for ImplComposer<RustFermentate, SPEC>
-    where SPEC: RustSpecification {
-    fn ferment(&self) -> RustFermentate {
-        //println!("ImplComposer::ferment: {}", source.scope.fmt_short());
-        let mut items = Depunctuated::<RustFermentate>::new();
-        self.methods.iter().for_each(|sig_composer| {
-            let fermentate = sig_composer.borrow().ferment();
-            items.push(fermentate);
-        });
-
-        let vtable = self.vtable.as_ref()
-            .map(|composer| {
-                let composer = composer.borrow();
-                let composer_source = composer.source_ref();
-                composer.compose(&composer_source)
-            });
-        RustFermentate::Impl { comment: DocPresentation::Empty, items, vtable }
     }
 }
 

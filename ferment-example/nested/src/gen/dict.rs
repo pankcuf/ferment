@@ -107,10 +107,20 @@ pub struct AllMutexExamples {
     pub platform_case: Mutex<Option<Box<LLMQSnapshot>>>,
 }
 
+#[ferment_macro::export]
+pub struct ArcMutexExamples {
+    pub mutex_simple: Arc<Mutex<u32>>,
+    pub mutex_complex: Arc<Mutex<LLMQSnapshot>>,
+    pub mutex_generic: Arc<Mutex<Vec<u8>>>,
+    pub mutex_opt_generic: Arc<Mutex<Option<BTreeMap<u32, LLMQSnapshot>>>>,
+    pub opt_mutex_complex: Option<Arc<Mutex<Option<String>>>>,
+    pub platform_case: Arc<Mutex<Option<Box<LLMQSnapshot>>>>,
+}
+
 #[ferment_macro::opaque]
 #[derive(Clone)]
 pub struct CacheExample {
-    pub map: Arc<RwLock<BTreeMap<u32, LLMQSnapshot>>>,
+    pub _map: Arc<RwLock<BTreeMap<u32, LLMQSnapshot>>>,
 }
 
 #[ferment_macro::export]

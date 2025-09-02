@@ -10,10 +10,26 @@ pub mod nested {
     //     Some(format_args!("{0:?}", script).to_string())
     // }
 
+    use std::collections::HashMap;
+
     #[ferment_macro::export]
     #[derive(Debug)]
     pub enum ProtocolError {
         IdentifierError(String),
         Unknown(u32)
+    }
+
+    #[ferment_macro::export]
+    pub fn pair_err(err: &[ProtocolError]) {
+        //err.get("fff");
+        println!("{:?}", err);
+    }
+    #[ferment_macro::export]
+    pub fn pair_simple_err(err: HashMap<String, u32>) {
+        println!("{:?}", err);
+    }
+    #[ferment_macro::export]
+    pub fn pair_simple_err2(err: HashMap<u32, String>) {
+        println!("{:?}", err);
     }
 }

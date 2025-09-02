@@ -2,10 +2,9 @@ use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Type;
 use crate::ext::{Mangle, MangleDefault, usize_to_tokenstream};
-use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
+use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{DictionaryName, Name};
-impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl Mangle<MangleDefault> for Name<ObjCSpecification> {
     fn mangle_string(&self, context: MangleDefault) -> String {
         match self {
             Name::_Phantom(..) |
@@ -14,8 +13,6 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
             Name::UnnamedArg(index) => format!("o_{}", index),
             Name::UnnamedStructFieldsComp(ty, index) => match ty {
                 Type::Path(..) | Type::Array(..) => format!("_{}", *index),
-                    // usize_to_tokenstream(*index).to_string(),
-                // Type::Array(..) => usize_to_tokenstream(*index).to_string(),
                 Type::Ptr(..) => DictionaryName::Obj.to_string(),
                 _ => unimplemented!(
                     "Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}",
@@ -26,6 +23,11 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
                 format!("{}_ctor", ident.mangle_string_default().replace("r#", "")),
             Name::Destructor(ident) =>
                 format!("{}_destroy", ident.mangle_string_default().replace("r#", "")),
+            Name::GetValueAtIndex(ident) =>
+                format!("{}_get_at_index", ident.mangle_ident_default()),
+            Name::SetValueAtIndex(ident) =>
+                format!("{}_set_at_index", ident.mangle_ident_default()),
+
             Name::Dictionary(dict_field_name) =>
                 dict_field_name.to_token_stream().to_string(),
             Name::ModFn(name) =>
@@ -68,13 +70,20 @@ impl<SPEC> Mangle<MangleDefault> for Name<ObjCFermentate, SPEC>
                 format!("{ident}_Body")
                     .replace("r#", ""),
             Name::Expr(expr) =>
-                expr.to_token_stream().to_string()
+                expr.to_token_stream().to_string(),
+            Name::Read(expr) =>
+                expr.to_token_stream().to_string(),
+            Name::Write(expr) =>
+                expr.to_token_stream().to_string(),
+            Name::DictionaryExpr(expr) =>
+                expr.to_token_stream().to_string(),
+
+            _ => unimplemented!("Name::mangle_string: unsupported variant {:?}", self)
         }
     }
 }
 
-impl<SPEC> ToTokens for Name<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl ToTokens for Name<ObjCSpecification> {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         match self {
             Name::Underscore =>
@@ -86,6 +95,11 @@ impl<SPEC> ToTokens for Name<ObjCFermentate, SPEC>
                 format_ident!("{}_ctor", ident.mangle_ident_default()).to_tokens(tokens),
             Name::Destructor(ident) =>
                 format_ident!("{}_destroy", ident.mangle_ident_default()).to_tokens(tokens),
+            Name::GetValueAtIndex(ident) =>
+                format_ident!("{}_get_at_index", ident.mangle_ident_default()).to_tokens(tokens),
+            Name::SetValueAtIndex(ident) =>
+                format_ident!("{}_set_at_index", ident.mangle_ident_default()).to_tokens(tokens),
+
             Name::Dictionary(dict_field_name) => dict_field_name.to_tokens(tokens),
             Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_tokens(tokens),
             Name::ModFn(path) => path.mangle_tokens_default().to_tokens(tokens),

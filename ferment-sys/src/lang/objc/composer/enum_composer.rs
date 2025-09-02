@@ -1,4 +1,5 @@
 use quote::{format_ident, quote, ToTokens};
+use syn::PathSegment;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect};
 use crate::ext::{Mangle, ToPath};
@@ -6,6 +7,7 @@ use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::{ArgPresentation, TypeContext};
+use crate::lang::Specification;
 use crate::presentable::{ArgKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, Name};
 fn to_snake_case(input: &str) -> String {
@@ -23,14 +25,13 @@ fn to_snake_case(input: &str) -> String {
     snake_case
 }
 
-impl<SPEC> InterfaceComposable<SPEC::Interface> for EnumComposer<ObjCFermentate, SPEC>
-where SPEC: ObjCSpecification,
-      Self: SourceAccessible
+impl InterfaceComposable<<ObjCSpecification as Specification>::Interface> for EnumComposer<ObjCSpecification>
+where Self: SourceAccessible
       + NameKindComposable
       + TypeAspect<TypeContext>
-      + AttrComposable<SPEC::Attr>
-      + GenericsComposable<SPEC::Gen> {
-    fn compose_interfaces(&self) -> Depunctuated<SPEC::Interface> {
+      + AttrComposable<<ObjCSpecification as Specification>::Attr>
+      + GenericsComposable<<ObjCSpecification as Specification>::Gen> {
+    fn compose_interfaces(&self) -> Depunctuated<<ObjCSpecification as Specification>::Interface> {
         let source = self.source_ref();
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
@@ -42,7 +43,7 @@ where SPEC: ObjCSpecification,
 
         let property_names = CommaPunctuated::new();
         let mut properties = SemiPunctuated::new();
-        let tag_name = Name::<ObjCFermentate, SPEC>::EnumTag(ffi_type.mangle_ident_default());
+        let tag_name = Name::<ObjCSpecification>::EnumTag(ffi_type.mangle_ident_default());
         properties.push(ArgPresentation::NonatomicAssign {
             ty: quote!(enum #tag_name),
             name: DictionaryName::Tag.to_token_stream()
@@ -77,23 +78,23 @@ where SPEC: ObjCSpecification,
             });
 
         self.variant_presenters.iter()
-            .for_each(|(_c, ((aspect, _attrs, _generics, _is_round), args))| {
+            .for_each(|(_c, ((aspect, (_attrs, _lifetimes, _generics), _is_round), args))| {
 
                 args.iter().for_each(|arg| {
                     let asp = aspect.present(&source);
                     let path = asp.to_path();
-                    let last_ident = &path.segments.last().unwrap().ident;
-                    let snake_case = to_snake_case(&last_ident.to_string());
-
-                    let presentation = arg.present(&source);
-                    // OBJC ENUM VAR ARG: example_simple_errors_context_ContextProviderError :: InvalidDataContract --> NSString *
-                    // -> invalid_data_contract
+                    if let Some(PathSegment { ident: last_ident, .. }) = &path.segments.last() {
+                        let snake_case = to_snake_case(last_ident.to_string().as_str());
+                        let presentation = arg.present(&source);
+                        // OBJC ENUM VAR ARG: example_simple_errors_context_ContextProviderError :: InvalidDataContract --> NSString *
+                        // -> invalid_data_contract
                         println!("OBJC ENUM VAR ARG: {} --> {last_ident} --> {snake_case} -> {}", aspect.present(&source).to_token_stream(), presentation);
 
-                    properties.push(ArgPresentation::NonatomicReadwrite {
-                        ty: presentation.to_token_stream(),
-                        name: format_ident!("{snake_case}").to_token_stream(),
-                    });
+                        properties.push(ArgPresentation::NonatomicReadwrite {
+                            ty: presentation.to_token_stream(),
+                            name: format_ident!("{snake_case}").to_token_stream(),
+                        });
+                    }
                 });
             });
 
@@ -135,8 +136,7 @@ where SPEC: ObjCSpecification,
         interfaces
     }
 }
-impl<SPEC> SourceFermentable<ObjCFermentate> for EnumComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceFermentable<ObjCFermentate> for EnumComposer<ObjCSpecification> {
     fn ferment(&self) -> ObjCFermentate {
         let implementations = self.compose_interfaces();
         println!("OBJC: ENUM FERMENT: \n{}", format_interface_implementations(&implementations));

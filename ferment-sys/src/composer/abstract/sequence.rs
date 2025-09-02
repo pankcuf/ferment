@@ -1,4 +1,6 @@
-use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer, SourceContextComposerByRef};
+use quote::ToTokens;
+use crate::composer::{SourceComposable, Composer, ComposerByRef, IterativeComposer, Linkable, SharedComposer, SourceContextComposerByRef, FFIInterfaceMethodSpec, FieldSpec, ItemComposerSpec, SharedAspectArgComposer, FieldsOwnedSequenceComposer, InterfaceMethodSequenceComposer};
+use crate::lang::Specification;
 use crate::shared::SharedAccess;
 //pub const fn mix<A, B, C, F1: Fn(A, B) -> C, F2: Fn(A, B) -> C>() -> F1 { |context, presenter: F1<A, C>| presenter(context) }
 
@@ -60,18 +62,26 @@ impl<L, LC, SeqCtx, SeqMap, SeqOut, Out> SourceComposable for SequenceComposer<L
     }
 }
 
-// impl<LANG, SPEC, C, SEP> SequenceComposer<
-//     ComposerLink<C>,
-//     AspectArgComposers<LANG, SPEC>,
-//     FieldTypeLocalContext<LANG, SPEC>,
-//     SPEC::Expr,
-//     AspectPresentableArguments<LANG, SPEC, SEP>,
-//     SeqKind<LANG, SPEC>>
-//     where LANG: LangFermentable,
-//           SPEC: Specification<LANG>,
-//           C: FFIInterfaceMethodSpec<LANG, SPEC, SEP> + 'static,
-//           SEP: ToTokens + Default {
-//     pub const fn aspect_seq(aspect: ComposerByRef<ComposerLinkRef<C>, AspectArgComposers<LANG, SPEC>>) -> Self {
-//         SequenceComposer::new(C::SEQ, aspect, IterativeComposer::aspect_sequence_expr::<C, SEP>())
-//     }
-// }
+// Particular Sequences
+impl<SPEC, SEP, Link> InterfaceMethodSequenceComposer<SPEC, Link, SEP>
+where SPEC: Specification,
+      SEP: ToTokens + Default,
+      Link: SharedAccess {
+    #[allow(unused)]
+    pub const fn interface_method_spec<C>(get_context: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FFIInterfaceMethodSpec<SPEC, SEP> {
+        Self::new(C::SEQ, get_context, C::ITER)
+    }
+}
+impl<SPEC, Link> FieldsOwnedSequenceComposer<SPEC, Link>
+where SPEC: Specification,
+      Link: SharedAccess {
+    pub const fn item_field_from_spec<C>(aspect: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FieldSpec<SPEC> + ItemComposerSpec<SPEC> {
+        Self::new(C::FROM_ROOT_PRESENTER, aspect, C::PRODUCIBLE_FIELDS)
+    }
+    pub const fn item_field_to_spec<C>(aspect: SharedAspectArgComposer<SPEC, Link>) -> Self
+    where C: FieldSpec<SPEC> + ItemComposerSpec<SPEC> {
+        Self::new(C::TO_ROOT_PRESENTER, aspect, C::PRODUCIBLE_FIELDS)
+    }
+}

@@ -2,8 +2,7 @@ use crate::composer::{SourceComposable, GenericComposer, GenericComposerInfo};
 use crate::context::ScopeContext;
 use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 
-impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
-    where SPEC: ObjCSpecification {
+impl SourceComposable for GenericComposer<ObjCSpecification> {
     type Source = ScopeContext;
     type Output = Option<ObjCFermentate>;
 
@@ -15,8 +14,9 @@ impl<SPEC> SourceComposable for GenericComposer<ObjCFermentate, SPEC>
                       field_composer: _,
                       ffi_aspect: _,
                       attrs: _,
-                      binding_composer: _,
-                      interfaces: implementations }| {
+                      interfaces: implementations,
+                      bindings: _
+                  }| {
                 // println!("OBJC GEN1");
                 // let fields = CommaPunctuated::from_iter(field_composers.iter().map(field_composer));
                 // println!("OBJC GEN2");

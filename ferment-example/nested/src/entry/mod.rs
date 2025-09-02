@@ -14,3 +14,8 @@ pub struct SomeModel {
 pub type BlockHashByHeight = unsafe extern "C" fn(u32) -> [u8; 32];
 #[ferment_macro::opaque]
 pub type ModelByHeight = unsafe extern "C" fn(u32) -> SomeModel;
+
+#[ferment_macro::export]
+pub struct SomeModel2 {
+    pub hash: [u8; 2],
+}

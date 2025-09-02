@@ -3,7 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{Attribute, ItemFn, ItemTrait, Path, TypeBareFn};
 use crate::composable::{CfgAttributes, FnSignatureContext};
-use crate::conversion::MixinKind;
+use crate::kind::MixinKind;
 use crate::ext::{AsType, ToPath};
 use crate::presentable::NameTreeContext;
 

@@ -1,8 +1,7 @@
 use crate::composer::{ItemComposerWrapper, SourceFermentable};
-use crate::lang::objc::ObjCFermentate;
+use crate::lang::objc::{ObjCFermentate, ObjCSpecification};
 
-impl<SPEC> ItemComposerWrapper<ObjCFermentate, SPEC>
-    where SPEC: crate::lang::objc::ObjCSpecification {
+impl ItemComposerWrapper<ObjCSpecification> {
     pub fn ferment(&self) -> ObjCFermentate {
         match self {
             ItemComposerWrapper::Enum(composer) => composer.borrow().ferment(),
@@ -11,8 +10,8 @@ impl<SPEC> ItemComposerWrapper<ObjCFermentate, SPEC>
             ItemComposerWrapper::EnumVariantUnit(composer) => composer.borrow().composer.borrow().ferment(),
             ItemComposerWrapper::StructNamed(composer) => composer.borrow().composer.borrow().ferment(),
             ItemComposerWrapper::StructUnnamed(composer) => composer.borrow().composer.borrow().ferment(),
-            ItemComposerWrapper::OpaqueStructUnnamed(..) => ObjCFermentate::default(),
-            ItemComposerWrapper::OpaqueStructNamed(..) => ObjCFermentate::default(),
+            ItemComposerWrapper::OpaqueStructUnnamed(composer) => composer.borrow().composer.borrow().ferment(),
+            ItemComposerWrapper::OpaqueStructNamed(composer) => composer.borrow().composer.borrow().ferment(),
             ItemComposerWrapper::Sig(composer) => composer.borrow().ferment(),
             ItemComposerWrapper::TypeAlias(composer) => composer.borrow().composer.borrow().ferment(),
             ItemComposerWrapper::Trait(composer) => composer.borrow().ferment(),

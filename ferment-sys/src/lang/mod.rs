@@ -11,15 +11,26 @@ use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Lifetime, Type};
-use crate::composer::VarComposable;
+use crate::composable::CfgAttributes;
+use crate::composer::{ConversionFromComposer, ConversionToComposer, VarComposable, VarComposer};
+#[cfg(any(feature = "objc", feature = "java"))]
 use crate::error;
-use crate::ext::{Mangle, MangleDefault, ToType};
+#[cfg(feature = "objc")]
+use crate::Config;
+#[cfg(feature = "objc")]
+use crate::kind::GenericTypeKind;
+#[cfg(feature = "objc")]
+use crate::ext::FFIVarResolve;
+use crate::ext::{ExpressionComposable, Mangle, MangleDefault, ToType};
+#[cfg(feature = "objc")]
 use crate::lang::objc::composers::AttrWrapper;
-use crate::presentable::{NameTreeContext, ScopeContextPresentable, TypeContext, Expression, ExpressionComposable};
+use crate::presentable::{NameTreeContext, TypeContext, Expression};
 use crate::presentation::{DictionaryName, FFIVariable, InterfacePresentation, Name, RustFermentate};
+#[cfg(any(feature = "objc", feature = "java"))]
 use crate::tree::CrateTree;
 
 
+#[cfg(any(feature = "objc", feature = "java"))]
 pub trait CrateTreeConsumer {
     fn generate(&self, crate_tree: &CrateTree) -> Result<(), error::Error>;
 }
@@ -28,69 +39,59 @@ pub trait FromDictionary {
     fn dictionary_name(dictionary: DictionaryName) -> Self;
 }
 
-pub trait NameComposable<LANG, SPEC>
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG> {
+pub trait NameComposable<SPEC>
+    where SPEC: Specification {
     fn ident(ident: Ident) -> Self;
     fn index(ident: usize) -> Self;
     fn unnamed_arg(index: usize) -> Self;
 }
 
 pub trait LangFermentable: Clone + Debug {
-    // type SPEC: Specification<Self>;
+
 }
-pub trait Specification<LANG>: Clone + Debug
-    where LANG: LangFermentable,
-          // Aspect<Self::TYC>: ScopeContextPresentable
-{
-    type Attr: Clone + LangAttrSpecification<LANG> + Debug;
-    type Gen: LangGenSpecification<LANG>;
-    type Lt: LangLifetimeSpecification<LANG>;
+pub trait Specification: Clone + Debug {
+    type Attr: Clone + LangAttrSpecification<Self::Fermentate> + Debug;
+    type Gen: LangGenSpecification<Self::Fermentate>;
+    type Lt: LangLifetimeSpecification<Self::Fermentate>;
     type TYC: NameTreeContext;
     type Interface: ToTokens;
-    type Expr: ExpressionComposable<LANG, Self>;
-    type Var: VarComposable<LANG, Self> + ToType;
-    type Name: Clone + Default + Display + ToTokens + Mangle<MangleDefault> + FromDictionary + NameComposable<LANG, Self>;
+    type Expr: ExpressionComposable<Self>;
+    type Var: VarComposable<Self> + ToType;
+    type Name: Clone + Default + Display + ToTokens + Mangle<MangleDefault> + FromDictionary + NameComposable<Self>;
+    type Fermentate: LangFermentable + ToTokens;
+
+    fn value_var(ty: &Type) -> VarComposer<Self> {
+        VarComposer::<Self>::value(ty)
+    }
+
+    fn value_expr_from(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionFromComposer<Self> {
+        ConversionFromComposer::<Self>::value_expr(name, ty, expr)
+    }
+    fn value_expr_to(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionToComposer<Self> {
+        ConversionToComposer::<Self>::value_expr(name, ty, expr)
+    }
 }
 
-pub trait PresentableSpecification<LANG>:
-    Specification<LANG, Expr=Expression<LANG, Self>>
-    where LANG: LangFermentable,
-          Expression<LANG, Self>: ScopeContextPresentable,
-          <Self::Expr as ScopeContextPresentable>::Presentation: ToTokens {}
+#[derive(Clone, Debug)]
+pub struct RustSpecification;
 
-impl<LANG, SPEC> PresentableSpecification<LANG> for SPEC
-    where LANG: LangFermentable,
-          SPEC: Specification<LANG, Expr=Expression<LANG, SPEC>>,
-          Expression<LANG, SPEC>: ScopeContextPresentable {}
-
-
-pub trait RustSpecification:
-    PresentableSpecification<RustFermentate,
-        Attr=Vec<Attribute>,
-        Gen=Option<Generics>,
-        Lt=Vec<Lifetime>,
-        Interface=InterfacePresentation,
-        TYC=TypeContext,
-        Expr=Expression<RustFermentate, Self>,
-        Var=FFIVariable<RustFermentate, Self, Type>,
-        Name=Name<RustFermentate, Self>
-    > {}
-
-impl<SPEC> Specification<RustFermentate> for SPEC where SPEC: RustSpecification {
+impl Specification for RustSpecification {
     type Attr = Vec<Attribute>;
     type Gen = Option<Generics>;
     type Lt = Vec<Lifetime>;
     type TYC = TypeContext;
     type Interface = InterfacePresentation;
-    type Expr = Expression<RustFermentate, SPEC>;
-    type Var = FFIVariable<RustFermentate, SPEC, Type>;
-    type Name = Name<RustFermentate, SPEC>;
+    type Expr = Expression<Self>;
+    type Var = FFIVariable<Self, Type>;
+    type Name = Name<Self>;
+    type Fermentate = RustFermentate;
 }
-
 
 pub trait LangAttrSpecification<T: Clone>: Clone + Default {
     fn from_attrs(attrs: Vec<Attribute>) -> Self;
+    fn from_cfg_attrs(attrs: &Vec<Attribute>) -> Self {
+        Self::from_attrs(attrs.cfg_attributes())
+    }
 }
 pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
     fn from_generics(generics: Option<Generics>) -> Self;
@@ -98,6 +99,8 @@ pub trait LangGenSpecification<T: Clone>: Clone + Default + Debug {
 pub trait LangLifetimeSpecification<T: Clone>: Clone + Default + Debug {
     #[allow(unused)]
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self;
+    #[allow(unused)]
+    fn add_lifetime(&mut self, lifetime: Lifetime);
 }
 
 impl<T> LangAttrSpecification<T> for Vec<Attribute> where T: Clone {
@@ -111,10 +114,17 @@ impl<T> LangGenSpecification<T> for Option<Generics> where T: Clone {
     }
 }
 impl<T> LangLifetimeSpecification<T> for Vec<Lifetime> where T: Clone {
+    // type Iter = Vec<Lifetime>;
+
     fn from_lifetimes(lifetimes: Vec<Lifetime>) -> Self {
         lifetimes
     }
+
+    fn add_lifetime(&mut self, lifetime: Lifetime) {
+        self.push(lifetime);
+    }
 }
+#[cfg(feature = "objc")]
 impl<T> LangAttrSpecification<T> for AttrWrapper where T: Clone {
     fn from_attrs(attrs: Vec<Attribute>) -> Self {
         AttrWrapper::from(attrs)
@@ -130,6 +140,7 @@ pub enum Lang {
     Java(java::Config)
 }
 
+#[cfg(any(feature = "objc", feature = "java"))]
 impl CrateTreeConsumer for Lang {
     fn generate(&self, crate_tree: &CrateTree) -> Result<(), error::Error> {
         match self {
@@ -144,3 +155,17 @@ impl CrateTreeConsumer for Lang {
         }
     }
 }
+
+#[cfg(feature = "objc")]
+impl Config {
+    pub fn maybe_objc_config(&self) -> Option<&objc::Config> {
+        self.languages.iter().find_map(|lang| match lang {
+            Lang::ObjC(config) => Some(config),
+            #[cfg(feature = "java")]
+            _ => None
+        })
+    }
+}
+
+#[cfg(feature = "objc")]
+impl FFIVarResolve<objc::ObjCSpecification> for GenericTypeKind {}

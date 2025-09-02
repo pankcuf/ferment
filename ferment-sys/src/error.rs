@@ -41,20 +41,3 @@ impl From<syn::Error> for Error {
         Error::ParseSyntaxTree(value)
     }
 }
-// impl From<ExitStatus> for Error {
-//     fn from(value: ExitStatus) -> Self {
-//         Error::Exit(value)
-//     }
-// }
-
-// impl From<VarError> for Error {
-//     fn from(value: VarError) -> Self {
-//         Error::Configuration(format!("Environment variable error: {value}").as_str())
-//     }
-// }
-//
-// impl From<cbindgen::Error> for Error {
-//     fn from(value: cbindgen::Error) -> Self {
-//         Error::Configuration(format!("cbindgen error: {value}").as_str())
-//     }
-// }

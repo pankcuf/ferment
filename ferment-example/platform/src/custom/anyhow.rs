@@ -1,7 +1,6 @@
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(anyhow::Error)]
 #[derive(Clone)]
-#[repr(C)]
 pub struct anyhow_Error {
     raw_err: *mut anyhow::Error,
 }

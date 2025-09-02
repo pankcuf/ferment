@@ -20,7 +20,7 @@ impl Display for Config {
 }
 
 impl CrateTreeConsumer for Config {
-    fn generate(&self, crate_tree: &CrateTree) -> Result<(), Error> {
+    fn generate(&self, _crate_tree: &CrateTree) -> Result<(), Error> {
         unimplemented!("")
     }
 }

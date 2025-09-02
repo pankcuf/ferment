@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::{Generics, Path, Type};
 use crate::ast::TypeHolder;
-use crate::conversion::ObjectKind;
+use crate::kind::ObjectKind;
 use crate::ext::{AsType, Constraints, ContainsSubType, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
 
@@ -15,28 +15,27 @@ pub struct EnrichScopePolicy;
 #[derive(Copy, Clone)]
 pub struct ExternalModulePolicy;
 
-impl<K, V> MergePolicy<K, V> for DefaultScopePolicy where K: Display, V: Display {
+impl<K, V> MergePolicy<K, V> for DefaultScopePolicy
+where K: Display,
+      V: Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        // println!("DefaultScopePolicy::apply: {} --> {}", o.get(), object);
         o.insert(object);
     }
 }
 
-impl<K, V> MergePolicy<K, V> for EnrichScopePolicy where V: ValueReplaceScenario + Debug + Display {
+impl<K, V> MergePolicy<K, V> for EnrichScopePolicy
+where V: ValueReplaceScenario + Debug + Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        let should_upgrade = o.get().should_replace_with(&object);
-        // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
-        if should_upgrade {
+        if o.get().should_replace_with(&object) {
             o.insert(object);
         }
     }
 
 }
-impl<K, V> MergePolicy<K, V> for ExternalModulePolicy where V: ValueReplaceScenario + Debug + Display {
+impl<K, V> MergePolicy<K, V> for ExternalModulePolicy
+where V: ValueReplaceScenario + Debug + Display {
     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        let should_upgrade = o.get().should_replace_with(&object);
-        // println!("EnrichScopePolicy::apply: {}:: {} --> {}", should_upgrade, o.get(), object);
-        if should_upgrade {
+        if o.get().should_replace_with(&object) {
             o.insert(object);
         }
     }

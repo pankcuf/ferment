@@ -6,7 +6,7 @@
 // use crate::composable::TypeModel;
 // use crate::composer::Composer;
 // use crate::context::{ScopeContext, ScopeSearch};
-// use crate::conversion::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+// use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 // use crate::ext::{AsType, FFISpecialTypeResolve, GenericNestedArg, Primitive, Resolve, SpecialType, ToType};
 // use crate::lang::LangAttrSpecification;
 // use crate::presentable::Expression;

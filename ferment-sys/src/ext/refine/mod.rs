@@ -3,7 +3,7 @@ mod lifetime;
 
 pub use lifetime::*;
 pub use refine::*;
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypeParamBound, TypePath, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypeParamBound, TypePath, TypeTraitObject, TypeTuple, Path};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
@@ -18,6 +18,7 @@ pub trait Unrefined: Sized {
     fn unrefined(&self) -> Self::Unrefinement;
 }
 
+#[allow(unused)]
 pub trait RefineUnrefined: RefineMut + Unrefined<Unrefinement = Self::Refinement> {
     fn refine(&mut self) {
         let unrefined = self.unrefined();
@@ -35,8 +36,9 @@ impl RefineMut for Type {
 
     fn refine_with(&mut self, refined: Self::Refinement) {
         match self {
-            Type::Path(TypePath { path, .. }) =>
-                path.segments.last_mut().unwrap().arguments.refine_with(refined),
+            Type::Path(TypePath { path: Path { segments, .. }, .. }) => if let Some(last_segment) = segments.last_mut() {
+                last_segment.arguments.refine_with(refined)
+            }
             Type::Tuple(TypeTuple { elems, .. }) => {
                 let mut refinement = refined.clone();
                 elems.iter_mut()
@@ -46,8 +48,8 @@ impl RefineMut for Type {
                             None => {}
                             Some(nested_arg) => match nested_arg.into_value() {
                                 NestedArgument::Object(obj) |
-                                NestedArgument::Constraint(obj) => {
-                                    *inner_ty = obj.maybe_type().unwrap();
+                                NestedArgument::Constraint(obj) => if let Some(obj_type) = obj.maybe_type() {
+                                    *inner_ty = obj_type;
                                 }
                             }
                         }
@@ -78,8 +80,9 @@ impl RefineMut for PathArguments {
     fn refine_with(&mut self, refined: Self::Refinement) {
         let mut refinement = refined.clone();
         let mut refine = |inner_ty: &mut Type| match refinement.pop() {
-            Some(nested_arg) =>
-                *inner_ty = nested_arg.into_value().object().maybe_type().unwrap(),
+            Some(nested_arg) => if let Some(obj_type) = nested_arg.into_value().object().maybe_type() {
+                *inner_ty = obj_type;
+            },
             None => {}
         };
 
@@ -93,10 +96,7 @@ impl RefineMut for PathArguments {
                             GenericArgument::Type(inner_ty) => {
                                 refine(inner_ty)
                             }
-                            GenericArgument::Lifetime(_) => {}
-                            GenericArgument::Const(_) => {}
-                            GenericArgument::Binding(_) => {}
-                            GenericArgument::Constraint(_) => {}
+                            _ => {}
                         }
                     });
             }

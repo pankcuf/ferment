@@ -6,7 +6,7 @@ pub mod document;
 // pub mod asyn;
 // #[allow(dead_code)]
 // pub mod identity;
-// pub mod types;
+pub mod types;
 
 extern crate ferment_macro;
 extern crate tokio;
@@ -24,7 +24,6 @@ pub struct Unstable {
 
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(std::time::Duration)]
-#[repr(C)]
 pub struct std_time_Duration {
     secs: u64,
     nanos: u32,
@@ -42,7 +41,6 @@ ferment::impl_custom_conversion!(std::time::Duration, std_time_Duration,
 #[allow(non_camel_case_types)]
 #[ferment_macro::register(Error)]
 #[derive(Debug)]
-#[repr(C)]
 pub struct std_error_Error_FFI {
 
 }

@@ -8,12 +8,15 @@ use crate::ext::ToPath;
 pub enum DictionaryName {
     Ok,
     Error,
+    Key,
     Keys,
+    Value,
+    NewValue,
+    OldValue,
     Values,
     Count,
     Obj,
     Object,
-    Value,
     Vtable,
     Self_,
     I,
@@ -28,6 +31,7 @@ pub enum DictionaryName {
     Caller,
     Destructor,
     Tag,
+    Index,
 }
 
 impl std::fmt::Display for DictionaryName {
@@ -40,12 +44,15 @@ impl ToTokens for DictionaryName {
         match self {
             DictionaryName::Ok => quote!(ok),
             DictionaryName::Error => quote!(error),
+            DictionaryName::Key => quote!(key),
             DictionaryName::Keys => quote!(keys),
+            DictionaryName::Value => quote!(value),
+            DictionaryName::NewValue => quote!(new_value),
+            DictionaryName::OldValue => quote!(old_value),
             DictionaryName::Values => quote!(values),
             DictionaryName::Count => quote!(count),
             DictionaryName::Obj => quote!(obj),
             DictionaryName::Object => quote!(object),
-            DictionaryName::Value => quote!(value),
             DictionaryName::Package => quote!(ferment),
             DictionaryName::InterfaceFrom => quote!(FFIConversionFrom),
             DictionaryName::InterfaceTo => quote!(FFIConversionTo),
@@ -60,6 +67,7 @@ impl ToTokens for DictionaryName {
             DictionaryName::Caller => quote!(caller),
             DictionaryName::Destructor => quote!(destructor),
             DictionaryName::Tag => quote!(tag),
+            DictionaryName::Index => quote!(index),
         }
             .to_tokens(tokens)
     }
