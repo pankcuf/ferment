@@ -47,7 +47,7 @@ impl Scope {
         let child_self_scope = item.maybe_ident()
             .map(|ident| self.self_scope.joined(ident))
             .unwrap_or_else(|| self.self_scope.clone());
-        let object = ObjectKind::try_from((item, &child_self_scope)).unwrap();
+        let object = ObjectKind::try_from((item, &child_self_scope)).expect("Can't obtain ObjectKind for Item for child scope");
         Scope::new(child_self_scope, object)
     }
 

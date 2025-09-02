@@ -37,15 +37,9 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                         .map(ToTokens::into_token_stream)
                         .unwrap_or_else(|| search_key.to_token_stream())),
                 Some(ObjectKind::Type(ref ty_model_kind)) |
-                Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
-                    let conversion = ty_model_kind.maybe_trait_model_kind_or_same(source).unwrap();
-                    match conversion {
-                        TypeModelKind::Dictionary(
-                            DictTypeModelKind::NonPrimitiveFermentable(
-                                DictFermentableModelKind::SmartPointer(
-                                    SmartPointerModelKind::Box(model)))) => {
-                            let ty = model.as_type();
-                            let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
+                Some(ObjectKind::Item(ref ty_model_kind, ..)) => match ty_model_kind.maybe_trait_model_kind_or_same(source) {
+                    Some(conversion) => match conversion {
+                        TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => if let Some(full_nested_ty) = model.as_type().maybe_first_nested_type_ref() {
                             match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
                                 Some(special) =>
                                     ptr_composer(special.to_token_stream()),
@@ -61,6 +55,8 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                                     result
                                 }
                             }
+                        } else {
+                            FFIVariable::mut_ptr(search_key.to_token_stream())
                         },
                         TypeModelKind::Unknown(TypeModel { ty, .. }) =>
                             FFIVariable::mut_ptr(ty.to_token_stream()),
@@ -115,13 +111,12 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                             Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&conversion, source),
                         TypeModelKind::Bounds(bounds) =>
                             bounds.resolve(source),
-                        ref cnv=> {
+                        ref cnv => {
                             let var_ty = match maybe_obj {
-                                Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object().unwrap() {
-                                    ObjectKind::Type(ref ty_conversion) |
-                                    ObjectKind::Item(ref ty_conversion, ..) =>
+                                Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object() {
+                                    Some(ObjectKind::Type(ref ty_conversion) | ObjectKind::Item(ref ty_conversion, ..)) =>
                                         ty_conversion.maybe_trait_model_kind_or_same(source),
-                                    ObjectKind::Empty => None,
+                                    _ => None,
                                 },
                                 Some(ObjectKind::Type(..) |
                                      ObjectKind::Item(..)) =>
@@ -135,7 +130,8 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                             let result = resolve_type_variable(var_ty, source);
                             result
                         }
-                    }
+                    },
+                    _ => FFIVariable::mut_ptr(search_key.to_token_stream())
                 },
                 _ => {
                     let maybe_special: Option<SpecialType<ObjCSpecification>> = ScopeSearchKey::maybe_resolve(search_key, source);

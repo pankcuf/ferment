@@ -1,5 +1,5 @@
 use quote::{quote_spanned, ToTokens};
-use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeParamBound, TypePath};
+use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeArray, TypeParamBound, TypePath};
 use syn::spanned::Spanned;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, Resolve, ToPath, ToType};
@@ -43,7 +43,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),
-                _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
+                _ => FFIFullPath::generic(tuple.mangle_ident_default().to_path())
             }
             GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
@@ -59,27 +59,19 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             },
             GenericTypeKind::Optional(Type::Array(TypeArray { elem, .. })) =>
                 single_generic_ffi_full_path(elem),
-            GenericTypeKind::TraitBounds(bounds) => {
-                println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
-                match bounds.len() {
-                    1 => FFIFullPath::Generic {
-                        ffi_name: {
-                            if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) = bounds.first() {
-                                let ty = path.to_type();
-                                let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
-                                match maybe_special {
-                                    Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
-                                        return FFIFullPath::external(path.clone())
-                                    },
-                                    _ => {}
-                                }
-                            }
-                            bounds.first().unwrap().mangle_ident_default().to_path()
-                        }
-                    },
-                    _ => FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }
-                }
+            GenericTypeKind::TraitBounds(bounds) => match bounds.len() {
+                1 => if let Some(TypeParamBound::Trait(trait_bound)) = bounds.first() {
+                    match FFISpecialTypeResolve::maybe_special_type(&trait_bound.path.to_type(), source) {
+                        Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) =>
+                            FFIFullPath::external(trait_bound.path.clone()),
+                        _ =>
+                            FFIFullPath::generic(trait_bound.mangle_ident_default().to_path())
+                    }
+                } else {
+                    FFIFullPath::generic(bounds.mangle_ident_default().to_path())
+                },
+                _ =>
+                    FFIFullPath::generic(bounds.mangle_ident_default().to_path())
             },
             gen_ty =>
                 unimplemented!("TODO: TraitBounds when generic expansion: {}", gen_ty),
@@ -89,28 +81,31 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
 
 fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<RustSpecification> {
     let path: Path = parse_quote!(#ty);
-    let first_segment = path.segments.first().unwrap();
-    let mut cloned_segments = path.segments.clone();
-    let first_ident = &first_segment.ident;
-    let last_segment = cloned_segments.iter_mut().last().unwrap();
-    let last_ident = &last_segment.ident;
-    if last_ident.is_primitive() {
-        FFIFullPath::external(last_ident.to_path())
-    } else if last_ident.is_any_string() {
-        FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
-    } else if last_ident.is_special_generic() ||
-        (last_ident.is_result() && path.segments.len() == 1) ||
-        // TODO: avoid this hardcode
-        (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
-        last_ident.is_smart_ptr() ||
-        last_ident.is_lambda_fn() {
-        FFIFullPath::Generic { ffi_name: path.mangle_ident_default().to_path() }
-    } else {
-        let new_segments = cloned_segments
-            .into_iter()
-            .map(|segment| quote_spanned! { segment.span() => #segment })
-            .collect::<Vec<_>>();
-        FFIFullPath::external(parse_quote!(#(#new_segments)::*))
-
+    match path.segments.first() {
+        None => FFIFullPath::void(),
+        Some(PathSegment { ident: first_ident, .. }) => {
+            let mut cloned_segments = path.segments.clone();
+            match cloned_segments.iter_mut().last() {
+                None => FFIFullPath::void(),
+                Some(PathSegment { ident: last_ident, .. }) => if last_ident.is_primitive() {
+                    FFIFullPath::external(last_ident.to_path())
+                } else if last_ident.is_any_string() {
+                    FFIFullPath::c_char()
+                } else if last_ident.is_special_generic() ||
+                    (last_ident.is_result() && path.segments.len() == 1) ||
+                    // TODO: avoid this hardcode
+                    (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
+                    last_ident.is_smart_ptr() ||
+                    last_ident.is_lambda_fn() {
+                    FFIFullPath::generic(path.mangle_ident_default().to_path())
+                } else {
+                    let new_segments = cloned_segments
+                        .into_iter()
+                        .map(|segment| quote_spanned! { segment.span() => #segment })
+                        .collect::<Vec<_>>();
+                    FFIFullPath::external(parse_quote!(#(#new_segments)::*))
+                }
+            }
+        }
     }
 }

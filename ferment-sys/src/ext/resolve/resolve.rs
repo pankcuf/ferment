@@ -1,9 +1,10 @@
 use proc_macro2::Ident;
+use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeReference, TypeTraitObject};
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
-use crate::ext::{AsType, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
@@ -26,7 +27,8 @@ impl Resolve<ObjectKind> for Type {
         source.maybe_object_by_key(self)
     }
     fn resolve(&self, source: &ScopeContext) -> ObjectKind {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve ObjectKind for Type({})", self.to_token_stream()).as_str())
     }
 }
 
@@ -40,7 +42,9 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for Type
                 .map(SpecialType::Opaque))
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for Type({})", self.to_token_stream()).as_str())
+
     }
 }
 
@@ -55,7 +59,9 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for ScopeSearchKey
                 .map(SpecialType::Opaque))
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for ScopeSearchKey({})", self.to_token_stream()).as_str())
+
     }
 }
 
@@ -91,7 +97,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
             Type::Array(..) |
             Type::Slice(..) |
             Type::Tuple(..) =>
-                Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() }),
+                Some(FFIFullPath::generic(self.mangle_ident_default().to_path())),
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
                 match bounds.len() {
                     0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
@@ -99,7 +105,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
                         TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
                         _ => None,
                     },
-                    _ => Some(FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }),
+                    _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
                 }
 
             },
@@ -108,7 +114,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
         Resolve::<FFIFullPath<SPEC>>::maybe_resolve(self, source)
-            .unwrap_or_else(|| FFIFullPath::External { path: parse_quote!(#self) })
+            .unwrap_or_else(|| FFIFullPath::external(parse_quote!(#self)))
     }
 }
 
@@ -120,7 +126,9 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for GenericTypeKind
             .and_then(|ty| ty.maybe_resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for GenericTypeKind({})", self.to_token_stream()).as_str())
+
     }
 }
 
@@ -133,7 +141,9 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
         self.as_type().maybe_resolve(source)
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for TypeModelKind({})", self.to_token_stream()).as_str())
+
     }
 }
 impl Resolve<Type> for Ident {
@@ -165,11 +175,11 @@ where SPEC: Specification {
         if last_ident.is_primitive() {
             None
         } else if last_ident.is_any_string() {
-            Some(FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar })
+            Some(FFIFullPath::c_char())
         } else if last_ident.is_special_generic() ||
             (last_ident.is_result() && segments.len() == 1) ||
             last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
-            Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
+            Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
             match &last_segment.arguments {
                 PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
@@ -181,7 +191,7 @@ where SPEC: Specification {
                 _ => None
             }
         } else if last_ident.is_smart_ptr() {
-            Some(FFIFullPath::Generic { ffi_name: self.mangle_ident_default().to_path() })
+            Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else {
             let chunk = if let Some(
                 ObjectKind::Type(TypeModelKind::Trait(TraitModel { ty: model, .. })) |
@@ -194,18 +204,16 @@ where SPEC: Specification {
             maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
                     let crate_local_segments = chunk.crate_and_ident_less();
-                    FFIFullPath::Type {
-                        crate_ident: crate_ident.clone(),
-                        ffi_name: if crate_local_segments.is_empty() {
-                            let ty: Type = parse_quote!(#crate_ident::#last_ident);
-                            ty.mangle_ident_default().to_path()
-                        } else {
-                            let no_ident_segments = chunk.ident_less();
-                            let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
-                            let mangled_ty = ty.mangle_ident_default();
-                            parse_quote!(#crate_local_segments::#mangled_ty)
-                        }
-                    }
+                    let ffi_name = if crate_local_segments.is_empty() {
+                        let ty: Type = parse_quote!(#crate_ident::#last_ident);
+                        ty.mangle_ident_default().to_path()
+                    } else {
+                        let no_ident_segments = chunk.ident_less();
+                        let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
+                        let mangled_ty = ty.mangle_ident_default();
+                        parse_quote!(#crate_local_segments::#mangled_ty)
+                    };
+                    FFIFullPath::r#type(crate_ident.clone(), ffi_name)
                 })
                 .or_else(|| {
                     let segments = chunk.ident_less();
@@ -214,7 +222,9 @@ where SPEC: Specification {
         }
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
-        self.maybe_resolve(source).unwrap()
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve FFIFullPath for Path({})", self.to_token_stream()).as_str())
+
     }
 }
 
@@ -222,10 +232,12 @@ where SPEC: Specification {
 fn maybe_crate_ident_replacement<'a>(ident: &'a Ident, source: &'a ScopeContext) -> Option<&'a Ident> {
     let lock = source.context.read().unwrap();
     match ident.to_string().as_str() {
-        "crate" | _ if lock.config.is_current_crate(ident) => Some(source.scope.crate_ident_ref()),
+        CRATE | _ if lock.config.is_current_crate(ident) =>
+            Some(source.scope.crate_ident_ref()),
         _ if lock.config.contains_fermented_crate(ident) =>
             Some(ident),
-        _ => None
+        _ =>
+            None
     }
 }
 

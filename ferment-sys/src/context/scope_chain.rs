@@ -8,7 +8,7 @@ use crate::ast::PathHolder;
 use crate::composable::CfgAttributes;
 use crate::context::{Scope, ScopeInfo};
 use crate::kind::ObjectKind;
-use crate::ext::{CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
+use crate::ext::{CRATE, CrateExtension, Pop, ResolveAttrs, ToPath, ToType};
 use crate::formatter::{format_attrs, format_token_stream};
 
 
@@ -265,10 +265,11 @@ impl ScopeChain {
 
     pub(crate) fn is_crate_root(&self) -> bool {
         if let ScopeChain::CrateRoot { info, .. } = self {
-            info.self_path().segments.last().unwrap().ident == format_ident!("crate")
-        } else {
-            false
+            if let Some(last_segment) = info.self_path().segments.last() {
+                return last_segment.ident == format_ident!("{CRATE}")
+            }
         }
+        false
     }
 
     pub fn head(&self) -> Ident {

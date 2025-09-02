@@ -95,16 +95,18 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                 } else {
                     Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_type)
                 },
-                TypeModelKind::Optional(..) => {
-                    let full_nested_ty_kind = full_type.maybe_first_nested_type_kind().unwrap();
-                    let (expr_kind, ffi_type) = match full_nested_ty_kind.maybe_special_type(source) {
-                        Some(SpecialType::Custom(custom_ffi_type)) => (ConversionExpressionKind::ComplexOpt, custom_ffi_type),
-                        Some(SpecialType::Opaque(..)) => (ConversionExpressionKind::OpaqueOpt, ffi_type),
-                        _ if full_nested_ty_kind.is_primitive() => (ConversionExpressionKind::PrimitiveOpt, ffi_type),
-                        _ => (ConversionExpressionKind::ComplexOpt, ffi_type)
-                    };
-                    Expression::cast_from(field_path, expr_kind, ffi_type, full_nested_ty_kind.to_type())
-                }
+                TypeModelKind::Optional(..) => match full_type.maybe_first_nested_type_kind() {
+                    None => Expression::cast_from(field_path, ConversionExpressionKind::from(search_key.to_type()), ffi_type, full_type),
+                    Some(full_nested_ty_kind) => {
+                        let (expr_kind, ffi_type) = match full_nested_ty_kind.maybe_special_type(source) {
+                            Some(SpecialType::Custom(custom_ffi_type)) => (ConversionExpressionKind::ComplexOpt, custom_ffi_type),
+                            Some(SpecialType::Opaque(..)) => (ConversionExpressionKind::OpaqueOpt, ffi_type),
+                            _ if full_nested_ty_kind.is_primitive() => (ConversionExpressionKind::PrimitiveOpt, ffi_type),
+                            _ => (ConversionExpressionKind::ComplexOpt, ffi_type)
+                        };
+                        Expression::cast_from(field_path, expr_kind, ffi_type, full_nested_ty_kind.to_type())
+                    }
+                },
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) =>
                     Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
@@ -112,57 +114,61 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
                     Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) => {
-                    let full_nested_ty = full_ty.maybe_first_nested_type_ref().unwrap();
-                    let maybe_special: Option<SpecialType<SPEC>> = full_nested_ty.maybe_resolve(source);
-                    match (maybe_special, source.maybe_object_by_value(full_nested_ty)) {
-                        (Some(SpecialType::Opaque(..)), Some(ObjectKind::Item(TypeModelKind::FnPointer(..) |
-                                                                              TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..) |
-                                                             ObjectKind::Type(TypeModelKind::FnPointer(..) |
-                                                                              TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..))))
-                        ) =>
-                            Expression::new_box(field_path),
-                        (Some(SpecialType::Opaque(..)), _any_other) =>
-                            Expression::from_raw_box(field_path),
-                        (Some(SpecialType::Custom(custom_ty)), _any) =>
-                            Expression::new_box(Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_nested_ty.clone())),
-                        (_, Some(obj)) =>
-                            Expression::new_box(match MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&obj) {
-                                Some(lambda_args) =>
-                                    Expression::from_lambda(field_path, lambda_args),
-                                None =>
-                                    Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())
-                            }),
-                        _ =>
-                            Expression::new_box(Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())),
+                    if let Some(full_nested_ty) = full_ty.maybe_first_nested_type_ref() {
+                        match (Resolve::<SpecialType<SPEC>>::maybe_resolve(full_nested_ty, source), source.maybe_object_by_value(full_nested_ty)) {
+                            (Some(SpecialType::Opaque(..)), Some(ObjectKind::Item(TypeModelKind::FnPointer(..) |
+                                                                                  TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..) |
+                                                                 ObjectKind::Type(TypeModelKind::FnPointer(..) |
+                                                                                  TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..))))
+                            ) =>
+                                Expression::new_box(field_path),
+                            (Some(SpecialType::Opaque(..)), _any_other) =>
+                                Expression::from_raw_box(field_path),
+                            (Some(SpecialType::Custom(custom_ty)), _any) =>
+                                Expression::new_box(Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_nested_ty.clone())),
+                            (_, Some(obj)) =>
+                                Expression::new_box(match MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&obj) {
+                                    Some(lambda_args) =>
+                                        Expression::from_lambda(field_path, lambda_args),
+                                    None =>
+                                        Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())
+                                }),
+                            _ =>
+                                Expression::new_box(Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())),
+                        }
+                    } else {
+                        Expression::new_box(field_path)
                     }
                 },
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ty: ref full_ty, .. }))) => {
-                    let full_nested_ty = full_ty.maybe_first_nested_type_ref().unwrap();
-                    let maybe_special: Option<SpecialType<SPEC>> = full_nested_ty.maybe_resolve(source);
-                    match (maybe_special, source.maybe_object_by_value(full_nested_ty)) {
-                        (Some(SpecialType::Opaque(..)), Some(ObjectKind::Item(TypeModelKind::FnPointer(..) |
-                                                                              TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..) |
-                                                             ObjectKind::Type(TypeModelKind::FnPointer(..) |
-                                                                              TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..))))
-                        ) =>
-                            Expression::new_cow(field_path),
-                        (Some(SpecialType::Opaque(..)), ..) =>
-                            Expression::new_cow(Expression::from_ptr_read(field_path)),
-                        (Some(SpecialType::Custom(custom_ty)), _any) =>
-                            Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_nested_ty.clone())),
-                        (_, Some(ObjectKind::Item(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)), ..) |
-                                 ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..))))) =>
-                            Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_nested_ty.clone())),
+                    if let Some(full_nested_ty) = full_ty.maybe_first_nested_type_ref() {
+                        match (Resolve::<SpecialType<SPEC>>::maybe_resolve(full_nested_ty, source), source.maybe_object_by_value(full_nested_ty)) {
+                            (Some(SpecialType::Opaque(..)), Some(ObjectKind::Item(TypeModelKind::FnPointer(..) |
+                                                                                  TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)), ..) |
+                                                                 ObjectKind::Type(TypeModelKind::FnPointer(..) |
+                                                                                  TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..))))
+                            ) =>
+                                Expression::new_cow(field_path),
+                            (Some(SpecialType::Opaque(..)), ..) =>
+                                Expression::new_cow(Expression::from_ptr_read(field_path)),
+                            (Some(SpecialType::Custom(custom_ty)), _any) =>
+                                Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Complex, custom_ty, full_nested_ty.clone())),
+                            (_, Some(ObjectKind::Item(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)), ..) |
+                                     ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..))))) =>
+                                Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Primitive, ffi_type, full_nested_ty.clone())),
 
-                        (_, Some(obj)) =>
-                            Expression::new_cow(match MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&obj) {
-                                Some(lambda_args) =>
-                                    Expression::from_lambda(field_path, lambda_args),
-                                None =>
-                                    Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())
-                            }),
-                        _ =>
-                            Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())),
+                            (_, Some(obj)) =>
+                                Expression::new_cow(match MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(&obj) {
+                                    Some(lambda_args) =>
+                                        Expression::from_lambda(field_path, lambda_args),
+                                    None =>
+                                        Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())
+                                }),
+                            _ =>
+                                Expression::new_cow(Expression::cast_from(field_path, ConversionExpressionKind::Complex, ffi_type, full_nested_ty.clone())),
+                        }
+                    } else {
+                        Expression::new_cow(field_path)
                     }
                 },
                 TypeModelKind::Bounds(bounds) =>

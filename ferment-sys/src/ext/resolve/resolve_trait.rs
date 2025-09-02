@@ -10,10 +10,8 @@ pub trait ResolveTrait where Self: Sized + ToType {
         let ty = self.to_type();
         let mut maybe_trait = lock.resolve_trait_type(&ty);
         match maybe_trait {
-            Some(ObjectKind::Type(model) | ObjectKind::Item(model, _)) => {
-                // check maybe it's really known
-                if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
-                    let search_key = ScopeSearchKey::maybe_from(parse_quote!(Self)).unwrap();
+            Some(ObjectKind::Type(model) | ObjectKind::Item(model, _)) => if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
+                if let Some(search_key) = ScopeSearchKey::maybe_from(parse_quote!(Self)) {
                     if let Some(obj) = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, trait_scope) {
                         maybe_trait = Some(obj);
                     }

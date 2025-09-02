@@ -69,7 +69,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
       FFIFullDictionaryPath<SPEC>: ToType,
       VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output=SPEC::Var> {
     let mut path = path.clone();
-    let last = path.segments.pop().unwrap();
+    let last = path.segments.pop().expect("Should have last segment here");
     let last_segment = last.value();
     let path = parse_quote!(#path<#trait_ty>::#last_segment);
     let full_self_ty: Type = self_ty.resolve(source);

@@ -120,12 +120,13 @@ impl SourceComposable for VarComposer<RustSpecification> {
 
                             ref cnv => {
                                 if cnv.is_optional() {
-                                    let nested_ty = full_ty.maybe_first_nested_type_kind().unwrap();
-                                    match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&nested_ty.to_type(), source) {
-                                        Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
-                                            return FFIVariable::mut_ptr(special_ty.to_type());
-                                        },
-                                        _ => {}
+                                    if let Some(nested_ty) = full_ty.maybe_first_nested_type_kind() {
+                                        match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&nested_ty.to_type(), source) {
+                                            Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
+                                                return FFIVariable::mut_ptr(special_ty.to_type());
+                                            },
+                                            _ => {}
+                                        }
                                     }
                                 }
                                 maybe_obj.and_then(|obj|

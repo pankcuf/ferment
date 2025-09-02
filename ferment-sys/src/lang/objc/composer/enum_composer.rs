@@ -1,4 +1,5 @@
 use quote::{format_ident, quote, ToTokens};
+use syn::PathSegment;
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, EnumComposer, FFIAspect, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect};
 use crate::ext::{Mangle, ToPath};
@@ -82,18 +83,18 @@ where Self: SourceAccessible
                 args.iter().for_each(|arg| {
                     let asp = aspect.present(&source);
                     let path = asp.to_path();
-                    let last_ident = &path.segments.last().unwrap().ident;
-                    let snake_case = to_snake_case(&last_ident.to_string());
-
-                    let presentation = arg.present(&source);
-                    // OBJC ENUM VAR ARG: example_simple_errors_context_ContextProviderError :: InvalidDataContract --> NSString *
-                    // -> invalid_data_contract
+                    if let Some(PathSegment { ident: last_ident, .. }) = &path.segments.last() {
+                        let snake_case = to_snake_case(last_ident.to_string().as_str());
+                        let presentation = arg.present(&source);
+                        // OBJC ENUM VAR ARG: example_simple_errors_context_ContextProviderError :: InvalidDataContract --> NSString *
+                        // -> invalid_data_contract
                         println!("OBJC ENUM VAR ARG: {} --> {last_ident} --> {snake_case} -> {}", aspect.present(&source).to_token_stream(), presentation);
 
-                    properties.push(ArgPresentation::NonatomicReadwrite {
-                        ty: presentation.to_token_stream(),
-                        name: format_ident!("{snake_case}").to_token_stream(),
-                    });
+                        properties.push(ArgPresentation::NonatomicReadwrite {
+                            ty: presentation.to_token_stream(),
+                            name: format_ident!("{snake_case}").to_token_stream(),
+                        });
+                    }
                 });
             });
 

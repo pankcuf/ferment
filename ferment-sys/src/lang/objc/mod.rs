@@ -111,7 +111,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
         let global = source.context
             .read()
             .unwrap();
-        let config = global.config.maybe_objc_config().unwrap();
+        let config = global.config.maybe_objc_config().expect("Expected ObjC config");
         let prefix = config.class_prefix();
         let generic_conversions = Depunctuated::from_iter(
             global.refined_mixins

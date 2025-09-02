@@ -60,8 +60,8 @@ impl Mangle<MangleDefault> for Type {
             ty =>
                 ty.to_path()
                     .get_ident()
-                    .unwrap()
-                    .to_string()
+                    .map(ToString::to_string)
+                    .unwrap_or_default()
         };
         // println!("Mangle Type..222: {}", res);
         res

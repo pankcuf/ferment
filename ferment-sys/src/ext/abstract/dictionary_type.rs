@@ -2,6 +2,9 @@ use proc_macro2::Ident;
 use syn::{Path, PathSegment};
 use crate::ast::Colon2Punctuated;
 
+pub const CRATE: &str = "crate";
+pub const SELF: &str = "self";
+pub const SUPER: &str = "super";
 pub trait DictionaryType {
 
     fn is_primitive(&self) -> bool {

@@ -1,5 +1,5 @@
-// mod fermented;
-mod fermented_sample;
+mod fermented;
+// mod fermented_sample;
 mod model;
 mod gen;
 mod entry;
@@ -219,5 +219,5 @@ impl Manager {
 
 #[ferment_macro::export]
 pub fn identity_public_key_test(identity: Identity) -> IdentityPublicKey {
-    identity.public_keys().first_key_value().unwrap().1.clone()
+    identity.public_keys().first_key_value().expect("").1.clone()
 }

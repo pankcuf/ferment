@@ -69,26 +69,27 @@ impl FileTreeProcessor {
     }
     fn process_module(&self, mod_name: &Ident, attrs: Vec<Attribute>) -> Result<Visitor, error::Error> {
         let scope = ScopeChain::child_mod(self.scope.crate_ident_ref().clone(), mod_name, &self.scope, attrs.clone());
-        let file_path = self.path.parent().unwrap().join(mod_name.to_string());
-        if file_path.is_file() {
-            return FileTreeProcessor::new(file_path, scope, attrs, &self.context).process();
-        } else {
-            let path = file_path.join("mod.rs".to_string());
-            if path.is_file() {
-                return FileTreeProcessor::new(path, scope, attrs, &self.context).process()
+        if let Some(parent_path) = self.path.parent() {
+            let file_path = parent_path.join(mod_name.to_string());
+            if file_path.is_file() {
+                return FileTreeProcessor::new(file_path, scope, attrs, &self.context).process();
             } else {
-                let path = file_path.parent().unwrap().join(format!("{mod_name}.rs"));
+                let path = file_path.join("mod.rs");
                 if path.is_file() {
                     return FileTreeProcessor::new(path, scope, attrs, &self.context).process()
+                } else if let Some(file_parent) = file_path.parent() {
+                    let path = file_parent.join(format!("{mod_name}.rs"));
+                    if path.is_file() {
+                        return FileTreeProcessor::new(path, scope, attrs, &self.context).process()
+                    }
                 }
             }
         }
         Err(error::Error::ExpansionError("Can't locate module file"))
     }
     fn is_fermented_mod(&self, ident: &Ident) -> bool {
-        self.context.read()
-            .unwrap()
-            .is_fermented_mod(ident)
+        let lock = self.context.read().unwrap();
+        lock.is_fermented_mod(ident)
     }
 }
 

@@ -26,8 +26,20 @@ pub enum FFIFullPath<SPEC>
 
 impl<SPEC> FFIFullPath<SPEC>
     where SPEC: Specification {
+    pub fn r#type(crate_ident: Ident, ffi_name: Path) -> Self {
+        Self::Type { crate_ident, ffi_name }
+    }
+    pub fn generic(ffi_name: Path) -> Self {
+        Self::Generic { ffi_name }
+    }
     pub fn external(path: Path) -> Self {
         Self::External { path }
+    }
+    pub fn c_char() -> Self {
+        Self::Dictionary { path: FFIFullDictionaryPath::CChar }
+    }
+    pub fn void() -> Self {
+        Self::Dictionary { path: FFIFullDictionaryPath::Void }
     }
 }
 

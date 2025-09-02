@@ -7,7 +7,7 @@ use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, field, CommaPunctuatedArgKinds, SignatureAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{ExpressionComposable, Mangle, Resolve, ToType};
+use crate::ext::{ExpressionComposable, Mangle, Primitive, Resolve, ToType, WrapInBraces};
 use crate::kind::{GenericTypeKind, TypeKind};
 use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
@@ -65,28 +65,27 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
       VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output: ToType> {
     let TypeBareFn { inputs, output, .. } = type_bare_fn;
     let ffi_result = DictionaryName::FFiResult;
-    let opt_conversion = |conversion| DictionaryExpr::Simple(quote!((!ffi_result.is_null()).then(|| { #conversion })));
     let ffi_result_conversion = FFIConversionFromMethodExpr::FfiFrom(ffi_result.to_token_stream());
-    let from_complex_result = || DictionaryExpr::CallbackDestructor(quote!(#ffi_result_conversion), quote!(#ffi_result));
-    let from_primitive_result = || DictionaryExpr::Simple(quote!(#ffi_result));
-    let from_opt_primitive_result = || DictionaryExpr::Deref(quote!(#ffi_result));
+
     let (return_type, ffi_return_type, post_processing) = match output {
         ReturnType::Type(token, field_type) => (
-            ReturnType::Type(token.clone(), Box::new(field_type.resolve(source).to_type())),
+            ReturnType::Type(token.clone(), Box::new(source.full_type_for(field_type))),
             ReturnType::Type(token.clone(), Box::new(<Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type())),
             match TypeKind::from(field_type) {
-                TypeKind::Primitive(_) => from_primitive_result(),
-                TypeKind::Complex(_) =>  from_complex_result(),
-                TypeKind::Generic(GenericTypeKind::TraitBounds(_)) => unimplemented!("TODO: mixins+traits+generics"),
-                TypeKind::Generic(GenericTypeKind::Optional(ty)) => opt_conversion(match TypeKind::from(ty) {
-                    TypeKind::Primitive(_) => from_opt_primitive_result(),
-                    TypeKind::Complex(_) |
-                    TypeKind::Generic(_) => from_complex_result(),
-                }),
-                TypeKind::Generic(..) => from_complex_result()
+                TypeKind::Primitive(_) =>
+                    DictionaryExpr::Simple(ffi_result.to_token_stream()),
+                TypeKind::Generic(GenericTypeKind::Optional(ty)) if ty.is_primitive() =>
+                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), quote!(*#ffi_result)),
+                TypeKind::Generic(GenericTypeKind::Optional(_)) =>
+                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), DictionaryExpr::CallbackDestructor(ffi_result_conversion.to_token_stream(), ffi_result.to_token_stream()).to_token_stream().wrap_in_braces()),
+                TypeKind::Generic(GenericTypeKind::TraitBounds(_)) =>
+                    unimplemented!("TODO: mixins+traits+generics"),
+                TypeKind::Complex(_) |
+                TypeKind::Generic(_) =>
+                    DictionaryExpr::CallbackDestructor(ffi_result_conversion.to_token_stream(), ffi_result.to_token_stream())
             }
         ),
-        ReturnType::Default => (ReturnType::Default, ReturnType::Default, from_primitive_result()),
+        ReturnType::Default => (ReturnType::Default, ReturnType::Default, DictionaryExpr::Simple(ffi_result.to_token_stream())),
     };
     let mut arg_names = CommaPunctuated::new();
     let mut ffi_args = CommaPunctuated::new();
@@ -109,14 +108,12 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             arg_to_conversions.push(match &conversion {
                 TypeKind::Primitive(..) =>
                     Expression::<SPEC>::simple(&ident_name),
-                TypeKind::Generic(GenericTypeKind::Optional(ty)) => match TypeKind::from(ty) {
-                    TypeKind::Primitive(_) =>
-                        Expression::ffi_to_primitive_opt_tokens(&ident_name),
-                    TypeKind::Complex(_) |
-                    TypeKind::Generic(_) =>
-                        Expression::ffi_to_complex_opt_tokens(&ident_name),
-                },
-                _ => Expression::ffi_to_complex_tokens(&ident_name)
+                TypeKind::Generic(GenericTypeKind::Optional(ty)) if ty.is_primitive() =>
+                    Expression::ffi_to_primitive_opt_tokens(&ident_name),
+                TypeKind::Generic(GenericTypeKind::Optional(_)) =>
+                    Expression::ffi_to_complex_opt_tokens(&ident_name),
+                _ =>
+                    Expression::ffi_to_complex_tokens(&ident_name)
             });
             arg_target_fields.push(ArgPresentation::Field(field::<SPEC>(ident_name, ty, source)));
         });

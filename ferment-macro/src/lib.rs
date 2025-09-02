@@ -179,7 +179,7 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
                     exprs.push(quote!(#expression_enum_name::#ident(#(#field_names,)* expr) => expr));
                 },
                 Fields::Named(FieldsNamed { named, .. }) => {
-                    let field_names = named.iter().map(|f| f.ident.clone().unwrap()).collect::<Vec<_>>();
+                    let field_names = named.iter().filter_map(|f| f.ident.clone()).collect::<Vec<_>>();
                     let field_types = named.iter().map(|f| &f.ty).collect::<Vec<_>>();
                     expression_variants.push(quote!(#ident { #(#field_names: #field_types,)* expr: syn::__private::TokenStream2 }));
                     methods.push(quote!(#expression_enum_name::#ident { #(#field_names,)* .. } => #name::#ident { #(#field_names: #field_names.clone(),)* }.to_token_stream()));

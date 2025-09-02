@@ -86,16 +86,15 @@ impl ScopeContext {
     }
 
     pub fn maybe_to_fn_type(&self) -> Option<Type> {
-        match &self.scope.parent_object().unwrap() {
-            ObjectKind::Type(ref ty_model_kind) |
-            ObjectKind::Item(ref ty_model_kind, ..) => {
-                let parent_scope = self.scope.parent_scope().unwrap();
-                let context = self.context.read().unwrap();
-                Some(context.maybe_scope_ref_obj_first(parent_scope.self_path())
-                    .and_then(|parent_obj_scope| context.maybe_object_ref_by_tree_key(ty_model_kind.as_type(), parent_obj_scope)
-                        .and_then(ObjectKind::maybe_type))
-                    .unwrap_or_else(|| parent_scope.to_type()))
-
+        match &self.scope.parent_object() {
+            Some(ObjectKind::Type(ref ty_model_kind) | ObjectKind::Item(ref ty_model_kind, ..)) => {
+                self.scope.parent_scope().map(|parent_scope| {
+                    let context = self.context.read().unwrap();
+                    context.maybe_scope_ref_obj_first(parent_scope.self_path())
+                        .and_then(|parent_obj_scope| context.maybe_object_ref_by_tree_key(ty_model_kind.as_type(), parent_obj_scope)
+                            .and_then(ObjectKind::maybe_type))
+                        .unwrap_or_else(|| parent_scope.to_type())
+                })
             },
             _ => None
         }
@@ -104,9 +103,8 @@ impl ScopeContext {
     pub fn maybe_to_trait_fn_type<SPEC>(&self) -> Option<Type>
         where SPEC: Specification,
               FFIFullDictionaryPath<SPEC>: ToType {
-        match &self.scope.parent_object().unwrap() {
-            ObjectKind::Type(ref ty_conversion) |
-            ObjectKind::Item(ref ty_conversion, ..) => {
+        match &self.scope.parent_object() {
+            Some(ObjectKind::Type(ref ty_conversion) | ObjectKind::Item(ref ty_conversion, ..)) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
                 match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self) {
                     Some(special) => Some(special.to_type()),

@@ -41,26 +41,24 @@ impl SourceComposable for VarComposer<ObjCSpecification> {
                 Some(ObjectKind::Item(ref ty_model_kind, ..)) => {
                     let conversion = ty_model_kind.maybe_trait_object_maybe_model_kind_or_same(source);
                     match conversion {
-                        TypeModelKind::Dictionary(
-                            DictTypeModelKind::NonPrimitiveFermentable(
-                                DictFermentableModelKind::SmartPointer(
-                                    SmartPointerModelKind::Box(model)))) => {
-                            let ty = model.as_type();
-                            let full_nested_ty = ty.maybe_first_nested_type_ref().unwrap();
-                            match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
-                                Some(special) =>
-                                    ptr_composer(special.to_token_stream()),
-                                None => {
-                                    let object = source.maybe_object_by_value(full_nested_ty);
-                                    let var_ty = object.and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
-                                        .unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
-                                    let var_c_type = var_ty.to_type();
-                                    let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
-                                    let var_ty = ffi_path.map(|p| p.to_type())
-                                        .unwrap_or_else(|| var_c_type);
-                                    let result = resolve_type_variable(var_ty, source);
-                                    result
+                        TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(model)))) => {
+                            if let Some(full_nested_ty) = model.as_type().maybe_first_nested_type_ref() {
+                                match Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(full_nested_ty, source) {
+                                    Some(special) =>
+                                        ptr_composer(special.to_token_stream()),
+                                    None => {
+                                        let object = source.maybe_object_by_value(full_nested_ty);
+                                        let var_ty = object.and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
+                                            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
+                                        let var_c_type = var_ty.to_type();
+                                        let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
+                                        let var_ty = ffi_path.map(|p| p.to_type())
+                                            .unwrap_or_else(|| var_c_type);
+                                        resolve_type_variable(var_ty, source)
+                                    }
                                 }
+                            } else {
+                                ptr_composer(model.ty.to_token_stream())
                             }
                         },
                         TypeModelKind::Unknown(TypeModel { ty, .. }) =>
@@ -115,11 +113,10 @@ impl SourceComposable for VarComposer<ObjCSpecification> {
                         },
                         ref cnv=> {
                             let var_ty = match maybe_obj {
-                                Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object().unwrap() {
-                                    ObjectKind::Type(ref ty_conversion) |
-                                    ObjectKind::Item(ref ty_conversion, ..) =>
+                                Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object() {
+                                    Some(ObjectKind::Type(ref ty_conversion) | ObjectKind::Item(ref ty_conversion, ..)) =>
                                         ty_conversion.maybe_trait_model_kind_or_same(source),
-                                    ObjectKind::Empty => None
+                                    _ => None
                                 },
                                 Some(ObjectKind::Type(..) |
                                      ObjectKind::Item(..)) =>
@@ -156,26 +153,27 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
         // println!("Path::<FFIVariable>::resolve({})", self.to_token_stream());
-        let first_segment = self.segments.first().unwrap();
-        let first_ident = &first_segment.ident;
-        let last_segment = self.segments.last().unwrap();
-        let last_ident = &last_segment.ident;
-        if last_ident.is_primitive() {
-            FFIVariable::direct(objc_primitive_from_path(self))
-        } else if last_ident.is_optional() {
-            match path_arguments_to_type_conversions(&last_segment.arguments).first() {
-                Some(TypeKind::Primitive(ty)) =>
-                    FFIVariable::mut_ptr(ty.to_token_stream()),
-                Some(TypeKind::Generic(generic_ty)) =>
-                    FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(generic_ty, source).to_token_stream()),
-                Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                    Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(path, source),
-                _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
-            }
-        } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
-            FFIVariable::mut_ptr(source.scope_type_for_path(self).map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default()))
-        } else {
-            FFIVariable::mut_ptr(self.to_token_stream())
+        match (self.segments.first(), self.segments.last()) {
+            (Some(PathSegment { ident: first_ident, .. }), Some(PathSegment { ident: last_ident, arguments })) => {
+                if last_ident.is_primitive() {
+                    FFIVariable::direct(objc_primitive_from_path(self))
+                } else if last_ident.is_optional() {
+                    match path_arguments_to_type_conversions(&arguments).first() {
+                        Some(TypeKind::Primitive(ty)) =>
+                            FFIVariable::mut_ptr(ty.to_token_stream()),
+                        Some(TypeKind::Generic(generic_ty)) =>
+                            FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(generic_ty, source).to_token_stream()),
+                        Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
+                            Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(path, source),
+                        _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
+                    }
+                } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+                    FFIVariable::mut_ptr(source.scope_type_for_path(self).map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default()))
+                } else {
+                    FFIVariable::mut_ptr(self.to_token_stream())
+                }
+            },
+            _ => FFIVariable::mut_ptr(self.to_token_stream())
         }
     }
 }
@@ -478,7 +476,6 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
 // }
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-    //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
@@ -488,31 +485,34 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<Obj
         Type::Reference(TypeReference { elem, .. }) |
         Type::Slice(TypeSlice { elem, .. }) =>
             elem.resolve(source),
-        Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
+        Type::Ptr(TypePtr { const_token, mutability, elem, .. }) =>
             match *elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "c_void" => match (star_token, const_token, mutability) {
-                        (_, Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
-                        (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(quote!(void)),
-                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                Type::Path(TypePath { path, .. }) => match path.segments.last() {
+                    Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+                        "c_void" => match (const_token, mutability) {
+                            (Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
+                            _ => FFIVariable::mut_ptr(quote!(void)),
+                        },
+                        _ if const_token.is_some() => FFIVariable::const_ptr(path.to_token_stream()),
+                        _ => FFIVariable::mut_ptr(path.to_token_stream())
                     },
-                    _ => if const_token.is_some() {
-                        FFIVariable::const_ptr(path.to_token_stream())
-                    } else {
-                        FFIVariable::mut_ptr(path.to_token_stream())
-                    }
-                },
-                Type::Ptr(..) => FFIVariable::mut_ptr(elem.to_token_stream()),
-                ty => mutability.as_ref()
-                    .map_or(FFIVariable::const_ptr(ty.to_token_stream()), |_| FFIVariable::mut_ptr(ty.to_token_stream()))
+                    _ => FFIVariable::mut_ptr(path.to_token_stream()),
+                }
+                Type::Ptr(..) =>
+                    FFIVariable::mut_ptr(elem.to_token_stream()),
+                ty if mutability.is_some() =>
+                    FFIVariable::mut_ptr(ty.to_token_stream()),
+                ty =>
+                    FFIVariable::const_ptr(ty.to_token_stream()),
             },
-        Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) |
-            Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) => {
-            let bound = bounds.iter().find_map(|bound| match bound {
+        Type::TraitObject(TypeTraitObject { bounds, .. }) |
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) => {
+            let maybe_bound = bounds.iter().find_map(|bound| match bound {
                 TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
                 _ => None
-            }).unwrap();
-            bound.resolve(source)
+            });
+            maybe_bound.map(|bound| bound.resolve(source))
+                .unwrap_or_else(|| FFIVariable::mut_ptr(bounds.to_token_stream()))
         }
         ty => FFIVariable::direct(ty.mangle_tokens_default())
     }
@@ -531,29 +531,37 @@ pub fn resolve_target_variable(ty: Type, source: &ScopeContext) -> FFIVariable<O
             elem.resolve(source),
         Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
             match *elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "c_void" => match (star_token, const_token, mutability) {
-                        (_, Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
-                        (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(quote!(void)),
-                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                Type::Path(TypePath { path, .. }) => match path.segments.last() {
+                    Some(last_segment) => match last_segment.ident.to_string().as_str() {
+                        "c_void" => match (const_token, mutability) {
+                            (Some(_const_token), None) =>
+                                FFIVariable::const_ptr(quote!(void)),
+                            (None, Some(_mut_token)) =>
+                                FFIVariable::mut_ptr(quote!(void)),
+                            _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
+                        },
+                        _ if const_token.is_some() =>
+                            FFIVariable::const_ptr(path.to_token_stream()),
+                        _ =>
+                            FFIVariable::mut_ptr(path.to_token_stream())
                     },
-                    _ => if const_token.is_some() {
-                        FFIVariable::const_ptr(path.to_token_stream())
-                    } else {
-                        FFIVariable::mut_ptr(path.to_token_stream())
-                    }
+                    _ => FFIVariable::mut_ptr(path.to_token_stream())
                 },
-                Type::Ptr(..) => FFIVariable::mut_ptr(elem.to_token_stream()),
-                ty => mutability.as_ref()
-                    .map_or(FFIVariable::const_ptr(ty.to_token_stream()), |_| FFIVariable::mut_ptr(ty.to_token_stream()))
+                Type::Ptr(..) =>
+                    FFIVariable::mut_ptr(elem.to_token_stream()),
+                ty if mutability.is_some() =>
+                    FFIVariable::mut_ptr(ty.to_token_stream()),
+                ty =>
+                    FFIVariable::const_ptr(ty.to_token_stream()),
             },
         Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) |
             Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) => {
-            let bound = bounds.iter().find_map(|bound| match bound {
+            let maybe_bound = bounds.iter().find_map(|bound| match bound {
                 TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
                 _ => None
-            }).unwrap();
-            bound.resolve(source)
+            });
+            maybe_bound.map(|bound| bound.resolve(source))
+                .unwrap_or_else(|| FFIVariable::mut_ptr(bounds.to_token_stream()))
         }
         ty => FFIVariable::direct(ty.mangle_tokens_default())
     }
@@ -568,21 +576,25 @@ pub fn objc_primitive(ty: &Type) -> TokenStream2 {
 }
 
 pub fn objc_primitive_from_path(path: &Path) -> TokenStream2 {
-    match path.segments.last().unwrap().ident.to_string().as_str() {
-        "i8" => quote!(int8_t),
-        "u8" => quote!(uint8_t),
-        "i16" => quote!(int16_t),
-        "u16" => quote!(uint16_t),
-        "i32" => quote!(int32_t),
-        "u32" => quote!(uint32_t),
-        "i64" => quote!(int32_t),
-        "u64" => quote!(uint32_t),
-        "f64" => quote!(double),
-        "isize" => quote!(intptr_t),
-        "usize" => quote!(uintptr_t),
-        "bool" => quote!(BOOL),
-        _ => path.to_token_stream()
+    match path.segments.last() {
+        None => path.to_token_stream(),
+        Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
+            "i8" => quote!(int8_t),
+            "u8" => quote!(uint8_t),
+            "i16" => quote!(int16_t),
+            "u16" => quote!(uint16_t),
+            "i32" => quote!(int32_t),
+            "u32" => quote!(uint32_t),
+            "i64" => quote!(int32_t),
+            "u64" => quote!(uint32_t),
+            "f64" => quote!(double),
+            "isize" => quote!(intptr_t),
+            "usize" => quote!(uintptr_t),
+            "bool" => quote!(BOOL),
+            _ => path.to_token_stream()
+        }
     }
+
 }
 
 
@@ -788,13 +800,13 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
                 single_generic_ffi_full_path(ty),
             GenericTypeKind::Array(ty) |
             GenericTypeKind::Slice(ty) =>
-                FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
+                FFIFullPath::generic(ty.mangle_ident_default().to_path()),
             GenericTypeKind::Callback(kind) =>
-                FFIFullPath::Generic { ffi_name: kind.as_type().mangle_ident_default().to_path() },
+                FFIFullPath::generic(kind.as_type().mangle_ident_default().to_path()),
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
-                0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
+                0 => FFIFullPath::void(),
                 1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),
-                _ => FFIFullPath::Generic { ffi_name: tuple.mangle_ident_default().to_path() }
+                _ => FFIFullPath::generic(tuple.mangle_ident_default().to_path())
             }
             GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
                 Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
@@ -805,7 +817,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
                     _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
                 },
                 Some(PathSegment { arguments: PathArguments::Parenthesized(args), .. }) =>
-                    FFIFullPath::Generic { ffi_name: args.mangle_ident_default().to_path() },
+                    FFIFullPath::generic(args.mangle_ident_default().to_path()),
                 _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),
             },
             GenericTypeKind::Optional(Type::Array(TypeArray { elem, .. })) =>
@@ -813,24 +825,19 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             GenericTypeKind::TraitBounds(bounds) => {
                 println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
                 match bounds.len() {
-                    1 => FFIFullPath::Generic {
-                        ffi_name: {
-                            if let Some(TypeParamBound::Trait(TraitBound  { path, .. })) = bounds.first() {
-                                let ty = path.to_type();
-                                let maybe_special: Option<SpecialType<ObjCSpecification>> = ty.maybe_special_type(source);
-                                match maybe_special {
-                                    Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) => {
-                                        println!("GenericTypeKind (TraitBounds: Special): {}", path.to_token_stream());
-                                        return FFIFullPath::external(path.clone())
-                                    },
-                                    _ => {}
-                                }
-                            }
-
-                            bounds.first().unwrap().mangle_ident_default().to_path()
+                    1 => if let Some(TypeParamBound::Trait(trait_bound)) = bounds.first() {
+                        let ty = trait_bound.path.to_type();
+                        let maybe_special: Option<SpecialType<ObjCSpecification>> = ty.maybe_special_type(source);
+                        match maybe_special {
+                            Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) =>
+                                FFIFullPath::external(trait_bound.path.clone()),
+                            _ =>
+                                FFIFullPath::generic(trait_bound.mangle_ident_default().to_path())
                         }
-                    },
-                    _ => FFIFullPath::Generic { ffi_name: bounds.mangle_ident_default().to_path() }
+                    } else {
+                        FFIFullPath::generic(bounds.mangle_ident_default().to_path())
+                    }
+                    _ => FFIFullPath::generic(bounds.mangle_ident_default().to_path())
                 }
             },
             gen_ty =>
@@ -849,21 +856,20 @@ fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<ObjCSpecification> {
     if last_ident.is_primitive() {
         FFIFullPath::external(last_ident.to_path())
     } else if last_ident.is_any_string() {
-        FFIFullPath::Dictionary { path: FFIFullDictionaryPath::CChar }
+        FFIFullPath::c_char()
     } else if last_ident.is_special_generic() ||
         (last_ident.is_result() && path.segments.len() == 1) ||
         // TODO: avoid this hardcode
         (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
         last_ident.is_smart_ptr() ||
         last_ident.is_lambda_fn() {
-        FFIFullPath::Generic { ffi_name: path.mangle_ident_default().to_path() }
+        FFIFullPath::generic(path.mangle_ident_default().to_path())
     } else {
         let new_segments = cloned_segments
             .into_iter()
             .map(|segment| quote_spanned! { segment.span() => #segment })
             .collect::<Vec<_>>();
         FFIFullPath::external(parse_quote!(#(#new_segments)::*))
-
     }
 }
 impl ToType for FFIFullDictionaryPath<ObjCSpecification> {

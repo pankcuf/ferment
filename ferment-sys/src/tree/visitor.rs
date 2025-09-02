@@ -50,8 +50,6 @@ impl<'ast> Visit<'ast> for Visitor {
         self.add_conversion(Item::Impl(node.clone()));
     }
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
-        // let context = self.context.read().unwrap();
-        // // let fermented_mod_name = &context.config.mod_name;
         if node.ident.to_string().eq("fermented") {
             return;
         }

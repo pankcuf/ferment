@@ -82,7 +82,9 @@ impl VisitScope for Item {
                 };
 
                 let self_object = ObjectKind::new_item(TypeModelKind::Object(TypeModel::new(full_ty, Some(item_enum.generics.clone()), nested_arguments)), ScopeItemKind::Item(Item::Enum(item_enum.clone()), self_scope.clone()));
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_enum.ident, self_object.clone());
+                if let Some(parent_scope) = scope.parent_scope() {
+                    add_itself_conversion(visitor, parent_scope, &item_enum.ident, self_object.clone());
+                }
                 add_itself_conversion(visitor, scope, &item_enum.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_enum.attrs, scope);
                 visitor.add_generic_chain(scope, &item_enum.generics, true);
@@ -125,7 +127,9 @@ impl VisitScope for Item {
                 let self_object = ObjectKind::new_item(
                     TypeModelKind::Object(TypeModel::new(full_ty, Some(item_struct.generics.clone()), nested_arguments)),
                     ScopeItemKind::Item(Item::Struct(item_struct.clone()), self_scope.clone()));
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_struct.ident, self_object.clone());
+                if let Some(parent_scope) = scope.parent_scope() {
+                    add_itself_conversion(visitor, parent_scope, &item_struct.ident, self_object.clone());
+                }
                 add_itself_conversion(visitor, scope, &item_struct.ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(&item_struct.attrs, scope);
                 visitor.add_generic_chain(scope, &item_struct.generics, true);
@@ -135,7 +139,9 @@ impl VisitScope for Item {
             Item::Fn(ItemFn { sig, .. }) => {
                 let self_object = ObjectKind::new_item(TypeModelKind::Fn(TypeModel::new(scope.to_type(), Some(sig.generics.clone()), Punctuated::new())), ScopeItemKind::Fn(sig.clone(), self_scope.clone()));
                 let sig_ident = &sig.ident;
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), sig_ident, self_object.clone());
+                if let Some(parent_scope) = scope.parent_scope() {
+                    add_itself_conversion(visitor, parent_scope, sig_ident, self_object.clone());
+                }
                 add_itself_conversion(visitor, scope, sig_ident, self_object);
                 add_full_qualified_signature(visitor, sig, scope);
             }
@@ -150,7 +156,9 @@ impl VisitScope for Item {
                     }
                 };
                 // println!("ADDD TYPE: {}", self_object);
-                add_itself_conversion(visitor, scope.parent_scope().unwrap(), &item_type.ident, self_object.clone());
+                if let Some(parent_scope) = scope.parent_scope() {
+                    add_itself_conversion(visitor, parent_scope, &item_type.ident, self_object.clone());
+                }
                 add_itself_conversion(visitor, scope, &item_type.ident, self_object);
                 visitor.add_generic_chain(scope, &item_type.generics, true);
                 visitor.add_full_qualified_type_match(scope, &item_type.ty, true);
@@ -187,11 +195,14 @@ impl VisitScope for Item {
                                     FnArg::Typed(PatType { ty, .. }) => {
                                         let type_chain = visitor.create_type_chain(ty, &fn_scope);
                                         let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
-                                        visitor.add_full_qualified_type_chains(HashMap::from_iter([
+                                        let mut type_chains = HashMap::from_iter([
                                             (fn_scope.clone(), type_chain),
                                             (scope.clone(), parent_type_chain.clone()),
-                                            (scope.parent_scope().unwrap().clone(), parent_type_chain.clone()),
-                                        ]))
+                                        ]);
+                                        if let Some(parent_scope) = scope.parent_scope() {
+                                            type_chains.insert(parent_scope.clone(), parent_type_chain.clone());
+                                        }
+                                        visitor.add_full_qualified_type_chains(type_chains);
                                     }
                                 }
                             });
@@ -243,11 +254,15 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                     let mut type_chain = visitor.create_type_chain(ty, &fn_scope);
                     let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
                     type_chain.insert(parse_quote!(Self), scope.self_scope().object.clone());
-                    visitor.add_full_qualified_type_chains(HashMap::from_iter([
+                    let mut type_chains = HashMap::from_iter([
                         (fn_scope.clone(), type_chain),
                         (scope.clone(), parent_type_chain.clone()),
-                        (scope.parent_scope().unwrap().clone(), parent_type_chain.clone()),
-                    ]))
+                    ]);
+                    if let Some(parent_scope) = scope.parent_scope() {
+                        type_chains.insert(parent_scope.clone(), parent_type_chain.clone());
+                    }
+                    visitor.add_full_qualified_type_chains(type_chains);
+
                 });
                 visitor.add_generic_chain(&fn_scope, generics, false);
             }
@@ -258,7 +273,9 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
             },
             _ => {}
         });
-    visitor.scope_add_one(parse_quote!(#ident), itself.clone(), scope.parent_scope().unwrap());
+    if let Some(parent_scope) = scope.parent_scope() {
+        visitor.scope_add_one(parse_quote!(#ident), itself.clone(), parent_scope);
+    }
     visitor.scope_add_one(parse_quote!(Self), itself, scope);
     visitor.add_generic_chain(&scope, &item_trait.generics, true);
 }

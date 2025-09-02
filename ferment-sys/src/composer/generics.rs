@@ -41,7 +41,8 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
         SPEC::Gen::from_generics(self.generics.generics.as_ref().map(|generics| {
             let mut g = generics.clone();
             let update_bound = |type_path: &TypePathHolder, bounds: &mut AddPunctuated<TypeParamBound>| {
-                if let Some(refined_bounds) = context.context.read().unwrap().generics.maybe_generic_bounds(&context.scope, type_path) {
+                let lock = context.context.read().unwrap();
+                if let Some(refined_bounds) = lock.generics.maybe_generic_bounds(&context.scope, type_path) {
                     bounds.iter_mut()
                         .zip(refined_bounds)
                         .for_each(|(b, rb)| match b {

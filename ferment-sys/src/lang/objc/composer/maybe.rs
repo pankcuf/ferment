@@ -1,4 +1,4 @@
-use syn::{Field, FieldMutability, Item, Type, Visibility};
+use syn::{Field, FieldMutability, Item, ItemType, Type, Visibility};
 use syn::token::Pub;
 use crate::ast::{CommaPunctuated, PathHolder};
 use crate::composable::CfgAttributes;
@@ -14,7 +14,7 @@ impl MaybeComposer<ObjCSpecification> for Item {
         let macro_type = self.maybe_macro_labeled()?;
         let source = scope_context.borrow();
         let global = source.context.read().unwrap();
-        let config = global.config.maybe_objc_config().unwrap();
+        let config = global.config.maybe_objc_config().expect("ObjC config must be present");
         let prefix = config.class_prefix();
         let crate_ident = source.scope.crate_ident_as_path();
         match (macro_type, self) {
@@ -24,19 +24,19 @@ impl MaybeComposer<ObjCSpecification> for Item {
                 Some(ItemComposerWrapper::r#struct(item, TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
             (MacroKind::Export, Item::Enum(item)) =>
                 Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
-            (MacroKind::Export, Item::Type(item)) => match &*item.ty {
+            (MacroKind::Export, Item::Type(ItemType { attrs, ident, generics, ty, .. })) => match &*ty {
                 Type::BareFn(type_bare_fn) =>
-                    Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), &item.ident, prefix, type_bare_fn, &item.attrs.cfg_attributes()), &item.generics, &vec![], &item.attrs, scope_context))),
+                    Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &vec![], attrs, scope_context))),
                 _ => {
                     let fields = CommaPunctuated::from_iter([Field {
                         vis: Visibility::Public(Pub::default()),
-                        ty: *item.ty.clone(),
+                        ty: *ty.clone(),
                         attrs: vec![],
                         ident: None,
                         colon_token: None,
                         mutability: FieldMutability::None,
                     }]);
-                    Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), &item.attrs, &vec![], &item.generics, &fields, scope_context)))
+                    Some(ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(ident, prefix, attrs.cfg_attributes()), attrs, &vec![], generics, &fields, scope_context)))
                 }
             },
             (MacroKind::Export, Item::Fn(item)) =>

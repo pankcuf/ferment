@@ -10,3 +10,19 @@ impl Terminated for TokenStream2 {
         quote!(#self;)
     }
 }
+
+pub trait WrapInBraces {
+    fn wrap_in_braces(&self) -> Self;
+    fn wrap_in_rounds(&self) -> Self;
+}
+
+impl WrapInBraces for TokenStream2 {
+    fn wrap_in_braces(&self) -> Self {
+        quote!({#self})
+    }
+
+    fn wrap_in_rounds(&self) -> Self {
+        quote!((#self))
+    }
+}
+

@@ -120,7 +120,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {
-                        let fn_name = &path.segments.last().unwrap().ident;
+                        let fn_name = &path.segments.last().expect("Expect ident").ident;
                         let self_ty = Resolve::<Type>::resolve(self_ty, source);
                         parse_quote!(<#self_ty as #full_trait_ty>::#fn_name)
                     }).unwrap_or_else(|| path.to_type()),

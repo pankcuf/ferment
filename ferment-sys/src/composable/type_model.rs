@@ -65,12 +65,16 @@ impl TypeModel {
             Type::Reference(TypeReference { elem, .. }) |
             Type::Ptr(TypePtr { elem, .. }) => elem.to_path(),
             Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                bounds.iter().find_map(|b| match b {
+                if let Some(bound) = bounds.iter().find_map(|b| match b {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         Some(path.arg_less()),
                     _ =>
                         None
-                }).unwrap()
+                }) {
+                    bound
+                } else {
+                    bounds.to_path()
+                }
             }
             other =>
                 other.to_path()
