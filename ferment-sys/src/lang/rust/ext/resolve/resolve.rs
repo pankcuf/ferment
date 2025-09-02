@@ -61,7 +61,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
                 single_generic_ffi_full_path(elem),
             GenericTypeKind::TraitBounds(bounds) => match bounds.len() {
                 1 => if let Some(TypeParamBound::Trait(trait_bound)) = bounds.first() {
-                    match FFISpecialTypeResolve::maybe_special_type(&trait_bound.path.to_type(), source) {
+                    match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&trait_bound.path.to_type(), source) {
                         Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) =>
                             FFIFullPath::external(trait_bound.path.clone()),
                         _ =>

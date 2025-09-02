@@ -24,7 +24,7 @@ impl MaybeComposer<ObjCSpecification> for Item {
                 Some(ItemComposerWrapper::r#struct(item, TypeContext::r#struct(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
             (MacroKind::Export, Item::Enum(item)) =>
                 Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
-            (MacroKind::Export, Item::Type(ItemType { attrs, ident, generics, ty, .. })) => match &*ty {
+            (MacroKind::Export, Item::Type(ItemType { attrs, ident, generics, ty, .. })) => match &**ty {
                 Type::BareFn(type_bare_fn) =>
                     Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &vec![], attrs, scope_context))),
                 _ => {
