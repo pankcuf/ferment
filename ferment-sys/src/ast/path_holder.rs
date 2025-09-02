@@ -168,6 +168,7 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
         self.replaced_first_with_ident(leading_chunk)
             .replaced_last_with(trailing_chunk)
     }
+
 }
 
 impl PathHolder {
@@ -196,6 +197,9 @@ impl PathHolder {
         let mut segments = self.0.segments.clone();
         segments.push(PathSegment::from(name.clone()));
         PathHolder::from(Path { leading_colon: None, segments })
+    }
+    pub fn joined_path(&self, path: Path) -> Path {
+        parse_quote!(#self::#path)
     }
 
     pub fn split(&self, head_size: usize) -> (PathHolder, PathHolder) {

@@ -7,6 +7,7 @@ use crate::composable::TypeModel;
 use crate::context::ScopeContext;
 use crate::kind::{GenericTypeKind, TypeKind};
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
+use crate::lang::Specification;
 use crate::presentation::FFIFullPath;
 
 pub mod composing;
@@ -34,14 +35,14 @@ impl TypeKind {
             .collect::<Vec<_>>()
     }
 
-    pub fn as_generic_arg_type(&self, source: &ScopeContext) -> TokenStream2 {
+    pub fn as_generic_arg_type<SPEC: Specification>(&self, source: &ScopeContext) -> TokenStream2 {
         match self {
             TypeKind::Primitive(path) =>
                 quote!(#path),
             TypeKind::Complex(ty) =>
-                Resolve::<FFIFullPath>::resolve(ty, source).to_token_stream(),
+                Resolve::<FFIFullPath<SPEC>>::resolve(ty, source).to_token_stream(),
             TypeKind::Generic(conversion) =>
-                Resolve::<FFIFullPath>::resolve(conversion, source).to_token_stream(),
+                Resolve::<FFIFullPath<SPEC>>::resolve(conversion, source).to_token_stream(),
         }
     }
 

@@ -5,7 +5,7 @@ use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeMode
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, CrateExtension, DictionaryType, Pop, ToObjectKind, ToPath, ToType};
+use crate::ext::{Accessory, AsType, CrateExtension, DictionaryType, Pop, ToObjectKind, ToPath, ToType};
 use crate::ext::to_object_kind::{handle_type_model, handle_type_path_model};
 use crate::nprint;
 
@@ -161,13 +161,12 @@ impl<'a> VisitScopeType<'a> for Path {
                     let object_self_scope = obj_scope.self_scope();
                     let self_scope_path = &object_self_scope.self_scope;
                     match first_ident.to_string().as_str() {
-                        "Self" if segments.len() <= 1 => {
+                        "Self" => if segments.len() <= 1 {
                             nprint!(1, crate::formatter::Emoji::Local, "(Self) {}", format_token_stream(first_ident));
                             segments.replace_last_with(&self_scope_path.0.segments);
                             TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                                 .to_unknown(nested_arguments)
-                        },
-                        "Self" => {
+                        } else {
                             let tail = segments.crate_less();
                             let last_segment = segments.pop().unwrap();
                             let new_path: Path = parse_quote!(#self_scope_path::#tail);
@@ -175,22 +174,17 @@ impl<'a> VisitScopeType<'a> for Path {
                             if let Some(segment_last) = segments.last_mut() {
                                 segment_last.arguments = last_segment.into_value().arguments;
                             }
-                            // TODO: why clear ????
                             segments.clear();
                             segments.extend(new_path.segments);
-
                             match scope.obj_root_chain() {
-                                Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) => {
-                                    // println!("New Local Object: {}", segments.to_token_stream());
+                                Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
                                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                                        .to_object(nested_arguments)
-                                },
+                                        .to_object(nested_arguments),
                                 Some(ScopeChain::Trait { .. }) =>
                                     TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                                         .to_trait(nested_arguments),
                                 _ => panic!("Unexpected scope obj root chain")
                             }
-
                         },
                         "Vec" =>
                             ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Vec(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
@@ -232,11 +226,7 @@ impl<'a> VisitScopeType<'a> for Path {
                             let obj_parent_scope = obj_scope.parent_scope();
                             let len = segments.len();
                             if len == 1 {
-                                nprint!(1, crate::formatter::Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}",
-                            if obj_parent_scope.is_some() { "some" } else { "no" },
-                            first_ident,
-                            scope,
-                            self.to_token_stream());
+                                nprint!(1, crate::formatter::Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}", obj_parent_scope.is_some().then_some("some").unwrap_or("no"), first_ident, scope, self.to_token_stream());
                                 segments.replace_last_with(&match obj_parent_scope {
                                     None => {
                                         // Global
@@ -256,42 +246,36 @@ impl<'a> VisitScopeType<'a> for Path {
                                 TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
                                     .to_unknown(nested_arguments)
 
-                            } else {
-                                let tail = segments.crate_less();
-                                if let Some(QSelfModel { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
-                                    nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
-                                    let maybe_import = context.maybe_scope_import_path(scope, &import_seg)
-                                        .or(context.maybe_scope_import_path(obj_scope, &import_seg))
-                                        .or(obj_parent_scope.and_then(|obj_parent_scope|
-                                            context.maybe_scope_import_path(obj_parent_scope, &import_seg)));
-
-                                    let tt = if let Some(import) = maybe_import {
-                                        import.clone()
-                                    } else {
-                                        let local = obj_parent_scope.unwrap_or(scope);
-                                        parse_quote!(#local::#import_seg)
-                                    };
-                                    let converted: TypePath = match len {
-                                        0 => parse_quote!(<#ty as #tt>),
-                                        _ => parse_quote!(<#ty as #tt>::#tail)
-                                    };
-
-                                    match scope.obj_root_chain() {
-                                        Some(ScopeChain::Trait { .. }) =>
-                                            converted.to_trait(nested_arguments),
-                                        Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                                            converted.to_object(nested_arguments),
-                                        _ =>
-                                            converted.to_unknown(nested_arguments)
+                            } else if let Some(QSelfModel { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
+                                nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
+                                let tt = context.maybe_scope_import_path(scope, &import_seg)
+                                    .or_else(|| context.maybe_scope_import_path(obj_scope, &import_seg))
+                                    .or_else(|| obj_parent_scope.and_then(|parent_scope| context.maybe_scope_import_path(parent_scope, &import_seg)))
+                                    .cloned()
+                                    .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_holder_ref().joined_path(import_seg.0));
+                                let converted: TypePath = match len {
+                                    0 => parse_quote!(<#ty as #tt>),
+                                    _ => {
+                                        let tail = segments.crate_less();
+                                        parse_quote!(<#ty as #tt>::#tail)
                                     }
-                                } else {
-                                    TypePath { qself: new_qself, path: self.clone() }
-                                        .to_unknown(nested_arguments)
+                                };
+                                match scope.obj_root_chain() {
+                                    Some(ScopeChain::Trait { .. }) =>
+                                        converted.to_trait(nested_arguments),
+                                    Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
+                                        converted.to_object(nested_arguments),
+                                    _ =>
+                                        converted.to_unknown(nested_arguments)
                                 }
+                            } else {
+                                TypePath { qself: new_qself, path: self.clone() }
+                                    .to_unknown(nested_arguments)
                             }
                         },
                     }
-                }            },
+                }
+            },
             _ => ObjectKind::Empty
         }
 
@@ -396,15 +380,12 @@ impl<'a> VisitScopeType<'a> for TypePtr {
                         _ => {}
                     }
                 },
-                _ => {
-                    let ty = tyc.to_type();
-                    match (self.const_token, self.mutability) {
-                        (Some(..), _) =>
-                            tyc.replace_model_type(parse_quote!(*const #ty)),
-                        (_, Some(..)) =>
-                            tyc.replace_model_type(parse_quote!(*mut #ty)),
-                        _ => {}
-                    }
+                _ => match (self.const_token, self.mutability) {
+                    (Some(..), _) =>
+                        tyc.replace_model_type(tyc.to_type().joined_const()),
+                    (_, Some(..)) =>
+                        tyc.replace_model_type(tyc.to_type().joined_mut()),
+                    _ => {}
                 }
             }
         }
