@@ -57,7 +57,6 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let to_body = quote! {
             let (ok, error) = ferment::to_result(obj, #to_conversion_ok, #to_conversion_error);
             ferment::boxed(Self { ok, error })
-
         };
         let drop_body = quote! {
             #destroy_conversion_ok;
