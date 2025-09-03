@@ -357,16 +357,44 @@ pub unsafe fn fold_to_vec<M, V: Copy, V2>(count: usize, values: *mut V, value_co
 }
 
 /// # Safety
+/// # Safety
+/// Convert a pair of optional ok/error pointers into a `Result` using provided converters.
+///
+/// When both pointers are null, this prefers interpreting the value as `Err(error_converter(null))`.
+/// This supports encodings like `Result<T, Option<E>>` where `Err(None)` is represented by both
+/// pointers being null. If you need to prefer `Ok` on both-null (e.g. `Result<Option<T>, E>`),
+/// use `fold_to_result_prefer_ok` instead.
 pub unsafe fn fold_to_result<T, E, T2, E2>(
-    ok: *mut T, ok_converter: impl Fn(*mut T) -> T2,
-    error: *mut E, error_converter: impl Fn(*mut E) -> E2) -> Result<T2, E2> {
+    ok: *mut T,
+    ok_converter: impl Fn(*mut T) -> T2,
+    error: *mut E,
+    error_converter: impl Fn(*mut E) -> E2,
+) -> Result<T2, E2> {
+    if !error.is_null() {
+        Err(error_converter(error))
+    } else if !ok.is_null() {
+        Ok(ok_converter(ok))
+    } else {
+        Err(error_converter(error))
+    }
+}
+
+/// # Safety
+/// Variant that prefers `Ok` when both pointers are null. Useful for
+/// `Result<Option<T>, E>` encodings where `Ok(None)` is represented by a null ok pointer.
+pub unsafe fn fold_to_result_prefer_ok<T, E, T2, E2>(
+    ok: *mut T,
+    ok_converter: impl Fn(*mut T) -> T2,
+    error: *mut E,
+    error_converter: impl Fn(*mut E) -> E2,
+) -> Result<T2, E2> {
     if error.is_null() {
         Ok(ok_converter(ok))
     } else {
         Err(error_converter(error))
     }
 }
-/// # Safety
+/// # Safety-
 pub unsafe fn to_result<T, E, T2, E2>(
     result: Result<T2, E2>,
     ok_converter: impl Fn(T2) -> *mut T,
