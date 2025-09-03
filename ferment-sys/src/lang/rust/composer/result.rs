@@ -4,11 +4,11 @@ use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, VarComposer, ConversionToComposer, ConversionDropComposer, ResultComposer, NameKind};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, Primitive};
+use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, Optional, Primitive};
 use crate::kind::FieldTypeKind;
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, Name};
+use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethod, Name};
 
 impl SourceComposable for ResultComposer<RustSpecification> {
     type Source = ScopeContext;
@@ -32,6 +32,7 @@ impl SourceComposable for ResultComposer<RustSpecification> {
 
         let ok_is_primitive = type_ok.is_primitive();
         let error_is_primitive = type_error.is_primitive();
+        let error_is_optional = type_error.is_optional();
 
         let map_var_name = Name::dictionary_name(DictionaryName::O);
         let var_ok = VarComposer::<RustSpecification>::value(type_ok).compose(source);
@@ -48,10 +49,10 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let from_conversion_error = Expression::map_o_expr(from_conversion_expr_error).present(source);
         let to_conversion_error = Expression::map_o_expr(to_conversion_expr_error).present(source);
         let destroy_conversion_error = destroy_conversion_expr_error.present(source);
-
+        let fold_method = error_is_optional.then_some(InterfacesMethod::FoldToResultPreferOk).unwrap_or(InterfacesMethod::FoldToResult);
         let from_body = quote! {
             let ffi_ref = &*ffi;
-            ferment::fold_to_result(ffi_ref.ok, #from_conversion_ok, ffi_ref.error, #from_conversion_error)
+            ferment::#fold_method(ffi_ref.ok, #from_conversion_ok, ffi_ref.error, #from_conversion_error)
         };
         let to_body = quote! {
             let (ok, error) = ferment::to_result(obj, #to_conversion_ok, #to_conversion_error);

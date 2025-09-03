@@ -269,3 +269,103 @@ fn callback_fnmut_two_args_to_opt_string_smoke() {
 
     unsafe { FnMut_ARGS_u32_Arr_u8_32_RTRN_Option_String_destroy(cb) };
 }
+
+// Result wrappers: primitive/primitive
+#[test]
+fn result_u32_u32_roundtrip_and_free() {
+    use example_nested::fermented::generics::Result_ok_u32_err_u32 as FFIResultU32U32;
+
+    let cases = vec![Ok(123u32), Err(456u32)];
+    for case in cases {
+        let ffi_ptr = unsafe { <FFIResultU32U32 as FFIConversionTo<Result<u32, u32>>>::ffi_to_const(case.clone()) };
+        assert!(!ffi_ptr.is_null());
+        let decoded = unsafe { <FFIResultU32U32 as FFIConversionFrom<Result<u32, u32>>>::ffi_from_const(ffi_ptr) };
+        assert_eq!(decoded, case);
+        unsafe { ferment::unbox_any(ffi_ptr.cast_mut()) };
+    }
+}
+
+// Result wrappers: complex/optional-generic (String / Option<Vec<u8>>)
+#[test]
+fn result_string_opt_vecu8_roundtrip_and_free() {
+
+    let cases = vec![
+        Ok::<String, Option<Vec<u8>>>("hello".into()),
+        Err::<String, Option<Vec<u8>>>(None),
+        Err::<String, Option<Vec<u8>>>(Some(vec![1, 2, 3])),
+    ];
+    for case in cases {
+        let ffi_ptr = unsafe { <example_nested::fermented::generics::Result_ok_String_err_Option_Vec_u8 as FFIConversionTo<Result<String, Option<Vec<u8>>>>>::ffi_to_const(case.clone()) };
+        assert!(!ffi_ptr.is_null());
+        let decoded = unsafe { <example_nested::fermented::generics::Result_ok_String_err_Option_Vec_u8 as FFIConversionFrom<Result<String, Option<Vec<u8>>>>>::ffi_from_const(ffi_ptr) };
+        assert_eq!(decoded, case);
+        // SAFETY: Drop frees optional inner allocations correctly
+        unsafe { ferment::unbox_any(ffi_ptr.cast_mut()) };
+    }
+}
+
+// Result wrappers: complex/complex (String / String)
+#[test]
+fn result_string_string_roundtrip_and_free() {
+    use example_nested::fermented::generics::Result_ok_String_err_String as FFIResultStrStr;
+
+    let cases = vec![
+        Ok::<String, String>("alpha".into()),
+        Err::<String, String>("omega".into()),
+    ];
+    for case in cases {
+        let ffi_ptr = unsafe { <FFIResultStrStr as FFIConversionTo<Result<String, String>>>::ffi_to_const(case.clone()) };
+        assert!(!ffi_ptr.is_null());
+        let decoded = unsafe { <FFIResultStrStr as FFIConversionFrom<Result<String, String>>>::ffi_from_const(ffi_ptr) };
+        assert_eq!(decoded, case);
+        unsafe { ferment::unbox_any(ffi_ptr.cast_mut()) };
+    }
+}
+
+// Callback using a Result return: ([u8;32],[u8;32]) -> Result<u32, ProtocolError>
+#[test]
+fn callback_args_to_result_u32_protocol_error_smoke() {
+    use example_nested::fermented::generics::{
+        Arr_u8_32,
+        Fn_ARGS_Arr_u8_32_Arr_u8_32_RTRN_Result_ok_u32_err_example_simple_errors_protocol_error_ProtocolError as FnRes,
+        Fn_ARGS_Arr_u8_32_Arr_u8_32_RTRN_Result_ok_u32_err_example_simple_errors_protocol_error_ProtocolError_ctor as FnResCtor,
+        Fn_ARGS_Arr_u8_32_Arr_u8_32_RTRN_Result_ok_u32_err_example_simple_errors_protocol_error_ProtocolError_destroy as FnResDestroy,
+        Result_ok_u32_err_example_simple_errors_protocol_error_ProtocolError as FFIResWrapper,
+    };
+
+    // We'll construct a ProtocolError value using the exported simple error type
+    use example_simple::errors::protocol_error::ProtocolError;
+    use example_simple::state_transition::errors::invalid_identity_public_key_type_error::InvalidIdentityPublicKeyTypeError;
+
+    unsafe extern "C" fn caller(_a: *mut Arr_u8_32, _b: *mut Arr_u8_32) -> *mut FFIResWrapper {
+        // produce Ok(7)
+        <FFIResWrapper as FFIConversionTo<Result<u32, ProtocolError>>>::ffi_to(Ok(7u32))
+    }
+    unsafe extern "C" fn destructor(ptr: *mut FFIResWrapper) {
+        if !ptr.is_null() {
+            ferment::unbox_any(ptr);
+        }
+    }
+
+    let cb: *mut FnRes = unsafe { FnResCtor(caller, destructor) };
+    assert!(!cb.is_null());
+
+    // SAFETY: Exercise call; wrapper will convert to Result and call destructor
+    let res = unsafe { (&*cb).call([0u8; 32], [1u8; 32]) };
+    assert_eq!(res, Ok(7u32));
+
+    // Now a variant that returns Err(…)
+    unsafe extern "C" fn caller_err(_a: *mut Arr_u8_32, _b: *mut Arr_u8_32) -> *mut FFIResWrapper {
+        // Build a valid ProtocolError variant
+        let err = ProtocolError::InvalidPKT(InvalidIdentityPublicKeyTypeError { public_key_type: "boom".to_string() });
+        <FFIResWrapper as FFIConversionTo<Result<u32, ProtocolError>>>::ffi_to(Err(err))
+    }
+    let cb_err: *mut FnRes = unsafe { FnResCtor(caller_err, destructor) };
+    let res_err = unsafe { (&*cb_err).call([0u8; 32], [1u8; 32]) };
+    assert!(res_err.is_err());
+
+    unsafe {
+        FnResDestroy(cb);
+        FnResDestroy(cb_err);
+    }
+}

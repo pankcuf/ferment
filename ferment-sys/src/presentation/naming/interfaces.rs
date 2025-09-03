@@ -53,6 +53,7 @@ pub enum InterfacesMethod {
     FoldToMap,
     FoldToVec,
     FoldToResult,
+    FoldToResultPreferOk,
     ToResult,
 }
 impl ToTokens for InterfacesMethod {
@@ -96,6 +97,7 @@ impl ToTokens for InterfacesMethod {
             InterfacesMethod::FoldToMap => quote!(fold_to_map),
             InterfacesMethod::FoldToVec => quote!(fold_to_vec),
             InterfacesMethod::FoldToResult => quote!(fold_to_result),
+            InterfacesMethod::FoldToResultPreferOk => quote!(fold_to_result_prefer_ok),
             InterfacesMethod::ToResult => quote!(to_result),
             InterfacesMethod::FromOptPrimitive => quote!(from_opt_primitive),
             InterfacesMethod::FromOptOpaque => quote!(from_opt_opaque),
