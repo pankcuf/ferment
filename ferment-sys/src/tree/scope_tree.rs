@@ -7,7 +7,6 @@ use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::composer::SourceAccessible;
 use crate::context::{GlobalContext, Scope, ScopeContext, ScopeInfo};
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::kind::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
 use crate::tree::{ScopeTreeID, ScopeTreeItem};
@@ -44,12 +43,9 @@ impl SourceAccessible for ScopeTree {
 pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
     let crate_ident =  root_scope_chain.crate_ident_ref();
     let generics_scope_ident = format_ident!("generics");
-    let generics_scope_chain = ScopeChain::Mod {
-        info: ScopeInfo {
-            attrs: vec![],
-            crate_ident: crate_ident.clone(),
-            self_scope: Scope::new(root_scope_chain.self_path_holder_ref().joined(&generics_scope_ident), ObjectKind::Empty) },
-        parent_scope_chain: root_scope_chain.clone().into() };
+    let generics_scope_chain = ScopeChain::r#mod(
+        ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(root_scope_chain.self_path_holder_ref().joined(&generics_scope_ident))),
+        root_scope_chain.clone());
 
     create_scope_tree(
         generics_scope_chain.clone(),

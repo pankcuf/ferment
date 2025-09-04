@@ -98,16 +98,13 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
             Type::Slice(..) |
             Type::Tuple(..) =>
                 Some(FFIFullPath::generic(self.mangle_ident_default().to_path())),
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                match bounds.len() {
-                    0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
-                    1 => match bounds.first()? {
-                        TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
-                        _ => None,
-                    },
-                    _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
-                }
-
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => match bounds.len() {
+                0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
+                1 => match bounds.first()? {
+                    TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
+                    _ => None,
+                },
+                _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
             },
             _ => None
         }
@@ -141,6 +138,18 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
         self.as_type().maybe_resolve(source)
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for TypeModelKind({})", self.to_token_stream()).as_str())
+
+    }
+}
+impl<SPEC> Resolve<FFIFullPath<SPEC>> for TypeModelKind
+    where SPEC: Specification,
+          FFIFullDictionaryPath<SPEC>: ToType {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
+        self.as_type().maybe_resolve(source)
+    }
+    fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
         self.maybe_resolve(source)
             .expect(format!("Can't resolve SpecialType for TypeModelKind({})", self.to_token_stream()).as_str())
 

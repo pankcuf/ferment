@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, ItemTrait, Path, Signature, Type};
+use syn::{Attribute, Generics, Item, ItemEnum, ItemStruct, ItemTrait, ItemType, Path, Signature, Type};
 use syn::__private::TokenStream2;
 use crate::ast::PathHolder;
 use crate::composable::{CfgAttributes, TraitDecompositionPart1, TraitModel, TypeModel};
@@ -29,8 +29,8 @@ impl Debug for ScopeItemKind {
         match self {
             ScopeItemKind::Item(item, scope) =>
                 f.write_str(format!("Item({}, {scope})", format_token_stream(item.maybe_ident())).as_str()),
-            ScopeItemKind::Fn(sig, scope) =>
-                f.write_str(format!("Fn({}, {scope})", format_token_stream(&sig.ident)).as_str()),
+            ScopeItemKind::Fn(Signature { ident, .. }, scope) =>
+                f.write_str(format!("Fn({}, {scope})", format_token_stream(&ident)).as_str()),
         }
     }
 }
@@ -43,16 +43,9 @@ impl Display for ScopeItemKind {
 
 impl ResolveAttrs for ScopeItemKind {
     fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
-        match self {
-            ScopeItemKind::Item(item, ..) =>
-                item.maybe_attrs()
-                    .map(|attrs| attrs.cfg_attributes_or_none())
-                    .unwrap_or_default(),
-            ScopeItemKind::Fn(sig, ..) =>
-                sig.maybe_attrs()
-                    .map(|attrs| attrs.cfg_attributes_or_none())
-                    .unwrap_or_default()
-        }
+        self.maybe_attrs()
+            .map(CfgAttributes::cfg_attributes_or_none)
+            .unwrap_or_default()
     }
 }
 
@@ -86,8 +79,34 @@ impl ItemExtension for ScopeItemKind {
     }
 }
 impl ScopeItemKind {
+    pub fn item(item: Item, scope: PathHolder) -> Self {
+        Self::Item(item, scope)
+    }
+    pub fn r#fn(sig: Signature, scope: PathHolder) -> Self {
+        Self::Fn(sig, scope)
+    }
+    pub fn item_ref(item: &Item, scope: &PathHolder) -> Self {
+        Self::item(item.clone(), scope.clone())
+    }
+    pub fn fn_ref(sig: &Signature, scope: &PathHolder) -> Self {
+        Self::Fn(sig.clone(), scope.clone())
+    }
+
+    pub fn item_enum(item_enum: &ItemEnum, scope: &PathHolder) -> Self {
+        Self::item(Item::Enum(item_enum.clone()), scope.clone())
+    }
+    pub fn item_struct(item_struct: &ItemStruct, scope: &PathHolder) -> Self {
+        Self::item(Item::Struct(item_struct.clone()), scope.clone())
+    }
+    pub fn item_type(item_type: &ItemType, scope: &PathHolder) -> Self {
+        Self::item(Item::Type(item_type.clone()), scope.clone())
+    }
+    pub fn item_trait(item_trait: &ItemTrait, scope: &PathHolder) -> Self {
+        Self::item(Item::Trait(item_trait.clone()), scope.clone())
+    }
+}
+impl ScopeItemKind {
     pub fn update_with(&self, ty_to_replace: TypeModel) -> Option<TypeModelKind> {
-        //println!("ScopeItemKind::update_with: {} --- {}", self, ty_to_replace);
         match self {
             ScopeItemKind::Item(item, ..) => match item {
                 Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
@@ -95,13 +114,14 @@ impl ScopeItemKind {
                 Item::Enum(..) |
                 Item::Struct(..) |
                 Item::Fn(..) |
-                Item::Impl(..) => {
-                    Some(TypeModelKind::Object(ty_to_replace))
-                },
-                Item::Type(ty) => match &*ty.ty {
-                    Type::BareFn(..) => Some(TypeModelKind::FnPointer(ty_to_replace)),
-                    _ => Some(TypeModelKind::Object(ty_to_replace)),
-                },
+                Item::Impl(..) =>
+                    Some(TypeModelKind::Object(ty_to_replace)),
+                Item::Type(ty) => Some(match &*ty.ty {
+                    Type::BareFn(..) =>
+                        TypeModelKind::FnPointer(ty_to_replace),
+                    _ =>
+                        TypeModelKind::Object(ty_to_replace),
+                }),
                 _ => None
             }
             ScopeItemKind::Fn(..) => None

@@ -72,11 +72,7 @@ impl PartialEq for GenericBoundsModel {
         self_tokens.iter()
             .map(|t| t.to_string())
             .zip(other_tokens.iter().map(ToString::to_string))
-            .all(|(a, b)| {
-                let x = a == b;
-                // println!("GGGGG:::({}) {} ==== {}", x, a, b);
-                x
-            })
+            .all(|(a, b)| a == b)
     }
 }
 
@@ -93,7 +89,7 @@ impl Hash for GenericBoundsModel {
 impl GenericBoundsModel {
     pub fn new(ty: Type, bounds: Vec<ObjectKind>, predicates: HashMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self {
-            type_model: TypeModel::new(ty, Some(generics), nested_arguments.clone()),
+            type_model: TypeModel::new_generic(ty, generics, nested_arguments.clone()),
             bounds,
             predicates,
             nested_arguments,
@@ -103,7 +99,7 @@ impl GenericBoundsModel {
     pub fn ffi_full_dictionary_type_presenter(&self, _source: &ScopeContext) -> Type {
         // unimplemented!("")
         let ffi_name = self.mangle_ident_default();
-        println!("GenericBound: ffi_full_dictionary_type_presenter: {} --- {}", ffi_name, self);
+        // println!("GenericBound: ffi_full_dictionary_type_presenter: {} --- {}", ffi_name, self);
         parse_quote!(crate::fermented::generics::#ffi_name)
         // Determine mixin type
         //

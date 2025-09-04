@@ -17,6 +17,12 @@ impl PartialEq<Self> for ScopeInfo {
 }
 
 impl ScopeInfo {
+    pub fn new(attrs: Vec<Attribute>, crate_ident: Ident, self_scope: Scope) -> Self {
+        Self { attrs, crate_ident, self_scope }
+    }
+    pub fn attr_less(crate_ident: Ident, self_scope: Scope) -> Self {
+        Self::new(vec![], crate_ident, self_scope)
+    }
     pub fn fmt_export_type(&self) -> String {
         self.attrs.is_labeled_for_opaque_export()
             .then(|| "Opaque")

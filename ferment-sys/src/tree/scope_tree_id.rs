@@ -3,7 +3,6 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, Generics, Path, PathSegment, Type};
 use crate::context::{Scope, ScopeChain, ScopeInfo};
-use crate::kind::ObjectKind;
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub enum ScopeTreeID {
@@ -41,14 +40,8 @@ impl ScopeTreeID {
 
     pub fn create_child_scope(&self, scope: &ScopeChain, attrs: Vec<Attribute>) -> ScopeChain {
         match &self {
-            Self::Ident(ident) => ScopeChain::Mod {
-                info: ScopeInfo {
-                    attrs,
-                    crate_ident: scope.crate_ident_ref().clone(),
-                    self_scope: Scope::new(scope.self_path_holder_ref().joined(ident), ObjectKind::Empty),
-                },
-                parent_scope_chain: Box::new(scope.clone())
-            },
+            Self::Ident(ident) =>
+                ScopeChain::r#mod(ScopeInfo::new(attrs, scope.crate_ident_ref().clone(), Scope::empty(scope.self_path_holder_ref().joined(ident))), scope.clone()),
             Self::Impl(..) =>
                 panic!("impl not implemented")
         }

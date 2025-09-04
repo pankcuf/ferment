@@ -1,9 +1,7 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{parse_quote, Path, PathSegment, Type};
-use syn::punctuated::Punctuated;
+use syn::{parse_quote, Path, PathSegment};
 use crate::ast::PathHolder;
-use crate::composable::TypeModel;
 use crate::context::ScopeContext;
 use crate::kind::TypeKind;
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
@@ -14,11 +12,6 @@ pub mod composing;
 pub mod mangling;
 mod lookup;
 
-impl TypeModel {
-    pub fn new_default(ty: Type) -> Self {
-        Self::new(ty, None, Punctuated::new())
-    }
-}
 impl TypeKind {
     fn mangled_generic_arguments_types_strings(&self, context: &ScopeContext) -> Vec<String> {
         let path: Path = parse_quote!(#self);

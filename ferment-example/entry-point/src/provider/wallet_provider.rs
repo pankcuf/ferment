@@ -4,10 +4,13 @@ use crate::provider::wallet_ex::WalletEx2;
 
 #[ferment_macro::opaque]
 pub struct WalletProvider2 {
+    #[allow(unused)]
     context: *const c_void,
     // get_wallet_transaction: Arc<dyn Fn(c_void, [u8; 32]) -> Option<[u8; 32]>>,
     sign_transaction: Arc<dyn Fn(*const WalletEx2, &[u8; 32], bool) -> Option<[u8; 32]>>,
+    #[allow(unused)]
     is_mine_input: Arc<dyn Fn(*const c_void, [u8; 32]) -> bool>,
+    #[allow(unused)]
     available_coins: Arc<dyn Fn(*const c_void, bool, [u8; 32], &WalletEx2) -> Vec<[u8; 32]>>,
     // select_coins: Arc<dyn Fn(*const c_void, bool, bool, bool, i32) -> Vec<[u8; 32]>>,
     // inputs_with_amount: Arc<dyn Fn(*const c_void, u64) -> u32>,
@@ -129,10 +132,12 @@ impl WalletProvider2 {
     //     (self.select_coins)(self.context, skip_denominated, anonymizable, skip_unconfirmed, max_outpoints_per_address)
     // }
     //
+    #[allow(unused)]
     pub(crate) fn available_coins(&self, only_safe: bool, coin_control: [u8; 32], wallet_ex: &WalletEx2) -> Vec<[u8; 32]> {
         (self.available_coins)(self.context, only_safe, coin_control, wallet_ex)
     }
 
+    #[allow(unused)]
     pub(crate) fn is_mine_input(&self, outpoint: [u8; 32]) -> bool {
         (self.is_mine_input)(self.context, outpoint)
     }

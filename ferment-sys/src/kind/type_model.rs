@@ -6,6 +6,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use crate::ast::CommaPunctuated;
 pub use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::composable::{TraitModel, TypeModeled};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::kind::dict_type_model::DictTypeModelKind;
 use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ResolveTrait, ToType};
@@ -91,7 +92,10 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for TypeModelKind
 impl TypeModelKind {
 
     pub fn unknown_type(ty: Type) -> Self {
-        Self::Unknown(TypeModel::from(ty))
+        Self::Unknown(TypeModel::new_default(ty))
+    }
+    pub fn unknown_type_with_nested_arguments(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::Unknown(TypeModel::new_nested(ty, nested_arguments))
     }
     pub fn unknown_type_ref(ty: &Type) -> Self {
         Self::Unknown(TypeModel::from(ty))

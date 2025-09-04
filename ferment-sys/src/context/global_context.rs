@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type, TypePath};
-use syn::punctuated::Punctuated;
 use crate::{print_phase, Config};
 use crate::ast::PathHolder;
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
@@ -124,7 +123,7 @@ impl GlobalContext {
             .map(|trait_model| {
                 let mut model = trait_model.clone();
                 // TODO: move to full and replace nested_arguments
-                let value = TypeModelKind::Object(TypeModel::new(scope.to_type(), Some(trait_model.item.generics.clone()), Punctuated::new()));
+                let value = TypeModelKind::Object(TypeModel::new_non_nested(scope.to_type(), Some(trait_model.item.generics.clone())));
                 model.implementors.push(value);
                 (model, trait_scope.clone())
             })

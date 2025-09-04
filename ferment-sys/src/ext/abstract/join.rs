@@ -1,9 +1,8 @@
 use quote::ToTokens;
 use syn::{ImplItemFn, Item, Signature, TraitItemFn};
-use syn::punctuated::Punctuated;
 use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
-use crate::kind::{ObjectKind, ScopeItemKind, TypeModelKind};
+use crate::kind::{ObjectKind, ScopeItemKind};
 use crate::ext::item::ItemExtension;
 use crate::ext::ToType;
 
@@ -20,15 +19,15 @@ impl Join<Item> for ScopeChain {
             Item::Type(..) |
             Item::Enum(..) |
             Item::Struct(..) =>
-                ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::object(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Trait(..) =>
-                ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#trait(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Fn(..) =>
-                ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#fn(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Impl(..) =>
-                ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into(), },
+                ScopeChain::r#impl(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Mod(..) =>
-                ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#mod(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             _ => self.clone()
         }
     }
@@ -41,11 +40,12 @@ impl Join<ImplItemFn> for ScopeChain {
         let self_scope_holder = &self_scope.self_scope;
         let fn_self_scope = self_scope_holder.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectKind::new_item(
-            TypeModelKind::Fn(TypeModel::new_non_gen(self_type, Some(generics.clone()))),
-            ScopeItemKind::Fn(sig.clone(), self_scope_holder.clone()));
         ScopeChain::func(
-            Scope::new(fn_self_scope, self_obj),
+            Scope::new(
+                fn_self_scope,
+                ObjectKind::new_fn_item(
+                    TypeModel::new_non_nested(self_type, Some(generics.clone())),
+                    ScopeItemKind::fn_ref(sig, self_scope_holder))),
             attrs,
             self.crate_ident_ref(),
             self
@@ -60,17 +60,12 @@ impl Join<TraitItemFn> for ScopeChain {
         let self_scope_holder = &self_scope.self_scope;
         let fn_self_scope = self_scope_holder.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectKind::new_item(
-            TypeModelKind::Fn(
-                TypeModel::new(
-                    self_type,
-                    Some(generics.clone()),
-                    Punctuated::new())),
-            ScopeItemKind::Fn(
-                sig.clone(),
-                self_scope_holder.clone()));
         ScopeChain::func(
-            Scope::new(fn_self_scope, self_obj),
+            Scope::new(
+                fn_self_scope,
+                ObjectKind::new_fn_item(
+                    TypeModel::new_generic_non_nested(self_type, generics.clone()),
+                    ScopeItemKind::fn_ref(sig, self_scope_holder))),
             attrs,
             self.crate_ident_ref(),
             self

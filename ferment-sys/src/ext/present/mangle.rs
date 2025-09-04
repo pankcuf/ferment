@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Pat, PatIdent, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
@@ -371,19 +371,19 @@ impl Mangle<MangleDefault> for GenericBoundsModel {
             chunks.push(b.mangle_string(context));
         }
         chunks.extend(self.predicates.iter()
-            .map(|(_predicate, objects)|
-                     objects.iter()
-                         .map(|obj| obj.mangle_string(context))
-                         .collect::<Vec<_>>()
-                         .join("_")
-                // format!("where_{}_is_{}",
-                //         predicate.mangle_string(context),
-                //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
-            )
+            .filter_map(|(_predicate, objects)| objects.first().map(|obj| obj.mangle_string(context)))
         );
+        // chunks.extend(self.predicates.iter()
+        //     .map(|(_predicate, objects)|
+        //         objects.iter()
+        //             .map(|obj| obj.mangle_string(context))
+        //             .collect::<Vec<_>>()
+        //             .join("_")
+        //     )
+        // );
         //println!("GenericBoundsModel::mangle({}) --> {}", self, chunks.join("_"));
+        println!("GenericBoundModel::Mangle: {}", chunks.join("_"));
         chunks.join("_")
-
         // format!("Mixin_{}", chunks.join("_"))
 
         // format!("{}", self.bounds.iter().map(|b| {
@@ -396,3 +396,11 @@ impl Mangle<MangleDefault> for GenericBoundsModel {
     }
 }
 
+impl Mangle<MangleDefault> for Pat {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        match self {
+            Pat::Ident(PatIdent { ident, .. }) => ident.to_string(),
+            other => other.to_token_stream().to_string(),
+        }
+    }
+}

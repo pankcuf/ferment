@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use ferment::boxed;
-use crate::entry::{BlockHashByHeight, ModelByHeight, SomeModel};
+use crate::entry::{BlockHashByHeight, ModelByHeight};
 use crate::entry::processor::MasternodeProcessor;
 use crate::entry::provider::{FFIPtrCoreProvider, FFITraitCoreProvider};
 
@@ -24,7 +24,7 @@ impl DashSharedCore {
             context
         }
     }
-    pub fn with_lambdas<BHH: Fn(u32) -> [u8; 32] + 'static, SBH: Fn(u32) -> SomeModel + 'static>(
+    pub fn with_lambdas<BHH: Fn(u32) -> [u8; 32] + 'static, SBH: Fn(u32) -> u64 + 'static>(
         block_hash_by_height: BHH,
         model_by_height: SBH,
         context: *const std::os::raw::c_void) -> Self
@@ -41,7 +41,7 @@ impl DashSharedCore {
         }
     }
 
-    pub async fn sign_and_publish_state_transition(&self, private_key: &[u8]) -> u32 {
+    pub async fn sign_and_publish_state_transition(&self, _private_key: &[u8]) -> u32 {
         0
     }
 

@@ -7,7 +7,7 @@ use syn::visit::Visit;
 use crate::ast::{PathHolder, TypeHolder};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
-use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
+use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType};
 use crate::nprint;
 use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
@@ -141,7 +141,8 @@ impl Visitor {
     }
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        add_trait_names(self, scope, &trait_names, true);
+        trait_names.iter().for_each(|trait_name|
+            self.add_full_qualified_type_match(scope, &trait_name.to_type(), true));
         let mut lock = self.context.write().unwrap();
         lock.traits
             .add_used_traits(scope, trait_names)
@@ -152,9 +153,7 @@ impl Visitor {
         TypeChain::from(
             ty.unique_nested_items()
                 .iter()
-                .map(|ty| (
-                    TypeHolder::from(ty),
-                    ty.visit_scope_type(&(scope, &context)))))
+                .map(|ty| (TypeHolder::from(ty), ty.visit_scope_type(&(scope, &context)))))
     }
     pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
         type_chains.into_iter().for_each(|(scope, type_chain)| {
@@ -165,9 +164,8 @@ impl Visitor {
         let self_obj = &scope.self_scope().object;
         match scope {
             ScopeChain::CrateRoot { .. } |
-            ScopeChain::Mod { .. } => {
-                self.scope_add_many(type_chain.selfless(), scope);
-            },
+            ScopeChain::Mod { .. } =>
+                self.scope_add_many(type_chain.selfless(), scope),
             ScopeChain::Impl { parent_scope_chain, .. } => {
                 if add_to_parent {
                     self.scope_add_many(type_chain.selfless(), parent_scope_chain);
@@ -182,28 +180,25 @@ impl Visitor {
                     self.scope_add_many(type_chain.selfless(), parent_scope_chain);
                 }
             },
-            ScopeChain::Fn { parent_scope_chain, .. } => {
-                match &**parent_scope_chain {
-                    ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
-                        self.scope_add_many(type_chain.clone(), scope);
-                        if add_to_parent {
-                            self.scope_add_many(type_chain, parent_scope_chain);
-                        }
-                    },
-                    ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
-                    ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
-                    ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
-                        self.scope_add_many(type_chain.clone(), scope);
-                        self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
-                        if add_to_parent {
-                            self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
-                            self.scope_add_many(type_chain, parent_scope_chain);
-                        }
-                    },
-                    ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
-                        // TODO: actually there are may be anything wrapped into anything like trait inside a function...
+            ScopeChain::Fn { parent_scope_chain, .. } => match &**parent_scope_chain {
+                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
+                    self.scope_add_many(type_chain.clone(), scope);
+                    if add_to_parent {
+                        self.scope_add_many(type_chain, parent_scope_chain);
                     }
-
+                },
+                ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
+                ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
+                ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
+                    self.scope_add_many(type_chain.clone(), scope);
+                    self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                    if add_to_parent {
+                        self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
+                        self.scope_add_many(type_chain, parent_scope_chain);
+                    }
+                },
+                ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
+                    // TODO: actually there are may be anything wrapped into anything like trait inside a function...
                 }
             }
         }
@@ -218,15 +213,11 @@ impl Visitor {
     fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
         for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
-            match current_tree {
-                ScopeTreeExportItem::Item(..) =>
-                    panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) => {
-                    if !exported.contains_key(&ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), HashMap::default(), attrs.clone()));
-                    }
-                    current_tree = exported.get_mut(&ident).unwrap();
+            if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
+                if !exported.contains_key(&ident) {
+                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), HashMap::default(), attrs.clone()));
                 }
+                current_tree = exported.get_mut(&ident).unwrap();
             }
         }
         current_tree

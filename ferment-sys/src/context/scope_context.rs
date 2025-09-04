@@ -3,13 +3,12 @@ use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
-use syn::punctuated::Punctuated;
 use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
 use crate::kind::{ObjectKind, ScopeItemKind, SpecialType, TypeModelKind};
-use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToObjectKind, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -53,11 +52,7 @@ impl ScopeContext {
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
         let mut lock = self.context.write().unwrap();
-
-        lock.custom.add_conversion(
-            custom_type,
-            ffi_type.to_unknown(Punctuated::new()),
-            scope);
+        lock.custom.add_conversion(custom_type, ObjectKind::unknown_type(ffi_type), scope);
     }
 
     pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {

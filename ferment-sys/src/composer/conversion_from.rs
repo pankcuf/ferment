@@ -1,3 +1,4 @@
+use quote::ToTokens;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
@@ -65,7 +66,9 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
         let type_model_kind = maybe_object.as_ref()
             .and_then(|kind| kind.maybe_trait_or_same_kind(source))
             .unwrap_or_else(|| TypeModelKind::unknown_type(search_key.to_type()));
-
+        if name.to_string().contains("should_continue") {
+            println!("ffi_type: {}", ffi_type.to_token_stream());
+        }
         let maybe_special: Option<SpecialType<SPEC>> = full_type.maybe_special_type(source);
         let is_opaque = matches!(maybe_special, Some(SpecialType::Opaque(..)));
         let should_leak = is_ref && !is_opaque;

@@ -39,7 +39,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                 let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
                 (inputs, output)
             },
-            _ => panic!("Unsupported callback kind: {:?}", kind)
+            _ => panic!("Unsupported callback kind: {kind:?}")
         };
         let ffi_result = DictionaryName::FFiResult;
         let opt_conversion = |conversion: TokenStream2| quote! {

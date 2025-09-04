@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use quote::quote;
+use quote::ToTokens;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
@@ -8,7 +8,7 @@ use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericBoundsMode
 use crate::ext::{AsType, ExpressionComposable, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
+use crate::presentation::{DictionaryExpr, FFIFullDictionaryPath, FFIFullPath};
 
 #[derive(Clone, Debug)]
 pub struct ConversionToComposer<SPEC>
@@ -69,7 +69,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), source);
                     match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, source) {
                         Some(SpecialType::Opaque(..)) if is_ref =>
-                            Expression::boxed_tokens(quote!(#name.clone())),
+                            Expression::boxed_tokens(DictionaryExpr::Clone(name.to_token_stream())),
                         Some(SpecialType::Opaque(..)) =>
                             Expression::boxed_tokens(name),
                         Some(SpecialType::Custom(custom_ty)) =>
@@ -80,7 +80,8 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                 },
                 _ => Expression::cast_to(if is_ref { field_path.cloned() } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type)
             },
-            Some(ObjectKind::Item(ty_kind, ..) | ObjectKind::Type(ty_kind)) => match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_type, source) {
+            Some(ObjectKind::Item(ty_kind, ..) |
+                 ObjectKind::Type(ty_kind)) => match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_type, source) {
                 Some(SpecialType::Opaque(..)) if search_key.maybe_originally_is_ptr() =>
                     field_path,
                 Some(SpecialType::Opaque(..)) if is_ref =>
@@ -94,11 +95,11 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) =>
                         Expression::cast_to(field_path, ConversionExpressionKind::Complex, ffi_type, full_type),
                     TypeModelKind::Optional(TypeModel { ty, .. }) => match ty.maybe_first_nested_type_kind() {
-                        None => Expression::cast_to(if is_ref { field_path.cloned() } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type),
+                        None =>
+                            Expression::cast_to(if is_ref { field_path.cloned() } else { field_path }, ConversionExpressionKind::from(&full_type), ffi_type, full_type),
                         Some(nested_ty_kind) => {
                             let nested_ty = nested_ty_kind.to_type();
-                            let maybe_nested_special: Option<SpecialType<SPEC>> = nested_ty.maybe_special_type(source);
-                            let (expr_kind, ffi_type) = match maybe_nested_special {
+                            let (expr_kind, ffi_type) = match FFISpecialTypeResolve::<SPEC>::maybe_special_type(&nested_ty, source) {
                                 Some(SpecialType::Custom(custom_ty)) => (ConversionExpressionKind::ComplexOpt, custom_ty),
                                 Some(SpecialType::Opaque(opaque_ty)) => (ConversionExpressionKind::PrimitiveOpt, opaque_ty),
                                 _ => (nested_ty_kind.is_primitive().then_some(ConversionExpressionKind::PrimitiveOpt).unwrap_or(ConversionExpressionKind::ComplexOpt), ffi_type)

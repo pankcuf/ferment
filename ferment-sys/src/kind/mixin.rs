@@ -3,7 +3,6 @@ use std::hash::{Hash, Hasher};
 use quote::ToTokens;
 use crate::composable::GenericBoundsModel;
 use crate::kind::GenericTypeKind;
-use crate::ext::AsType;
 
 #[derive(Clone)]
 pub enum MixinKind {
@@ -42,13 +41,10 @@ impl Eq for MixinKind {}
 impl Hash for MixinKind {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            MixinKind::Generic(kind) => {
-                kind.to_token_stream().to_string().hash(state);
-            }
-            MixinKind::Bounds(model) => {
-                model.as_type().to_token_stream().to_string().hash(state);
-                model.bounds.iter().for_each(|bound| bound.to_token_stream().to_string().hash(state));
-            }
+            MixinKind::Generic(kind) =>
+                kind.to_token_stream().to_string().hash(state),
+            MixinKind::Bounds(model) =>
+                model.hash(state)
         }
     }
 }

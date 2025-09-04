@@ -3,7 +3,7 @@ use syn::__private::TokenStream2;
 use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, TargetVarComposer};
-use crate::context::{ScopeContext, ScopeSearchKey};
+use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeModelKind};
 use crate::ext::{AsType, GenericNestedArg, Mangle, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
@@ -47,12 +47,9 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                                     let var_ty = source.maybe_object_by_value(full_nested_ty)
                                         .and_then(|object_kind| object_kind.maybe_fn_or_trait_or_same_kind2(source))
                                         .unwrap_or_else(|| TypeModelKind::unknown_type_ref(full_nested_ty));
-                                    let var_c_type = var_ty.to_type();
-                                    let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
-                                    let var_ty = ffi_path.map(|p| p.to_type())
-                                        .unwrap_or_else(|| parse_quote!(#var_c_type));
-                                    let result = resolve_type_variable(var_ty, source);
-                                    result
+                                    resolve_type_variable(
+                                        Resolve::<FFIFullPath<ObjCSpecification>>::maybe_resolve(&var_ty, source).map(|p| p.to_type()).unwrap_or(var_ty.to_type()),
+                                        source)
                                 }
                             }
                         } else {
@@ -96,11 +93,12 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                                     GroupModelKind::IndexMap(TypeModel { ty, .. }) |
                                     GroupModelKind::IndexSet(TypeModel { ty, .. })
                                 ) |
-                                DictFermentableModelKind::Other(TypeModel { ty, .. }))) => {
-
-                            let maybe_ffi_full_path: Option<FFIFullPath<ObjCSpecification>> = ty.maybe_resolve(source);
-                            resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or_else(|| ty.to_type()), source)
-                        },
+                                DictFermentableModelKind::Other(TypeModel { ty, .. }))) =>
+                            resolve_type_variable(
+                                Resolve::<FFIFullPath<ObjCSpecification>>::maybe_resolve(&ty, source)
+                                    .map(|path| path.to_type())
+                                    .unwrap_or_else(|| ty.to_type()),
+                                source),
                         TypeModelKind::Dictionary(
                             DictTypeModelKind::NonPrimitiveFermentable(
                                 DictFermentableModelKind::Str(..) |
@@ -123,19 +121,17 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                                     cnv.maybe_trait_model_kind_or_same(source),
                                 _ => None,
                             }.unwrap_or_else(|| cnv.clone());
-                            let var_c_type = var_ty.to_type();
-                            let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
-                            let var_ty = ffi_path.map(|p| p.to_type())
-                                .unwrap_or_else(|| parse_quote!(#var_c_type));
-                            let result = resolve_type_variable(var_ty, source);
-                            result
+                            resolve_type_variable(
+                                Resolve::<FFIFullPath<ObjCSpecification>>::maybe_resolve(&var_ty, source)
+                                    .map(|p| p.to_type())
+                                    .unwrap_or_else(|| var_ty.to_type()),
+                                source)
                         }
                     },
                     _ => FFIVariable::mut_ptr(search_key.to_token_stream())
                 },
-                _ => {
-                    let maybe_special: Option<SpecialType<ObjCSpecification>> = ScopeSearchKey::maybe_resolve(search_key, source);
-                    maybe_special
+                _ =>
+                    Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(search_key, source)
                         .map(FFIFullPath::from)
                         .or_else(|| Resolve::<TypeModelKind>::resolve(search_key, source)
                             .to_type()
@@ -143,7 +139,6 @@ impl SourceComposable for TargetVarComposer<ObjCSpecification> {
                         .map(|ffi_path| ffi_path.to_type())
                         .unwrap_or_else(|| search_key.to_type())
                         .resolve(source)
-                }
             }
         }
 

@@ -8,8 +8,7 @@ use crate::{Config, Crate};
 use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::TypeModel;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeContext, ScopeContextLink, ScopeInfo, TypeChain};
-use crate::kind::{ObjectKind, TypeModelKind};
-use crate::kind::DictTypeModelKind;
+use crate::kind::ObjectKind;
 use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeID, ScopeTreeExportItem};
 
 
@@ -18,13 +17,7 @@ use crate::tree::{create_crate_root_scope_tree, ScopeTree, ScopeTreeID, ScopeTre
 //     println!("{}", root_scope_tree().to_token_stream());
 // }
 fn scope_chain(self_scope: PathHolder) -> ScopeChain {
-    ScopeChain::CrateRoot {
-        info: ScopeInfo {
-            attrs: vec![],
-            crate_ident: format_ident!("crate"),
-            self_scope: Scope::new(self_scope, ObjectKind::Empty),
-        }
-    }
+    ScopeChain::root(ScopeInfo::attr_less(format_ident!("crate"), Scope::empty(self_scope)))
 }
 
 fn scope_ctx(self_scope: PathHolder, global_context_ptr: Arc<RwLock<GlobalContext>>) -> ScopeContextLink {
@@ -37,30 +30,30 @@ fn root_scope_tree() -> ScopeTree {
     global_context
         .scope_mut(&root_scope)
         .add_many(TypeChain::from(HashMap::from([
-            (TypeHolder(parse_quote!(bool)), ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_default(parse_quote!(bool)))))),
-            (TypeHolder(parse_quote!([u8; 20])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 20]))))),
-            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 32]))))),
-            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!([u8; 32]))))),
-            (TypeHolder(parse_quote!(Vec)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec))))),
-            (TypeHolder(parse_quote!(HashID)), ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(parse_quote!(crate::nested::HashID))))),
-            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(parse_quote!(std::collections::BTreeMap))))),
-            (TypeHolder(parse_quote!(Vec<bool>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<bool>))))),
-            (TypeHolder(parse_quote!(Vec<HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<crate::nested::HashID>))))),
-            (TypeHolder(parse_quote!(Vec<Vec<HashID>>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>))))),
-            (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>))))),
+            (TypeHolder(parse_quote!(bool)), ObjectKind::primitive_type(parse_quote!(bool))),
+            (TypeHolder(parse_quote!([u8; 20])), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!([u8; 20])))),
+            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!([u8; 32])))),
+            (TypeHolder(parse_quote!([u8; 32])), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!([u8; 32])))),
+            (TypeHolder(parse_quote!(Vec)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Vec)))),
+            (TypeHolder(parse_quote!(HashID)), ObjectKind::object_model_type(TypeModel::new_default(parse_quote!(crate::nested::HashID)))),
+            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::object_model_type(TypeModel::new_default(parse_quote!(std::collections::BTreeMap)))),
+            (TypeHolder(parse_quote!(Vec<bool>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Vec<bool>)))),
+            (TypeHolder(parse_quote!(Vec<HashID>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Vec<crate::nested::HashID>)))),
+            (TypeHolder(parse_quote!(Vec<Vec<HashID>>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Vec<Vec<crate::nested::HashID>>)))),
+            (TypeHolder(parse_quote!(BTreeMap<HashID, HashID>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::nested::HashID, crate::nested::HashID>)))),
         ]).into_iter()).inner.into_iter());
     global_context
         .scope_mut(&scope_chain(parse_quote!(crate::example::address)))
         .add_many(TypeChain::from(HashMap::from([
-            (TypeHolder(parse_quote!(u8)), ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_default(parse_quote!(u8)))))),
-            (TypeHolder(parse_quote!(String)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(String))))),
-            (TypeHolder(parse_quote!(Option)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Option))))),
-            (TypeHolder(parse_quote!(Option<String>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Option<String>))))),
-            (TypeHolder(parse_quote!(Vec<u8>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(Vec<u8>))))),
-            (TypeHolder(parse_quote!(ChainType)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(crate::chain::common::chain_type::ChainType))))),
-            (TypeHolder(parse_quote!(HashID)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(crate::nested::HashID))))),
-            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap))))),
-            (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectKind::Type(TypeModelKind::Unknown(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>))))),
+            (TypeHolder(parse_quote!(u8)), ObjectKind::primitive_type(parse_quote!(u8))),
+            (TypeHolder(parse_quote!(String)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(String)))),
+            (TypeHolder(parse_quote!(Option)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Option)))),
+            (TypeHolder(parse_quote!(Option<String>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Option<String>)))),
+            (TypeHolder(parse_quote!(Vec<u8>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(Vec<u8>)))),
+            (TypeHolder(parse_quote!(ChainType)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(crate::chain::common::chain_type::ChainType)))),
+            (TypeHolder(parse_quote!(HashID)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(crate::nested::HashID)))),
+            (TypeHolder(parse_quote!(BTreeMap)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(std::collections::BTreeMap)))),
+            (TypeHolder(parse_quote!(BTreeMap<ChainType, HashID>)), ObjectKind::unknown_model_type(TypeModel::new_default(parse_quote!(std::collections::BTreeMap<crate::chain::common::chain_type::ChainType, crate::nested::HashID>)))),
         ]).into_iter()).inner.into_iter());
     let global_context_ptr = Arc::new(RwLock::new(global_context));
 

@@ -43,7 +43,7 @@ impl CoinJoinProvider  {
             mixing_lifecycle_listener: Arc::new(mixing_lifecycle_listener),
         }
     }
-    pub async fn load_smth_opaque(&self, context: &mut FFIContext) -> Result<bool, String> {
+    pub async fn load_smth_opaque(&self, _context: &mut FFIContext) -> Result<bool, String> {
         Ok(true)
     }
 }

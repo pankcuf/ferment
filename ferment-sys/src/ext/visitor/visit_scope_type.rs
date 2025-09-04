@@ -1,12 +1,12 @@
-use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, WherePredicate};
 use syn::punctuated::Punctuated;
+use syn::token::PathSep;
 use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder, TypePathHolder};
 use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, CrateExtension, DictionaryType, Pop, ToObjectKind, ToPath, ToType};
-use crate::ext::to_object_kind::{handle_type_model, handle_type_path_model};
+use crate::kind::{DictFermentableModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
+use crate::ext::{Accessory, AsType, CrateExtension, DictionaryType, Pop, ToType};
 use crate::nprint;
 
 
@@ -24,15 +24,37 @@ impl<'a> VisitScopeType<'a> for Type {
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         nprint!(1, crate::formatter::Emoji::Node, "=== {}", self.to_token_stream());
         match self {
-            Type::Path(type_path) => type_path.visit_scope_type(source),
-            Type::TraitObject(type_trait_object) => type_trait_object.visit_scope_type(source),
-            Type::Tuple(type_tuple) => type_tuple.visit_scope_type(source),
-            Type::Array(type_array) => type_array.visit_scope_type(source),
-            Type::Slice(type_slice) => type_slice.visit_scope_type(source),
             Type::BareFn(type_bare_fn) => type_bare_fn.visit_scope_type(source),
-            Type::Reference(type_reference) => type_reference.visit_scope_type(source),
+            Type::ImplTrait(type_impl_trait) => type_impl_trait.visit_scope_type(source),
+            Type::Path(type_path) => type_path.visit_scope_type(source),
             Type::Ptr(type_ptr) => type_ptr.visit_scope_type(source),
-            ty => ty.clone().to_unknown(Punctuated::new())
+            Type::Reference(type_reference) => type_reference.visit_scope_type(source),
+            Type::TraitObject(type_trait_object) => type_trait_object.visit_scope_type(source),
+            Type::Array(TypeArray { elem, .. }) =>
+                ObjectKind::array_model_type(
+                    handle_type_model(
+                        self.clone(),
+                        Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+            Type::Group(TypeGroup { elem, .. }) |
+            Type::Paren(TypeParen { elem, .. }) =>
+                ObjectKind::unknown_model_type(
+                    handle_type_model(
+                        self.clone(),
+                        Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+            Type::Slice(TypeSlice { elem, .. }) =>
+                ObjectKind::slice_model_type(
+                    handle_type_model(
+                        self.clone(),
+                        Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+            Type::Tuple(type_tuple) =>
+                ObjectKind::tuple_model_type(
+                    handle_type_model(
+                        self.clone(),
+                        type_tuple.elems
+                            .iter()
+                            .map(|ty| NestedArgument::Object(ty.visit_scope_type(source)))
+                            .collect())),
+            ty => ObjectKind::unknown_type(ty.clone())
         }
     }
 }
@@ -48,8 +70,8 @@ impl<'a> VisitScopeType<'a> for Path {
         for segment in &mut segments {
             match &mut segment.arguments {
                 PathArguments::None => {}
-                PathArguments::AngleBracketed(angle_bracketed_generic_arguments) => {
-                    for arg in &mut angle_bracketed_generic_arguments.args {
+                PathArguments::AngleBracketed(arguments) => {
+                    for arg in &mut arguments.args {
                         match arg {
                             GenericArgument::Type(inner_type) => {
                                 let obj_conversion = inner_type.visit_scope_type(&(scope, context));
@@ -84,22 +106,18 @@ impl<'a> VisitScopeType<'a> for Path {
             }
         }
         match (segments.first(), segments.last()) {
-            (Some(first_segment), Some(last_segment)) => {
-                let first_ident = &first_segment.ident;
-                let last_ident = &last_segment.ident;
+            (Some(PathSegment { ident: first_ident, .. }), Some(PathSegment { ident: last_ident, arguments: last_arguments })) => {
                 let import_seg: PathHolder = parse_quote!(#first_ident);
                 let import_type_path: TypePathHolder = parse_quote!(#first_ident);
 
                 let mut nested_import_seg: Path = parse_quote!(#last_ident);
-                if let Some(nested_import_last_seg) = nested_import_seg.segments.last_mut() {
-                    nested_import_last_seg.arguments = last_segment.arguments.clone();
+                if let Some(PathSegment { arguments, .. }) = nested_import_seg.segments.last_mut() {
+                    *arguments = last_arguments.clone();
                 }
                 if let Some((generics, bound)) = scope.maybe_generic_bound_for_path(&import_seg.0) {
                     nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}: {}", generics.to_token_stream(), bound.to_token_stream());
                     let path = &import_seg.0;
-                    let ty: Type = parse_quote!(#path);
-                    let ident_path = Path::from(PathSegment::from(bound.ident.clone()));
-                    let generic_trait_bounds = |ty: &Path, ident_path: &Path, bounds: &AddPunctuated<TypeParamBound>| {
+                    let generic_trait_bounds = |ty: &Type, ident_path: &Type, bounds: &AddPunctuated<TypeParamBound>| {
                         let mut has_bound = false;
                         bounds.iter().filter_map(|b| match b {
                             TypeParamBound::Trait(TraitBound { path, .. }) => {
@@ -112,7 +130,9 @@ impl<'a> VisitScopeType<'a> for Path {
                             _ => None
                         }).collect()
                     };
-                    let bounds = generic_trait_bounds(path, &ident_path, &bound.bounds);
+                    let ident_path = Type::Path(TypePath { qself: None, path: Path::from(PathSegment::from(bound.ident.clone())) });
+                    let ty: Type = parse_quote!(#path);
+                    let bounds = generic_trait_bounds(&ty, &ident_path, &bound.bounds);
                     let predicates = generics.where_clause
                         .as_ref()
                         .map(|where_clause|
@@ -120,12 +140,12 @@ impl<'a> VisitScopeType<'a> for Path {
                                 .iter()
                                 .filter_map(|predicate| match predicate {
                                     WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
-                                        ty.eq(bounded_ty).then(||(bounded_ty.clone(), generic_trait_bounds(&path, &bounded_ty.to_path(), bounds))),
+                                        ty.eq(bounded_ty).then(||(bounded_ty.clone(), generic_trait_bounds(&ty, &bounded_ty, bounds))),
                                     _ => None
                                 })
                                 .collect())
                         .unwrap_or_default();
-                    ObjectKind::Type(TypeModelKind::Bounds(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments)))
+                    ObjectKind::bounds_type(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments))
                 } else if let Some(mut import_path) = context.maybe_import_path_ref(scope, &import_seg).cloned() {
                     // Can be reevaluated after processing entire scope tree:
                     // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
@@ -134,117 +154,101 @@ impl<'a> VisitScopeType<'a> for Path {
                     if import_path.is_crate_based() {
                         import_path.replace_first_with(&scope.crate_ident_as_path());
                     }
-                    ObjectKind::Type(TypeModelKind::Imported(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: segments.to_path() }), None, nested_arguments), import_path))
+                    ObjectKind::imported_model_type(handle_type_path_model(new_qself, None, segments, nested_arguments), import_path)
                 } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &import_type_path) {
                     // TODO: multiple bounds handling
                     if let Some(first_bound) = generic_bounds.first() {
                         let first_bound_as_scope = PathHolder::from(first_bound);
-                        let new_segments = if let Some(Path { segments, .. }) = context.maybe_import_path_ref(scope, &first_bound_as_scope) {
-                            nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&segments));
-                            segments.clone()
+                        if let Some(Path { segments: new_segments, .. }) = context.maybe_import_path_ref(scope, &first_bound_as_scope) {
+                            nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&iseg));
+                            segments.replace_last_with(new_segments);
                         } else {
                             nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Local) {}", format_token_stream(&segments));
-                            match &first_bound.segments.first() {
+                            let new_segments = match &first_bound.segments.first() {
                                 Some(PathSegment { ident, .. }) if matches!(ident.to_string().as_str(), "FnOnce" | "Fn" | "FnMut") =>
                                     parse_quote!(#scope::#ident),
                                 _ =>
                                     parse_quote!(#scope::#first_bound)
-                            }
-                        };
-                        segments.replace_last_with(&new_segments);
+                            };
+                            segments.replace_last_with(&new_segments);
+                        }
                     }
-                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                        .to_trait(nested_arguments)
+                    ObjectKind::unknown_model_type_path(new_qself, self.leading_colon, segments, nested_arguments)
                 } else {
                     nprint!(1, crate::formatter::Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
                     let obj_scope = scope.obj_root_chain().unwrap_or(scope);
-                    let object_self_scope = obj_scope.self_scope();
-                    let self_scope_path = &object_self_scope.self_scope;
+                    let self_scope_path = obj_scope.self_path_holder_ref();
                     match first_ident.to_string().as_str() {
                         "Self" => if segments.len() <= 1 {
                             nprint!(1, crate::formatter::Emoji::Local, "(Self) {}", format_token_stream(first_ident));
                             segments.replace_last_with(&self_scope_path.0.segments);
-                            TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                                .to_unknown(nested_arguments)
+                            ObjectKind::unknown_model_type_path(new_qself, self.leading_colon, segments, nested_arguments)
                         } else {
                             let tail = segments.crate_less();
                             let last_segment = segments.pop().unwrap();
                             let new_path: Path = parse_quote!(#self_scope_path::#tail);
                             nprint!(1, crate::formatter::Emoji::Local, "(SELF::->) {}: {}", format_token_stream(&last_segment), format_token_stream(&last_segment.clone().into_value().arguments));
-                            if let Some(segment_last) = segments.last_mut() {
-                                segment_last.arguments = last_segment.into_value().arguments;
+                            if let Some(PathSegment { arguments, .. }) = segments.last_mut() {
+                                *arguments = last_segment.into_value().arguments;
                             }
                             segments.clear();
                             segments.extend(new_path.segments);
-                            match scope.obj_root_chain() {
-                                Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                                        .to_object(nested_arguments),
-                                Some(ScopeChain::Trait { .. }) =>
-                                    TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                                        .to_trait(nested_arguments),
-                                _ => panic!("Unexpected scope obj root chain")
-                            }
+                            scope.obj_root_model_composer()(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))
                         },
                         "Vec" =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Vec(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::Vec(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         "Result" if segments.len() == 1 =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Result(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::Result(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         "Option" =>
-                            ObjectKind::Type(TypeModelKind::Optional(handle_type_path_model(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }, nested_arguments))),
+                            ObjectKind::optional_model_type(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments)),
                         _ if last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") =>
-                            TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }.to_object(nested_arguments),
+                            ObjectKind::object_model_type(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments)),
                         _ if last_ident.is_map() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::Map(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::Map(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if last_ident.is_btree_set() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::BTreeSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::BTreeSet(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if last_ident.is_hash_set() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::HashSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::HashSet(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if matches!(last_ident.to_string().as_str(), "IndexMap") =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexMap(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::IndexMap(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if matches!(last_ident.to_string().as_str(), "IndexSet") =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Group(GroupModelKind::IndexSet(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::group_type(GroupModelKind::IndexSet(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if first_ident.is_box() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments)))))),
+                            ObjectKind::smart_ptr_type(SmartPointerModelKind::Box(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if first_ident.is_cow() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel::new(Type::Path(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }), None, nested_arguments))))),
+                            ObjectKind::non_primitive_fermentable_type(DictFermentableModelKind::Cow(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments))),
                         _ if first_ident.is_primitive() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::Primitive(TypeModel::new_non_gen(first_ident.to_type(), None)))),
+                            ObjectKind::primitive_type(first_ident.to_type()),
                         _ if matches!(first_ident.to_string().as_str(), "i128") =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(TypeModel::new_non_gen(first_ident.to_type(), None))))),
+                            ObjectKind::i128_type(first_ident.to_type()),
                         _ if matches!(first_ident.to_string().as_str(), "u128") =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(TypeModel::new_non_gen(first_ident.to_type(), None))))),
+                            ObjectKind::u128_type(first_ident.to_type()),
                         _ if first_ident.is_special_std_trait() =>
-                            ObjectKind::Type(TypeModelKind::unknown_type(nested_import_seg.to_type())),
+                            ObjectKind::unknown_type(nested_import_seg.to_type()),
                         _ if first_ident.is_str() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel::new_non_gen(nested_import_seg.to_type(), None))))),
+                            ObjectKind::str_type(nested_import_seg.to_type()),
                         _ if first_ident.is_string() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(TypeModel::new_non_gen(nested_import_seg.to_type(), None))))),
+                            ObjectKind::string_type(nested_import_seg.to_type()),
                         _ if first_ident.is_lambda_fn() =>
-                            ObjectKind::Type(TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(handle_type_path_model(TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }, nested_arguments)))),
+                            ObjectKind::lambda_fn_model_type(handle_type_path_model(new_qself, self.leading_colon, segments, nested_arguments)),
                         _ => {
                             let obj_parent_scope = obj_scope.parent_scope();
                             let len = segments.len();
                             if len == 1 {
                                 nprint!(1, crate::formatter::Emoji::Local, "(Local join single (has {} parent scope): {}) {} + {}", obj_parent_scope.is_some().then_some("some").unwrap_or("no"), first_ident, scope, self.to_token_stream());
                                 segments.replace_last_with(&match obj_parent_scope {
-                                    None => {
-                                        // Global
-                                        if scope.is_crate_root() {
-                                            let scope = scope.crate_ident_ref();
-                                            parse_quote!(#scope::#self)
-                                        } else {
-                                            parse_quote!(#scope::#self)
-                                        }
-                                    },
+                                    // Global
+                                    None if scope.is_crate_root() => {
+                                        let scope = scope.crate_ident_ref();
+                                        parse_quote!(#scope::#self)
+                                    }
+                                    None => parse_quote!(#scope::#self),
                                     Some(parent) => {
                                         let scope = parent.self_path_holder_ref();
-                                        // nprint!(1, Emoji::Local, "(Local join single (has parent scope): {}) {} + {}", first_ident, scope, format_token_stream(&path));
                                         parse_quote!(#scope::#self)
                                     }
                                 });
-                                TypePath { qself: new_qself, path: Path { leading_colon: self.leading_colon, segments } }
-                                    .to_unknown(nested_arguments)
+                                ObjectKind::unknown_model_type_path(new_qself, self.leading_colon, segments, nested_arguments)
 
                             } else if let Some(QSelfModel { qs: _, qself: QSelf { ty, .. } }) = qself.as_ref() {
                                 nprint!(1, crate::formatter::Emoji::Local, "(Local join QSELF: {} [{}]) {} + {}", format_token_stream(ty), format_token_stream(&import_seg), format_token_stream(scope), format_token_stream(self));
@@ -253,24 +257,17 @@ impl<'a> VisitScopeType<'a> for Path {
                                     .or_else(|| obj_parent_scope.and_then(|parent_scope| context.maybe_scope_import_path(parent_scope, &import_seg)))
                                     .cloned()
                                     .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_holder_ref().joined_path(import_seg.0));
-                                let converted: TypePath = match len {
+
+                                scope.obj_root_model_composer()(handle_type_model(Type::Path(match len {
                                     0 => parse_quote!(<#ty as #tt>),
                                     _ => {
                                         let tail = segments.crate_less();
                                         parse_quote!(<#ty as #tt>::#tail)
                                     }
-                                };
-                                match scope.obj_root_chain() {
-                                    Some(ScopeChain::Trait { .. }) =>
-                                        converted.to_trait(nested_arguments),
-                                    Some(ScopeChain::Object { .. } | ScopeChain::Impl { .. }) =>
-                                        converted.to_object(nested_arguments),
-                                    _ =>
-                                        converted.to_unknown(nested_arguments)
-                                }
+                                }), nested_arguments))
+
                             } else {
-                                TypePath { qself: new_qself, path: self.clone() }
-                                    .to_unknown(nested_arguments)
+                                ObjectKind::unknown_model_type_path(new_qself, self.leading_colon.clone(), self.segments.clone(), nested_arguments)
                             }
                         },
                     }
@@ -306,34 +303,6 @@ impl<'a> VisitScopeType<'a> for TypePath {
     }
 }
 
-impl<'a> VisitScopeType<'a> for TypeArray {
-    type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectKind;
-
-    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
-        ObjectKind::Type(
-            TypeModelKind::Array(
-                TypeModel::new(
-                    Type::Array(self.clone()),
-                    None,
-                    Punctuated::from_iter([NestedArgument::Object(self.elem.visit_scope_type(source))]))))
-    }
-}
-
-impl<'a> VisitScopeType<'a> for TypeSlice {
-    type Source = (&'a ScopeChain, &'a GlobalContext);
-    type Result = ObjectKind;
-
-    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
-        ObjectKind::Type(
-            TypeModelKind::Slice(
-                TypeModel::new(
-                    Type::Slice(self.clone()),
-                    None,
-                    Punctuated::from_iter([NestedArgument::Object(self.elem.visit_scope_type(source))]))))
-
-    }
-}
 impl<'a> VisitScopeType<'a> for TypeBareFn {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectKind;
@@ -343,7 +312,7 @@ impl<'a> VisitScopeType<'a> for TypeBareFn {
         if let ReturnType::Type(_, ty) = &self.output {
             nested.push(NestedArgument::Object(ty.visit_scope_type(source)))
         }
-        ObjectKind::Type(TypeModelKind::FnPointer(TypeModel::new(Type::BareFn(self.clone()), None, nested)))
+        ObjectKind::fn_pointer_model_type(handle_type_model(Type::BareFn(self.clone()), nested))
     }
 }
 impl<'a> VisitScopeType<'a> for TypeReference {
@@ -368,45 +337,58 @@ impl<'a> VisitScopeType<'a> for TypePtr {
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
         let mut obj = self.elem.visit_scope_type(source);
         if let ObjectKind::Type(tyc) | ObjectKind::Item(tyc, _) = &mut obj {
-            match &tyc {
+            let ty = match &tyc {
                 TypeModelKind::Imported(ty, import_path) => {
                     let ty = ty.as_type();
                     let path = import_path.popped();
-                    match (self.const_token, self.mutability) {
-                        (Some(..), _) =>
-                            tyc.replace_model_type(parse_quote!(*const #path::#ty)),
-                        (_, Some(..)) =>
-                            tyc.replace_model_type(parse_quote!(*mut #path::#ty)),
-                        _ => {}
-                    }
+                    parse_quote!(#path::#ty)
                 },
-                _ => match (self.const_token, self.mutability) {
-                    (Some(..), _) =>
-                        tyc.replace_model_type(tyc.to_type().joined_const()),
-                    (_, Some(..)) =>
-                        tyc.replace_model_type(tyc.to_type().joined_mut()),
-                    _ => {}
-                }
+                _ => tyc.to_type()
+            };
+            match (self.const_token, self.mutability) {
+                (Some(..), _) =>
+                    tyc.replace_model_type(ty.joined_const()),
+                (_, Some(..)) =>
+                    tyc.replace_model_type(ty.joined_mut()),
+                _ => {}
             }
         }
         obj
     }
 }
 
-impl<'a> VisitScopeType<'a> for TypeTuple {
+impl<'a> VisitScopeType<'a> for TypeImplTrait {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectKind;
 
     fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
-        ObjectKind::Type(
-            TypeModelKind::Tuple(
-                TypeModel::new(
-                    Type::Tuple(self.clone()),
-                    None,
-                    self.elems
-                        .iter()
-                        .map(|ty| NestedArgument::Object(ty.visit_scope_type(source)))
-                        .collect())))
+        let (scope, context) = source;
+        let TypeImplTrait { impl_token, bounds } = self;
+        let mut bounds = bounds.clone();
+        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
+        bounds.iter_mut().for_each(|bound| match bound {
+            TypeParamBound::Trait(TraitBound { path, .. }) => {
+                let object = path.visit_scope_type(&(scope, context, None));
+                match &object {
+                    ObjectKind::Type(tyc) |
+                    ObjectKind::Item(tyc, _) => match tyc.to_type() {
+                        Type::Path(TypePath { path: ty_path, .. }) => {
+                            *path = ty_path;
+                        }
+                        Type::ImplTrait(TypeImplTrait { bounds, .. }) |
+                        Type::TraitObject(TypeTraitObject { bounds, .. }) => if let Some(first_bound) = bounds.first() {
+                            *bound = first_bound.clone();
+                        }
+                        _ => {}
+                    }
+                    ObjectKind::Empty => {}
+                }
+                nested_arguments.push(NestedArgument::Constraint(object));
+            },
+            _ => {},
+        });
+        // TODO: make it Unknown
+        ObjectKind::unknown_model_type(handle_type_model(Type::ImplTrait(TypeImplTrait { impl_token: impl_token.clone(), bounds }), nested_arguments))
     }
 }
 
@@ -441,6 +423,13 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
             _ => {},
         });
         // TODO: make it Unknown
-        ObjectKind::Type(TypeModelKind::Unknown(handle_type_model(Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds }), nested_arguments)))
+        ObjectKind::unknown_model_type(handle_type_model(Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds }), nested_arguments))
     }
+}
+
+pub fn handle_type_model(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
+    TypeModel::new_nested(ty, nested_arguments)
+}
+pub fn handle_type_path_model(qself: Option<QSelf>, leading_colon: Option<PathSep>, segments: Punctuated<PathSegment, PathSep>, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
+    handle_type_model(Type::Path(TypePath { qself, path: Path { leading_colon, segments }}), nested_arguments)
 }

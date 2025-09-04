@@ -41,9 +41,7 @@ impl TypeCollector for GenericBoundsModel {
     fn collect_compositions(&self) -> Vec<TypeHolder> {
         let mut type_and_paths: Vec<TypeHolder> = Vec::new();
         self.predicates.iter().for_each(|(_ty, bounds)| {
-            bounds.iter().for_each(|bound| {
-                type_and_paths.push(TypeHolder(parse_quote!(#bound)))
-            });
+            bounds.iter().for_each(|bound| type_and_paths.push(TypeHolder(parse_quote!(dyn #bound))));
         });
         type_and_paths
     }

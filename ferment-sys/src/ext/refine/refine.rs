@@ -723,31 +723,18 @@ fn create_mod_chain(path: &Path) -> ScopeChain {
     let segments = &path.segments;
 
     let crate_ident = &segments.first().expect("Mod path should have at least one segment").ident;
-    let self_scope = Scope::new(PathHolder::from(path), ObjectKind::Empty);
+    let self_scope = Scope::empty(PathHolder::from(path));
     let parent_chunks = path.popped();
     let parent_scope_chain = if parent_chunks.segments.len() > 1 {
         create_mod_chain(&parent_chunks)
     } else {
-        ScopeChain::CrateRoot {
-            info: ScopeInfo {
-                attrs: vec![],
-                crate_ident: crate_ident.clone(),
-                self_scope: Scope {
-                    self_scope: PathHolder(parent_chunks),
-                    object: ObjectKind::Empty
-                }
-            }
-        }
+        ScopeChain::root(ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(PathHolder(parent_chunks))))
     };
-    let info = ScopeInfo {
-        attrs: vec![],
-        crate_ident: crate_ident.clone(),
-        self_scope
-    };
+    let info = ScopeInfo::attr_less(crate_ident.clone(), self_scope);
     if segments.len() == 1 {
-        ScopeChain::CrateRoot { info }
+        ScopeChain::root(info)
     } else {
-        ScopeChain::Mod { info, parent_scope_chain: Box::new(parent_scope_chain.clone()) }
+        ScopeChain::r#mod(info, parent_scope_chain.clone())
     }
 }
 fn merge_reexport_chunks(base: &Path, extension: &Path) -> Path {

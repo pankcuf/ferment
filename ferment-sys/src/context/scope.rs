@@ -41,14 +41,17 @@ impl Hash for Scope {
 
 impl Scope {
     pub fn new(self_scope: PathHolder, object: ObjectKind) -> Self {
-        Scope { self_scope, object }
+        Self { self_scope, object }
+    }
+    pub fn empty(self_scope: PathHolder) -> Self {
+        Self::new(self_scope, ObjectKind::Empty)
     }
     pub fn joined(&self, item: &Item) -> Self {
         let child_self_scope = item.maybe_ident()
             .map(|ident| self.self_scope.joined(ident))
             .unwrap_or_else(|| self.self_scope.clone());
         let object = ObjectKind::try_from((item, &child_self_scope)).expect("Can't obtain ObjectKind for Item for child scope");
-        Scope::new(child_self_scope, object)
+        Self::new(child_self_scope, object)
     }
 
     pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {

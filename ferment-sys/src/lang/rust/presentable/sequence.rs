@@ -1,6 +1,6 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::Path;
+use syn::{Path, PathSegment};
 use crate::ast::{Assignment, BraceWrapped, Lambda, ParenWrapped};
 use crate::context::ScopeContext;
 use crate::ext::{LifetimeProcessor, Mangle, Terminated, ToPath, WrapInBraces};
@@ -82,7 +82,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     ffi_type.to_path()
                         .segments
                         .last()
-                        .map(|segment| segment.ident.clone())
+                        .map(|PathSegment { ident, .. }| ident.clone())
                         .unwrap_or_else(|| ffi_type.mangle_ident_default()),
                     aspect.attrs(),
                     fields.present(source)
@@ -96,7 +96,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     ffi_type.to_path()
                         .segments
                         .last()
-                        .map(|segment| segment.ident.clone())
+                        .map(|PathSegment { ident, .. }| ident.clone())
                         .unwrap_or_else(|| ffi_type.mangle_ident_default()),
                     aspect.attrs(),
                     fields.present(source)
