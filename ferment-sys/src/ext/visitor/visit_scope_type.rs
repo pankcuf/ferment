@@ -1,4 +1,5 @@
-use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, WherePredicate};
+use indexmap::IndexMap;
+use syn::{parse_quote, BareFnArg, GenericArgument, Generics, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, WherePredicate};
 use syn::punctuated::Punctuated;
 use syn::token::PathSep;
 use crate::ast::{AddPunctuated, Colon2Punctuated, CommaPunctuated};
@@ -58,6 +59,39 @@ impl<'a> VisitScopeType<'a> for Type {
         }
     }
 }
+
+fn collect_trait_bounds(ty: &Type, ident_path: &Type, bounds: &AddPunctuated<TypeParamBound>, source: &(&ScopeChain, &GlobalContext, Option<QSelfModel>)) -> Vec<ObjectKind> {
+    let mut has_bound = false;
+    bounds.iter().filter_map(|b| match b {
+        TypeParamBound::Trait(TraitBound { path, .. }) => {
+            let has = ident_path.eq(ty);
+            if !has_bound && has {
+                has_bound = true;
+            }
+            has.then(|| path.visit_scope_type(source))
+        },
+        _ => None
+    }).collect()
+}
+
+fn create_generics_chain(ty: &Type, bound: TypeParam, generics: &Generics, source: &(&ScopeChain, &GlobalContext, Option<QSelfModel>)) -> (Vec<ObjectKind>, IndexMap<Type, Vec<ObjectKind>>) {
+    let ident_path = Type::Path(TypePath { qself: None, path: Path::from(PathSegment::from(bound.ident.clone())) });
+    let bounds = collect_trait_bounds(&ty, &ident_path, &bound.bounds, source);
+    let predicates = generics.where_clause
+        .as_ref()
+        .map(|where_clause|
+            where_clause.predicates
+                .iter()
+                .filter_map(|predicate| match predicate {
+                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
+                        ty.eq(bounded_ty).then(||(bounded_ty.clone(), collect_trait_bounds(&ty, &bounded_ty, bounds, source))),
+                    _ => None
+                })
+                .collect())
+        .unwrap_or_default();
+    (bounds, predicates)
+}
+
 impl<'a> VisitScopeType<'a> for Path {
     type Source = (&'a ScopeChain, &'a GlobalContext, Option<QSelfModel>);
     type Result = ObjectKind;
@@ -113,34 +147,8 @@ impl<'a> VisitScopeType<'a> for Path {
                 }
                 if let Some((generics, bound)) = scope.maybe_generic_bound_for_path(&first_import_seg) {
                     nprint!(1, crate::formatter::Emoji::Local, "(Local Generic Bound) {}: {}", generics.to_token_stream(), bound.to_token_stream());
-                    let generic_trait_bounds = |ty: &Type, ident_path: &Type, bounds: &AddPunctuated<TypeParamBound>| {
-                        let mut has_bound = false;
-                        bounds.iter().filter_map(|b| match b {
-                            TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                let has = ident_path.eq(ty);
-                                if !has_bound && has {
-                                    has_bound = true;
-                                }
-                                has.then(|| path.visit_scope_type(source))
-                            },
-                            _ => None
-                        }).collect()
-                    };
-                    let ident_path = Type::Path(TypePath { qself: None, path: Path::from(PathSegment::from(bound.ident.clone())) });
                     let ty: Type = first_import_seg.to_type();
-                    let bounds = generic_trait_bounds(&ty, &ident_path, &bound.bounds);
-                    let predicates = generics.where_clause
-                        .as_ref()
-                        .map(|where_clause|
-                            where_clause.predicates
-                                .iter()
-                                .filter_map(|predicate| match predicate {
-                                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
-                                        ty.eq(bounded_ty).then(||(bounded_ty.clone(), generic_trait_bounds(&ty, &bounded_ty, bounds))),
-                                    _ => None
-                                })
-                                .collect())
-                        .unwrap_or_default();
+                    let (bounds, predicates) = create_generics_chain(&ty, bound, &generics, source);
                     ObjectKind::bounds(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments))
                 } else if let Some(mut import_path) = context.maybe_import_path_ref(scope, &first_import_seg).cloned() {
                     // Can be reevaluated after processing entire scope tree:

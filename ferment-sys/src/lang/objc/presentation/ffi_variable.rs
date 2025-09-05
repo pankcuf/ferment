@@ -130,42 +130,41 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for AddPunctuated<Typ
 
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-    //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
-        Type::Array(TypeArray { elem, len, .. }) => FFIVariable::mut_ptr(parse_quote!([#elem; #len])),
+        Type::Array(TypeArray { elem, len, .. }) =>
+            FFIVariable::mut_ptr(parse_quote!([#elem; #len])),
         Type::Reference(TypeReference { elem, .. }) |
         Type::Slice(TypeSlice { elem, .. }) =>
             elem.resolve(source),
-        Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
-            match *elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "c_void" => match (star_token, const_token, mutability) {
-                        (_, Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
-                        (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(quote!(void)),
-                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
-                    },
-                    _ => {
-                        if const_token.is_some() {
-                            FFIVariable::const_ptr(path.to_token_stream())
-                        } else {
-                            FFIVariable::mut_ptr(path.to_token_stream())
-                        }
-                    }
-                },
-                Type::Ptr(..) => {
-                    FFIVariable::mut_ptr(elem.to_token_stream())
-                },
-                ty => mutability.as_ref()
-                    .map_or( FFIVariable::const_ptr(ty.to_token_stream()), |_| FFIVariable::mut_ptr(ty.to_token_stream()))
+        Type::Ptr(TypePtr { const_token, mutability, elem, .. }) => match *elem {
+            Type::Path(TypePath { path, .. }) => {
+                let ty = if path.segments.last().unwrap().ident.eq("c_void") {
+                    quote!(void)
+                } else {
+                    path.to_token_stream()
+                };
+                if const_token.is_some() {
+                    FFIVariable::const_ptr(ty)
+                } else {
+                    FFIVariable::mut_ptr(ty)
+                }
             },
+            Type::Ptr(..) =>
+                FFIVariable::mut_ptr(elem.to_token_stream()),
+            ty if mutability.is_some() =>
+                FFIVariable::mut_ptr(ty.to_token_stream()),
+            ty =>
+                FFIVariable::const_ptr(ty.to_token_stream())
+        },
         Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) => {
             bounds.resolve(source)
         }
         Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) =>
             bounds.resolve(source),
-        ty => FFIVariable::direct(ty.mangle_tokens_default())
+        ty =>
+            FFIVariable::direct(ty.mangle_tokens_default())
     }
 }
 

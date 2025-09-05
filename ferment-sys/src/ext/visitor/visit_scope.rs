@@ -67,13 +67,12 @@ impl VisitScope for Item {
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::trait_model_type(TypeModel::new_generic(ident.to_type(), item_enum.generics.clone(), nested_bounds))));
 
                         }
-                        GenericParam::Const(ConstParam { ident, ty: _, .. }) => {
+                        GenericParam::Const(ConstParam { ident, .. }) => {
                             inner_args.push(quote!(#ident));
                             nested_arguments.push(NestedArgument::Constraint(ObjectKind::object_model_type(TypeModel::new_generic_non_nested(ident.to_type(), item_enum.generics.clone()))))
                         },
-                        GenericParam::Lifetime(LifetimeParam { lifetime, bounds: _, .. }) => {
-                            inner_args.push(quote!(#lifetime));
-                        },
+                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
+                            inner_args.push(quote!(#lifetime)),
                     });
                     parse_quote!(#scope<#inner_args>)
                 } else {
@@ -174,52 +173,43 @@ impl VisitScope for Item {
                 }
                 visitor.add_full_qualified_type_match(scope, self_ty, false);
                 visitor.add_generic_chain(scope, generics, true);
-                items.iter().for_each(|impl_item| {
-                    match impl_item {
-                        ImplItem::Const(ImplItemConst { ident, ty, .. }) => {
-                            visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
-                            visitor.add_full_qualified_type_match(scope, ty, true);
-                        },
-                        ImplItem::Fn(impl_method) => {
-                            let ImplItemFn { sig, .. } = impl_method;
-                            let Signature { ident, inputs, output, generics, .. } = sig;
-                            let fn_scope = scope.joined(impl_method);
-                            if let Some((_, path, _)) = trait_ {
-                                visitor.add_full_qualified_type_match(&fn_scope, &path.to_type(), false);
+                items.iter().for_each(|impl_item| match impl_item {
+                    ImplItem::Const(ImplItemConst { ident, ty, .. }) => {
+                        visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
+                        visitor.add_full_qualified_type_match(scope, ty, true);
+                    },
+                    ImplItem::Fn(impl_method) => {
+                        let ImplItemFn { sig, .. } = impl_method;
+                        let Signature { ident, inputs, output, generics, .. } = sig;
+                        let fn_scope = scope.joined(impl_method);
+                        if let Some((_, path, _)) = trait_ {
+                            visitor.add_full_qualified_type_match(&fn_scope, &path.to_type(), false);
+                        }
+                        visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
+                        visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
+                        if let ReturnType::Type(_, ty) = output {
+                            visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
+                        }
+                        inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            let type_chain = visitor.create_type_chain(ty, &fn_scope);
+                            let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
+                            let mut type_chains = HashMap::from_iter([
+                                (fn_scope.clone(), type_chain),
+                                (scope.clone(), parent_type_chain.clone()),
+                            ]);
+                            if let Some(parent_scope) = scope.parent_scope() {
+                                type_chains.insert(parent_scope.clone(), parent_type_chain);
                             }
-                            visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
-                            visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
-                            if let ReturnType::Type(_, ty) = output {
-                                visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(ty, scope), true);
-                            }
-                            inputs.iter().for_each(|arg| {
-                                match arg {
-                                    FnArg::Receiver(..) => {
-                                        // visitor.add_full_qualified_type_match(scope, self_ty, false);
-                                    },
-                                    FnArg::Typed(PatType { ty, .. }) => {
-                                        let type_chain = visitor.create_type_chain(ty, &fn_scope);
-                                        let parent_type_chain = visitor.create_type_chain(ty, scope).excluding_self_and_bounds(generics);
-                                        let mut type_chains = HashMap::from_iter([
-                                            (fn_scope.clone(), type_chain),
-                                            (scope.clone(), parent_type_chain.clone()),
-                                        ]);
-                                        if let Some(parent_scope) = scope.parent_scope() {
-                                            type_chains.insert(parent_scope.clone(), parent_type_chain);
-                                        }
-                                        visitor.add_full_qualified_type_chains(type_chains);
-                                    }
-                                }
-                            });
-                            visitor.add_generic_chain(&fn_scope, generics, false);
-                        },
-                        ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
-                            visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
-                            visitor.add_full_qualified_type_match(scope, ty, true);
-                            visitor.add_generic_chain(scope, generics, false);
-                        },
-                        _ => {}
-                    }
+                            visitor.add_full_qualified_type_chains(type_chains);
+                        });
+                        visitor.add_generic_chain(&fn_scope, generics, false);
+                    },
+                    ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
+                        visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
+                        visitor.add_full_qualified_type_match(scope, ty, true);
+                        visitor.add_generic_chain(scope, generics, false);
+                    },
+                    _ => {}
                 });
             }
             _ => {}
