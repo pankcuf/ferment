@@ -1,9 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter, Write};
+use indexmap::IndexMap;
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
-use crate::ast::{PathHolder, TypeHolder, TypePathHolder};
+use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MixinKind, ObjectKind};
@@ -19,7 +20,7 @@ pub fn format_imported_set(dict: &HashSet<ItemUse>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_scope_refinement(dict: &Vec<(ScopeChain, HashMap<TypeHolder, ObjectKind>)>) -> String {
+pub fn format_scope_refinement(dict: &Vec<(ScopeChain, HashMap<Type, ObjectKind>)>) -> String {
     let mut iter = dict.iter()
         .map(|(scope, types)|
             format!("\t{}: \n\t\t{}", scope.self_path_holder_ref(), types.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
@@ -86,14 +87,14 @@ pub fn format_attrs(dict: &Vec<Attribute>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_imports(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> String {
+pub fn format_imports(dict: &IndexMap<ScopeChain, IndexMap<Path, Path>>) -> String {
     let vec = scope_imports_dict(dict);
     let expanded = quote!(#(#vec),*);
     expanded.to_string()
 }
 
 #[allow(unused)]
-pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeID, ScopeTreeExportItem>) -> String {
+pub fn format_tree_exported_dict(dict: &IndexMap<ScopeTreeID, ScopeTreeExportItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("{}: {}", ident, tree_item))
         .collect::<Vec<_>>()
@@ -101,7 +102,7 @@ pub fn format_tree_exported_dict(dict: &HashMap<ScopeTreeID, ScopeTreeExportItem
 }
 
 #[allow(unused)]
-pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeID, ScopeTreeItem>) -> String {
+pub fn format_tree_item_dict(dict: &IndexMap<ScopeTreeID, ScopeTreeItem>) -> String {
     dict.iter()
         .map(|(ident, tree_item)| format!("\t{}: {:?}", ident, tree_item))
         .collect::<Vec<_>>()
@@ -109,7 +110,7 @@ pub fn format_tree_item_dict(dict: &HashMap<ScopeTreeID, ScopeTreeItem>) -> Stri
 }
 
 #[allow(unused)]
-pub fn scope_type_conversion_pair(dict: (&TypeHolder, &ObjectKind)) -> String {
+pub fn scope_type_conversion_pair(dict: (&Type, &ObjectKind)) -> String {
     format!("\t{}: {}", dict.0.to_token_stream(), dict.1)
     // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
 }
@@ -144,7 +145,7 @@ pub fn ident_trait_type_decomposition_conversion_pair(dict: (&Ident, &TraitTypeM
         quote!(#ident: [bounds: #(#trait_bounds)*])
     })
 }
-fn format_ident_path_pair(pair: (&PathHolder, &Path)) -> String {
+fn format_ident_path_pair(pair: (&Path, &Path)) -> String {
     format!("\t{}: {}", format_token_stream(pair.0), format_token_stream(pair.1))
 }
 
@@ -171,7 +172,7 @@ pub fn format_predicates_dict(vec: &HashMap<Type, Vec<Path>>) -> String {
         .join(",")
 }
 #[allow(unused)]
-pub fn format_predicates_obj_dict(vec: &HashMap<Type, Vec<ObjectKind>>) -> String {
+pub fn format_predicates_obj_dict(vec: &IndexMap<Type, Vec<ObjectKind>>) -> String {
     vec.iter()
         .map(type_vec_obj_conversion_pair)
         .collect::<Vec<_>>()
@@ -179,7 +180,7 @@ pub fn format_predicates_obj_dict(vec: &HashMap<Type, Vec<ObjectKind>>) -> Strin
 }
 
 #[allow(unused)]
-fn format_generic_bounds_pair(pair: (&TypePathHolder, &Vec<Path>)) -> String {
+fn format_generic_bounds_pair(pair: (&Type, &Vec<Path>)) -> String {
     format!("\t{}: [{}]", format_token_stream(pair.0), format_path_vec(pair.1))
 }
 
@@ -189,7 +190,7 @@ fn format_ident_trait_pair(pair: (&Ident, &TraitModelPart1)) -> String {
 }
 
 #[allow(unused)]
-pub fn format_types_dict(dict: &HashMap<TypeHolder, ObjectKind>) -> String {
+pub fn format_types_dict(dict: &IndexMap<Type, ObjectKind>) -> String {
     types_dict(dict)
         .join("\n")
 }
@@ -217,7 +218,7 @@ pub fn format_scope_types_dict(dict: &HashMap<ScopeChain, TypeChain>) -> String 
 }
 //
 #[allow(unused)]
-pub fn format_used_traits(dict: &HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>) -> String {
+pub fn format_used_traits(dict: &IndexMap<ScopeChain, IndexMap<Ident, TraitModelPart1>>) -> String {
     scope_traits_dict(dict).join("\n")
 }
 
@@ -329,20 +330,20 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
 
 /// Helpers
 
-pub fn imports_dict(dict: &HashMap<PathHolder, Path>) -> Vec<String> {
+pub fn imports_dict(dict: &IndexMap<Path, Path>) -> Vec<String> {
     dict.iter()
         .map(format_ident_path_pair)
         .collect()
 }
 
 #[allow(unused)]
-pub fn generic_bounds_dict(dict: &HashMap<TypePathHolder, Vec<Path>>) -> Vec<String> {
+pub fn generic_bounds_dict(dict: &IndexMap<Type, Vec<Path>>) -> Vec<String> {
     dict.iter()
         .map(format_generic_bounds_pair)
         .collect()
 }
 
-pub fn types_dict(dict: &HashMap<TypeHolder, ObjectKind>) -> Vec<String> {
+pub fn types_dict(dict: &IndexMap<Type, ObjectKind>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(scope_type_conversion_pair)
         .collect::<Vec<String>>();
@@ -374,7 +375,7 @@ fn ident_types_dict(dict: &HashMap<Ident, Type>) -> Vec<String> {
     iter
 }
 
-fn traits_dict(dict: &HashMap<Ident, TraitModelPart1>) -> Vec<String> {
+fn traits_dict(dict: &IndexMap<Ident, TraitModelPart1>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(format_ident_trait_pair)
         .collect::<Vec<String>>();
@@ -383,7 +384,7 @@ fn traits_dict(dict: &HashMap<Ident, TraitModelPart1>) -> Vec<String> {
 }
 
 
-fn nested_scope_dict<K, K2, V2, F: Fn(&K, &HashMap<K2, V2>) -> String>(dict: &HashMap<K, HashMap<K2, V2>>, mapper: F) -> Vec<String> {
+fn nested_scope_dict<K, K2, V2, F: Fn(&K, &IndexMap<K2, V2>) -> String>(dict: &IndexMap<K, IndexMap<K2, V2>>, mapper: F) -> Vec<String> {
     let mut iter = dict.iter()
         .map(|(key, value)| mapper(key, value))
         .collect::<Vec<String>>();
@@ -391,22 +392,22 @@ fn nested_scope_dict<K, K2, V2, F: Fn(&K, &HashMap<K2, V2>) -> String>(dict: &Ha
     iter
 }
 
-fn format_scope_dict<K2, V2, F: Fn(&HashMap<K2, V2>) -> Vec<String>>(dict: &HashMap<ScopeChain, HashMap<K2, V2>>, mapper: F) -> Vec<String>  {
+fn format_scope_dict<K2, V2, F: Fn(&IndexMap<K2, V2>) -> Vec<String>>(dict: &IndexMap<ScopeChain, IndexMap<K2, V2>>, mapper: F) -> Vec<String>  {
     nested_scope_dict(dict, |scope, sub_dict|
         format!("\t{}:\n\t\t{}", scope.fmt_short(), mapper(sub_dict).join("\n\t\t")))
 }
 
-pub fn scope_imports_dict(dict: &HashMap<ScopeChain, HashMap<PathHolder, Path>>) -> Vec<String> {
+pub fn scope_imports_dict(dict: &IndexMap<ScopeChain, IndexMap<Path, Path>>) -> Vec<String> {
     format_scope_dict(dict, imports_dict)
 }
 
 #[allow(unused)]
-pub fn scope_generics_dict(dict: &HashMap<ScopeChain, HashMap<TypePathHolder, Vec<Path>>>) -> Vec<String> {
+pub fn scope_generics_dict(dict: &IndexMap<ScopeChain, IndexMap<Type, Vec<Path>>>) -> Vec<String> {
     format_scope_dict(dict, generic_bounds_dict)
 }
 
 
-fn scope_traits_dict(dict: &HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>) -> Vec<String> {
+fn scope_traits_dict(dict: &IndexMap<ScopeChain, IndexMap<Ident, TraitModelPart1>>) -> Vec<String> {
     format_scope_dict(dict, traits_dict)
 }
 

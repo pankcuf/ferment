@@ -43,7 +43,7 @@ impl GenericCollector for Type {
                             PathArguments::Parenthesized(ParenthesizedGenericArguments { .. }) => true,
                             _ => false,
                         };
-                        has_nested_types && !matches!(seg.ident.to_string().as_str(), "Option")
+                        has_nested_types && seg.ident.ne("Option")
                     }) {
 
                     generics.insert(TypeHolder(self.clone()));

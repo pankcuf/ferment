@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{GenericArgument, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
-use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, TypeChain};
 use crate::kind::ObjectKind;
 use crate::formatter::types_dict;
@@ -27,7 +26,7 @@ impl Display for CustomResolver {
 }
 
 impl CustomResolver {
-    pub fn add_conversion(&mut self, regular_ty: TypeHolder, ffi_object: ObjectKind, scope: ScopeChain) {
+    pub fn add_conversion(&mut self, regular_ty: Type, ffi_object: ObjectKind, scope: ScopeChain) {
         self.inner
             .entry(scope.clone())
             .or_default()
@@ -41,7 +40,7 @@ impl CustomResolver {
     fn replacement_for<'a>(&'a self, ty: &'a Type, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
         self.inner
             .get(scope)
-            .and_then(|chain| chain.get_by_key(ty))
+            .and_then(|chain| chain.get(ty))
     }
 
     fn replace_conversion(&self, scope: &ScopeChain, ty: &Type) -> Option<Type> {

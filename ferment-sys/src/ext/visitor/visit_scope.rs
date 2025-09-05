@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use indexmap::IndexMap;
 use proc_macro2::Ident;
-use quote::quote;
-use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath};
+use quote::{quote, ToTokens};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath, PathSegment, TraitBoundModifier};
 use syn::parse::Parser;
-use crate::ast::{AddPunctuated, CommaPunctuated, TypePathHolder};
+use crate::ast::{AddPunctuated, CommaPunctuated};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::composer::MaybeMacroLabeled;
 use crate::context::ScopeChain;
@@ -347,29 +348,132 @@ fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, sco
     bounds
 }
 
-pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> HashMap<TypePathHolder, Vec<Path>> {
-    let mut generics_chain: HashMap<TypePathHolder, Vec<Path>> = HashMap::new();
-    let Generics { params, where_clause, .. } = generics;
-    params.iter().for_each(|generic_param| {
-        match generic_param { // T: Debug + Clone
-            GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-                generics_chain.insert(parse_quote!(#ident), add_bounds(visitor, bounds, scope, add_to_parent));
-            },
-            GenericParam::Const(ConstParam { ty, .. }) =>
-                visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
-            _ => {},
-        }
+// pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> IndexMap<Type, Vec<Path>> {
+//     let mut generics_chain: IndexMap<Type, Vec<Path>> = IndexMap::new();
+//     let Generics { params, where_clause, .. } = generics;
+//     params.iter().for_each(|generic_param| {
+//         match generic_param { // T: Debug + Clone
+//             GenericParam::Type(TypeParam { ident, bounds, .. }) => {
+//                 generics_chain.insert(parse_quote!(#ident), add_bounds(visitor, bounds, scope, add_to_parent));
+//             },
+//             GenericParam::Const(ConstParam { ty, .. }) =>
+//                 visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
+//             _ => {},
+//         }
+//     });
+//     if let Some(WhereClause { predicates, .. }) = &where_clause {
+//         predicates.iter().for_each(|predicate| match predicate {
+//             WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
+//                 // where T: Debug + Clone, T::Item: XX,
+//                 generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
+//                 visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
+//             },
+//             _ => {}
+//         })
+//     }
+//     generics_chain
+// }
+
+fn collect_trait_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
+    let mut paths = Vec::<Path>::new();
+    bounds.iter().for_each(|b| match b {
+        TypeParamBound::Trait(TraitBound { modifier, path, .. }) => if let Some(path) = (matches!(modifier, TraitBoundModifier::None) && !path.segments.last().map(|PathSegment { ident, .. }| ident.eq("Sized")).unwrap_or_default()).then(|| path.clone()) {
+            paths.push(path.clone());
+            let ty =  Type::Path(TypePath { qself: None, path });
+            visitor.add_full_qualified_type_match(scope, &ty, add_to_parent);
+        },
+        _ => {}
     });
-    if let Some(WhereClause { predicates, .. }) = &where_clause {
-        predicates.iter().for_each(|predicate| match predicate {
-            WherePredicate::Type(PredicateType { bounds, bounded_ty, .. }) => {
-                // where T: Debug + Clone, T::Item: XX,
-                generics_chain.insert(parse_quote!(#bounded_ty), add_bounds(visitor, bounds, scope, add_to_parent));
-                visitor.add_full_qualified_type_match(scope, bounded_ty, add_to_parent);
-            },
+    paths
+}
+
+/// Collects trait bounds from both type parameter bounds and where-clause predicates
+/// into a single, deterministically ordered list. Only `TypeParamBound::Trait` and
+/// `WherePredicate::Type(..)` with trait bounds are considered.
+pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> IndexMap<Type, Vec<Path>> {
+    let Generics { params, where_clause, .. } = generics;
+    let mut generics_chain = IndexMap::<Type, Vec<Path>>::new();
+    // 1) Bounds in angle brackets: `fn foo<T: Trait, U: A + B>() {}`
+    params.iter().for_each(|gp| match gp {
+        GenericParam::Type(TypeParam { bounds, ident, .. }) => {
+            generics_chain.entry(parse_quote!(#ident))
+                .or_default()
+                .extend(collect_trait_bounds(visitor, bounds, scope, add_to_parent));
+        },
+        GenericParam::Const(ConstParam { ty, .. }) =>
+            visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
+        _ => {}
+    });
+    // 2) Where clause predicates: `where T: Trait, Vec<U>: Another`
+    if let Some(WhereClause { predicates, .. }) = where_clause {
+        predicates.iter().for_each(|pred| match pred {
+            WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
+                generics_chain.entry(bounded_ty.clone())
+                    .or_default()
+                    .extend(collect_trait_bounds(visitor, bounds, scope, add_to_parent)),
             _ => {}
-        })
+        });
     }
+    // Ensure each generic type parameter appears at least once; add unlimited if no restrictive bound collected
+    params.iter().for_each(|gp| match gp {
+        GenericParam::Type(TypeParam { ident, .. }) if !generics_chain.keys().any(|bounded_ty| bounded_ty.to_token_stream().to_string() == ident.to_string()) => {
+            generics_chain.entry(parse_quote!(#ident))
+                .or_default();
+        }
+        _ => {}
+    });
+    // Dedup per-type trait paths by token string and order deterministically
+    for (_, trait_paths) in generics_chain.iter_mut() {
+        let mut seen_p: HashSet<String> = HashSet::new();
+        trait_paths.retain(|p| seen_p.insert(p.to_token_stream().to_string()));
+        trait_paths.sort_by(|a, b| {
+            let a_s = a.to_token_stream().to_string();
+            let b_s = b.to_token_stream().to_string();
+            let norm = |s: &str| s.replace(' ', "");
+            let w = |s: &str| if norm(s).starts_with("::") { 1 } else { 0 };
+            w(&a_s).cmp(&w(&b_s)).then_with(|| a_s.cmp(&b_s))
+        });
+    }
+    // If a bounded type has any restrictive trait bounds, drop its unlimited entries
+    let mut has_restrictive: HashMap<String, bool> = HashMap::new();
+    for (bounded_ty, trait_paths) in &generics_chain {
+        let ty_s = bounded_ty.to_token_stream().to_string();
+        let e = has_restrictive.entry(ty_s).or_insert(false);
+        if !trait_paths.is_empty() {
+            *e = true;
+        }
+    }
+    generics_chain.retain(|bounded_ty, trait_paths| {
+        if !trait_paths.is_empty() { return true; }
+        let ty_s = bounded_ty.to_token_stream().to_string();
+        !has_restrictive.get(&ty_s).copied().unwrap_or_default()
+    });
+    // Deterministic order: first by bounded type, then by trait path (both token strings)
+    generics_chain.sort_by(|a_ty, a_paths, b_ty, b_paths| {
+        // Prefer simple type parameters (single-segment, no leading ::) before concrete/qualified types
+        let type_weight = |t: &Type| match t {
+            // simple ident like `T`, `U`
+            Type::Path(TypePath { qself: None, path: Path { leading_colon: None, segments } }) if segments.len() == 1 => 0,
+            _ => 1
+        };
+        let a_ty_s = a_ty.to_token_stream().to_string();
+        let a_tr_s = a_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(" + ");
+        let b_ty_s = b_ty.to_token_stream().to_string();
+        let b_tr_s = b_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(" + ");
+        let a_tw = type_weight(a_ty);
+        let b_tw = type_weight(b_ty);
+        // Prefer bare trait names over fully-qualified ones; unlimited last
+        let trait_weight = |s: &str| {
+            if s == "<unlimited>" { 2 }
+            else if s.replace(' ', "").starts_with("::") { 1 }
+            else { 0 }
+        };
+        a_tw
+            .cmp(&b_tw)
+            .then_with(|| a_ty_s.cmp(&b_ty_s))
+            .then_with(|| trait_weight(&a_tr_s).cmp(&trait_weight(&b_tr_s)))
+            .then_with(|| a_tr_s.cmp(&b_tr_s))
+    });
     generics_chain
 }
 

@@ -21,7 +21,7 @@ impl Constraints for Constraint {
 
 impl Constraints for Ident {
     fn has_self(&self) -> bool {
-        self.to_string().as_str() == "Self"
+        self == "Self"
     }
 }
 
@@ -64,12 +64,12 @@ impl Constraints for GenericArgument {
 
 impl Constraints for AssocType {
     fn has_self(&self) -> bool {
-        self.ident.to_string().as_str().eq("Self") || self.ty.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
+        self.ident.eq("Self") || self.ty.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
     }
 }
 impl Constraints for AssocConst {
     fn has_self(&self) -> bool {
-        self.ident.to_string().as_str().eq("Self") || self.value.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
+        self.ident.eq("Self") || self.value.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
     }
 }
 

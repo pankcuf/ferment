@@ -1,6 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, RwLock};
+use indexmap::IndexMap;
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
@@ -17,7 +18,7 @@ pub struct ScopeTree {
     pub attrs: Vec<Attribute>,
     pub scope: ScopeChain,
     pub imported: HashSet<ItemUse>,
-    pub exported: HashMap<ScopeTreeID, ScopeTreeItem>,
+    pub exported: IndexMap<ScopeTreeID, ScopeTreeItem>,
     pub scope_context: ScopeContextLink,
 }
 impl Debug for ScopeTree {
@@ -53,7 +54,7 @@ pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context:
         HashSet::from_iter([
             create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: crate_ident.clone() }))
         ]),
-        HashMap::new(),
+        IndexMap::new(),
         vec![]
     )
 }
@@ -75,7 +76,7 @@ pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
+    exported: IndexMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
     // print_phase!("PHASE 2: SCOPE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
@@ -87,10 +88,10 @@ pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
+    exported: IndexMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
-    let exported = HashMap::from_iter(exported.into_iter()
+    let exported = IndexMap::from_iter(exported.into_iter()
         .map(|(scope_id, scope_tree_export_item)| {
             let scope_tree_item = match scope_tree_export_item {
                 ScopeTreeExportItem::Item(scope_context, item) =>

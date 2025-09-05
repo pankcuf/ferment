@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
-use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
+use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
@@ -49,7 +49,7 @@ impl ScopeContext {
     pub fn cell_with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::with(scope, context)))
     }
-    pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
+    pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: Type, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
         let mut lock = self.context.write().unwrap();
         lock.custom.add_conversion(custom_type, ObjectKind::unknown_type(ffi_type), scope);

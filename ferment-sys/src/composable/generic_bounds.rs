@@ -1,7 +1,7 @@
 use syn::{Generics, parse_quote, Type};
-use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use indexmap::IndexMap;
 use quote::{quote, ToTokens};
 use crate::ast::CommaPunctuated;
 use crate::composable::{TypeModel, TypeModeled};
@@ -19,7 +19,7 @@ pub struct GenericBoundsModel {
     pub type_model: TypeModel,
     // 'Fn(u32) -> Result<bool, ProtocolError>' or 'Clone + Debug + Smth'
     pub bounds: Vec<ObjectKind>,
-    pub predicates: HashMap<Type, Vec<ObjectKind>>,
+    pub predicates: IndexMap<Type, Vec<ObjectKind>>,
     // pub bounds: Vec<Path>,
     // pub predicates: HashMap<Type, Vec<Path>>,
     pub nested_arguments: CommaPunctuatedNestedArguments,
@@ -87,7 +87,7 @@ impl Hash for GenericBoundsModel {
 }
 
 impl GenericBoundsModel {
-    pub fn new(ty: Type, bounds: Vec<ObjectKind>, predicates: HashMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+    pub fn new(ty: Type, bounds: Vec<ObjectKind>, predicates: IndexMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self {
             type_model: TypeModel::new_generic(ty, generics, nested_arguments.clone()),
             bounds,

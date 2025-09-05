@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
+use indexmap::IndexMap;
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree};
 use syn::visit::Visit;
-use crate::ast::{PathHolder, TypeHolder};
+use crate::ast::PathHolder;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
 use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType};
@@ -134,7 +135,7 @@ impl Visitor {
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
-    pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectKind, scope: &ScopeChain) {
+    pub(crate) fn scope_add_one(&self, ty: Type, object: ObjectKind, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
@@ -152,8 +153,11 @@ impl Visitor {
         let context = self.context.read().unwrap();
         TypeChain::from(
             ty.unique_nested_items()
-                .iter()
-                .map(|ty| (TypeHolder::from(ty), ty.visit_scope_type(&(scope, &context)))))
+                .into_iter()
+                .map(|ty| {
+                    let object = ty.visit_scope_type(&(scope, &context));
+                    (ty, object)
+                }))
     }
     pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
         type_chains.into_iter().for_each(|(scope, type_chain)| {
@@ -215,7 +219,7 @@ impl Visitor {
         for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
             if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
                 if !exported.contains_key(&ident) {
-                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), HashMap::default(), attrs.clone()));
+                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), IndexMap::default(), attrs.clone()));
                 }
                 current_tree = exported.get_mut(&ident).unwrap();
             }

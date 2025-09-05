@@ -2,13 +2,12 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{Path, Type};
-use crate::ast::TypeHolder;
 use crate::context::{ScopeChain, ScopeSearchKey, TypeChain};
 use crate::kind::ObjectKind;
 use crate::ext::{LifetimeProcessor, RefineMut};
 use crate::formatter::types_dict;
 
-pub type ScopeRefinement = Vec<(ScopeChain, HashMap<TypeHolder, ObjectKind>)>;
+pub type ScopeRefinement = Vec<(ScopeChain, HashMap<Type, ObjectKind>)>;
 
 #[derive(Clone, Default)]
 pub struct ScopeResolver {
@@ -61,8 +60,8 @@ impl ScopeResolver {
         self.get(scope)
             .and_then(|chain|
                 search_key.find(|ty|
-                    chain.get_by_key(ty)
-                        .or_else(|| chain.get_by_key(&ty.lifetimes_cleaned()))))
+                    chain.get(ty)
+                        .or_else(|| chain.get(&ty.lifetimes_cleaned()))))
     }
     pub fn maybe_object_ref_by_value<'a>(&'a self, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
         self.inner.values()

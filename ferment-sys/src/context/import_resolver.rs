@@ -1,13 +1,12 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use proc_macro2::Ident;
 use syn::{parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::ast::PathHolder;
 use crate::context::ScopeChain;
 
 #[derive(Clone, Default)]
 pub struct ImportResolver {
-    pub inner: HashMap<ScopeChain, HashMap<PathHolder, Path>>,
+    pub inner: IndexMap<ScopeChain, IndexMap<Path, Path>>,
 }
 
 impl ImportResolver {
@@ -40,14 +39,14 @@ impl ImportResolver {
         }
     }
 
-    pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&HashMap<PathHolder, Path>> {
+    pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&IndexMap<Path, Path>> {
         self.inner.get(scope)
     }
-    pub fn maybe_path(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+    pub fn maybe_path(&self, scope: &ScopeChain, chunk: &Path) -> Option<&Path> {
         self.maybe_scope_imports(scope)
             .and_then(|imports| imports.get(chunk))
     }
-    pub fn maybe_import(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+    pub fn maybe_import(&self, scope: &ScopeChain, chunk: &Path) -> Option<&Path> {
         // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
         // so smth like can_have_more_than_one_grandfather,
         match scope {
@@ -65,7 +64,7 @@ impl ImportResolver {
 
 
 
-    fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+    fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &Path) -> Option<&Path> {
         self.maybe_path(fn_scope, ident)
             .or_else(|| {
                 match parent_scope {
@@ -102,7 +101,7 @@ impl ImportResolver {
                 }
             })
     }
-    pub fn maybe_obj_or_parent(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
+    pub fn maybe_obj_or_parent(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ident: &Path) -> Option<&Path> {
         self.maybe_path(self_scope, ident)
             .or_else(|| match parent_chain {
                 ScopeChain::CrateRoot { .. } |

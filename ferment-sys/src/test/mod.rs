@@ -5,12 +5,13 @@ use crate::ast::PathHolder;
 use crate::context::ScopeContext;
 use crate::kind::TypeKind;
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
-use crate::lang::{RustSpecification, Specification};
+use crate::lang::RustSpecification;
 use crate::presentation::FFIFullPath;
 
 pub mod composing;
 pub mod mangling;
 mod lookup;
+mod generics_bounds;
 
 impl TypeKind {
     fn mangled_generic_arguments_types_strings(&self, context: &ScopeContext) -> Vec<String> {

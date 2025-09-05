@@ -178,9 +178,9 @@ impl TypeModelKind {
     }
     pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
         if let TypeModelKind::FnPointer(ty, ..) | TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(ty)) = self {
-            if let Type::Path(TypePath { path, .. }) = ty.as_type() {
-                if let Some(PathSegment { arguments, ident: last_ident, ..}) = &path.segments.last() {
-                    if last_ident.is_lambda_fn() {
+            if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = ty.as_type() {
+                if let Some(PathSegment { arguments, ident, ..}) = segments.last() {
+                    if ident.is_lambda_fn() {
                         if let PathArguments::Parenthesized(args) = arguments {
                             return Some(args)
                         }

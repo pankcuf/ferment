@@ -78,6 +78,12 @@ impl ScopeChain {
     }
 }
 
+// impl<K> Equivalent<K> for ScopeChain {
+//     fn equivalent(&self, key: &K) -> bool {
+//         todo!()
+//     }
+// }
+
 impl PartialEq<Self> for ScopeChain {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

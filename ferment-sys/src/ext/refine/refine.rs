@@ -28,28 +28,17 @@ pub trait RefineWithFullPath {
 impl RefineInScope for GenericBoundsModel {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         let mut refined = false;
-        //println!("GenericBoundsModel::refine_in_scope: {} --- {}", self, scope.fmt_short());
-        self.bounds.iter_mut().for_each(|arg| {
-            if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
-                *arg = refined_obj;
-                refined = true;
-            }
+        self.bounds.iter_mut().for_each(|arg| if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
+            *arg = refined_obj;
+            refined = true;
         });
-        self.predicates.iter_mut().for_each(|(_ty, args)| {
-            args.iter_mut().for_each(|arg| {
-                if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
-                    *arg = refined_obj;
-                    refined = true;
-                }
-            })
+        self.predicates.values_mut().for_each(|args| args.iter_mut().for_each(|arg| if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
+            *arg = refined_obj;
+            refined = true;
+        }));
+        self.nested_arguments_iter_mut().for_each(|nested_arg| if nested_arg.refine_in_scope(scope, source) {
+            refined = true;
         });
-        self.nested_arguments_iter_mut()
-            .for_each(|nested_arg| {
-                if nested_arg.refine_in_scope(scope, source) {
-                    refined = true;
-                }
-            });
-        //println!("GenericBoundsModel::refine_in_scope: RESULT ({}): {} --- {}", refined, self, scope.fmt_short());
         refined
     }
 }
@@ -64,7 +53,7 @@ impl RefineInScope for Path {
             if !chunks.segments.is_empty() {
                 let mod_chain = create_mod_chain(&chunks);
                 if let Some(parent_imports) = source.imports.maybe_scope_imports(&mod_chain) {
-                    for (PathHolder(_ident), alias_path) in parent_imports {
+                    for (_ident, alias_path) in parent_imports {
                         let alias = alias_path.crate_named(&crate_name);
                         if let Some(merged) = refined_import(&self, &alias, source) {
                             self.segments = merged.segments;
@@ -295,9 +284,9 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
         let ident = &last_segment.ident;
         if ident.is_primitive() {
             Some(DictTypeModelKind::Primitive(model.clone()))
-        } else if matches!(ident.to_string().as_str(), "i128") {
+        } else if ident.eq("i128") {
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(model.clone())))
-        } else if matches!(ident.to_string().as_str(), "u128") {
+        } else if ident.eq("u128") {
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(model.clone())))
         } else if ident.is_str() {
             refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);

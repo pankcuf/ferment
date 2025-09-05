@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use quote::{quote, ToTokens};
-use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, parse_quote, Expr, ExprLit, MacroDelimiter};
+use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, parse_quote, Expr, ExprLit, MacroDelimiter, Type};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
 use syn::token::Paren;
-use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
+use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::MaybeMacroLabeled;
 use crate::ext::ItemExtension;
 
@@ -13,7 +13,7 @@ use crate::ext::ItemExtension;
 pub enum MacroKind {
     Export,
     Opaque,
-    Register(TypeHolder)
+    Register(Type)
 }
 
 // #[allow(unused)]

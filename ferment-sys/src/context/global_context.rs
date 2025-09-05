@@ -266,7 +266,7 @@ impl GlobalContext {
 
 /// Imports
 impl GlobalContext {
-    pub fn maybe_scope_import_path(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+    pub fn maybe_scope_import_path(&self, scope: &ScopeChain, chunk: &Path) -> Option<&Path> {
         self.imports.maybe_path(scope, chunk)
     }
 
@@ -278,14 +278,14 @@ impl GlobalContext {
 
     }
 
-    pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &PathHolder) -> Option<&Path> {
+    pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &Path) -> Option<&Path> {
         self.imports.maybe_import(scope, path)
     }
 
     pub fn maybe_import_scope_pair_ref(&self, scope_path_last_segment: &PathSegment, scope_path_candidate: &Path) -> Option<(&ScopeChain, &Path)> {
         self.maybe_imports_scope(scope_path_candidate)
             .and_then(|reexport_scope| {
-                let path: PathHolder = parse_quote!(#scope_path_last_segment);
+                let path: Path = parse_quote!(#scope_path_last_segment);
                 self.maybe_import_path_ref(reexport_scope, &path).map(|import| (reexport_scope, import))
             })
     }

@@ -241,19 +241,16 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<Rus
         Type::Ptr(TypePtr { const_token, mutability, elem, .. }) => match *elem {
             Type::Path(TypePath { path, .. }) => {
                 if let Some(last_segment) = path.segments.last() {
-                    match last_segment.ident.to_string().as_str() {
-                        "c_void" => match (const_token, mutability) {
-                            (Some(_const_token), None) =>
-                                FFIVariable::const_ptr(FFIFullDictionaryPath::<RustSpecification>::Void.to_type()),
-                            _ =>
-                                FFIVariable::mut_ptr(FFIFullDictionaryPath::<RustSpecification>::Void.to_type()),
-                        },
-                        _ => match (const_token, mutability) {
-                            (Some(_const_token), None) =>
-                                FFIVariable::const_ptr(path.to_type()),
-                            _ =>
-                                FFIVariable::mut_ptr(path.to_type())
-                        }
+                    let ty = if last_segment.ident.eq("c_void") {
+                        FFIFullDictionaryPath::<RustSpecification>::Void.to_type()
+                    } else {
+                        path.to_type()
+                    };
+                    match (const_token, mutability) {
+                        (Some(_), None) =>
+                            FFIVariable::const_ptr(ty),
+                        _ =>
+                            FFIVariable::mut_ptr(ty)
                     }
                 } else {
                     FFIVariable::mut_ptr(path.to_type())

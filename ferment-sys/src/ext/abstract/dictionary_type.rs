@@ -51,17 +51,17 @@ impl DictionaryType for Ident {
     }
 
     fn is_bool(&self) -> bool {
-        self.to_string().as_str() == "bool"
+        self == "bool"
     }
     fn is_str(&self) -> bool {
-        self.to_string().as_str() == "str"
+        self == "str"
     }
 
     fn is_string(&self) -> bool {
-        self.to_string().as_str() == "String"
+        self == "String"
     }
     fn is_vec(&self) -> bool {
-        self.to_string().as_str() == "Vec"
+        self == "Vec"
     }
 
     fn is_smart_ptr(&self) -> bool {

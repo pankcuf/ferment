@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use proc_macro2::Ident;
 use syn::{ItemTrait, Path,};
 use crate::ast::PathHolder;
@@ -8,7 +9,7 @@ use crate::kind::ObjectKind;
 
 #[derive(Clone, Default)]
 pub struct TraitsResolver {
-    pub inner: HashMap<ScopeChain, HashMap<Ident, TraitModelPart1>>,
+    pub inner: IndexMap<ScopeChain, IndexMap<Ident, TraitModelPart1>>,
     pub used_traits_dictionary: HashMap<ScopeChain, Vec<PathHolder>>,
 }
 
