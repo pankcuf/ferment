@@ -1,7 +1,7 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
+use indexmap::IndexMap;
 use quote::{quote, ToTokens};
 use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type, TypeParamBound};
 use syn::__private::TokenStream2;
@@ -58,9 +58,9 @@ impl TraitTypeModel {
 #[derive(Clone, Debug)]
 pub struct TraitDecompositionPart1 {
     pub ident: Ident,
-    pub consts: HashMap<Ident, Type>,
-    pub methods: HashMap<Ident, Signature>,
-    pub types: HashMap<Ident, TraitTypeModel>
+    pub consts: IndexMap<Ident, Type>,
+    pub methods: IndexMap<Ident, Signature>,
+    pub types: IndexMap<Ident, TraitTypeModel>
 }
 
 impl Display for TraitDecompositionPart1 {
@@ -72,9 +72,9 @@ impl Display for TraitDecompositionPart1 {
 
 impl TraitDecompositionPart1 {
     pub fn from_trait_items(ident: &Ident, trait_items: &[TraitItem]) -> Self {
-        let mut methods = HashMap::new();
-        let mut types = HashMap::new();
-        let mut consts = HashMap::new();
+        let mut methods = IndexMap::new();
+        let mut types = IndexMap::new();
+        let mut consts = IndexMap::new();
         trait_items
             .iter()
             .for_each(|trait_item| match trait_item {
@@ -99,7 +99,7 @@ impl TraitDecompositionPart1 {
 pub struct TraitVTableComposer<SPEC>
     where SPEC: Specification + 'static {
     pub method_composers: Depunctuated<SigComposerLink<SPEC>>,
-    pub types: HashMap<Ident, TraitTypeModel>,
+    pub types: IndexMap<Ident, TraitTypeModel>,
 }
 
 impl<SPEC> TraitVTableComposer<SPEC>
@@ -109,13 +109,13 @@ impl<SPEC> TraitVTableComposer<SPEC>
         let trait_ident = &item_trait.ident;
         let source = context.borrow();
         let mut method_composers = Depunctuated::new();
-        let mut types = HashMap::new();
+        let mut types = IndexMap::new();
         item_trait.items
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Fn(trait_item_fn) => {
                     let name_context = ty_context.join_fn(
-                        source.scope.joined_path_holder(&trait_item_fn.sig.ident).0,
+                        source.scope.joined_path_holder(&trait_item_fn.sig.ident),
                         FnSignatureContext::TraitImpl(trait_item_fn.sig.clone(), self_ty.clone(), trait_ident.to_type()),
                         trait_item_fn.attrs.cfg_attributes()
                     );

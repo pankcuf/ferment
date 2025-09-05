@@ -2,9 +2,8 @@ use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Path, PathSegment, QSelf, Signature, Type};
-use syn::punctuated::Punctuated;
 use syn::token::PathSep;
-use crate::ast::{CommaPunctuated, PathHolder};
+use crate::ast::{Colon2Punctuated, CommaPunctuated};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
@@ -54,7 +53,7 @@ impl ObjectKind {
     pub fn unknown_model_type(model: TypeModel) -> Self {
         Self::model_type(TypeModelKind::Unknown, model)
     }
-    pub fn unknown_model_type_path(qself: Option<QSelf>, sep: Option<PathSep>, segments: Punctuated<PathSegment, PathSep>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+    pub fn unknown_model_type_path(qself: Option<QSelf>, sep: Option<PathSep>, segments: Colon2Punctuated<PathSegment>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::model_type(TypeModelKind::Unknown, handle_type_path_model(qself, sep, segments, nested_arguments))
     }
     pub fn unknown_type(ty: Type) -> Self {
@@ -63,7 +62,7 @@ impl ObjectKind {
     pub fn unknown_type_with_nested_arguments(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::Type(TypeModelKind::unknown_type_with_nested_arguments(ty, nested_arguments))
     }
-    pub fn bounds_type(model: GenericBoundsModel) -> Self {
+    pub fn bounds(model: GenericBoundsModel) -> Self {
         Self::Type(TypeModelKind::Bounds(model))
     }
     pub fn dict_type(kind: DictTypeModelKind) -> Self {
@@ -281,10 +280,10 @@ impl ObjectKind {
     }
 }
 
-impl TryFrom<(&Item, &PathHolder)> for ObjectKind {
+impl TryFrom<(&Item, &Path)> for ObjectKind {
     type Error = ();
 
-    fn try_from((value, scope): (&Item, &PathHolder)) -> Result<Self, Self::Error> {
+    fn try_from((value, scope): (&Item, &Path)) -> Result<Self, Self::Error> {
         let item_kind = ScopeItemKind::item_ref(value, scope);
         match value {
             Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) =>

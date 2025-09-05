@@ -1,14 +1,12 @@
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{parse_quote, Path, PathSegment};
-use crate::ast::PathHolder;
 use crate::context::ScopeContext;
 use crate::kind::TypeKind;
 use crate::ext::{path_arguments_to_types, Resolve, ToPath};
 use crate::lang::RustSpecification;
 use crate::presentation::FFIFullPath;
 
-pub mod composing;
 pub mod mangling;
 mod lookup;
 mod generics_bounds;
@@ -40,23 +38,4 @@ impl TypeKind {
         }
     }
 
-}
-
-impl PathHolder {
-    pub fn ffi_expansion_scope() -> Self {
-        Self::crate_and(quote!(fermented))
-    }
-    pub fn ffi_generics_scope() -> Self {
-        PathHolder(Self::ffi_expansion_scope().joined_path(parse_quote!(generics)))
-    }
-    pub fn ffi_types_scope() -> Self {
-        PathHolder(Self::ffi_expansion_scope().joined_path(parse_quote!(types)))
-    }
-
-    pub fn crate_and(path: TokenStream2) -> Self {
-        PathHolder(Self::crate_root().joined_path(path.to_path()))
-    }
-    pub fn ffi_types_and(path: TokenStream2) -> Self {
-        PathHolder(Self::ffi_types_scope().joined_path(path.to_path()))
-    }
 }

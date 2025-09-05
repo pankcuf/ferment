@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{parse_quote, AngleBracketedGenericArguments, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
-use crate::ast::{Colon2Punctuated, PathHolder};
+use crate::ast::Colon2Punctuated;
 use crate::composable::{GenericBoundsModel, NestedArgument, TraitModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
@@ -122,9 +122,9 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
                         })
                 })
         }
-        ScopeChain::Impl { parent_scope_chain, .. } |
-        ScopeChain::Trait { parent_scope_chain, .. } |
-        ScopeChain::Object { parent_scope_chain, .. } => {
+        ScopeChain::Impl { parent, .. } |
+        ScopeChain::Trait { parent, .. } |
+        ScopeChain::Object { parent, .. } => {
             //  -- Import Scope: [ferment_example_entry_point::entry::rnt]
             //      -- Has Scope?: ferment_example_entry_point::entry::rnt::tokio::runtime::Runtime --- No
             //      -- Has Scope? ferment_example_entry_point::entry::rnt::tokio::runtime --- No
@@ -136,7 +136,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
 
             // self -> parent mod -> neighbour mod
             // let self_path = info.self_path();
-            let parent_path = parent_scope_chain.self_path();
+            let parent_path = parent.self_path_ref();
             // check parent + local
 
             let child_scope: Path = parse_quote!(#parent_path::#ty_path);
@@ -184,12 +184,12 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
                         })
                 })
         }
-        ScopeChain::Fn { info, parent_scope_chain, .. } => {
+        ScopeChain::Fn { info, parent, .. } => {
             // - Check fn scope
             // - if scope.parent is [mod | crate | impl] then lookup their child mods
             // - if scope.parent is [object | trait] then check scope.parent.parent
             source.maybe_scope_item_ref_obj_first(info.self_path())
-                .or_else(|| match &**parent_scope_chain {
+                .or_else(|| match &**parent {
                     ScopeChain::CrateRoot { info, .. } |
                     ScopeChain::Mod { info, .. } => {
                         let parent_path = info.self_path();
@@ -201,10 +201,10 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
                             })
 
                     },
-                    ScopeChain::Trait { parent_scope_chain, .. } |
-                    ScopeChain::Object { parent_scope_chain, .. } |
-                    ScopeChain::Impl { parent_scope_chain, .. } => {
-                        let parent_path = parent_scope_chain.self_path();
+                    ScopeChain::Trait { parent, .. } |
+                    ScopeChain::Object { parent, .. } |
+                    ScopeChain::Impl { parent, .. } => {
+                        let parent_path = parent.self_path_ref();
                         let scope: Path = parse_quote!(#parent_path::#ty_path);
                         source.maybe_scope_item_ref_obj_first(&scope)
                             .map(|item| {
@@ -215,7 +215,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
                     },
                     ScopeChain::Fn { .. } => {
                         // TODO: support nested function when necessary
-                        //println!("nested function::: {} --- [{}]", info.self_scope, parent_scope_chain);
+                        //println!("nested function::: {} --- [{}]", info.self_scope, parent);
                         None
                     }
                 })
@@ -712,18 +712,18 @@ fn create_mod_chain(path: &Path) -> ScopeChain {
     let segments = &path.segments;
 
     let crate_ident = &segments.first().expect("Mod path should have at least one segment").ident;
-    let self_scope = Scope::empty(PathHolder::from(path));
+    let self_scope = Scope::empty(path.clone());
     let parent_chunks = path.popped();
-    let parent_scope_chain = if parent_chunks.segments.len() > 1 {
+    let parent = if parent_chunks.segments.len() > 1 {
         create_mod_chain(&parent_chunks)
     } else {
-        ScopeChain::root(ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(PathHolder(parent_chunks))))
+        ScopeChain::root(ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(parent_chunks)))
     };
     let info = ScopeInfo::attr_less(crate_ident.clone(), self_scope);
     if segments.len() == 1 {
         ScopeChain::root(info)
     } else {
-        ScopeChain::r#mod(info, parent_scope_chain.clone())
+        ScopeChain::r#mod(info, parent)
     }
 }
 fn merge_reexport_chunks(base: &Path, extension: &Path) -> Path {
@@ -809,7 +809,7 @@ impl ReexportSeek {
             // println!("... reexport candidate: {} --- {}", format_token_stream(&last_segment), format_token_stream(&candidate));
             match source.maybe_import_scope_pair_ref(&last_segment, &candidate) {
                 Some((scope, import)) => {
-                    let scope_path = scope.self_path();
+                    let scope_path = scope.self_path_ref();
                     let segments = self.join_reexport(import, scope_path, scope.crate_ident_ref(), chunk.as_ref());
                     result = Some(parse_quote!(#scope_path::#segments));
                     // println!("... reexport found: {}", format_token_stream(&result));
@@ -831,7 +831,7 @@ impl ReexportSeek {
 #[allow(unused)]
 pub(crate) fn maybe_closest_known_scope_for_import_in_scope<'a>(path: &'a Path, scope: &'a ScopeChain, source: &'a GlobalContext) -> Option<&'a ScopeChain> {
     // First assumption that it is relative import path
-    let scope_path = scope.self_path();
+    let scope_path = scope.self_path_ref();
     let mut closest_scope: Option<&ScopeChain> = None;
 
     let mut chunk = path.popped();

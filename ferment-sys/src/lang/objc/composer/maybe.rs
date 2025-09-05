@@ -1,6 +1,6 @@
 use syn::{Field, FieldMutability, Item, ItemType, Type, Visibility};
 use syn::token::Pub;
-use crate::ast::{CommaPunctuated, PathHolder};
+use crate::ast::CommaPunctuated;
 use crate::composable::CfgAttributes;
 use crate::composer::{ItemComposerWrapper, MaybeComposer, MaybeMacroLabeled, SigComposer, TypeAliasComposer};
 use crate::context::{ScopeChain, ScopeContextLink};
@@ -26,7 +26,7 @@ impl MaybeComposer<ObjCSpecification> for Item {
                 Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
             (MacroKind::Export, Item::Type(ItemType { attrs, ident, generics, ty, .. })) => match &**ty {
                 Type::BareFn(type_bare_fn) =>
-                    Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &vec![], attrs, scope_context))),
+                    Some(ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path_ref().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &vec![], attrs, scope_context))),
                 _ => {
                     let fields = CommaPunctuated::from_iter([Field {
                         vis: Visibility::Public(Pub::default()),
@@ -40,15 +40,15 @@ impl MaybeComposer<ObjCSpecification> for Item {
                 }
             },
             (MacroKind::Export, Item::Fn(item)) =>
-                Some(ItemComposerWrapper::r#fn(item, TypeContext::mod_fn(scope.self_path().crate_named(&crate_ident), prefix, item), scope_context)),
+                Some(ItemComposerWrapper::r#fn(item, TypeContext::mod_fn(scope.self_path_ref().crate_named(&crate_ident), prefix, item), scope_context)),
             (MacroKind::Export, Item::Trait(item)) =>
                 Some(ItemComposerWrapper::r#trait(item, TypeContext::r#trait(item, prefix), scope, scope_context)),
             (MacroKind::Export, Item::Impl(item)) => {
-                let mut full_fn_path = scope.self_path_holder();
+                let mut full_fn_path = scope.self_path();
                 if full_fn_path.is_crate_based() {
-                    full_fn_path.replace_first_with(&PathHolder::from(scope.crate_ident_ref().to_path()));
+                    full_fn_path.replace_first_with(&scope.crate_ident_ref().to_path());
                 }
-                Some(ItemComposerWrapper::r#impl(item, TypeContext::r#impl(full_fn_path.0, prefix, item.attrs.cfg_attributes()), scope, scope_context))
+                Some(ItemComposerWrapper::r#impl(item, TypeContext::r#impl(full_fn_path, prefix, item.attrs.cfg_attributes()), scope, scope_context))
             }
             _ => None
         }

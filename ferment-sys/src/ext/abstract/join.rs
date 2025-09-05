@@ -1,5 +1,6 @@
+use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{ImplItemFn, Item, Signature, TraitItemFn};
+use syn::{parse_quote, ImplItemFn, Item, Path, PathSegment, Signature, TraitItemFn};
 use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
 use crate::kind::{ObjectKind, ScopeItemKind};
@@ -82,5 +83,18 @@ impl Join<ImplItemFn> for ScopeContext {
 impl Join<TraitItemFn> for ScopeContext {
     fn joined(&self, other: &TraitItemFn) -> Self {
         Self::with(self.scope.joined(other), self.context.clone())
+    }
+}
+
+impl Join<Ident> for Path {
+    fn joined(&self, other: &Ident) -> Self {
+        let mut segments = self.segments.clone();
+        segments.push(PathSegment::from(other.clone()));
+        Path { leading_colon: self.leading_colon, segments }
+    }
+}
+impl Join<Path> for Path {
+    fn joined(&self, other: &Path) -> Self {
+        parse_quote!(#self::#other)
     }
 }

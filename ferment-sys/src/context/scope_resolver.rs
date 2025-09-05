@@ -34,11 +34,11 @@ impl ScopeResolver {
 
     pub(crate) fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         self.inner.keys()
-            .find_map(|scope_chain| path.eq(scope_chain.self_path()).then_some(scope_chain))
+            .find_map(|scope_chain| path.eq(scope_chain.self_path_ref()).then_some(scope_chain))
     }
     pub(crate) fn maybe_first_obj_scope(&self, path: &Path) -> Option<&ScopeChain> {
         let mut scopes = self.inner.keys()
-            .filter(|scope_chain| path.eq(scope_chain.self_path()))
+            .filter(|scope_chain| path.eq(scope_chain.self_path_ref()))
             .collect::<Vec<_>>();
         scopes.sort_by(|c1, c2| {
             if c1.obj_scope_priority() == c2.obj_scope_priority() {

@@ -1,4 +1,4 @@
-use syn::{Generics, parse_quote, Type};
+use syn::{Generics, Type};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use indexmap::IndexMap;
@@ -6,9 +6,8 @@ use quote::{quote, ToTokens};
 use crate::ast::CommaPunctuated;
 use crate::composable::{TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::ScopeContext;
 use crate::kind::ObjectKind;
-use crate::ext::{AsType, Mangle, MaybeLambdaArgs, ToType};
+use crate::ext::{AsType, MaybeLambdaArgs, ToType};
 use crate::formatter::{format_obj_vec, format_predicates_obj_dict};
 use crate::lang::Specification;
 use crate::presentable::{Expression, ScopeContextPresentable};
@@ -95,16 +94,6 @@ impl GenericBoundsModel {
             nested_arguments,
         }
     }
-
-    pub fn ffi_full_dictionary_type_presenter(&self, _source: &ScopeContext) -> Type {
-        // unimplemented!("")
-        let ffi_name = self.mangle_ident_default();
-        // println!("GenericBound: ffi_full_dictionary_type_presenter: {} --- {}", ffi_name, self);
-        parse_quote!(crate::fermented::generics::#ffi_name)
-        // Determine mixin type
-        //
-    }
-
 }
 
 impl<SPEC> MaybeLambdaArgs<SPEC> for GenericBoundsModel

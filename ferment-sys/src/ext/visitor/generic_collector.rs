@@ -1,24 +1,23 @@
 use std::collections::HashSet;
 use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ParenthesizedGenericArguments, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
-use crate::ast::TypeHolder;
 use crate::kind::ScopeItemKind;
 use crate::ext::item::segment_arguments_to_types;
 use crate::ext::visitor::TypeCollector;
 
 pub trait GenericCollector where Self: TypeCollector + ToTokens {
-    fn find_generics(&self) -> HashSet<TypeHolder> {
+    fn find_generics(&self) -> HashSet<Type> {
         let compositions = self.collect_compositions();
         // collect all types with generics and ensure their uniqueness
         // since we don't want to implement interface multiple times for same object
-        let mut generics: HashSet<TypeHolder> = HashSet::new();
+        let mut generics = HashSet::<Type>::new();
         compositions
             .iter()
-            .for_each(|TypeHolder(field_type)| field_type.collect_to(&mut generics));
+            .for_each(|field_type| field_type.collect_to(&mut generics));
         generics
     }
 
-    fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
+    fn collect_to(&self, generics: &mut HashSet<Type>) {
         generics.extend(self.find_generics());
     }
 }
@@ -27,7 +26,7 @@ impl GenericCollector for Item {}
 impl GenericCollector for Signature {}
 
 impl GenericCollector for Type {
-    fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
+    fn collect_to(&self, generics: &mut HashSet<Type>) {
         let result = match self {
             Type::Path(TypePath { path, .. }) => {
                 path.collect_to(generics);
@@ -46,7 +45,7 @@ impl GenericCollector for Type {
                         has_nested_types && seg.ident.ne("Option")
                     }) {
 
-                    generics.insert(TypeHolder(self.clone()));
+                    generics.insert(self.clone());
                 }
             },
             Type::Reference(TypeReference { elem, .. }) =>
@@ -60,13 +59,13 @@ impl GenericCollector for Type {
                 })
             },
             Type::Tuple(TypeTuple { elems, .. }) => {
-                generics.insert(TypeHolder(self.clone()));
+                generics.insert(self.clone());
                 elems.iter()
                     .for_each(|ty| ty.collect_to(generics));
             },
             Type::Array(TypeArray { elem, .. }) |
             Type::Slice(TypeSlice { elem, .. }) => {
-                generics.insert(TypeHolder(self.clone()));
+                generics.insert(self.clone());
                 elem.collect_to(generics);
             },
             _ => {}
@@ -75,7 +74,7 @@ impl GenericCollector for Type {
     }
 }
 impl GenericCollector for Path {
-    fn collect_to(&self, generics: &mut HashSet<TypeHolder>) {
+    fn collect_to(&self, generics: &mut HashSet<Type>) {
         self.segments
             .iter()
             .flat_map(segment_arguments_to_types)

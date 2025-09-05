@@ -4,7 +4,6 @@ use indexmap::IndexMap;
 use proc_macro2::{Spacing, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{Attribute, Ident, ItemUse, Path, Signature, Type};
-use crate::ast::{PathHolder, TypeHolder};
 use crate::composable::{GenericBoundsModel, TraitModelPart1, TraitDecompositionPart1, TraitTypeModel};
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MixinKind, ObjectKind};
@@ -20,10 +19,10 @@ pub fn format_imported_set(dict: &HashSet<ItemUse>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_scope_refinement(dict: &Vec<(ScopeChain, HashMap<Type, ObjectKind>)>) -> String {
+pub fn format_scope_refinement(dict: &Vec<(ScopeChain, IndexMap<Type, ObjectKind>)>) -> String {
     let mut iter = dict.iter()
         .map(|(scope, types)|
-            format!("\t{}: \n\t\t{}", scope.self_path_holder_ref(), types.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
+            format!("\t{}: \n\t\t{}", format_token_stream(scope.self_path_ref()), types.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
                 .join("\n\t")))
         .collect::<Vec<String>>();
     iter.sort();
@@ -31,22 +30,6 @@ pub fn format_scope_refinement(dict: &Vec<(ScopeChain, HashMap<Type, ObjectKind>
 
 }
 
-#[allow(unused)]
-pub fn format_type_holders(dict: &HashSet<TypeHolder>) -> String {
-    dict.iter()
-        // .map(|item| format_token_stream(&item.0))
-        .map(|item| item.0.to_token_stream().to_string())
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-#[allow(unused)]
-pub fn format_type_holders_vec(dict: &Vec<TypeHolder>) -> String {
-    dict.iter()
-        // .map(|item| format_token_stream(&item.0))
-        .map(|item| item.0.to_token_stream().to_string())
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
 #[allow(unused)]
 pub fn format_types(dict: &HashSet<Type>) -> String {
     dict.iter()
@@ -57,14 +40,14 @@ pub fn format_types(dict: &HashSet<Type>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_mixin_kinds(dict: &HashMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
+pub fn format_mixin_kinds(dict: &IndexMap<MixinKind, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
         .map(|(item, attrs)| format!("{}:\t {}", item, format_unique_attrs(attrs)))
         .collect::<Vec<_>>()
         .join("\n\t")
 }
 #[allow(unused)]
-pub fn format_mixin_conversions(dict: &HashMap<GenericBoundsModel, HashSet<Option<Attribute>>>) -> String {
+pub fn format_mixin_conversions(dict: &IndexMap<GenericBoundsModel, HashSet<Option<Attribute>>>) -> String {
     dict.iter()
         .map(|(item, attrs)| format!("{}:\n\t {}", item, format_unique_attrs(attrs)))
         .collect::<Vec<_>>()
@@ -116,7 +99,7 @@ pub fn scope_type_conversion_pair(dict: (&Type, &ObjectKind)) -> String {
 }
 
 #[allow(unused)]
-pub fn refinement_pair(dict: (&TypeHolder, &Vec<ObjectKind>)) -> String {
+pub fn refinement_pair(dict: (&Type, &Vec<ObjectKind>)) -> String {
     format!("\t{}: \n\t\t{}", dict.0.to_token_stream(), dict.1.iter().map(|i| i.to_string()).collect::<Vec<_>>()
         .join("\n\t"))
     // format!("\t{}: {}", format_token_stream(dict.0), dict.1)
@@ -195,7 +178,7 @@ pub fn format_types_dict(dict: &IndexMap<Type, ObjectKind>) -> String {
         .join("\n")
 }
 #[allow(unused)]
-pub fn format_types_to_refine(dict: &HashMap<TypeHolder, Vec<ObjectKind>>) -> String {
+pub fn format_types_to_refine(dict: &IndexMap<Type, Vec<ObjectKind>>) -> String {
     let mut iter = dict.iter()
         .map(refinement_pair)
         .collect::<Vec<String>>();
@@ -204,7 +187,7 @@ pub fn format_types_to_refine(dict: &HashMap<TypeHolder, Vec<ObjectKind>>) -> St
 }
 
 #[allow(unused)]
-pub fn format_ident_types_dict(dict: &HashMap<Ident, Type>) -> String {
+pub fn format_ident_types_dict(dict: &IndexMap<Ident, Type>) -> String {
     ident_types_dict(dict)
         .join("\n")
 }
@@ -350,7 +333,7 @@ pub fn types_dict(dict: &IndexMap<Type, ObjectKind>) -> Vec<String> {
     iter.sort();
     iter
 }
-fn ident_signatures_dict(dict: &HashMap<Ident, Signature>) -> Vec<String> {
+fn ident_signatures_dict(dict: &IndexMap<Ident, Signature>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(ident_signature_conversion_pair)
         .collect::<Vec<String>>();
@@ -359,7 +342,7 @@ fn ident_signatures_dict(dict: &HashMap<Ident, Signature>) -> Vec<String> {
 }
 
 
-fn ident_trait_type_decomposition_dict(dict: &HashMap<Ident, TraitTypeModel>) -> Vec<String> {
+fn ident_trait_type_decomposition_dict(dict: &IndexMap<Ident, TraitTypeModel>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(ident_trait_type_decomposition_conversion_pair)
         .collect::<Vec<String>>();
@@ -367,7 +350,7 @@ fn ident_trait_type_decomposition_dict(dict: &HashMap<Ident, TraitTypeModel>) ->
     iter
 }
 
-fn ident_types_dict(dict: &HashMap<Ident, Type>) -> Vec<String> {
+fn ident_types_dict(dict: &IndexMap<Ident, Type>) -> Vec<String> {
     let mut iter = dict.iter()
         .map(ident_type_conversion_pair)
         .collect::<Vec<String>>();
@@ -413,15 +396,11 @@ fn scope_traits_dict(dict: &IndexMap<ScopeChain, IndexMap<Ident, TraitModelPart1
 
 
 
-fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<PathHolder>>) -> Vec<String> {
+fn traits_impl_dict(dict: &HashMap<ScopeChain, Vec<Path>>) -> Vec<String> {
     let mut iter = dict.iter()
         .filter_map(|(key, value)| {
             let scopes = quote!(#(#value),*);
-            if value.is_empty() {
-                None
-            } else {
-                Some(format!("\t{}:\n\t\t{}", format_token_stream(key), format_token_stream(&scopes)))
-            }
+            (!value.is_empty()).then(|| format!("\t{}:\n\t\t{}", format_token_stream(key), format_token_stream(&scopes)))
         })
         .collect::<Vec<String>>();
     iter.sort();

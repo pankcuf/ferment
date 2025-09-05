@@ -40,7 +40,7 @@ impl VisitScope for Item {
         }
     }
     fn add_to_scope(&self, scope: &ScopeChain, visitor: &mut Visitor) {
-        let self_scope = scope.self_path_holder_ref();
+        let self_scope = scope.self_path_ref();
         match self {
             Item::Mod(item_mod) => {
                 add_inner_module_conversion(visitor, item_mod, scope);
@@ -232,7 +232,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
     let type_compo = TypeModel::new_generic_non_nested(scope.to_type(), item_trait.generics.clone());
     let itself = ObjectKind::new_trait_item(
         TraitModel::new(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items), add_bounds(visitor, &item_trait.supertraits, scope, true)),
-        ScopeItemKind::item_trait(item_trait, scope.self_path_holder_ref()));
+        ScopeItemKind::item_trait(item_trait, scope.self_path_ref()));
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>

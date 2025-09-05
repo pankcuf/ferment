@@ -1,6 +1,6 @@
 use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, FnArg, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemMod, ItemType, Meta, parse_quote, Path, PatType, ReturnType, Signature, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, Variant};
 use syn::parse::Parser;
-use crate::ast::{CommaPunctuated, TypeHolder};
+use crate::ast::CommaPunctuated;
 use crate::composable::GenericBoundsModel;
 use crate::composer::MaybeMacroLabeled;
 use crate::kind::ScopeItemKind;
@@ -13,7 +13,7 @@ pub struct MacroAttributes {
 }
 
 pub trait TypeCollector {
-    fn collect_compositions(&self) -> Vec<TypeHolder>;
+    fn collect_compositions(&self) -> Vec<Type>;
 }
 fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute], mut handler: F) {
     attrs.iter()
@@ -38,20 +38,20 @@ fn handle_attributes_with_handler<F: FnMut(MacroAttributes)>(attrs: &[Attribute]
 }
 
 impl TypeCollector for GenericBoundsModel {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
-        self.predicates.iter().for_each(|(_ty, bounds)| {
-            bounds.iter().for_each(|bound| type_and_paths.push(TypeHolder(parse_quote!(dyn #bound))));
-        });
+    fn collect_compositions(&self) -> Vec<Type> {
+        let mut type_and_paths = Vec::<Type>::new();
+        self.predicates.values()
+            .for_each(|bounds| bounds.iter()
+                .for_each(|bound| type_and_paths.push(parse_quote!(dyn #bound))));
         type_and_paths
     }
 }
 
 impl TypeCollector for Item {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
+    fn collect_compositions(&self) -> Vec<Type> {
+        let mut type_and_paths = Vec::<Type>::new();
         let mut cache_type = |ty: &Type|
-            type_and_paths.push(TypeHolder(ty.clone()));
+            type_and_paths.push(ty.clone());
         let mut cache_fields = |fields: &Fields, _attrs: &MacroAttributes| match fields {
             Fields::Unnamed(FieldsUnnamed { unnamed: fields, .. }) |
             Fields::Named(FieldsNamed { named: fields, .. }) =>
@@ -82,10 +82,9 @@ impl TypeCollector for Item {
                     ImplItem::Const(ImplItemConst { ty, .. }) =>
                         cache_type(ty),
                     ImplItem::Fn(ImplItemFn { sig, .. }) => {
-                        sig.inputs.iter().for_each(|arg|
-                            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                cache_type(ty);
-                            });
+                        sig.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            cache_type(ty);
+                        });
                         if let ReturnType::Type(_, ty) = &sig.output {
                             cache_type(ty);
                         }
@@ -100,10 +99,9 @@ impl TypeCollector for Item {
                     TraitItem::Type(TraitItemType { default: Some((_, ty)), .. }) =>
                         cache_type(ty),
                     TraitItem::Fn(TraitItemFn { sig, .. }) => {
-                        sig.inputs.iter().for_each(|arg|
-                            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                                cache_type(ty);
-                            });
+                        sig.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            cache_type(ty);
+                        });
                         if let ReturnType::Type(_, ty) = &sig.output {
                             cache_type(ty);
                         }
@@ -122,33 +120,32 @@ impl TypeCollector for Item {
 
 
 impl TypeCollector for Signature {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        let mut type_and_paths: Vec<TypeHolder> = Vec::new();
-        self.inputs.iter().for_each(|arg|
-            if let FnArg::Typed(PatType { ty, .. }) = arg {
-                type_and_paths.push(TypeHolder(*ty.clone()));
-            });
+    fn collect_compositions(&self) -> Vec<Type> {
+        let mut type_and_paths = Vec::<Type>::new();
+        self.inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+            type_and_paths.push(*ty.clone());
+        });
         if let ReturnType::Type(_, ty) = &self.output {
-            type_and_paths.push(TypeHolder(*ty.clone()));
+            type_and_paths.push(*ty.clone());
         }
         type_and_paths
     }
 }
 
 impl TypeCollector for Type {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        self.unique_nested_items().iter().map(TypeHolder::from).collect()
+    fn collect_compositions(&self) -> Vec<Type> {
+        Vec::from_iter(self.unique_nested_items())
     }
 }
 
 impl TypeCollector for Path {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
-        self.unique_nested_items().iter().map(TypeHolder::from).collect()
+    fn collect_compositions(&self) -> Vec<Type> {
+        Vec::from_iter(self.unique_nested_items())
     }
 }
 
 impl TypeCollector for ScopeItemKind {
-    fn collect_compositions(&self) -> Vec<TypeHolder> {
+    fn collect_compositions(&self) -> Vec<Type> {
         match self {
             ScopeItemKind::Item(item, ..) => item.collect_compositions(),
             ScopeItemKind::Fn(sig, ..) => sig.collect_compositions(),

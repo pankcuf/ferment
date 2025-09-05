@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use proc_macro2::Ident;
 use syn::{ItemTrait, Path,};
-use crate::ast::PathHolder;
 use crate::composable::TraitModelPart1;
 use crate::context::ScopeChain;
 use crate::kind::ObjectKind;
@@ -10,7 +9,7 @@ use crate::kind::ObjectKind;
 #[derive(Clone, Default)]
 pub struct TraitsResolver {
     pub inner: IndexMap<ScopeChain, IndexMap<Ident, TraitModelPart1>>,
-    pub used_traits_dictionary: HashMap<ScopeChain, Vec<PathHolder>>,
+    pub used_traits_dictionary: HashMap<ScopeChain, Vec<Path>>,
 }
 
 impl TraitsResolver {
@@ -25,7 +24,7 @@ impl TraitsResolver {
         self.used_traits_dictionary
             .entry(scope.clone())
             .or_default()
-            .extend(trait_names.iter().map(|trait_name| PathHolder::from(trait_name)));
+            .extend(trait_names);
     }
 
     pub fn item_trait_with_ident_for(&self, ident: &Ident, scope: &ScopeChain) -> Option<&TraitModelPart1> {

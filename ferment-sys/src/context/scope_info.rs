@@ -32,6 +32,6 @@ impl ScopeInfo {
             .unwrap_or("Unknown").to_string()
     }
     pub fn self_path(&self) -> &Path {
-        &self.self_scope.self_scope.0
+        &self.self_scope.self_scope
     }
 }

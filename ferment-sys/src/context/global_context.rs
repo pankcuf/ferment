@@ -1,15 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
+use indexmap::IndexMap;
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type, TypePath};
 use crate::{print_phase, Config};
-use crate::ast::PathHolder;
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, ToPath, ToType, Unrefined};
+use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, Split, ToPath, ToType, Unrefined};
 use crate::formatter::{format_global_context, format_mixin_kinds};
 
 #[derive(Clone)]
@@ -20,7 +20,7 @@ pub struct GlobalContext {
     pub traits: TraitsResolver,
     pub custom: CustomResolver,
     pub imports: ImportResolver,
-    pub refined_mixins: HashMap<MixinKind, HashSet<Option<Attribute>>>
+    pub refined_mixins: IndexMap<MixinKind, HashSet<Option<Attribute>>>
 }
 
 impl std::fmt::Debug for GlobalContext {
@@ -42,7 +42,7 @@ impl From<&Config> for GlobalContext {
 }
 impl GlobalContext {
     pub fn with_config(config: Config) -> Self {
-        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_mixins: HashMap::default(), }
+        Self { config, scope_register: ScopeResolver::default(), generics: Default::default(), traits: Default::default(), custom: Default::default(), imports: Default::default(), refined_mixins: IndexMap::default(), }
     }
     pub fn fermented_mod_name(&self) -> &str {
         &self.config.mod_name
@@ -66,14 +66,20 @@ impl GlobalContext {
         // 2. a) [aa::bb::cc::dd] Self::ee
         // 3. a) [aa::bb::cc::dd] Self, [Self::ee]
         // 4. a) [aa::bb::cc] Self::dd::ee, b) [aa::bb::cc] Self::dd
-        let current_scope: PathHolder = parse_quote!(#from_type);
+        let current_scope: Path = parse_quote!(#from_type);
         // println!("current_scope: {}", current_scope);
         let mut i = 0;
         let mut maybe_trait: Option<&ObjectKind>  = None;
-        while i < current_scope.len() && maybe_trait.is_none() {
-            let (root, head) = current_scope.split_and_join_self(i);
+        while i < current_scope.segments.len() && maybe_trait.is_none() {
+            let (root, mut head) = current_scope.split(i);
+            head = if head.segments.is_empty() {
+                parse_quote!(Self)
+            } else {
+                parse_quote!(Self::#head)
+            };
+
             let ty = head.to_type();
-            let root_scope = self.maybe_scope_ref(&root.0);
+            let root_scope = self.maybe_scope_ref(&root);
             if let Some(scope) = root_scope {
                 //maybe_trait = self.maybe_local_scope_object_ref_by_key(&ty, scope);
                 maybe_trait = ScopeSearchKey::maybe_from(ty)
@@ -84,7 +90,7 @@ impl GlobalContext {
                 match maybe_trait {
                     Some(ObjectKind::Item(TypeModelKind::Trait(model), _)) |
                     Some(ObjectKind::Type(TypeModelKind::Trait(model))) => {
-                        let ident = &head.0.segments.last()?.ident;
+                        let ident = &head.segments.last()?.ident;
                         // println!("FFI (has decomposition) for: {}: {}", format_token_stream(ident), trait_ty);
                         if let Some(trait_type) = model.decomposition.types.get(ident) {
                             // println!("FFI (first bound) {:?}", trait_type);
@@ -152,16 +158,16 @@ impl GlobalContext {
             .or_else(move || match parent_scope {
                 ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
                     self.maybe_local_scope_object_ref_by_key(ty, parent_scope),
-                ScopeChain::Fn { parent_scope_chain, .. } =>
-                    self.maybe_fn_object_ref_by_tree_key(parent_scope, parent_scope_chain, ty),
-                ScopeChain::Trait { parent_scope_chain, .. } |
-                ScopeChain::Object { parent_scope_chain, .. } |
-                ScopeChain::Impl { parent_scope_chain, .. } =>
+                ScopeChain::Fn { parent, .. } =>
+                    self.maybe_fn_object_ref_by_tree_key(parent_scope, parent, ty),
+                ScopeChain::Trait { parent, .. } |
+                ScopeChain::Object { parent, .. } |
+                ScopeChain::Impl { parent, .. } =>
                     self.maybe_local_scope_object_ref_by_key(ty, parent_scope)
-                        .or_else(|| match &**parent_scope_chain {
+                        .or_else(|| match &**parent {
                             ScopeChain::CrateRoot { .. } |
                             ScopeChain::Mod { ..} =>
-                                self.maybe_local_scope_object_ref_by_key(ty, &parent_scope_chain),
+                                self.maybe_local_scope_object_ref_by_key(ty, &parent),
                             _ => None,
                         }),
         })
@@ -171,16 +177,16 @@ impl GlobalContext {
             .or_else(move || match parent_scope {
                 ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
                     self.maybe_object_ref_by_search_key_in_scope(search_key, parent_scope),
-                ScopeChain::Fn { parent_scope_chain, .. } =>
-                    self.maybe_fn_object_ref_by_tree_search_key(parent_scope, parent_scope_chain, search_key),
-                ScopeChain::Trait { parent_scope_chain, .. } |
-                ScopeChain::Object { parent_scope_chain, .. } |
-                ScopeChain::Impl { parent_scope_chain, .. } =>
+                ScopeChain::Fn { parent, .. } =>
+                    self.maybe_fn_object_ref_by_tree_search_key(parent_scope, parent, search_key),
+                ScopeChain::Trait { parent, .. } |
+                ScopeChain::Object { parent, .. } |
+                ScopeChain::Impl { parent, .. } =>
                     self.maybe_object_ref_by_search_key_in_scope(search_key.clone(), parent_scope)
-                        .or_else(|| match &**parent_scope_chain {
+                        .or_else(|| match &**parent {
                             ScopeChain::CrateRoot { .. } |
                             ScopeChain::Mod { ..} =>
-                                self.maybe_object_ref_by_search_key_in_scope(search_key, &parent_scope_chain),
+                                self.maybe_object_ref_by_search_key_in_scope(search_key, &parent),
                             _ => None,
                         }),
         })
@@ -190,12 +196,12 @@ impl GlobalContext {
         match scope {
             ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
                 self.maybe_object_ref_by_search_key_in_scope(search_key, scope),
-            ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_object_ref_by_tree_search_key(scope, parent_scope_chain, search_key),
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_obj_or_parent_object_ref_by_tree_search_key(scope, parent_scope_chain, search_key),
+            ScopeChain::Fn { parent, .. } =>
+                self.maybe_fn_object_ref_by_tree_search_key(scope, parent, search_key),
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } |
+            ScopeChain::Impl { parent, .. } =>
+                self.maybe_obj_or_parent_object_ref_by_tree_search_key(scope, parent, search_key),
         }
 
     }
@@ -203,12 +209,12 @@ impl GlobalContext {
          match scope {
              ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
                  self.maybe_local_scope_object_ref_by_key(ty, &scope),
-             ScopeChain::Fn { parent_scope_chain, .. } =>
-                 self.maybe_fn_object_ref_by_tree_key(scope, parent_scope_chain, ty),
-             ScopeChain::Trait { parent_scope_chain, .. } |
-             ScopeChain::Object { parent_scope_chain, .. } |
-             ScopeChain::Impl { parent_scope_chain, .. } =>
-                 self.maybe_obj_or_parent_object_ref_by_tree_key(scope, parent_scope_chain, ty),
+             ScopeChain::Fn { parent, .. } =>
+                 self.maybe_fn_object_ref_by_tree_key(scope, parent, ty),
+             ScopeChain::Trait { parent, .. } |
+             ScopeChain::Object { parent, .. } |
+             ScopeChain::Impl { parent, .. } =>
+                 self.maybe_obj_or_parent_object_ref_by_tree_key(scope, parent, ty),
          }
     }
 
@@ -274,7 +280,7 @@ impl GlobalContext {
         self.imports
             .inner
             .keys()
-            .find(|scope_chain| path.eq(scope_chain.self_path()))
+            .find(|scope_chain| path.eq(scope_chain.self_path_ref()))
 
     }
 
@@ -373,7 +379,7 @@ impl RefineMut for GlobalContext {
     type Refinement = ScopeRefinement;
     fn refine_with(&mut self, refined: Self::Refinement) {
         self.scope_register.refine_with(refined);
-        let mut refined_mixins = HashMap::<MixinKind, HashSet<Option<Attribute>>>::new();
+        let mut refined_mixins = IndexMap::<MixinKind, HashSet<Option<Attribute>>>::new();
         self.scope_register.inner.iter()
             .for_each(|(scope, type_chain)| {
                 let scope_level_attrs = scope.resolve_attrs();
@@ -388,7 +394,7 @@ impl RefineMut for GlobalContext {
                     if let Some(ty) = object.maybe_type() {
                         ty.find_generics()
                             .iter()
-                            .filter(|ty| self.maybe_custom_type(&ty.0).is_none() && !self.should_skip_from_expanding(object))
+                            .filter(|ty| self.maybe_custom_type(ty).is_none() && !self.should_skip_from_expanding(object))
                             .for_each(|_ty| {
                                 if let Some(kind) = object.maybe_generic_type_kind() {
                                     refined_mixins

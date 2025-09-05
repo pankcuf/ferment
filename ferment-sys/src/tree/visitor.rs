@@ -3,9 +3,8 @@ use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use indexmap::IndexMap;
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree};
+use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
 use syn::visit::Visit;
-use crate::ast::PathHolder;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
 use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType};
@@ -14,7 +13,7 @@ use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
-    pub parent: PathHolder,
+    pub parent: Path,
     pub inner_visitors: Vec<Visitor>,
     pub tree: ScopeTreeExportItem,
     pub current_module_scope: ScopeChain,
@@ -83,10 +82,9 @@ impl<'ast> Visit<'ast> for Visitor {
 impl Visitor {
     /// path: full-qualified Path for file
     pub fn new(scope: ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
-        //println!("Visitor::new({})", scope.self_path_holder_ref());
         Self {
             context: context.clone(),
-            parent: scope.self_path_holder_ref().clone(),
+            parent: scope.self_path_ref().clone(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
             tree: ScopeTreeExportItem::tree_with_context(scope, context.clone(), attrs)
@@ -170,38 +168,38 @@ impl Visitor {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
                 self.scope_add_many(type_chain.selfless(), scope),
-            ScopeChain::Impl { parent_scope_chain, .. } => {
+            ScopeChain::Impl { parent, .. } => {
                 if add_to_parent {
-                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                    self.scope_add_many(type_chain.selfless(), parent);
                 }
                 self.scope_add_many(type_chain, scope);
             },
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } => {
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } => {
                 self.scope_add_many(type_chain.clone(), scope);
                 self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
                 if add_to_parent {
-                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                    self.scope_add_many(type_chain.selfless(), parent);
                 }
             },
-            ScopeChain::Fn { parent_scope_chain, .. } => match &**parent_scope_chain {
+            ScopeChain::Fn { parent, .. } => match &**parent {
                 ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
                     self.scope_add_many(type_chain.clone(), scope);
                     if add_to_parent {
-                        self.scope_add_many(type_chain, parent_scope_chain);
+                        self.scope_add_many(type_chain, parent);
                     }
                 },
-                ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
-                ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
-                ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
+                ScopeChain::Trait { parent: parent_parent_scope_chain, .. } |
+                ScopeChain::Object { parent: parent_parent_scope_chain, .. } |
+                ScopeChain::Impl { parent: parent_parent_scope_chain, .. } => {
                     self.scope_add_many(type_chain.clone(), scope);
                     self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
                     if add_to_parent {
                         self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
-                        self.scope_add_many(type_chain, parent_scope_chain);
+                        self.scope_add_many(type_chain, parent);
                     }
                 },
-                ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
+                ScopeChain::Fn { parent: _parent_parent_scope_chain, .. } => {
                     // TODO: actually there are may be anything wrapped into anything like trait inside a function...
                 }
             }
@@ -214,9 +212,9 @@ impl Visitor {
         self.add_full_qualified_type_chain(scope, type_chain, add_to_parent)
     }
 
-    fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
+    fn find_scope_tree(&mut self, scope: &Path) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
+        for ident in scope.crate_less().segments.iter().map(ScopeTreeID::from) {
             if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
                 if !exported.contains_key(&ident) {
                     exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), IndexMap::default(), attrs.clone()));

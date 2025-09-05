@@ -1,12 +1,12 @@
 use syn::{parse_quote, BareFnArg, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, WherePredicate};
 use syn::punctuated::Punctuated;
 use syn::token::PathSep;
-use crate::ast::{AddPunctuated, CommaPunctuated, PathHolder};
+use crate::ast::{AddPunctuated, Colon2Punctuated, CommaPunctuated};
 use crate::composable::{GenericBoundsModel, NestedArgument, QSelfModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::kind::{DictFermentableModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, CrateExtension, DictionaryType, Pop, ToPath, ToType};
+use crate::ext::{Accessory, AsType, CrateExtension, DictionaryType, Join, Pop, ToPath, ToType};
 use crate::nprint;
 
 
@@ -141,7 +141,7 @@ impl<'a> VisitScopeType<'a> for Path {
                                 })
                                 .collect())
                         .unwrap_or_default();
-                    ObjectKind::bounds_type(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments))
+                    ObjectKind::bounds(GenericBoundsModel::new(ty, bounds, predicates, generics, nested_arguments))
                 } else if let Some(mut import_path) = context.maybe_import_path_ref(scope, &first_import_seg).cloned() {
                     // Can be reevaluated after processing entire scope tree:
                     // Because import path can have multiple aliases and we need the most complete one to use mangling correctly
@@ -154,8 +154,7 @@ impl<'a> VisitScopeType<'a> for Path {
                 } else if let Some(generic_bounds) = context.generics.maybe_generic_bounds(scope, &first_ident.to_type()) {
                     // TODO: multiple bounds handling
                     if let Some(first_bound) = generic_bounds.first() {
-                        let first_bound_as_scope = PathHolder::from(first_bound);
-                        if let Some(Path { segments: new_segments, .. }) = context.maybe_import_path_ref(scope, &first_bound_as_scope.0) {
+                        if let Some(Path { segments: new_segments, .. }) = context.maybe_import_path_ref(scope, first_bound) {
                             nprint!(1, crate::formatter::Emoji::Local, "(Generic Bounds Imported) {}", format_token_stream(&iseg));
                             segments.replace_last_with(new_segments);
                         } else {
@@ -173,11 +172,11 @@ impl<'a> VisitScopeType<'a> for Path {
                 } else {
                     nprint!(1, crate::formatter::Emoji::Local, "(Local or Global ....) {}", segments.to_token_stream());
                     let obj_scope = scope.obj_root_chain().unwrap_or(scope);
-                    let self_scope_path = obj_scope.self_path_holder_ref();
+                    let self_scope_path = obj_scope.self_path_ref();
                     match first_ident.to_string().as_str() {
                         "Self" => if segments.len() <= 1 {
                             nprint!(1, crate::formatter::Emoji::Local, "(Self) {}", format_token_stream(first_ident));
-                            segments.replace_last_with(&self_scope_path.0.segments);
+                            segments.replace_last_with(&self_scope_path.segments);
                             ObjectKind::unknown_model_type_path(new_qself, self.leading_colon, segments, nested_arguments)
                         } else {
                             let tail = segments.crate_less();
@@ -240,7 +239,7 @@ impl<'a> VisitScopeType<'a> for Path {
                                     }
                                     None => parse_quote!(#scope::#self),
                                     Some(parent) => {
-                                        let scope = parent.self_path_holder_ref();
+                                        let scope = parent.self_path_ref();
                                         parse_quote!(#scope::#self)
                                     }
                                 });
@@ -252,7 +251,7 @@ impl<'a> VisitScopeType<'a> for Path {
                                     .or_else(|| context.maybe_scope_import_path(obj_scope, &first_import_seg))
                                     .or_else(|| obj_parent_scope.and_then(|parent_scope| context.maybe_scope_import_path(parent_scope, &first_import_seg)))
                                     .cloned()
-                                    .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_holder_ref().joined_path(first_import_seg));
+                                    .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_ref().joined(&first_import_seg));
 
                                 scope.obj_root_model_composer()(handle_type_model(Type::Path(match len {
                                     0 => parse_quote!(<#ty as #tt>),
@@ -426,6 +425,6 @@ impl<'a> VisitScopeType<'a> for TypeTraitObject {
 pub fn handle_type_model(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
     TypeModel::new_nested(ty, nested_arguments)
 }
-pub fn handle_type_path_model(qself: Option<QSelf>, leading_colon: Option<PathSep>, segments: Punctuated<PathSegment, PathSep>, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
+pub fn handle_type_path_model(qself: Option<QSelf>, leading_colon: Option<PathSep>, segments: Colon2Punctuated<PathSegment>, nested_arguments: CommaPunctuatedNestedArguments) -> TypeModel {
     handle_type_model(Type::Path(TypePath { qself, path: Path { leading_colon, segments }}), nested_arguments)
 }

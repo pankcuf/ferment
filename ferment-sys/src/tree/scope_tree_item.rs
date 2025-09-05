@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use syn::Item;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::ItemExtension;
+use crate::formatter::format_token_stream;
 use crate::tree::ScopeTree;
 
 #[derive(Clone)]
@@ -28,7 +29,7 @@ impl Debug for ScopeTreeItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             ScopeTreeItem::Item { item, scope, scope_context: _} =>
-                format!("Item({}, {})", item.ident_string(), scope.self_path_holder_ref()),
+                format!("Item({}, {})", item.ident_string(), format_token_stream(scope.self_path_ref())),
             ScopeTreeItem::Tree { tree } =>
                 format!("Tree({:?})", tree),
         }.as_str())

@@ -2,19 +2,18 @@ use syn::{Generics, Item, Path, TypeParam};
 use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use crate::ast::PathHolder;
 use crate::kind::ObjectKind;
-use crate::ext::ItemExtension;
+use crate::ext::{ItemExtension, Join};
 
 #[derive(Clone, Eq)]
 pub struct Scope {
-    pub self_scope: PathHolder,
+    pub self_scope: Path,
     pub object: ObjectKind,
 }
 
 impl Debug for Scope {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("Scope({}, {})", self.self_scope, self.object).as_str())
+        f.write_str(format!("Scope({}, {})", self.self_scope.to_token_stream(), self.object).as_str())
     }
 }
 
@@ -26,24 +25,24 @@ impl Display for Scope {
 
 impl PartialEq<Self> for Scope {
     fn eq(&self, other: &Self) -> bool {
-        self.self_scope.0.to_token_stream().to_string() ==
-            other.self_scope.0.to_token_stream().to_string()
+        self.self_scope.to_token_stream().to_string() ==
+            other.self_scope.to_token_stream().to_string()
         && self.object.eq(&other.object)
     }
 }
 
 impl Hash for Scope {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.self_scope.to_string().hash(state);
+        self.self_scope.to_token_stream().to_string().hash(state);
         self.object.to_string().hash(state);
     }
 }
 
 impl Scope {
-    pub fn new(self_scope: PathHolder, object: ObjectKind) -> Self {
+    pub fn new(self_scope: Path, object: ObjectKind) -> Self {
         Self { self_scope, object }
     }
-    pub fn empty(self_scope: PathHolder) -> Self {
+    pub fn empty(self_scope: Path) -> Self {
         Self::new(self_scope, ObjectKind::Empty)
     }
     pub fn joined(&self, item: &Item) -> Self {

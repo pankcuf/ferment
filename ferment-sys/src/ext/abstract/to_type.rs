@@ -38,8 +38,6 @@ impl_to_type!(Ident);
 impl_to_type!(Path);
 impl_to_type!(Type);
 impl_to_type!(TokenStream2);
-impl_to_type!(crate::ast::PathHolder);
-impl_to_type!(crate::ast::TypeHolder);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
 impl_to_type!(crate::kind::TypeKind);
 impl_to_type!(AddPunctuated<syn::TypeParamBound>);

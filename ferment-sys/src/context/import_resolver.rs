@@ -53,12 +53,12 @@ impl ImportResolver {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
                 self.maybe_path(&scope, chunk),
-            ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_import(scope, parent_scope_chain, chunk),
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_obj_or_parent(scope, parent_scope_chain, chunk),
+            ScopeChain::Fn { parent, .. } =>
+                self.maybe_fn_import(scope, parent, chunk),
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } |
+            ScopeChain::Impl { parent, .. } =>
+                self.maybe_obj_or_parent(scope, parent, chunk),
         }
     }
 
@@ -70,32 +70,32 @@ impl ImportResolver {
                 match parent_scope {
                     ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
                         self.maybe_path(parent_scope, ident),
-                    ScopeChain::Fn { parent_scope_chain, .. } =>
-                        self.maybe_fn_import(parent_scope, parent_scope_chain, ident),
-                    ScopeChain::Trait { parent_scope_chain, .. } =>
+                    ScopeChain::Fn { parent, .. } =>
+                        self.maybe_fn_import(parent_scope, parent, ident),
+                    ScopeChain::Trait { parent, .. } =>
                         self.maybe_path(parent_scope, ident)
                             .or_else(|| {
-                                match &**parent_scope_chain {
+                                match &**parent {
                                     ScopeChain::CrateRoot { .. } |
                                     ScopeChain::Mod { .. } =>
-                                        self.maybe_path(parent_scope_chain, ident),
+                                        self.maybe_path(parent, ident),
                                     _ => None,
                                 }
                             }),
-                    ScopeChain::Object { parent_scope_chain, .. } =>
+                    ScopeChain::Object { parent, .. } =>
                         self.maybe_path(parent_scope, ident)
-                            .or_else(|| match &**parent_scope_chain {
+                            .or_else(|| match &**parent {
                                 ScopeChain::CrateRoot { .. } |
                                 ScopeChain::Mod { .. } =>
-                                    self.maybe_path(parent_scope_chain, ident),
+                                    self.maybe_path(parent, ident),
                                 _ => None,
                             }),
-                    ScopeChain::Impl { parent_scope_chain, .. } =>
+                    ScopeChain::Impl { parent, .. } =>
                         self.maybe_path(parent_scope, ident)
-                            .or_else(|| match &**parent_scope_chain {
+                            .or_else(|| match &**parent {
                                 ScopeChain::CrateRoot { .. } |
                                 ScopeChain::Mod { .. } =>
-                                    self.maybe_path(parent_scope_chain, ident),
+                                    self.maybe_path(parent, ident),
                                 _ => None,
                             }),
                 }

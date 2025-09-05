@@ -43,7 +43,7 @@ impl<SPEC> TraitComposer<SPEC>
                     let sig_context = FnSignatureContext::TraitInner(sig.clone(), self_ty.clone(), self_ty.clone());
                     let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
                     let ty_context = ty_context.join_fn(
-                        scope.joined_path_holder(&sig.ident).0,
+                        scope.joined_path_holder(&sig.ident),
                         sig_context,
                         attrs.clone());
                     methods.push(SigComposer::from_trait_item_method(trait_item_method, ty_context, &method_scope_context));
