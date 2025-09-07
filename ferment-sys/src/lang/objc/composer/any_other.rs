@@ -1,7 +1,7 @@
 use quote::ToTokens;
 use crate::composer::{AnyOtherComposer, GenericComposerInfo, SourceComposable, VarComposer};
 use crate::context::ScopeContext;
-use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
+use crate::ext::{ArgsTransform, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{DictionaryName, Name};
 

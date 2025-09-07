@@ -1,12 +1,11 @@
+mod attrs;
 mod field_type;
 mod function;
-mod type_model;
-mod qself;
-mod traits;
-mod attrs;
 mod generic_bounds;
 mod nested_arg;
+mod type_model;
 mod trait_model;
+mod traits;
 
 use syn::punctuated::IterMut;
 use syn::Type;
@@ -15,7 +14,6 @@ pub use field_type::*;
 pub use function::*;
 pub use generic_bounds::*;
 pub use nested_arg::*;
-pub use qself::*;
 pub use traits::*;
 pub use trait_model::*;
 pub use type_model::*;

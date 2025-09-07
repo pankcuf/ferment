@@ -20,7 +20,7 @@ fn collect_trait_requirements_orders_and_dedups() {
     };
     let global_context = Arc::new(RwLock::new(GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()))));
     let scope_chain = ScopeChain::crate_root(format_ident!("crate"), vec![]);
-    let mut visitor = Visitor::new(scope_chain.clone(), vec![], &global_context);
+    let mut visitor = Visitor::new(&scope_chain, vec![], &global_context);
     let reqs = create_generics_chain(&mut visitor, &item.sig.generics, &scope_chain, false);
 
     // Ensure stable ordering: by bounded type then trait path
@@ -54,7 +54,7 @@ fn collect_trait_requirements_orders_and_dedups2() {
     };
     let global_context = Arc::new(RwLock::new(GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()))));
     let scope_chain = ScopeChain::crate_root(format_ident!("crate"), vec![]);
-    let mut visitor = Visitor::new(scope_chain.clone(), vec![], &global_context);
+    let mut visitor = Visitor::new(&scope_chain, vec![], &global_context);
     let reqs = create_generics_chain(&mut visitor, &item.sig.generics, &scope_chain, false);
     let keys: Vec<(String, String)> = reqs
         .iter()
@@ -85,7 +85,7 @@ fn collect_trait_requirements_orders_and_dedups3() {
     };
     let global_context = Arc::new(RwLock::new(GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()))));
     let scope_chain = ScopeChain::crate_root(format_ident!("crate"), vec![]);
-    let mut visitor = Visitor::new(scope_chain.clone(), vec![], &global_context);
+    let mut visitor = Visitor::new(&scope_chain, vec![], &global_context);
     let reqs = create_generics_chain(&mut visitor, &item.sig.generics, &scope_chain, false);
     // Ensure stable ordering: by bounded type then trait path
     let keys: Vec<(String, String)> = reqs.iter().map(|(bounded_ty, trait_paths)| (bounded_ty.to_token_stream().to_string(), trait_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(" + "))).collect();
@@ -110,7 +110,7 @@ fn collect_trait_requirements_orders_and_dedups4() {
     };
     let global_context = Arc::new(RwLock::new(GlobalContext::with_config(Config::new("crate", Crate::new("crate", PathBuf::new()), cbindgen::Config::default()))));
     let scope_chain = ScopeChain::crate_root(format_ident!("crate"), vec![]);
-    let mut visitor = Visitor::new(scope_chain.clone(), vec![], &global_context);
+    let mut visitor = Visitor::new(&scope_chain, vec![], &global_context);
     let reqs = create_generics_chain(&mut visitor, &item.sig.generics, &scope_chain, false);
     let keys: Vec<(String, String)> = reqs.iter()
         .map(|(bounded_ty, trait_paths)| (

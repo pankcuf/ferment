@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
+use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::{Attribute, Generics, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Path, PathSegment, QSelf, Signature, Type};
@@ -53,7 +54,7 @@ impl ObjectKind {
     pub fn unknown_model_type(model: TypeModel) -> Self {
         Self::model_type(TypeModelKind::Unknown, model)
     }
-    pub fn unknown_model_type_path(qself: Option<QSelf>, sep: Option<PathSep>, segments: Colon2Punctuated<PathSegment>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+    pub fn unknown_model_type_path(qself: &Option<QSelf>, sep: Option<PathSep>, segments: Colon2Punctuated<PathSegment>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::model_type(TypeModelKind::Unknown, handle_type_path_model(qself, sep, segments, nested_arguments))
     }
     pub fn unknown_type(ty: Type) -> Self {
@@ -71,8 +72,8 @@ impl ObjectKind {
     pub fn imported_model_type(model: TypeModel, path: Path) -> Self {
         Self::Type(TypeModelKind::Imported(model, path))
     }
-    pub fn primitive_type(ty: Type) -> Self {
-        Self::dict_type(DictTypeModelKind::Primitive(TypeModel::new_non_nested(ty, None)))
+    pub fn primitive_type(ident: &Ident) -> Self {
+        Self::dict_type(DictTypeModelKind::Primitive(TypeModel::new_default(ident.to_type())))
     }
     pub fn non_primitive_fermentable_type(kind: DictFermentableModelKind) -> Self {
         Self::dict_type(DictTypeModelKind::NonPrimitiveFermentable(kind))
@@ -88,16 +89,16 @@ impl ObjectKind {
     }
 
     pub fn str_type(ty: Type) -> Self {
-        Self::non_primitive_fermentable_type(DictFermentableModelKind::Str(TypeModel::new_non_nested(ty, None)))
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::Str(TypeModel::new_default(ty)))
     }
     pub fn string_type(ty: Type) -> Self {
-        Self::non_primitive_fermentable_type(DictFermentableModelKind::String(TypeModel::new_non_nested(ty, None)))
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::String(TypeModel::new_default(ty)))
     }
-    pub fn i128_type(ty: Type) -> Self {
-        Self::non_primitive_fermentable_type(DictFermentableModelKind::I128(TypeModel::new_non_nested(ty, None)))
+    pub fn i128_type(ty: &Ident) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::I128(TypeModel::new_default(ty.to_type())))
     }
-    pub fn u128_type(ty: Type) -> Self {
-        Self::non_primitive_fermentable_type(DictFermentableModelKind::U128(TypeModel::new_non_nested(ty, None)))
+    pub fn u128_type(ty: &Ident) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::U128(TypeModel::new_default(ty.to_type())))
     }
 
     pub fn new_item(ty: TypeModelKind, item: ScopeItemKind) -> Self {
@@ -106,10 +107,10 @@ impl ObjectKind {
     fn new_obj_item(ty: TypeModel, item: ScopeItemKind) -> Self {
         Self::model_item(TypeModelKind::Object, ty, item)
     }
-    pub fn new_generic_obj_item(ty: Type, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments, item: ScopeItemKind) -> Self {
-        Self::new_obj_item(TypeModel::new_generic(ty, generics, nested_arguments), item)
+    pub fn new_generic_obj_item(ty: Type, generics: &Generics, nested_arguments: CommaPunctuatedNestedArguments, item: ScopeItemKind) -> Self {
+        Self::new_obj_item(TypeModel::new_generic(ty, generics.clone(), nested_arguments), item)
     }
-    pub fn new_generic_non_nested_obj_item(ty: Type, generics: Generics, item: ScopeItemKind) -> Self {
+    pub fn new_generic_non_nested_obj_item(ty: Type, generics: &Generics, item: ScopeItemKind) -> Self {
         Self::new_obj_item(TypeModel::new_generic_non_nested(ty, generics), item)
     }
     pub fn new_trait_item(model: TraitModel, item: ScopeItemKind) -> Self {
@@ -287,21 +288,21 @@ impl TryFrom<(&Item, &Path)> for ObjectKind {
         let item_kind = ScopeItemKind::item_ref(value, scope);
         match value {
             Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) =>
-                Ok(ObjectKind::new_trait_item(TraitModel::new(TypeModel::new_generic_non_nested(ident.to_type(), generics.clone()), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)), item_kind)),
+                Ok(ObjectKind::new_trait_item(TraitModel::new(TypeModel::new_generic_non_nested(ident.to_type(), generics), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)), item_kind)),
             Item::Const(ItemConst { ident, generics, .. }) |
             Item::Struct(ItemStruct { ident, generics, .. }) |
             Item::Enum(ItemEnum { ident, generics, .. }) |
             Item::Fn(ItemFn { sig: Signature { ident, generics, .. }, .. }) =>
-                Ok(ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics.clone(), item_kind)),
+                Ok(ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)),
             Item::Type(ItemType { ident, generics, ty, .. }) =>
                 Ok(match &**ty {
                     Type::BareFn(..) =>
-                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic(ident.to_type(), generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics.clone())))])), item_kind),
+                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic(ident.to_type(), generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics)))])), item_kind),
                     _ =>
-                        ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics.clone(), item_kind)
+                        ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)
                 }),
             Item::Impl(ItemImpl { self_ty, generics, .. }) =>
-                Ok(ObjectKind::new_generic_non_nested_obj_item(*self_ty.clone(), generics.clone(), item_kind)),
+                Ok(ObjectKind::new_generic_non_nested_obj_item(*self_ty.clone(), generics, item_kind)),
             Item::Mod(ItemMod { ident, .. }) =>
                 Ok(ObjectKind::new_item(TypeModelKind::unknown_type(ident.to_type()), item_kind)),
             _ =>

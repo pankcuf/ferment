@@ -18,6 +18,11 @@ impl GenericResolver {
             .and_then(|items| items.get(ident))
     }
 
+    pub fn maybe_first_generic(&self, scope: &ScopeChain, ident: &Type) -> Option<&Path> {
+        self.maybe_generic_bounds(scope, ident)
+            .and_then(|generic_bounds| generic_bounds.first())
+    }
+
     pub fn extend_in_scope(&mut self, scope: &ScopeChain, generics: IndexMap<Type, Vec<Path>>) {
         self.scope_mut(&scope)
             .extend(generics);

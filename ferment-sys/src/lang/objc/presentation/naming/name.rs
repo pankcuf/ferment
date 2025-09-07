@@ -9,16 +9,16 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
         match self {
             Name::_Phantom(..) |
             Name::Empty => String::new(),
-            Name::Index(index) => index.to_string(),
-            Name::UnnamedArg(index) => format!("o_{}", index),
-            Name::UnnamedStructFieldsComp(ty, index) => match ty {
-                Type::Path(..) | Type::Array(..) => format!("_{}", *index),
-                Type::Ptr(..) => DictionaryName::Obj.to_string(),
-                _ => unimplemented!(
-                    "Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}",
-                    quote!(#ty)
-                ),
-            },
+            Name::Index(index) =>
+                index.to_string(),
+            Name::UnnamedArg(index) =>
+                format!("o_{}", index),
+            Name::UnnamedStructFieldsComp(Type::Path(..) | Type::Array(..), index) =>
+                format!("_{}", *index),
+            Name::UnnamedStructFieldsComp(Type::Ptr(..), _) =>
+                DictionaryName::Obj.to_string(),
+            Name::UnnamedStructFieldsComp(ty, _) =>
+                unimplemented!("Name::UnnamedStructFieldsComp :: to_mangled_string: unsupported type {}", quote!(#ty)),
             Name::Constructor(ident) =>
                 format!("{}_ctor", ident.mangle_string_default().replace("r#", "")),
             Name::Destructor(ident) =>
@@ -31,24 +31,23 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
             Name::Dictionary(dict_field_name) =>
                 dict_field_name.to_token_stream().to_string(),
             Name::ModFn(name) =>
-                name.mangle_string(context).replace("r#", ""),
+                name.mangle_string(context)
+                    .replace("r#", ""),
             Name::TraitObj(ident) =>
-                ident.to_string().replace("r#", ""),
-            Name::TraitImplVtable(item_name, trait_vtable_ident) => {
+                ident.to_string()
+                    .replace("r#", ""),
+            Name::TraitImplVtable(item_name, trait_vtable_ident) =>
                 format!("{}_{}", item_name, trait_vtable_ident)
-                    .replace("r#", "")
-            }
-            Name::TraitImplVtableFn(item_name, trait_vtable_ident) => {
+                    .replace("r#", ""),
+            Name::TraitImplVtableFn(item_name, trait_vtable_ident) =>
                 format!("{}_{}", item_name, trait_vtable_ident)
-                    .replace("r#", "")
-            }
+                    .replace("r#", ""),
             Name::TraitFn(item_name, trait_name) =>
                 format!("{}_as_{}", item_name.mangle_ident_default(), trait_name.mangle_ident_default())
                     .replace("r#", ""),
-            Name::TraitDestructor(item_name, trait_name) => {
+            Name::TraitDestructor(item_name, trait_name) =>
                 format!("{}_as_{}_destroy", item_name.mangle_string_default(), trait_name.mangle_string_default())
-                    .replace("r#", "")
-            }
+                    .replace("r#", ""),
             Name::Vtable(trait_name) => format!("{}_VTable", trait_name),
             Name::Getter(obj_type, field_name) => format!(
                 "{}_get_{}",
@@ -67,8 +66,7 @@ impl Mangle<MangleDefault> for Name<ObjCSpecification> {
             Name::Underscore => quote!(_).to_string(),
             Name::EnumTag(ident) => format!("{ident}_Tag").replace("r#", ""),
             Name::EnumVariantBody(ident) =>
-                format!("{ident}_Body")
-                    .replace("r#", ""),
+                format!("{ident}_Body").replace("r#", ""),
             Name::Expr(expr) =>
                 expr.to_token_stream().to_string(),
             Name::Read(expr) =>
@@ -101,20 +99,20 @@ impl ToTokens for Name<ObjCSpecification> {
                 format_ident!("{}_set_at_index", ident.mangle_ident_default()).to_tokens(tokens),
 
             Name::Dictionary(dict_field_name) => dict_field_name.to_tokens(tokens),
-            Name::Vtable(trait_name) => format_ident!("{}_VTable", trait_name).to_tokens(tokens),
+            Name::Vtable(trait_name) => format_ident!("{trait_name}_VTable").to_tokens(tokens),
             Name::ModFn(path) => path.mangle_tokens_default().to_tokens(tokens),
             Name::TraitFn(item_name, trait_name) =>
                 format_ident!("{}_as_{}", item_name.mangle_string_default(), trait_name.mangle_string_default()).to_tokens(tokens),
             Name::TraitDestructor(item_name, trait_name) =>
                 format_ident!("{}_as_{}_destroy", item_name.mangle_string_default(), trait_name.mangle_string_default()).to_tokens(tokens),
-            Name::UnnamedStructFieldsComp(ty, index) => match ty {
-                Type::Ptr(_) => DictionaryName::Obj.to_tokens(tokens),
-                _ => format_ident!("_{}", *index).to_tokens(tokens),
-            },
+            Name::UnnamedStructFieldsComp(Type::Ptr(_), _) =>
+                DictionaryName::Obj.to_tokens(tokens),
+            Name::UnnamedStructFieldsComp(_, index) =>
+                format_ident!("_{}", *index).to_tokens(tokens),
             Name::TraitImplVtable(item_name, trait_vtable_ident) =>
-                format_ident!("{}_{}", item_name, trait_vtable_ident).to_tokens(tokens),
+                format_ident!("{item_name}_{trait_vtable_ident}").to_tokens(tokens),
             Name::TraitImplVtableFn(item_name, trait_vtable_ident) =>
-                format_ident!("{}_{}", item_name, trait_vtable_ident).to_tokens(tokens),
+                format_ident!("{item_name}_{trait_vtable_ident}").to_tokens(tokens),
             Name::TraitObj(ident) |
             Name::VTableInnerFn(ident) |
             Name::Ident(ident) => ident.to_tokens(tokens),

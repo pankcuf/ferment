@@ -6,7 +6,7 @@ use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer};
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
-use crate::ext::{path_arguments_to_type_conversions, AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
@@ -158,16 +158,21 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
                 if last_ident.is_primitive() {
                     FFIVariable::direct(objc_primitive_from_path(self))
                 } else if last_ident.is_optional() {
-                    match path_arguments_to_type_conversions(&arguments).first() {
-                        Some(TypeKind::Primitive(ty)) =>
-                            FFIVariable::mut_ptr(ty.to_token_stream()),
-                        Some(TypeKind::Generic(generic_ty)) =>
-                            FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(generic_ty, source).to_token_stream()),
-                        Some(TypeKind::Complex(Type::Path(TypePath { path, .. }))) =>
-                            Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(path, source),
-                        _ => unimplemented!("ffi_dictionary_variable_type:: Empty Optional")
-                    }
-                } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) {
+                    let result = match arguments {
+                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
+                            args.iter().find_map(|arg| match arg {
+                                GenericArgument::Type(ty) => match TypeKind::from(ty) {
+                                    TypeKind::Primitive(ty) => Some(FFIVariable::mut_ptr(ty.to_token_stream())),
+                                    TypeKind::Generic(generic_ty) => Some(FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&generic_ty, source).to_token_stream())),
+                                    TypeKind::Complex(Type::Path(TypePath { path, .. })) => Some(Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&path, source)),
+                                    _ => None
+                                },
+                                _ => None
+                            }),
+                        _ => None,
+                    };
+                    result.unwrap_or_else(|| FFIVariable::mut_ptr(self.to_token_stream()))
+                } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.eq("Map") && first_ident.eq("serde_json")) {
                     FFIVariable::mut_ptr(source.scope_type_for_path(self).map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default()))
                 } else {
                     FFIVariable::mut_ptr(self.to_token_stream())
@@ -487,16 +492,19 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<Obj
             elem.resolve(source),
         Type::Ptr(TypePtr { const_token, mutability, elem, .. }) =>
             match *elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last() {
-                    Some(PathSegment { ident, .. }) => match ident.to_string().as_str() {
-                        "c_void" => match (const_token, mutability) {
-                            (Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
-                            _ => FFIVariable::mut_ptr(quote!(void)),
-                        },
-                        _ if const_token.is_some() => FFIVariable::const_ptr(path.to_token_stream()),
-                        _ => FFIVariable::mut_ptr(path.to_token_stream())
-                    },
-                    _ => FFIVariable::mut_ptr(path.to_token_stream()),
+                Type::Path(TypePath { path, .. }) => if let Some(PathSegment { ident, .. }) = path.segments.last() {
+                    let ty = if ident.is_void() {
+                        quote!(void)
+                    } else {
+                        path.to_token_stream()
+                    };
+                    if const_token.is_some() {
+                        FFIVariable::const_ptr(ty)
+                    } else {
+                        FFIVariable::mut_ptr(ty)
+                    }
+                } else {
+                    FFIVariable::mut_ptr(path.to_token_stream())
                 }
                 Type::Ptr(..) =>
                     FFIVariable::mut_ptr(elem.to_token_stream()),
@@ -858,7 +866,7 @@ fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<ObjCSpecification> {
     } else if last_ident.is_special_generic() ||
         (last_ident.is_result() && path.segments.len() == 1) ||
         // TODO: avoid this hardcode
-        (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
+        (last_ident.eq("Map") && first_ident.eq("serde_json")) ||
         last_ident.is_smart_ptr() ||
         last_ident.is_lambda_fn() {
         FFIFullPath::generic(path.mangle_ident_default().to_path())
@@ -886,7 +894,7 @@ impl ToType for FFIFullPath<ObjCSpecification> {
         let prefix = "DS";
         match self {
             FFIFullPath::Type { ffi_name, .. } | FFIFullPath::Generic { ffi_name, .. } | FFIFullPath::External { path: ffi_name, .. } =>
-                format_ident!("{}{}", prefix, ffi_name.mangle_tokens_default().to_string()).to_type(),
+                format_ident!("{prefix}{}", ffi_name.mangle_tokens_default().to_string()).to_type(),
             FFIFullPath::Dictionary { path } =>
                 path.to_type(),
         }

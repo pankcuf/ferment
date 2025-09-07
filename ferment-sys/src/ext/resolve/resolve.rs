@@ -4,7 +4,7 @@ use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, Pa
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
-use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType, Join};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
@@ -187,7 +187,7 @@ where SPEC: Specification {
             Some(FFIFullPath::c_char())
         } else if last_ident.is_special_generic() ||
             (last_ident.is_result() && segments.len() == 1) ||
-            last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
+            last_ident.eq("Map") && first_ident.eq("serde_json") || last_ident.is_lambda_fn() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
             match &last_segment.arguments {
@@ -213,20 +213,19 @@ where SPEC: Specification {
             maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
                     let crate_local_segments = chunk.crate_and_ident_less();
-                    let ffi_name = if crate_local_segments.is_empty() {
-                        let ty: Type = parse_quote!(#crate_ident::#last_ident);
-                        ty.mangle_ident_default().to_path()
+                    FFIFullPath::r#type(crate_ident.clone(), if crate_local_segments.is_empty() {
+                        crate_ident.to_path().joined(last_ident).mangle_ident_default().to_path()
                     } else {
-                        let no_ident_segments = chunk.ident_less();
-                        let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
-                        let mangled_ty = ty.mangle_ident_default();
-                        parse_quote!(#crate_local_segments::#mangled_ty)
-                    };
-                    FFIFullPath::r#type(crate_ident.clone(), ffi_name)
+                        crate_local_segments.joined(&chunk.ident_less().joined(last_ident).mangle_ident_default()).to_path()
+                    })
                 })
                 .or_else(|| {
                     let segments = chunk.ident_less();
-                    Some(FFIFullPath::external(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) }))
+                    Some(FFIFullPath::external(if segments.is_empty() {
+                        last_ident.to_path()
+                    } else {
+                        segments.joined(last_ident).to_path()
+                    }))
                 })
         }
     }

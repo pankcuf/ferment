@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use quote::ToTokens;
-use syn::{parse_quote, Attribute, Field, FieldMutability, Generics, ImplItemFn, ItemFn, Lifetime, Signature, TraitItemFn, Type, TypePtr, Visibility};
+use syn::{Attribute, Field, Generics, ImplItemFn, ItemFn, Lifetime, Signature, TraitItemFn, Type, TypePtr};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{FFITypeResolve, ItemExtension, Mangle};
+use crate::ext::{Accessory, FFITypeResolve, Mangle, MaybeAttrs};
 use crate::lang::Specification;
 use crate::presentation::DocPresentation;
 
@@ -111,24 +111,14 @@ impl<SPEC> DocsComposable for SigComposer<SPEC>
 
 pub fn field<SPEC>(name: SPEC::Name , ty: &Type, source: &ScopeContext) -> Field
     where SPEC: Specification {
-    Field {
-        attrs: vec![],
-        vis: Visibility::Inherited,
-        mutability: FieldMutability::None,
-        ident: Some(name.mangle_ident_default()),
-        colon_token: None,
-        ty: match ty {
-            Type::Ptr(TypePtr { const_token, mutability, .. }) => {
-                let ty = ty.full_type(source);
-                if const_token.is_some() {
-                    parse_quote!(*const #ty)
-                } else if mutability.is_some() {
-                    parse_quote!(*mut #ty)
-                } else {
-                    ty
-                }
-            },
+    crate::ast::inherited_named_field(
+        name.mangle_ident_default(),
+        match ty {
+            Type::Ptr(TypePtr { const_token: Some(..), .. }) =>
+                ty.full_type(source).joined_const(),
+            Type::Ptr(TypePtr { mutability: Some(..), .. }) =>
+                ty.full_type(source).joined_mut(),
             _ => ty.full_type(source)
-        },
-    }
+        }
+    )
 }

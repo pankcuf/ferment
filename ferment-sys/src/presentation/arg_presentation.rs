@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Arm, Attribute, Expr, Field, FieldMutability, Pat, Type, Visibility};
+use syn::{Arm, Attribute, Expr, Field, Pat, Type, Visibility};
 
 // Field Type or Fn Arg
 #[derive(Clone, Debug)]
@@ -15,7 +15,7 @@ pub enum ArgPresentation {
 
 impl ArgPresentation {
     pub fn field(attrs: &Vec<Attribute>, vis: Visibility, ident: Option<Ident>, ty: Type) -> Self {
-        Self::Field(Field { attrs: attrs.clone(), vis, mutability: FieldMutability::None, ident, colon_token: Default::default(), ty })
+        Self::Field(crate::ast::field(attrs.clone(), vis, ident, ty))
     }
     pub fn inherited_field(attrs: &Vec<Attribute>, ident: Ident, ty: Type) -> Self {
         Self::field(attrs, Visibility::Inherited, Some(ident), ty)

@@ -2,6 +2,7 @@ use syn::{Generics, Type};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use indexmap::IndexMap;
+use proc_macro2::Ident;
 use quote::{quote, ToTokens};
 use crate::ast::CommaPunctuated;
 use crate::composable::{TypeModel, TypeModeled};
@@ -17,6 +18,9 @@ pub struct GenericBoundsModel {
     // 'T'
     pub type_model: TypeModel,
     // 'Fn(u32) -> Result<bool, ProtocolError>' or 'Clone + Debug + Smth'
+    // pub bounded_ty: Type,
+    // pub bounds: Vec<ObjectKind>,
+    // pub predicates: IndexMap<Type, Vec<ObjectKind>>,
     pub bounds: Vec<ObjectKind>,
     pub predicates: IndexMap<Type, Vec<ObjectKind>>,
     // pub bounds: Vec<Path>,
@@ -48,8 +52,9 @@ impl TypeModeled for GenericBoundsModel {
 impl Debug for GenericBoundsModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(format!(
-            "GenericBoundsModel(ty: {}, bounds: {}, predicates: {}, nested_args: {})",
+            "GenericBoundsModel(ty: {}, bounded_ty: {}, bounds: {:?}, nested_args: {})",
             self.type_model,
+            // self.bounded_ty.to_token_stream(),
             format_obj_vec(&self.bounds),
             format_predicates_obj_dict(&self.predicates),
             self.nested_arguments.to_token_stream()
@@ -80,15 +85,24 @@ impl Eq for GenericBoundsModel {}
 impl Hash for GenericBoundsModel {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_type().to_token_stream().to_string().hash(state);
+        // self.bounded_ty.to_token_stream().to_string().hash(state);
         self.bounds.iter().for_each(|bound| bound.to_token_stream().to_string().hash(state));
         // self.predicates.iter().for_each(||)
     }
 }
 
 impl GenericBoundsModel {
-    pub fn new(ty: Type, bounds: Vec<ObjectKind>, predicates: IndexMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+    // pub fn new(ident: &Ident, bounded_ty: Type, bounds: Vec<ObjectKind>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+    //     Self {
+    //         type_model: TypeModel::new_generic(ident.to_type(), generics, nested_arguments.clone()),
+    //         bounded_ty,
+    //         bounds,
+    //         nested_arguments,
+    //     }
+    // }
+    pub fn new(ident: &Ident, bounds: Vec<ObjectKind>, predicates: IndexMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self {
-            type_model: TypeModel::new_generic(ty, generics, nested_arguments.clone()),
+            type_model: TypeModel::new_generic(ident.to_type(), generics, nested_arguments.clone()),
             bounds,
             predicates,
             nested_arguments,
@@ -108,12 +122,10 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for GenericBoundsModel
 }
 impl GenericBoundsModel {
     pub fn is_lambda(&self) -> bool {
-        self.bounds.iter().find(|b| {
-            match b {
-                ObjectKind::Type(ty) |
-                ObjectKind::Item(ty, _) => ty.is_lambda(),
-                ObjectKind::Empty => false
-            }
+        self.bounds.iter().find(|b| match b {
+            ObjectKind::Type(ty) |
+            ObjectKind::Item(ty, _) => ty.is_lambda(),
+            ObjectKind::Empty => false
         }).is_some()
     }
 }
@@ -121,6 +133,10 @@ impl GenericBoundsModel {
     pub fn expr_from<SPEC>(&self, field_path: SPEC::Expr) -> SPEC::Expr
         where SPEC: Specification<Expr=Expression<SPEC>>,
               SPEC::Expr: ScopeContextPresentable {
+        // println!("GenericBoundsModel::expr_from: {} /// {}",
+        //          Vec::from_iter(self.bounds.iter().map(|obj| obj.to_token_stream().to_string())).join(" + "),
+        //          Vec::from_iter(self.predicates.iter().map(|(ty, bb)| format!("{}: {}", ty.to_token_stream(), Vec::from_iter(bb.iter().map(|b| b.to_token_stream().to_string())).join(" + ")))).join(" + "));
+
         if self.bounds.is_empty() {
             Expression::from_primitive(field_path)
         } else if let Some(lambda_args) = MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(self) {

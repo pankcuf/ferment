@@ -115,7 +115,7 @@ impl<SPEC> TraitVTableComposer<SPEC>
             .for_each(|trait_item| match trait_item {
                 TraitItem::Fn(trait_item_fn) => {
                     let name_context = ty_context.join_fn(
-                        source.scope.joined_path_holder(&trait_item_fn.sig.ident),
+                        source.scope.joined_path(&trait_item_fn.sig.ident),
                         FnSignatureContext::TraitImpl(trait_item_fn.sig.clone(), self_ty.clone(), trait_ident.to_type()),
                         trait_item_fn.attrs.cfg_attributes()
                     );

@@ -4,7 +4,7 @@ use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, VarComposer, AnyOtherComposer};
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, FieldTypeKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{CrateExtension, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
+use crate::ext::{ArgsTransform, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
 use crate::lang::{FromDictionary, RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation};

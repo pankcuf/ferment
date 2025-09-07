@@ -7,7 +7,7 @@ use syn::punctuated::Punctuated;
 use syn::token::Paren;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::MaybeMacroLabeled;
-use crate::ext::ItemExtension;
+use crate::ext::MaybeAttrs;
 
 #[derive(Debug)]
 pub enum MacroKind {

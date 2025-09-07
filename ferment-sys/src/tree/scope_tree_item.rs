@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use syn::Item;
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::ext::ItemExtension;
+use crate::ext::MaybeIdent;
 use crate::formatter::format_token_stream;
 use crate::tree::ScopeTree;
 

@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
-use indexmap::IndexMap;
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
 use syn::visit::Visit;
 use crate::context::{GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
-use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType};
-use crate::nprint;
+use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, MaybeIdent, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType, ToPath};
 use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
@@ -50,7 +48,7 @@ impl<'ast> Visit<'ast> for Visitor {
         self.add_conversion(Item::Impl(node.clone()));
     }
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
-        if node.ident.to_string().eq("fermented") {
+        if node.ident.eq("fermented") {
             return;
         }
         let item = Item::Mod(node.clone());
@@ -81,10 +79,10 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub fn new(scope: ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn new(scope: &ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
         Self {
             context: context.clone(),
-            parent: scope.self_path_ref().clone(),
+            parent: scope.to_path(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
             tree: ScopeTreeExportItem::tree_with_context(scope, context.clone(), attrs)
@@ -158,12 +156,11 @@ impl Visitor {
                 }))
     }
     pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
-        type_chains.into_iter().for_each(|(scope, type_chain)| {
-            self.scope_add_many(type_chain, &scope)
-        });
+        type_chains.into_iter()
+            .for_each(|(scope, type_chain)|
+                self.scope_add_many(type_chain, &scope));
     }
     pub(crate) fn add_full_qualified_type_chain(&mut self, scope: &ScopeChain, type_chain: TypeChain, add_to_parent: bool) {
-        let self_obj = &scope.self_scope().object;
         match scope {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
@@ -177,7 +174,7 @@ impl Visitor {
             ScopeChain::Trait { parent, .. } |
             ScopeChain::Object { parent, .. } => {
                 self.scope_add_many(type_chain.clone(), scope);
-                self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                self.scope_add_one(parse_quote!(Self), scope.self_object(), scope);
                 if add_to_parent {
                     self.scope_add_many(type_chain.selfless(), parent);
                 }
@@ -193,7 +190,7 @@ impl Visitor {
                 ScopeChain::Object { parent: parent_parent_scope_chain, .. } |
                 ScopeChain::Impl { parent: parent_parent_scope_chain, .. } => {
                     self.scope_add_many(type_chain.clone(), scope);
-                    self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                    self.scope_add_one(parse_quote!(Self), scope.self_object(), scope);
                     if add_to_parent {
                         self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
                         self.scope_add_many(type_chain, parent);
@@ -207,17 +204,16 @@ impl Visitor {
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type, add_to_parent: bool) {
-        nprint!(0, crate::formatter::Emoji::Plus, "{}: {} (add_2_parent: {})", scope.fmt_short(), ty.to_token_stream(), add_to_parent);
         let type_chain = self.create_type_chain(ty, scope);
         self.add_full_qualified_type_chain(scope, type_chain, add_to_parent)
     }
 
     fn find_scope_tree(&mut self, scope: &Path) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        for ident in scope.crate_less().segments.iter().map(ScopeTreeID::from) {
+        for ident in scope.segments.crate_less().iter().map(ScopeTreeID::from) {
             if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
                 if !exported.contains_key(&ident) {
-                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), IndexMap::default(), attrs.clone()));
+                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), attrs.clone()));
                 }
                 current_tree = exported.get_mut(&ident).unwrap();
             }
@@ -229,30 +225,24 @@ impl Visitor {
         // TODO: filter out #[cfg(test)]
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
-        let self_scope = current_scope.self_scope().clone().self_scope;
+        let self_scope = current_scope.to_path();
         match (MacroKind::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
-            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => {
-                if let Some(scope) = item.join_scope(&current_scope, self) {
-                    self.find_scope_tree(&self_scope)
-                        .add_item(item, scope);
-                }
+            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => if let Some(scope) = item.join_scope(&current_scope, self) {
+                self.find_scope_tree(&self_scope)
+                    .add_item(item, scope);
             },
             (_, Ok(_)) if item.is_mod() => {
                 item.add_to_scope(&current_scope, self);
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroKind::Register(custom_type)), Ok(_)) => {
-                if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
-                    let scope_context_borrowed = scope_context.borrow();
-                    scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
-                }
+            (Ok(MacroKind::Register(custom_type)), Ok(_)) => if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
+                let scope_context_borrowed = scope_context.borrow();
+                scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
             },
-            (_, Ok(_)) => {
-                if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
-                    if let Item::Impl(..) = item {
-                        if let Some(_scope) = item.join_scope(&current_scope, self) {}
-                    }
+            (_, Ok(_)) => if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
+                if let Item::Impl(..) = item {
+                    if let Some(_scope) = item.join_scope(&current_scope, self) {}
                 }
             },
             _ => {}

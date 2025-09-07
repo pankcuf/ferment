@@ -46,7 +46,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Unknown(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
-            TypeModelKind::Trait(model) => &mut model.ty,
+            TypeModelKind::Trait(model) => model.type_model_mut(),
             TypeModelKind::Bounds(model) => model.type_model_mut(),
             TypeModelKind::Dictionary(kind) => kind.type_model_mut()
         }
@@ -64,7 +64,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Tuple(model) |
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
-            TypeModelKind::Trait(model) => &model.ty,
+            TypeModelKind::Trait(model) => model.type_model_ref(),
             TypeModelKind::Bounds(model) => model.type_model_ref(),
             TypeModelKind::Dictionary(kind) => kind.type_model_ref()
         }

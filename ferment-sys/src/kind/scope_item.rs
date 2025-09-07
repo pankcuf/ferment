@@ -1,13 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
-use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, Generics, Item, ItemEnum, ItemStruct, ItemTrait, ItemType, Path, Signature, Type};
+use syn::{Attribute, Item, ItemEnum, ItemStruct, ItemTrait, ItemType, Path, Signature, Type};
 use syn::__private::TokenStream2;
 use crate::composable::{CfgAttributes, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::kind::{TypeModelKind};
-use crate::ext::{collect_bounds, ItemExtension, ResolveAttrs, ToPath, ToType};
+use crate::ext::{collect_bounds, MaybeIdent, MaybeAttrs, ResolveAttrs};
 use crate::formatter::format_token_stream;
-use crate::tree::ScopeTreeID;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub enum ScopeItemKind {
@@ -48,35 +46,6 @@ impl ResolveAttrs for ScopeItemKind {
     }
 }
 
-impl ItemExtension for ScopeItemKind {
-    fn scope_tree_export_id(&self) -> ScopeTreeID {
-        match self {
-            ScopeItemKind::Item(item, ..) => item.scope_tree_export_id(),
-            ScopeItemKind::Fn(sig, ..) => sig.scope_tree_export_id()
-        }
-    }
-
-    fn maybe_attrs(&self) -> Option<&Vec<Attribute>> {
-        match self {
-            ScopeItemKind::Item(item, ..) => item.maybe_attrs(),
-            ScopeItemKind::Fn(sig, ..) => sig.maybe_attrs()
-        }
-    }
-
-    fn maybe_ident(&self) -> Option<&Ident> {
-        match self {
-            ScopeItemKind::Item(item, ..) => item.maybe_ident(),
-            ScopeItemKind::Fn(sig, ..) => sig.maybe_ident()
-        }
-    }
-
-    fn maybe_generics(&self) -> Option<&Generics> {
-        match self {
-            ScopeItemKind::Item(item, ..) => item.maybe_generics(),
-            ScopeItemKind::Fn(sig, ..) => sig.maybe_generics()
-        }
-    }
-}
 impl ScopeItemKind {
     pub fn item(item: Item, scope: Path) -> Self {
         Self::Item(item, scope)
@@ -109,7 +78,7 @@ impl ScopeItemKind {
         match self {
             ScopeItemKind::Item(item, ..) => match item {
                 Item::Trait(ItemTrait { ident, items, supertraits, .. }) =>
-                    Some(TypeModelKind::Trait(TraitModel::new(ty_to_replace.clone(), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)))),
+                    Some(TypeModelKind::Trait(TraitModel::new(ty_to_replace, TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)))),
                 Item::Enum(..) |
                 Item::Struct(..) |
                 Item::Fn(..) |
@@ -134,17 +103,5 @@ impl ScopeItemKind {
     }
     pub fn path(&self) -> &Path {
         self.scope()
-    }
-}
-
-impl ToType for ScopeItemKind {
-    fn to_type(&self) -> Type {
-        self.scope().to_type()
-    }
-}
-
-impl ToPath for ScopeItemKind {
-    fn to_path(&self) -> Path {
-        self.scope().clone()
     }
 }

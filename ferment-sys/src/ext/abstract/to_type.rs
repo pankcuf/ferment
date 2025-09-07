@@ -12,6 +12,9 @@ pub trait AsType<'a> {
 pub trait ToPath {
     fn to_path(&self) -> Path;
 }
+pub trait ToPathSepSegments {
+    fn to_segments(&self) -> Colon2Punctuated<syn::PathSegment>;
+}
 
 #[macro_export]
 macro_rules! impl_to_type {
@@ -28,6 +31,16 @@ macro_rules! impl_to_path {
     ($holder_name:ty) => {
         impl ToPath for $holder_name {
             fn to_path(&self) -> syn::Path {
+                parse_quote!(#self)
+            }
+        }
+    };
+}
+#[macro_export]
+macro_rules! impl_to_segments {
+    ($holder_name:ty) => {
+        impl ToPathSepSegments for $holder_name {
+            fn to_segments(&self) -> Colon2Punctuated<syn::PathSegment> {
                 parse_quote!(#self)
             }
         }
@@ -50,3 +63,5 @@ impl_to_path!(AddPunctuated<syn::TypeParamBound>);
 impl_to_path!(crate::kind::ObjectKind);
 impl_to_path!(syn::TypePath);
 
+impl_to_segments!(Ident);
+impl_to_segments!(Path);

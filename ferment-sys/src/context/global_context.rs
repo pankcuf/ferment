@@ -2,14 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Formatter;
 use indexmap::IndexMap;
 use proc_macro2::Ident;
-use quote::format_ident;
 use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type, TypePath};
 use crate::{print_phase, Config};
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericCollector, GenericConstraintCollector, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, Split, ToPath, ToType, Unrefined};
+use crate::ext::{AsType, GenericCollector, GenericBoundKey, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, Split, ToPath, ToType, TypeCollector, Unrefined};
 use crate::formatter::{format_global_context, format_mixin_kinds};
 
 #[derive(Clone)]
@@ -48,7 +47,7 @@ impl GlobalContext {
         &self.config.mod_name
     }
     pub fn is_fermented_mod(&self, ident: &Ident) -> bool {
-        format_ident!("{}", self.fermented_mod_name()).eq(ident)
+        ident.eq(self.fermented_mod_name())
     }
 
 
@@ -129,7 +128,7 @@ impl GlobalContext {
             .map(|trait_model| {
                 let mut model = trait_model.clone();
                 // TODO: move to full and replace nested_arguments
-                let value = TypeModelKind::Object(TypeModel::new_non_nested(scope.to_type(), Some(trait_model.item.generics.clone())));
+                let value = TypeModelKind::Object(TypeModel::new_generic_non_nested(scope.to_type(), &trait_model.item.generics));
                 model.implementors.push(value);
                 (model, trait_scope.clone())
             })
@@ -254,13 +253,13 @@ impl GlobalContext {
     }
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> Option<&ScopeChain> {
-        let p = parse_quote!(#ty);
+        let p = GenericBoundKey::Path(parse_quote!(#ty));
         let search_key = ScopeSearchKey::maybe_from_ref(ty)?;
         if let Some(st) = self.maybe_object_ref_by_search_key_in_scope(search_key, current_scope) {
             let self_ty = st.maybe_type()?;
             let self_path: Path = self_ty.to_path();
             self.maybe_scope_ref(&self_path)
-        } else if let Some(import_path) = self.maybe_scope_import_path(current_scope, &p) {
+        } else if let Some(import_path) = self.maybe_scope_import_path_ref(current_scope, &p) {
             self.maybe_scope_ref(import_path)
         } else {
             None
@@ -272,11 +271,11 @@ impl GlobalContext {
 
 /// Imports
 impl GlobalContext {
-    pub fn maybe_scope_import_path(&self, scope: &ScopeChain, chunk: &Path) -> Option<&Path> {
+    pub fn maybe_scope_import_path_ref(&self, scope: &ScopeChain, chunk: &GenericBoundKey) -> Option<&Path> {
         self.imports.maybe_path(scope, chunk)
     }
 
-    pub fn maybe_imports_scope(&self, path: &Path) -> Option<&ScopeChain> {
+    pub fn maybe_imports_scope_ref(&self, path: &Path) -> Option<&ScopeChain> {
         self.imports
             .inner
             .keys()
@@ -284,14 +283,14 @@ impl GlobalContext {
 
     }
 
-    pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &Path) -> Option<&Path> {
+    pub fn maybe_import_path_ref(&self, scope: &ScopeChain, path: &GenericBoundKey) -> Option<&Path> {
         self.imports.maybe_import(scope, path)
     }
 
     pub fn maybe_import_scope_pair_ref(&self, scope_path_last_segment: &PathSegment, scope_path_candidate: &Path) -> Option<(&ScopeChain, &Path)> {
-        self.maybe_imports_scope(scope_path_candidate)
+        self.maybe_imports_scope_ref(scope_path_candidate)
             .and_then(|reexport_scope| {
-                let path: Path = parse_quote!(#scope_path_last_segment);
+                let path = GenericBoundKey::ident(&scope_path_last_segment.ident);
                 self.maybe_import_path_ref(reexport_scope, &path).map(|import| (reexport_scope, import))
             })
     }
@@ -406,7 +405,13 @@ impl RefineMut for GlobalContext {
                     }
 
                     if let Some(TypeModelKind::Bounds(bounds)) = object.maybe_type_model_kind_ref() {
-                        bounds.find_generic_constraints()
+                        let compositions = bounds.collect_compositions();
+                        let mut container = HashSet::<Type>::new();
+                        compositions
+                            .iter()
+                            .for_each(|field_type|
+                                field_type.collect_to(&mut container));
+                        container
                             .iter()
                             .for_each(|_ty| {
                                 refined_mixins.entry(MixinKind::Bounds(bounds.clone()))
@@ -468,7 +473,7 @@ impl GlobalContext {
     }
     pub fn maybe_object_ref_by_value<'a>(&'a self, ty: &'a Type) -> Option<&'a ObjectKind> {
         ScopeSearchKey::maybe_from_ref(ty)
-            .and_then(|search_key| self.maybe_object_ref_by_search_value(search_key))
+            .and_then(|search_key| self.maybe_object_ref_by_search_value(search_key.clone()))
     }
     fn maybe_local_scope_object_ref_by_key<'a>(&'a self, ty: &'a Type, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
         ScopeSearchKey::maybe_from_ref(ty)

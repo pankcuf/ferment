@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::hash::Hash;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 
 pub trait UniqueNestedItems {
@@ -18,51 +18,33 @@ impl<A, T, P> UniqueNestedItems for Punctuated<T, P>
         HashSet::from_iter(self.iter().flat_map(T::unique_nested_items))
     }
 }
-
-
 impl UniqueNestedItems for AngleBracketedGenericArguments {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.args.unique_nested_items()
     }
 }
 impl UniqueNestedItems for BareFnArg {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.ty.unique_nested_items()
     }
 }
-
-// impl UniqueNestedItems for Binding {
-//     type Item = Type;
-//
-//     fn unique_nested_items(&self) -> HashSet<Self::Item> {
-//         self.ty.unique_nested_items()
-//     }
-// }
-
 impl UniqueNestedItems for Constraint {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.bounds.unique_nested_items()
     }
 }
-
 impl UniqueNestedItems for Expr {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         // TODO: Implement this if need
         HashSet::new()
     }
 }
-
 impl UniqueNestedItems for GenericArgument {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         match self {
             GenericArgument::Type(ty) => ty.unique_nested_items(),
@@ -72,29 +54,22 @@ impl UniqueNestedItems for GenericArgument {
         }
     }
 }
-
 impl UniqueNestedItems for ParenthesizedGenericArguments {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         let mut involved = self.inputs.unique_nested_items();
         involved.extend(self.output.unique_nested_items());
         involved
     }
 }
-
-
 impl UniqueNestedItems for Path {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.segments.unique_nested_items()
     }
 }
-
 impl UniqueNestedItems for PathArguments {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         match self {
             PathArguments::AngleBracketed(args) => args.unique_nested_items(),
@@ -103,26 +78,20 @@ impl UniqueNestedItems for PathArguments {
         }
     }
 }
-
 impl UniqueNestedItems for PathSegment {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.arguments.unique_nested_items()
     }
 }
-
 impl UniqueNestedItems for QSelf {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.ty.unique_nested_items()
     }
 }
-
 impl UniqueNestedItems for ReturnType {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         match self {
             ReturnType::Type(_, ty) => ty.unique_nested_items(),
@@ -132,12 +101,13 @@ impl UniqueNestedItems for ReturnType {
 }
 impl UniqueNestedItems for Type {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         let mut involved = HashSet::from([]);
         match self {
             Type::Array(TypeArray { elem, .. }) |
-            Type::Slice(TypeSlice { elem, .. }) => {
+            Type::Slice(TypeSlice { elem, .. }) |
+            Type::Group(TypeGroup { elem, .. }) |
+            Type::Paren(TypeParen { elem, .. }) => {
                 involved.insert(self.clone());
                 involved.extend(elem.unique_nested_items());
             }
@@ -163,28 +133,18 @@ impl UniqueNestedItems for Type {
                 involved.insert(self.clone());
                 involved.extend(elems.unique_nested_items());
             },
-            Type::Group(TypeGroup { elem, .. }) => {
-                involved.insert(self.clone());
-                involved.extend(elem.unique_nested_items());
-            },
             _ => {}
         }
         involved
     }
 }
-
 impl UniqueNestedItems for TypeParamBound {
     type Item = Type;
-
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         match self {
             TypeParamBound::Trait(TraitBound { path, .. }) => {
-                println!("TypeParamBound: {}", path.to_token_stream());
                 let mut involved = HashSet::from([]);
-                let self_ty =  Type::Path(TypePath { qself: None, path: path.clone() });
-
-                // let self_ty = parse_quote!(#path);
-                involved.insert(self_ty);
+                involved.insert(Type::Path(TypePath { qself: None, path: path.clone() }));
                 involved.extend(path.unique_nested_items());
                 involved
             },

@@ -89,7 +89,7 @@ impl From<Type> for TypeKind {
                         "IndexSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "Vec" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "Result" if segments.len() == 1 => TypeKind::Generic(GenericTypeKind::Result(ty)),
-                        "Map" if first_ident.to_string().eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
+                        "Map" if first_ident.eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
                         "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
                         "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
@@ -128,15 +128,15 @@ impl From<Type> for TypeKind {
                         "HashSet" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "Vec" => TypeKind::Generic(GenericTypeKind::Group(ty)),
                         "Result" if segments.len() == 1 => TypeKind::Generic(GenericTypeKind::Result(ty)),
-                        "Map" if first_ident.to_string().eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
+                        "Map" if first_ident.eq("serde_json") => TypeKind::Generic(GenericTypeKind::Map(ty)),
                         "Option" => TypeKind::Generic(GenericTypeKind::Optional(ty)),
                         "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
                         "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
                         "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
-                        _ => segments.iter().find_map(|ff| match &ff.arguments {
-                            PathArguments::AngleBracketed(_) =>
-                                Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))),
-                            _ => None
+                        _ => segments.iter().find_map(|ff| if let PathArguments::AngleBracketed(..) = ff.arguments {
+                            Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone())))
+                        } else {
+                            None
                         }).unwrap_or_else(|| TypeKind::Complex(ty)),
                     }
                 },

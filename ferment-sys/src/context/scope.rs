@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
 use crate::kind::ObjectKind;
-use crate::ext::{ItemExtension, Join};
+use crate::ext::{GenericBoundKey, MaybeIdent, Join, MaybeGenerics};
 
 #[derive(Clone, Eq)]
 pub struct Scope {
@@ -53,10 +53,8 @@ impl Scope {
         Self::new(child_self_scope, object)
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
-        match &self.object {
-            ObjectKind::Item(_, item) => item.maybe_generic_bound_for_path(path),
-            _ => None
-        }
+    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, TypeParam)> {
+        self.object.maybe_scope_item()
+            .and_then(|item| item.maybe_generic_bound_for_path(path))
     }
 }

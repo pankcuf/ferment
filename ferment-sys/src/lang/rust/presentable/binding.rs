@@ -1,14 +1,14 @@
 use quote::{quote, ToTokens};
-use syn::{parse_quote, Expr, ExprAssign, ExprCall, Pat, ReturnType};
+use syn::{parse_quote, Expr, ExprAssign, ExprCall, Pat, ReturnType, Visibility};
 use syn::token::RArrow;
 use crate::ast::CommaPunctuated;
 use crate::composer::{NameKind, SourceComposable, CommaPunctuatedArgs, ConversionDropComposer, ConversionFromComposer};
 use crate::context::ScopeContext;
 use crate::kind::SmartPointerKind;
-use crate::ext::{Accessory, Mangle, Primitive, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, Mangle, Primitive, Terminated, ToPath, ToType, WrapInBraces};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, BindingPresentableContext, ScopeContextPresentable, SmartPointerPresentableContext};
-use crate::presentation::{present_pub_function, ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{present_pub_function, present_signature, ArgPresentation, BindingPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
     type Presentation = BindingPresentation;
@@ -101,7 +101,9 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 BindingPresentation::TraitVTableInnerFn {
                     attrs: attrs.clone(),
                     name: Name::<RustSpecification>::VTableInnerFn(ident.clone()).mangle_tokens_default(),
-                    name_and_args: quote!(unsafe extern "C" fn (#arguments)),
+                    name_and_args: present_signature(Visibility::Inherited, arguments.to_token_stream().wrap_in_rounds()),
+
+                    // quote!(unsafe extern "C" fn (#arguments)),
                     output_expression: return_type_conversion.clone(),
                 }
             },

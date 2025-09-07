@@ -12,3 +12,4 @@ impl ToType for FFIFullDictionaryPath<RustSpecification> {
         }
     }
 }
+

@@ -39,9 +39,7 @@ impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>
 }
 impl Mangle<MangleDefault> for Type {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        // println!("Mangle Type: {} --- {:?}", self.to_token_stream(), self);
-        let res = match self {
-            // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
+        match self {
             Type::Path(TypePath { path, .. }) =>
                 path.mangle_string(context),
             Type::Array(type_array) =>
@@ -56,15 +54,16 @@ impl Mangle<MangleDefault> for Type {
                 type_bare_fn.mangle_string(context),
             Type::Ptr(type_ptr) =>
                 type_ptr.mangle_string(context),
-            Type::TraitObject(type_trait_object) => type_trait_object.mangle_string(context),
+            Type::TraitObject(type_trait_object) =>
+                type_trait_object.mangle_string(context),
+            Type::ImplTrait(type_impl_trait) =>
+                type_impl_trait.mangle_string(context),
             ty =>
                 ty.to_path()
                     .get_ident()
                     .map(ToString::to_string)
                     .unwrap_or_default()
-        };
-        // println!("Mangle Type..222: {}", res);
-        res
+        }
     }
 }
 
@@ -94,27 +93,28 @@ impl Mangle<MangleDefault> for TypeArray {
 impl Mangle<MangleDefault> for TypeSlice {
     fn mangle_string(&self, context: MangleDefault) -> String {
         format!("Slice_{}", self.elem.mangle_string(context))
-        // format!("Vec_{}", self.elem.mangle_string(context))
     }
 }
 
+// impl Mangle<MangleDefault> for AddPunctuated<TypeParamBound> {
+//     fn mangle_string(&self, context: MangleDefault) -> String {
+//         self.iter().find_map(|b| match b {
+//             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
+//             _ => None,
+//         }).unwrap_or("Any".to_string())
+//     }
+// }
 impl Mangle<MangleDefault> for TypeTraitObject {
     fn mangle_string(&self, context: MangleDefault) -> String {
         // TODO: need mixins impl to process multiple bounds
-        self.bounds.iter().find_map(|b| match b {
-            TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            _ => None,
-        }).unwrap_or("Any".to_string())
+        self.bounds.mangle_string(context)
     }
 }
 
 impl Mangle<MangleDefault> for TypeImplTrait {
     fn mangle_string(&self, context: MangleDefault) -> String {
         // TODO: need mixins impl to process multiple bounds
-        self.bounds.iter().find_map(|b| match b {
-            TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            _ => None,
-        }).unwrap_or("Any".to_string())
+        self.bounds.mangle_string(context)
     }
 }
 
@@ -370,9 +370,9 @@ impl Mangle<MangleDefault> for GenericBoundsModel {
         if let Some(b) = self.bounds.first() {
             chunks.push(b.mangle_string(context));
         }
-        chunks.extend(self.predicates.iter()
-            .filter_map(|(_predicate, objects)| objects.first().map(|obj| obj.mangle_string(context)))
-        );
+        // chunks.extend(self.predicates.iter()
+        //     .filter_map(|(_predicate, objects)| objects.first().map(|obj| obj.mangle_string(context)))
+        // );
         // chunks.extend(self.predicates.iter()
         //     .map(|(_predicate, objects)|
         //         objects.iter()

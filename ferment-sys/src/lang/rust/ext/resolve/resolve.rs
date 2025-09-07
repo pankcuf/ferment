@@ -1,6 +1,7 @@
 use quote::{quote_spanned, ToTokens};
 use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeArray, TypeParamBound, TypePath};
 use syn::spanned::Spanned;
+use crate::ast::Colon2Punctuated;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, Resolve, ToPath, ToType};
 use crate::kind::{GenericTypeKind, SpecialType, TypeKind, TypeModelKind};
@@ -83,28 +84,24 @@ fn single_generic_ffi_full_path(ty: &Type) -> FFIFullPath<RustSpecification> {
     let path: Path = parse_quote!(#ty);
     match path.segments.first() {
         None => FFIFullPath::void(),
-        Some(PathSegment { ident: first_ident, .. }) => {
-            let mut cloned_segments = path.segments.clone();
-            match cloned_segments.iter_mut().last() {
-                None => FFIFullPath::void(),
-                Some(PathSegment { ident: last_ident, .. }) => if last_ident.is_primitive() {
-                    FFIFullPath::external(last_ident.to_path())
-                } else if last_ident.is_any_string() {
-                    FFIFullPath::c_char()
-                } else if last_ident.is_special_generic() ||
-                    (last_ident.is_result() && path.segments.len() == 1) ||
-                    // TODO: avoid this hardcode
-                    (last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json")) ||
-                    last_ident.is_smart_ptr() ||
-                    last_ident.is_lambda_fn() {
-                    FFIFullPath::generic(path.mangle_ident_default().to_path())
-                } else {
-                    let new_segments = cloned_segments
-                        .into_iter()
-                        .map(|segment| quote_spanned! { segment.span() => #segment })
-                        .collect::<Vec<_>>();
-                    FFIFullPath::external(parse_quote!(#(#new_segments)::*))
-                }
+        Some(PathSegment { ident: first_ident, .. }) => match path.segments.iter().last() {
+            None => FFIFullPath::void(),
+            Some(PathSegment { ident: last_ident, .. }) => if last_ident.is_primitive() {
+                FFIFullPath::external(last_ident.to_path())
+            } else if last_ident.is_any_string() {
+                FFIFullPath::c_char()
+            } else if last_ident.is_special_generic() ||
+                (last_ident.is_result() && path.segments.len() == 1) ||
+                // TODO: avoid this hardcode
+                (last_ident.eq("Map") && first_ident.eq("serde_json")) ||
+                last_ident.is_smart_ptr() ||
+                last_ident.is_lambda_fn() {
+                FFIFullPath::generic(path.mangle_ident_default().to_path())
+            } else {
+                let new_segments = Colon2Punctuated::from_iter(path.segments
+                    .into_iter()
+                    .map(|segment| quote_spanned! { segment.span() => #segment }));
+                FFIFullPath::external(parse_quote!(#new_segments))
             }
         }
     }

@@ -1,12 +1,12 @@
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature};
+use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature, TypePath};
 use syn::__private::TokenStream2;
 use crate::ast::{DelimiterTrait, Wrapped};
 use crate::composable::FnSignatureContext;
 use crate::composer::PunctuatedArgKinds;
 use crate::context::ScopeContext;
 use crate::kind::{GenericTypeKind, MixinKind};
-use crate::ext::{Accessory, Mangle, Resolve, ResolveTrait, ToType};
+use crate::ext::{Accessory, Join, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::presentable::ty_context::TypeContext;
 use crate::presentable::{Aspect, ScopeContextPresentable};
@@ -118,9 +118,9 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {
-                        let fn_name = &path.segments.last().unwrap().ident;
                         let self_ty = Resolve::<Type>::resolve(self_ty, source);
-                        parse_quote!(<#self_ty as #full_trait_ty>::#fn_name)
+                        let type_path: TypePath = parse_quote!(<#self_ty as #full_trait_ty>);
+                        Type::Path(type_path.joined(&path.segments.last().unwrap().ident))
                     }).unwrap_or_else(|| path.to_type()),
             Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) => {
                 let self_ty = Resolve::<Type>::resolve(self_ty, source);

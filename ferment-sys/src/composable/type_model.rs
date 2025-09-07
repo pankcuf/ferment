@@ -3,7 +3,7 @@ use quote::ToTokens;
 use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
 use crate::composable::{NestedArgument, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::ext::{AsType, CrateExtension, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor};
+use crate::ext::{AsType, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor, ArgsTransform};
 
 #[derive(Clone)]
 pub struct TypeModel {
@@ -43,11 +43,14 @@ impl From<Type> for TypeModel {
 }
 
 impl TypeModel {
+    fn new(ty: Type, generics: Option<Generics>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self { ty, generics, nested_arguments }
+    }
     pub fn new_default(ty: Type) -> Self {
         Self::new(ty, None, CommaPunctuatedNestedArguments::new())
     }
-    pub fn new_non_nested(ty: Type, generics: Option<Generics>) -> Self {
-        Self::new(ty, generics, CommaPunctuatedNestedArguments::new())
+    pub fn new_default_from_path(path: &Path) -> Self {
+        Self::new(path.to_type(), None, CommaPunctuatedNestedArguments::new())
     }
     pub fn new_nested(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::new(ty, None, nested_arguments)
@@ -55,12 +58,11 @@ impl TypeModel {
     pub fn new_generic(ty: Type, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::new(ty, Some(generics), nested_arguments)
     }
-    pub fn new_generic_non_nested(ty: Type, generics: Generics) -> Self {
-        Self::new_non_nested(ty, Some(generics))
+    pub fn new_generic_non_nested(ty: Type, generics: &Generics) -> Self {
+        Self::new(ty, Some(generics.clone()), CommaPunctuatedNestedArguments::new())
     }
-    fn new(ty: Type, generics: Option<Generics>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
-        Self { ty, generics, nested_arguments }
-    }
+}
+impl TypeModel {
     pub fn first_nested_argument(&self) -> Option<&NestedArgument> {
         self.nested_arguments_ref().first()
     }

@@ -150,30 +150,17 @@ impl ScopeContext {
         where SPEC: Specification,
               FFIFullDictionaryPath<SPEC>: ToType {
         let resolve_opaque = |path: &Path| {
-            let result = if path.is_void() {
+            if path.is_void() {
                 Some(FFIFullDictionaryPath::<SPEC>::Void.to_type())
             } else {
                 match self.maybe_scope_item_obj_first(path)
                     .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {
-                    Some(item) => {
-                        if item.is_labeled_for_export() || item.is_labeled_for_register() {
-                            None
-                        } else {
-                            Some(item.to_type())
-                        }
-                    },
-                    None => {
-                        if path.is_fermentable_dictionary_type() {
-                            None
-                        } else if path.is_primitive() {
-                            None
-                        } else {
-                            Some(ty.clone())
-                        }
-                    }
+                    Some(item) =>
+                        (!item.is_labeled_for_export() && !item.is_labeled_for_register()).then(|| item.scope().to_type()),
+                    None =>
+                        (!path.is_fermentable_dictionary_type() && !path.is_primitive()).then(|| ty.clone())
                 }
-            };
-            result
+            }
         };
         match ty {
             Type::Path(TypePath { path, .. }) =>
@@ -182,12 +169,10 @@ impl ScopeContext {
                 1 => match bounds.first()? {
                     TypeParamBound::Trait(TraitBound { path, .. }) =>
                         resolve_opaque(path)
-                            .map(|ty| {
-                                match &ty {
-                                    Type::ImplTrait(..) |
-                                    Type::TraitObject(..) => ty,
-                                    _ => parse_quote!(#dyn_token #ty),
-                                }
+                            .map(|ty| match &ty {
+                                Type::ImplTrait(..) |
+                                Type::TraitObject(..) => ty,
+                                _ => parse_quote!(#dyn_token #ty),
                             }),
                     _ =>
                         panic!("maybe_opaque_object::error::lifetime")
@@ -204,15 +189,15 @@ impl ScopeContext {
         result
     }
 
-    pub fn maybe_object_ref_by_key_in_scope(&self, search_key: ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
+    pub fn maybe_object_ref_by_key_in_scope(&self, search_key: &ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
-        let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope);
+        let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key.clone(), scope);
         result.cloned()
     }
 
-    pub fn maybe_object_ref_by_value(&self, search_key: ScopeSearchKey) -> Option<ObjectKind> {
+    pub fn maybe_object_ref_by_value(&self, search_key: &ScopeSearchKey) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
-        let result = lock.scope_register.maybe_object_ref_by_value(search_key);
+        let result = lock.scope_register.maybe_object_ref_by_value(search_key.clone());
         result.cloned()
     }
 
@@ -224,11 +209,11 @@ impl ScopeContext {
     pub fn maybe_object_by_predicate_ref(&self, predicate: &ScopeSearch) -> Option<ObjectKind> {
         match predicate {
             ScopeSearch::KeyInScope(search_key, scope) =>
-                self.maybe_object_ref_by_key_in_scope(search_key.clone(), scope),
+                self.maybe_object_ref_by_key_in_scope(search_key, scope),
             ScopeSearch::Value(search_key) =>
-                self.maybe_object_ref_by_value(search_key.clone()),
+                self.maybe_object_ref_by_value(search_key),
             ScopeSearch::KeyInComposerScope(search_key) => {
-                self.maybe_object_ref_by_key_in_scope(search_key.clone(), &self.scope)
+                self.maybe_object_ref_by_key_in_scope(search_key, &self.scope)
             }
         }
 

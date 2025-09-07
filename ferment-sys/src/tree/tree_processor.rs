@@ -37,10 +37,9 @@ impl FileTreeProcessor {
         Self { path, scope, context: context.clone(), attrs }
     }
     fn process(self) -> Result<Visitor, error::Error> {
-        let attrs = self.attrs.clone();
         //print_phase!("PHASE 1: PROCESS FILE", "{:?}", self.path);
         self.read_syntax_tree()
-            .map(|syntax_tree| self.setup_visitor(syntax_tree, attrs))
+            .map(|syntax_tree| self.setup_visitor(syntax_tree))
     }
     fn read_syntax_tree(&self) -> Result<syn::File, error::Error> {
         std::fs::read_to_string(&self.path)
@@ -61,8 +60,8 @@ impl FileTreeProcessor {
         }
         visitors
     }
-    fn setup_visitor(&self, syntax_tree: syn::File, attrs: Vec<Attribute>) -> Visitor {
-        let mut visitor = Visitor::new(self.scope.clone(), attrs, &self.context);
+    fn setup_visitor(&self, syntax_tree: syn::File) -> Visitor {
+        let mut visitor = Visitor::new(&self.scope, self.attrs.clone(), &self.context);
         visitor.visit_file(&syntax_tree);
         visitor.inner_visitors = self.to_inner_visitors(syntax_tree.items);
         visitor

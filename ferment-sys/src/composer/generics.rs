@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
-use syn::{GenericParam, parse_quote, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate, Type};
+use syn::{GenericParam, PredicateType, TraitBound, TypeParam, TypeParamBound, WherePredicate, Type};
 use crate::ast::AddPunctuated;
 use crate::composable::GenModel;
 use crate::composer::{SourceComposable, Linkable};
 use crate::context::ScopeContextLink;
+use crate::ext::ToType;
 use crate::lang::{LangGenSpecification, Specification};
 use crate::shared::SharedAccess;
 
@@ -45,27 +46,20 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
                 if let Some(refined_bounds) = lock.generics.maybe_generic_bounds(&context.scope, type_path) {
                     bounds.iter_mut()
                         .zip(refined_bounds)
-                        .for_each(|(b, rb)| match b {
-                            TypeParamBound::Trait(TraitBound { path, .. }) => {
-                                *path = rb.clone();
-                            },
-                            _ => {}
+                        .for_each(|(bound, refined_bound)| if let TypeParamBound::Trait(TraitBound { path, .. }) = bound {
+                            *path = refined_bound.clone();
                         });
                 }
             };
             g.params.iter_mut().for_each(|gp| match gp {
-                GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-                    let ident_path: Type = parse_quote!(#ident);
-                    update_bound(&ident_path, bounds);
-                }
+                GenericParam::Type(TypeParam { ident, bounds, .. }) =>
+                    update_bound(&ident.to_type(), bounds),
                 _ => {},
             });
             if let Some(ref mut wh) = g.where_clause {
                 wh.predicates.iter_mut().for_each(|wp| match wp {
-                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) => {
-                        let ident_path: Type = parse_quote!(#bounded_ty);
-                        update_bound(&ident_path, bounds);
-                    }
+                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
+                        update_bound(&bounded_ty, bounds),
                     _ => {}
                 })
             }

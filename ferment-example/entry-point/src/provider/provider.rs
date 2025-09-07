@@ -32,7 +32,9 @@ impl CoinJoinProvider  {
         session_lifecycle_listener2: SLL2,
         mixing_lifecycle_listener: MLL,
         context: *const c_void,
-    ) -> Self {
+    ) -> Self
+    // where GML: Fn(*const c_void) -> [u8; 32] + 'static
+    {
         Self {
             context,
             get_masternode_list: Arc::new(get_masternode_list),

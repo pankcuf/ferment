@@ -1,7 +1,7 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::{FnArg, PatType, Receiver, ReturnType, Signature};
 use syn::__private::TokenStream2;
-use syn::token::{Const, Semi};
+use syn::token::{Const, RArrow, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, ConversionFromComposer, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VarComposer, VTableComposer};
 use crate::context::ScopeContext;
@@ -71,7 +71,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                 let (out, presentable_output_conversion) = match &output {
                     ReturnType::Default => (ReturnType::Default, <RustSpecification as Specification>::Expr::simple(Semi::default())),
                     ReturnType::Type(_, ty) => (
-                        ReturnType::Type(Default::default(), Box::new(VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(&method_scope_context).to_type())),
+                        ReturnType::Type(RArrow::default(), Box::new(VarComposer::<RustSpecification>::key_ref_in_composer_scope(ty).compose(&method_scope_context).to_type())),
                         ConversionToComposer::<RustSpecification>::key_in_composer_scope(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj), ty)
                             .compose(&method_scope_context)
                     )
@@ -92,14 +92,13 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                     }
                 });
             });
-        let trait_ident = trait_ty.mangle_ident_default();
-        let name = Name::<RustSpecification>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ident);
+        let name = Name::<RustSpecification>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ty.mangle_ident_default());
         let full_trait_path: FFIFullPath<RustSpecification> = trait_ty.resolve(&source);
         let full_trait_type = full_trait_path.to_type();
         let mut fq_trait_vtable = full_trait_type.to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);
         let attrs = self.compose_attributes();
-        let result = BindingPresentation::StaticVTable {
+        BindingPresentation::StaticVTable {
             attrs: attrs.clone(),
             name: name.to_token_stream(),
             fq_trait_vtable: fq_trait_vtable.to_token_stream(),
@@ -120,7 +119,6 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                     name: Name::<RustSpecification>::TraitDestructor(target_type, full_trait_type),
                 }
             ])
-        };
-        result
+        }
     }
 }

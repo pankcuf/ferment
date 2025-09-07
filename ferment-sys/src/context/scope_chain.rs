@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
-use quote::{format_ident, ToTokens};
+use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam};
+use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam, PathSegment};
 use crate::composable::CfgAttributes;
 use crate::context::{Scope, ScopeInfo};
 use crate::kind::{ObjectKind, TypeModel};
-use crate::ext::{CRATE, CrateExtension, ResolveAttrs, ToPath, ToType, Join};
+use crate::ext::{CRATE, ResolveAttrs, ToPath, ToType, Join, GenericBoundKey, PathTransform, CrateBased};
 use crate::formatter::{format_attrs, format_token_stream};
 
 
@@ -106,7 +106,7 @@ impl PartialEq<Self> for ScopeChain {
 impl Hash for ScopeChain {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.variant_code().hash(state);
-        self.self_scope().hash(state);
+        self.self_scope_ref().hash(state);
     }
 }
 
@@ -234,11 +234,11 @@ impl ScopeChain {
     pub fn crate_ident_as_path(&self) -> Path {
         self.crate_ident_ref().to_path()
     }
-    pub fn self_scope(&self) -> &Scope {
+    pub fn self_scope_ref(&self) -> &Scope {
         &self.info().self_scope
     }
 
-    pub fn joined_path_holder(&self, ident: &Ident) -> Path {
+    pub fn joined_path(&self, ident: &Ident) -> Path {
         let scope = self.self_path_ref();
         let mut full_fn_path = scope.joined(ident);
         if scope.is_crate_based() {
@@ -248,12 +248,14 @@ impl ScopeChain {
     }
 
     pub fn self_path_ref(&self) -> &Path {
-        &self.self_scope().self_scope
+        &self.self_scope_ref().self_scope
     }
-    pub fn self_path(&self) -> Path {
-        self.self_path_ref().clone()
+    pub fn self_object_ref(&self) -> &ObjectKind {
+        &self.self_scope_ref().object
     }
-
+    pub fn self_object(&self) -> ObjectKind {
+        self.self_object_ref().clone()
+    }
     pub fn parent_scope(&self) -> Option<&ScopeChain> {
         match self {
             ScopeChain::CrateRoot { .. } |
@@ -266,7 +268,7 @@ impl ScopeChain {
     }
     pub fn parent_object(&self) -> Option<&ObjectKind> {
         self.parent_scope()
-            .map(|scope| &scope.self_scope().object)
+            .map(|scope| scope.self_object_ref())
     }
     pub fn obj_root_chain(&self) -> Option<&Self> {
         match self {
@@ -291,8 +293,8 @@ impl ScopeChain {
 
     pub(crate) fn is_crate_root(&self) -> bool {
         if let ScopeChain::CrateRoot { info, .. } = self {
-            if let Some(last_segment) = info.self_path().segments.last() {
-                return last_segment.ident == format_ident!("{CRATE}")
+            if let Some(PathSegment { ident, .. }) = info.self_path().segments.last() {
+                return ident.eq(CRATE)
             }
         }
         false
@@ -305,7 +307,7 @@ impl ScopeChain {
     pub fn has_same_parent(&self, other: &ScopeChain) -> bool {
         match self {
             ScopeChain::CrateRoot { info, .. } |
-            ScopeChain::Mod { info, .. } => info.crate_ident.eq(other.crate_ident_ref()) && info.self_scope.eq(other.self_scope()),
+            ScopeChain::Mod { info, .. } => info.crate_ident.eq(other.crate_ident_ref()) && info.self_scope.eq(other.self_scope_ref()),
             ScopeChain::Trait { parent, .. } |
             ScopeChain::Fn { parent, .. } |
             ScopeChain::Object { parent, .. } |
@@ -313,16 +315,16 @@ impl ScopeChain {
         }
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &Path) -> Option<(Generics, TypeParam)> {
+    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, TypeParam)> {
         match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,
             ScopeChain::Trait { info, .. } |
             ScopeChain::Object { info, .. } |
             ScopeChain::Impl { info, .. } =>
-                info.self_scope.maybe_generic_bound_for_path(path),
+                info.maybe_generic_bound_for_path(path),
             ScopeChain::Fn { info, parent, .. } =>
-                info.self_scope.maybe_generic_bound_for_path(path)
+                info.maybe_generic_bound_for_path(path)
                     .or_else(|| parent.maybe_generic_bound_for_path(path)),
         }
     }
@@ -331,7 +333,8 @@ impl ScopeChain {
 impl ResolveAttrs for ScopeChain {
     fn resolve_attrs(&self) -> Vec<Option<Attribute>> {
         match self {
-            ScopeChain::CrateRoot { info, .. } => info.attrs.cfg_attributes_or_none(),
+            ScopeChain::CrateRoot { info, .. } =>
+                info.attrs.cfg_attributes_or_none(),
             ScopeChain::Mod { info, parent, .. } |
             ScopeChain::Trait { info, parent, .. } |
             ScopeChain::Fn { info, parent, .. } |
@@ -342,5 +345,11 @@ impl ResolveAttrs for ScopeChain {
                 inherited_attrs
             }
         }
+    }
+}
+
+impl ToPath for ScopeChain {
+    fn to_path(&self) -> Path {
+        self.self_path_ref().clone()
     }
 }

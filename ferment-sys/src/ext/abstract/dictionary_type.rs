@@ -38,7 +38,7 @@ pub trait DictionaryType {
 
 impl DictionaryType for Ident {
     fn is_void(&self) -> bool {
-        self.to_string().eq("c_void")
+        self.eq("c_void")
     }
 
     fn is_digit(&self) -> bool {
@@ -51,17 +51,17 @@ impl DictionaryType for Ident {
     }
 
     fn is_bool(&self) -> bool {
-        self == "bool"
+        self.eq("bool")
     }
     fn is_str(&self) -> bool {
-        self == "str"
+        self.eq("str")
     }
 
     fn is_string(&self) -> bool {
-        self == "String"
+        self.eq("String")
     }
     fn is_vec(&self) -> bool {
-        self == "Vec"
+        self.eq("Vec")
     }
 
     fn is_smart_ptr(&self) -> bool {
@@ -80,7 +80,7 @@ impl DictionaryType for Ident {
     }
 
     fn is_result(&self) -> bool {
-        matches!(self.to_string().as_str(), "Result")
+        self.eq("Result")
     }
 
     fn is_map(&self) -> bool {
@@ -88,22 +88,22 @@ impl DictionaryType for Ident {
     }
 
     fn is_btree_set(&self) -> bool {
-        matches!(self.to_string().as_str(), "BTreeSet")
+        self.eq("BTreeSet")
     }
 
     fn is_hash_set(&self) -> bool {
-        matches!(self.to_string().as_str(), "HashSet")
+        self.eq("HashSet")
     }
 
     fn is_box(&self) -> bool {
-        matches!(self.to_string().as_str(), "Box")
+        self.eq( "Box")
     }
     fn is_cow(&self) -> bool {
-        matches!(self.to_string().as_str(), "Cow")
+        self.eq("Cow")
     }
 
     fn is_optional(&self) -> bool {
-        matches!(self.to_string().as_str(), "Option")
+        self.eq("Option")
     }
 
     fn is_lambda_fn(&self) -> bool {

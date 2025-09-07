@@ -13,7 +13,7 @@ use crate::ast::CommaPunctuated;
 use crate::composer::ItemComposerWrapper;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::kind::{MacroKind, ScopeItemKind};
-use crate::ext::{ItemExtension, ToType};
+use crate::ext::{MaybeAttrs, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ScopeContextPresentable, Expression};
 pub use self::composable::*;

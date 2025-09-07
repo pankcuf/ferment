@@ -42,17 +42,17 @@ impl SourceAccessible for ScopeTree {
 
 #[allow(unused)]
 pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
-    let crate_ident =  root_scope_chain.crate_ident_ref();
+    let rename =  root_scope_chain.crate_ident();
     let generics_scope_ident = format_ident!("generics");
     let generics_scope_chain = ScopeChain::r#mod(
-        ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(root_scope_chain.self_path_ref().joined(&generics_scope_ident))),
+        ScopeInfo::attr_less(rename.clone(), Scope::empty(root_scope_chain.self_path_ref().joined(&generics_scope_ident))),
         root_scope_chain.clone());
 
     create_scope_tree(
         generics_scope_chain.clone(),
         ScopeContext::cell_with(generics_scope_chain, global_context),
         HashSet::from_iter([
-            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: crate_ident.clone() }))
+            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename }))
         ]),
         IndexMap::new(),
         vec![]
