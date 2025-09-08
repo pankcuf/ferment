@@ -43,7 +43,7 @@ impl ToTokens for AttrWrapper {
 impl Display for AttrWrapper {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let attrs = &self.attrs;
-        f.write_str(format!("AttrWrapper({})", quote!(#(#attrs)*)).as_str())
+        f.write_fmt(format_args!("AttrWrapper({})", quote!(#(#attrs)*)))
     }
 }
 

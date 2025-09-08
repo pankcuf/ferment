@@ -88,12 +88,10 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty: ref full_ty, .. })))) =>
                     full_ty.maybe_first_nested_type()
                         .map(|first_nested_ty| SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, ffi_type, first_nested_ty)),
-                TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ty: ref full_ty, .. }))) => if let Some(first_nested_type_ref) = full_ty.maybe_first_nested_type_ref() {
-                    (!first_nested_type_ref.is_primitive())
-                        .then(|| SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, ffi_type, first_nested_type_ref.clone()))
-                } else {
-                    None
-                },
+                TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ty: ref full_ty, .. }))) =>
+                    full_ty.maybe_first_nested_type_ref()
+                        .and_then(|first_nested_type_ref| (!first_nested_type_ref.is_primitive())
+                            .then(|| SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, ffi_type, first_nested_type_ref.clone()))),
                 TypeModelKind::Bounds(..) =>
                     Some(SPEC::Expr::destroy_complex(field_path)),
                 TypeModelKind::Slice(TypeModel { ref ty, .. }) =>

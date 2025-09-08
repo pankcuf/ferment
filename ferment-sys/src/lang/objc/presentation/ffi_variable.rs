@@ -7,7 +7,7 @@ use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
-use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, GenericNestedArg, Mangle, MaybeTraitBound, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullPath, FFIVariable};
 
@@ -98,7 +98,15 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for GenericBoundsMode
         }
     }
 }
+impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TraitBound {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCSpecification, TokenStream2>> {
+        self.path.to_type().maybe_resolve(source)
+    }
 
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
+        self.path.to_type().resolve(source)
+    }
+}
 impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Type {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCSpecification, TokenStream2>> {
         Some(self.resolve(source))
@@ -120,11 +128,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for AddPunctuated<Typ
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-        let bound = self.iter().find_map(|bound| match bound {
-            TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-            _ => None
-        }).unwrap();
-        bound.resolve(source)
+        self.iter().find_map(|bound| bound.maybe_trait_bound().map(|TraitBound { path, .. }| path.to_type())).unwrap().resolve(source)
     }
 }
 

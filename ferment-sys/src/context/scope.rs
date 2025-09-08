@@ -13,7 +13,7 @@ pub struct Scope {
 
 impl Debug for Scope {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("Scope({}, {})", self.self_scope.to_token_stream(), self.object).as_str())
+        f.write_fmt(format_args!("Scope({}, {})", self.self_scope.to_token_stream(), self.object))
     }
 }
 

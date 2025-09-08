@@ -7,7 +7,6 @@ use syn::{Arm, Attribute, Expr, Field, Pat, Type, Visibility};
 #[derive(Clone, Debug)]
 #[allow(unused)]
 pub enum ArgPresentation {
-    // Pat(Pat),
     Field(Field),
     Arm(Arm),
     AttrTokens(Vec<Attribute>, TokenStream2),

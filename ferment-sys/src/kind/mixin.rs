@@ -12,10 +12,12 @@ pub enum MixinKind {
 
 impl Debug for MixinKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            MixinKind::Generic(kind) => format!("MixinKind::Generic({})", kind.to_token_stream()),
-            MixinKind::Bounds(model) => format!("MixinKind::Bounds({})", model),
-        }.as_str())
+        match self {
+            MixinKind::Generic(kind) =>
+                f.write_fmt(format_args!("MixinKind::Generic({})", kind.to_token_stream())),
+            MixinKind::Bounds(model) =>
+                f.write_fmt(format_args!("MixinKind::Bounds({})", model))
+        }
     }
 }
 impl Display for MixinKind {
@@ -46,5 +48,11 @@ impl Hash for MixinKind {
             MixinKind::Bounds(model) =>
                 model.hash(state)
         }
+    }
+}
+
+impl MixinKind {
+    pub fn bounds(bounds: &GenericBoundsModel) -> Self {
+        Self::Bounds(bounds.clone())
     }
 }

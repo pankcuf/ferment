@@ -8,7 +8,7 @@ use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModel
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::kind::{DictFermentableModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, PathTransform, Pop, ToPath, ToType};
+use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, MaybeTraitBound, PathTransform, Pop, ToPath, ToType};
 
 pub trait VisitScopeType<'a> where Self: Sized + 'a {
     type Source;
@@ -26,7 +26,7 @@ impl<'a> VisitScopeType<'a> for Type {
                 if let ReturnType::Type(_, ty) = output {
                     nested.push(NestedArgument::Object(ty.visit_scope_type(source)))
                 }
-                ObjectKind::model_type(TypeModelKind::FnPointer, TypeModel::new_nested(self.clone(), nested))
+                ObjectKind::model_type(TypeModelKind::FnPointer, TypeModel::new_nested_ref(self, nested))
 
             },
             Type::Path(type_path) => type_path.visit_scope_type(source),
@@ -45,7 +45,6 @@ impl<'a> VisitScopeType<'a> for Type {
                     }
                 }
                 obj
-
             },
             Type::Reference(type_reference) => {
                 let mut new_type_reference = type_reference.clone();
@@ -65,14 +64,14 @@ impl<'a> VisitScopeType<'a> for Type {
                 ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds }), nested_arguments))
             },
             Type::Array(TypeArray { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Array, TypeModel::new_nested(self.clone(), Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Array, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
             Type::Group(TypeGroup { elem, .. }) |
             Type::Paren(TypeParen { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(self.clone(), Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
             Type::Slice(TypeSlice { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Slice, TypeModel::new_nested(self.clone(), Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Slice, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
             Type::Tuple(TypeTuple { elems, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Tuple, TypeModel::new_nested(self.clone(), Punctuated::from_iter(elems.iter().map(|elem| NestedArgument::Object(elem.visit_scope_type(source)))))),
+                ObjectKind::model_type(TypeModelKind::Tuple, TypeModel::new_nested_ref(self, Punctuated::from_iter(elems.iter().map(|elem| NestedArgument::Object(elem.visit_scope_type(source)))))),
             ty => ObjectKind::unknown_type(ty.clone())
         }
     }
@@ -110,16 +109,13 @@ impl<'a> VisitScopeType<'a> for AddPunctuated<TypeParamBound> {
 
 fn collect_trait_bounds(ty: &Type, ident_path: &Type, bounds: &AddPunctuated<TypeParamBound>, source: &(&ScopeChain, &GlobalContext, Option<QSelf>)) -> Vec<ObjectKind> {
     let mut has_bound = false;
-    bounds.iter().filter_map(|b| match b {
-        TypeParamBound::Trait(TraitBound { path, .. }) => {
-            let has = ident_path.eq(ty);
-            if !has_bound && has {
-                has_bound = true;
-            }
-            has.then(|| path.visit_scope_type(source))
-        },
-        _ => None
-    }).collect()
+    bounds.iter().filter_map(|b| b.maybe_trait_bound().and_then(|TraitBound { path, .. }| {
+        let has = ident_path.eq(ty);
+        if !has_bound && has {
+            has_bound = true;
+        }
+        has.then(|| path.visit_scope_type(source))
+    })).collect()
 }
 
 fn create_generics_chain(ident: &Ident, bound: TypeParam, generics: &Generics, source: &(&ScopeChain, &GlobalContext, Option<QSelf>)) -> (Vec<ObjectKind>, IndexMap<Type, Vec<ObjectKind>>) {

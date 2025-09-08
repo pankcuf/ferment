@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Item, ParenthesizedGenericArguments, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, Item, ParenthesizedGenericArguments, Path, PathArguments, Signature, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::AddPunctuated;
-use crate::ext::DictionaryType;
+use crate::ext::{DictionaryType, MaybeAngleBracketedArgs, MaybeTraitBound};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 use crate::kind::ScopeItemKind;
 use crate::ext::visitor::TypeCollector;
 
@@ -33,18 +34,11 @@ impl GenericCollector for Type {
                 path.collect_to(generics);
                 if path.segments
                     .iter()
-                    .any(|seg| {
-                        let has_nested_types = match &seg.arguments {
-                            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => args.iter().any(|arg| match arg {
-                                GenericArgument::Type(..) => true,
-                                _ => false
-                            }),
-                            PathArguments::Parenthesized(ParenthesizedGenericArguments { .. }) => true,
-                            _ => false,
-                        };
-                        has_nested_types && !seg.is_optional()
+                    .any(|seg| !seg.is_optional() && match &seg.arguments {
+                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => args.iter().any(|arg| arg.maybe_generic_type().is_some()),
+                        PathArguments::Parenthesized(ParenthesizedGenericArguments { .. }) => true,
+                        _ => false,
                     }) {
-
                     generics.insert(self.clone());
                 }
             },
@@ -72,14 +66,9 @@ impl GenericCollector for Path {
     fn collect_to(&self, generics: &mut HashSet<Type>) {
         self.segments
             .iter()
-            .flat_map(|segment| match &segment.arguments {
-                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                    args.iter().filter_map(|arg| match arg {
-                        GenericArgument::Type(ty) => Some(ty),
-                        _ => None
-                    }).collect(),
-                _ => Vec::new(),
-            })
+            .flat_map(|segment| segment.maybe_angle_bracketed_args()
+                .map(MaybeGenericType::maybe_generic_type)
+                .unwrap_or_default())
             .for_each(|ty| ty.collect_to(generics));
     }
 }
@@ -92,11 +81,7 @@ impl GenericCollector for AddPunctuated<TypeParamBound> {
 
 impl GenericCollector for TypeParamBound {
     fn collect_to(&self, generics: &mut HashSet<Type>) {
-        match self {
-            TypeParamBound::Trait(trait_bound) =>
-                trait_bound.collect_to(generics),
-            _ => {}
-        }
+        self.maybe_trait_bound().map(|trait_bound| trait_bound.collect_to(generics));
     }
 }
 

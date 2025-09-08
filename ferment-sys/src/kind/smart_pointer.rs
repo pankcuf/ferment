@@ -100,7 +100,7 @@ impl SmartPointerKind {
 }
 impl Debug for SmartPointerKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("SmartPointerKind::{}({})", match self {
+        f.write_fmt(format_args!("SmartPointerKind::{}({})", match self {
             Self::Box(_) => "Box",
             Self::Rc(_) => "Rc",
             Self::Arc(_) => "Arc",

@@ -46,60 +46,60 @@ impl Display for InterfaceImplementation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             InterfaceImplementation::Default { objc_name, properties } => {
-                f.write_str(format!("@interface {objc_name} : NSObject\n").as_str())?;
+                f.write_fmt(format_args!("@interface {objc_name} : NSObject\n"))?;
                 for property in properties {
-                    f.write_str(format!("{};\n", property.to_token_stream().to_string()).as_str())?;
+                    f.write_fmt(format_args!("{};\n", property.to_token_stream()))?;
                 }
                 f.write_str("@end")
             }
             InterfaceImplementation::BindingsDeclaration { objc_name, c_name } => {
-                f.write_str(format!("@interface {objc_name} (Bindings_{c_name})\n").as_str())?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_ctor:({objc_name}*)obj;\n").as_str())?;
-                f.write_str(format!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref;\n").as_str())?;
+                f.write_fmt(format_args!("@interface {objc_name} (Bindings_{c_name})\n"))?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_ctor:({objc_name}*)obj;\n"))?;
+                f.write_fmt(format_args!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref;\n"))?;
                 f.write_str("@end")
             }
             InterfaceImplementation::BindingsImplementation { objc_name, c_name, to_conversions, property_names: properties } => {
-                f.write_str(format!("@implementation {objc_name} (Bindings_{c_name})\n").as_str())?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_ctor:({objc_name} *)obj {{\n").as_str())?;
+                f.write_fmt(format_args!("@implementation {objc_name} (Bindings_{c_name})\n"))?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_ctor:({objc_name} *)obj {{\n"))?;
                 for to_conversion in to_conversions {
-                    f.write_str(format!("\t{};\n", to_conversion).as_str())?;
+                    f.write_fmt(format_args!("\t{};\n", to_conversion))?;
                 }
-                f.write_str(format!("\treturn {c_name}_ctor({});\n", properties.to_token_stream().to_string()).as_str())?;
+                f.write_fmt(format_args!("\treturn {c_name}_ctor({});\n", properties.to_token_stream()))?;
                 f.write_str("}\n")?;
-                f.write_str(format!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str(format!("\t{c_name}_destroy(ffi_ref);\n").as_str())?;
+                f.write_fmt(format_args!("+ (void)ffi_dtor:(struct {c_name} *)ffi_ref {{\n"))?;
+                f.write_fmt(format_args!("\t{c_name}_destroy(ffi_ref);\n"))?;
                 f.write_str("}\n")?;
                 f.write_str("@end")
             }
             InterfaceImplementation::ConversionsDeclaration { objc_name, c_name } => {
-                f.write_str(format!("@interface {objc_name} (Conversions_{c_name})\n").as_str())?;
-                f.write_str(format!("+ ({objc_name} *)ffi_from:(struct {c_name} *)ffi_ref;\n").as_str())?;
-                f.write_str(format!("+ ({objc_name} * _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref;\n").as_str())?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_to:({objc_name} *)obj;\n").as_str())?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_to_opt:({objc_name} * _Nullable)obj;\n").as_str())?;
-                f.write_str(format!("+ (void)ffi_destroy:(struct {c_name} *)ffi_ref;\n").as_str())?;
+                f.write_fmt(format_args!("@interface {objc_name} (Conversions_{c_name})\n"))?;
+                f.write_fmt(format_args!("+ ({objc_name} *)ffi_from:(struct {c_name} *)ffi_ref;\n"))?;
+                f.write_fmt(format_args!("+ ({objc_name} * _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref;\n"))?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to:({objc_name} *)obj;\n"))?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to_opt:({objc_name} * _Nullable)obj;\n"))?;
+                f.write_fmt(format_args!("+ (void)ffi_destroy:(struct {c_name} *)ffi_ref;\n"))?;
                 f.write_str("@end")
             }
             InterfaceImplementation::ConversionsImplementation { objc_name, c_name, from_conversions_statements, to_conversions_statements, destroy_body } => {
-                f.write_str(format!("@implementation {objc_name} (Conversions_{c_name})\n").as_str())?;
-                f.write_str(format!("+ ({objc_name} *)ffi_from:(struct {c_name} *)ffi_ref {{\n").as_str())?;
+                f.write_fmt(format_args!("@implementation {objc_name} (Conversions_{c_name})\n"))?;
+                f.write_fmt(format_args!("+ ({objc_name} *)ffi_from:(struct {c_name} *)ffi_ref {{\n"))?;
                 if !from_conversions_statements.is_empty() {
-                    f.write_str(format!("\t{}\n", from_conversions_statements.to_string()).as_str())?;
+                    f.write_fmt(format_args!("\t{}\n", from_conversions_statements.to_string()))?;
                 }
                 f.write_str("}\n")?;
-                f.write_str(format!("+ ({objc_name} * _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref {{\n").as_str())?;
+                f.write_fmt(format_args!("+ ({objc_name} * _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref {{\n"))?;
                 f.write_str("\treturn ffi_ref ? [self ffi_from:ffi_ref] : nil;\n")?;
                 f.write_str("}\n")?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_to:({objc_name} *)obj {{\n").as_str())?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to:({objc_name} *)obj {{\n"))?;
                 if !to_conversions_statements.is_empty() {
-                    f.write_str(format!("\t{}\n", to_conversions_statements.to_string()).as_str())?;
+                    f.write_fmt(format_args!("\t{}\n", to_conversions_statements.to_string()))?;
                 }
                 f.write_str("}\n")?;
-                f.write_str(format!("+ (struct {c_name} *)ffi_to_opt:({objc_name} * _Nullable)obj {{\n").as_str())?;
+                f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to_opt:({objc_name} * _Nullable)obj {{\n"))?;
                 f.write_str("\treturn obj ? [self ffi_to:obj] : nil;\n")?;
                 f.write_str("}\n")?;
-                f.write_str(format!("+ (void)ffi_destroy:(struct {c_name} *)ffi_ref {{\n").as_str())?;
-                f.write_str(format!("\t{}\n", destroy_body.to_string()).as_str())?;
+                f.write_fmt(format_args!("+ (void)ffi_destroy:(struct {c_name} *)ffi_ref {{\n"))?;
+                f.write_fmt(format_args!("\t{}\n", destroy_body.to_string()))?;
                 f.write_str("}\n")?;
                 f.write_str("@end")
 

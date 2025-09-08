@@ -61,7 +61,7 @@ impl FileTreeProcessor {
         visitors
     }
     fn setup_visitor(&self, syntax_tree: syn::File) -> Visitor {
-        let mut visitor = Visitor::new(&self.scope, self.attrs.clone(), &self.context);
+        let mut visitor = Visitor::new(&self.scope, &self.attrs, &self.context);
         visitor.visit_file(&syntax_tree);
         visitor.inner_visitors = self.to_inner_visitors(syntax_tree.items);
         visitor

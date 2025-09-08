@@ -25,9 +25,9 @@ impl Debug for ScopeItemKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ScopeItemKind::Item(item, scope) =>
-                f.write_str(format!("Item({}, {})", format_token_stream(item.maybe_ident()), scope.to_token_stream()).as_str()),
+                f.write_fmt(format_args!("Item({}, {})", format_token_stream(item.maybe_ident()), scope.to_token_stream())),
             ScopeItemKind::Fn(Signature { ident, .. }, scope) =>
-                f.write_str(format!("Fn({}, {})", format_token_stream(&ident), scope.to_token_stream()).as_str()),
+                f.write_fmt(format_args!("Fn({}, {})", format_token_stream(&ident), scope.to_token_stream())),
         }
     }
 }

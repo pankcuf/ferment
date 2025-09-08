@@ -51,14 +51,7 @@ impl TypeModeled for GenericBoundsModel {
 
 impl Debug for GenericBoundsModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!(
-            "GenericBoundsModel(ty: {}, bounded_ty: {}, bounds: {:?}, nested_args: {})",
-            self.type_model,
-            // self.bounded_ty.to_token_stream(),
-            format_obj_vec(&self.bounds),
-            format_predicates_obj_dict(&self.predicates),
-            self.nested_arguments.to_token_stream()
-        ).as_str())
+        f.write_fmt(format_args!("GenericBoundsModel(ty: {}, bounded_ty: {}, bounds: {:?}, nested_args: {})", self.type_model, format_obj_vec(&self.bounds), format_predicates_obj_dict(&self.predicates), self.nested_arguments.to_token_stream()))
     }
 }
 
@@ -102,7 +95,7 @@ impl GenericBoundsModel {
     // }
     pub fn new(ident: &Ident, bounds: Vec<ObjectKind>, predicates: IndexMap<Type, Vec<ObjectKind>>, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self {
-            type_model: TypeModel::new_generic(ident.to_type(), generics, nested_arguments.clone()),
+            type_model: TypeModel::new_generic_ident(ident, generics, nested_arguments.clone()),
             bounds,
             predicates,
             nested_arguments,

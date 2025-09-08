@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, ToTokens};
@@ -79,7 +78,7 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub fn new(scope: &ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn new(scope: &ScopeChain, attrs: &Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
         Self {
             context: context.clone(),
             parent: scope.to_path(),
@@ -123,29 +122,38 @@ impl Visitor {
     pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
         let generics = create_generics_chain(self, generics, scope, add_to_parent);
         let mut lock = self.context.write().unwrap();
-        lock.generics.extend_in_scope(scope, generics)
+        lock.generics.extend_in_scope(scope, generics.inner)
     }
 
-    fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
+    pub(crate) fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
+    }
+    fn add_to_many_scopes(&self, types: TypeChain, scopes: &[&ScopeChain]) {
+        let mut lock = self.context.write().unwrap();
+        scopes.iter()
+            .for_each(|scope|
+                lock.scope_mut(scope)
+                    .add_many(types.inner.clone().into_iter()));
     }
     pub(crate) fn scope_add_one(&self, ty: Type, object: ObjectKind, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
     }
+    pub(crate) fn scope_add_self(&self, object: ObjectKind, scope: &ScopeChain) {
+        self.scope_add_one(parse_quote!(Self), object, scope)
+    }
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        trait_names.iter().for_each(|trait_name|
-            self.add_full_qualified_type_match(scope, &trait_name.to_type(), true));
+        trait_names.iter().for_each(|trait_name| self.add_full_qualified_type_match(scope, &trait_name.to_type(), true));
         let mut lock = self.context.write().unwrap();
-        lock.traits
-            .add_used_traits(scope, trait_names)
+        lock.traits.add_used_traits(scope, trait_names)
     }
 
-    pub(crate) fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
+    pub(crate) fn create_type_chain<N>(&self, ty: &N, scope: &ScopeChain) -> TypeChain
+    where N: UniqueNestedItems<Item = Type> {
         let context = self.context.read().unwrap();
         TypeChain::from(
             ty.unique_nested_items()
@@ -154,11 +162,6 @@ impl Visitor {
                     let object = ty.visit_scope_type(&(scope, &context));
                     (ty, object)
                 }))
-    }
-    pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
-        type_chains.into_iter()
-            .for_each(|(scope, type_chain)|
-                self.scope_add_many(type_chain, &scope));
     }
     pub(crate) fn add_full_qualified_type_chain(&mut self, scope: &ScopeChain, type_chain: TypeChain, add_to_parent: bool) {
         match scope {
@@ -180,17 +183,16 @@ impl Visitor {
                 }
             },
             ScopeChain::Fn { parent, .. } => match &**parent {
-                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
-                    self.scope_add_many(type_chain.clone(), scope);
-                    if add_to_parent {
-                        self.scope_add_many(type_chain, parent);
-                    }
+                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => if add_to_parent {
+                    self.add_to_many_scopes(type_chain, &[scope, parent])
+                } else {
+                    self.scope_add_many(type_chain, scope);
                 },
                 ScopeChain::Trait { parent: parent_parent_scope_chain, .. } |
                 ScopeChain::Object { parent: parent_parent_scope_chain, .. } |
                 ScopeChain::Impl { parent: parent_parent_scope_chain, .. } => {
-                    self.scope_add_many(type_chain.clone(), scope);
                     self.scope_add_one(parse_quote!(Self), scope.self_object(), scope);
+                    self.scope_add_many(type_chain.clone(), scope);
                     if add_to_parent {
                         self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
                         self.scope_add_many(type_chain, parent);
@@ -204,8 +206,7 @@ impl Visitor {
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type, add_to_parent: bool) {
-        let type_chain = self.create_type_chain(ty, scope);
-        self.add_full_qualified_type_chain(scope, type_chain, add_to_parent)
+        self.add_full_qualified_type_chain(scope, self.create_type_chain(ty, scope), add_to_parent)
     }
 
     fn find_scope_tree(&mut self, scope: &Path) -> &mut ScopeTreeExportItem {
@@ -213,7 +214,7 @@ impl Visitor {
         for ident in scope.segments.crate_less().iter().map(ScopeTreeID::from) {
             if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
                 if !exported.contains_key(&ident) {
-                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), attrs.clone()));
+                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), attrs));
                 }
                 current_tree = exported.get_mut(&ident).unwrap();
             }

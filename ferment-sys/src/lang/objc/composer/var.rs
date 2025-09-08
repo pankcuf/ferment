@@ -1,12 +1,12 @@
 use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeArray, TypeImplTrait, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use syn::spanned::Spanned;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer};
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
-use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, GenericNestedArg, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, MaybeTraitBound, Resolve, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
@@ -158,20 +158,14 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Path {
                 if last_ident.is_primitive() {
                     FFIVariable::direct(objc_primitive_from_path(self))
                 } else if last_ident.is_optional() {
-                    let result = match arguments {
-                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                            args.iter().find_map(|arg| match arg {
-                                GenericArgument::Type(ty) => match TypeKind::from(ty) {
-                                    TypeKind::Primitive(ty) => Some(FFIVariable::mut_ptr(ty.to_token_stream())),
-                                    TypeKind::Generic(generic_ty) => Some(FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&generic_ty, source).to_token_stream())),
-                                    TypeKind::Complex(Type::Path(TypePath { path, .. })) => Some(Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&path, source)),
-                                    _ => None
-                                },
-                                _ => None
-                            }),
-                        _ => None,
-                    };
-                    result.unwrap_or_else(|| FFIVariable::mut_ptr(self.to_token_stream()))
+                    arguments.maybe_angle_bracketed_args()
+                        .and_then(|args| args.maybe_generic_type())
+                        .and_then(|ty| match TypeKind::from(ty) {
+                            TypeKind::Primitive(ty) => Some(FFIVariable::mut_ptr(ty.to_token_stream())),
+                            TypeKind::Generic(generic_ty) => Some(FFIVariable::mut_ptr(Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&generic_ty, source).to_token_stream())),
+                            TypeKind::Complex(Type::Path(TypePath { path, .. })) => Some(Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&path, source)),
+                            _ => None
+                        }).unwrap_or_else(|| FFIVariable::mut_ptr(self.to_token_stream()))
                 } else if last_ident.is_special_generic() || (last_ident.is_result() /*&& path.segments.len() == 1*/) || (last_ident.eq("Map") && first_ident.eq("serde_json")) {
                     FFIVariable::mut_ptr(source.scope_type_for_path(self).map_or(self.to_token_stream(), |full_type| full_type.mangle_tokens_default()))
                 } else {
@@ -514,14 +508,10 @@ pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<Obj
                     FFIVariable::const_ptr(ty.to_token_stream()),
             },
         Type::TraitObject(TypeTraitObject { bounds, .. }) |
-            Type::ImplTrait(TypeImplTrait { bounds, .. }) => {
-            let maybe_bound = bounds.iter().find_map(|bound| match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-                _ => None
-            });
-            maybe_bound.map(|bound| bound.resolve(source))
-                .unwrap_or_else(|| FFIVariable::mut_ptr(bounds.to_token_stream()))
-        }
+            Type::ImplTrait(TypeImplTrait { bounds, .. }) =>
+            bounds.iter().find_map(MaybeTraitBound::maybe_trait_bound)
+                .map(|trait_bound| trait_bound.resolve(source))
+                .unwrap_or_else(|| FFIVariable::mut_ptr(bounds.to_token_stream())),
         ty => FFIVariable::direct(ty.mangle_tokens_default())
     }
 }
@@ -561,13 +551,10 @@ pub fn resolve_target_variable(ty: Type, source: &ScopeContext) -> FFIVariable<O
                 ty =>
                     FFIVariable::const_ptr(ty.to_token_stream()),
             },
-        Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) |
-        Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) =>
-            bounds.iter().find_map(|bound| match bound {
-                TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-                _ => None
-            })
-                .map(|bound| bound.resolve(source))
+        Type::TraitObject(TypeTraitObject { bounds, .. }) |
+        Type::ImplTrait(TypeImplTrait { bounds, .. }) =>
+            bounds.iter().find_map(MaybeTraitBound::maybe_trait_bound)
+                .map(|trait_bound| trait_bound.resolve(source))
                 .unwrap_or_else(|| FFIVariable::mut_ptr(bounds.to_token_stream())),
         ty => FFIVariable::direct(ty.mangle_tokens_default())
     }
@@ -831,18 +818,12 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             GenericTypeKind::TraitBounds(bounds) => {
                 println!("GenericTypeKind (TraitBounds): {}", bounds.to_token_stream());
                 match bounds.len() {
-                    1 => if let Some(TypeParamBound::Trait(trait_bound)) = bounds.first() {
-                        let ty = trait_bound.path.to_type();
-                        let maybe_special: Option<SpecialType<ObjCSpecification>> = ty.maybe_special_type(source);
-                        match maybe_special {
-                            Some(SpecialType::Opaque(..) | SpecialType::Custom(..)) =>
-                                FFIFullPath::external(trait_bound.path.clone()),
-                            _ =>
-                                FFIFullPath::generic(trait_bound.mangle_ident_default().to_path())
-                        }
-                    } else {
-                        FFIFullPath::generic(bounds.mangle_ident_default().to_path())
-                    }
+                    1 => bounds.first()
+                        .and_then(MaybeTraitBound::maybe_trait_bound)
+                        .map(|trait_bound| FFISpecialTypeResolve::<ObjCSpecification>::maybe_custom_or_opaque(&trait_bound.path.to_type(), source)
+                            .map(|_| FFIFullPath::external(trait_bound.path.clone()))
+                            .unwrap_or_else(|| FFIFullPath::generic(trait_bound.mangle_ident_default().to_path())))
+                        .unwrap_or_else(|| FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
                     _ => FFIFullPath::generic(bounds.mangle_ident_default().to_path())
                 }
             },

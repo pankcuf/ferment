@@ -55,10 +55,12 @@ impl ToTokens for NestedArgument {
 
 impl Debug for NestedArgument {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            NestedArgument::Object(obj) => format!("Object({})", obj),
-            NestedArgument::Constraint(obj) => format!("Constraint({})", obj)
-        }.as_str())
+        match self {
+            NestedArgument::Object(obj) =>
+                f.write_fmt(format_args!("Object({obj})")),
+            NestedArgument::Constraint(obj) =>
+                f.write_fmt(format_args!("Object({obj})")),
+        }
     }
 }
 

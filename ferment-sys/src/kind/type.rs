@@ -4,9 +4,8 @@ use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{GenericArgument, Path, PathArguments, PathSegment, Type, TypeImplTrait, TypePath, TypeReference, TypeTraitObject};
 use syn::parse::{Parse, ParseStream};
-use crate::ast::CommaPunctuated;
 use crate::kind::{CallbackKind, GenericTypeKind, SmartPointerKind};
-use crate::ext::{GenericNestedArg, Primitive};
+use crate::ext::{GenericNestedArg, MaybeAngleBracketedArgs, Primitive};
 use crate::presentable::ConversionExpressionKind;
 
 #[derive(Clone, Eq)]
@@ -18,11 +17,11 @@ pub enum TypeKind {
 
 impl Debug for TypeKind {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        f.write_str(match self {
-            TypeKind::Primitive(_) => format!("Primitive({})", self.to_token_stream()),
-            TypeKind::Complex(_) => format!("Complex({})", self.to_token_stream()),
-            TypeKind::Generic(_) => format!("Generic({})", self.to_token_stream())
-        }.as_str())
+        match self {
+            TypeKind::Primitive(_) => f.write_fmt(format_args!("Primitive({})", self.to_token_stream())),
+            TypeKind::Complex(_) => f.write_fmt(format_args!("Complex({})", self.to_token_stream())),
+            TypeKind::Generic(_) => f.write_fmt(format_args!("Generic({})", self.to_token_stream()))
+        }
     }
 }
 
@@ -94,17 +93,11 @@ impl From<Type> for TypeKind {
                         "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
                         "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
                         "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
-                        _ => segments.iter().find_map(|ff| match &ff.arguments {
-                            PathArguments::AngleBracketed(args) => {
-                                let non_lifetimes = CommaPunctuated::from_iter(args.args.iter().filter_map(|arg| if let GenericArgument::Lifetime(_) = arg { None } else { Some(arg) }));
-                                Some(if non_lifetimes.is_empty() {
-                                    TypeKind::Complex(ty.clone())
-                                } else {
-                                    TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))
-                                })
-                            },
-                            _ => None
-                        }).unwrap_or_else(|| TypeKind::Complex(ty))
+                        _ => segments.iter().find_map(|ff| ff.arguments.maybe_angle_bracketed_args().map(|args| if args.args.iter().any(|arg| if let GenericArgument::Lifetime(_) = arg { false } else { true }) {
+                            TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))
+                        } else {
+                            TypeKind::Complex(ty.clone())
+                        })).unwrap_or_else(|| TypeKind::Complex(ty))
                     },
                     _ => match last_ident.to_string().as_str() {
                         // std convertible
@@ -133,11 +126,10 @@ impl From<Type> for TypeKind {
                         "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
                         "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
                         "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
-                        _ => segments.iter().find_map(|ff| if let PathArguments::AngleBracketed(..) = ff.arguments {
-                            Some(TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone())))
-                        } else {
-                            None
-                        }).unwrap_or_else(|| TypeKind::Complex(ty)),
+                        _ => segments.iter()
+                            .find_map(MaybeAngleBracketedArgs::maybe_angle_bracketed_args)
+                            .map(|_| TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone())))
+                            .unwrap_or_else(|| TypeKind::Complex(ty)),
                     }
                 },
                 _ =>

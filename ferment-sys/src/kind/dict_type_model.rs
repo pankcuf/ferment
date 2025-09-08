@@ -44,7 +44,7 @@ impl TypeModeled for DictTypeModelKind {
 
 impl Debug for DictTypeModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             DictTypeModelKind::Primitive(ty) =>
                 format!("Primitive({})", ty),
             DictTypeModelKind::NonPrimitiveFermentable(ty) =>
@@ -53,7 +53,7 @@ impl Debug for DictTypeModelKind {
                 format!("NonPrimitiveOpaque({})", ty),
             DictTypeModelKind::LambdaFn(ty) =>
                 format!("LambdaFn({})", ty),
-        }.as_str())
+        }))
     }
 }
 

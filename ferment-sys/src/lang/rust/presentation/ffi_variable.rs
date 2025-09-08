@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
-use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
+use syn::{parse_quote, AngleBracketedGenericArguments, Path, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, Resolve, ToType};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
 use crate::lang::RustSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
@@ -205,23 +205,16 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for Path {
             } else if last_ident.is_128_digit() {
                 Some(FFIVariable::mut_ptr(parse_quote!([u8; 16])))
             } else if last_ident.is_optional() {
-                match arguments {
-                    PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                        args.iter().find_map(|arg| match arg {
-                            GenericArgument::Type(ty) => match TypeKind::from(ty) {
-                                TypeKind::Primitive(ty) =>
-                                    Some(FFIVariable::mut_ptr(ty.clone())),
-                                TypeKind::Generic(generic_ty) =>
-                                    Resolve::<FFIFullPath<RustSpecification>>::maybe_resolve(&generic_ty, source).map(|path| FFIVariable::mut_ptr(path.to_type())),
-                                TypeKind::Complex(Type::Path(TypePath { path, .. })) =>
-                                    Resolve::<FFIVariable<RustSpecification, Type>>::maybe_resolve(&path, source),
-                                _ => None
-                            },
-                            _ => None
-                        }),
-                    _ => None,
-                }
-
+                arguments.maybe_angle_bracketed_args()
+                    .and_then(|AngleBracketedGenericArguments { args, .. }| args.iter().find_map(|arg| arg.maybe_generic_type().and_then(|ty| match TypeKind::from(ty) {
+                    TypeKind::Primitive(ty) =>
+                        Some(FFIVariable::mut_ptr(ty.clone())),
+                    TypeKind::Generic(generic_ty) =>
+                        Resolve::<FFIFullPath<RustSpecification>>::maybe_resolve(&generic_ty, source).map(|path| FFIVariable::mut_ptr(path.to_type())),
+                    TypeKind::Complex(Type::Path(TypePath { path, .. })) =>
+                        Resolve::<FFIVariable<RustSpecification, Type>>::maybe_resolve(&path, source),
+                    _ => None
+                })))
             } else if last_ident.is_special_generic() || last_ident.is_result() || (last_ident.eq("Map") && first_ident.eq("serde_json")) {
                 Some(FFIVariable::mut_ptr(source.scope_type_for_path(self).map(|full_type| full_type.mangle_tokens_default().to_type()).unwrap_or_else(|| self.to_type())))
             } else {

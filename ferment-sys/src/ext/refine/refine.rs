@@ -7,6 +7,7 @@ use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 use crate::ext::{AsType, CRATE, DictionaryType, LifetimeProcessor, Pop, RefineMut, SELF, SUPER, ToPath, Join, PathTransform, CrateBased, ToPathSepSegments};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 
 #[allow(unused)]
 pub trait RefineInScope {
@@ -535,10 +536,7 @@ impl RefineWithNestedArgs for PathArguments {
             },
             PathArguments::AngleBracketed(AngleBracketedGenericArguments { ref mut args, .. }) =>
                 args.iter_mut()
-                    .filter_map(|arg| match arg {
-                        GenericArgument::Type(inner_ty) => Some(inner_ty),
-                        _ => None
-                    })
+                    .filter_map(GenericArgument::maybe_generic_type_mut)
                     .enumerate()
                     .for_each(|(index, arg)| if arg.refine_with_nested_arg(&nested_arguments[index]) {
                         did_refine = true;
@@ -553,17 +551,12 @@ impl RefineWithNestedArgs for PathArguments {
 /// Nested argument should be refined before
 impl RefineWithNestedArg for GenericArgument {
     fn refine_with_nested_arg(&mut self, nested_argument: &NestedArgument) -> bool {
-        match self {
-            GenericArgument::Type(inner_ty) => {
-                if let Some(ty) = nested_argument.object().maybe_type() {
-                    *inner_ty = ty;
-                    true
-                } else {
-                    false
-                }
-            },
-            _ => false
-        }
+        self.maybe_generic_type_mut().map(|inner_ty| if let Some(ty) = nested_argument.object().maybe_type() {
+            *inner_ty = ty;
+            true
+        } else {
+            false
+        }).unwrap_or_default()
     }
 }
 

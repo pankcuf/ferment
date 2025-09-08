@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::{Attribute, Field, Generics, ImplItemFn, ItemFn, Lifetime, Signature, TraitItemFn, Type, TypePtr};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
@@ -26,7 +25,7 @@ impl<SPEC> SigComposer<SPEC>
         attrs: AttrsModel,
         context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
         }));
         {
             let mut composer = root.borrow_mut();

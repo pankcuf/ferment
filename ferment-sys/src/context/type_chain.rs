@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use indexmap::IndexMap;
 use indexmap::map::OccupiedEntry;
 use quote::ToTokens;
-use syn::{Generics, Path, Type};
+use syn::{parse_quote, Generics, Path, Type};
 use crate::kind::ObjectKind;
 use crate::ext::{AsType, Constraints, ContainsSubType, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
@@ -66,6 +66,10 @@ impl Display for TypeChain {
 }
 
 impl TypeChain {
+
+    pub fn add_self(&mut self, obj: ObjectKind) {
+        self.insert(parse_quote!(Self), obj);
+    }
     pub fn insert(&mut self, ty: Type, obj: ObjectKind) {
         self.inner.insert(ty, obj);
     }

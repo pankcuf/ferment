@@ -1,6 +1,6 @@
 use syn::{BareFnArg, GenericParam, Generics, Path, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::{AddPunctuated, CommaPunctuated};
-use crate::ext::{ToPath, ToType};
+use crate::ext::{MaybeTraitBound, ToPath, ToType};
 
 pub trait ContainsBound {
     fn contains_bound(&self, bound: &Path) -> bool;
@@ -45,11 +45,7 @@ impl ContainsBound for CommaPunctuated<GenericParam> {
 }
 impl ContainsBound for AddPunctuated<TypeParamBound> {
     fn contains_bound(&self, bound: &Path) -> bool {
-        self.iter().any(|type_param_bound| match type_param_bound {
-            TypeParamBound::Trait(TraitBound { path, .. }) =>
-                path.eq(bound),
-            _ => false
-        })
+        self.iter().any(|type_param_bound| type_param_bound.maybe_trait_bound().is_some_and(|TraitBound { path, .. }| path.eq(bound)))
     }
 }
 
@@ -157,9 +153,6 @@ impl ContainsSubType for ReturnType {
 
 impl ContainsSubType for AddPunctuated<TypeParamBound> {
     fn contains_sub_type(&self, sub_type: &Type) -> bool {
-        self.iter().any(|type_param_bound| match type_param_bound {
-            TypeParamBound::Trait(TraitBound { path, .. }) => path.to_type().eq(sub_type),
-            _ => false
-        })
+        self.iter().any(|type_param_bound| type_param_bound.maybe_trait_bound().is_some_and(|TraitBound { path, .. }| path.to_type().eq(sub_type)))
     }
 }

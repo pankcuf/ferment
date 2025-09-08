@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
-use syn::{GenericArgument, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeTraitObject};
+use syn::{GenericArgument, Path, PathArguments, TraitBound, Type, TypePath, TypeTraitObject};
 use crate::context::{ScopeChain, TypeChain};
+use crate::ext::MaybeTraitBound;
 use crate::kind::ObjectKind;
 use crate::formatter::types_dict;
 
@@ -15,7 +16,7 @@ impl Debug for CustomResolver {
             .map(|(key, value)| format!("\t{}:\n\t\t{}", key, types_dict(&value.inner).join("\n\t\t")))
             .collect::<Vec<String>>();
         iter.sort();
-        f.write_str( iter.join("\n\n").as_str())
+        f.write_str(iter.join("\n\n").as_str())
     }
 }
 
@@ -69,14 +70,9 @@ impl CustomResolver {
             Type::Path(TypePath { path, .. }) => {
                 replace_segments(path)
             },
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                bounds.iter_mut().for_each(|bound| match bound {
-                    TypeParamBound::Trait(TraitBound { path, .. }) => {
-                        replace_segments(path);
-                    },
-                    _ => {}
-                })
-            },
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.iter_mut().for_each(|bound| {
+                bound.maybe_trait_bound_mut().map(|TraitBound { path, .. }| replace_segments(path));
+            }),
             _ => {}
         }
         replaced.then(|| custom_type)

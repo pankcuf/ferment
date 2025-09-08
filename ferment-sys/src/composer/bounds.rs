@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenericBoundsModel, GenModel, LifetimesModel};
@@ -24,7 +23,7 @@ impl<SPEC> BoundsComposer<SPEC>
     ) -> Self {
         Self {
             model: model.clone(),
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
         }
     }
 }

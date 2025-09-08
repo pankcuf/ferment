@@ -66,7 +66,7 @@ impl TypeModeled for DictFermentableModelKind {
 
 impl Debug for DictFermentableModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             DictFermentableModelKind::SmartPointer(model) =>
                 format!("SmartPointer({})", model),
             DictFermentableModelKind::Group(model) =>
@@ -83,7 +83,7 @@ impl Debug for DictFermentableModelKind {
                 format!("Digit128({})", model),
             DictFermentableModelKind::U128(model) =>
                 format!("Digit128({})", model),
-        }.as_str())
+        }))
     }
 }
 

@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
@@ -20,7 +19,7 @@ impl<SPEC> SmartPointerComposer<SPEC>
 where SPEC: Specification {
     pub fn new(root_kind: &SmartPointerKind, kind: SmartPointerKind, ty_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> Self {
         Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), AttrsModel::from(&attrs), ty_context, GenModel::default(), LifetimesModel::default(), Rc::clone(scope_context)),
             root_kind: root_kind.clone(),
             kind
         }

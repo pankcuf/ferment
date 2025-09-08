@@ -75,17 +75,16 @@ impl ToTokens for ArgPresentation {
 
 impl Display for ArgPresentation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             ArgPresentation::NonatomicReadwrite { ty, name } =>
-                format!("@property (nonatomic, readwrite) {} {}", ty.to_string(), name.to_string()),
+                f.write_fmt(format_args!("@property (nonatomic, readwrite) {ty} {name}")),
             ArgPresentation::NonatomicAssign { ty, name } =>
-                format!("@property (nonatomic, assign) {} {}", ty.to_string(), name.to_string()),
+                f.write_fmt(format_args!("@property (nonatomic, assign) {ty} {name}")),
             ArgPresentation::Initializer { field_name, field_initializer } =>
-                format!("obj.{} = {}", field_name.to_string(), field_initializer.to_string()),
-            ArgPresentation::AttrConversion { conversion } => {
-                format!("{}", conversion.to_string())
-            }
-        }.as_str())
+                f.write_fmt(format_args!("obj.{field_name} = {field_initializer}")),
+            ArgPresentation::AttrConversion { conversion } =>
+                f.write_str(conversion.to_string().as_str())
+        }
     }
 }
 impl From<&FieldComposer<ObjCSpecification>> for ArgPresentation {

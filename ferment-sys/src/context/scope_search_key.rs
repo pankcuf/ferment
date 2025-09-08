@@ -1,8 +1,8 @@
 use std::fmt::{Display, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{Path, TraitBound, Type, TypeParamBound, TypePath, TypePtr, TypeReference, TypeTraitObject};
-use crate::ext::ToType;
+use syn::{Path, TraitBound, Type, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use crate::ext::{MaybeTraitBound, ToType};
 use crate::lang::Specification;
 use crate::presentation::FFIVariable;
 
@@ -13,10 +13,12 @@ pub enum ScopeSearchKey {
 }
 impl Display for ScopeSearchKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Path(path, original) => format!("Path({}, {})", path.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default()),
-            Self::Type(ty, original) => format!("Type({}, {})", ty.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default()),
-        }.as_str())
+        match self {
+            Self::Path(path, original) =>
+                f.write_fmt(format_args!("Path({}, {})", path.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default())),
+            Self::Type(ty, original) =>
+                f.write_fmt(format_args!("Type({}, {})", ty.to_token_stream(), original.as_ref().map(|d| d.to_string()).unwrap_or_default())),
+        }
     }
 }
 
@@ -59,40 +61,22 @@ impl ScopeSearchKey {
         }
     }
     pub fn maybe_originally_is_ptr(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_const_ptr() || boxed_key.is_mut_ptr(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_const_ptr() || boxed_key.is_mut_ptr())
     }
     pub fn maybe_originally_is_const_ptr(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_const_ptr(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_const_ptr())
     }
     pub fn maybe_originally_is_mut_ptr(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_mut_ptr(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_mut_ptr())
     }
     pub fn maybe_originally_is_ref(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_ref(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_ref())
     }
     pub fn maybe_originally_is_mut_ref(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_mut_ref(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_mut_ref())
     }
     pub fn maybe_originally_is_dyn(&self) -> bool {
-        match self.maybe_original_key() {
-            Some(boxed_key) => boxed_key.is_dyn(),
-            _ => false
-        }
+        self.maybe_original_key().as_ref().is_some_and(|boxed_key| boxed_key.is_dyn())
     }
     pub fn maybe_ptr(&self) -> Option<&TypePtr> {
         match self {
@@ -123,7 +107,7 @@ impl ScopeSearchKey {
     }
     pub fn is_mut_ref(&self) -> bool {
         match self {
-            ScopeSearchKey::Type(Type::Reference(TypeReference { mutability: Some(_mutable), .. }), ..) => true,
+            ScopeSearchKey::Type(Type::Reference(TypeReference { mutability: Some(_), .. }), ..) => true,
             _ => false
         }
     }
@@ -136,20 +120,24 @@ impl ScopeSearchKey {
 }
 
 impl ScopeSearchKey {
+    pub fn trait_bound(trait_bound: &TraitBound, original: Self) -> Self {
+        Self::Path(trait_bound.path.clone(), Some(Box::new(original)))
+    }
+    pub fn r#type(ty: &Type, original: Self) -> Self {
+        Self::Type(ty.clone(), Some(Box::new(original)))
+    }
     pub fn maybe_from_ref(ty: &Type) -> Option<Self> {
         let original = ScopeSearchKey::Type(ty.clone(), None);
         match ty {
-            Type::TraitObject(TypeTraitObject { bounds , ..}) => match bounds.first()? {
-                TypeParamBound::Trait(TraitBound { path, .. }) =>
-                    Some(ScopeSearchKey::Path(path.clone(), Some(Box::new(original)))),
-                _ =>
-                    None
-            },
-            Type::Reference(TypeReference { elem: ty, .. }) |
-            Type::Ptr(TypePtr { elem: ty, .. }) =>
-                Some(ScopeSearchKey::Type(*ty.clone(), Some(Box::new(original)))),
+            Type::TraitObject(TypeTraitObject { bounds , ..}) =>
+                bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .map(|trait_bound| ScopeSearchKey::trait_bound(trait_bound, original)),
+            Type::Reference(TypeReference { elem, .. }) |
+            Type::Ptr(TypePtr { elem, .. }) =>
+                Some(ScopeSearchKey::r#type(elem, original)),
             ty =>
-                Some(ScopeSearchKey::Type(ty.clone(), Some(Box::new(original)))),
+                Some(ScopeSearchKey::r#type(ty, original)),
         }
 
     }
@@ -157,17 +145,14 @@ impl ScopeSearchKey {
         let original = ScopeSearchKey::Type(ty.clone(), None);
         match ty {
             Type::TraitObject(TypeTraitObject { bounds , .. }) => match bounds.len() {
-                1 => match bounds.first()? {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(ScopeSearchKey::Path(path.clone(), Some(Box::new(original)))),
-                    _ =>
-                        None
-                },
+                1 => bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .map(|trait_bound| ScopeSearchKey::trait_bound(trait_bound, original)),
                 _ => None
             },
-            Type::Reference(TypeReference { elem: ty, .. }) |
-            Type::Ptr(TypePtr { elem: ty, .. }) =>
-                Some(ScopeSearchKey::Type(*ty, Some(Box::new(original)))),
+            Type::Reference(TypeReference { elem, .. }) |
+            Type::Ptr(TypePtr { elem, .. }) =>
+                Some(ScopeSearchKey::Type(*elem, Some(Box::new(original)))),
             ty =>
                 Some(ScopeSearchKey::Type(ty, Some(Box::new(original)))),
         }

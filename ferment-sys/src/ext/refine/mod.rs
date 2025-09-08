@@ -3,10 +3,11 @@ mod lifetime;
 
 pub use lifetime::*;
 pub use refine::*;
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypeParamBound, TypePath, TypeTraitObject, TypeTuple, Path};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypePath, TypeTraitObject, TypeTuple, Path};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
+use crate::ext::MaybeTraitBound;
 
 pub trait RefineMut: Sized {
     type Refinement;
@@ -59,16 +60,17 @@ impl RefineMut for Type {
             Type::ImplTrait(TypeImplTrait { bounds, .. }) =>
                 bounds.iter_mut()
                     .zip(refined.iter())
-                    .for_each(|(bound, nested_arg)| if let TypeParamBound::Trait(TraitBound { path , ..}) = bound {
-                        match nested_arg.ty() {
-                            Some(Type::TraitObject(TypeTraitObject { bounds, .. }) |
-                                 Type::ImplTrait(TypeImplTrait { bounds, .. })) =>
-                                *path = parse_quote!(#bounds),
-                            Some(Type::Path(TypePath { path: bounds, .. })) =>
-                                *path = bounds.clone(),
-                            _ => {}
-                        }
-                }),
+                    .for_each(|(bound, nested_arg)| {
+                        bound.maybe_trait_bound_mut()
+                            .map(|TraitBound { path , ..}| match nested_arg.ty() {
+                                Some(Type::TraitObject(TypeTraitObject { bounds, .. }) |
+                                     Type::ImplTrait(TypeImplTrait { bounds, .. })) =>
+                                    *path = parse_quote!(#bounds),
+                                Some(Type::Path(TypePath { path: bounds, .. })) =>
+                                    *path = bounds.clone(),
+                                _ => {}
+                        });
+                    }),
             _ => {}
         }
     }
@@ -88,23 +90,18 @@ impl RefineMut for PathArguments {
 
         match self {
             PathArguments::None => {}
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
                 args.iter_mut()
                     .rev()
-                    .for_each(|arg| {
-                        match arg {
-                            GenericArgument::Type(inner_ty) => {
-                                refine(inner_ty)
-                            }
-                            _ => {}
-                        }
-                    });
-            }
-            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output, .. }) => {
-                match output {
-                    ReturnType::Default => {}
-                    ReturnType::Type(_, inner_ty) => refine(inner_ty)
-                }
+                    .for_each(|arg| if let GenericArgument::Type(inner_ty) = arg {
+                        refine(inner_ty)
+                    }),
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output: ReturnType::Default, .. }) =>
+                inputs.iter_mut()
+                    .rev()
+                    .for_each(|inner_ty| refine(inner_ty)),
+            PathArguments::Parenthesized(ParenthesizedGenericArguments { inputs, output: ReturnType::Type(_, inner_ty), .. }) => {
+                refine(inner_ty);
                 inputs.iter_mut()
                     .rev()
                     .for_each(|inner_ty| refine(inner_ty))

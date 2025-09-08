@@ -5,7 +5,7 @@ use crate::ast::{AddPunctuated, CommaPunctuated};
 use crate::composable::GenericBoundsModel;
 use crate::composer::MaybeMacroLabeled;
 use crate::kind::ScopeItemKind;
-use crate::ext::UniqueNestedItems;
+use crate::ext::{MaybeTraitBound, UniqueNestedItems};
 
 #[allow(unused)]
 pub struct MacroAttributes {
@@ -41,10 +41,9 @@ impl TypeCollector for AddPunctuated<TypeParamBound> {
 
 impl TypeCollector for TypeParamBound {
     fn collect_compositions(&self) -> HashSet<Type> {
-        match self {
-            TypeParamBound::Trait(trait_bound) => trait_bound.collect_compositions(),
-            _ => HashSet::default()
-        }
+        self.maybe_trait_bound()
+            .map(TypeCollector::collect_compositions)
+            .unwrap_or_default()
     }
 }
 

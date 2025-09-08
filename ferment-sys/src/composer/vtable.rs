@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::Attribute;
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
@@ -20,7 +19,7 @@ where SPEC: Specification {
     pub fn from_trait_path(ty_context: SPEC::TYC, attrs: &Vec<Attribute>, vtable_method_composers: Vec<SigComposerLink<SPEC>>, context: ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                DocComposer::new(ty_context.to_token_stream()),
+                DocComposer::from(&ty_context),
                 AttrsModel::from(attrs),
                 ty_context,
                 GenModel::default(),

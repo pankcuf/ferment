@@ -3,14 +3,14 @@ use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 use indexmap::IndexMap;
 use quote::{quote, ToTokens};
-use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type, TypeParamBound};
+use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type};
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::composer::{SigComposer, SigComposerLink};
 use crate::context::ScopeContextLink;
 use crate::kind::TypeModelKind;
-use crate::ext::{Join, ToType};
+use crate::ext::{Join, MaybeTraitBound, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
@@ -18,6 +18,12 @@ use crate::presentable::NameTreeContext;
 #[derive(Clone, Debug)]
 pub struct TraitBoundDecomposition {
     pub path: Path,
+}
+
+impl From<&TraitBound> for TraitBoundDecomposition {
+    fn from(value: &TraitBound) -> Self {
+        Self { path: value.path.clone() }
+    }
 }
 
 impl ToTokens for TraitBoundDecomposition {
@@ -44,12 +50,8 @@ impl TraitTypeModel {
         Self {
             ident: item_type.ident.clone(),
             trait_bounds: item_type.bounds.iter()
-                .filter_map(|bound| match bound {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(TraitBoundDecomposition { path: path.clone() }),
-                    _ =>
-                        None,
-                })
+                .filter_map(MaybeTraitBound::maybe_trait_bound)
+                .map(TraitBoundDecomposition::from)
                 .collect(),
         }
     }
@@ -65,7 +67,7 @@ pub struct TraitDecompositionPart1 {
 
 impl Display for TraitDecompositionPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("TraitDecompositionPart1({})", format_trait_decomposition_part1(self)).as_str())
+        f.write_fmt(format_args!("TraitDecompositionPart1({})", format_trait_decomposition_part1(self)))
     }
 }
 
@@ -139,8 +141,7 @@ pub struct TraitModelPart1 {
 
 impl Debug for TraitModelPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = self.implementors.iter().map(|i| format_token_stream(i)).collect::<Vec<_>>().join("\n\n");
-        f.write_str(format!("{}:\n  {}", format_token_stream(&self.item.ident), s).as_str())
+        f.write_fmt(format_args!("{}:\n  {}", format_token_stream(&self.item.ident), self.implementors.iter().map(format_token_stream).collect::<Vec<_>>().join("\n\n")))
     }
 }
 

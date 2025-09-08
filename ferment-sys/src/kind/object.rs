@@ -195,7 +195,7 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for ObjectKind
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>
-                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| SPEC::Name::unnamed_arg(index)))),
+                Some(CommaPunctuated::from_iter((0..inputs.len()).map(SPEC::Name::unnamed_arg))),
             _ => None
         }
     }
@@ -232,9 +232,9 @@ impl Debug for ObjectKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectKind::Type(tc) =>
-                f.write_str(format!("Type({})", tc).as_str()),
+                f.write_fmt(format_args!("Type({tc})")),
             ObjectKind::Item(tc, item) =>
-                f.write_str(format!("Item({}, {})", tc, item).as_str()),
+                f.write_fmt(format_args!("Item({tc}, {item})")),
             ObjectKind::Empty =>
                 f.write_str("Empty"),
         }
@@ -288,7 +288,7 @@ impl TryFrom<(&Item, &Path)> for ObjectKind {
         let item_kind = ScopeItemKind::item_ref(value, scope);
         match value {
             Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) =>
-                Ok(ObjectKind::new_trait_item(TraitModel::new(TypeModel::new_generic_non_nested(ident.to_type(), generics), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)), item_kind)),
+                Ok(ObjectKind::new_trait_item(TraitModel::new(TypeModel::new_generic_ident_non_nested(ident, generics), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)), item_kind)),
             Item::Const(ItemConst { ident, generics, .. }) |
             Item::Struct(ItemStruct { ident, generics, .. }) |
             Item::Enum(ItemEnum { ident, generics, .. }) |
@@ -297,7 +297,7 @@ impl TryFrom<(&Item, &Path)> for ObjectKind {
             Item::Type(ItemType { ident, generics, ty, .. }) =>
                 Ok(match &**ty {
                     Type::BareFn(..) =>
-                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic(ident.to_type(), generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics)))])), item_kind),
+                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic_ident(ident, generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics)))])), item_kind),
                     _ =>
                         ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)
                 }),

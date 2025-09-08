@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Pat, PatIdent, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Pat, PatIdent, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
 use crate::kind::ObjectKind;
-use crate::ext::{AsType, LifetimeProcessor, ToPath};
+use crate::ext::{AsType, LifetimeProcessor, MaybeGenericType, ToPath};
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -209,19 +209,19 @@ impl Mangle<(bool, bool)> for AngleBracketedGenericArguments {
     fn mangle_string(&self, context: (bool, bool)) -> String {
         self.args.iter()
             .enumerate()
-            .filter_map(|(i, gen_arg)| match gen_arg {
-                GenericArgument::Type(Type::Path(type_path)) =>
+            .filter_map(|(i, gen_arg)| gen_arg.maybe_generic_type().and_then(|ty| match ty {
+                Type::Path(type_path) =>
                     Some(type_path.mangle_string((context, i))),
-                GenericArgument::Type(Type::Array(type_array)) =>
+                Type::Array(type_array) =>
                     Some(type_array.mangle_string((context, i))),
-                GenericArgument::Type(Type::Slice(type_slice)) =>
+                Type::Slice(type_slice) =>
                     Some(type_slice.mangle_string_default()),
-                GenericArgument::Type(Type::Tuple(type_tuple)) =>
+                Type::Tuple(type_tuple) =>
                     Some(type_tuple.mangle_string_default()),
-                GenericArgument::Type(Type::TraitObject(type_trait_object)) =>
+                Type::TraitObject(type_trait_object) =>
                     Some(type_trait_object.mangle_string_default()),
                 _ => None
-            })
+                }))
             .collect::<Vec<_>>()
             .join("_")
     }

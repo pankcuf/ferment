@@ -25,7 +25,7 @@ pub struct Crate {
 
 impl Display for Crate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("Crate: {} ({:?})", self.name, self.root_path).as_str())
+        f.write_fmt(format_args!("Crate: {} ({:?})", self.name, self.root_path))
     }
 }
 impl Crate {

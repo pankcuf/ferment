@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
@@ -67,11 +66,11 @@ impl<SPEC> ImplComposer<SPEC>
         });
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                DocComposer::new(ty_context.to_token_stream()),
+                DocComposer::from(&ty_context),
                 attrs_model,
                 ty_context.clone(),
-                GenModel::new(Some(generics.clone())),
-                LifetimesModel::new(vec![]),
+                GenModel::from(generics),
+                LifetimesModel::default(),
                 Rc::clone(scope_context)),
             methods: methods.clone(),
             vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, vtable_method_composers, Rc::clone(scope_context)))

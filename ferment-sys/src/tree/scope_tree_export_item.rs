@@ -51,10 +51,10 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(ctx, ..) => ctx.borrow().scope.clone(),
         }
     }
-    pub fn tree_with_context_and_exports(context: ScopeContextLink, attrs: Vec<Attribute>) -> Self {
-        Self::Tree(context, HashSet::default(), IndexMap::default(), attrs)
+    pub fn tree_with_context_and_exports(context: ScopeContextLink, attrs: &Vec<Attribute>) -> Self {
+        Self::Tree(context, HashSet::default(), IndexMap::default(), attrs.clone())
     }
-    pub fn tree_with_context(scope: &ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: Vec<Attribute>) -> Self {
+    pub fn tree_with_context(scope: &ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: &Vec<Attribute>) -> Self {
         Self::tree_with_context_and_exports(ScopeContext::cell_with(scope.clone(), context), attrs)
     }
     pub fn item_with_context(scope: &ScopeChain, item: &Item, context: Arc<RwLock<GlobalContext>>) -> Self {
@@ -100,7 +100,7 @@ impl ScopeTreeExportItem {
 
     fn add_mod_item(&mut self, item_mod: &ItemMod, scope: &ScopeChain) {
         let ItemMod { attrs, ident, content, .. } = item_mod;
-        let new_export_item = |context: &mut ScopeContextLink| Self::tree_with_context(scope, context.borrow().context.clone(), attrs.clone());
+        let new_export_item = |context: &mut ScopeContextLink| Self::tree_with_context(scope, context.borrow().context.clone(), attrs);
         match content {
             Some((_, items)) => match self {
                 Self::Item(context, _) => {

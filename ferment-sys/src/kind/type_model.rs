@@ -239,7 +239,7 @@ impl ToType for TypeModelKind {
 
 impl Debug for TypeModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             TypeModelKind::Trait(model) =>
                 format!("Trait({model})"),
             TypeModelKind::Object(ty) =>
@@ -266,7 +266,7 @@ impl Debug for TypeModelKind {
                 format!("FnPointer({ty})"),
             TypeModelKind::Dictionary(ty) =>
                 format!("Dictionary({ty})"),
-        }.as_str())
+        }))
     }
 }
 

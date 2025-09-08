@@ -71,11 +71,11 @@ impl<SPEC> EnumComposer<SPEC>
             }).unzip();
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                DocComposer::new(ty_context.to_token_stream()),
+                DocComposer::from(&ty_context),
                 AttrsModel::from(attrs),
                 ty_context,
-                GenModel::new(Some(generics.clone())),
-                LifetimesModel::new(vec![]),
+                GenModel::from(generics),
+                LifetimesModel::default(),
                 Rc::clone(context)
             ),
             variant_composers: variant_composers.0,

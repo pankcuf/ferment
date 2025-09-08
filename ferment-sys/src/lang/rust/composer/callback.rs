@@ -1,12 +1,12 @@
 use quote::{quote, ToTokens};
-use syn::{parse_quote, BareFnArg, Lifetime, ParenthesizedGenericArguments, PathSegment, ReturnType, Type, TypeBareFn, TypeParamBound};
+use syn::{parse_quote, BareFnArg, Lifetime, ParenthesizedGenericArguments, ReturnType, Type, TypeBareFn};
 use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, CallbackComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::kind::{CallbackKind, FieldTypeKind, GenericTypeKind, SpecialType, TypeKind};
-use crate::ext::{Accessory, AsType, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, AsType, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, MaybeParenthesizedArgs, MaybeTraitBound, Resolve, ToType};
 use crate::lang::{FromDictionary, RustSpecification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name};
@@ -21,24 +21,21 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
         let (inputs, output) = match kind {
             CallbackKind::FnOnce(Type::TraitObject(trait_object)) |
             CallbackKind::Fn(Type::TraitObject(trait_object)) |
-            CallbackKind::FnMut(Type::TraitObject(trait_object)) => {
-                trait_object.bounds.iter().find_map(|bound| if let TypeParamBound::Trait(trait_bound) = bound {
-                    let PathSegment { arguments, .. } = trait_bound.path.segments.last()?;
-                    let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
-                    Some((inputs, output))
-                } else { None }).unwrap()
-            }
-
+            CallbackKind::FnMut(Type::TraitObject(trait_object)) =>
+                trait_object.bounds.iter()
+                    .find_map(MaybeTraitBound::maybe_trait_bound)
+                    .and_then(|trait_bound| trait_bound.path.segments.last())
+                    .and_then(MaybeParenthesizedArgs::maybe_parenthesized_args)
+                    .map(|ParenthesizedGenericArguments { inputs, output, .. }| (inputs.clone(), output.clone()))?,
             CallbackKind::FnPointer(Type::BareFn(TypeBareFn { inputs, output, .. })) =>
                 (inputs.iter().map(|b| b.ty.clone()).collect(), output.clone()),
             CallbackKind::FnOnce(Type::Path(path)) |
             CallbackKind::Fn(Type::Path(path)) |
             CallbackKind::FnMut(Type::Path(path)) |
             CallbackKind::FnPointer(Type::Path(path)) => {
-                let PathSegment { arguments, .. } = path.path.segments.last()?;
-                let ParenthesizedGenericArguments { inputs, output, .. } = parse_quote!(#arguments);
-                (inputs, output)
-            },
+                let ParenthesizedGenericArguments { inputs, output, .. } = path.path.segments.last()?.maybe_parenthesized_args()?;
+                (inputs.clone(), output.clone())
+            }
             _ => panic!("Unsupported callback kind: {kind:?}")
         };
         let ffi_result = DictionaryName::FFiResult;

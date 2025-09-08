@@ -1,10 +1,11 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeReference, TypeTraitObject};
+use syn::{parse_quote, Path, TraitBound, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
-use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType, Join};
+use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType, Join, MaybeTraitBound, MaybeAngleBracketedArgs};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
@@ -100,10 +101,9 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
                 Some(FFIFullPath::generic(self.mangle_ident_default().to_path())),
             Type::TraitObject(TypeTraitObject { bounds, .. }) => match bounds.len() {
                 0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
-                1 => match bounds.first()? {
-                    TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
-                    _ => None,
-                },
+                1 => bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .and_then(|TraitBound { path, .. }| path.maybe_resolve(source)),
                 _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
             },
             _ => None
@@ -190,15 +190,9 @@ where SPEC: Specification {
             last_ident.eq("Map") && first_ident.eq("serde_json") || last_ident.is_lambda_fn() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
-            match &last_segment.arguments {
-                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                    args.iter().find_map(|arg| match arg {
-                        GenericArgument::Type(ty) =>
-                            ty.maybe_resolve(source),
-                        _ => None
-                    }),
-                _ => None
-            }
+            last_segment.maybe_angle_bracketed_args()
+                .and_then(MaybeGenericType::maybe_generic_type)
+                .and_then(|ty| ty.maybe_resolve(source))
         } else if last_ident.is_smart_ptr() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else {

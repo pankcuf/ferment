@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
+use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypePath, TypeTraitObject, ItemTrait};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
 use crate::kind::{ObjectKind, ScopeItemKind, SpecialType, TypeModelKind};
-use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs, MaybeTraitBound};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -166,17 +166,14 @@ impl ScopeContext {
             Type::Path(TypePath { path, .. }) =>
                 resolve_opaque(path),
             Type::TraitObject(TypeTraitObject { dyn_token, bounds, .. }) => match bounds.len() {
-                1 => match bounds.first()? {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        resolve_opaque(path)
-                            .map(|ty| match &ty {
-                                Type::ImplTrait(..) |
-                                Type::TraitObject(..) => ty,
-                                _ => parse_quote!(#dyn_token #ty),
-                            }),
-                    _ =>
-                        panic!("maybe_opaque_object::error::lifetime")
-                },
+                1 => bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .and_then(|TraitBound { path, .. }| resolve_opaque(path))
+                    .map(|ty| match &ty {
+                        Type::ImplTrait(..) |
+                        Type::TraitObject(..) => ty,
+                        _ => parse_quote!(#dyn_token #ty),
+                    }),
                 _ => None
             },
             _ => None

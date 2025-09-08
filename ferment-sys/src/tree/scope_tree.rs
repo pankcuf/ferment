@@ -23,7 +23,7 @@ pub struct ScopeTree {
 }
 impl Debug for ScopeTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("ScopeTree({})", format_tree_item_dict(&self.exported)).as_str())
+        f.write_fmt(format_args!("ScopeTree({})", format_tree_item_dict(&self.exported)))
     }
 }
 

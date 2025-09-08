@@ -61,17 +61,18 @@ pub enum CfgMacroType {
 
 impl Display for CfgMacroType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             CfgMacroType::Feature(feat) =>
-                format!("feature = \"{}\"", feat),
-            CfgMacroType::Test => "test".to_string(),
+                f.write_fmt(format_args!("feature = \"{}\"", feat)),
+            CfgMacroType::Test =>
+                f.write_str("test"),
             CfgMacroType::Not(cond) =>
-                format!("not({})", cond.to_string()),
-            CfgMacroType::Any(conds) =>
-                format!("any({})", conds.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ")),
-            CfgMacroType::All(conds) =>
-                format!("all({})", conds.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ")),
-        }.as_str())
+                f.write_fmt(format_args!("not({}))", cond)),
+            CfgMacroType::Any(conditions) =>
+                f.write_fmt(format_args!("any({}))", Vec::from_iter(conditions.iter().map(CfgMacroType::to_string)).join(", "))),
+            CfgMacroType::All(conditions) =>
+                f.write_fmt(format_args!("all({}))", Vec::from_iter(conditions.iter().map(CfgMacroType::to_string)).join(", "))),
+        }
     }
 }
 
@@ -219,26 +220,16 @@ pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<M
         Punctuated::new()
     } else {
         let mut all_conditions = vec![];
-
-        for attr in attrs {
-            if let Some(attr) = attr {
-                if attr.path().is_ident("cfg") {
-                    match &attr.meta {
-                        Meta::List(meta_list) => {
-                            if let Ok(parsed) = CommaPunctuated::<Meta>::parse_terminated.parse2(meta_list.tokens.clone()) {
-                                for meta in parsed {
-                                    all_conditions.extend(CfgMacroType::from_meta(&meta));
-                                }
-                            }
-                        }
-                        meta => {
-                            all_conditions.extend(CfgMacroType::from_meta(&meta));
-                        }
-                    }
+        attrs.iter().for_each(|attr| match attr {
+            Some(Attribute { meta, .. }) if meta.path().is_ident("cfg") => match meta {
+                Meta::List(meta_list) => if let Ok(parsed) = CommaPunctuated::<Meta>::parse_terminated.parse2(meta_list.tokens.clone()) {
+                    parsed.iter().for_each(|meta| all_conditions.extend(CfgMacroType::from_meta(meta)))
                 }
+                meta =>
+                    all_conditions.extend(CfgMacroType::from_meta(&meta))
             }
-        }
-
+            _ => {}
+        });
         merge_cfg_conditions(all_conditions)
             .iter()
             .map(CfgMacroType::to_meta)

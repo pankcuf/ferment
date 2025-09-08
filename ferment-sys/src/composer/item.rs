@@ -47,7 +47,7 @@ impl<SPEC, I> ItemComposer<SPEC, I>
         + FFIConversionsSpec<SPEC, ComposerLink<Self>>
         + ItemComposerSpec<SPEC> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
             fields_from_composer: <C as FFIFieldsSpec<SPEC, ComposerLink<Self>>>::FROM,
             fields_to_composer: <C as FFIFieldsSpec<SPEC, ComposerLink<Self>>>::TO,
             bindings_composer: <C as FFIBindingsSpec<SPEC, ComposerLink<Self>, ArgKindPairs<SPEC>>>::COMPOSER,

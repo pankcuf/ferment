@@ -1,9 +1,9 @@
 use quote::{quote_spanned, ToTokens};
-use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeArray, TypeParamBound, TypePath};
+use syn::{parse_quote, AngleBracketedGenericArguments, Path, PathArguments, PathSegment, Type, TypeArray, TypeParamBound, TypePath};
 use syn::spanned::Spanned;
 use crate::ast::Colon2Punctuated;
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, MaybeGenericType, Resolve, ToPath, ToType};
 use crate::kind::{GenericTypeKind, SpecialType, TypeKind, TypeModelKind};
 use crate::lang::RustSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
@@ -47,13 +47,10 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
                 _ => FFIFullPath::generic(tuple.mangle_ident_default().to_path())
             }
             GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
-                Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
-                    Some(GenericArgument::Type(ty)) => match TypeKind::from(ty) {
-                        TypeKind::Generic(gen) => gen.resolve(source),
-                        _ => single_generic_ffi_full_path(ty),
-                    },
-                    _ => panic!("TODO: Non-supported optional type as generic argument (PathArguments::AngleBracketed: Empty): {}", segments.to_token_stream()),
-                },
+                Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => args.first().and_then(MaybeGenericType::maybe_generic_type).map(|ty| match TypeKind::from(ty) {
+                    TypeKind::Generic(gen) => gen.resolve(source),
+                    _ => single_generic_ffi_full_path(ty),
+                }).unwrap(),
                 Some(PathSegment { arguments: PathArguments::Parenthesized(args), .. }) =>
                     FFIFullPath::Generic { ffi_name: args.mangle_ident_default().to_path() },
                 _ => unimplemented!("TODO: Non-supported optional type as generic argument (Empty last segment): {}", segments.to_token_stream()),

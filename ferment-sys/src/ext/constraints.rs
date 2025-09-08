@@ -1,6 +1,7 @@
 use proc_macro2::Ident;
-use syn::{AngleBracketedGenericArguments, AssocConst, AssocType, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, Stmt, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, AssocConst, AssocType, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, Stmt, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
+use crate::ext::MaybeTraitBound;
 
 pub trait Constraints {
     fn has_self(&self) -> bool;
@@ -33,11 +34,13 @@ impl Constraints for QSelf {
 
 impl Constraints for TypeParamBound {
     fn has_self(&self) -> bool {
-        if let TypeParamBound::Trait(bound) = self {
-            bound.path.has_self()
-        } else {
-            false
-        }
+        self.maybe_trait_bound().is_some_and(Constraints::has_self)
+    }
+}
+
+impl Constraints for TraitBound {
+    fn has_self(&self) -> bool {
+        self.path.has_self()
     }
 }
 

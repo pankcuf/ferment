@@ -27,9 +27,9 @@ impl Debug for LocalTypeKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             LocalTypeKind::Bound(ty) =>
-                f.write_str(format!("Bound({})", ty.to_token_stream()).as_str()),
+                f.write_fmt(format_args!("Bound({})", ty.to_token_stream())),
             LocalTypeKind::Type(ty) =>
-                f.write_str(format!("Type({})", ty.to_token_stream()).as_str()),
+                f.write_fmt(format_args!("Type({})", ty.to_token_stream())),
         }
     }
 }

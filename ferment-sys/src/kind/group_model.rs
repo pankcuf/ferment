@@ -48,7 +48,7 @@ impl TypeModeled for GroupModelKind {
 
 impl Debug for GroupModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             GroupModelKind::Result(model) =>
                 format!("Result({})", model),
             GroupModelKind::Vec(model) =>
@@ -63,7 +63,7 @@ impl Debug for GroupModelKind {
                 format!("IndexMap({})", model),
             GroupModelKind::IndexSet(model) =>
                 format!("IndexSet({})", model),
-        }.as_str())
+        }))
     }
 }
 

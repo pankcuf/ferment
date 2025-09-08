@@ -1,9 +1,9 @@
 use quote::ToTokens;
-use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait};
+use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait, ItemType};
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
-use crate::ast::Void;
-use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposerLink};
+use crate::ast::{CommaPunctuated, Void};
+use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposer, TypeAliasComposerLink};
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::lang::Specification;
 use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind, Expression};
@@ -80,6 +80,13 @@ impl<SPEC> ItemComposerWrapper<SPEC>
                 ItemComposerWrapper::OpaqueStructNamed(
                     OpaqueStructComposer::<SPEC, Brace>::new(ty_context, attrs, &lifetimes, generics, &Punctuated::new(), context))
         }
+    }
+
+    pub fn callback(item_type: &ItemType, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Self {
+        Self::Sig(SigComposer::from_type_bare_fn(ty_context, &item_type.generics, &vec![], &item_type.attrs, scope_context))
+    }
+    pub fn type_alias(item_type: &ItemType, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Self {
+        Self::TypeAlias(TypeAliasComposer::new(ty_context, &item_type.attrs, &vec![], &item_type.generics, &CommaPunctuated::from_iter([crate::ast::pub_unnamed_field(*item_type.ty.clone())]), scope_context))
     }
 
     pub fn compose_aspect(&self, aspect: FFIAspect) -> SeqKind<SPEC> {

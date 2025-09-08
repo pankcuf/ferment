@@ -1,9 +1,11 @@
 use std::fmt::{Debug, Display, Formatter};
+use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Generics, Lifetime, Path, TraitBound, Type, TypeParamBound, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Generics, Lifetime, Path, TraitBound, Type, TypePtr, TypeReference, TypeTraitObject};
 use crate::composable::{NestedArgument, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::ext::{AsType, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor, ArgsTransform};
+use crate::context::ScopeChain;
+use crate::ext::{AsType, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor, ArgsTransform, MaybeTraitBound};
 
 #[derive(Clone)]
 pub struct TypeModel {
@@ -55,11 +57,23 @@ impl TypeModel {
     pub fn new_nested(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::new(ty, None, nested_arguments)
     }
+    pub fn new_nested_ref(ty: &Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::new_nested(ty.clone(), nested_arguments)
+    }
     pub fn new_generic(ty: Type, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::new(ty, Some(generics), nested_arguments)
     }
+    pub fn new_generic_ident(ident: &Ident, generics: Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::new_generic(ident.to_type(), generics, nested_arguments)
+    }
     pub fn new_generic_non_nested(ty: Type, generics: &Generics) -> Self {
         Self::new(ty, Some(generics.clone()), CommaPunctuatedNestedArguments::new())
+    }
+    pub fn new_generic_ident_non_nested(ident: &Ident, generics: &Generics) -> Self {
+        Self::new_generic_non_nested(ident.to_type(), generics)
+    }
+    pub fn new_generic_scope_non_nested(scope: &ScopeChain, generics: &Generics) -> Self {
+        Self::new_generic_non_nested(scope.to_type(), generics)
     }
 }
 impl TypeModel {
@@ -78,18 +92,11 @@ impl TypeModel {
         match &self.ty {
             Type::Reference(TypeReference { elem, .. }) |
             Type::Ptr(TypePtr { elem, .. }) => elem.to_path(),
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                if let Some(bound) = bounds.iter().find_map(|b| match b {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(path.arg_less()),
-                    _ =>
-                        None
-                }) {
-                    bound
-                } else {
-                    bounds.to_path()
-                }
-            }
+            Type::TraitObject(TypeTraitObject { bounds, .. }) =>
+                bounds.iter()
+                    .find_map(MaybeTraitBound::maybe_trait_bound)
+                    .map(|TraitBound { path, .. }| path.arg_less())
+                    .unwrap_or_else(|| bounds.to_path()),
             other =>
                 other.to_path()
         }
@@ -120,12 +127,7 @@ impl ToType for TypeModel {
 
 impl Debug for TypeModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!("$Ty({}, {:?})",
-                    self.ty.to_token_stream(),
-                    self.nested_arguments,
-                    // self.generics.as_ref().map_or(format!("None"), format_token_stream)
-                ).as_str())
+        f.write_fmt(format_args!("$Ty({}, {:?})", self.ty.to_token_stream(), self.nested_arguments))
     }
 }
 

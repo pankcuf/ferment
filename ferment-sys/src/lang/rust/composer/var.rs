@@ -122,11 +122,8 @@ impl SourceComposable for VarComposer<RustSpecification> {
                             ref cnv => {
                                 if cnv.is_optional() {
                                     if let Some(nested_ty) = full_ty.maybe_first_nested_type_kind() {
-                                        match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&nested_ty.to_type(), source) {
-                                            Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
-                                                return FFIVariable::mut_ptr(special_ty.to_type());
-                                            },
-                                            _ => {}
+                                        if let Some(special_ty) = FFISpecialTypeResolve::<RustSpecification>::maybe_custom_or_opaque(&nested_ty.to_type(), source) {
+                                            return FFIVariable::mut_ptr(special_ty.to_type());
                                         }
                                     }
                                 }

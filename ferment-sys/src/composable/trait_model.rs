@@ -18,7 +18,7 @@ impl TraitModel {
 }
 impl Debug for TraitModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("$Trait({})", self.ty).as_str())
+        f.write_fmt(format_args!("$Trait({})", self.ty))
     }
 }
 

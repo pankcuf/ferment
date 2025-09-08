@@ -128,7 +128,7 @@ impl GlobalContext {
             .map(|trait_model| {
                 let mut model = trait_model.clone();
                 // TODO: move to full and replace nested_arguments
-                let value = TypeModelKind::Object(TypeModel::new_generic_non_nested(scope.to_type(), &trait_model.item.generics));
+                let value = TypeModelKind::Object(TypeModel::new_generic_scope_non_nested(scope, &trait_model.item.generics));
                 model.implementors.push(value);
                 (model, trait_scope.clone())
             })
@@ -394,30 +394,22 @@ impl RefineMut for GlobalContext {
                         ty.find_generics()
                             .iter()
                             .filter(|ty| self.maybe_custom_type(ty).is_none() && !self.should_skip_from_expanding(object))
-                            .for_each(|_ty| {
-                                if let Some(kind) = object.maybe_generic_type_kind() {
-                                    refined_mixins
-                                        .entry(MixinKind::Generic(kind))
-                                        .or_insert_with(HashSet::new)
-                                        .extend(all_attrs.clone());
-                                }
+                            .for_each(|_ty| if let Some(kind) = object.maybe_generic_type_kind() {
+                                refined_mixins
+                                    .entry(MixinKind::Generic(kind))
+                                    .or_insert_with(HashSet::new)
+                                    .extend(all_attrs.clone());
                             });
                     }
 
                     if let Some(TypeModelKind::Bounds(bounds)) = object.maybe_type_model_kind_ref() {
-                        let compositions = bounds.collect_compositions();
                         let mut container = HashSet::<Type>::new();
-                        compositions
-                            .iter()
-                            .for_each(|field_type|
-                                field_type.collect_to(&mut container));
+                        bounds.collect_compositions()
+                            .into_iter()
+                            .for_each(|field_type| field_type.collect_to(&mut container));
                         container
                             .iter()
-                            .for_each(|_ty| {
-                                refined_mixins.entry(MixinKind::Bounds(bounds.clone()))
-                                    .or_insert_with(HashSet::new)
-                                    .extend(all_attrs.clone());
-                            });
+                            .for_each(|_ty| refined_mixins.entry(MixinKind::bounds(bounds)).or_insert_with(HashSet::new).extend(all_attrs.clone()));
                     }
                 })
             });
@@ -425,17 +417,11 @@ impl RefineMut for GlobalContext {
         self.refined_mixins = refined_mixins;
 
         self.generics.inner.iter_mut()
-            .for_each(|(scope, generic_chain)| {
-                generic_chain.values_mut()
-                    .for_each(|bounds| {
-                        bounds.iter_mut().for_each(|bound| {
-                            match self.scope_register.scope_key_type_for_path(bound, scope) {
-                                Some(Type::Path(TypePath { path, .. })) => { *bound = path; }
-                                _ => {}
-                            }
-                        });
-                    });
-        })
+            .for_each(|(scope, generic_chain)| generic_chain.values_mut()
+                .for_each(|bounds| bounds.iter_mut()
+                    .for_each(|bound| if let Some(Type::Path(TypePath { path, .. })) = self.scope_register.scope_key_type_for_path(bound, scope) {
+                        *bound = path;
+                    })));
     }
 }
 

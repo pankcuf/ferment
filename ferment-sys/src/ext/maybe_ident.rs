@@ -2,6 +2,7 @@ use syn::{Item, ItemConst, ItemEnum, ItemExternCrate, ItemFn, ItemImpl, ItemMacr
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::ToTokens;
 use crate::ast::AddPunctuated;
+use crate::ext::MaybeTraitBound;
 use crate::kind::ScopeItemKind;
 
 pub trait MaybeIdent {
@@ -51,10 +52,10 @@ pub fn usize_to_tokenstream(value: usize) -> TokenStream2 {
 }
 
 pub fn collect_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
-    bounds.iter().filter_map(|bound| match bound {
-        TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.clone()),
-        _ => None
-    }).collect()
+    bounds.iter()
+        .filter_map(MaybeTraitBound::maybe_trait_bound)
+        .map(|TraitBound { path, .. }| path.clone())
+        .collect()
 }
 fn path_ident_ref(path: &Path) -> Option<&Ident> {
     path.segments.last().map(|last_segment| &last_segment.ident)
@@ -65,13 +66,11 @@ fn type_ident_ref(ty: &Type) -> Option<&Ident> {
         Type::Path(TypePath { path, .. }) =>
             path_ident_ref(path),
         Type::Reference(TypeReference { elem, .. }) |
-        Type::Ptr(TypePtr { elem, .. }) =>
+        Type::Ptr(TypePtr { elem, .. }) |
+        Type::Array(TypeArray { elem, .. }) =>
             type_ident_ref(elem),
-        Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.iter().find_map(|b| match b {
-            TypeParamBound::Trait(TraitBound { path, ..}) => path_ident_ref(path),
-            _ => None
-        }),
-        Type::Array(TypeArray { elem, .. }) => type_ident_ref(elem),
+        Type::TraitObject(TypeTraitObject { bounds, .. }) =>
+            bounds.iter().find_map(|b| b.maybe_trait_bound().and_then(|TraitBound { path, .. }| path_ident_ref(path))),
         _ => None
     }
 }
