@@ -253,7 +253,7 @@ impl GlobalContext {
     }
 
     pub fn actual_scope_for_type(&self, ty: &Type, current_scope: &ScopeChain) -> Option<&ScopeChain> {
-        let p = GenericBoundKey::Path(parse_quote!(#ty));
+        let p = GenericBoundKey::Path(ty.to_path());
         let search_key = ScopeSearchKey::maybe_from_ref(ty)?;
         if let Some(st) = self.maybe_object_ref_by_search_key_in_scope(search_key, current_scope) {
             let self_ty = st.maybe_type()?;

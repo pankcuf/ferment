@@ -86,10 +86,10 @@ impl ScopeItemKind {
                     Some(TypeModelKind::Object(ty_to_replace)),
                 Item::Type(ty) => Some(match &*ty.ty {
                     Type::BareFn(..) =>
-                        TypeModelKind::FnPointer(ty_to_replace),
+                        TypeModelKind::FnPointer,
                     _ =>
-                        TypeModelKind::Object(ty_to_replace),
-                }),
+                        TypeModelKind::Object,
+                }(ty_to_replace)),
                 _ => None
             }
             ScopeItemKind::Fn(..) => None

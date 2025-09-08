@@ -3,7 +3,7 @@ use syn::{parse_quote, AngleBracketedGenericArguments, Path, PathArguments, Path
 use syn::spanned::Spanned;
 use crate::ast::Colon2Punctuated;
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::ext::{AsType, DictionaryType, FFISpecialTypeResolve, Mangle, MaybeGenericType, Resolve, ToPath, ToType};
+use crate::ext::{DictionaryType, FFISpecialTypeResolve, Mangle, MaybeGenericType, Resolve, ToPath, ToType};
 use crate::kind::{GenericTypeKind, SpecialType, TypeKind, TypeModelKind};
 use crate::lang::RustSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
@@ -40,7 +40,7 @@ impl Resolve<FFIFullPath<RustSpecification>> for GenericTypeKind {
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::Generic { ffi_name: ty.mangle_ident_default().to_path() },
             GenericTypeKind::Callback(kind) =>
-                FFIFullPath::Generic { ffi_name: kind.as_type().mangle_ident_default().to_path() },
+                FFIFullPath::Generic { ffi_name: kind.mangle_ident_default().to_path() },
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::Dictionary { path: FFIFullDictionaryPath::Void },
                 1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),

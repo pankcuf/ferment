@@ -3,11 +3,11 @@ mod lifetime;
 
 pub use lifetime::*;
 pub use refine::*;
-use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, parse_quote, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypePath, TypeTraitObject, TypeTuple, Path};
+use syn::{AngleBracketedGenericArguments, GenericArgument, ParenthesizedGenericArguments, PathArguments, ReturnType, TraitBound, Type, TypeImplTrait, TypePath, TypeTraitObject, TypeTuple, Path};
 use crate::composable::NestedArgument;
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
-use crate::ext::MaybeTraitBound;
+use crate::ext::{MaybeTraitBound, ToPath};
 
 pub trait RefineMut: Sized {
     type Refinement;
@@ -65,7 +65,7 @@ impl RefineMut for Type {
                             .map(|TraitBound { path , ..}| match nested_arg.ty() {
                                 Some(Type::TraitObject(TypeTraitObject { bounds, .. }) |
                                      Type::ImplTrait(TypeImplTrait { bounds, .. })) =>
-                                    *path = parse_quote!(#bounds),
+                                    *path = bounds.to_path(),
                                 Some(Type::Path(TypePath { path: bounds, .. })) =>
                                     *path = bounds.clone(),
                                 _ => {}

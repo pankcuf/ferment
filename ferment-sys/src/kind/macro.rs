@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, parse_quote, Expr, ExprLit, MacroDelimiter, Type};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
@@ -211,7 +211,7 @@ pub fn expand_attributes(attrs: &HashSet<Option<Attribute>>) -> Vec<Attribute> {
         meta: Meta::List(MetaList {
             path: parse_quote!(cfg),
             delimiter: MacroDelimiter::Paren(Default::default()),
-            tokens: quote!(#merged),
+            tokens: merged.to_token_stream(),
         }),
     }]
 }

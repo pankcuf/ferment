@@ -27,6 +27,10 @@ where SPEC: Specification {
     pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), expr)
     }
+    #[allow(unused)]
+    pub fn key_ref_expr_in_composer_scope(name: &SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::key_expr_in_composer_scope(name.clone(), ty, expr)
+    }
     fn value_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_value(ty), expr)
     }
@@ -36,8 +40,17 @@ where SPEC: Specification {
         Self::value_expr_in_composer_scope(name, ty, None)
     }
     #[allow(unused)]
+    pub fn value_ref(name: &SPEC::Name, ty: &Type) -> Self {
+        Self::value(name.clone(), ty)
+    }
+    #[allow(unused)]
     pub fn value_expr(name: SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
         Self::value_expr_in_composer_scope(name, ty, Some(expr))
+    }
+
+    #[allow(unused)]
+    pub fn value_ref_expr(name: &SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
+        Self::value_expr(name.clone(), ty, expr)
     }
 
 }

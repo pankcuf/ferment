@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use proc_macro2::Ident;
-use syn::{parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
+use syn::{Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
 use crate::context::ScopeChain;
 use crate::ext::{GenericBoundKey, ToPath};
@@ -27,7 +27,7 @@ impl ImportResolver {
                     self.inner
                         .entry(scope.clone())
                         .or_default()
-                        .insert(parse_quote!(#ident), path);
+                        .insert(ident.to_path(), path);
                 }
             }
             UseTree::Group(UseGroup { items, .. }) =>

@@ -25,7 +25,7 @@ pub enum Expression<SPEC>
     FfiRefWithName(SPEC::Name),
     ObjName(SPEC::Name),
     DictionaryExpr(DictionaryExpr),
-    InterfacesExpr(InterfacesMethodExpr),
+    InterfacesExpr(InterfacesMethodExpr<TokenStream2>),
     AsRef(Box<Expression<SPEC>>),
     AsMutRef(Box<Expression<SPEC>>),
     DerefRef(Box<Expression<SPEC>>),
@@ -90,7 +90,7 @@ impl<SPEC> Expression<SPEC>
     pub(crate) fn dict_expr(expr: DictionaryExpr) -> Self {
         Self::DictionaryExpr(expr)
     }
-    pub(crate) fn interface_expr(expr: InterfacesMethodExpr) -> Self {
+    pub(crate) fn interface_expr(expr: InterfacesMethodExpr<TokenStream2>) -> Self {
         Self::InterfacesExpr(expr)
     }
     pub(crate) fn empty_conversion(_context: &FieldTypeLocalContext<SPEC>) -> Self {
@@ -133,7 +133,7 @@ impl<SPEC> Expression<SPEC>
     }
 
     pub(crate) fn deref_tokens<T: ToTokens>(token_stream: T) -> Self {
-        Self::DictionaryExpr(DictionaryExpr::Deref(token_stream.to_token_stream()))
+        Self::DictionaryExpr(DictionaryExpr::deref(token_stream))
     }
 
     pub(crate) fn deref_expr(expr: Self) -> Self {

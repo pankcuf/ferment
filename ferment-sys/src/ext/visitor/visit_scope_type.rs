@@ -8,7 +8,7 @@ use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModel
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::{GlobalContext, ScopeChain};
 use crate::kind::{DictFermentableModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, MaybeTraitBound, PathTransform, Pop, ToPath, ToType};
+use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, MaybeTraitBound, PathTransform, Pop, PunctuateOne, ToPath, ToType};
 
 pub trait VisitScopeType<'a> where Self: Sized + 'a {
     type Source;
@@ -64,12 +64,12 @@ impl<'a> VisitScopeType<'a> for Type {
                 ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds }), nested_arguments))
             },
             Type::Array(TypeArray { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Array, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Array, TypeModel::new_nested_ref(self, NestedArgument::Object(elem.visit_scope_type(source)).punctuate_one())),
             Type::Group(TypeGroup { elem, .. }) |
             Type::Paren(TypeParen { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested_ref(self, NestedArgument::Object(elem.visit_scope_type(source)).punctuate_one())),
             Type::Slice(TypeSlice { elem, .. }) =>
-                ObjectKind::model_type(TypeModelKind::Slice, TypeModel::new_nested_ref(self, Punctuated::from_iter([NestedArgument::Object(elem.visit_scope_type(source))]))),
+                ObjectKind::model_type(TypeModelKind::Slice, TypeModel::new_nested_ref(self, NestedArgument::Object(elem.visit_scope_type(source)).punctuate_one())),
             Type::Tuple(TypeTuple { elems, .. }) =>
                 ObjectKind::model_type(TypeModelKind::Tuple, TypeModel::new_nested_ref(self, Punctuated::from_iter(elems.iter().map(|elem| NestedArgument::Object(elem.visit_scope_type(source)))))),
             ty => ObjectKind::unknown_type(ty.clone())
@@ -128,8 +128,8 @@ fn create_generics_chain(ident: &Ident, bound: TypeParam, generics: &Generics, s
             where_clause.predicates
                 .iter()
                 .filter_map(|predicate| match predicate {
-                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
-                        ty.eq(bounded_ty).then(||(bounded_ty.clone(), collect_trait_bounds(&ty, &bounded_ty, bounds, source))),
+                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) if ty.eq(bounded_ty) =>
+                        Some((bounded_ty.clone(), collect_trait_bounds(&ty, &bounded_ty, bounds, source))),
                     _ => None
                 })
                 .collect())

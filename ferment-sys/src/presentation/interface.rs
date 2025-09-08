@@ -64,8 +64,8 @@ impl InterfacePresentation {
     pub fn conversion_from_root<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
         Self::conversion_from(attrs, types, DictionaryExpr::from_root(body), generics, lifetimes)
     }
-    pub fn conversion_to_boxed<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
-        Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body.to_token_stream()), generics, lifetimes)
+    pub fn conversion_to_boxed<T: ToTokens + 'static>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+        Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body), generics, lifetimes)
     }
     pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
         Self::conversion_to_boxed(attrs, types, DictionaryExpr::self_destruct(body), generics, lifetimes)
@@ -109,7 +109,7 @@ impl InterfacePresentation {
             inputs,
             output,
             lifetimes: lifetimes.clone(),
-            body: DictionaryExpr::CallbackCaller(args_conversions.to_token_stream(), result_conversion.to_token_stream()).to_token_stream(),
+            body: DictionaryExpr::callback_caller(args_conversions, result_conversion).to_token_stream(),
         }
     }
     pub fn send_sync(attrs: &Vec<Attribute>, ffi_type: &Type) -> Self {

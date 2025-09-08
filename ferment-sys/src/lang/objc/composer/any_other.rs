@@ -13,7 +13,7 @@ impl SourceComposable for AnyOtherComposer<ObjCSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let ffi_name = self.ty.mangle_ident_default();
         let ffi_type = ffi_name.to_type();
-        let arg_0_name = Name::<ObjCSpecification>::Dictionary(DictionaryName::Obj);
+        let arg_0_name = Name::<ObjCSpecification>::obj();
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();

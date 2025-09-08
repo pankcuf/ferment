@@ -14,4 +14,3 @@ impl ToTokens for FFICallbackMethod {
         }.to_tokens(dst)
     }
 }
-

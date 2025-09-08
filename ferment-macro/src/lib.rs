@@ -128,41 +128,17 @@ pub fn composition_context_derive(input: TokenStream) -> TokenStream {
 pub fn method_call_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = input.ident;
-    // let namespace = input.attrs.iter()
-    //     .find(|attr| attr.path().is_ident("namespace"))
-    //     .and_then(|attr| match attr.parse_meta() {
-    //         Ok(Meta::NameValue(MetaNameValue { lit: Lit::Str(lit), .. })) => Some(lit.parse::<Path>().expect("Invalid namespace")),
-    //         _ => None
-    //     })
-    //     .expect("namespace attribute is required");
-
-    // let namespace = input.attrs.iter()
-    //     .find(|attr| attr.path().is_ident("namespace"))
-    //     .and_then(|attr| {
-    //         attr.parse_args::<Lit>().ok().and_then(|lit| {
-    //             if let Lit::Str(s) = lit {
-    //                 Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //     })
-    //     .expect("namespace attribute is required");
     let namespace = input.attrs.iter()
         .find_map(|Attribute { ref meta, .. }| {
             if let Meta::NameValue(MetaNameValue { path, value: Expr::Lit(ExprLit { lit: Lit::Str(s), .. }), .. }) = meta {
-                if path.is_ident("namespace") {
-                    Some(syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
-                } else {
-                    None
-                }
+                path.is_ident("namespace").then(|| syn::parse_str::<Path>(&s.value()).expect("Invalid namespace"))
             } else {
                 None
             }
         })
         .expect("namespace attribute is required");
 
-    let expression_enum_name = format_ident!("{}Expr", name);
+    let expression_enum_name = format_ident!("{name}Expr");
     let mut expression_variants = Punctuated::<TokenStream2, Comma>::new();
     let mut methods = Punctuated::<TokenStream2, Comma>::new();
     let mut exprs = Punctuated::<TokenStream2, Comma>::new();
@@ -172,23 +148,23 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
             match fields {
                 Fields::Unnamed(FieldsUnnamed { unnamed, .. }) => {
                     let field_count = unnamed.len();
-                    let field_names = (0..field_count).map(|i| format_ident!("field{}", i)).collect::<Vec<_>>();
+                    let field_names = (0..field_count).map(|i| format_ident!("field{i}")).collect::<Vec<_>>();
                     let field_types = unnamed.iter().map(|f| &f.ty).collect::<Vec<_>>();
-                    expression_variants.push(quote!(#ident(#(#field_types,)* syn::__private::TokenStream2)));
+                    expression_variants.push(quote!(#ident(#(#field_types,)* T)));
                     methods.push(quote!(#expression_enum_name::#ident(#(#field_names,)* _) => #name::#ident(#(#field_names.clone(),)*).to_token_stream()));
-                    exprs.push(quote!(#expression_enum_name::#ident(#(#field_names,)* expr) => expr));
+                    exprs.push(quote!(#expression_enum_name::#ident(#(#field_names,)* expr) => expr.to_token_stream()));
                 },
                 Fields::Named(FieldsNamed { named, .. }) => {
                     let field_names = named.iter().filter_map(|f| f.ident.clone()).collect::<Vec<_>>();
                     let field_types = named.iter().map(|f| &f.ty).collect::<Vec<_>>();
-                    expression_variants.push(quote!(#ident { #(#field_names: #field_types,)* expr: syn::__private::TokenStream2 }));
+                    expression_variants.push(quote!(#ident { #(#field_names: #field_types,)* expr: T }));
                     methods.push(quote!(#expression_enum_name::#ident { #(#field_names,)* .. } => #name::#ident { #(#field_names: #field_names.clone(),)* }.to_token_stream()));
-                    exprs.push(quote!(#expression_enum_name::#ident { #(#field_names,)* expr } => expr));
+                    exprs.push(quote!(#expression_enum_name::#ident { #(#field_names,)* expr } => expr.to_token_stream()));
                 },
                 Fields::Unit => {
-                    expression_variants.push(quote!(#ident(syn::__private::TokenStream2)));
+                    expression_variants.push(quote!(#ident(T)));
                     methods.push(quote!(#expression_enum_name::#ident(_) => #name::#ident.to_token_stream()));
-                    exprs.push(quote!(#expression_enum_name::#ident(expr) => expr));
+                    exprs.push(quote!(#expression_enum_name::#ident(expr) => expr.to_token_stream()));
                 }
             }
         }
@@ -196,10 +172,10 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[derive(Clone, Debug)]
-        pub enum #expression_enum_name {
+        pub enum #expression_enum_name<T: quote::ToTokens> {
             #expression_variants
         }
-        impl crate::presentation::MethodCall for #expression_enum_name {
+        impl<T: quote::ToTokens> crate::presentation::MethodCall for #expression_enum_name<T> {
             fn method(&self) -> TokenStream2 {
                 let mut tokens = TokenStream2::new();
                 let method = match self {
@@ -209,13 +185,13 @@ pub fn method_call_derive(input: TokenStream) -> TokenStream {
                 tokens.append_all(vec![ns.to_token_stream()]);
                 tokens
             }
-            fn expr(&self) -> &TokenStream2 {
+            fn expr(&self) -> TokenStream2 {
                 match self {
                     #exprs
                 }
             }
         }
-        impl ToTokens for #expression_enum_name {
+        impl<T: quote::ToTokens + 'static> ToTokens for #expression_enum_name<T> {
             fn to_tokens(&self, dst: &mut TokenStream2) {
                 (self as &dyn crate::presentation::MethodCall).to_tokens(dst)
             }

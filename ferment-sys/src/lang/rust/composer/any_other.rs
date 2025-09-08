@@ -5,9 +5,9 @@ use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, So
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, FieldTypeKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{ArgsTransform, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
-use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation};
+use crate::presentation::{DictionaryExpr, InterfacePresentation};
 impl SourceComposable for AnyOtherComposer<RustSpecification> {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<RustSpecification>>;
@@ -15,7 +15,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let mut lifetimes = Vec::<Lifetime>::new();
         let ffi_name = self.ty.mangle_tokens_default();
-        let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj);
+        let arg_0_name = <RustSpecification as Specification>::Name::obj();
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();
@@ -55,7 +55,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                     "Arc" | "Rc" => {
                         match TypeKind::from(nested_ty) {
                             TypeKind::Primitive(_) =>
-                                DictionaryExpr::Deref(arg_0_name.to_token_stream()).to_token_stream(),
+                                DictionaryExpr::deref(&arg_0_name).to_token_stream(),
                             TypeKind::Complex(_) => {
                                 if maybe_opaque.is_some() {
                                     quote!(#ctor_path::into_raw(#arg_0_name).cast_mut())
@@ -77,7 +77,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                         }
                     },
                     "Mutex" | "RwLock" => {
-                        let expr = ConversionToComposer::<RustSpecification>::value(arg_0_name.clone(), nested_ty).compose(source);
+                        let expr = ConversionToComposer::<RustSpecification>::value_ref(&arg_0_name, nested_ty).compose(source);
                         println!("RES expr: {}", expr.present(source));
                         quote!(#arg_0_name.into_inner().expect("Err"))
                     },

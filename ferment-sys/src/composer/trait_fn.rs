@@ -10,9 +10,9 @@ use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, Comm
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{ExpressionComposable, LifetimeProcessor, Resolve, ToType};
-use crate::lang::{FromDictionary, LangAttrSpecification, LangLifetimeSpecification, Specification};
+use crate::lang::{LangAttrSpecification, LangLifetimeSpecification, Specification};
 use crate::presentable::{ArgKind, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
-use crate::presentation::{DictionaryExpr, DictionaryName, DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
+use crate::presentation::{DictionaryExpr, DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
 
 
 #[allow(unused)]
@@ -83,7 +83,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
         ),
         ReturnType::Type(_, return_ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(return_ty).compose(source).to_type())),
-            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), return_ty).compose(source)
+            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::obj(), return_ty).compose(source)
         )
     };
 
@@ -102,7 +102,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
                     (_, Some(..)) => |expr: SPEC::Expr| SPEC::Expr::r#ref(expr),
                     _ => |expr: SPEC::Expr| SPEC::Expr::simple_expr(expr),
                 };
-                let name = Name::dictionary_name(DictionaryName::Self_);
+                let name = Name::self_();
                 let tokenized_name = name.to_token_stream();
                 argument_names.push(tokenized_name);
                 let arg_kind = ArgKind::inherited_named_var(name.clone(), VarComposer::<SPEC>::key_ref_in_composer_scope(trait_ty).compose(source), attrs);

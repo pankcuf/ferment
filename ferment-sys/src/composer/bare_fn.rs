@@ -7,7 +7,7 @@ use crate::ast::CommaPunctuated;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
 use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, ComposerLink, DocComposer, DocsComposable, Linkable, SourceAccessible, SourceComposable, VarComposer, field, CommaPunctuatedArgKinds, SignatureAspect};
 use crate::context::{ScopeContext, ScopeContextLink};
-use crate::ext::{ExpressionComposable, Mangle, Primitive, Resolve, ToType, WrapInBraces};
+use crate::ext::{ExpressionComposable, Mangle, Primitive, Resolve, ToType, WrapIntoCurlyBraces};
 use crate::kind::{GenericTypeKind, TypeKind};
 use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
@@ -73,19 +73,19 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             ReturnType::Type(token.clone(), Box::new(<Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type())),
             match TypeKind::from(field_type) {
                 TypeKind::Primitive(_) =>
-                    DictionaryExpr::Simple(ffi_result.to_token_stream()),
+                    DictionaryExpr::simple(&ffi_result),
                 TypeKind::Generic(GenericTypeKind::Optional(ty)) if ty.is_primitive() =>
-                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), quote!(*#ffi_result)),
+                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), DictionaryExpr::deref(&ffi_result).to_token_stream()),
                 TypeKind::Generic(GenericTypeKind::Optional(_)) =>
-                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), DictionaryExpr::CallbackDestructor(ffi_result_conversion.to_token_stream(), ffi_result.to_token_stream()).to_token_stream().wrap_in_braces()),
+                    DictionaryExpr::IfThen(quote!((!#ffi_result.is_null())), DictionaryExpr::callback_dtor(&ffi_result_conversion, &ffi_result).wrap()),
                 TypeKind::Generic(GenericTypeKind::TraitBounds(_)) =>
                     unimplemented!("TODO: mixins+traits+generics"),
                 TypeKind::Complex(_) |
                 TypeKind::Generic(_) =>
-                    DictionaryExpr::CallbackDestructor(ffi_result_conversion.to_token_stream(), ffi_result.to_token_stream())
+                    DictionaryExpr::callback_dtor(&ffi_result_conversion, &ffi_result)
             }
         ),
-        ReturnType::Default => (ReturnType::Default, ReturnType::Default, DictionaryExpr::Simple(ffi_result.to_token_stream())),
+        ReturnType::Default => (ReturnType::Default, ReturnType::Default, DictionaryExpr::simple(&ffi_result)),
     };
     let mut arg_names = CommaPunctuated::new();
     let mut ffi_args = CommaPunctuated::new();

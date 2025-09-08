@@ -5,7 +5,7 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericBoundsModel, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeModelKind};
-use crate::ext::{AsType, ExpressionComposable, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
+use crate::ext::{Accessory, AsType, ExpressionComposable, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, FFIFullDictionaryPath, FFIFullPath};
@@ -26,8 +26,14 @@ where SPEC: Specification {
     pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), expr)
     }
+    pub fn key_ref_expr_in_composer_scope(name: &SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::key_expr_in_composer_scope(name.clone(), ty, expr)
+    }
     pub fn value_maybe_expr(name: SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_value(ty), expr)
+    }
+    pub fn value_ref_maybe_expr(name: &SPEC::Name, ty: &Type, expr: Option<SPEC::Expr>) -> Self {
+        Self::value_maybe_expr(name.clone(), ty, expr)
     }
     pub fn key_in_composer_scope(name: SPEC::Name, ty: &Type) -> Self {
         Self::key_expr_in_composer_scope(name, ty, None)
@@ -35,8 +41,14 @@ where SPEC: Specification {
     pub fn value(name: SPEC::Name, ty: &Type) -> Self {
         Self::value_maybe_expr(name, ty, None)
     }
+    pub fn value_ref(name: &SPEC::Name, ty: &Type) -> Self {
+        Self::value(name.clone(), ty)
+    }
     pub fn value_expr(name: SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
         Self::value_maybe_expr(name, ty, Some(expr))
+    }
+    pub fn value_ref_expr(name: &SPEC::Name, ty: &Type, expr: SPEC::Expr) -> Self {
+        Self::value_expr(name.clone(), ty, expr)
     }
 }
 
@@ -112,7 +124,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>
                         Expression::cast_to::<Type, Type>(if is_ref { field_path.cloned() } else { field_path }, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(u128)),
                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty, .. }))) =>
-                        Expression::cast_to::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#ty)),
+                        Expression::cast_to::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, ty.joined_ref()),
                     TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ref ty, .. })))) => if let Some(nested_ty) = ty.maybe_first_nested_type_ref() {
                         match FFISpecialTypeResolve::<SPEC>::maybe_special_type(nested_ty, source) {
                             Some(SpecialType::Opaque(..)) =>

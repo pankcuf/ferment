@@ -4,10 +4,10 @@ use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
-use crate::ext::{ExpressionComposable, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
+use crate::ext::{Accessory, ExpressionComposable, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
 
 #[derive(Clone)]
 pub struct ConversionFromComposer<SPEC>
@@ -25,8 +25,14 @@ impl<SPEC> ConversionFromComposer<SPEC>
     pub fn key_expr_in_composer_scope(name: SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_key_in_composer_scope(ty), field_expr)
     }
+    pub fn key_ref_expr_in_composer_scope(name: &SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
+        Self::key_expr_in_composer_scope(name.clone(), ty, field_expr)
+    }
     pub fn value_maybe_expr(name: SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
         Self::new(name, ScopeSearch::type_ref_value(ty), field_expr)
+    }
+    pub fn value_ref_maybe_expr(name: &SPEC::Name, ty: &Type, field_expr: Option<SPEC::Expr>) -> Self {
+        Self::value_maybe_expr(name.clone(), ty, field_expr)
     }
     pub fn key_in_composer_scope(name: SPEC::Name, ty: &Type) -> Self {
         Self::key_expr_in_composer_scope(name, ty, None)
@@ -34,9 +40,21 @@ impl<SPEC> ConversionFromComposer<SPEC>
     pub fn value_expr(name: SPEC::Name, ty: &Type, field_expr: SPEC::Expr) -> Self {
         Self::value_maybe_expr(name, ty, Some(field_expr))
     }
+    pub fn value_ref_expr(name: &SPEC::Name, ty: &Type, field_expr: SPEC::Expr) -> Self {
+        Self::value_expr(name.clone(), ty, field_expr)
+    }
     pub fn value(name: SPEC::Name, ty: &Type) -> Self {
         Self::value_maybe_expr(name, ty, None)
     }
+    pub fn value_ref(name: &SPEC::Name, ty: &Type) -> Self {
+        Self::value(name.clone(), ty)
+    }
+}
+impl<SPEC> ConversionFromComposer<SPEC> where SPEC: Specification<Name=Name<SPEC>>, SPEC::Name: ToTokens {
+    pub fn value_pat_tokens<T: ToTokens>(name: T, ty: &Type) -> Self {
+        Self::value_maybe_expr(SPEC::Name::pat_tokens(name), ty, None)
+    }
+
 }
 
 impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
@@ -111,7 +129,7 @@ impl<SPEC> SourceComposable for ConversionFromComposer<SPEC>
                     }
                 },
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) =>
-                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, parse_quote!(&#full_ty)),
+                    Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, ffi_type, full_ty.joined_ref()),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..))) =>
                     Expression::cast_from::<Type, Type>(field_path, ConversionExpressionKind::Complex, parse_quote!([u8; 16]), parse_quote!(i128)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::U128(..))) =>

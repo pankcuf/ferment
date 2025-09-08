@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{parse_quote, Path, TraitBound, Type, TypePath, TypeReference, TypeTraitObject};
+use syn::{Path, TraitBound, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
@@ -111,7 +111,7 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
         Resolve::<FFIFullPath<SPEC>>::maybe_resolve(self, source)
-            .unwrap_or_else(|| FFIFullPath::external(parse_quote!(#self)))
+            .unwrap_or_else(|| FFIFullPath::external(self.to_path()))
     }
 }
 

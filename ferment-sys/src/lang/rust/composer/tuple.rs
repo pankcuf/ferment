@@ -29,9 +29,9 @@ impl SourceComposable for TupleComposer<RustSpecification> {
             .for_each(|(index, ty)| {
                 lifetimes.extend(ty.unique_lifetimes());
                 let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
-                let from_composer = ConversionFromComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::ffi_ref_with_name(&name));
-                let to_composer = ConversionToComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::ObjName(<RustSpecification as Specification>::Name::index(index)));
-                let drop_composer = ConversionDropComposer::<RustSpecification>::value_expr(name.clone(), ty, Expression::dict_expr(DictionaryExpr::self_prop(&name)));
+                let from_composer = ConversionFromComposer::<RustSpecification>::value_ref_expr(&name, ty, Expression::ffi_ref_with_name(&name));
+                let to_composer = ConversionToComposer::<RustSpecification>::value_ref_expr(&name, ty, Expression::ObjName(<RustSpecification as Specification>::Name::index(index)));
+                let drop_composer = ConversionDropComposer::<RustSpecification>::value_ref_expr(&name, ty, Expression::dict_expr(DictionaryExpr::self_prop(&name)));
                 from_conversions.push(from_composer.compose(source).present(source));
                 to_conversions.push(Expression::named(&name, to_composer.compose(source)).present(source));
                 if let Some(drop_conversion) = drop_composer.compose(source) {

@@ -1,12 +1,12 @@
 use quote::{quote, ToTokens};
 use syn::{parse_quote, BareFnArg, Lifetime, ParenthesizedGenericArguments, ReturnType, Type, TypeBareFn};
-use syn::__private::TokenStream2;
+use syn::token::RArrow;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, CallbackComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::kind::{CallbackKind, FieldTypeKind, GenericTypeKind, SpecialType, TypeKind};
-use crate::ext::{Accessory, AsType, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, MaybeParenthesizedArgs, MaybeTraitBound, Resolve, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, MaybeParenthesizedArgs, MaybeTraitBound, PunctuateOne, Resolve, ToType};
 use crate::lang::{FromDictionary, RustSpecification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name};
@@ -39,57 +39,48 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
             _ => panic!("Unsupported callback kind: {kind:?}")
         };
         let ffi_result = DictionaryName::FFiResult;
-        let opt_conversion = |conversion: TokenStream2| quote! {
-            if #ffi_result.is_null() {
-                None
-            } else {
-                #conversion
-            }
-        };
         let (return_type, from_result_conversion, dtor_arg) = match output {
             ReturnType::Type(token, field_type) => {
                 let full_ty: Type = field_type.resolve(source);
                 lifetimes.extend(field_type.unique_lifetimes());
                 let (ffi_ty, from_result_conversion) = match TypeKind::from(&full_ty) {
-                    TypeKind::Primitive(_) => (full_ty.clone(), ffi_result.to_token_stream()),
+                    TypeKind::Primitive(_) => (full_ty.clone(), DictionaryExpr::DictionaryName(ffi_result)),
                     TypeKind::Complex(ty) => {
-                        let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
                         let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
-                        (ffi_ty.joined_mut(), match maybe_special {
+                        (ffi_ty.joined_mut(), match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&ty, source) {
                             Some(SpecialType::Opaque(..)) =>
-                                quote!((&*#ffi_result).clone()),
+                                DictionaryExpr::Clone(quote!((&*#ffi_result))),
                             _ =>
-                                DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), quote!(#ffi_result)).to_token_stream()
+                                DictionaryExpr::callback_dtor(DictionaryExpr::casted_ffi_conversion_from(&ffi_ty, &ty, &ffi_result), &ffi_result)
                         })
                     },
                     TypeKind::Generic(generic_ty) => match generic_ty {
                         GenericTypeKind::Optional(ty) => match ty.maybe_first_nested_type_kind().unwrap() {
-                            TypeKind::Primitive(ty) => (ty.joined_mut(), opt_conversion(quote!(*#ffi_result))),
+                            TypeKind::Primitive(ty) => (ty.joined_mut(), DictionaryExpr::IfElse(quote!(#ffi_result.is_null()), quote!(None), quote!(*#ffi_result))),
                             TypeKind::Complex(ty) => {
                                 let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
-                                (ffi_ty.joined_mut(), opt_conversion(match maybe_special {
-                                    Some(SpecialType::Opaque(..)) =>
-                                        quote!(Some((&*#ffi_result).clone())),
+                                (ffi_ty.joined_mut(), DictionaryExpr::IfElse(quote!(#ffi_result.is_null()), quote!(None), match maybe_special {
+                                    Some(SpecialType::Opaque(..)) => DictionaryExpr::some(DictionaryExpr::Clone(DictionaryExpr::deref_ref(&ffi_result).to_token_stream())),
                                     _ =>
-                                        DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream()
-                                }))
+                                        DictionaryExpr::callback_dtor(DictionaryExpr::casted_ffi_conversion_from_opt(&ffi_ty, &ty, &ffi_result), &ffi_result)
+                                }.to_token_stream()))
                             },
                             TypeKind::Generic(ty) => {
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
-                                (ffi_ty.joined_mut(), DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.ty().to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream())
+                                (ffi_ty.joined_mut(), DictionaryExpr::callback_dtor(DictionaryExpr::casted_ffi_conversion_from_opt(&ffi_ty, ty.ty(), &ffi_result), &ffi_result))
                             },
                         },
                         GenericTypeKind::TraitBounds(_) => unimplemented!("TODO: mixins+traits+generics"),
                         _ => {
                             let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&full_ty, source);
-                            (ffi_ty.joined_mut(), DictionaryExpr::CallbackDestructor(DictionaryExpr::CastedFFIConversionFrom(ffi_ty.to_token_stream(), generic_ty.to_token_stream(), ffi_result.to_token_stream()).to_token_stream(), ffi_result.to_token_stream()).to_token_stream())
+                            (ffi_ty.joined_mut(), DictionaryExpr::callback_dtor(DictionaryExpr::casted_ffi_conversion_from(&ffi_ty, &generic_ty, &ffi_result), &ffi_result))
                         }
                     }
                 };
                 (ReturnType::Type(token, Box::new(full_ty)), from_result_conversion, Some(ffi_ty))
             },
-            ReturnType::Default => (ReturnType::Default, ffi_result.to_token_stream(), None),
+            ReturnType::Default => (ReturnType::Default, DictionaryExpr::DictionaryName(ffi_result), None),
         };
         let mut args = CommaPunctuated::new();
         let mut ffi_args = CommaPunctuated::new();
@@ -107,12 +98,12 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
         let ffi_type = self.present_ffi_aspect();
         let attrs = self.compose_attributes();
         Some(GenericComposerInfo::<RustSpecification>::callback(
-            Aspect::raw_struct_ident(kind.as_type().mangle_ident_default()),
+            Aspect::raw_struct_ident(kind.mangle_ident_default()),
             &attrs,
             if let Some(dtor_arg) = dtor_arg {
                 Depunctuated::from_iter([
-                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(Default::default(), Box::new(dtor_arg.clone()))))),
-                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(CommaPunctuated::from_iter([bare_fn_arg(dtor_arg)]), ReturnType::Default)))
+                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Caller), FieldTypeKind::Type(bare(ffi_args, ReturnType::Type(RArrow::default(), Box::new(dtor_arg.clone()))))),
+                    FieldComposer::named_no_attrs(Name::dictionary_name(DictionaryName::Destructor), FieldTypeKind::Type(bare(bare_fn_arg(dtor_arg).punctuate_one(), ReturnType::Default)))
                 ])
             } else {
                 Depunctuated::from_iter([

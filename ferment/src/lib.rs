@@ -153,15 +153,6 @@ pub unsafe fn destroy_opt_primitive<T: Copy>(ptr: *mut T) {
     }
 }
 
-
-pub trait FFIVecConversion {
-    type Value: IntoIterator;
-    /// # Safety
-    unsafe fn decode(&self) -> Self::Value;
-    /// # Safety
-    unsafe fn encode(obj: Self::Value) -> *mut Self;
-}
-
 pub trait FFIMapConversion {
     type Key;
     type Value;

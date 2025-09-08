@@ -89,11 +89,41 @@ impl<SPEC> Display for Name<SPEC>
 impl<SPEC> Name<SPEC>
     where SPEC: Specification<Name=Self>,
           Self: ToTokens {
+    
+    
+    pub fn o() -> Self {
+        Self::Dictionary(DictionaryName::O)
+    }
+    pub fn obj() -> Self {
+        Self::Dictionary(DictionaryName::Obj)
+    }
+    pub fn self_() -> Self {
+        Self::Dictionary(DictionaryName::Self_)
+    }
+    pub fn keys() -> Self {
+        Self::Dictionary(DictionaryName::Keys)
+    }
+    pub fn values() -> Self {
+        Self::Dictionary(DictionaryName::Values)
+    }
+    pub fn count() -> Self {
+        Self::Dictionary(DictionaryName::Count)
+    }
+    pub fn ctor(ty: &Type) -> Self {
+        Self::Constructor(ty.clone())
+    }
     pub fn getter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Getter(path, field_name.clone())
     }
     pub fn setter(path: Path, field_name: &TokenStream2) -> Self {
         Self::Setter(path, field_name.clone())
+    }
+
+    pub fn pat_tokens<T: ToTokens>(tokens: T) -> Self {
+        Self::Pat(Pat::Verbatim(tokens.to_token_stream()))
+    }
+    pub fn self_prop<T: ToTokens>(field_name: T) -> Self {
+        Self::DictionaryExpr(DictionaryExpr::self_prop(field_name))
     }
 
     pub fn pat(pat: &Pat) -> Self {

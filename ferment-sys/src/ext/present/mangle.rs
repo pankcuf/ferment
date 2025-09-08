@@ -5,7 +5,7 @@ use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, 
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
-use crate::kind::ObjectKind;
+use crate::kind::{CallbackKind, DictFermentableModelKind, ObjectKind};
 use crate::ext::{AsType, LifetimeProcessor, MaybeGenericType, ToPath};
 
 #[derive(Default, Copy, Clone)]
@@ -64,6 +64,17 @@ impl Mangle<MangleDefault> for Type {
                     .map(ToString::to_string)
                     .unwrap_or_default()
         }
+    }
+}
+
+impl Mangle<MangleDefault> for DictFermentableModelKind {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.as_type().mangle_string(context)
+    }
+}
+impl Mangle<MangleDefault> for CallbackKind {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.as_type().mangle_string(context)
     }
 }
 

@@ -81,7 +81,7 @@ impl CoinJoinProvider {
                 let sleep_dur = backoff.min(remaining);
                 tokio::time::sleep(sleep_dur).await;
                 // next backoff
-                let next_us = (backoff.as_micros() as u128)
+                let next_us = backoff.as_micros()
                     .saturating_mul(backoff_factor_num as u128)
                     .saturating_div(backoff_factor_den as u128) as u64;
                 backoff = Duration::from_micros(next_us.max(1));

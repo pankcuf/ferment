@@ -210,7 +210,6 @@ pub fn format_used_traits(dict: &IndexMap<ScopeChain, IndexMap<Ident, TraitModel
 // }
 
 pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
-    // println!("format_token_stream2222: {}", token_stream.to_token_stream());
     let token_stream = token_stream.into_token_stream();
     let mut formatted_string = String::new();
     let mut space_needed = false;

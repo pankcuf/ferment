@@ -207,7 +207,7 @@ impl ScopeChain {
     }
 
     pub fn crate_root_with_ident(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {
-        let path = parse_quote!(#crate_ident);
+        let path = crate_ident.to_path();
         Self::crate_root_with(attrs, crate_ident, path)
     }
     pub fn crate_root(crate_ident: Ident, attrs: Vec<Attribute>) -> Self {

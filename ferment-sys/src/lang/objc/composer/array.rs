@@ -22,8 +22,8 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
         let nested_type_kind = TypeKind::from(nested_ty);
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
-        let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
-        let count_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
+        let arg_0_name = <ObjCSpecification as Specification>::Name::values();
+        let count_name = <ObjCSpecification as Specification>::Name::count();
         let from_args = quote! {
             ffi_ref->#arg_0_name #count_name: ffi_ref->#count_name
         };

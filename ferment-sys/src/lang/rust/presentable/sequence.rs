@@ -3,7 +3,7 @@ use syn::__private::TokenStream2;
 use syn::{Path, PathSegment};
 use crate::ast::{Assignment, BraceWrapped, Lambda, ParenWrapped};
 use crate::context::ScopeContext;
-use crate::ext::{LifetimeProcessor, Mangle, Terminated, ToPath, WrapInBraces};
+use crate::ext::{LifetimeProcessor, Mangle, Terminated, ToPath, WrapIntoCurlyBraces, WrapIntoRoundBraces};
 use crate::lang::RustSpecification;
 use crate::presentable::{ScopeContextPresentable, SeqKind};
 use crate::presentation::{present_struct, DictionaryName, InterfacesMethodExpr};
@@ -18,7 +18,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
             SeqKind::ToStub(..) |
             SeqKind::DropStub(..) |
             SeqKind::StubStruct(..) =>
-                quote!(),
+                TokenStream2::default(),
             SeqKind::FromUnnamedFields(((aspect, ..), fields)) |
             SeqKind::ToUnnamedFields(((aspect, ..), fields)) => {
                 let name = aspect.present(source);
@@ -85,10 +85,8 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                         .map(|PathSegment { ident, .. }| ident.clone())
                         .unwrap_or_else(|| ffi_type.mangle_ident_default()),
                     aspect.attrs(),
-                    fields.present(source)
-                        .to_token_stream()
-                        .wrap_in_rounds()
-                        .terminated())
+                    WrapIntoRoundBraces::wrap(fields.present(source)).terminated()
+                )
             },
             SeqKind::NamedStruct(((aspect, ..), fields)) => {
                 let ffi_type = aspect.present(source);
@@ -99,9 +97,8 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                         .map(|PathSegment { ident, .. }| ident.clone())
                         .unwrap_or_else(|| ffi_type.mangle_ident_default()),
                     aspect.attrs(),
-                    fields.present(source)
-                        .to_token_stream()
-                        .wrap_in_braces())
+                    WrapIntoCurlyBraces::wrap(fields.present(source))
+                )
             },
             SeqKind::Enum(context) => {
                 let enum_presentation = context.present(source);
@@ -126,10 +123,9 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                     #last_segment
                 }
             },
-            SeqKind::NoFieldsConversion(aspect) => {
+            SeqKind::NoFieldsConversion(aspect) =>
                 aspect.present(source)
-                    .to_token_stream()
-            },
+                    .to_token_stream(),
             SeqKind::EnumUnitFields(((aspect, ..), fields)) => {
                 let path = aspect.present(source).to_path();
                 let left = if let Some(last_segment) = path.segments.last() {
@@ -145,23 +141,20 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 let field_path = field_context.present(source);
                 quote!(let ffi_ref = #field_path; #conversions)
             }
-            SeqKind::StructTo(_field_context, conversions) => {
+            SeqKind::StructTo(_field_context, conversions) =>
                 InterfacesMethodExpr::Boxed(conversions.present(source))
-                    .to_token_stream()
-            }
+                    .to_token_stream(),
             SeqKind::EnumVariantFrom(l_value, r_value) |
             SeqKind::EnumVariantTo(l_value, r_value) |
-            SeqKind::EnumVariantDrop(l_value, r_value) => {
+            SeqKind::EnumVariantDrop(l_value, r_value) =>
                 Lambda::new(l_value.present(source), r_value.present(source))
-                    .to_token_stream()
-            }
+                    .to_token_stream(),
             SeqKind::DerefFFI => {
                 let field_path = DictionaryName::Ffi;
                 quote!(&*#field_path)
             }
-            SeqKind::Obj => {
-                DictionaryName::Obj.to_token_stream()
-            },
+            SeqKind::Obj =>
+                DictionaryName::Obj.to_token_stream(),
             SeqKind::StructDropBody((_, items)) => {
                 let destructors = items.present(source);
                 quote! {
@@ -170,9 +163,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 }
             },
             SeqKind::DropCode((_, items)) =>
-                items.present(source)
-                    .to_token_stream()
-                    .wrap_in_braces(),
+                WrapIntoCurlyBraces::wrap(items.present(source)),
         };
         result
     }

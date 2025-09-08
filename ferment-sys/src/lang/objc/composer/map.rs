@@ -6,14 +6,14 @@ use crate::composer::{AspectPresentable, AttrComposable, ConversionDropComposer,
 use crate::context::ScopeContext;
 use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
-use crate::lang::{FromDictionary, Specification};
+use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::TypeContext;
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryName, FFIVariable, Name};
+use crate::presentation::{FFIVariable, Name};
 
 fn compose_arg(
     arg_name: &Name<ObjCSpecification>,
@@ -22,8 +22,8 @@ fn compose_arg(
     source: &ScopeContext
 ) -> ((FFIVariable<ObjCSpecification, TokenStream2>, Expression<ObjCSpecification>, Expression<ObjCSpecification>, Expression<ObjCSpecification>), TokenStream2) {
     println!("MapComposer::compose_arg: {} --- {}", arg_name.to_token_stream(), ty.to_token_stream());
-    let from_composer = ConversionFromComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
-    let to_composer = ConversionToComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(arg_item_name));
+    let from_composer = ConversionFromComposer::<ObjCSpecification>::value_ref_expr(&arg_name, ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
+    let to_composer = ConversionToComposer::<ObjCSpecification>::value_ref_expr(&arg_name, ty, Expression::Simple(arg_item_name));
     let destroy_composer = ConversionDropComposer::<ObjCSpecification>::value_expr(arg_name.clone(), ty, Expression::Simple(quote!(ffi_ref->#arg_name[i])));
     let var_composer = VarComposer::<ObjCSpecification>::value(ty);
     let target_composer = TargetVarComposer::<ObjCSpecification>::value(ty);
@@ -85,12 +85,9 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
     type Output = Option<GenericComposerInfo<ObjCSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let count = DictionaryName::Count;
-        let keys = DictionaryName::Keys;
-        let values = DictionaryName::Values;
-        let count_name = <ObjCSpecification as Specification>::Name::dictionary_name(count.clone());
-        let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(keys.clone());
-        let arg_1_name = <ObjCSpecification as Specification>::Name::dictionary_name(values.clone());
+        let count_name = <ObjCSpecification as Specification>::Name::count();
+        let arg_0_name = <ObjCSpecification as Specification>::Name::keys();
+        let arg_1_name = <ObjCSpecification as Specification>::Name::values();
         let aspect = Aspect::RawTarget(TypeContext::Struct { ident: format_ident!("Dictionary"), prefix: "NS".to_string(), attrs: vec![] });
 
         let objc_name = aspect.present(source);

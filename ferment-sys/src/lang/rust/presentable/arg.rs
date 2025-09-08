@@ -22,8 +22,9 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 let template = field_path_resolver(field_composer);
                 ArgPresentation::attr_tokens(&field_composer.attrs, expr_composer(&template).present(source))
             },
-            ArgKind::AttrName(name, attrs) =>
-                ArgPresentation::attr_tokens(attrs, name),
+            ArgKind::AttrName(tokens, attrs) |
+            ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Conversion(tokens), .. }) =>
+                ArgPresentation::attr_tokens(attrs, tokens),
             ArgKind::AttrSequence(seq, attrs) =>
                 ArgPresentation::attr_tokens(attrs, seq.present(source)),
             ArgKind::BindingArg(FieldComposer { name, kind: FieldTypeKind::Type(ty), named: true, attrs, .. }) =>
@@ -50,11 +51,9 @@ impl ScopeContextPresentable for ArgKind<RustSpecification> {
                 ArgPresentation::attr_tokens(attrs, Resolve::<<RustSpecification as Specification>::Var>::resolve(ty, source)),
             ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Var(var), .. }) =>
                 ArgPresentation::attr_tokens(attrs, var),
-            ArgKind::Unnamed(FieldComposer { attrs, kind: FieldTypeKind::Conversion(conversion), .. }) =>
-                ArgPresentation::attr_tokens(attrs, conversion),
-            ArgKind::Named(FieldComposer { attrs, name, kind, ..}, visibility) =>
+            ArgKind::Named(FieldComposer { attrs, name, kind, .. }, visibility) =>
                 ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), VarComposer::<RustSpecification>::key_ref_in_composer_scope(&kind.to_type()).compose(source).to_type()),
-            ArgKind::NamedReady(FieldComposer { attrs, name, kind, ..}, visibility) =>
+            ArgKind::NamedReady(FieldComposer { attrs, name, kind, .. }, visibility) =>
                 ArgPresentation::field(attrs, visibility.clone(), Some(name.mangle_ident_default()), kind.to_type()),
         }
     }

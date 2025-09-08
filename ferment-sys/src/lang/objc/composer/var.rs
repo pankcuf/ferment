@@ -72,7 +72,7 @@ impl SourceComposable for VarComposer<ObjCSpecification> {
                             FFIVariable::mut_ptr(parse_quote!(NSData)),
                         TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
                             FFIVariable::direct(Resolve::<SpecialType<ObjCSpecification>>::maybe_resolve(&ty, source)
-                                .map(|special| special.to_token_stream())
+                                .map(ToTokens::into_token_stream)
                                 .unwrap_or_else(|| Resolve::<FFIFullPath<ObjCSpecification>>::resolve(&ty, source)
                                     .to_token_stream())),
                         TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) =>
@@ -102,15 +102,12 @@ impl SourceComposable for VarComposer<ObjCSpecification> {
                                 ) |
                                 DictFermentableModelKind::Other(TypeModel { ty, .. }) |
                                 DictFermentableModelKind::Str(TypeModel { ty, .. }) |
-                                DictFermentableModelKind::String(TypeModel { ty, .. }))) => {
-                            let maybe_ffi_full_path: Option<FFIFullPath<ObjCSpecification>> = ty.maybe_resolve(source);
-                            resolve_type_variable(maybe_ffi_full_path.map(|path| path.to_type()).unwrap_or_else(|| parse_quote!(#ty)), source)
-                        },
+                                DictFermentableModelKind::String(TypeModel { ty, .. }))) =>
+                            resolve_type_variable(Resolve::<FFIFullPath<ObjCSpecification>>::maybe_resolve(&ty, source).map(|path| path.to_type()).unwrap_or_else(|| parse_quote!(#ty)), source),
                         TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) =>
                             Resolve::<FFIVariable<ObjCSpecification, TokenStream2>>::resolve(&conversion, source),
-                        TypeModelKind::Bounds(bounds) => {
-                            bounds.resolve(source)
-                        },
+                        TypeModelKind::Bounds(bounds) =>
+                            bounds.resolve(source),
                         ref cnv=> {
                             let var_ty = match maybe_obj {
                                 Some(ObjectKind::Item(.., ScopeItemKind::Fn(..))) => match &source.scope.parent_object() {
@@ -795,7 +792,7 @@ impl Resolve<FFIFullPath<ObjCSpecification>> for GenericTypeKind {
             GenericTypeKind::Slice(ty) =>
                 FFIFullPath::generic(ty.mangle_ident_default().to_path()),
             GenericTypeKind::Callback(kind) =>
-                FFIFullPath::generic(kind.as_type().mangle_ident_default().to_path()),
+                FFIFullPath::generic(kind.mangle_ident_default().to_path()),
             GenericTypeKind::Tuple(Type::Tuple(tuple)) => match tuple.elems.len() {
                 0 => FFIFullPath::void(),
                 1 => single_generic_ffi_full_path(tuple.elems.first().unwrap()),

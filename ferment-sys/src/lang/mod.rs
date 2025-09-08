@@ -67,8 +67,14 @@ pub trait Specification: Clone + Debug {
     fn value_expr_from(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionFromComposer<Self> {
         ConversionFromComposer::<Self>::value_expr(name, ty, expr)
     }
+    fn value_ref_expr_from(name: &Self::Name, ty: &Type, expr: Self::Expr) -> ConversionFromComposer<Self> {
+        ConversionFromComposer::<Self>::value_ref_expr(name, ty, expr)
+    }
     fn value_expr_to(name: Self::Name, ty: &Type, expr: Self::Expr) -> ConversionToComposer<Self> {
         ConversionToComposer::<Self>::value_expr(name, ty, expr)
+    }
+    fn value_ref_expr_to(name: &Self::Name, ty: &Type, expr: Self::Expr) -> ConversionToComposer<Self> {
+        ConversionToComposer::<Self>::value_ref_expr(name, ty, expr)
     }
 }
 

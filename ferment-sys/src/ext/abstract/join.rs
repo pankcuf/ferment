@@ -1,6 +1,7 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{parse_quote, ImplItemFn, Item, Path, PathSegment, Signature, TraitItemFn, Type, TypePath};
+use syn::punctuated::Punctuated;
 use crate::ast::Colon2Punctuated;
 use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
@@ -20,16 +21,16 @@ macro_rules! impl_parseable_join {
         }
     };
 }
-#[macro_export]
-macro_rules! impl_parseable_reverse_join {
-    ($SelfTy:ty, $JoinTy:ty) => {
-        impl Join<$JoinTy> for $SelfTy {
-            fn joined(&self, other: &$JoinTy) -> Self {
-                parse_quote!(#other::#self)
-            }
-        }
-    };
-}
+impl_parseable_join!(Path, Path);
+impl_parseable_join!(Path, Type);
+impl_parseable_join!(Type, Path);
+impl_parseable_join!(Type, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Path, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Ident);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Path);
+impl_parseable_join!(TypePath, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(TypePath, Ident);
 
 impl Join<Item> for ScopeChain {
     fn joined(&self, item: &Item) -> Self {
@@ -103,17 +104,6 @@ impl Join<Ident> for Path {
         new_path
     }
 }
-impl_parseable_join!(Path, Path);
-impl_parseable_join!(Path, Type);
-impl_parseable_join!(Type, Path);
-impl_parseable_join!(Type, Colon2Punctuated<PathSegment>);
-impl_parseable_join!(Path, Colon2Punctuated<PathSegment>);
-impl_parseable_join!(Colon2Punctuated<PathSegment>, Colon2Punctuated<PathSegment>);
-impl_parseable_join!(Colon2Punctuated<PathSegment>, Ident);
-impl_parseable_join!(Colon2Punctuated<PathSegment>, Path);
-impl_parseable_join!(TypePath, Colon2Punctuated<PathSegment>);
-impl_parseable_join!(TypePath, Ident);
-
 
 impl Join<GenericBoundKey> for Path {
     fn joined(&self, other: &GenericBoundKey) -> Self {
@@ -123,3 +113,12 @@ impl Join<GenericBoundKey> for Path {
         }
     }
 }
+
+
+pub trait PunctuateOne<T: Default> {
+    fn punctuate_one(self) -> Punctuated<Self, T> where Self: Sized {
+        Punctuated::from_iter([self])
+    }
+}
+
+impl<T, P: ToTokens + Default> PunctuateOne<P> for T {}

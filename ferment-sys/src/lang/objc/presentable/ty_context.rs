@@ -106,7 +106,7 @@ impl Display for TypeContext {
             TypeContext::EnumVariant { ident, variant_ident, .. } =>
                 f.write_fmt(format_args!("{ident}_{variant_ident}")),
             TypeContext::Fn { path, .. } |
-            TypeContext::Impl { .. } |
+            TypeContext::Impl { path, .. } |
             TypeContext::Trait { path, .. } =>
                 f.write_str(path.to_token_stream().to_string().as_str()),
             TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>

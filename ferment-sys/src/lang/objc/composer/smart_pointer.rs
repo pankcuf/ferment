@@ -25,7 +25,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         let attrs = self.compose_attributes();
         // let attrs = ;
 
-        let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Obj);
+        let arg_0_name = <ObjCSpecification as Specification>::Name::obj();
         let value_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Value);
 
         // let from_body = Expression::<ObjCSpecification>::dict_expr(DictionaryExpr::from_root(self.root_kind.wrap_from::<ObjCSpecification, DictionaryExpr>(DictionaryExpr::ffi_ref_prop(&arg_0_name)).present(source)));
@@ -57,13 +57,13 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         let root_arg_composer = arg_0_name.field_composer(root_field_type_kind);
         let ctor_arg_composer = arg_0_name.field_composer(arg_field_type_kind);
 
-        let from_arg_conversion = <ObjCSpecification as Specification>::value_expr_from(arg_0_name.clone(), &arg_ty, root_arg_expr.clone())
+        let from_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, root_arg_expr.clone())
             .compose(source);
-        let from_root_obj_conversion = <ObjCSpecification as Specification>::value_expr_from(arg_0_name.clone(), root_ty_ref, root_arg_expr.clone())
+        let from_root_obj_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, root_ty_ref, root_arg_expr.clone())
             .compose(source);
-        let from_arg_value_conversion = <ObjCSpecification as Specification>::value_expr_from(arg_0_name.clone(), &arg_ty, value_arg_expr)
+        let from_arg_value_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, value_arg_expr)
             .compose(source);
-        let to_arg_conversion = <ObjCSpecification as Specification>::value_expr_to(arg_0_name.clone(), &arg_ty, self.kind.wrap_arg_to(root_arg_expr))
+        let to_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_to(&arg_0_name, &arg_ty, self.kind.wrap_arg_to(root_arg_expr))
             .compose(source);
         let ctor_to_arg_expr = self.root_kind.wrap_alloc::<ObjCSpecification, DictionaryExpr>(
             Expression::new_smth(

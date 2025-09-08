@@ -19,7 +19,7 @@ pub enum BindingPresentableContext<SPEC>
     where SPEC: Specification {
     Constructor(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, NameKind, CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>),
     VariantConstructor(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, NameKind, CommaPunctuatedArgKinds<SPEC>, CommaPunctuatedArgKinds<SPEC>),
-    Destructor(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, NameKind),
+    Destructor(Aspect<SPEC::TYC>, SignatureAspect<SPEC>),
     Callback(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, Ident, CommaPunctuatedArgs, ReturnType, CommaPunctuated<SPEC::Expr>, DictionaryExpr, ReturnType, CommaPunctuated<BareFnArg>),
     Getter(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, VarComposer<SPEC>, TokenStream2),
     Setter(Aspect<SPEC::TYC>, SignatureAspect<SPEC>, VarComposer<SPEC>, TokenStream2),
@@ -55,8 +55,8 @@ impl<SPEC> BindingPresentableContext<SPEC>
         Self::VariantConstructor(aspect, signature_context, name_kind, args, names)
     }
     pub fn dtor(context: AspectArgComposers<SPEC>) -> Self {
-        let ((ffi_type, signature_context, name_kind), ..) = context;
-        Self::Destructor(ffi_type, signature_context, name_kind)
+        let ((ffi_type, signature_context, ..), ..) = context;
+        Self::Destructor(ffi_type, signature_context)
     }
     pub fn get(context: BindingAccessorContext<SPEC>) -> Self {
         let (obj_type, signature_context, field_type, field_name) = context;
