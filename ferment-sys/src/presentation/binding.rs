@@ -1,11 +1,10 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
-use syn::{Attribute, BareFnArg, Field, Generics, parse_quote, ReturnType, Type, Visibility, FieldMutability};
-use syn::punctuated::Punctuated;
+use syn::{Attribute, BareFnArg, Generics, parse_quote, ReturnType, Type, Visibility};
 use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs, SignatureAspect};
-use crate::ext::{Accessory, CrateExtension, Pop, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, ArgsTransform, Pop, PunctuateOne, Terminated, ToPath, ToType};
 use crate::lang::RustSpecification;
 use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
@@ -158,13 +157,7 @@ pub fn present_function<T: ToTokens, N: ToTokens>(
     body: TokenStream2) -> TokenStream2 {
     let signature = match generics {
         None => {
-            let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter_map(|lt| {
-                if lt.ident.to_string().eq("static") {
-                    None
-                } else {
-                    Some(lt.to_token_stream())
-                }
-            }));
+            let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter_map(|lt| lt.ident.ne("static").then(|| lt.to_token_stream())));
             if comma_lifetimes.is_empty() {
                 quote!(#name(#args) #output)
             } else {
@@ -179,13 +172,16 @@ pub fn present_function<T: ToTokens, N: ToTokens>(
             }
         }
     };
+    let sig = present_signature(acc, signature);
     quote! {
         #(#attrs)*
         #[no_mangle]
-        #acc unsafe extern "C" fn #signature {
-            #body
-        }
+        #sig { #body }
     }
+}
+
+pub fn present_signature<A: ToTokens, S: ToTokens>(acc: A, signature: S) -> TokenStream2 {
+    quote!(#acc unsafe extern "C" fn #signature)
 }
 
 pub fn present_struct<Name: ToTokens, Impl: ToTokens>(
@@ -222,22 +218,22 @@ impl ToTokens for BindingPresentation {
                     aspect,
                     name,
                     ctor_arguments.clone(),
-                    ReturnType::Type(RArrow::default(), variant_path.popped().to_token_stream().joined_mut().to_type().into()),
+                    ReturnType::Type(RArrow::default(), variant_path.popped().to_type().joined_mut().into()),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
             Self::Destructor { aspect, name, var } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote!(ffi: #var)]),
+                    quote!(ffi: #var).punctuate_one(),
                     ReturnType::Default,
-                    InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi.to_token_stream()).to_token_stream().terminated()
+                    InterfacesMethodExpr::UnboxAny(DictionaryName::Ffi).to_token_stream().terminated()
                 ),
             Self::ObjAsTrait { aspect, name, item_var, trait_type, vtable_name } =>
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote!(obj: #item_var)]),
+                    quote!(obj: #item_var).punctuate_one(),
                     ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
                     quote!(#trait_type {
                         object: obj as *const (),
@@ -249,7 +245,7 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote! { #(#attrs)* obj: #trait_type }]),
+                    quote!(#(#attrs)* obj: #trait_type).punctuate_one(),
                     ReturnType::Default,
                     InterfacesMethodExpr::UnboxAny(quote!(obj.object as *mut #item_type)).to_token_stream().terminated()
                 )
@@ -259,7 +255,7 @@ impl ToTokens for BindingPresentation {
                 present_pub_function(
                     aspect,
                     name,
-                    CommaPunctuated::from_iter([quote! { obj: #obj_var }]),
+                    quote!(obj: #obj_var).punctuate_one(),
                     ReturnType::Type(RArrow::default(), field_type.clone().into()),
                     quote!((*obj).#field_name)
                 ),
@@ -272,9 +268,7 @@ impl ToTokens for BindingPresentation {
                     ReturnType::Default,
                     quote!((*obj).#field_name = value;)),
             Self::RegularFunction { aspect, is_async: true, name, arguments, input_conversions, return_type, output_conversions } => {
-                let mut args = Punctuated::from_iter([
-                    ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
-                ]);
+                let mut args = ArgPresentation::Field(crate::ast::inherited_named_field(format_ident!("runtime"), parse_quote!(*const std::os::raw::c_void))).punctuate_one();
                 args.extend(arguments.clone());
                 present_pub_function(
                     aspect,
@@ -307,9 +301,7 @@ impl ToTokens for BindingPresentation {
                     body.to_token_stream()
                 ),
             Self::RegularFunction2 { aspect, is_async: true, name, argument_names, arguments, full_fn_path, input_conversions, return_type, output_conversions } => {
-                let mut args = Punctuated::from_iter([
-                    ArgPresentation::Field(Field { attrs: vec![], vis: Visibility::Inherited, ident: Some(format_ident!("runtime")), colon_token: Default::default(), mutability: FieldMutability::None, ty: parse_quote!(*const std::os::raw::c_void) }),
-                ]);
+                let mut args = ArgPresentation::Field(crate::ast::inherited_named_field(format_ident!("runtime"), parse_quote!(*const std::os::raw::c_void))).punctuate_one();
                 args.extend(arguments.clone());
                 present_pub_function(
                     aspect,
@@ -350,7 +342,7 @@ impl ToTokens for BindingPresentation {
                 ),
             Self::Callback { aspect: (attrs, ..), name, ffi_args, result, conversion } => {
                 let result_impl = match result {
-                    ReturnType::Default => quote! {},
+                    ReturnType::Default => TokenStream2::default(),
                     ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
                 };
                 let implementation = quote! {{ caller: unsafe extern "C" fn(#ffi_args) #result_impl, }};

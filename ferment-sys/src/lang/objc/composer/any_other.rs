@@ -1,9 +1,9 @@
 use quote::ToTokens;
 use crate::composer::{AnyOtherComposer, GenericComposerInfo, SourceComposable, VarComposer};
 use crate::context::ScopeContext;
-use crate::ext::{CrateExtension, GenericNestedArg, Mangle, ToPath, ToType};
+use crate::ext::{ArgsTransform, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
-use crate::presentation::{DictionaryName, Name};
+use crate::presentation::Name;
 
 impl SourceComposable for AnyOtherComposer<ObjCSpecification> {
     type Source = ScopeContext;
@@ -13,7 +13,7 @@ impl SourceComposable for AnyOtherComposer<ObjCSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let ffi_name = self.ty.mangle_ident_default();
         let ffi_type = ffi_name.to_type();
-        let arg_0_name = Name::<ObjCSpecification>::Dictionary(DictionaryName::Obj);
+        let arg_0_name = Name::<ObjCSpecification>::obj();
 
         let path = self.ty.to_path();
         let ctor_path = path.arg_less();

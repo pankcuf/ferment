@@ -1,4 +1,4 @@
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 
 pub trait Terminated {
@@ -11,17 +11,22 @@ impl Terminated for TokenStream2 {
     }
 }
 
-pub trait WrapInBraces {
-    fn wrap_in_braces(&self) -> Self;
-    fn wrap_in_rounds(&self) -> Self;
+pub trait WrapIntoRoundBraces: ToTokens {
+    fn wrap(self) -> TokenStream2;
 }
 
-impl WrapInBraces for TokenStream2 {
-    fn wrap_in_braces(&self) -> Self {
+pub trait WrapIntoCurlyBraces: ToTokens {
+    fn wrap(self) -> TokenStream2;
+}
+
+impl<T: ToTokens> WrapIntoCurlyBraces for T {
+    fn wrap(self) -> TokenStream2 {
         quote!({#self})
     }
+}
 
-    fn wrap_in_rounds(&self) -> Self {
+impl<T: ToTokens> WrapIntoRoundBraces for T {
+    fn wrap(self) -> TokenStream2 {
         quote!((#self))
     }
 }

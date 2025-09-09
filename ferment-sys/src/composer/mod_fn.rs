@@ -10,9 +10,9 @@ use crate::composer::{BasicComposer, BasicComposerOwner, BasicComposerLink, Comp
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{ExpressionComposable, ToType};
-use crate::lang::{FromDictionary, Specification};
+use crate::lang::Specification;
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
-use crate::presentation::{DictionaryName, DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
+use crate::presentation::{DocPresentation, FFIFullDictionaryPath, FFIFullPath, Name};
 
 
 #[allow(unused)]
@@ -32,7 +32,7 @@ where SPEC: Specification {
         attrs: AttrsModel,
         context: &ScopeContextLink) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
         }));
         {
             let mut composer = root.borrow_mut();
@@ -75,7 +75,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
         ),
         ReturnType::Type(_, ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(ty).compose(source).to_type())),
-            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), ty).compose(source)
+            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::obj(), ty).compose(source)
         )
     };
     let mut arguments = CommaPunctuatedArgKinds::<SPEC>::new();

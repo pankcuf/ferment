@@ -1,25 +1,29 @@
-use std::collections::HashMap;
-use syn::Path;
-use crate::ast::TypePathHolder;
+use indexmap::IndexMap;
+use syn::{Path, Type};
 use crate::context::ScopeChain;
 
 #[derive(Clone, Default)]
 pub struct GenericResolver {
-    pub inner: HashMap<ScopeChain, HashMap<TypePathHolder, Vec<Path>>>,
+    pub inner: IndexMap<ScopeChain, IndexMap<Type, Vec<Path>>>,
 }
 
 impl GenericResolver {
-    pub fn scope_mut(&mut self, scope: &ScopeChain) -> &mut HashMap<TypePathHolder, Vec<Path>> {
+    fn scope_mut(&mut self, scope: &ScopeChain) -> &mut IndexMap<Type, Vec<Path>> {
         self.inner
             .entry(scope.clone())
             .or_default()
     }
-    pub fn maybe_generic_bounds(&self, scope: &ScopeChain, ident: &TypePathHolder) -> Option<&Vec<Path>> {
-        self.inner.get(&scope)
+    pub fn maybe_generic_bounds(&self, scope: &ScopeChain, ident: &Type) -> Option<&Vec<Path>> {
+        self.inner.get(scope)
             .and_then(|items| items.get(ident))
     }
 
-    pub fn extend_in_scope(&mut self, scope: &ScopeChain, generics: HashMap<TypePathHolder, Vec<Path>>) {
+    pub fn maybe_first_generic(&self, scope: &ScopeChain, ident: &Type) -> Option<&Path> {
+        self.maybe_generic_bounds(scope, ident)
+            .and_then(|generic_bounds| generic_bounds.first())
+    }
+
+    pub fn extend_in_scope(&mut self, scope: &ScopeChain, generics: IndexMap<Type, Vec<Path>>) {
         self.scope_mut(&scope)
             .extend(generics);
 

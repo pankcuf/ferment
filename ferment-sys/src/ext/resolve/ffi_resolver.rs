@@ -35,6 +35,14 @@ pub trait FFISpecialTypeResolve<SPEC>
             .map(|special| matches!(special, SpecialType::Custom(..)))
             .unwrap_or(false)
     }
+    fn maybe_custom_or_opaque(&self, source: &ScopeContext) -> Option<SpecialType<SPEC>> {
+        self.maybe_special_type(source)
+            .and_then(|special| match special {
+                SpecialType::Custom(_) |
+                SpecialType::Opaque(_) => Some(special),
+                SpecialType::Phantom(_) => None
+            })
+    }
 }
 impl<SPEC> FFISpecialTypeResolve<SPEC> for Type
     where SPEC: Specification,

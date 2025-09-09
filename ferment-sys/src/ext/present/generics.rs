@@ -1,4 +1,5 @@
-use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, Type};
+use syn::{AngleBracketedGenericArguments, GenericArgument, PathArguments, PathSegment, Type};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 use crate::kind::TypeKind;
 
 #[allow(unused)]
@@ -20,14 +21,7 @@ impl GenericNestedArg for Type {
             Type::Array(type_array) => Some(&type_array.elem),
             Type::Slice(type_slice) => Some(&type_slice.elem),
             Type::Reference(type_reference) => Some(&type_reference.elem),
-            Type::Path(type_path) => type_path.path.segments.last().and_then(|last_segment| match &last_segment.arguments {
-                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                    args.iter().find_map(|arg| match arg {
-                        GenericArgument::Type(ty) => Some(ty),
-                        _ => None
-                    }),
-                _ => None,
-            }),
+            Type::Path(type_path) => type_path.maybe_generic_type(),
             _ => None
         }
     }
@@ -39,15 +33,11 @@ impl GenericNestedArg for Type {
             Type::Reference(type_reference) => vec![&type_reference.elem],
             Type::Path(type_path) => {
                 let mut vec = Vec::<&Type>::new();
-                if let Some(last_segment) = type_path.path.segments.last() {
-                    match &last_segment.arguments {
-                        PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                            args.iter().for_each(|arg| match arg {
-                                GenericArgument::Type(ty) => vec.push(ty),
-                                _ => {}
-                            }),
+                if let Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) = type_path.path.segments.last() {
+                    args.iter().for_each(|arg| match arg {
+                        GenericArgument::Type(ty) => vec.push(ty),
                         _ => {}
-                    }
+                    });
                 }
                 vec
             },

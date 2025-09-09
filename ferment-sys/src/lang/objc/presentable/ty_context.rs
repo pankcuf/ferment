@@ -99,22 +99,21 @@ impl TypeContext {
 }
 impl Display for TypeContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             TypeContext::Enum { ident, .. } |
             TypeContext::Struct { ident, .. } =>
-                ident.to_string(),
+                f.write_str(ident.to_string().as_str()),
             TypeContext::EnumVariant { ident, variant_ident, .. } =>
-                format!("{ident}_{variant_ident}"),
+                f.write_fmt(format_args!("{ident}_{variant_ident}")),
             TypeContext::Fn { path, .. } |
+            TypeContext::Impl { path, .. } |
             TypeContext::Trait { path, .. } =>
-                path.to_token_stream().to_string(),
-            TypeContext::Impl { path, .. } =>
-                path.to_token_stream().to_string(),
+                f.write_str(path.to_token_stream().to_string().as_str()),
             TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. } =>
-                kind.to_token_stream().to_string(),
+                f.write_str(kind.to_token_stream().to_string().as_str()),
             TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. } =>
-                model.to_string(),
-        }.as_str())
+                f.write_str(model.to_string().as_str()),
+        }
     }
 }
 impl ToTokens for TypeContext {

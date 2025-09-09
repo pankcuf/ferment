@@ -30,6 +30,7 @@ pub enum DictionaryExpr {
     IfNotNull(TokenStream2, TokenStream2),
     IfThen(TokenStream2, TokenStream2),
     MapOr(TokenStream2, TokenStream2, TokenStream2),
+    Some(TokenStream2),
     NullMut,
     CChar,
     Arc,
@@ -67,9 +68,13 @@ pub enum DictionaryExpr {
     FromArc(TokenStream2),
     FromRc(TokenStream2),
     SelfAsTrait(TokenStream2, TokenStream2),
+    IfElse(TokenStream2, TokenStream2, TokenStream2)
 }
 
 impl DictionaryExpr {
+    pub fn simple<T: ToTokens>(name: T) -> Self {
+        Self::Simple(name.to_token_stream())
+    }
     pub fn self_prop<T: ToTokens>(name: T) -> Self {
         Self::SelfProp(name.to_token_stream())
     }
@@ -79,13 +84,32 @@ impl DictionaryExpr {
     pub fn ffi_ref_prop<T: ToTokens>(name: T) -> Self {
         Self::FfiRefProp(name.to_token_stream())
     }
+    pub fn deref<T: ToTokens>(name: T) -> Self {
+        Self::Deref(name.to_token_stream())
+    }
     pub fn deref_ref<T: ToTokens>(name: T) -> Self {
         Self::DerefRef(name.to_token_stream())
     }
     pub fn self_destruct<T: ToTokens>(name: T) -> Self {
         Self::SelfDestructuring(name.to_token_stream())
     }
+    pub fn callback_caller<T: ToTokens, U: ToTokens>(conversion: T, result: U) -> Self {
+        Self::CallbackCaller(conversion.to_token_stream(), result.to_token_stream())
+    }
+    pub fn callback_dtor<T: ToTokens, U: ToTokens>(conversion: T, result: U) -> Self {
+        Self::CallbackDestructor(conversion.to_token_stream(), result.to_token_stream())
+    }
+    
+    pub fn casted_ffi_conversion_from<T: ToTokens, U: ToTokens, V: ToTokens>(ffi_ty: T, ty: U, field_expr: V) -> Self {
+        Self::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
+    }
+    pub fn casted_ffi_conversion_from_opt<T: ToTokens, U: ToTokens, V: ToTokens>(ffi_ty: T, ty: U, field_expr: V) -> Self {
+        Self::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
+    }
 
+    pub fn some<T: ToTokens>(body: T) -> Self {
+        Self::Some(body.to_token_stream())
+    }
     pub fn from_root<T: ToTokens>(body: T) -> Self {
         Self::FromRoot(body.to_token_stream())
     }
@@ -159,6 +183,8 @@ impl ToTokens for DictionaryExpr {
                 quote!(|#context| ).to_tokens(tokens);
                 expr.to_tokens(tokens);
             }
+            Self::Some(content) =>
+                quote!(Some(#content)).to_tokens(tokens),
             Self::FfiRefProp(prop) => {
                 quote!(ffi_ref.).to_tokens(tokens);
                 prop.to_tokens(tokens);
@@ -295,8 +321,9 @@ impl ToTokens for DictionaryExpr {
             Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
                 quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
             Self::BoxedSelfDestructuring(expr) =>
-                InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr).to_token_stream()).to_tokens(tokens),
-
+                InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr)).to_tokens(tokens),
+            Self::IfElse(condition, true_expr, false_expr) =>
+                quote!(if #condition { #true_expr } else { #false_expr }).to_tokens(tokens)
         }
     }
 }

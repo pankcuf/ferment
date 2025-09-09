@@ -1,19 +1,16 @@
-use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree};
+use syn::{Attribute, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
 use syn::visit::Visit;
-use crate::ast::{PathHolder, TypeHolder};
-use crate::context::{GlobalContext, ScopeChain, TypeChain};
+use crate::context::{GenericChain, GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
-use crate::ext::{add_trait_names, CrateExtension, create_generics_chain, extract_trait_names, ItemExtension, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType};
-use crate::nprint;
+use crate::ext::{CrateExtension, extract_trait_names, MaybeIdent, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToPath, ToType};
 use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
     pub context: Arc<RwLock<GlobalContext>>,
-    pub parent: PathHolder,
+    pub parent: Path,
     pub inner_visitors: Vec<Visitor>,
     pub tree: ScopeTreeExportItem,
     pub current_module_scope: ScopeChain,
@@ -50,7 +47,7 @@ impl<'ast> Visit<'ast> for Visitor {
         self.add_conversion(Item::Impl(node.clone()));
     }
     fn visit_item_mod(&mut self, node: &'ast ItemMod) {
-        if node.ident.to_string().eq("fermented") {
+        if node.ident.eq("fermented") {
             return;
         }
         let item = Item::Mod(node.clone());
@@ -81,11 +78,10 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub fn new(scope: ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
-        //println!("Visitor::new({})", scope.self_path_holder_ref());
+    pub fn new(scope: &ScopeChain, attrs: &Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
         Self {
             context: context.clone(),
-            parent: scope.self_path_holder_ref().clone(),
+            parent: scope.to_path(),
             current_module_scope: scope.clone(),
             inner_visitors: vec![],
             tree: ScopeTreeExportItem::tree_with_context(scope, context.clone(), attrs)
@@ -123,110 +119,103 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits.add_trait(scope, item_trait, itself);
     }
-    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
-        let generics = create_generics_chain(self, generics, scope, add_to_parent);
+    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: GenericChain) {
         let mut lock = self.context.write().unwrap();
-        lock.generics.extend_in_scope(scope, generics)
+        lock.generics.extend_in_scope(scope, generics.inner)
     }
 
-    fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
+    pub(crate) fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
-    pub(crate) fn scope_add_one(&self, ty: TypeHolder, object: ObjectKind, scope: &ScopeChain) {
+    fn add_to_many_scopes(&self, types: TypeChain, scopes: &[&ScopeChain]) {
+        let mut lock = self.context.write().unwrap();
+        scopes.iter()
+            .for_each(|scope|
+                lock.scope_mut(scope)
+                    .add_many(types.inner.clone().into_iter()));
+    }
+    pub(crate) fn scope_add_one(&self, ty: Type, object: ObjectKind, scope: &ScopeChain) {
         let mut lock = self.context.write().unwrap();
         lock.scope_mut(scope)
             .add_one(ty, object);
     }
+    pub(crate) fn scope_add_self(&self, object: ObjectKind, scope: &ScopeChain) {
+        self.scope_add_one(parse_quote!(Self), object, scope)
+    }
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
-        add_trait_names(self, scope, &trait_names, true);
+        trait_names.iter().for_each(|trait_name| self.add_full_qualified_type_match(scope, &trait_name.to_type(), true));
         let mut lock = self.context.write().unwrap();
-        lock.traits
-            .add_used_traits(scope, trait_names)
+        lock.traits.add_used_traits(scope, trait_names)
     }
 
-    pub(crate) fn create_type_chain(&self, ty: &Type, scope: &ScopeChain) -> TypeChain {
+    pub(crate) fn create_type_chain<N>(&self, ty: &N, scope: &ScopeChain) -> TypeChain
+    where N: UniqueNestedItems<Item = Type> {
         let context = self.context.read().unwrap();
         TypeChain::from(
             ty.unique_nested_items()
-                .iter()
-                .map(|ty| (
-                    TypeHolder::from(ty),
-                    ty.visit_scope_type(&(scope, &context)))))
-    }
-    pub(crate) fn add_full_qualified_type_chains(&mut self, type_chains: HashMap<ScopeChain, TypeChain>) {
-        type_chains.into_iter().for_each(|(scope, type_chain)| {
-            self.scope_add_many(type_chain, &scope)
-        });
+                .into_iter()
+                .map(|ty| {
+                    let object = ty.visit_scope_type(&(scope, &context));
+                    (ty, object)
+                }))
     }
     pub(crate) fn add_full_qualified_type_chain(&mut self, scope: &ScopeChain, type_chain: TypeChain, add_to_parent: bool) {
-        let self_obj = &scope.self_scope().object;
         match scope {
             ScopeChain::CrateRoot { .. } |
-            ScopeChain::Mod { .. } => {
-                self.scope_add_many(type_chain.selfless(), scope);
-            },
-            ScopeChain::Impl { parent_scope_chain, .. } => {
+            ScopeChain::Mod { .. } =>
+                self.scope_add_many(type_chain.selfless(), scope),
+            ScopeChain::Impl { parent, .. } => {
                 if add_to_parent {
-                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                    self.scope_add_many(type_chain.selfless(), parent);
                 }
                 self.scope_add_many(type_chain, scope);
             },
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } => {
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } => {
                 self.scope_add_many(type_chain.clone(), scope);
-                self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
+                self.scope_add_one(parse_quote!(Self), scope.self_object(), scope);
                 if add_to_parent {
-                    self.scope_add_many(type_chain.selfless(), parent_scope_chain);
+                    self.scope_add_many(type_chain.selfless(), parent);
                 }
             },
-            ScopeChain::Fn { parent_scope_chain, .. } => {
-                match &**parent_scope_chain {
-                    ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => {
-                        self.scope_add_many(type_chain.clone(), scope);
-                        if add_to_parent {
-                            self.scope_add_many(type_chain, parent_scope_chain);
-                        }
-                    },
-                    ScopeChain::Trait { parent_scope_chain: parent_parent_scope_chain, .. } |
-                    ScopeChain::Object { parent_scope_chain: parent_parent_scope_chain, .. } |
-                    ScopeChain::Impl { parent_scope_chain: parent_parent_scope_chain, .. } => {
-                        self.scope_add_many(type_chain.clone(), scope);
-                        self.scope_add_one(parse_quote!(Self), self_obj.clone(), scope);
-                        if add_to_parent {
-                            self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
-                            self.scope_add_many(type_chain, parent_scope_chain);
-                        }
-                    },
-                    ScopeChain::Fn { parent_scope_chain: _parent_parent_scope_chain, .. } => {
-                        // TODO: actually there are may be anything wrapped into anything like trait inside a function...
+            ScopeChain::Fn { parent, .. } => match &**parent {
+                ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } => if add_to_parent {
+                    self.add_to_many_scopes(type_chain, &[scope, parent])
+                } else {
+                    self.scope_add_many(type_chain, scope);
+                },
+                ScopeChain::Trait { parent: parent_parent_scope_chain, .. } |
+                ScopeChain::Object { parent: parent_parent_scope_chain, .. } |
+                ScopeChain::Impl { parent: parent_parent_scope_chain, .. } => {
+                    self.scope_add_one(parse_quote!(Self), scope.self_object(), scope);
+                    self.scope_add_many(type_chain.clone(), scope);
+                    if add_to_parent {
+                        self.scope_add_many(type_chain.selfless(), parent_parent_scope_chain);
+                        self.scope_add_many(type_chain, parent);
                     }
-
+                },
+                ScopeChain::Fn { parent: _parent_parent_scope_chain, .. } => {
+                    // TODO: actually there are may be anything wrapped into anything like trait inside a function...
                 }
             }
         }
     }
 
     pub(crate) fn add_full_qualified_type_match(&mut self, scope: &ScopeChain, ty: &Type, add_to_parent: bool) {
-        nprint!(0, crate::formatter::Emoji::Plus, "{}: {} (add_2_parent: {})", scope.fmt_short(), ty.to_token_stream(), add_to_parent);
-        let type_chain = self.create_type_chain(ty, scope);
-        self.add_full_qualified_type_chain(scope, type_chain, add_to_parent)
+        self.add_full_qualified_type_chain(scope, self.create_type_chain(ty, scope), add_to_parent)
     }
 
-    fn find_scope_tree(&mut self, scope: &PathHolder) -> &mut ScopeTreeExportItem {
+    fn find_scope_tree(&mut self, scope: &Path) -> &mut ScopeTreeExportItem {
         let mut current_tree = &mut self.tree;
-        for ident in scope.crate_less().iter().map(ScopeTreeID::from) {
-            match current_tree {
-                ScopeTreeExportItem::Item(..) =>
-                    panic!("Unexpected item while traversing the scope path"),  // Handle as appropriate
-                ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) => {
-                    if !exported.contains_key(&ident) {
-                        exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), HashMap::default(), attrs.clone()));
-                    }
-                    current_tree = exported.get_mut(&ident).unwrap();
+        for ident in scope.segments.crate_less().iter().map(ScopeTreeID::from) {
+            if let ScopeTreeExportItem::Tree(scope_context, _, exported, attrs) = current_tree {
+                if !exported.contains_key(&ident) {
+                    exported.insert(ident.clone(), ScopeTreeExportItem::tree_with_context_and_exports(scope_context.clone(), attrs));
                 }
+                current_tree = exported.get_mut(&ident).unwrap();
             }
         }
         current_tree
@@ -236,30 +225,24 @@ impl Visitor {
         // TODO: filter out #[cfg(test)]
         let ident = item.maybe_ident();
         let current_scope = self.current_module_scope.clone();
-        let self_scope = current_scope.self_scope().clone().self_scope;
+        let self_scope = current_scope.to_path();
         match (MacroKind::try_from(&item), ObjectKind::try_from((&item, &self_scope))) {
-            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => {
-                if let Some(scope) = item.join_scope(&current_scope, self) {
-                    self.find_scope_tree(&self_scope)
-                        .add_item(item, scope);
-                }
+            (Ok(MacroKind::Export | MacroKind::Opaque), Ok(_)) => if let Some(scope) = item.join_scope(&current_scope, self) {
+                self.find_scope_tree(&self_scope)
+                    .add_item(item, scope);
             },
             (_, Ok(_)) if item.is_mod() => {
                 item.add_to_scope(&current_scope, self);
                 self.find_scope_tree(&self_scope.popped())
                     .add_item(item, current_scope);
             },
-            (Ok(MacroKind::Register(custom_type)), Ok(_)) => {
-                if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
-                    let scope_context_borrowed = scope_context.borrow();
-                    scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
-                }
+            (Ok(MacroKind::Register(custom_type)), Ok(_)) => if let ScopeTreeExportItem::Tree(scope_context, ..) = self.find_scope_tree(&self_scope) {
+                let scope_context_borrowed = scope_context.borrow();
+                scope_context_borrowed.add_custom_conversion(current_scope, custom_type, parse_quote!(#self_scope::#ident));
             },
-            (_, Ok(_)) => {
-                if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
-                    if let Item::Impl(..) = item {
-                        if let Some(_scope) = item.join_scope(&current_scope, self) {}
-                    }
+            (_, Ok(_)) => if ident.eq(&Some(&format_ident!("FFIConversionFrom"))) || ident.eq(&Some(&format_ident!("FFIConversionTo"))) || ident.eq(&Some(&format_ident!("FFIConversionDestroy"))) {
+                if let Item::Impl(..) = item {
+                    if let Some(_scope) = item.join_scope(&current_scope, self) {}
                 }
             },
             _ => {}

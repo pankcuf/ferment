@@ -1,42 +1,8 @@
-use std::ptr::NonNull;
-use crate::unbox_any;
-
-pub trait FFIConversion2<'a, T> {
-    /// # Safety
-    unsafe fn ffi_from_const(ffi: *const Self) -> T;
-    /// # Safety
-    unsafe fn ffi_to_const(obj: &'a T) -> *const Self;
-    /// # Safety
-    unsafe fn ffi_from(ffi: *mut Self) -> T {
-        Self::ffi_from_const(ffi)
-    }
-    /// # Safety
-    unsafe fn ffi_to(obj: &'a T) -> *mut Self {
-        Self::ffi_to_const(obj).cast_mut()
-    }
-    /// # Safety
-    unsafe fn ffi_from_opt(ffi: *mut Self) -> Option<T> {
-        (!ffi.is_null()).then(||<Self as FFIConversion2<T>>::ffi_from(ffi))
-    }
-    /// # Safety
-    unsafe fn ffi_to_opt(obj: Option<&'a T>) -> *mut Self where Self: Sized {
-        obj.map_or(NonNull::<Self>::dangling().as_ptr(), |o| <Self as FFIConversion2<T>>::ffi_to(o))
-    }
-    /// # Safety
-    unsafe fn destroy(ffi: *mut Self) {
-        if ffi.is_null() {
-            return;
-        }
-        unbox_any(ffi);
-    }
-}
-
 pub mod types {
     use std::borrow::Cow;
     use std::ffi::{CStr, CString};
     use std::os::raw::c_char;
     use crate::{boxed, FFIConversionFrom, FFIConversionTo, unbox_string};
-    use crate::fermented::FFIConversion2;
 
     impl FFIConversionFrom<u128> for [u8; 16] {
         unsafe fn ffi_from_const(ffi: *const Self) -> u128 {
@@ -76,33 +42,6 @@ pub mod types {
         }
         unsafe fn ffi_to(obj: String) -> *mut Self {
             CString::new(obj).unwrap().into_raw()
-        }
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy, Debug)]
-    pub struct ByteArray {
-        pub ptr: *const u8,
-        pub len: usize,
-    }
-
-
-    impl FFIConversionFrom<&[u8]> for ByteArray {
-        unsafe fn ffi_from_const(ffi: *const Self) -> &'static [u8] {
-            let ffi_ref = &*ffi;
-            std::slice::from_raw_parts(ffi_ref.ptr, ffi_ref.len)
-        }
-        unsafe fn ffi_from(ffi: *mut Self) -> &'static [u8] {
-            Self::ffi_from_const(ffi)
-        }
-    }
-    impl FFIConversionTo<&[u8]> for ByteArray {
-        unsafe fn ffi_to_const(obj: &[u8]) -> *const Self {
-            &Self { ptr: obj.as_ptr(), len: obj.len(), } as *const _
-        }
-
-        unsafe fn ffi_to(obj: &[u8]) -> *mut Self {
-            Self::ffi_to_const(obj).cast_mut()
         }
     }
 
@@ -155,14 +94,4 @@ pub mod types {
         }
     }
 
-
-    impl<'a, T, FFI> FFIConversion2<'a, T> for FFI where FFI: From<&'a T> + 'a, T: From<&'a FFI> + 'a {
-        unsafe fn ffi_from_const(ffi: *const Self) -> T {
-            T::from(&*ffi)
-        }
-
-        unsafe fn ffi_to_const(obj: &'a T) -> *const Self {
-            boxed(obj.into())
-        }
-    }
 }

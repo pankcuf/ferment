@@ -10,11 +10,14 @@ pub enum ScopeSearch {
 }
 impl Display for ScopeSearch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::KeyInScope(key, scope) => format!("KeyInScope({} in {})", key, scope.fmt_short()),
-            Self::Value(key) => format!("Value({})", key),
-            Self::KeyInComposerScope(key) => format!("KeyInComposerScope({})", key),
-        }.as_str())
+        match self {
+            ScopeSearch::KeyInScope(key, scope) =>
+                f.write_fmt(format_args!("KeyInScope({key} in {})", scope.fmt_short())),
+            ScopeSearch::KeyInComposerScope(key) =>
+                f.write_fmt(format_args!("KeyInComposerScope({key})")),
+            ScopeSearch::Value(key) =>
+                f.write_fmt(format_args!("Value({key})")),
+        }
     }
 }
 

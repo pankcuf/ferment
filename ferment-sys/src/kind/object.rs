@@ -1,14 +1,15 @@
 use std::fmt::{Debug, Display, Formatter};
+use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Attribute, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Signature, Type};
-use syn::punctuated::Punctuated;
-use crate::ast::{CommaPunctuated, PathHolder};
+use syn::{Attribute, Generics, Item, ItemConst, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ParenthesizedGenericArguments, Path, PathSegment, QSelf, Signature, Type};
+use syn::token::PathSep;
+use crate::ast::{Colon2Punctuated, CommaPunctuated};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
-use crate::kind::{GenericTypeKind, ScopeItemKind, TypeKind, TypeModelKind};
-use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericBoundsModel, GenericTypeKind, GroupModelKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
+use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario, handle_type_path_model};
 use crate::lang::{NameComposable, Specification};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -17,6 +18,113 @@ pub enum ObjectKind {
     Item(TypeModelKind, ScopeItemKind),
     Empty
 }
+
+impl ObjectKind {
+    pub fn model_type<T: Fn(TypeModel) -> TypeModelKind>(model_kind_composer: T, model: TypeModel) -> Self {
+        Self::Type(model_kind_composer(model))
+    }
+    pub fn model_item<T: Fn(TypeModel) -> TypeModelKind>(model_kind_composer: T, model: TypeModel, item: ScopeItemKind) -> Self {
+        Self::Item(model_kind_composer(model), item)
+    }
+
+    pub fn object_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Object, model)
+    }
+    pub fn array_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Array, model)
+    }
+    pub fn slice_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Slice, model)
+    }
+    pub fn tuple_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Tuple, model)
+    }
+    pub fn optional_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Optional, model)
+    }
+    pub fn trait_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::TraitType, model)
+    }
+    pub fn fn_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Fn, model)
+    }
+    pub fn fn_pointer_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::FnPointer, model)
+    }
+    pub fn unknown_model_type(model: TypeModel) -> Self {
+        Self::model_type(TypeModelKind::Unknown, model)
+    }
+    pub fn unknown_model_type_path(qself: &Option<QSelf>, sep: Option<PathSep>, segments: Colon2Punctuated<PathSegment>, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::model_type(TypeModelKind::Unknown, handle_type_path_model(qself, sep, segments, nested_arguments))
+    }
+    pub fn unknown_type(ty: Type) -> Self {
+        Self::Type(TypeModelKind::unknown_type(ty))
+    }
+    pub fn unknown_type_with_nested_arguments(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::Type(TypeModelKind::unknown_type_with_nested_arguments(ty, nested_arguments))
+    }
+    pub fn bounds(model: GenericBoundsModel) -> Self {
+        Self::Type(TypeModelKind::Bounds(model))
+    }
+    pub fn dict_type(kind: DictTypeModelKind) -> Self {
+        Self::Type(TypeModelKind::Dictionary(kind))
+    }
+    pub fn imported_model_type(model: TypeModel, path: Path) -> Self {
+        Self::Type(TypeModelKind::Imported(model, path))
+    }
+    pub fn primitive_type(ident: &Ident) -> Self {
+        Self::dict_type(DictTypeModelKind::Primitive(TypeModel::new_default(ident.to_type())))
+    }
+    pub fn non_primitive_fermentable_type(kind: DictFermentableModelKind) -> Self {
+        Self::dict_type(DictTypeModelKind::NonPrimitiveFermentable(kind))
+    }
+    pub fn group_type(kind: GroupModelKind) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::Group(kind))
+    }
+    pub fn lambda_fn_model_type(model: TypeModel) -> Self {
+        Self::dict_type(DictTypeModelKind::LambdaFn(model))
+    }
+    pub fn smart_ptr_type(kind: SmartPointerModelKind) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::SmartPointer(kind))
+    }
+
+    pub fn str_type(ty: Type) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::Str(TypeModel::new_default(ty)))
+    }
+    pub fn string_type(ty: Type) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::String(TypeModel::new_default(ty)))
+    }
+    pub fn i128_type(ty: &Ident) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::I128(TypeModel::new_default(ty.to_type())))
+    }
+    pub fn u128_type(ty: &Ident) -> Self {
+        Self::non_primitive_fermentable_type(DictFermentableModelKind::U128(TypeModel::new_default(ty.to_type())))
+    }
+
+    pub fn new_item(ty: TypeModelKind, item: ScopeItemKind) -> Self {
+        Self::Item(ty, item)
+    }
+    fn new_obj_item(ty: TypeModel, item: ScopeItemKind) -> Self {
+        Self::model_item(TypeModelKind::Object, ty, item)
+    }
+    pub fn new_generic_obj_item(ty: Type, generics: &Generics, nested_arguments: CommaPunctuatedNestedArguments, item: ScopeItemKind) -> Self {
+        Self::new_obj_item(TypeModel::new_generic(ty, generics.clone(), nested_arguments), item)
+    }
+    pub fn new_generic_non_nested_obj_item(ty: Type, generics: &Generics, item: ScopeItemKind) -> Self {
+        Self::new_obj_item(TypeModel::new_generic_non_nested(ty, generics), item)
+    }
+    pub fn new_trait_item(model: TraitModel, item: ScopeItemKind) -> Self {
+        Self::new_item(TypeModelKind::Trait(model), item)
+    }
+    pub fn new_fn_item(ty: TypeModel, item: ScopeItemKind) -> Self {
+        Self::model_item(TypeModelKind::Fn, ty, item)
+    }
+    pub fn new_fn_pointer_item(ty: TypeModel, item: ScopeItemKind) -> Self {
+        Self::model_item(TypeModelKind::FnPointer, ty, item)
+    }
+
+}
+
 
 impl ObjectKind {
     pub fn is_type(&self, ty: &Type) -> bool {
@@ -40,6 +148,15 @@ impl ObjectKind {
             ObjectKind::Empty => None
         }
     }
+
+    pub fn is_lambda(&self) -> bool {
+        match self {
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, _) => tyc.is_lambda(),
+            ObjectKind::Empty => false
+        }
+    }
+
 
     pub fn maybe_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
@@ -68,7 +185,7 @@ impl ObjectKind {
             ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
                 source.maybe_parent_trait_or_regular_model_kind(),
             ObjectKind::Type(ref type_model_kind) |
-                 ObjectKind::Item(ref type_model_kind, ..) =>
+            ObjectKind::Item(ref type_model_kind, ..) =>
                 type_model_kind.maybe_trait_model_kind_or_same(source),
             _ => None,
         }
@@ -87,7 +204,7 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for ObjectKind
     fn maybe_lambda_arg_names(&self) -> Option<CommaPunctuated<SPEC::Name>> {
         match self.maybe_callback() {
             Some(ParenthesizedGenericArguments { inputs, ..}) =>
-                Some(CommaPunctuated::from_iter(inputs.iter().enumerate().map(|(index, _ty)| SPEC::Name::unnamed_arg(index)))),
+                Some(CommaPunctuated::from_iter((0..inputs.len()).map(SPEC::Name::unnamed_arg))),
             _ => None
         }
     }
@@ -124,9 +241,9 @@ impl Debug for ObjectKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectKind::Type(tc) =>
-                f.write_str(format!("Type({})", tc).as_str()),
+                f.write_fmt(format_args!("Type({tc})")),
             ObjectKind::Item(tc, item) =>
-                f.write_str(format!("Item({}, {})", tc, item).as_str()),
+                f.write_fmt(format_args!("Item({tc}, {item})")),
             ObjectKind::Empty =>
                 f.write_str("Empty"),
         }
@@ -140,21 +257,6 @@ impl Display for ObjectKind {
 }
 
 impl ObjectKind {
-    pub fn replace_composition_type(&mut self, with_ty: Type) {
-        match self {
-            ObjectKind::Type(ty) => ty.replace_model_type(with_ty),
-            // actually it has no sense since items can never be imported where they are defined
-            ObjectKind::Item(ty, _) => ty.replace_model_type(with_ty),
-            ObjectKind::Empty => {}
-        }
-    }
-
-    pub fn new_item(ty: TypeModelKind, item: ScopeItemKind) -> ObjectKind {
-        ObjectKind::Item(ty, item)
-    }
-    pub fn new_obj_item(ty: TypeModel, item: ScopeItemKind) -> ObjectKind {
-        ObjectKind::Item(TypeModelKind::Object(ty), item)
-    }
     pub fn maybe_type_model_kind_ref(&self) -> Option<&TypeModelKind> {
         match self {
             ObjectKind::Type(tyc) |
@@ -188,64 +290,32 @@ impl ObjectKind {
     }
 }
 
-impl TryFrom<(&Item, &PathHolder)> for ObjectKind {
+impl TryFrom<(&Item, &Path)> for ObjectKind {
     type Error = ();
 
-    fn try_from((value, scope): (&Item, &PathHolder)) -> Result<Self, Self::Error> {
+    fn try_from((value, scope): (&Item, &Path)) -> Result<Self, Self::Error> {
+        let item_kind = ScopeItemKind::item_ref(value, scope);
         match value {
-            Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) => {
-                Ok(ObjectKind::new_item(
-                    TypeModelKind::Trait(TraitModel::new(TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits))),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-            },
-            Item::Struct(ItemStruct { ident, generics, .. }) => {
-                Ok(ObjectKind::new_obj_item(
-                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-            },
-            Item::Enum(ItemEnum { ident, generics, .. }) => {
-                Ok(ObjectKind::new_obj_item(
-                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-            },
-            Item::Type(ItemType { ident, generics, ty, .. }) => {
-                let conversion = ScopeItemKind::Item(value.clone(), scope.clone());
-                let obj = match &**ty {
-                    Type::BareFn(..) => {
-                        let mut nested_arguments = CommaPunctuatedNestedArguments::new();
-
-                        nested_arguments.push(NestedArgument::Object(ObjectKind::Type(TypeModelKind::Fn(TypeModel::new(*ty.clone(), Some(generics.clone()), CommaPunctuated::new())))));
-
-                        ObjectKind::Item(TypeModelKind::FnPointer(TypeModel::new(ident.to_type(), Some(generics.clone()), nested_arguments)/*,
-                            TypeComposition::new(*ty.clone(), Some(generics.clone()), Punctuated::new())*/), conversion)
-                    },
-                    _ => ObjectKind::new_obj_item(TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()), conversion)
-                };
-                Ok(obj)
-            },
-            Item::Const(ItemConst { ident, .. }) => {
-                Ok(ObjectKind::new_obj_item(
-                    TypeModel::new(ident.to_type(), None, Punctuated::new()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-            },
-            Item::Impl(ItemImpl { self_ty, generics, .. }) => {
-                Ok(ObjectKind::new_obj_item(
-                    TypeModel::new(*self_ty.clone(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-            },
-            Item::Fn(ItemFn { sig: Signature { ident, generics, .. }, .. }) => {
-                Ok(ObjectKind::new_obj_item(
-                    TypeModel::new(ident.to_type(), Some(generics.clone()), Punctuated::new()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-                    // ScopeItemKind::Fn(value.clone())))
-            },
-            Item::Mod(ItemMod { ident, .. }) => {
-                Ok(ObjectKind::new_item(
-                    TypeModelKind::unknown_type(ident.to_type()),
-                    ScopeItemKind::Item(value.clone(), scope.clone())))
-
-            }
-            _ => Err(()),
+            Item::Trait(ItemTrait { ident, generics, items, supertraits, .. }) =>
+                Ok(ObjectKind::new_trait_item(TraitModel::new(TypeModel::new_generic_ident_non_nested(ident, generics), TraitDecompositionPart1::from_trait_items(ident, items), collect_bounds(supertraits)), item_kind)),
+            Item::Const(ItemConst { ident, generics, .. }) |
+            Item::Struct(ItemStruct { ident, generics, .. }) |
+            Item::Enum(ItemEnum { ident, generics, .. }) |
+            Item::Fn(ItemFn { sig: Signature { ident, generics, .. }, .. }) =>
+                Ok(ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)),
+            Item::Type(ItemType { ident, generics, ty, .. }) =>
+                Ok(match &**ty {
+                    Type::BareFn(..) =>
+                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic_ident(ident, generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics)))])), item_kind),
+                    _ =>
+                        ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)
+                }),
+            Item::Impl(ItemImpl { self_ty, generics, .. }) =>
+                Ok(ObjectKind::new_generic_non_nested_obj_item(*self_ty.clone(), generics, item_kind)),
+            Item::Mod(ItemMod { ident, .. }) =>
+                Ok(ObjectKind::new_item(TypeModelKind::unknown_type(ident.to_type()), item_kind)),
+            _ =>
+                Err(()),
         }
     }
 }

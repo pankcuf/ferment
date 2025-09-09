@@ -1,3 +1,4 @@
+use quote::ToTokens;
 use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer};
@@ -26,8 +27,8 @@ impl SourceComposable for VarComposer<RustSpecification> {
             .and_then(ObjectKind::maybe_type)
             .unwrap_or_else(|| search_key.to_type());
         let maybe_special = Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_ty, source);
-        //println!("VarComposer:full_ty {}", full_ty.to_token_stream());
-        match maybe_special {
+        println!("VarComposer {}", full_ty.to_token_stream());
+        let result = match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_, ScopeItemKind::Fn(..))) =>
                     ptr_composer(source.maybe_to_fn_type().unwrap_or_else(|| search_key.to_type())),
@@ -121,11 +122,8 @@ impl SourceComposable for VarComposer<RustSpecification> {
                             ref cnv => {
                                 if cnv.is_optional() {
                                     if let Some(nested_ty) = full_ty.maybe_first_nested_type_kind() {
-                                        match FFISpecialTypeResolve::<RustSpecification>::maybe_special_type(&nested_ty.to_type(), source) {
-                                            Some(SpecialType::Custom(special_ty) | SpecialType::Opaque(special_ty)) => {
-                                                return FFIVariable::mut_ptr(special_ty.to_type());
-                                            },
-                                            _ => {}
+                                        if let Some(special_ty) = FFISpecialTypeResolve::<RustSpecification>::maybe_custom_or_opaque(&nested_ty.to_type(), source) {
+                                            return FFIVariable::mut_ptr(special_ty.to_type());
                                         }
                                     }
                                 }
@@ -141,6 +139,9 @@ impl SourceComposable for VarComposer<RustSpecification> {
                     _ => search_key.resolve(source)
                 }
             }
-        }
+        };
+        println!("VarComposer ==> {}", result.to_token_stream());
+
+        result
     }
 }

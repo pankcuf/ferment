@@ -1,7 +1,8 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, GenericParam, Lifetime, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, Receiver, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::{AddPunctuated, CommaPunctuated};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 use crate::kind::{CallbackKind, GenericTypeKind, SmartPointerKind, TypeKind};
-use crate::ext::ToType;
+use crate::ext::{MaybeTraitBound, ToType};
 
 pub trait LifetimeProcessor {
     fn clean_lifetimes(&mut self);
@@ -135,10 +136,7 @@ impl LifetimeProcessor for PathArguments {
 }
 impl LifetimeProcessor for AngleBracketedGenericArguments {
     fn clean_lifetimes(&mut self) {
-        self.args = CommaPunctuated::from_iter(self.args.iter().filter_map(|arg| match arg {
-            GenericArgument::Type(ty) => Some(GenericArgument::Type(ty.lifetimes_cleaned())),
-            _ => None,
-        }));
+        self.args = CommaPunctuated::from_iter(self.args.iter().filter_map(|arg| arg.maybe_generic_type().map(LifetimeProcessor::lifetimes_cleaned).map(GenericArgument::Type)));
     }
 
     fn unique_lifetimes(&self) -> Vec<Lifetime> {
@@ -317,14 +315,7 @@ impl LifetimeProcessor for GenericTypeKind {
             GenericTypeKind::Optional(ty) => ty.clean_lifetimes(),
             GenericTypeKind::SmartPointer(kind) => kind.clean_lifetimes(),
             GenericTypeKind::Callback(kind) => kind.ty_mut().clean_lifetimes(),
-            GenericTypeKind::TraitBounds(bounds) => {
-                *bounds = bounds.iter().filter_map(|b| match b {
-                    TypeParamBound::Trait(trait_bound) =>
-                        Some(TypeParamBound::Trait(trait_bound.lifetimes_cleaned())),
-                    _ =>
-                        None,
-                }).collect();
-            },
+            GenericTypeKind::TraitBounds(bounds) => bounds.clean_lifetimes(),
         }
     }
 
@@ -349,12 +340,7 @@ impl LifetimeProcessor for GenericTypeKind {
 
 impl LifetimeProcessor for AddPunctuated<TypeParamBound> {
     fn clean_lifetimes(&mut self) {
-        for type_param_bound in self.iter_mut() {
-            match type_param_bound {
-                TypeParamBound::Trait(trait_bound) => trait_bound.clean_lifetimes(),
-                _ => {}
-            }
-        }
+        _ = self.iter_mut().map(|type_param_bound| type_param_bound.maybe_trait_bound_mut().map(LifetimeProcessor::clean_lifetimes));
     }
 
     fn unique_lifetimes(&self) -> Vec<Lifetime> {

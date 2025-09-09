@@ -11,16 +11,26 @@ use crate::provider::wallet_provider::WalletProvider2;
 #[ferment_macro::opaque]
 pub struct WalletEx2 {
     provider: Arc<WalletProvider2>,
+    #[allow(unused)]
     options: Rc<RefCell<[u8; 32]>>,
+    #[allow(unused)]
     pub locked_coins_set: HashSet<[u8; 32]>,
+    #[allow(unused)]
     anonymizable_tally_cached_non_denom: bool,
+    #[allow(unused)]
     vec_anonymizable_tally_cached_non_denom: Vec<[u8; 32]>,
+    #[allow(unused)]
     anonymizable_tally_cached: bool,
+    #[allow(unused)]
     vec_anonymizable_tally_cached: Vec<[u8; 32]>,
+    #[allow(unused)]
     map_outpoint_rounds_cache: HashMap<[u8; 32], i32>,
+    #[allow(unused)]
     unused_keys: HashMap<[u8; 32], Vec<u8>>,
     // TODO (DashJ): we may not need keyUsage, it is used as a way to audit unusedKeys
+    #[allow(unused)]
     key_usage: HashMap<[u8; 32], bool>,
+    #[allow(unused)]
     coinjoin_salt: [u8; 32],
     loaded_keys: bool,
 }
@@ -110,19 +120,19 @@ impl WalletEx2 {
         self.locked_coins_set.contains(outpoint)
     }
 
-    pub fn is_fully_mixed(&mut self, outpoint: [u8; 32]) -> bool {
-        true
+    pub fn is_fully_mixed(&self, outpoint: [u8; 32]) -> bool {
+        outpoint == [0u8; 32]
     }
 
     pub fn get_real_outpoint_coinjoin_rounds(&mut self, outpoint: [u8; 32], rounds: i32) -> i32 {
-        0
+        outpoint.is_empty().then_some(rounds).unwrap_or_default()
     }
 
-    pub fn ssssocke(&mut self, addr: SocketAddr) -> i32 {
-        0
+    pub fn socket_is_ipv4(&mut self, addr: SocketAddr) -> i32 {
+        addr.is_ipv4().then_some(1).unwrap_or_default()
     }
 
-    pub fn has_collateral_inputs(&self, only_confirmed: bool) -> bool {
+    pub fn has_collateral_inputs(&self, _only_confirmed: bool) -> bool {
         true
     }
 
@@ -132,16 +142,17 @@ impl WalletEx2 {
 
     pub fn select_coins_grouped_by_addresses(
         &mut self, 
-        skip_denominated: bool, 
-        anonymizable: bool, 
-        skip_unconfirmed: bool, 
-        max_outpoints_per_address: i32
+        _skip_denominated: bool,
+        _anonymizable: bool,
+        _skip_unconfirmed: bool,
+        _max_outpoints_per_address: i32
     ) -> Vec<[u8; 32]> {
         vec![]
     }
 
-    pub fn get_anonymizable_balance(&mut self, skip_denominated: bool, skip_unconfirmed: bool) -> u64 {
-0    }
+    pub fn get_anonymizable_balance(&mut self, _skip_denominated: bool, _skip_unconfirmed: bool) -> u64 {
+        0
+    }
 
     // pub fn get_wallet_transaction(&self, hash: [u8; 32]) -> Option<[u8; 32]> {
     //     self.provider.get_wallet_transaction(hash)
@@ -154,14 +165,14 @@ impl WalletEx2 {
     //     self.provider.count_inputs_with_amount(value)
     // }
 
-    pub fn get_unused_key(&mut self, internal: bool) -> Option<[u8; 32]> {
+    pub fn get_unused_key(&mut self, _internal: bool) -> Option<[u8; 32]> {
         None
     }
 
-    pub fn add_unused_key(&mut self, destination: Vec<u8>) {
+    pub fn add_unused_key(&mut self, _destination: Vec<u8>) {
     }
 
-    pub fn remove_unused_key(&mut self, destination: &[u8; 32]) {
+    pub fn remove_unused_key(&mut self, _destination: &[u8; 32]) {
     }
 
     pub fn refresh_unused_keys(&mut self) {
@@ -169,7 +180,7 @@ impl WalletEx2 {
         
     }
 
-    pub fn process_used_scripts(&mut self, scripts: &Vec<Vec<u8>>) {
+    pub fn process_used_scripts(&mut self, _scripts: &Vec<Vec<u8>>) {
     }
 
     // pub fn commit_transaction(&self, vec_send: Vec<[u8; 32]>, coin_control: [u8; 32], is_denominating: bool, client_session_id: [u8; 32]) -> bool {
@@ -179,11 +190,11 @@ impl WalletEx2 {
     pub fn sign_transaction(&self, tx: &[u8; 32], anyone_can_pay: bool) -> Option<[u8; 32]> {
         self.provider.sign_transaction(tx, anyone_can_pay)
     }
-    pub fn select_tx_dsins_by_denomination(&mut self, denom: u32, value_max: u64, vec_tx_dsin_ret: &mut Vec<[u8; 32]>) -> bool {
+    pub fn select_tx_dsins_by_denomination(&mut self, _denom: u32, _value_max: u64, _vec_tx_dsin_ret: &mut Vec<[u8; 32]>) -> bool {
         true
     }
 
-    pub fn select_denominated_amounts(&self, value_max: u64, set_amounts_ret: &mut HashSet<u64>) -> bool {
+    pub fn select_denominated_amounts(&self, _value_max: u64, _set_amounts_ret: &mut HashSet<u64>) -> bool {
         true
     }
 
@@ -214,7 +225,7 @@ impl WalletEx2 {
         self.anonymizable_tally_cached = false;
     }
 
-    pub fn fresh_receive_key(&mut self, internal: bool) -> Vec<u8> {
+    pub fn fresh_receive_key(&mut self, _internal: bool) -> Vec<u8> {
         vec![]
     }
 

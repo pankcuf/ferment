@@ -1,10 +1,11 @@
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, GenericArgument, parse_quote, Path, PathArguments, TraitBound, Type, TypeParamBound, TypePath, TypeReference, TypeTraitObject};
+use syn::{Path, TraitBound, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
-use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType};
+use crate::ext::{AsType, CRATE, CrateExtension, DictionaryType, Mangle, ResolveTrait, ToPath, ToType, Join, MaybeTraitBound, MaybeAngleBracketedArgs};
+use crate::ext::maybe_generic_type::MaybeGenericType;
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 
@@ -98,23 +99,19 @@ impl<SPEC> Resolve<FFIFullPath<SPEC>> for Type
             Type::Slice(..) |
             Type::Tuple(..) =>
                 Some(FFIFullPath::generic(self.mangle_ident_default().to_path())),
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => {
-                match bounds.len() {
-                    0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
-                    1 => match bounds.first()? {
-                        TypeParamBound::Trait(TraitBound { path, .. }) => path.maybe_resolve(source),
-                        _ => None,
-                    },
-                    _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
-                }
-
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => match bounds.len() {
+                0 => unimplemented!("TODO: FFIResolver::resolve::Type::TraitObject (Empty)"),
+                1 => bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .and_then(|TraitBound { path, .. }| path.maybe_resolve(source)),
+                _ => Some(FFIFullPath::generic(bounds.mangle_ident_default().to_path())),
             },
             _ => None
         }
     }
     fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
         Resolve::<FFIFullPath<SPEC>>::maybe_resolve(self, source)
-            .unwrap_or_else(|| FFIFullPath::external(parse_quote!(#self)))
+            .unwrap_or_else(|| FFIFullPath::external(self.to_path()))
     }
 }
 
@@ -141,6 +138,18 @@ impl<SPEC> Resolve<SpecialType<SPEC>> for TypeModelKind
         self.as_type().maybe_resolve(source)
     }
     fn resolve(&self, source: &ScopeContext) -> SpecialType<SPEC> {
+        self.maybe_resolve(source)
+            .expect(format!("Can't resolve SpecialType for TypeModelKind({})", self.to_token_stream()).as_str())
+
+    }
+}
+impl<SPEC> Resolve<FFIFullPath<SPEC>> for TypeModelKind
+    where SPEC: Specification,
+          FFIFullDictionaryPath<SPEC>: ToType {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
+        self.as_type().maybe_resolve(source)
+    }
+    fn resolve(&self, source: &ScopeContext) -> FFIFullPath<SPEC> {
         self.maybe_resolve(source)
             .expect(format!("Can't resolve SpecialType for TypeModelKind({})", self.to_token_stream()).as_str())
 
@@ -178,18 +187,12 @@ where SPEC: Specification {
             Some(FFIFullPath::c_char())
         } else if last_ident.is_special_generic() ||
             (last_ident.is_result() && segments.len() == 1) ||
-            last_ident.to_string().eq("Map") && first_ident.to_string().eq("serde_json") || last_ident.is_lambda_fn() {
+            last_ident.eq("Map") && first_ident.eq("serde_json") || last_ident.is_lambda_fn() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
-            match &last_segment.arguments {
-                PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =>
-                    args.iter().find_map(|arg| match arg {
-                        GenericArgument::Type(ty) =>
-                            ty.maybe_resolve(source),
-                        _ => None
-                    }),
-                _ => None
-            }
+            last_segment.maybe_angle_bracketed_args()
+                .and_then(MaybeGenericType::maybe_generic_type)
+                .and_then(|ty| ty.maybe_resolve(source))
         } else if last_ident.is_smart_ptr() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else {
@@ -204,20 +207,19 @@ where SPEC: Specification {
             maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
                     let crate_local_segments = chunk.crate_and_ident_less();
-                    let ffi_name = if crate_local_segments.is_empty() {
-                        let ty: Type = parse_quote!(#crate_ident::#last_ident);
-                        ty.mangle_ident_default().to_path()
+                    FFIFullPath::r#type(crate_ident.clone(), if crate_local_segments.is_empty() {
+                        crate_ident.to_path().joined(last_ident).mangle_ident_default().to_path()
                     } else {
-                        let no_ident_segments = chunk.ident_less();
-                        let ty: Type = parse_quote!(#no_ident_segments::#last_ident);
-                        let mangled_ty = ty.mangle_ident_default();
-                        parse_quote!(#crate_local_segments::#mangled_ty)
-                    };
-                    FFIFullPath::r#type(crate_ident.clone(), ffi_name)
+                        crate_local_segments.joined(&chunk.ident_less().joined(last_ident).mangle_ident_default()).to_path()
+                    })
                 })
                 .or_else(|| {
                     let segments = chunk.ident_less();
-                    Some(FFIFullPath::external(if segments.is_empty() { last_ident.to_path() } else { parse_quote!(#segments::#last_ident) }))
+                    Some(FFIFullPath::external(if segments.is_empty() {
+                        last_ident.to_path()
+                    } else {
+                        segments.joined(last_ident).to_path()
+                    }))
                 })
         }
     }

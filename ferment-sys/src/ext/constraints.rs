@@ -1,6 +1,7 @@
 use proc_macro2::Ident;
-use syn::{AngleBracketedGenericArguments, AssocConst, AssocType, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, Stmt, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{AngleBracketedGenericArguments, AssocConst, AssocType, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, Stmt, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
+use crate::ext::MaybeTraitBound;
 
 pub trait Constraints {
     fn has_self(&self) -> bool;
@@ -21,7 +22,7 @@ impl Constraints for Constraint {
 
 impl Constraints for Ident {
     fn has_self(&self) -> bool {
-        self.to_string().as_str() == "Self"
+        self == "Self"
     }
 }
 
@@ -33,11 +34,13 @@ impl Constraints for QSelf {
 
 impl Constraints for TypeParamBound {
     fn has_self(&self) -> bool {
-        if let TypeParamBound::Trait(bound) = self {
-            bound.path.has_self()
-        } else {
-            false
-        }
+        self.maybe_trait_bound().is_some_and(Constraints::has_self)
+    }
+}
+
+impl Constraints for TraitBound {
+    fn has_self(&self) -> bool {
+        self.path.has_self()
     }
 }
 
@@ -64,12 +67,12 @@ impl Constraints for GenericArgument {
 
 impl Constraints for AssocType {
     fn has_self(&self) -> bool {
-        self.ident.to_string().as_str().eq("Self") || self.ty.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
+        self.ident.eq("Self") || self.ty.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
     }
 }
 impl Constraints for AssocConst {
     fn has_self(&self) -> bool {
-        self.ident.to_string().as_str().eq("Self") || self.value.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
+        self.ident.eq("Self") || self.value.has_self() || self.generics.as_ref().map(|generics| generics.has_self()).unwrap_or_default()
     }
 }
 

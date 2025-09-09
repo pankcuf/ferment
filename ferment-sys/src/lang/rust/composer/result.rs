@@ -1,4 +1,4 @@
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::Lifetime;
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
@@ -27,22 +27,22 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         lifetimes.extend(type_ok.unique_lifetimes());
         lifetimes.extend(type_error.unique_lifetimes());
 
-        let name_self_ok = Name::DictionaryExpr(DictionaryExpr::self_prop(DictionaryName::Ok));
-        let name_self_error = Name::DictionaryExpr(DictionaryExpr::self_prop(DictionaryName::Error));
+        let name_self_ok = Name::self_prop(DictionaryName::Ok);
+        let name_self_error = Name::self_prop(DictionaryName::Error);
 
         let ok_is_primitive = type_ok.is_primitive();
         let error_is_primitive = type_error.is_primitive();
         let error_is_optional = type_error.is_optional();
 
-        let map_var_name = Name::dictionary_name(DictionaryName::O);
+        let map_var_name = Name::o();
         let var_ok = VarComposer::<RustSpecification>::value(type_ok).compose(source);
         let var_error = VarComposer::<RustSpecification>::value(type_error).compose(source);
-        let from_conversion_expr_ok = ConversionFromComposer::<RustSpecification>::value_maybe_expr(map_var_name.clone(), type_ok, ok_is_primitive.then(|| Expression::DictionaryExpr(DictionaryExpr::Deref(map_var_name.to_token_stream())))).compose(source);
-        let from_conversion_expr_error = ConversionFromComposer::<RustSpecification>::value_maybe_expr(map_var_name.clone(), type_error, error_is_primitive.then(|| Expression::DictionaryExpr(DictionaryExpr::Deref(map_var_name.to_token_stream())))).compose(source);
-        let to_conversion_expr_ok = ConversionToComposer::<RustSpecification>::value_maybe_expr(map_var_name.clone(), type_ok, ok_is_primitive.then(|| Expression::boxed_tokens(&map_var_name))).compose(source);
-        let to_conversion_expr_error = ConversionToComposer::<RustSpecification>::value_maybe_expr(map_var_name.clone(), type_error, error_is_primitive.then(|| Expression::boxed_tokens(&map_var_name))).compose(source);
-        let destroy_conversion_expr_ok = ConversionDropComposer::<RustSpecification>::value(name_self_ok.clone(), type_ok).compose(source).unwrap_or_else(|| Expression::black_hole(name_self_ok.clone()));
-        let destroy_conversion_expr_error = ConversionDropComposer::<RustSpecification>::value(name_self_error.clone(), type_error).compose(source).unwrap_or_else(|| Expression::black_hole(name_self_error.clone()));
+        let from_conversion_expr_ok = ConversionFromComposer::<RustSpecification>::value_ref_maybe_expr(&map_var_name, type_ok, ok_is_primitive.then(|| Expression::DictionaryExpr(DictionaryExpr::deref(&map_var_name)))).compose(source);
+        let from_conversion_expr_error = ConversionFromComposer::<RustSpecification>::value_ref_maybe_expr(&map_var_name, type_error, error_is_primitive.then(|| Expression::DictionaryExpr(DictionaryExpr::deref(&map_var_name)))).compose(source);
+        let to_conversion_expr_ok = ConversionToComposer::<RustSpecification>::value_ref_maybe_expr(&map_var_name, type_ok, ok_is_primitive.then(|| Expression::boxed_tokens(&map_var_name))).compose(source);
+        let to_conversion_expr_error = ConversionToComposer::<RustSpecification>::value_ref_maybe_expr(&map_var_name, type_error, error_is_primitive.then(|| Expression::boxed_tokens(&map_var_name))).compose(source);
+        let destroy_conversion_expr_ok = ConversionDropComposer::<RustSpecification>::value_ref(&name_self_ok, type_ok).compose(source).unwrap_or_else(|| Expression::black_hole(name_self_ok.clone()));
+        let destroy_conversion_expr_error = ConversionDropComposer::<RustSpecification>::value_ref(&name_self_error, type_error).compose(source).unwrap_or_else(|| Expression::black_hole(name_self_error.clone()));
         let from_conversion_ok = Expression::map_o_expr(from_conversion_expr_ok).present(source);
         let to_conversion_ok = Expression::map_o_expr(to_conversion_expr_ok).present(source);
         let destroy_conversion_ok = destroy_conversion_expr_ok.present(source);
@@ -57,7 +57,6 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let to_body = quote! {
             let (ok, error) = ferment::to_result(obj, #to_conversion_ok, #to_conversion_error);
             ferment::boxed(Self { ok, error })
-
         };
         let drop_body = quote! {
             #destroy_conversion_ok;

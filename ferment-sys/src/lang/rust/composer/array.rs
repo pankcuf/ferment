@@ -1,13 +1,13 @@
-use quote::{quote, ToTokens};
+use quote::quote;
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, ArrayComposer, NameKind};
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{DictionaryExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 use crate::presentation::DictionaryName::Package;
 
 impl SourceComposable for ArrayComposer<RustSpecification> {
@@ -17,17 +17,17 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
     fn compose(&self, source: &Self::Source) -> Self::Output {
         let nested_ty = self.ty.maybe_first_nested_type_ref()?;
         let lifetimes = nested_ty.unique_lifetimes();
-        let arg_0_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
-        let count_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
+        let arg_0_name = <RustSpecification as Specification>::Name::values();
+        let count_name = <RustSpecification as Specification>::Name::count();
         let attrs = self.compose_attributes();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
-        let map_var_name = Name::dictionary_name(DictionaryName::O);
+        let map_var_name = Name::o();
         let var_value_composer = VarComposer::<RustSpecification>::value(nested_ty);
         let var_value = var_value_composer.compose(source);
-        let from_conversion_expr_value = ConversionFromComposer::<RustSpecification>::value_expr(map_var_name.clone(), nested_ty, Expression::dict_expr(DictionaryExpr::Deref(map_var_name.to_token_stream()))).compose(source);
-        let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value(map_var_name.clone(), nested_ty).compose(source);
-        let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), nested_ty).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
+        let from_conversion_expr_value = ConversionFromComposer::<RustSpecification>::value_ref_expr(&map_var_name, nested_ty, Expression::dict_expr(DictionaryExpr::deref(&map_var_name))).compose(source);
+        let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value_ref(&map_var_name, nested_ty).compose(source);
+        let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value_ref(&map_var_name, nested_ty).compose(source).unwrap_or_else(|| Expression::black_hole(&map_var_name));
         let from_conversion_value = Expression::map_o_expr(from_conversion_expr_value).present(source);
         let to_conversion_value = Expression::map_o_expr(to_conversion_expr_value).present(source);
         let destroy_conversion_value = Expression::map_o_expr(destroy_conversion_expr_value).present(source);

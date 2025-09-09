@@ -9,11 +9,11 @@ mod var_composable;
 
 use syn::{Item, Meta, Path, Attribute};
 use syn::parse::Parser;
-use crate::ast::{CommaPunctuated, TypeHolder};
+use crate::ast::CommaPunctuated;
 use crate::composer::ItemComposerWrapper;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::kind::{MacroKind, ScopeItemKind};
-use crate::ext::{ItemExtension, ToType};
+use crate::ext::{MaybeAttrs, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ScopeContextPresentable, Expression};
 pub use self::composable::*;
@@ -144,7 +144,7 @@ impl MaybeMacroLabeled for Attribute {
             "opaque" => Some(MacroKind::Opaque),
             "register" => {
                 let first_argument = arguments.first()?;
-                Some(MacroKind::Register(TypeHolder(first_argument.to_type())))
+                Some(MacroKind::Register(first_argument.to_type()))
             }
             _ => None,
         }

@@ -1,13 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, RwLock};
+use indexmap::IndexMap;
 use proc_macro2::Ident;
 use quote::format_ident;
 use syn::{Attribute, ItemUse, UseRename, UseTree};
 use crate::composer::SourceAccessible;
 use crate::context::{GlobalContext, Scope, ScopeContext, ScopeInfo};
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::kind::ObjectKind;
 use crate::ext::Join;
 use crate::formatter::format_tree_item_dict;
 use crate::tree::{ScopeTreeID, ScopeTreeItem};
@@ -18,12 +18,12 @@ pub struct ScopeTree {
     pub attrs: Vec<Attribute>,
     pub scope: ScopeChain,
     pub imported: HashSet<ItemUse>,
-    pub exported: HashMap<ScopeTreeID, ScopeTreeItem>,
+    pub exported: IndexMap<ScopeTreeID, ScopeTreeItem>,
     pub scope_context: ScopeContextLink,
 }
 impl Debug for ScopeTree {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("ScopeTree({})", format_tree_item_dict(&self.exported)).as_str())
+        f.write_fmt(format_args!("ScopeTree({})", format_tree_item_dict(&self.exported)))
     }
 }
 
@@ -42,22 +42,19 @@ impl SourceAccessible for ScopeTree {
 
 #[allow(unused)]
 pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
-    let crate_ident =  root_scope_chain.crate_ident_ref();
+    let rename =  root_scope_chain.crate_ident();
     let generics_scope_ident = format_ident!("generics");
-    let generics_scope_chain = ScopeChain::Mod {
-        info: ScopeInfo {
-            attrs: vec![],
-            crate_ident: crate_ident.clone(),
-            self_scope: Scope::new(root_scope_chain.self_path_holder_ref().joined(&generics_scope_ident), ObjectKind::Empty) },
-        parent_scope_chain: root_scope_chain.clone().into() };
+    let generics_scope_chain = ScopeChain::r#mod(
+        ScopeInfo::attr_less(rename.clone(), Scope::empty(root_scope_chain.self_path_ref().joined(&generics_scope_ident))),
+        root_scope_chain.clone());
 
     create_scope_tree(
         generics_scope_chain.clone(),
         ScopeContext::cell_with(generics_scope_chain, global_context),
         HashSet::from_iter([
-            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename: crate_ident.clone() }))
+            create_item_use_with_tree(UseTree::Rename(UseRename { ident: format_ident!("crate"), as_token: Default::default(), rename }))
         ]),
-        HashMap::new(),
+        IndexMap::new(),
         vec![]
     )
 }
@@ -79,7 +76,7 @@ pub fn create_crate_root_scope_tree(
     crate_ident: Ident,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
+    exported: IndexMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
     // print_phase!("PHASE 2: SCOPE TREE MORPHING", "\n{}", format_tree_exported_dict(&exported));
@@ -91,10 +88,10 @@ pub fn create_scope_tree(
     scope: ScopeChain,
     scope_context: ScopeContextLink,
     imported: HashSet<ItemUse>,
-    exported: HashMap<ScopeTreeID, ScopeTreeExportItem>,
+    exported: IndexMap<ScopeTreeID, ScopeTreeExportItem>,
     attrs: Vec<Attribute>
 ) -> ScopeTree {
-    let exported = HashMap::from_iter(exported.into_iter()
+    let exported = IndexMap::from_iter(exported.into_iter()
         .map(|(scope_id, scope_tree_export_item)| {
             let scope_tree_item = match scope_tree_export_item {
                 ScopeTreeExportItem::Item(scope_context, item) =>

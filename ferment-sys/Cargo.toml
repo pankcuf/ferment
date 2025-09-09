@@ -1,6 +1,6 @@
 [package]
 name = "ferment-sys"
-version = "0.2.11"
+version = "0.2.12"
 edition = "2021"
 license = "MIT"
 description = "Syntax tree morphing of FFI-compatible stuff"
@@ -22,6 +22,7 @@ proc-macro2 = "1.0.95"
 cargo_metadata = "0.20.0"
 env_logger = "0.11"
 cbindgen.workspace = true
+indexmap = "2.11.0"
 
 [lib]
 name = "ferment_sys"

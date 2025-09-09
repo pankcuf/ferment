@@ -1,14 +1,14 @@
 use quote::ToTokens;
-use syn::{parse_quote, FnArg, Path, Receiver, ReturnType, Signature};
+use syn::{FnArg, Path, Receiver, ReturnType, Signature};
 use syn::token::Semi;
 use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{CommaPunctuatedArgKinds, ConversionFromComposer, ConversionToComposer, FnImplContext, NameKind, SignatureAspect, SourceComposable, VarComposer};
 use crate::composer::pat_type::PatTypeComposer;
 use crate::context::ScopeContext;
-use crate::ext::{ExpressionComposable, LifetimeProcessor, Resolve, ToType};
-use crate::lang::{FromDictionary, LangAttrSpecification, LangLifetimeSpecification, Specification};
+use crate::ext::{Accessory, ExpressionComposable, LifetimeProcessor, Resolve, ToType};
+use crate::lang::{LangAttrSpecification, LangLifetimeSpecification, Specification};
 use crate::presentable::{ArgKind, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
-use crate::presentation::{DictionaryName, FFIFullDictionaryPath, FFIFullPath, Name};
+use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, Name};
 
 
 pub fn compose_impl_fn<SPEC>(
@@ -37,7 +37,7 @@ where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
         ),
         ReturnType::Type(_, return_ty) => (
             ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(return_ty).compose(source).to_type())),
-            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::dictionary_name(DictionaryName::Obj), return_ty).compose(source)
+            ConversionToComposer::<SPEC>::key_in_composer_scope(Name::obj(), return_ty).compose(source)
         )
     };
 
@@ -52,11 +52,11 @@ where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
                 let attrs = SPEC::Attr::from_cfg_attrs(attrs);
                 used_lifetimes.extend(lifetimes);
                 let qualified_ty = match (mutability, reference) {
-                    (Some(..), _) => parse_quote!(&mut #self_ty),
-                    (_, Some(..)) => parse_quote!(&#self_ty),
+                    (Some(..), _) => self_ty.joined_mut_ref(),
+                    (_, Some(..)) => self_ty.joined_ref(),
                     (..) => self_ty.clone(),
                 };
-                let name = Name::dictionary_name(DictionaryName::Self_);
+                let name = Name::self_();
                 let tokenized_name = name.to_token_stream();
                 argument_names.push(tokenized_name);
                 let arg_kind = ArgKind::inherited_named_var(name.clone(), VarComposer::<SPEC>::key_ref_in_composer_scope(self_ty).compose(source), attrs);

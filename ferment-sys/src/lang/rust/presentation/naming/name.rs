@@ -1,6 +1,6 @@
 use quote::{format_ident, quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::Type;
+use syn::{Pat, Type};
 use crate::ext::{usize_to_tokenstream, Mangle, MangleDefault};
 use crate::lang::RustSpecification;
 use crate::presentation::{DictionaryName, Name};
@@ -63,6 +63,8 @@ impl ToTokens for Name<RustSpecification> {
                 ident.to_token_stream(),
             Name::Optional(opt_ident) =>
                 opt_ident.to_token_stream(),
+            Name::Pat(Pat::Ident(pat_ident)) =>
+                pat_ident.ident.to_token_stream(),
             Name::Pat(pat) =>
                 pat.to_token_stream(),
             Name::Underscore =>
@@ -143,8 +145,7 @@ impl Mangle<MangleDefault> for Name<RustSpecification> {
             Name::Optional(ident) =>
                 quote!(#ident).to_string(),
             Name::Pat(pat) =>
-                pat.to_token_stream()
-                    .to_string()
+                pat.mangle_string(context)
                     .replace("r#", ""),
             Name::Underscore =>
                 quote!(_).to_string(),

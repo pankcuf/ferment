@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Formatter};
 use syn::Item;
 use crate::context::{ScopeChain, ScopeContextLink};
-use crate::ext::ItemExtension;
+use crate::ext::MaybeIdent;
+use crate::formatter::format_token_stream;
 use crate::tree::ScopeTree;
 
 #[derive(Clone)]
@@ -26,11 +27,11 @@ impl ScopeTreeItem {
 }
 impl Debug for ScopeTreeItem {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        match self {
             ScopeTreeItem::Item { item, scope, scope_context: _} =>
-                format!("Item({}, {})", item.ident_string(), scope.self_path_holder_ref()),
+                f.write_fmt(format_args!("Item({}, {})", item.ident_string(), format_token_stream(scope.self_path_ref()))),
             ScopeTreeItem::Tree { tree } =>
-                format!("Tree({:?})", tree),
-        }.as_str())
+                f.write_fmt(format_args!("Tree({tree:?})")),
+        }
     }
 }

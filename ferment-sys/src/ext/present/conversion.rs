@@ -42,13 +42,13 @@ impl<SPEC> SourceComposable for Conversion<SPEC>
     fn compose(&self, source: &Self::Source) -> Self::Output {
         match self {
             Conversion::From(composer, expr) =>
-                ConversionFromComposer::<SPEC>::key_expr_in_composer_scope(composer.name.clone(), composer.ty(), expr.clone())
+                ConversionFromComposer::<SPEC>::key_ref_expr_in_composer_scope(&composer.name, composer.ty(), expr.clone())
                     .compose(source),
             Conversion::To(composer, expr) =>
-                ConversionToComposer::<SPEC>::key_expr_in_composer_scope(composer.name.clone(), composer.ty(), expr.clone())
+                ConversionToComposer::<SPEC>::key_ref_expr_in_composer_scope(&composer.name, composer.ty(), expr.clone())
                     .compose(source),
             Conversion::Destroy(composer, expr) =>
-                ConversionDropComposer::<SPEC>::key_expr_in_composer_scope(composer.name.clone(), composer.ty(), expr.clone())
+                ConversionDropComposer::<SPEC>::key_ref_expr_in_composer_scope(&composer.name, composer.ty(), expr.clone())
                     .compose(source)
                     .unwrap_or_default(),
         }

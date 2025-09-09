@@ -1,18 +1,12 @@
 mod opposed;
-mod path_holder;
-mod type_holder;
-mod typepath_holder;
 mod wrapped;
 
-use std::hash::Hash;
-use quote::ToTokens;
+use proc_macro2::Ident;
 use syn::__private::TokenStream2;
+use syn::{Attribute, Field, FieldMutability, Type, Visibility};
 use syn::punctuated::Punctuated;
-use syn::token::{Brace, Comma, Dot, FatArrow, Paren, PathSep, Plus, Semi};
+use syn::token::{Brace, Comma, Dot, FatArrow, Paren, PathSep, Plus, Pub, Semi};
 pub use opposed::*;
-pub use path_holder::*;
-pub use type_holder::*;
-pub use typepath_holder::*;
 pub use wrapped::*;
 
 #[allow(unused)]
@@ -43,83 +37,16 @@ pub type Assignment<T1, T2> = Opposed<T1, T2, syn::token::Eq>;
 #[allow(unused)]
 pub type Lambda<T1, T2> = Opposed<T1, T2, FatArrow>;
 
-pub trait Holder: Clone + PartialEq + Eq + Hash + std::fmt::Debug + std::fmt::Display {
-    type Inner: ToTokens;
-    fn inner(&self) -> &Self::Inner;
+pub fn field(attrs: Vec<Attribute>, vis: Visibility, ident: Option<Ident>, ty: Type) -> Field {
+    Field { attrs, vis, mutability: FieldMutability::None, ident, colon_token: None, ty }
 }
 
-
-#[macro_export]
-macro_rules! impl_holder {
-    ($holder_name:ident, $inner_type:ty) => {
-        #[derive(Clone)]
-        pub struct $holder_name(pub $inner_type);
-
-        impl Holder for $holder_name {
-            type Inner = $inner_type;
-
-            fn inner(&self) -> &Self::Inner {
-                &self.0
-            }
-        }
-
-        impl PartialEq for $holder_name {
-            fn eq(&self, other: &Self) -> bool {
-                self.inner().to_token_stream().to_string() == other.inner().to_token_stream().to_string()
-            }
-        }
-
-        impl Eq for $holder_name {}
-
-        impl std::hash::Hash for $holder_name {
-            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                self.inner().to_token_stream().to_string().hash(state);
-            }
-        }
-
-        impl std::fmt::Debug for $holder_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.write_str(crate::formatter::format_token_stream(self.inner()).as_str())
-            }
-        }
-
-        impl std::fmt::Display for $holder_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Debug::fmt(self, f)
-            }
-        }
-
-        impl<'a> From<&'a $inner_type> for $holder_name {
-            fn from(value: &'a $inner_type) -> Self {
-                Self(value.clone())
-            }
-        }
-        impl From<$inner_type> for $holder_name {
-            fn from(value: $inner_type) -> Self {
-                Self(value)
-            }
-        }
-        // impl syn::ParseQuote for $holder_name {
-        //     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        //         <$inner_type>::parse(input)
-        //             .map($holder_name::from)
-        //     }
-        // }
-
-        impl syn::parse::Parse for $holder_name {
-            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-                <$inner_type as syn::parse::Parse>::parse(input).map($holder_name)
-            }
-        }
-
-
-
-        impl quote::ToTokens for $holder_name {
-            fn to_tokens(&self, tokens: &mut syn::__private::TokenStream2) {
-                self.inner().to_tokens(tokens)
-            }
-        }
-
-    };
+fn field_no_attrs(vis: Visibility, ident: Option<Ident>, ty: Type) -> Field {
+    field(vec![], vis, ident, ty)
 }
-//impl_holder!(GenericsHolder, Generics);
+pub fn pub_unnamed_field(ty: Type) -> Field {
+    field_no_attrs(Visibility::Public(Pub::default()), None, ty)
+}
+pub fn inherited_named_field(ident: Ident, ty: Type) -> Field {
+    field_no_attrs(Visibility::Inherited, Some(ident), ty)
+}

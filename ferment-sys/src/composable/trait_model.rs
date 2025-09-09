@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 use syn::{Path, Type};
-use crate::composable::{TraitDecompositionPart1, TypeModel};
+use crate::composable::{TraitDecompositionPart1, TypeModel, TypeModeled};
 use crate::ext::{AsType, ToType};
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ impl TraitModel {
 }
 impl Debug for TraitModel {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("$Trait({})", self.ty).as_str())
+        f.write_fmt(format_args!("$Trait({})", self.ty))
     }
 }
 
@@ -39,4 +39,15 @@ impl ToType for TraitModel {
         self.as_type().clone()
     }
 }
+
+impl TypeModeled for TraitModel {
+    fn type_model_mut(&mut self) -> &mut TypeModel {
+        &mut self.ty
+    }
+
+    fn type_model_ref(&self) -> &TypeModel {
+        &self.ty
+    }
+}
+
 

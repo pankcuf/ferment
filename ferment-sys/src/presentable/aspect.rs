@@ -1,11 +1,11 @@
-use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature};
+use syn::{Attribute, parse_quote, Type, TypeSlice, ItemFn, Signature, TypePath};
 use std::fmt::{Debug, Display};
 use proc_macro2::Ident;
 use crate::composable::FnSignatureContext;
 use crate::composer::{AspectArgComposers, AttrComposable, ComposerLinkRef, FieldsContext, GenericsComposable, LifetimesComposable, NameKindComposable, TypeAspect};
 use crate::context::ScopeContext;
 use crate::kind::{GenericTypeKind, MixinKind};
-use crate::ext::{Accessory, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
+use crate::ext::{Accessory, Join, LifetimeProcessor, Mangle, Resolve, ResolveTrait, ToType};
 use crate::lang::Specification;
 use crate::presentable::{TypeContext, ScopeContextPresentable, NameTreeContext};
 
@@ -120,9 +120,9 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {
-                        let fn_name = &path.segments.last().expect("Expect ident").ident;
                         let self_ty = Resolve::<Type>::resolve(self_ty, source);
-                        parse_quote!(<#self_ty as #full_trait_ty>::#fn_name)
+                        let type_path: TypePath = parse_quote!(<#self_ty as #full_trait_ty>);
+                        Type::Path(type_path.joined(&path.segments.last().expect("Expect ident").ident))
                     }).unwrap_or_else(|| path.to_type()),
             Aspect::RawTarget(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
                 Resolve::<Type>::resolve(ident, source)

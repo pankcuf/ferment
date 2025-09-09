@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use quote::ToTokens;
 use syn::{ImplItem, ItemImpl};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, CfgAttributes, FnSignatureContext, GenModel, LifetimesModel};
@@ -36,7 +35,7 @@ impl<SPEC> ImplComposer<SPEC>
                         Some((_, path, _)) => {
 
                             let trait_ty_context = ty_context.join_fn(
-                                scope.joined_path_holder(&item.sig.ident).0,
+                                scope.joined_path(&item.sig.ident),
                                 FnSignatureContext::TraitImpl(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
@@ -45,7 +44,7 @@ impl<SPEC> ImplComposer<SPEC>
                             vtable_method_composers.push(composer);
 
                             let impl_ty_context = ty_context.join_fn(
-                                scope.joined_path_holder(&item.sig.ident).0,
+                                scope.joined_path(&item.sig.ident),
                                 FnSignatureContext::TraitAsType(item.sig.clone(), *self_ty.clone(), path.to_type()),
                                 item.attrs.cfg_attributes()
                             );
@@ -54,7 +53,7 @@ impl<SPEC> ImplComposer<SPEC>
                         None => {
                             let sig_context = FnSignatureContext::Impl(item.sig.clone(), *self_ty.clone());
                             let ty_context = ty_context.join_fn(
-                                scope.joined_path_holder(&item.sig.ident).0,
+                                scope.joined_path(&item.sig.ident),
                                 sig_context,
                                 item.attrs.cfg_attributes()
                             );
@@ -67,11 +66,11 @@ impl<SPEC> ImplComposer<SPEC>
         });
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                DocComposer::new(ty_context.to_token_stream()),
+                DocComposer::from(&ty_context),
                 attrs_model,
                 ty_context.clone(),
-                GenModel::new(Some(generics.clone())),
-                LifetimesModel::new(vec![]),
+                GenModel::from(generics),
+                LifetimesModel::default(),
                 Rc::clone(scope_context)),
             methods: methods.clone(),
             vtable: trait_.as_ref().map(|(..)| VTableComposer::from_trait_path(ty_context, attrs, vtable_method_composers, Rc::clone(scope_context)))

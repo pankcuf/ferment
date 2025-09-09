@@ -56,7 +56,7 @@ impl TypeModeled for SmartPointerModelKind {
 
 impl Debug for SmartPointerModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             SmartPointerModelKind::Arc(model) =>
                 format!("Arc({})", model),
             SmartPointerModelKind::Rc(model) =>
@@ -77,7 +77,7 @@ impl Debug for SmartPointerModelKind {
                 format!("Pin({})", model),
             SmartPointerModelKind::Box(model) =>
                 format!("Box({})", model),
-        }.as_str())
+        }))
     }
 }
 

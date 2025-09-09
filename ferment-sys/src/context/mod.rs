@@ -1,5 +1,6 @@
 mod attrs_resolver;
 mod custom_resolver;
+mod generic_chain;
 mod generic_resolver;
 mod global_context;
 mod import_resolver;
@@ -14,6 +15,7 @@ mod traits_resolver;
 mod type_chain;
 
 pub use self::custom_resolver::*;
+pub use self::generic_chain::*;
 pub use self::generic_resolver::*;
 pub use self::global_context::*;
 pub use self::import_resolver::*;

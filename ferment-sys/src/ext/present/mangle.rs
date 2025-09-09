@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 use proc_macro2::Ident;
 use quote::{format_ident, ToTokens};
-use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericArgument, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
+use syn::{AngleBracketedGenericArguments, BareFnArg, CapturedParam, ConstParam, GenericParam, Generics, Lifetime, LifetimeParam, ParenthesizedGenericArguments, Pat, PatIdent, Path, PathArguments, PathSegment, PreciseCapture, PredicateLifetime, PredicateType, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeImplTrait, TypeParam, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple, WhereClause, WherePredicate};
 use syn::__private::TokenStream2;
 use syn::punctuated::Punctuated;
 use crate::composable::GenericBoundsModel;
-use crate::kind::ObjectKind;
-use crate::ext::{AsType, LifetimeProcessor, ToPath};
+use crate::kind::{CallbackKind, DictFermentableModelKind, ObjectKind};
+use crate::ext::{AsType, LifetimeProcessor, MaybeGenericType, ToPath};
 
 #[derive(Default, Copy, Clone)]
 pub struct MangleDefault; // "::" -> "_"
@@ -39,9 +39,7 @@ impl<T, SEP, CTX> Mangle<T> for Punctuated<CTX, SEP>
 }
 impl Mangle<MangleDefault> for Type {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        // println!("Mangle Type: {} --- {:?}", self.to_token_stream(), self);
-        let res = match self {
-            // Here we expect BTreeMap<K, V> | HashMap<K, V> | Vec<V> for now
+        match self {
             Type::Path(TypePath { path, .. }) =>
                 path.mangle_string(context),
             Type::Array(type_array) =>
@@ -56,15 +54,27 @@ impl Mangle<MangleDefault> for Type {
                 type_bare_fn.mangle_string(context),
             Type::Ptr(type_ptr) =>
                 type_ptr.mangle_string(context),
-            Type::TraitObject(type_trait_object) => type_trait_object.mangle_string(context),
+            Type::TraitObject(type_trait_object) =>
+                type_trait_object.mangle_string(context),
+            Type::ImplTrait(type_impl_trait) =>
+                type_impl_trait.mangle_string(context),
             ty =>
                 ty.to_path()
                     .get_ident()
                     .map(ToString::to_string)
                     .unwrap_or_default()
-        };
-        // println!("Mangle Type..222: {}", res);
-        res
+        }
+    }
+}
+
+impl Mangle<MangleDefault> for DictFermentableModelKind {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.as_type().mangle_string(context)
+    }
+}
+impl Mangle<MangleDefault> for CallbackKind {
+    fn mangle_string(&self, context: MangleDefault) -> String {
+        self.as_type().mangle_string(context)
     }
 }
 
@@ -94,27 +104,19 @@ impl Mangle<MangleDefault> for TypeArray {
 impl Mangle<MangleDefault> for TypeSlice {
     fn mangle_string(&self, context: MangleDefault) -> String {
         format!("Slice_{}", self.elem.mangle_string(context))
-        // format!("Vec_{}", self.elem.mangle_string(context))
     }
 }
-
 impl Mangle<MangleDefault> for TypeTraitObject {
     fn mangle_string(&self, context: MangleDefault) -> String {
         // TODO: need mixins impl to process multiple bounds
-        self.bounds.iter().find_map(|b| match b {
-            TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            _ => None,
-        }).unwrap_or("Any".to_string())
+        self.bounds.mangle_string(context)
     }
 }
 
 impl Mangle<MangleDefault> for TypeImplTrait {
     fn mangle_string(&self, context: MangleDefault) -> String {
         // TODO: need mixins impl to process multiple bounds
-        self.bounds.iter().find_map(|b| match b {
-            TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-            _ => None,
-        }).unwrap_or("Any".to_string())
+        self.bounds.mangle_string(context)
     }
 }
 
@@ -209,19 +211,19 @@ impl Mangle<(bool, bool)> for AngleBracketedGenericArguments {
     fn mangle_string(&self, context: (bool, bool)) -> String {
         self.args.iter()
             .enumerate()
-            .filter_map(|(i, gen_arg)| match gen_arg {
-                GenericArgument::Type(Type::Path(type_path)) =>
+            .filter_map(|(i, gen_arg)| gen_arg.maybe_generic_type().and_then(|ty| match ty {
+                Type::Path(type_path) =>
                     Some(type_path.mangle_string((context, i))),
-                GenericArgument::Type(Type::Array(type_array)) =>
+                Type::Array(type_array) =>
                     Some(type_array.mangle_string((context, i))),
-                GenericArgument::Type(Type::Slice(type_slice)) =>
+                Type::Slice(type_slice) =>
                     Some(type_slice.mangle_string_default()),
-                GenericArgument::Type(Type::Tuple(type_tuple)) =>
+                Type::Tuple(type_tuple) =>
                     Some(type_tuple.mangle_string_default()),
-                GenericArgument::Type(Type::TraitObject(type_trait_object)) =>
+                Type::TraitObject(type_trait_object) =>
                     Some(type_trait_object.mangle_string_default()),
                 _ => None
-            })
+                }))
             .collect::<Vec<_>>()
             .join("_")
     }
@@ -363,36 +365,19 @@ impl Mangle<MangleDefault> for ObjectKind {
 
 impl Mangle<MangleDefault> for GenericBoundsModel {
     fn mangle_string(&self, context: MangleDefault) -> String {
-
         let mut chunks = vec![];
-
-        // chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
-        if let Some(b) = self.bounds.first() {
+        if let Some(b) = self.first_bound() {
             chunks.push(b.mangle_string(context));
         }
-        chunks.extend(self.predicates.iter()
-            .map(|(_predicate, objects)|
-                     objects.iter()
-                         .map(|obj| obj.mangle_string(context))
-                         .collect::<Vec<_>>()
-                         .join("_")
-                // format!("where_{}_is_{}",
-                //         predicate.mangle_string(context),
-                //         objects.iter().map(|obj| obj.mangle_string(context)).collect::<Vec<_>>().join("_"))
-            )
-        );
-        //println!("GenericBoundsModel::mangle({}) --> {}", self, chunks.join("_"));
         chunks.join("_")
-
-        // format!("Mixin_{}", chunks.join("_"))
-
-        // format!("{}", self.bounds.iter().map(|b| {
-        //     match b {
-        //         ObjectKind::Type(ty) |
-        //         ObjectKind::Item(ty, _) => ty.ty().mangle_string(context),
-        //         ObjectKind::Empty => panic!("err"),
-        //     }
-        // }).collect::<Vec<_>>().join("_"))
     }
 }
 
+impl Mangle<MangleDefault> for Pat {
+    fn mangle_string(&self, _context: MangleDefault) -> String {
+        match self {
+            Pat::Ident(PatIdent { ident, .. }) => ident.to_string(),
+            other => other.to_token_stream().to_string(),
+        }
+    }
+}

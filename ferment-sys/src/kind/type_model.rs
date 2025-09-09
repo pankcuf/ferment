@@ -6,6 +6,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use crate::ast::CommaPunctuated;
 pub use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::composable::{TraitModel, TypeModeled};
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::kind::dict_type_model::DictTypeModelKind;
 use crate::ext::{AsType, DictionaryType, MaybeLambdaArgs, Pop, ResolveTrait, ToType};
@@ -45,7 +46,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Unknown(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
-            TypeModelKind::Trait(model) => &mut model.ty,
+            TypeModelKind::Trait(model) => model.type_model_mut(),
             TypeModelKind::Bounds(model) => model.type_model_mut(),
             TypeModelKind::Dictionary(kind) => kind.type_model_mut()
         }
@@ -63,7 +64,7 @@ impl TypeModeled for TypeModelKind {
             TypeModelKind::Tuple(model) |
             TypeModelKind::Imported(model, ..) |
             TypeModelKind::Fn(model, ..) => model,
-            TypeModelKind::Trait(model) => &model.ty,
+            TypeModelKind::Trait(model) => model.type_model_ref(),
             TypeModelKind::Bounds(model) => model.type_model_ref(),
             TypeModelKind::Dictionary(kind) => kind.type_model_ref()
         }
@@ -91,7 +92,10 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for TypeModelKind
 impl TypeModelKind {
 
     pub fn unknown_type(ty: Type) -> Self {
-        Self::Unknown(TypeModel::from(ty))
+        Self::Unknown(TypeModel::new_default(ty))
+    }
+    pub fn unknown_type_with_nested_arguments(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::Unknown(TypeModel::new_nested(ty, nested_arguments))
     }
     pub fn unknown_type_ref(ty: &Type) -> Self {
         Self::Unknown(TypeModel::from(ty))
@@ -145,6 +149,12 @@ impl TypeModelKind {
                 Some(self.clone()),
         }.unwrap_or_else(|| self.clone())
     }
+    pub(crate) fn maybe_trait_model(&self) -> Option<&TraitModel> {
+        match self {
+            TypeModelKind::Trait(model) => Some(model),
+            _ => None
+        }
+    }
     pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         match self {
             TypeModelKind::Trait(model) => model.as_type().maybe_trait_object_maybe_model_kind(source),
@@ -174,9 +184,9 @@ impl TypeModelKind {
     }
     pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
         if let TypeModelKind::FnPointer(ty, ..) | TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(ty)) = self {
-            if let Type::Path(TypePath { path, .. }) = ty.as_type() {
-                if let Some(PathSegment { arguments, ident: last_ident, ..}) = &path.segments.last() {
-                    if last_ident.is_lambda_fn() {
+            if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = ty.as_type() {
+                if let Some(PathSegment { arguments, ident, ..}) = segments.last() {
+                    if ident.is_lambda_fn() {
                         if let PathArguments::Parenthesized(args) = arguments {
                             return Some(args)
                         }
@@ -235,7 +245,7 @@ impl ToType for TypeModelKind {
 
 impl Debug for TypeModelKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
+        f.write_fmt(format_args!("{}", match self {
             TypeModelKind::Trait(model) =>
                 format!("Trait({model})"),
             TypeModelKind::Object(ty) =>
@@ -262,7 +272,7 @@ impl Debug for TypeModelKind {
                 format!("FnPointer({ty})"),
             TypeModelKind::Dictionary(ty) =>
                 format!("Dictionary({ty})"),
-        }.as_str())
+        }))
     }
 }
 

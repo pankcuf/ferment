@@ -1,16 +1,10 @@
 use syn::{Path, PathSegment};
 use syn::punctuated::Punctuated;
-use crate::ast::{Colon2Punctuated, PathHolder};
+use crate::ast::Colon2Punctuated;
 use crate::ext::CrateExtension;
 
 pub trait Pop {
     fn popped(&self) -> Self;
-}
-
-impl Pop for PathHolder {
-    fn popped(&self) -> Self {
-        PathHolder::from(self.0.popped())
-    }
 }
 
 impl Pop for Path {

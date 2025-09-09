@@ -1,41 +1,96 @@
 mod r#abstract;
+mod args_transform;
 mod collection;
 mod constraints;
-mod item;
+mod generic_bound_key;
+mod maybe_attrs;
+mod maybe_generics;
+mod maybe_generic_type;
+mod maybe_args;
+mod maybe_trait_bound;
+mod maybe_ident;
+mod path_transform;
 mod present;
 mod refine;
 mod resolve;
-mod to_object_kind;
 mod visitor;
 
+use syn::{Path, PathSegment};
+use crate::ast::Colon2Punctuated;
 pub use self::r#abstract::*;
+pub use self::args_transform::*;
 pub use self::constraints::*;
-pub use self::item::*;
+pub use self::maybe_ident::*;
+pub use self::generic_bound_key::*;
+pub use self::maybe_attrs::*;
+pub use self::maybe_generics::*;
+pub use self::maybe_generic_type::*;
+pub use self::maybe_args::*;
+pub use self::maybe_trait_bound::*;
+pub use self::path_transform::*;
 pub use self::present::*;
 pub use self::refine::*;
 pub use self::resolve::*;
-pub use self::to_object_kind::*;
 pub use self::visitor::*;
 
-pub trait CrateExtension {
-    fn arg_less(&self) -> Self;
+pub trait CrateBased {
     fn is_crate_based(&self) -> bool;
-    fn crate_named(&self, crate_name: &Self) -> Self where Self: Sized + Clone {
+    fn crate_named(&self, crate_name: &Self) -> Self where Self: Sized + Clone + PathTransform {
         if self.is_crate_based() {
-            self.replaced_first_with_ident(crate_name)
+            self.replaced_first_with(crate_name)
         } else {
             self.clone()
         }
     }
+
+}
+
+impl CrateBased for Path {
+    fn is_crate_based(&self) -> bool {
+        self.segments.is_crate_based()
+    }
+}
+
+impl CrateBased for Colon2Punctuated<PathSegment> {
+    fn is_crate_based(&self) -> bool {
+        self.first()
+            .map(|PathSegment { ident, .. }| ident.eq(CRATE))
+            .unwrap_or_default()
+    }
+}
+pub trait CrateExtension {
     fn crate_less(&self) -> Self;
     fn ident_less(&self) -> Self;
     fn crate_and_ident_less(&self) -> Self;
-    fn replace_first_with(&mut self, chunk: &Self);
-    fn replaced_first_with_ident(&self, chunk: &Self) -> Self;
-    fn replace_last_with(&mut self, chunk: &Self);
-    fn replaced_last_with(&self, chunk: &Self) -> Self;
+}
+impl CrateExtension for Colon2Punctuated<PathSegment> {
+    fn crate_less(&self) -> Self {
+        self.iter().skip(1).cloned().collect()
+    }
 
-    fn replace_first_and_last_with(&mut self, leading_chunk: &Self, trailing_chunk: &Self);
-    fn replaced_first_and_last_with(&self, leading_chunk: &Self, trailing_chunk: &Self) -> Self;
+    fn ident_less(&self) -> Self {
+        self.iter().take(self.len() - 1).cloned().collect()
+    }
 
+    fn crate_and_ident_less(&self) -> Self {
+        self.iter().take(self.len() - 1).skip(1).cloned().collect()
+    }
+}
+impl CrateExtension for Path {
+    fn crate_less(&self) -> Self {
+        let mut path = self.clone();
+        path.segments = self.segments.crate_less();
+        path
+    }
+    fn ident_less(&self) -> Self {
+        let mut path = self.clone();
+        path.segments = self.segments.ident_less();
+        path
+    }
+
+    fn crate_and_ident_less(&self) -> Self {
+        let mut path = self.clone();
+        path.segments = self.segments.crate_and_ident_less();
+        path
+    }
 }

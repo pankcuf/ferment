@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use syn::{AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypeParamBound, TypePath};
+use syn::{Path, Type, TypeParamBound, TypePath};
 use syn::__private::TokenStream2;
 use crate::ast::AddPunctuated;
 use crate::kind::{CallbackKind, SmartPointerKind};
-use crate::ext::AsType;
+use crate::ext::{AsType, MaybeAngleBracketedArgs, MaybeGenericType};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum GenericTypeKind {
@@ -24,7 +24,7 @@ pub enum GenericTypeKind {
 }
 impl Debug for GenericTypeKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("GenericTypeKind::{}({})", match self {
+        f.write_fmt(format_args!("GenericTypeKind::{}({})", match self {
             GenericTypeKind::Map(_) => "Map",
             GenericTypeKind::Group(_) => "Group",
             GenericTypeKind::Result(_) => "Result",
@@ -79,13 +79,10 @@ impl GenericTypeKind {
             GenericTypeKind::AnyOther(ty) |
             GenericTypeKind::Cow(ty) |
             GenericTypeKind::Tuple(ty) => Some(ty),
-            GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) => match segments.last() {
-                Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) => match args.first() {
-                    Some(GenericArgument::Type(ty)) => Some(ty),
-                    _ => None,
-                },
-                _ => None,
-            }
+            GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. })) =>
+                segments.last()
+                    .and_then(MaybeAngleBracketedArgs::maybe_angle_bracketed_args)
+                    .and_then(MaybeGenericType::maybe_generic_type),
             GenericTypeKind::Callback(kind) => Some(kind.as_type()),
             GenericTypeKind::TraitBounds(_) => {
                 // TODO: Make mixin here

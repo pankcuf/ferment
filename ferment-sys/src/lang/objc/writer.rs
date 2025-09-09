@@ -25,7 +25,7 @@ pub struct Target {
 }
 impl Display for Target {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("{}-{}", self.arch, self.platform).as_str())
+        f.write_fmt(format_args!("{}-{}", self.arch, self.platform))
     }
 }
 

@@ -22,6 +22,17 @@ impl Default for GenModel {
         Self { generics: None }
     }
 }
+
+impl From<&Option<Generics>> for GenModel {
+    fn from(value: &Option<Generics>) -> Self {
+        Self::new(value.clone())
+    }
+}
+impl From<&Generics> for GenModel {
+    fn from(value: &Generics) -> Self {
+        Self::new(Some(value.clone()))
+    }
+}
 impl GenModel {
     pub fn new(generics: Option<Generics>) -> Self {
         Self { generics }

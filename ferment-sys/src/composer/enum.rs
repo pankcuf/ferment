@@ -7,6 +7,7 @@ use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, LifetimesModel};
 use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArgKinds, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
 use crate::context::ScopeContextLink;
+use crate::ext::PunctuateOne;
 use crate::lang::{LangAttrSpecification, Specification};
 use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
 use crate::presentation::{DocPresentation, FFIObjectPresentation, Name};
@@ -44,8 +45,7 @@ impl<SPEC> EnumComposer<SPEC>
                 let (variant_composer, fields_context): (VariantComposerRef<SPEC>, CommaPunctuatedArgKinds<SPEC>) = match discriminant {
                     Some((_, expr)) => (
                         SeqKind::unit_fields,
-                        CommaPunctuated::from_iter([
-                            ArgKind::AttrName(expr.to_token_stream(), SPEC::Attr::from_cfg_attrs(attrs)) ])
+                        ArgKind::AttrName(expr.to_token_stream(), SPEC::Attr::from_cfg_attrs(attrs)).punctuate_one()
                     ),
                     None => match fields {
                         Fields::Unit => (SeqKind::unit, CommaPunctuated::new()),
@@ -71,11 +71,11 @@ impl<SPEC> EnumComposer<SPEC>
             }).unzip();
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
-                DocComposer::new(ty_context.to_token_stream()),
+                DocComposer::from(&ty_context),
                 AttrsModel::from(attrs),
                 ty_context,
-                GenModel::new(Some(generics.clone())),
-                LifetimesModel::new(vec![]),
+                GenModel::from(generics),
+                LifetimesModel::default(),
                 Rc::clone(context)
             ),
             variant_composers: variant_composers.0,

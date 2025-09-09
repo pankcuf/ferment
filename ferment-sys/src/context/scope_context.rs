@@ -2,14 +2,13 @@ use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypeParamBound, TypePath, TypeTraitObject, ItemTrait};
-use syn::punctuated::Punctuated;
-use crate::ast::{CommaPunctuated, Depunctuated, TypeHolder};
+use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypePath, TypeTraitObject, ItemTrait};
+use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::TraitModelPart1;
 use crate::composer::{ComposerLink, MaybeMacroLabeled};
 use crate::context::{GlobalContext, ScopeChain, ScopeSearch, ScopeSearchKey};
 use crate::kind::{ObjectKind, ScopeItemKind, SpecialType, TypeModelKind};
-use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToObjectKind, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs};
+use crate::ext::{DictionaryType, extract_trait_names, FermentableDictionaryType, ToType, AsType, Resolve, ResolveTrait, LifetimeProcessor, MaybeLambdaArgs, MaybeTraitBound};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
 use crate::print_phase;
@@ -50,14 +49,10 @@ impl ScopeContext {
     pub fn cell_with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::with(scope, context)))
     }
-    pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: TypeHolder, ffi_type: Type) {
+    pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: Type, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
         let mut lock = self.context.write().unwrap();
-
-        lock.custom.add_conversion(
-            custom_type,
-            ffi_type.to_unknown(Punctuated::new()),
-            scope);
+        lock.custom.add_conversion(custom_type, ObjectKind::unknown_type(ffi_type), scope);
     }
 
     pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
@@ -90,7 +85,7 @@ impl ScopeContext {
             Some(ObjectKind::Type(ref ty_model_kind) | ObjectKind::Item(ref ty_model_kind, ..)) => {
                 self.scope.parent_scope().map(|parent_scope| {
                     let context = self.context.read().unwrap();
-                    context.maybe_scope_ref_obj_first(parent_scope.self_path())
+                    context.maybe_scope_ref_obj_first(parent_scope.self_path_ref())
                         .and_then(|parent_obj_scope| context.maybe_object_ref_by_tree_key(ty_model_kind.as_type(), parent_obj_scope)
                             .and_then(ObjectKind::maybe_type))
                         .unwrap_or_else(|| parent_scope.to_type())
@@ -106,17 +101,13 @@ impl ScopeContext {
         match &self.scope.parent_object() {
             Some(ObjectKind::Type(ref ty_conversion) | ObjectKind::Item(ref ty_conversion, ..)) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
-                match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self) {
-                    Some(special) => Some(special.to_type()),
-                    None => match ty_conversion {
-                        TypeModelKind::Trait(model) =>
-                            Some(model.as_type()
-                                .maybe_trait_object(self)
-                                .and_then(|oc| oc.maybe_type_model_kind_ref().map(TypeModelKind::to_type))
-                                .unwrap_or_else(|| ty_conversion.to_type())),
-                        _ => Some(ty_conversion.to_type())
-                    }
-                }
+                Some(Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self)
+                    .map(|special| special.to_type())
+                    .unwrap_or_else(|| ty_conversion.maybe_trait_model()
+                        .and_then(|model| model.as_type().maybe_trait_object(self)
+                            .and_then(|oc| oc.maybe_type_model_kind_ref()
+                                .map(TypeModelKind::to_type)))
+                        .unwrap_or_else(|| ty_conversion.to_type())))
             },
             _ => None
         }
@@ -155,48 +146,30 @@ impl ScopeContext {
         where SPEC: Specification,
               FFIFullDictionaryPath<SPEC>: ToType {
         let resolve_opaque = |path: &Path| {
-            let result = if path.is_void() {
+            if path.is_void() {
                 Some(FFIFullDictionaryPath::<SPEC>::Void.to_type())
             } else {
                 match self.maybe_scope_item_obj_first(path)
                     .or_else(|| self.maybe_scope_item_obj_first(&path.lifetimes_cleaned())) {
-                    Some(item) => {
-                        if item.is_labeled_for_export() || item.is_labeled_for_register() {
-                            None
-                        } else {
-                            Some(item.to_type())
-                        }
-                    },
-                    None => {
-                        if path.is_fermentable_dictionary_type() {
-                            None
-                        } else if path.is_primitive() {
-                            None
-                        } else {
-                            Some(ty.clone())
-                        }
-                    }
+                    Some(item) =>
+                        (!item.is_labeled_for_export() && !item.is_labeled_for_register()).then(|| item.scope().to_type()),
+                    None =>
+                        (!path.is_fermentable_dictionary_type() && !path.is_primitive()).then(|| ty.clone())
                 }
-            };
-            result
+            }
         };
         match ty {
             Type::Path(TypePath { path, .. }) =>
                 resolve_opaque(path),
             Type::TraitObject(TypeTraitObject { dyn_token, bounds, .. }) => match bounds.len() {
-                1 => match bounds.first()? {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        resolve_opaque(path)
-                            .map(|ty| {
-                                match &ty {
-                                    Type::ImplTrait(..) |
-                                    Type::TraitObject(..) => ty,
-                                    _ => parse_quote!(#dyn_token #ty),
-                                }
-                            }),
-                    _ =>
-                        panic!("maybe_opaque_object::error::lifetime")
-                },
+                1 => bounds.first()
+                    .and_then(MaybeTraitBound::maybe_trait_bound)
+                    .and_then(|TraitBound { path, .. }| resolve_opaque(path))
+                    .map(|ty| match &ty {
+                        Type::ImplTrait(..) |
+                        Type::TraitObject(..) => ty,
+                        _ => parse_quote!(#dyn_token #ty),
+                    }),
                 _ => None
             },
             _ => None
@@ -209,15 +182,15 @@ impl ScopeContext {
         result
     }
 
-    pub fn maybe_object_ref_by_key_in_scope(&self, search_key: ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
+    pub fn maybe_object_ref_by_key_in_scope(&self, search_key: &ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
-        let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope);
+        let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key.clone(), scope);
         result.cloned()
     }
 
-    pub fn maybe_object_ref_by_value(&self, search_key: ScopeSearchKey) -> Option<ObjectKind> {
+    pub fn maybe_object_ref_by_value(&self, search_key: &ScopeSearchKey) -> Option<ObjectKind> {
         let lock = self.context.read().unwrap();
-        let result = lock.scope_register.maybe_object_ref_by_value(search_key);
+        let result = lock.scope_register.maybe_object_ref_by_value(search_key.clone());
         result.cloned()
     }
 
@@ -229,11 +202,11 @@ impl ScopeContext {
     pub fn maybe_object_by_predicate_ref(&self, predicate: &ScopeSearch) -> Option<ObjectKind> {
         match predicate {
             ScopeSearch::KeyInScope(search_key, scope) =>
-                self.maybe_object_ref_by_key_in_scope(search_key.clone(), scope),
+                self.maybe_object_ref_by_key_in_scope(search_key, scope),
             ScopeSearch::Value(search_key) =>
-                self.maybe_object_ref_by_value(search_key.clone()),
+                self.maybe_object_ref_by_value(search_key),
             ScopeSearch::KeyInComposerScope(search_key) => {
-                self.maybe_object_ref_by_key_in_scope(search_key.clone(), &self.scope)
+                self.maybe_object_ref_by_key_in_scope(search_key, &self.scope)
             }
         }
 

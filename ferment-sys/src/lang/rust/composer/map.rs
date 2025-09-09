@@ -5,19 +5,19 @@ use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, Gener
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
-use crate::presentation::{DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
+use crate::presentation::{InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl SourceComposable for MapComposer<RustSpecification> {
     type Source = ScopeContext;
     type Output = Option<GenericComposerInfo<RustSpecification>>;
 
     fn compose(&self, source: &Self::Source) -> Self::Output {
-        let count_name = Name::dictionary_name(DictionaryName::Count);
-        let arg_0_name = Name::dictionary_name(DictionaryName::Keys);
-        let arg_1_name = Name::dictionary_name(DictionaryName::Values);
-        let map_var_name = Name::dictionary_name(DictionaryName::O);
+        let count_name = Name::count();
+        let arg_0_name = Name::keys();
+        let arg_1_name = Name::values();
+        let map_var_name = Name::o();
         let ffi_type = self.present_ffi_aspect();
         let types = (ffi_type.clone(), self.present_target_aspect());
         let nested_types = self.ty.nested_types();
@@ -26,13 +26,13 @@ impl SourceComposable for MapComposer<RustSpecification> {
         let value_type = nested_types[1];
         let var_key = VarComposer::<RustSpecification>::value(key_type).compose(source);
         let var_value = VarComposer::<RustSpecification>::value(value_type).compose(source);
-        let from_conversion_expr_key = ConversionFromComposer::<RustSpecification>::value(map_var_name.clone(), key_type).compose(source);
-        let from_conversion_expr_value = ConversionFromComposer::<RustSpecification>::value(map_var_name.clone(), value_type).compose(source);
-        let to_conversion_expr_key = ConversionToComposer::<RustSpecification>::value(map_var_name.clone(), key_type).compose(source);
-        let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value(map_var_name.clone(), value_type).compose(source);
-        let destroy_conversion_expr_key = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), key_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
-        let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value(map_var_name.clone(), value_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
-        let from_conversion_key = Expression::map_o_expr(from_conversion_expr_key.clone()).present(source);
+        let from_conversion_expr_key = ConversionFromComposer::<RustSpecification>::value_ref(&map_var_name, key_type).compose(source);
+        let from_conversion_expr_value = ConversionFromComposer::<RustSpecification>::value_ref(&map_var_name, value_type).compose(source);
+        let to_conversion_expr_key = ConversionToComposer::<RustSpecification>::value_ref(&map_var_name, key_type).compose(source);
+        let to_conversion_expr_value = ConversionToComposer::<RustSpecification>::value_ref(&map_var_name, value_type).compose(source);
+        let destroy_conversion_expr_key = ConversionDropComposer::<RustSpecification>::value_ref(&map_var_name, key_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
+        let destroy_conversion_expr_value = ConversionDropComposer::<RustSpecification>::value_ref(&map_var_name, value_type).compose(source).unwrap_or_else(|| Expression::black_hole(map_var_name.clone()));
+        let from_conversion_key = Expression::map_o_expr(from_conversion_expr_key).present(source);
         let from_conversion_value = Expression::map_o_expr(from_conversion_expr_value).present(source);
         let to_conversion_key = Expression::map_o_expr(to_conversion_expr_key).present(source);
         let to_conversion_value = Expression::map_o_expr(to_conversion_expr_value).present(source);

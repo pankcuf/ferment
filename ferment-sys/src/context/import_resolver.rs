@@ -1,13 +1,13 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use proc_macro2::Ident;
-use syn::{parse_quote, Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
+use syn::{Path, PathSegment, UseGroup, UseName, UsePath, UseRename, UseTree};
 use syn::punctuated::Punctuated;
-use crate::ast::PathHolder;
 use crate::context::ScopeChain;
+use crate::ext::{GenericBoundKey, ToPath};
 
 #[derive(Clone, Default)]
 pub struct ImportResolver {
-    pub inner: HashMap<ScopeChain, HashMap<PathHolder, Path>>,
+    pub inner: IndexMap<ScopeChain, IndexMap<Path, Path>>,
 }
 
 impl ImportResolver {
@@ -17,7 +17,7 @@ impl ImportResolver {
         match use_tree {
             UseTree::Path(UsePath { ident, tree, .. }) => {
                 current_path.push(ident.clone());
-                self.fold_import_tree(scope,tree, current_path);
+                self.fold_import_tree(scope, tree, current_path);
             },
             UseTree::Name(UseName { ident, .. }) |
             UseTree::Rename(UseRename { rename: ident, .. }) => {
@@ -27,87 +27,55 @@ impl ImportResolver {
                     self.inner
                         .entry(scope.clone())
                         .or_default()
-                        .insert(parse_quote!(#ident), path);
+                        .insert(ident.to_path(), path);
                 }
-            },
+            }
             UseTree::Group(UseGroup { items, .. }) =>
                 items.iter()
-                    .for_each(|use_tree| self.fold_import_tree(scope, use_tree,current_path.clone())),
-            UseTree::Glob(_) => {
+                    .for_each(|use_tree| self.fold_import_tree(scope, use_tree, current_path.clone())),
+            _ => {
                 // For a glob import, we can't determine the full path statically
                 // Just ignore them for now
             }
         }
     }
 
-    pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&HashMap<PathHolder, Path>> {
+    pub fn maybe_scope_imports(&self, scope: &ScopeChain) -> Option<&IndexMap<Path, Path>> {
         self.inner.get(scope)
     }
-    pub fn maybe_path(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+    pub fn maybe_path(&self, scope: &ScopeChain, chunk: &GenericBoundKey) -> Option<&Path> {
         self.maybe_scope_imports(scope)
-            .and_then(|imports| imports.get(chunk))
+            .and_then(|imports| match chunk {
+                GenericBoundKey::Ident(ident) => imports.get(&ident.to_path()),
+                GenericBoundKey::Path(path) => imports.get(path)
+            })
     }
-    pub fn maybe_import(&self, scope: &ScopeChain, chunk: &PathHolder) -> Option<&Path> {
+    pub fn maybe_import(&self, scope: &ScopeChain, key: &GenericBoundKey) -> Option<&Path> {
         // TODO: check parent scope chain lookup validity as we don't need to have infinite recursive lookup
         // so smth like can_have_more_than_one_grandfather,
         match scope {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } =>
-                self.maybe_path(&scope, chunk),
-            ScopeChain::Fn { parent_scope_chain, .. } =>
-                self.maybe_fn_import(scope, parent_scope_chain, chunk),
-            ScopeChain::Trait { parent_scope_chain, .. } |
-            ScopeChain::Object { parent_scope_chain, .. } |
-            ScopeChain::Impl { parent_scope_chain, .. } =>
-                self.maybe_obj_or_parent(scope, parent_scope_chain, chunk),
+                self.maybe_path(scope, key),
+            ScopeChain::Fn { parent, .. } =>
+                self.maybe_fn_import(scope, parent, key),
+            ScopeChain::Trait { parent, .. } |
+            ScopeChain::Object { parent, .. } |
+            ScopeChain::Impl { parent, .. } =>
+                self.maybe_obj_or_parent(scope, parent, key),
         }
     }
 
-
-
-    fn maybe_fn_import(&self, fn_scope: &ScopeChain, parent_scope: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        self.maybe_path(fn_scope, ident)
-            .or_else(|| {
-                match parent_scope {
-                    ScopeChain::CrateRoot { .. } | ScopeChain::Mod { .. } =>
-                        self.maybe_path(parent_scope, ident),
-                    ScopeChain::Fn { parent_scope_chain, .. } =>
-                        self.maybe_fn_import(parent_scope, parent_scope_chain, ident),
-                    ScopeChain::Trait { parent_scope_chain, .. } =>
-                        self.maybe_path(parent_scope, ident)
-                            .or_else(|| {
-                                match &**parent_scope_chain {
-                                    ScopeChain::CrateRoot { .. } |
-                                    ScopeChain::Mod { .. } =>
-                                        self.maybe_path(parent_scope_chain, ident),
-                                    _ => None,
-                                }
-                            }),
-                    ScopeChain::Object { parent_scope_chain, .. } =>
-                        self.maybe_path(parent_scope, ident)
-                            .or_else(|| match &**parent_scope_chain {
-                                ScopeChain::CrateRoot { .. } |
-                                ScopeChain::Mod { .. } =>
-                                    self.maybe_path(parent_scope_chain, ident),
-                                _ => None,
-                            }),
-                    ScopeChain::Impl { parent_scope_chain, .. } =>
-                        self.maybe_path(parent_scope, ident)
-                            .or_else(|| match &**parent_scope_chain {
-                                ScopeChain::CrateRoot { .. } |
-                                ScopeChain::Mod { .. } =>
-                                    self.maybe_path(parent_scope_chain, ident),
-                                _ => None,
-                            }),
-                }
-            })
+    fn maybe_fn_import(&self, self_scope: &ScopeChain, parent: &ScopeChain, key: &GenericBoundKey) -> Option<&Path> {
+        self.maybe_path(self_scope, key)
+            .or_else(|| self.maybe_import(parent, key))
     }
-    pub fn maybe_obj_or_parent(&self, self_scope: &ScopeChain, parent_chain: &ScopeChain, ident: &PathHolder) -> Option<&Path> {
-        self.maybe_path(self_scope, ident)
-            .or_else(|| match parent_chain {
+    pub fn maybe_obj_or_parent(&self, self_scope: &ScopeChain, parent: &ScopeChain, key: &GenericBoundKey) -> Option<&Path> {
+        self.maybe_path(self_scope, key)
+            .or_else(|| match parent {
                 ScopeChain::CrateRoot { .. } |
                 ScopeChain::Mod { .. } =>
-                    self.maybe_path(parent_chain, ident),
+                    self.maybe_path(parent, key),
                 _ => None,
             })
     }

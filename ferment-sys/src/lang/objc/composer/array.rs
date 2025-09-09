@@ -5,13 +5,12 @@ use crate::composer::{ArrayComposer, AspectPresentable, AttrComposable, FFIAspec
 use crate::context::ScopeContext;
 use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
-use crate::lang::{FromDictionary, Specification};
+use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{ArgKind, ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::DictionaryName;
 
 impl SourceComposable for ArrayComposer<ObjCSpecification> {
     type Source = ScopeContext;
@@ -22,8 +21,8 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
         let nested_type_kind = TypeKind::from(nested_ty);
         let target_type = self.present_target_aspect();
         let ffi_type = self.present_ffi_aspect();
-        let arg_0_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Values);
-        let count_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Count);
+        let arg_0_name = <ObjCSpecification as Specification>::Name::values();
+        let count_name = <ObjCSpecification as Specification>::Name::count();
         let from_args = quote! {
             ffi_ref->#arg_0_name #count_name: ffi_ref->#count_name
         };

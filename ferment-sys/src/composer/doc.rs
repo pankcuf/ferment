@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use quote::ToTokens;
 use syn::__private::TokenStream2;
 use crate::composer::{Linkable, SourceComposable};
 use crate::context::ScopeContextLink;
@@ -13,6 +14,15 @@ where Link: SharedAccess,
     pub ty: TokenStream2,
     _marker: PhantomData<SPEC>,
 }
+
+impl<SPEC, Link> From<&SPEC::TYC> for DocComposer<SPEC, Link>
+where Link: SharedAccess,
+      SPEC: Specification {
+    fn from(value: &SPEC::TYC) -> Self {
+        Self::new(value.to_token_stream())
+    }
+}
+
 
 impl<SPEC, Link> DocComposer<SPEC, Link>
 where Link: SharedAccess,

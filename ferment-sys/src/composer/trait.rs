@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::vec;
 use proc_macro2::Ident;
-use quote::ToTokens;
 use syn::{Generics, ItemTrait, TraitItem, TraitItemFn, Lifetime};
 use ferment_macro::ComposerBase;
 use crate::composable::{AttrsModel, FnSignatureContext, GenModel, LifetimesModel, TraitTypeModel};
@@ -43,7 +42,7 @@ impl<SPEC> TraitComposer<SPEC>
                     let sig_context = FnSignatureContext::TraitInner(sig.clone(), self_ty.clone(), self_ty.clone());
                     let method_scope_context = Rc::new(RefCell::new(source.joined(trait_item_method)));
                     let ty_context = ty_context.join_fn(
-                        scope.joined_path_holder(&sig.ident).0,
+                        scope.joined_path(&sig.ident),
                         sig_context,
                         attrs.clone());
                     methods.push(SigComposer::from_trait_item_method(trait_item_method, ty_context, &method_scope_context));
@@ -73,7 +72,7 @@ impl<SPEC> TraitComposer<SPEC>
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
-            base: BasicComposer::from(DocComposer::new(ty_context.to_token_stream()), attrs, ty_context, GenModel::new(generics.clone()), LifetimesModel::new(lifetimes), Rc::clone(context)),
+            base: BasicComposer::from(DocComposer::from(&ty_context), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
             methods,
             types,
         }));

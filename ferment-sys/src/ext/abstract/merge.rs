@@ -1,7 +1,7 @@
-use std::collections::hash_map::{Entry, OccupiedEntry};
-use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
+use indexmap::IndexMap;
+use indexmap::map::{Entry, OccupiedEntry};
 use crate::kind::ObjectKind;
 use crate::tree::ScopeTreeExportItem;
 
@@ -29,8 +29,8 @@ pub trait HashMapMergePolicy<K, V>
     fn extend_with_policy<M, P>(&mut self, other: M, policy: P) where M: IntoIterator<Item = (K, V)>, P: MergePolicy<K, V>;
 }
 
-impl<K, V> HashMapMergePolicy<K, V> for HashMap<K, V>
-    where K: Eq + Hash + Display + Debug, V: Display + Debug {
+impl<K, V> HashMapMergePolicy<K, V> for IndexMap<K, V>
+    where K: Eq + Hash + Debug, V: Display + Debug {
     fn insert_with_policy<P>(&mut self, key: K, value: V, policy: P)
         where P: MergePolicy<K, V> + Clone {
         match self.entry(key) {

@@ -15,20 +15,20 @@ pub enum FnSignatureContext {
 
 impl Debug for FnSignatureContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            FnSignatureContext::ModFn(sig) =>
-                format!("ModFn({})", sig.to_token_stream()),
-            FnSignatureContext::Impl(sig, self_ty) =>
-                format!("Impl(self: {}, sig: {}", self_ty.to_token_stream(), sig.to_token_stream()),
-            FnSignatureContext::TraitImpl(sig, self_ty, trait_ty) =>
-                format!("TraitImpl(self: {}, trait: {}, sig: {}", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream()),
-            FnSignatureContext::TraitAsType(sig, self_ty, trait_ty) =>
-                format!("TraitAsType(self: {}, trait: {}, sig: {}", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream()),
-            FnSignatureContext::TraitInner(sig, self_ty, trait_ty) =>
-                format!("TraitInner(self: {}, trait: {}, sig: {}", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream()),
+        match self {
             FnSignatureContext::Bare(ident, type_bare_fn) =>
-                format!("Bare({}, {})", ident.to_token_stream(), type_bare_fn.to_token_stream()),
-        }.as_str())
+                f.write_fmt(format_args!("Bare({}, {})", ident.to_token_stream(), type_bare_fn.to_token_stream())),
+            FnSignatureContext::ModFn(sig) =>
+                f.write_fmt(format_args!("ModFn({})", sig.to_token_stream())),
+            FnSignatureContext::Impl(sig, self_ty) =>
+                f.write_fmt(format_args!("Impl(self: {}, sig: {})", self_ty.to_token_stream(), sig.to_token_stream())),
+            FnSignatureContext::TraitImpl(sig, self_ty, trait_ty) =>
+                f.write_fmt(format_args!("TraitImpl(self: {}, trait: {}, sig: {})", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream())),
+            FnSignatureContext::TraitAsType(sig, self_ty, trait_ty) =>
+                f.write_fmt(format_args!("TraitAsType(self: {}, trait: {}, sig: {})", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream())),
+            FnSignatureContext::TraitInner(sig, self_ty, trait_ty) =>
+                f.write_fmt(format_args!("TraitInner(self: {}, trait: {}, sig: {})", self_ty.to_token_stream(), trait_ty.to_token_stream(), sig.to_token_stream())),
+        }
     }
 }
 

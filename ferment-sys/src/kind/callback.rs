@@ -13,7 +13,7 @@ pub enum CallbackKind {
 }
 impl Debug for CallbackKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("CallbackKind::{}({})", match self {
+        f.write_fmt(format_args!("CallbackKind::{}({})", match self {
             CallbackKind::FnOnce(_) => "FnOnce",
             CallbackKind::Fn(_) => "Fn",
             CallbackKind::FnMut(_) => "FnMut",

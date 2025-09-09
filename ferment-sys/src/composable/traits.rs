@@ -1,16 +1,16 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
+use indexmap::IndexMap;
 use quote::{quote, ToTokens};
-use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type, TypeParamBound};
+use syn::{Ident, ItemTrait, Path, Signature, TraitBound, TraitItem, TraitItemFn, TraitItemType, Type};
 use syn::__private::TokenStream2;
 use crate::ast::Depunctuated;
 use crate::composable::{CfgAttributes, FnSignatureContext};
 use crate::composer::{SigComposer, SigComposerLink};
 use crate::context::ScopeContextLink;
 use crate::kind::TypeModelKind;
-use crate::ext::{Join, ToType};
+use crate::ext::{Join, MaybeTraitBound, ToType};
 use crate::formatter::{format_token_stream, format_trait_decomposition_part1};
 use crate::lang::Specification;
 use crate::presentable::NameTreeContext;
@@ -18,6 +18,12 @@ use crate::presentable::NameTreeContext;
 #[derive(Clone, Debug)]
 pub struct TraitBoundDecomposition {
     pub path: Path,
+}
+
+impl From<&TraitBound> for TraitBoundDecomposition {
+    fn from(value: &TraitBound) -> Self {
+        Self { path: value.path.clone() }
+    }
 }
 
 impl ToTokens for TraitBoundDecomposition {
@@ -44,12 +50,8 @@ impl TraitTypeModel {
         Self {
             ident: item_type.ident.clone(),
             trait_bounds: item_type.bounds.iter()
-                .filter_map(|bound| match bound {
-                    TypeParamBound::Trait(TraitBound { path, .. }) =>
-                        Some(TraitBoundDecomposition { path: path.clone() }),
-                    _ =>
-                        None,
-                })
+                .filter_map(MaybeTraitBound::maybe_trait_bound)
+                .map(TraitBoundDecomposition::from)
                 .collect(),
         }
     }
@@ -58,23 +60,23 @@ impl TraitTypeModel {
 #[derive(Clone, Debug)]
 pub struct TraitDecompositionPart1 {
     pub ident: Ident,
-    pub consts: HashMap<Ident, Type>,
-    pub methods: HashMap<Ident, Signature>,
-    pub types: HashMap<Ident, TraitTypeModel>
+    pub consts: IndexMap<Ident, Type>,
+    pub methods: IndexMap<Ident, Signature>,
+    pub types: IndexMap<Ident, TraitTypeModel>
 }
 
 impl Display for TraitDecompositionPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(format!("TraitDecompositionPart1({})", format_trait_decomposition_part1(self)).as_str())
+        f.write_fmt(format_args!("TraitDecompositionPart1({})", format_trait_decomposition_part1(self)))
     }
 }
 
 
 impl TraitDecompositionPart1 {
     pub fn from_trait_items(ident: &Ident, trait_items: &[TraitItem]) -> Self {
-        let mut methods = HashMap::new();
-        let mut types = HashMap::new();
-        let mut consts = HashMap::new();
+        let mut methods = IndexMap::new();
+        let mut types = IndexMap::new();
+        let mut consts = IndexMap::new();
         trait_items
             .iter()
             .for_each(|trait_item| match trait_item {
@@ -99,7 +101,7 @@ impl TraitDecompositionPart1 {
 pub struct TraitVTableComposer<SPEC>
     where SPEC: Specification + 'static {
     pub method_composers: Depunctuated<SigComposerLink<SPEC>>,
-    pub types: HashMap<Ident, TraitTypeModel>,
+    pub types: IndexMap<Ident, TraitTypeModel>,
 }
 
 impl<SPEC> TraitVTableComposer<SPEC>
@@ -109,13 +111,13 @@ impl<SPEC> TraitVTableComposer<SPEC>
         let trait_ident = &item_trait.ident;
         let source = context.borrow();
         let mut method_composers = Depunctuated::new();
-        let mut types = HashMap::new();
+        let mut types = IndexMap::new();
         item_trait.items
             .iter()
             .for_each(|trait_item| match trait_item {
                 TraitItem::Fn(trait_item_fn) => {
                     let name_context = ty_context.join_fn(
-                        source.scope.joined_path_holder(&trait_item_fn.sig.ident).0,
+                        source.scope.joined_path(&trait_item_fn.sig.ident),
                         FnSignatureContext::TraitImpl(trait_item_fn.sig.clone(), self_ty.clone(), trait_ident.to_type()),
                         trait_item_fn.attrs.cfg_attributes()
                     );
@@ -139,8 +141,7 @@ pub struct TraitModelPart1 {
 
 impl Debug for TraitModelPart1 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let s = self.implementors.iter().map(|i| format_token_stream(i)).collect::<Vec<_>>().join("\n\n");
-        f.write_str(format!("{}:\n  {}", format_token_stream(&self.item.ident), s).as_str())
+        f.write_fmt(format_args!("{}:\n  {}", format_token_stream(&self.item.ident), self.implementors.iter().map(format_token_stream).collect::<Vec<_>>().join("\n\n")))
     }
 }
 

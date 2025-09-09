@@ -1,7 +1,9 @@
-use syn::Type;
+use syn::{Generics, TraitBound, Type};
 use std::fmt::{Debug, Display, Formatter};
 use quote::ToTokens;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Ident, TokenStream as TokenStream2};
+use crate::composable::TypeModel;
+use crate::composer::CommaPunctuatedNestedArguments;
 use crate::kind::{ObjectKind, TypeModelKind};
 use crate::ext::{AsType, ToType};
 
@@ -10,7 +12,18 @@ pub enum NestedArgument {
     Object(ObjectKind),
     Constraint(ObjectKind)
 }
+impl NestedArgument {
+    pub fn trait_bound_object(trait_bound: &TraitBound) -> Self {
+        Self::Object(ObjectKind::trait_model_type(TypeModel::new_default_from_trait_bound(trait_bound)))
+    }
 
+    pub fn trait_model_constraint(ident: &Ident, generics: &Generics, arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::Constraint(ObjectKind::trait_model_type(TypeModel::new_generic_ident(ident, generics.clone(), arguments)))
+    }
+    pub fn object_model_constraint(ident: &Ident, generics: &Generics) -> Self {
+        Self::Constraint(ObjectKind::object_model_type(TypeModel::new_generic_ident_non_nested(ident, generics)))
+    }
+}
 impl NestedArgument {
     pub fn is_refined(&self) -> bool {
         match self.object() {
@@ -55,10 +68,12 @@ impl ToTokens for NestedArgument {
 
 impl Debug for NestedArgument {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            NestedArgument::Object(obj) => format!("Object({})", obj),
-            NestedArgument::Constraint(obj) => format!("Constraint({})", obj)
-        }.as_str())
+        match self {
+            NestedArgument::Object(obj) =>
+                f.write_fmt(format_args!("Object({obj})")),
+            NestedArgument::Constraint(obj) =>
+                f.write_fmt(format_args!("Object({obj})")),
+        }
     }
 }
 

@@ -1,14 +1,15 @@
 use proc_macro2::Ident;
 use syn::{Path, PathSegment, Type, TypePath};
 use crate::ext::DictionaryType;
-use crate::ext::item::ItemExtension;
+use crate::ext::maybe_ident::MaybeIdent;
 
 #[allow(unused)]
 pub trait Primitive {
     fn is_primitive(&self) -> bool;
 }
 
-impl<T> Primitive for T where T: ItemExtension {
+impl<T> Primitive for T where T: MaybeIdent
+{
     fn is_primitive(&self) -> bool {
         self.maybe_ident()
             .map(DictionaryType::is_primitive)
@@ -31,7 +32,8 @@ pub trait Optional {
     fn is_optional(&self) -> bool;
 }
 
-impl<T> Optional for T where T: ItemExtension {
+impl<T> Optional for T where T: MaybeIdent
+{
     fn is_optional(&self) -> bool {
         self.maybe_ident()
             .map(DictionaryType::is_optional)

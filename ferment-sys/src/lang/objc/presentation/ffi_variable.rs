@@ -7,7 +7,7 @@ use crate::ast::AddPunctuated;
 use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeModelKind};
-use crate::ext::{Accessory, GenericNestedArg, Mangle, Resolve, ToType};
+use crate::ext::{Accessory, GenericNestedArg, Mangle, MaybeTraitBound, Resolve, ToType};
 use crate::lang::objc::ObjCSpecification;
 use crate::presentation::{FFIFullPath, FFIVariable};
 
@@ -74,12 +74,12 @@ impl Accessory for FFIVariable<ObjCSpecification, TokenStream2> {
 
     fn joined_ident(&self, ident: &Ident) -> Self {
         match self {
-            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::Ref { ty , .. } => FFIVariable::Ref { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Ref { ty , .. } => FFIVariable::Ref { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: quote!(#ty::#ident), _marker: PhantomData },
         }
     }
 }
@@ -98,7 +98,15 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for GenericBoundsMode
         }
     }
 }
+impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for TraitBound {
+    fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCSpecification, TokenStream2>> {
+        self.path.to_type().maybe_resolve(source)
+    }
 
+    fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
+        self.path.to_type().resolve(source)
+    }
+}
 impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Type {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIVariable<ObjCSpecification, TokenStream2>> {
         Some(self.resolve(source))
@@ -110,8 +118,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Type {
             .map(FFIFullPath::from)
             .or_else(|| source.maybe_ffi_full_path(self))
             .map(|ffi_path| ffi_path.to_type())
-            .unwrap_or_else(|| parse_quote!(#self))
-            .to_type();
+            .unwrap_or_else(|| parse_quote!(#self));
         resolve_type_variable(refined, source)
     }
 }
@@ -120,52 +127,47 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for AddPunctuated<Typ
         Some(self.resolve(source))
     }
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-        let bound = self.iter().find_map(|bound| match bound {
-            TypeParamBound::Trait(TraitBound { path, .. }) => Some(path.to_type()),
-            _ => None
-        }).unwrap();
-        bound.resolve(source)
+        self.iter().find_map(|bound| bound.maybe_trait_bound().map(|TraitBound { path, .. }| path.to_type())).unwrap().resolve(source)
     }
 }
 
 
 pub fn resolve_type_variable(ty: Type, source: &ScopeContext) -> FFIVariable<ObjCSpecification, TokenStream2> {
-    //println!("resolve_type_variable: {}", ty.to_token_stream());
     match ty {
         Type::Path(TypePath { path, .. }) =>
             path.resolve(source),
-        Type::Array(TypeArray { elem, len, .. }) => FFIVariable::mut_ptr(parse_quote!([#elem; #len])),
+        Type::Array(TypeArray { elem, len, .. }) =>
+            FFIVariable::mut_ptr(parse_quote!([#elem; #len])),
         Type::Reference(TypeReference { elem, .. }) |
         Type::Slice(TypeSlice { elem, .. }) =>
             elem.resolve(source),
-        Type::Ptr(TypePtr { star_token, const_token, mutability, elem }) =>
-            match *elem {
-                Type::Path(TypePath { path, .. }) => match path.segments.last().unwrap().ident.to_string().as_str() {
-                    "c_void" => match (star_token, const_token, mutability) {
-                        (_, Some(_const_token), None) => FFIVariable::const_ptr(quote!(void)),
-                        (_, None, Some(_mut_token)) => FFIVariable::mut_ptr(quote!(void)),
-                        _ => panic!("Resolve::<FFIVariable>::resolve: c_void with {} {} not supported", quote!(#const_token), quote!(#mutability))
-                    },
-                    _ => {
-                        if const_token.is_some() {
-                            FFIVariable::const_ptr(path.to_token_stream())
-                        } else {
-                            FFIVariable::mut_ptr(path.to_token_stream())
-                        }
-                    }
-                },
-                Type::Ptr(..) => {
-                    FFIVariable::mut_ptr(elem.to_token_stream())
-                },
-                ty => mutability.as_ref()
-                    .map_or( FFIVariable::const_ptr(ty.to_token_stream()), |_| FFIVariable::mut_ptr(ty.to_token_stream()))
+        Type::Ptr(TypePtr { const_token, mutability, elem, .. }) => match *elem {
+            Type::Path(TypePath { path, .. }) => {
+                let ty = if path.segments.last().unwrap().ident.eq("c_void") {
+                    quote!(void)
+                } else {
+                    path.to_token_stream()
+                };
+                if const_token.is_some() {
+                    FFIVariable::const_ptr(ty)
+                } else {
+                    FFIVariable::mut_ptr(ty)
+                }
             },
+            Type::Ptr(..) =>
+                FFIVariable::mut_ptr(elem.to_token_stream()),
+            ty if mutability.is_some() =>
+                FFIVariable::mut_ptr(ty.to_token_stream()),
+            ty =>
+                FFIVariable::const_ptr(ty.to_token_stream())
+        },
         Type::TraitObject(TypeTraitObject { dyn_token: _, bounds, .. }) => {
             bounds.resolve(source)
         }
         Type::ImplTrait(TypeImplTrait { impl_token: _, bounds, .. }) =>
             bounds.resolve(source),
-        ty => FFIVariable::direct(ty.mangle_tokens_default())
+        ty =>
+            FFIVariable::direct(ty.mangle_tokens_default())
     }
 }
 

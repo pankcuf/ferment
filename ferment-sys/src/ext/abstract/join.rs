@@ -1,34 +1,55 @@
+use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{ImplItemFn, Item, Signature, TraitItemFn};
+use syn::{parse_quote, ImplItemFn, Item, Path, PathSegment, Signature, TraitItemFn, Type, TypePath};
 use syn::punctuated::Punctuated;
+use crate::ast::Colon2Punctuated;
 use crate::composable::TypeModel;
 use crate::context::{Scope, ScopeChain, ScopeContext, ScopeInfo};
-use crate::kind::{ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::item::ItemExtension;
-use crate::ext::ToType;
+use crate::kind::{ObjectKind, ScopeItemKind};
+use crate::ext::{GenericBoundKey, MaybeAttrs, ToType};
 
 pub trait Join<T: ToTokens> {
     fn joined(&self, other: &T) -> Self;
 }
+#[macro_export]
+macro_rules! impl_parseable_join {
+    ($SelfTy:ty, $JoinTy:ty) => {
+        impl Join<$JoinTy> for $SelfTy {
+            fn joined(&self, other: &$JoinTy) -> Self {
+                parse_quote!(#self::#other)
+            }
+        }
+    };
+}
+impl_parseable_join!(Path, Path);
+impl_parseable_join!(Path, Type);
+impl_parseable_join!(Type, Path);
+impl_parseable_join!(Type, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Path, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Ident);
+impl_parseable_join!(Colon2Punctuated<PathSegment>, Path);
+impl_parseable_join!(TypePath, Colon2Punctuated<PathSegment>);
+impl_parseable_join!(TypePath, Ident);
 
 impl Join<Item> for ScopeChain {
     fn joined(&self, item: &Item) -> Self {
         let attrs = item.maybe_attrs().cloned().unwrap_or_default();
-        let self_scope = self.self_scope().joined(item);
+        let self_scope = self.self_scope_ref().joined(item);
         match item {
             Item::Const(..) |
             Item::Type(..) |
             Item::Enum(..) |
             Item::Struct(..) =>
-                ScopeChain::Object { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::object(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Trait(..) =>
-                ScopeChain::Trait { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#trait(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Fn(..) =>
-                ScopeChain::Fn { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#fn(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Impl(..) =>
-                ScopeChain::Impl { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into(), },
+                ScopeChain::r#impl(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             Item::Mod(..) =>
-                ScopeChain::Mod { info: ScopeInfo { attrs, crate_ident: self.crate_ident(), self_scope }, parent_scope_chain: self.clone().into() },
+                ScopeChain::r#mod(ScopeInfo::new(attrs, self.crate_ident(), self_scope), self.clone()),
             _ => self.clone()
         }
     }
@@ -37,15 +58,11 @@ impl Join<ImplItemFn> for ScopeChain {
     fn joined(&self, item: &ImplItemFn) -> Self {
         let ImplItemFn { attrs, sig, .. } = item;
         let Signature { ident, generics, .. } = sig;
-        let self_scope = self.self_scope();
-        let self_scope_holder = &self_scope.self_scope;
-        let fn_self_scope = self_scope_holder.joined(ident);
+        let self_path = self.self_path_ref();
+        let fn_self_scope = self_path.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectKind::new_item(
-            TypeModelKind::Fn(TypeModel::new_non_gen(self_type, Some(generics.clone()))),
-            ScopeItemKind::Fn(sig.clone(), self_scope_holder.clone()));
         ScopeChain::func(
-            Scope::new(fn_self_scope, self_obj),
+            Scope::new(fn_self_scope, ObjectKind::new_fn_item(TypeModel::new_generic_non_nested(self_type, generics), ScopeItemKind::fn_ref(sig, self_path))),
             attrs,
             self.crate_ident_ref(),
             self
@@ -56,21 +73,11 @@ impl Join<TraitItemFn> for ScopeChain {
     fn joined(&self, item: &TraitItemFn) -> Self {
         let TraitItemFn { attrs, sig, .. } = item;
         let Signature { ident, generics, .. } = sig;
-        let self_scope = self.self_scope();
-        let self_scope_holder = &self_scope.self_scope;
-        let fn_self_scope = self_scope_holder.joined(ident);
+        let self_path = self.self_path_ref();
+        let fn_self_scope = self_path.joined(ident);
         let self_type = fn_self_scope.to_type();
-        let self_obj = ObjectKind::new_item(
-            TypeModelKind::Fn(
-                TypeModel::new(
-                    self_type,
-                    Some(generics.clone()),
-                    Punctuated::new())),
-            ScopeItemKind::Fn(
-                sig.clone(),
-                self_scope_holder.clone()));
         ScopeChain::func(
-            Scope::new(fn_self_scope, self_obj),
+            Scope::new(fn_self_scope, ObjectKind::new_fn_item(TypeModel::new_generic_non_nested(self_type, generics), ScopeItemKind::fn_ref(sig, self_path))),
             attrs,
             self.crate_ident_ref(),
             self
@@ -89,3 +96,29 @@ impl Join<TraitItemFn> for ScopeContext {
         Self::with(self.scope.joined(other), self.context.clone())
     }
 }
+
+impl Join<Ident> for Path {
+    fn joined(&self, other: &Ident) -> Self {
+        let mut new_path = self.clone();
+        new_path.segments.push(PathSegment::from(other.clone()));
+        new_path
+    }
+}
+
+impl Join<GenericBoundKey> for Path {
+    fn joined(&self, other: &GenericBoundKey) -> Self {
+        match other {
+            GenericBoundKey::Ident(ident) => self.joined(ident),
+            GenericBoundKey::Path(path) => self.joined(path)
+        }
+    }
+}
+
+
+pub trait PunctuateOne<T: Default> {
+    fn punctuate_one(self) -> Punctuated<Self, T> where Self: Sized {
+        Punctuated::from_iter([self])
+    }
+}
+
+impl<T, P: ToTokens + Default> PunctuateOne<P> for T {}
