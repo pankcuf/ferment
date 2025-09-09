@@ -1,5 +1,5 @@
 use syn::{AngleBracketedGenericArguments, GenericArgument, Type, TypePath};
-use crate::ext::MaybeAngleBracketedArgs;
+use crate::ext::{MaybeAngleBracketedArgs, MaybeAngleBracketedArgsMut};
 
 pub trait MaybeGenericType {
     fn maybe_generic_type(&self) -> Option<&Type>;
@@ -41,7 +41,7 @@ impl MaybeGenericType for TypePath {
 
     fn maybe_generic_type_mut(&mut self) -> Option<&mut Type> {
         self.path.segments.last_mut()
-            .and_then(MaybeAngleBracketedArgs::maybe_angle_bracketed_args_mut)
+            .and_then(MaybeAngleBracketedArgsMut::maybe_angle_bracketed_args_mut)
             .and_then(MaybeGenericType::maybe_generic_type_mut)
     }
 }

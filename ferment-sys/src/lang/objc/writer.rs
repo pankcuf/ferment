@@ -30,13 +30,13 @@ impl Display for Target {
 }
 
 pub enum OS {
-    IOS,
+    Ios,
     MacOS
 }
 impl Display for OS {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            OS::IOS => "ios",
+            OS::Ios => "ios",
             OS::MacOS => "macos"
         })
     }

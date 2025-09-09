@@ -304,7 +304,7 @@ impl<'a> VisitScopeType<'a> for Path {
                                 .cloned()
                                 .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_ref().joined(&generic_key));
                             let ty: Type = parse_quote!(<#ty as #tt>);
-                            scope.obj_root_model_composer()(TypeModel::new_nested((len > 0).then(|| ty.joined(&segments.crate_less())).unwrap_or(ty), nested_arguments))
+                            scope.obj_root_model_composer()(TypeModel::new_nested(if len > 0 { ty.joined(&segments.crate_less()) } else { ty }, nested_arguments))
                         } else {
                             ObjectKind::unknown_model_type_path(qself, self.leading_colon, segments, nested_arguments)
                         }

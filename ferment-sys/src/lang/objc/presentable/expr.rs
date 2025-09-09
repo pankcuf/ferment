@@ -13,7 +13,7 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
 
     fn present(&self, source: &ScopeContext) -> Self::Presentation {
         // println!("OBJC: Expression <= {:?}", self);
-        let result = match self {
+        match self {
             Self::Empty => quote!().to_token_stream(),
             Self::Simple(expr) =>
                 expr.to_token_stream(),
@@ -270,9 +270,6 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 expr.present(source),
             Self::SimpleExpr(expr) =>
                 expr.present(source),
-        };
-        // println!("OBJC: Expression => {}", result);
-
-        result
+        }
     }
 }

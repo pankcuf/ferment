@@ -3,7 +3,6 @@ mod dict_type_model;
 mod dict_fermentable_model;
 mod generic_type;
 mod group_model;
-mod local_type;
 mod r#macro;
 mod mixin;
 mod object;
@@ -21,8 +20,6 @@ pub use self::dict_fermentable_model::*;
 pub use self::field_type::*;
 pub use self::generic_type::*;
 pub use self::group_model::*;
-#[allow(unused)]
-pub use self::local_type::*;
 pub use self::r#macro::*;
 pub use self::mixin::*;
 pub use self::object::*;

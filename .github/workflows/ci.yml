@@ -23,8 +23,24 @@ jobs:
 
       - name: clippy (selected crates)
         run: >
-          cargo clippy
+          cargo clippy -p ferment -p ferment-macro -p ferment-sys --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run tests (selected crates)
+        run: >
+          cargo test --verbose
           -p ferment
           -p ferment-macro
           -p ferment-sys
-          --all-targets --all-features -- -D warnings

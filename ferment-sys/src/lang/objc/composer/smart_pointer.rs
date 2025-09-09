@@ -42,7 +42,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         let aspect = self.raw_target_type_aspect();
 
         let root_var = <ObjCSpecification as Specification>::value_var(root_ty_ref).compose(source);
-        let ctor_arg_var = <ObjCSpecification as Specification>::value_var(&arg_ty).compose(source);
+        let ctor_arg_var = <ObjCSpecification as Specification>::value_var(arg_ty).compose(source);
         let ctor_arg_type = ctor_arg_var.to_type();
 
         let root_field_type_kind = FieldTypeKind::Var(root_var);
