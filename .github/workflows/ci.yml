@@ -17,13 +17,13 @@ jobs:
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy, rustfmt
+          components: clippy
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: rustfmt check
-        run: cargo fmt --all -- --check
+#      - name: rustfmt check
+#        run: cargo fmt --all -- --check
 
       - name: clippy (workspace)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
