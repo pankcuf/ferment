@@ -5,13 +5,12 @@ use crate::composer::{AspectPresentable, AttrComposable, FFIAspect, GenericCompo
 use crate::context::ScopeContext;
 use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
-use crate::lang::{FromDictionary, Specification};
+use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{ArgKind, ConversionExpressionKind, Expression, ScopeContextPresentable};
-use crate::presentation::DictionaryName;
 
 impl SourceComposable for GroupComposer<ObjCSpecification> {
     type Source = ScopeContext;

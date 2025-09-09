@@ -4,9 +4,9 @@ use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath, PathSegment, TraitBoundModifier, ItemEnum, ItemStruct, ItemType};
 use syn::parse::Parser;
-use crate::ast::{AddPunctuated, CommaPunctuated};
+use crate::ast::{AddPunctuated, CommaPunctuated, CommaPunctuatedTokens};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel};
-use crate::composer::MaybeMacroLabeled;
+use crate::composer::{CommaPunctuatedNestedArguments, MaybeMacroLabeled};
 use crate::context::{GenericChain, ScopeChain};
 use crate::kind::{MacroKind, ObjectKind, ScopeItemKind, TypeModelKind};
 use crate::ext::{Join, MaybeTraitBound, ToType};
@@ -49,27 +49,12 @@ impl VisitScope for Item {
             }
             Item::Enum(item_enum) => {
                 let ItemEnum { attrs, generics, ident, variants, .. } = item_enum;
-                let Generics { params, where_clause, .. } = generics;
-                let mut nested_arguments = CommaPunctuated::new();
-                let full_ty = if !params.is_empty() || where_clause.is_some() {
-                    let mut inner_args = CommaPunctuated::new();
-                    params.iter().for_each(|p| match p {
-                        GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-                            inner_args.push(ident.to_token_stream());
-                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::trait_model_type(TypeModel::new_generic_ident(ident, generics.clone(), CommaPunctuated::from_iter(bounds.iter().filter_map(MaybeTraitBound::maybe_trait_bound).map(|TraitBound { path, .. }| NestedArgument::Object(ObjectKind::trait_model_type(TypeModel::new_default_from_path(path)))))))));
-                        }
-                        GenericParam::Const(ConstParam { ident, .. }) => {
-                            inner_args.push(ident.to_token_stream());
-                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::object_model_type(TypeModel::new_generic_ident_non_nested(ident, generics))))
-                        },
-                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
-                            inner_args.push(lifetime.to_token_stream()),
-                    });
+                let (nested_arguments, inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+                let full_ty = if !inner_args.is_empty() {
                     parse_quote!(#scope<#inner_args>)
                 } else {
                     scope.to_type()
                 };
-
                 let self_object = ObjectKind::new_generic_obj_item(
                     full_ty,
                     generics,
@@ -80,7 +65,9 @@ impl VisitScope for Item {
                 }
                 add_itself_conversion(visitor, scope, ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(attrs, scope);
-                visitor.add_generic_chain(scope, generics, true);
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(scope, generic_chain);
+
                 variants.iter().for_each(|Variant { fields, .. }|
                     fields.iter().for_each(|Field { ty, .. }|
                         visitor.add_full_qualified_type_match(scope, ty, true)));
@@ -88,22 +75,8 @@ impl VisitScope for Item {
             }
             Item::Struct(item_struct) => {
                 let ItemStruct { attrs, generics, ident, fields, .. } = item_struct;
-                let Generics { params, where_clause, .. } = generics;
-                let mut nested_arguments = CommaPunctuated::new();
-                let full_ty = if !params.is_empty() || where_clause.is_some() {
-                    let mut inner_args = CommaPunctuated::new();
-                    params.iter().for_each(|p| match p {
-                        GenericParam::Type(TypeParam { ident, bounds, .. }) => {
-                            inner_args.push(ident.to_token_stream());
-                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::trait_model_type(TypeModel::new_generic_ident(ident, generics.clone(), CommaPunctuated::from_iter(bounds.iter().filter_map(MaybeTraitBound::maybe_trait_bound).map(|TraitBound { path, .. }| NestedArgument::Object(ObjectKind::trait_model_type(TypeModel::new_default_from_path(path)))))))));
-                        }
-                        GenericParam::Const(ConstParam { ident, .. }) => {
-                            inner_args.push(ident.to_token_stream());
-                            nested_arguments.push(NestedArgument::Constraint(ObjectKind::object_model_type(TypeModel::new_generic_ident_non_nested(ident, generics))))
-                        },
-                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
-                            inner_args.push(lifetime.to_token_stream()),
-                    });
+                let (nested_arguments, inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+                let full_ty = if !inner_args.is_empty() {
                     parse_quote!(#scope<#inner_args>)
                 } else {
                     scope.to_type()
@@ -118,15 +91,15 @@ impl VisitScope for Item {
                 }
                 add_itself_conversion(visitor, scope, ident, self_object);
                 visitor.add_full_qualified_trait_type_from_macro(attrs, scope);
-                visitor.add_generic_chain(scope, generics, true);
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(scope, generic_chain);
+
                 fields.iter().for_each(|Field { ty, .. }|
                     visitor.add_full_qualified_type_match(scope, ty,true));
             }
             Item::Fn(ItemFn { sig, .. }) => {
                 let Signature { ident, generics, .. } = sig;
-                let self_object = ObjectKind::new_fn_item(
-                    TypeModel::new_generic_scope_non_nested(scope, generics),
-                    ScopeItemKind::fn_ref(sig, self_scope));
+                let self_object = ObjectKind::new_fn_item(TypeModel::new_generic_scope_non_nested(scope, generics), ScopeItemKind::fn_ref(sig, self_scope));
                 if let Some(parent_scope) = scope.parent_scope() {
                     add_itself_conversion(visitor, parent_scope, ident, self_object.clone());
                 }
@@ -137,20 +110,28 @@ impl VisitScope for Item {
                 add_full_qualified_trait(visitor, item_trait, scope),
             Item::Type(item_type) => {
                 let ItemType { generics, ident, ty, .. } = item_type;
+                let (nested_arguments, inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+                let full_ty = if !inner_args.is_empty() {
+                    parse_quote!(#scope<#inner_args>)
+                } else {
+                    scope.to_type()
+                };
                 let self_object = ObjectKind::model_item(
                     if let Type::BareFn(..) = &**ty {
                         TypeModelKind::FnPointer
                     } else {
                         TypeModelKind::Object
                     },
-                    TypeModel::new_generic_scope_non_nested(scope, generics),
+                    TypeModel::new_generic(full_ty, generics.clone(), nested_arguments),
                     ScopeItemKind::item_type(item_type, self_scope));
 
                 if let Some(parent_scope) = scope.parent_scope() {
                     add_itself_conversion(visitor, parent_scope, ident, self_object.clone());
                 }
                 add_itself_conversion(visitor, scope, ident, self_object);
-                visitor.add_generic_chain(scope, generics, true);
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(scope, generic_chain);
+
                 visitor.add_full_qualified_type_match(scope, ty, true);
             }
             Item::Impl(ItemImpl { generics, trait_, self_ty, items , ..}) => {
@@ -158,11 +139,14 @@ impl VisitScope for Item {
                     visitor.add_full_qualified_type_match(scope, &path.to_type(), true);
                 }
                 visitor.add_full_qualified_type_match(scope, self_ty, false);
-                visitor.add_generic_chain(scope, generics, true);
+                let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(scope, generic_chain);
                 items.iter().for_each(|impl_item| match impl_item {
-                    ImplItem::Const(ImplItemConst { ident, ty, .. }) => {
+                    ImplItem::Const(ImplItemConst { ident, ty, generics, .. }) => {
                         visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                         visitor.add_full_qualified_type_match(scope, ty, true);
+                        let (_nested_const_arguments, _inner_const_args) = add_full_qualified_generics(visitor, generics, scope, true);
                     },
                     ImplItem::Fn(impl_method) => {
                         let ImplItemFn { sig, .. } = impl_method;
@@ -187,12 +171,18 @@ impl VisitScope for Item {
                                 visitor.scope_add_many(parent_type_chain, scope);
                             }
                         });
-                        visitor.add_generic_chain(&fn_scope, generics, false);
+                        let (_nested_fn_arguments, _inner_fn_args) = add_full_qualified_generics(visitor, generics, &fn_scope, false);
+
+                        let generic_chain = create_generics_chain(generics);
+                        visitor.add_generic_chain(scope, generic_chain);
+
                     },
                     ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
                         visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                         visitor.add_full_qualified_type_match(scope, ty, true);
-                        visitor.add_generic_chain(scope, generics, false);
+                        let (_nested_type_arguments, _inner_type_args) =  add_full_qualified_generics(visitor, generics, scope, false);
+                        let generic_chain = create_generics_chain(generics);
+                        visitor.add_generic_chain(scope, generic_chain);
                     },
                     _ => {}
                 });
@@ -202,18 +192,58 @@ impl VisitScope for Item {
     }
 }
 
+fn add_full_qualified_generics(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> (CommaPunctuatedNestedArguments, CommaPunctuatedTokens) {
+    let Generics { params, where_clause, .. } = generics;
+    let mut nested_arguments = CommaPunctuated::new();
+    let mut inner_args = CommaPunctuated::new();
+    params.iter().for_each(|p| match p {
+        GenericParam::Type(TypeParam { ident, bounds, .. }) => {
+            inner_args.push(ident.to_token_stream());
+            let mut nested_type_arguments = CommaPunctuated::new();
+            bounds.iter().for_each(|bound| {
+                if let Some(trait_bound) = bound.maybe_trait_bound() {
+                    nested_type_arguments.push(NestedArgument::trait_bound_object(trait_bound));
+                    visitor.add_full_qualified_type_match(scope, &trait_bound.path.to_type(), add_to_parent);
+                }
+            });
+            nested_arguments.push(NestedArgument::trait_model_constraint(ident, generics, nested_type_arguments));
+        }
+        GenericParam::Const(ConstParam { ident, ty, .. }) => {
+            inner_args.push(ident.to_token_stream());
+            visitor.add_full_qualified_type_match(scope, ty, add_to_parent);
+            nested_arguments.push(NestedArgument::object_model_constraint(ident, generics))
+        },
+        GenericParam::Lifetime(LifetimeParam { lifetime, .. }) =>
+            inner_args.push(lifetime.to_token_stream()),
+    });
+    if let Some(WhereClause { predicates, .. }) = where_clause {
+        predicates.iter().for_each(|pred| match pred {
+            WherePredicate::Type(PredicateType { bounds, .. }) => {
+                bounds.iter().for_each(|bound| {
+                    if let Some(trait_bound) = bound.maybe_trait_bound() {
+                        visitor.add_full_qualified_type_match(scope, &trait_bound.path.to_type(), add_to_parent);
+                    }
+                });
+            },
+            _ => {}
+        });
+    }
+    (nested_arguments, inner_args)
+}
+
 fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope: &ScopeChain) {
-    let ident = &item_trait.ident;
+    let ItemTrait { generics, ident, supertraits, items, .. } = item_trait;
     let trait_type = ident.to_type();
-    let type_compo = TypeModel::new_generic_scope_non_nested(scope, &item_trait.generics);
+    let type_compo = TypeModel::new_generic_scope_non_nested(scope, generics);
     let itself = ObjectKind::new_trait_item(
-        TraitModel::new(type_compo, TraitDecompositionPart1::from_trait_items(ident, &item_trait.items), add_bounds(visitor, &item_trait.supertraits, scope, true)),
+        TraitModel::new(type_compo, TraitDecompositionPart1::from_trait_items(ident, items), add_bounds(visitor, supertraits, scope, true)),
         ScopeItemKind::item_trait(item_trait, scope.self_path_ref()));
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
     visitor.add_full_qualified_trait_match(&scope, item_trait, &itself);
-    item_trait.items.iter().for_each(|trait_item|
+
+    items.iter().for_each(|trait_item|
         match trait_item {
             TraitItem::Const(TraitItemConst { ident, ty, .. }) => {
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
@@ -238,12 +268,17 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                         visitor.scope_add_many(parent_type_chain, parent_scope);
                     }
                 });
-                visitor.add_generic_chain(&fn_scope, generics, false);
+                let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, &fn_scope, false);
+
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(&fn_scope, generic_chain);
             }
             TraitItem::Type(TraitItemType { ident, bounds, generics, .. }) => {
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                 add_bounds(visitor, bounds, scope, true);
-                visitor.add_generic_chain(scope, generics, false);
+                let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, scope, false);
+                let generic_chain = create_generics_chain(generics);
+                visitor.add_generic_chain(scope, generic_chain);
             },
             _ => {}
         });
@@ -251,7 +286,11 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
         visitor.scope_add_one(ident.to_type(), itself.clone(), parent_scope);
     }
     visitor.scope_add_self(itself, scope);
-    visitor.add_generic_chain(&scope, &item_trait.generics, true);
+    let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+
+    let generic_chain = create_generics_chain(generics);
+    visitor.add_generic_chain(scope, generic_chain);
+
 }
 
 fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &ScopeChain) {
@@ -269,7 +308,14 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
         // U: should if sig generics contain it
         visitor.add_full_qualified_type_match(scope, ty, true);
     });
-    visitor.add_generic_chain(scope, generics, false);
+
+    let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, scope, true);
+
+    let generic_chain = create_generics_chain(generics);
+    visitor.add_generic_chain(scope, generic_chain);
+
+    // let generic_chain = create_generics_chain(visitor, generics, scope, false);
+    // visitor.add_generic_chain(scope, generic_chain);
 
 
     // let ty: Type = parse_quote!(#ident);
@@ -309,8 +355,7 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
 fn add_bounds(visitor: &mut Visitor, bounds: &AddPunctuated<TypeParamBound>, scope: &ScopeChain, add_to_parent: bool) -> Vec<Path> {
     let bounds = collect_bounds(bounds);
     bounds.iter().for_each(|path| {
-        let ty = Type::Path(TypePath { qself: None, path: path.clone() });
-        visitor.add_full_qualified_type_match(scope, &ty, add_to_parent);
+        visitor.add_full_qualified_type_match(scope, &path.to_type(), add_to_parent);
     });
     bounds
 }
@@ -352,24 +397,19 @@ fn collect_trait_bounds(bounds: &AddPunctuated<TypeParamBound>) -> Vec<Path> {
 /// Collects trait bounds from both type parameter bounds and where-clause predicates
 /// into a single, deterministically ordered list. Only `TypeParamBound::Trait` and
 /// `WherePredicate::Type(..)` with trait bounds are considered.
-pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: &ScopeChain, add_to_parent: bool) -> GenericChain {
+pub fn create_generics_chain(generics: &Generics) -> GenericChain {
     let Generics { params, where_clause, .. } = generics;
     let mut generics_chain = IndexMap::<Type, Vec<Path>>::new();
     // 1) Bounds in angle brackets: `fn foo<T: Trait, U: A + B>() {}`
     params.iter().for_each(|gp| match gp {
         GenericParam::Type(TypeParam { bounds, ident, .. }) => {
             let bounds = collect_trait_bounds(bounds);
-            bounds.iter().for_each(|path| {
-                let ty = Type::Path(TypePath { qself: None, path: path.clone() });
-                visitor.add_full_qualified_type_match(scope, &ty, add_to_parent);
-            });
-
             generics_chain.entry(ident.to_type())
                 .or_default()
                 .extend(bounds);
         },
-        GenericParam::Const(ConstParam { ty, .. }) =>
-            visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
+        // GenericParam::Const(ConstParam { ty, .. }) =>
+        //     visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
         _ => {}
     });
     // 2) Where clause predicates: `where T: Trait, Vec<U>: Another`
@@ -377,10 +417,6 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
         predicates.iter().for_each(|pred| match pred {
             WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) => {
                 let bounds = collect_trait_bounds(bounds);
-                bounds.iter().for_each(|path| {
-                    let ty = Type::Path(TypePath { qself: None, path: path.clone() });
-                    visitor.add_full_qualified_type_match(scope, &ty, add_to_parent);
-                });
                 generics_chain.entry(bounded_ty.clone())
                     .or_default()
                     .extend(bounds)
@@ -390,7 +426,7 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
     }
     // Ensure each generic type parameter appears at least once; add unlimited if no restrictive bound collected
     params.iter().for_each(|gp| match gp {
-        GenericParam::Type(TypeParam { ident, .. }) if !generics_chain.keys().any(|bounded_ty| bounded_ty.to_token_stream().to_string() == ident.to_string()) => {
+        GenericParam::Type(TypeParam { ident, .. }) if !generics_chain.keys().any(|bounded_ty| ident.eq(&bounded_ty.to_token_stream().to_string())) => {
             generics_chain.entry(ident.to_type())
                 .or_default();
         }
@@ -404,7 +440,6 @@ pub fn create_generics_chain(visitor: &mut Visitor, generics: &Generics, scope: 
             let a_s = a.to_token_stream().to_string();
             let b_s = b.to_token_stream().to_string();
             let w = |s: &str| u8::from(s.replace(' ', "").starts_with("::"));
-            // let w = |s: &str| if s.replace(' ', "").starts_with("::") { 1 } else { 0 };
             w(&a_s)
                 .cmp(&w(&b_s))
                 .then_with(|| a_s.cmp(&b_s))

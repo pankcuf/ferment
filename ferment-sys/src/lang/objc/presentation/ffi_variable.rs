@@ -118,8 +118,7 @@ impl Resolve<FFIVariable<ObjCSpecification, TokenStream2>> for Type {
             .map(FFIFullPath::from)
             .or_else(|| source.maybe_ffi_full_path(self))
             .map(|ffi_path| ffi_path.to_type())
-            .unwrap_or_else(|| parse_quote!(#self))
-            .to_type();
+            .unwrap_or_else(|| parse_quote!(#self));
         resolve_type_variable(refined, source)
     }
 }

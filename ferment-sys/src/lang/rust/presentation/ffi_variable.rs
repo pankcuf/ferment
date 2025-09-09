@@ -65,8 +65,7 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for Type {
         let full_ty = Resolve::<Type>::resolve(self, source);
         let refined = source.maybe_special_or_regular_ffi_full_path::<RustSpecification>(&full_ty)
             .map(|ffi_path| ffi_path.to_type())
-            .unwrap_or_else(|| parse_quote!(#self))
-            .to_type();
+            .unwrap_or_else(|| parse_quote!(#self));
         resolve_type_variable(refined, source)
     }
 }

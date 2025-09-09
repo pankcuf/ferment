@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{Path, TraitBound, Type, TypePath, TypePtr, TypeReference, TypeTraitObject};
+use syn::{Path, TraitBound, Type, TypePtr, TypeReference, TypeTraitObject};
 use crate::ext::{MaybeTraitBound, ToType};
 use crate::lang::Specification;
 use crate::presentation::FFIVariable;
@@ -159,7 +159,7 @@ impl ScopeSearchKey {
     }
     pub fn find<K, T: Fn(&Type) -> K>(&self, finder: T) -> K {
         match self {
-            ScopeSearchKey::Path(ref path, ..) => finder(&Type::Path(TypePath { qself: None, path: (*path).clone() })),
+            ScopeSearchKey::Path(ref path, ..) => finder(&path.to_type()),
             ScopeSearchKey::Type(ty, ..) => finder(ty),
         }
     }

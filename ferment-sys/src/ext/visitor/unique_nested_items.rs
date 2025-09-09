@@ -3,7 +3,7 @@ use std::hash::Hash;
 use quote::ToTokens;
 use syn::{AngleBracketedGenericArguments, BareFnArg, Constraint, Expr, GenericArgument, ParenthesizedGenericArguments, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
-use crate::ext::MaybeTraitBound;
+use crate::ext::{MaybeTraitBound, ToType};
 
 pub trait UniqueNestedItems {
     type Item: ToTokens + Eq + Hash;
@@ -144,7 +144,7 @@ impl UniqueNestedItems for TypeParamBound {
     fn unique_nested_items(&self) -> HashSet<Self::Item> {
         self.maybe_trait_bound().map(|TraitBound { path, .. }| {
             let mut involved = HashSet::from([]);
-            involved.insert(Type::Path(TypePath { qself: None, path: path.clone() }));
+            involved.insert(path.to_type());
             involved.extend(path.unique_nested_items());
             involved
         }).unwrap_or_default()

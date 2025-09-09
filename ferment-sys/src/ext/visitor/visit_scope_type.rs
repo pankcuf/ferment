@@ -119,7 +119,8 @@ fn collect_trait_bounds(ty: &Type, ident_path: &Type, bounds: &AddPunctuated<Typ
 }
 
 fn create_generics_chain(ident: &Ident, bound: TypeParam, generics: &Generics, source: &(&ScopeChain, &GlobalContext, Option<QSelf>)) -> (Vec<ObjectKind>, IndexMap<Type, Vec<ObjectKind>>) {
-    let ident_path = Type::Path(TypePath { qself: None, path: Path::from(PathSegment::from(bound.ident.clone())) });
+    // let ident_path = Type::Path(TypePath { qself: None, path: Path::from(PathSegment::from(bound.ident.clone())) });
+    let ident_path = Path::from(PathSegment::from(bound.ident.clone())).to_type();
     let ty = ident.to_type();
     let bounds = collect_trait_bounds(&ty, &ident_path, &bound.bounds, source);
     let predicates = generics.where_clause

@@ -3,7 +3,7 @@ use crate::composer::{AnyOtherComposer, GenericComposerInfo, SourceComposable, V
 use crate::context::ScopeContext;
 use crate::ext::{ArgsTransform, GenericNestedArg, Mangle, ToPath, ToType};
 use crate::lang::objc::ObjCSpecification;
-use crate::presentation::{DictionaryName, Name};
+use crate::presentation::Name;
 
 impl SourceComposable for AnyOtherComposer<ObjCSpecification> {
     type Source = ScopeContext;

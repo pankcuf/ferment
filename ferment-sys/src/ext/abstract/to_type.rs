@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{parse_quote, Path, Type};
+use syn::{parse_quote, Path, Type, TypePath};
 use syn::__private::TokenStream2;
 use crate::ast::{AddPunctuated, Colon2Punctuated};
 
@@ -48,7 +48,7 @@ macro_rules! impl_to_segments {
 }
 
 impl_to_type!(Ident);
-impl_to_type!(Path);
+// impl_to_type!(Path);
 impl_to_type!(Type);
 impl_to_type!(TokenStream2);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
@@ -65,3 +65,10 @@ impl_to_path!(syn::TypePath);
 
 impl_to_segments!(Ident);
 impl_to_segments!(Path);
+
+impl ToType for Path {
+    fn to_type(&self) -> Type {
+        Type::Path(TypePath { qself: None, path: self.clone() })
+    }
+}
+

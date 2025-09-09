@@ -53,6 +53,10 @@ impl TypeModel {
     }
     pub fn new_default_from_path(path: &Path) -> Self {
         Self::new(path.to_type(), None, CommaPunctuatedNestedArguments::new())
+        // Self::new(Type::Path(TypePath { qself: None, path: path.clone() }), None, CommaPunctuatedNestedArguments::new())
+    }
+    pub fn new_default_from_trait_bound(trait_bound: &TraitBound) -> Self {
+        Self::new_default_from_path(&trait_bound.path)
     }
     pub fn new_nested(ty: Type, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
         Self::new(ty, None, nested_arguments)
@@ -74,6 +78,9 @@ impl TypeModel {
     }
     pub fn new_generic_scope_non_nested(scope: &ScopeChain, generics: &Generics) -> Self {
         Self::new_generic_non_nested(scope.to_type(), generics)
+    }
+    pub fn new_generic_scope(scope: &ScopeChain, generics: &Generics, nested_arguments: CommaPunctuatedNestedArguments) -> Self {
+        Self::new_generic(scope.to_type(), generics.clone(), nested_arguments)
     }
 }
 impl TypeModel {

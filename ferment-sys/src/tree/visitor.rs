@@ -1,11 +1,11 @@
 use std::fmt::Formatter;
 use std::sync::{Arc, RwLock};
 use quote::{format_ident, ToTokens};
-use syn::{Attribute, Generics, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
+use syn::{Attribute, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
 use syn::visit::Visit;
-use crate::context::{GlobalContext, ScopeChain, TypeChain};
+use crate::context::{GenericChain, GlobalContext, ScopeChain, TypeChain};
 use crate::kind::{MacroKind, ObjectKind};
-use crate::ext::{CrateExtension, create_generics_chain, extract_trait_names, MaybeIdent, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToType, ToPath};
+use crate::ext::{CrateExtension, extract_trait_names, MaybeIdent, ItemHelper, Join, MergeInto, UniqueNestedItems, Pop, VisitScope, VisitScopeType, ToPath, ToType};
 use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
@@ -119,8 +119,7 @@ impl Visitor {
         let mut lock = self.context.write().unwrap();
         lock.traits.add_trait(scope, item_trait, itself);
     }
-    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: &Generics, add_to_parent: bool) {
-        let generics = create_generics_chain(self, generics, scope, add_to_parent);
+    pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: GenericChain) {
         let mut lock = self.context.write().unwrap();
         lock.generics.extend_in_scope(scope, generics.inner)
     }
