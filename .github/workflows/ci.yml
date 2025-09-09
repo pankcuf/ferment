@@ -1,20 +1,4 @@
 name: "CI"
-inputs:
-  toolchain:
-    description: Rust toolchain to use, stable / nightly / beta, or exact version; uses rust-toolchain.toml if not specified
-    default: ""
-  target:
-    description: Target Rust platform
-    required: false
-    default: x86_64-unknown-linux-gnu
-  components:
-    description: List of additional Rust toolchain components to install
-    required: false
-  cache:
-    description: Enable Rust cache
-    required: false
-    default: "true"
-
 on:
   push:
     branches: [ master ]
@@ -36,9 +20,6 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
-
-#      - name: rustfmt check
-#        run: cargo fmt --all -- --check
 
       - name: clippy (selected crates)
         run: >
