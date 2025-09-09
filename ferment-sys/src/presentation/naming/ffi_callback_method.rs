@@ -2,7 +2,7 @@ use quote::{quote, TokenStreamExt, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::MethodCall;
 
-#[allow(clippy::unused)]
+#[allow(unused)]
 #[allow(dead_code)]
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment::FFICallback"]

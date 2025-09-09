@@ -98,9 +98,11 @@ fn collect_trait_requirements_orders_and_dedups4() {
     let keys: Vec<(String, String)> = chain.inner.iter()
         .map(|(bounded_ty, trait_paths)| (
             bounded_ty.to_token_stream().to_string(),
-            (!trait_paths.is_empty())
-                .then(|| trait_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(" + "))
-                .unwrap_or_else(|| "<unlimited>".to_string())
+            if trait_paths.is_empty() {
+                "<unlimited>".to_string()
+            } else {
+                trait_paths.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(" + ")
+            }
         ))
         .collect();
     let expected = vec![
