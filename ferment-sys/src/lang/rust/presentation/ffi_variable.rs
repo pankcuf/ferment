@@ -3,10 +3,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::ToTokens;
 use syn::{parse_quote, AngleBracketedGenericArguments, Path, PathSegment, TraitBound, Type, TypeArray, TypeImplTrait, TypeParamBound, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject};
 use crate::ast::AddPunctuated;
-use crate::composable::{GenericBoundsModel, TraitModel, TypeModel};
+use crate::composable::{GenericBoundsModel, TypeModel};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, DictionaryType, GenericNestedArg, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, Resolve, ToType};
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
+use crate::ext::{Accessory, AsType, DictionaryType, GenericNestedArg, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, Resolve, ToType};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, SmartPointerModelKind, SpecialType, TypeKind, TypeModelKind};
 use crate::lang::RustSpecification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath, FFIVariable};
 
@@ -77,83 +77,43 @@ impl Resolve<FFIVariable<RustSpecification, Type>> for TypeModelKind {
     fn resolve(&self, source: &ScopeContext) -> FFIVariable<RustSpecification, Type> {
         let result = match self  {
             // TODO: For now we assume that every callback defined as fn pointer is opaque
-            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) => FFIVariable::direct(Resolve::<SpecialType<RustSpecification>>::maybe_resolve(ty, source)
-                .map(|special| special.to_type())
-                .unwrap_or_else(|| Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source)
-                    .to_type())),
-            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) => FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source).to_type()),
-            TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) => FFIVariable::direct(composition.to_type()),
-            TypeModelKind::Dictionary(
-                DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) => {
-                FFIVariable::mut_ptr(parse_quote!([u8; 16]))
-            },
+            TypeModelKind::FnPointer(TypeModel { ty, .. }, ..) =>
+                FFIVariable::direct(Resolve::<SpecialType<RustSpecification>>::maybe_resolve(ty, source)
+                    .map(|special| special.to_type())
+                    .unwrap_or_else(|| Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source)
+                        .to_type())),
+            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(TypeModel { ty, .. }, ..)) =>
+                FFIVariable::mut_ptr(Resolve::<FFIFullPath<RustSpecification>>::resolve(ty, source).to_type()),
+            TypeModelKind::Dictionary(DictTypeModelKind::Primitive(composition)) =>
+                FFIVariable::direct(composition.to_type()),
+            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::I128(..) | DictFermentableModelKind::U128(..))) =>
+                FFIVariable::mut_ptr(parse_quote!([u8; 16])),
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(TypeModel { ty, .. })))) |
             TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Cow(TypeModel { ty, .. }))) => match ty.maybe_first_nested_type_ref() {
-                Some(nested_full_ty) => {
+                Some(nested_full_ty) =>
                     resolve_type_variable(match Resolve::<SpecialType<RustSpecification>>::maybe_resolve(nested_full_ty, source) {
                         Some(special) => special.to_type(),
                         None => source.maybe_ffi_full_path::<RustSpecification>(nested_full_ty)
                             .map(|full_path| full_path.to_type())
                             .unwrap_or_else(|| nested_full_ty.clone())
-                    }, source)
-                }
-                None => panic!("error: Arg kind ({}) not supported", ty.to_token_stream())
+                    }, source),
+                None =>
+                    panic!("error: Arg kind ({}) not supported", ty.to_token_stream())
             },
-
-            TypeModelKind::Dictionary(
-                DictTypeModelKind::NonPrimitiveFermentable(
-                    DictFermentableModelKind::SmartPointer(
-                        SmartPointerModelKind::Arc(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::Mutex(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::Rc(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::Cell(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::RefCell(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::UnsafeCell(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::OnceLock(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::RwLock(TypeModel { ty, .. }) |
-                        SmartPointerModelKind::Pin(TypeModel { ty, .. })
-                    ) |
-                    DictFermentableModelKind::Group(
-                        GroupModelKind::BTreeSet(TypeModel { ty, .. }) |
-                        GroupModelKind::HashSet(TypeModel { ty, .. }) |
-                        GroupModelKind::Map(TypeModel { ty, .. }) |
-                        GroupModelKind::Result(TypeModel { ty, .. }) |
-                        GroupModelKind::Vec(TypeModel { ty, .. }) |
-                        GroupModelKind::IndexMap(TypeModel { ty, .. }) |
-                        GroupModelKind::IndexSet(TypeModel { ty, .. })
-                    ) |
-                    DictFermentableModelKind::Str(TypeModel { ty, .. }) |
-                    DictFermentableModelKind::String(TypeModel { ty, .. }) |
-                    DictFermentableModelKind::Other(TypeModel { ty, .. })
-                ) |
-                DictTypeModelKind::NonPrimitiveOpaque(TypeModel { ty, .. })
-            ) |
-            TypeModelKind::Trait(TraitModel { ty: TypeModel { ty, .. }, .. }, ..) |
-            TypeModelKind::TraitType(TypeModel { ty, .. }) |
-            TypeModelKind::Object(TypeModel { ty, .. }) |
-            TypeModelKind::Optional(TypeModel { ty, .. }) |
-            TypeModelKind::Array(TypeModel { ty, .. }) |
-            TypeModelKind::Slice(TypeModel { ty, .. }) |
-            TypeModelKind::Tuple(TypeModel { ty, .. }) |
-            TypeModelKind::Unknown(TypeModel { ty, .. })  => {
-                Resolve::<SpecialType<RustSpecification>>::maybe_resolve(ty, source)
-                    .map(|ty| resolve_type_variable(FFIFullPath::from(ty).to_type(), source))
-                    .unwrap_or_else(|| {
-                        let maybe_object_kind = Resolve::<ObjectKind>::maybe_resolve(ty, source);
-                        let ty_model_kind_to_resolve = maybe_object_kind
-                            .and_then(|external_type| external_type.maybe_fn_or_trait_or_same_kind(source))
-                            .unwrap_or_else(|| TypeModelKind::unknown_type_ref(ty));
-                        resolve_type_variable(ty_model_kind_to_resolve.to_type(), source)
-                    })
-            },
-            TypeModelKind::Fn(TypeModel { ty, .. }, ..) => {
-                panic!("error: Arg kind (Fn) ({}) not supported", ty.to_token_stream())
-            },
-
             TypeModelKind::Bounds(bounds) =>
                 bounds.resolve(source),
-            ty =>
-                panic!("error: Arg kind ({}) not supported", ty),
+            TypeModelKind::Fn(TypeModel { ty, .. }, ..) =>
+                panic!("error: Arg kind (Fn) ({}) not supported", ty.to_token_stream()),
+            model_kind => {
+                let ty = model_kind.as_type();
+                let full_ty = Resolve::<SpecialType<RustSpecification>>::maybe_resolve(ty, source)
+                    .map(|special_ty| FFIFullPath::from(special_ty).to_type())
+                    .unwrap_or_else(|| Resolve::<ObjectKind>::maybe_resolve(ty, source)
+                        .and_then(|external_type| external_type.maybe_fn_or_trait_or_same_kind(source)
+                            .map(|kind| kind.to_type()))
+                        .unwrap_or_else(|| ty.clone()));
+                resolve_type_variable(full_ty, source)
+            }
         };
         result
     }

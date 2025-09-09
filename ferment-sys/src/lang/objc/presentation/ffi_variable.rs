@@ -74,12 +74,12 @@ impl Accessory for FFIVariable<ObjCSpecification, TokenStream2> {
 
     fn joined_ident(&self, ident: &Ident) -> Self {
         match self {
-            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::Ref { ty , .. } => FFIVariable::Ref { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
-            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: parse_quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Direct { ty, .. } => FFIVariable::Direct { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::ConstPtr { ty, .. } => FFIVariable::ConstPtr { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutPtr { ty, .. } => FFIVariable::MutPtr { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Ref { ty , .. } => FFIVariable::Ref { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::MutRef { ty, .. } => FFIVariable::MutRef { ty: quote!(#ty::#ident), _marker: PhantomData },
+            FFIVariable::Dyn { ty, .. } => FFIVariable::Dyn { ty: quote!(#ty::#ident), _marker: PhantomData },
         }
     }
 }
