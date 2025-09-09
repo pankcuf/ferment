@@ -4,7 +4,7 @@ use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
 use crate::context::{ScopeContext, ScopeSearch};
-use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericBoundsModel, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeModelKind};
+use crate::kind::{DictFermentableModelKind, DictTypeModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, SpecialType, TypeModelKind};
 use crate::ext::{Accessory, AsType, ExpressionComposable, FFIObjectResolve, FFISpecialTypeResolve, GenericNestedArg, MaybeLambdaArgs, Primitive, Resolve, ToType};
 use crate::lang::Specification;
 use crate::presentable::{ConversionExpressionKind, Expression, ScopeContextPresentable};
@@ -147,9 +147,9 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     } else {
                         Expression::expression_to(ConversionExpressionKind::Primitive, Expression::cow_into_owned(field_path))
                     },
-                    TypeModelKind::Bounds(GenericBoundsModel { bounds, .. }) => match bounds.len() {
+                    TypeModelKind::Bounds(model) => match model.chain.len() {
                         0 => field_path,
-                        1 => if let Some(first_bound) = bounds.first() {
+                        1 => if let Some(first_bound) = model.first_bound() {
                             if let Some(lambda_args) = MaybeLambdaArgs::<SPEC>::maybe_lambda_arg_names(first_bound) {
                                 Expression::from_lambda(field_path, lambda_args)
                             } else {

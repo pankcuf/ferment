@@ -2,14 +2,14 @@ use std::collections::{HashMap, HashSet};
 use indexmap::IndexMap;
 use proc_macro2::Ident;
 use quote::ToTokens;
-use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath, PathSegment, TraitBoundModifier, ItemEnum, ItemStruct, ItemType};
+use syn::{Attribute, ConstParam, Field, FnArg, GenericParam, Generics, ImplItem, ImplItemConst, ImplItemFn, ImplItemType, Item, ItemFn, ItemImpl, ItemMod, ItemTrait, LifetimeParam, Meta, parse_quote, Path, PatType, PredicateType, ReturnType, Signature, TraitBound, TraitItem, TraitItemConst, TraitItemFn, TraitItemType, Type, TypeParam, TypeParamBound, Variant, WhereClause, WherePredicate, TypePath, PathSegment, TraitBoundModifier, ItemEnum, ItemStruct, ItemType, QSelf};
 use syn::parse::Parser;
 use crate::ast::{AddPunctuated, CommaPunctuated, CommaPunctuatedTokens};
 use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, TypeModel};
 use crate::composer::{CommaPunctuatedNestedArguments, MaybeMacroLabeled};
 use crate::context::{GenericChain, ScopeChain};
 use crate::kind::{MacroKind, ObjectKind, ScopeItemKind, TypeModelKind};
-use crate::ext::{Join, MaybeTraitBound, ToType};
+use crate::ext::{Join, MaybeTraitBound, ToType, GenericBoundKey};
 use crate::ext::maybe_ident::collect_bounds;
 use crate::tree::Visitor;
 
@@ -404,7 +404,8 @@ pub fn create_generics_chain(generics: &Generics) -> GenericChain {
     params.iter().for_each(|gp| match gp {
         GenericParam::Type(TypeParam { bounds, ident, .. }) => {
             let bounds = collect_trait_bounds(bounds);
-            generics_chain.entry(ident.to_type())
+            generics_chain
+                .entry(ident.to_type())
                 .or_default()
                 .extend(bounds);
         },
@@ -415,7 +416,8 @@ pub fn create_generics_chain(generics: &Generics) -> GenericChain {
         predicates.iter().for_each(|pred| match pred {
             WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) => {
                 let bounds = collect_trait_bounds(bounds);
-                generics_chain.entry(bounded_ty.clone())
+                generics_chain
+                    .entry(bounded_ty.clone())
                     .or_default()
                     .extend(bounds)
             },
@@ -437,7 +439,7 @@ pub fn create_generics_chain(generics: &Generics) -> GenericChain {
         trait_paths.sort_by(|a, b| {
             let a_s = a.to_token_stream().to_string();
             let b_s = b.to_token_stream().to_string();
-            let w = |s: &str| u8::from(s.replace(' ', "").starts_with("::"));
+            let w = |s: &str| u8::from(normalize_tokens(s).starts_with("::"));
             w(&a_s)
                 .cmp(&w(&b_s))
                 .then_with(|| a_s.cmp(&b_s))
@@ -480,7 +482,7 @@ fn sort_generic_chain(chain: &mut IndexMap<Type, Vec<Path>>) {
         // Prefer bare trait names over fully-qualified ones; unlimited last
         let trait_weight = |s: &str| {
             if s == "<unlimited>" { 2 }
-            else if s.replace(' ', "").starts_with("::") { 1 }
+            else if normalize_tokens(s).starts_with("::") { 1 }
             else { 0 }
         };
         a_tw
@@ -489,6 +491,44 @@ fn sort_generic_chain(chain: &mut IndexMap<Type, Vec<Path>>) {
             .then_with(|| trait_weight(&a_tr_s).cmp(&trait_weight(&b_tr_s)))
             .then_with(|| a_tr_s.cmp(&b_tr_s))
     });
+}
+
+fn normalize_tokens<S: AsRef<str>>(s: S) -> String {
+    s.as_ref().replace(' ', "")
+}
+
+fn anchor_string_of_bounded_ty(ty: &Type) -> String {
+    match ty {
+        // For qualified paths like `<Self::Item::Value as Trait>::Assoc`,
+        // anchor on the inner `ty` (e.g. `Self::Item::Value`).
+        Type::Path(TypePath { qself: Some(QSelf { ty, .. }), .. }) => ty.to_token_stream().to_string(),
+        _ => ty.to_token_stream().to_string(),
+    }
+}
+
+/// Filters the generics chain to constraints related to the provided key.
+/// Related means the bounded type is the key itself or an associated path stemming
+/// from it (e.g., `Self::Item`, `Self::Item::Key`, `<Self::Item::Value as Trait>::Assoc`).
+#[allow(unused)]
+pub fn create_generics_chain_for(generics: &Generics, key: &GenericBoundKey) -> GenericChain {
+    let mut full = create_generics_chain(generics).inner;
+    let key_s = normalize_tokens(key.to_token_stream().to_string());
+    full.retain(|bounded_ty, _| {
+        let anchor = normalize_tokens(anchor_string_of_bounded_ty(bounded_ty));
+        anchor == key_s || anchor.starts_with(&(key_s.clone() + "::"))
+    });
+    sort_generic_chain(&mut full);
+    GenericChain::new(full)
+}
+
+/// Filters the generics chain to only the exact key match (no associated descendants).
+#[allow(unused)]
+pub fn create_generics_chain_exact(generics: &Generics, key: &GenericBoundKey) -> GenericChain {
+    let mut full = create_generics_chain(generics).inner;
+    let key_s = normalize_tokens(key.to_token_stream().to_string());
+    full.retain(|bounded_ty, _| normalize_tokens(anchor_string_of_bounded_ty(bounded_ty)) == key_s);
+    sort_generic_chain(&mut full);
+    GenericChain::new(full)
 }
 
 fn add_itself_conversion(visitor: &mut Visitor, scope: &ScopeChain, ident: &Ident, object: ObjectKind) {

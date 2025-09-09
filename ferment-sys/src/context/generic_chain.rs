@@ -11,3 +11,4 @@ impl GenericChain {
         Self { inner: chain }
     }
 }
+

@@ -23,15 +23,13 @@ pub trait RefineWithNestedArgs {
 impl RefineInScope for GenericBoundsModel {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool {
         let mut refined = false;
-        self.bounds.iter_mut().for_each(|arg| if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
-            *arg = refined_obj;
-            refined = true;
+        self.chain.iter_mut().for_each(|(_bounded_ty, bounds)| {
+            // TODO: should refine key as well, since it can be particular type or contains QSelf
+            bounds.iter_mut().for_each(|arg| if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
+                *arg = refined_obj;
+                refined = true;
+            });
         });
-        // self.bounded_ty.ref
-        // self.predicates.values_mut().for_each(|args| args.iter_mut().for_each(|arg| if let Some(refined_obj) = source.maybe_refined_object(scope, arg) {
-        //     *arg = refined_obj;
-        //     refined = true;
-        // }));
         self.nested_arguments_iter_mut().for_each(|nested_arg| if nested_arg.refine_in_scope(scope, source) {
             refined = true;
         });

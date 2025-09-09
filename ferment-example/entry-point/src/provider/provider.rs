@@ -17,14 +17,7 @@ pub struct CoinJoinProvider {
 
 #[ferment_macro::export]
 impl CoinJoinProvider  {
-    pub fn new<
-        GML: Fn(*const c_void) -> [u8; 32] + 'static,
-        USB: Fn(*const c_void) + 'static,
-        IWFNB: Fn(*const c_void) -> bool + 'static,
-        SLL: Fn(*const c_void, bool, i32, [u8; 32], u32, [u8; 32], [u8; 32], [u8; 32], Option<SocketAddr>, bool) + 'static,
-        SLL2: Fn(*const c_void, bool, i32, [u8; 32], u32, [u8; 32], [u8; 32], [u8; 32], SocketAddr, bool) + 'static,
-        MLL: Fn(*const c_void, bool, bool, Vec<[u8; 32]>) + 'static,
-    >(
+    pub fn new<GML, USB, IWFNB, SLL, SLL2, MLL>(
         get_masternode_list: GML,
         update_success_block: USB,
         is_waiting_for_new_block: IWFNB,
@@ -33,7 +26,12 @@ impl CoinJoinProvider  {
         mixing_lifecycle_listener: MLL,
         context: *const c_void,
     ) -> Self
-    // where GML: Fn(*const c_void) -> [u8; 32] + 'static
+    where GML: Fn(*const c_void) -> [u8; 32] + 'static,
+          USB: Fn(*const c_void) + 'static,
+          IWFNB: Fn(*const c_void) -> bool + 'static,
+          SLL: Fn(*const c_void, bool, i32, [u8; 32], u32, [u8; 32], [u8; 32], [u8; 32], Option<SocketAddr>, bool) + 'static,
+          SLL2: Fn(*const c_void, bool, i32, [u8; 32], u32, [u8; 32], [u8; 32], [u8; 32], SocketAddr, bool) + 'static,
+          MLL: Fn(*const c_void, bool, bool, Vec<[u8; 32]>) + 'static,
     {
         Self {
             context,

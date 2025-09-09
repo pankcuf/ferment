@@ -3,9 +3,9 @@ use std::hash::{Hash, Hasher};
 use proc_macro2::Ident;
 use quote::ToTokens;
 use syn::__private::TokenStream2;
-use syn::{Attribute, Generics, parse_quote, Path, Type, TypeParam, PathSegment};
+use syn::{Attribute, Generics, parse_quote, Path, Type, PathSegment};
 use crate::composable::CfgAttributes;
-use crate::context::{Scope, ScopeInfo};
+use crate::context::{GenericChain, Scope, ScopeInfo};
 use crate::kind::{ObjectKind, TypeModel};
 use crate::ext::{CRATE, ResolveAttrs, ToPath, ToType, Join, GenericBoundKey, PathTransform, CrateBased};
 use crate::formatter::{format_attrs, format_token_stream};
@@ -315,7 +315,7 @@ impl ScopeChain {
         }
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, TypeParam)> {
+    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, GenericChain)> {
         match self {
             ScopeChain::CrateRoot { .. } |
             ScopeChain::Mod { .. } => None,

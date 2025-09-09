@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use syn::{Lifetime, PathSegment};
 use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
-use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, VarComposer, AnyOtherComposer};
+use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, VarComposer, AnyOtherComposer};
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, FieldTypeKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{ArgsTransform, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
@@ -77,8 +77,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                         }
                     },
                     "Mutex" | "RwLock" => {
-                        let expr = ConversionToComposer::<RustSpecification>::value_ref(&arg_0_name, nested_ty).compose(source);
-                        println!("RES expr: {}", expr.present(source));
+                        // let expr = ConversionToComposer::<RustSpecification>::value_ref(&arg_0_name, nested_ty).compose(source);
                         quote!(#arg_0_name.into_inner().expect("Err"))
                     },
                     "RefCell" => quote!(#arg_0_name.into_inner()),

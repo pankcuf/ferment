@@ -1,15 +1,16 @@
-use proc_macro2::Ident;
-use syn::{GenericParam, Generics, Item, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, PathSegment, Signature, TypeParam};
-use crate::ext::GenericBoundKey;
+use syn::{Generics, Item, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemTrait, ItemTraitAlias, ItemType, ItemUnion, Signature};
+use crate::context::GenericChain;
+use crate::ext::{create_generics_chain_exact, GenericBoundKey};
 use crate::kind::ScopeItemKind;
 
 pub trait MaybeGenerics {
     fn maybe_generics(&self) -> Option<&Generics>;
-    fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, TypeParam)> {
+    fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, GenericChain)> {
         self.maybe_generics()
-            .and_then(|generics|
-                maybe_generic_type_bound(path, generics)
-                    .map(|bound| (generics.clone(), bound.clone())))
+            .and_then(|generics| {
+                let chain = create_generics_chain_exact(generics, path);
+                (!chain.inner.is_empty()).then(|| (generics.clone(), chain))
+            })
     }
 }
 impl MaybeGenerics for Signature {
@@ -42,22 +43,4 @@ impl MaybeGenerics for ScopeItemKind {
             ScopeItemKind::Fn(sig, ..) => sig.maybe_generics()
         }
     }
-}
-
-fn maybe_generic_type_bound<'a>(key: &'a GenericBoundKey, generics: &'a Generics) -> Option<&'a TypeParam> {
-    match key {
-        GenericBoundKey::Ident(ident) => maybe_generic_type_for_ident(ident, generics),
-        GenericBoundKey::Path(path) => path.segments.last()
-            .and_then(|PathSegment { ident, .. }| maybe_generic_type_for_ident(ident, generics)),
-    }
-
-    // TODO: where
-}
-
-fn maybe_generic_type_for_ident<'a>(ident: &'a Ident, generics: &'a Generics) -> Option<&'a TypeParam> {
-    generics.params.iter().find_map(|param| match param {
-        GenericParam::Type(type_param) =>
-            type_param.ident.eq(ident).then_some(type_param),
-        _ => None
-    })
 }

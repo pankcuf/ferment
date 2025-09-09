@@ -55,12 +55,7 @@ impl TypeCollector for TraitBound {
 
 impl TypeCollector for GenericBoundsModel {
     fn collect_compositions(&self) -> HashSet<Type> {
-        let mut type_and_paths = HashSet::<Type>::new();
-        self.bounds.iter()
-            .for_each(|bound| {
-                type_and_paths.insert(parse_quote!(dyn #bound));
-            });
-        type_and_paths
+        self.chain.values().flat_map(|bounds| bounds.iter().map(|bound| parse_quote!(dyn #bound))).collect()
     }
 }
 

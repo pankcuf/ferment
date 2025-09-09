@@ -26,12 +26,13 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
         let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
         let mut field_composers = Depunctuated::new();
         self.model
-            .predicates
+            .chain
             .keys()
             .enumerate()
-            .for_each(|(index, predicate_ty)| {
+            .for_each(|(index, bounded_ty)| {
                 let name = <RustSpecification as Specification>::Name::unnamed_arg(index);
                 let field_name = <RustSpecification as Specification>::Name::index(index);
+                let predicate_ty = bounded_ty.maybe_type().expect("Expect type here");
                 let ty: Type = predicate_ty.resolve(source);
                 lifetimes.extend(predicate_ty.unique_lifetimes());
                 let kind = ConversionExpressionKind::from(&ty);

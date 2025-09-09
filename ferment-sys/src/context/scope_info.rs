@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
-use syn::{Attribute, Generics, Path, TypeParam};
+use syn::{Attribute, Generics, Path};
 use crate::composer::MaybeMacroLabeled;
-use crate::context::Scope;
+use crate::context::{GenericChain, Scope};
 use crate::ext::GenericBoundKey;
 
 #[derive(Clone, Eq)]
@@ -36,7 +36,7 @@ impl ScopeInfo {
         &self.self_scope.self_scope
     }
 
-    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, TypeParam)> {
+    pub fn maybe_generic_bound_for_path(&self, path: &GenericBoundKey) -> Option<(Generics, GenericChain)> {
         self.self_scope.maybe_generic_bound_for_path(path)
     }
 }

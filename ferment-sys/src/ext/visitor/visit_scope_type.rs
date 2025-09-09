@@ -1,14 +1,13 @@
 use indexmap::IndexMap;
-use proc_macro2::Ident;
-use syn::{parse_quote, BareFnArg, GenericArgument, Generics, Path, PathArguments, PathSegment, PredicateType, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeSlice, TypeTraitObject, TypeTuple, WherePredicate};
+use syn::{parse_quote, BareFnArg, GenericArgument, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use syn::token::PathSep;
 use crate::ast::{AddPunctuated, Colon2Punctuated, CommaPunctuated};
 use crate::composable::{GenericBoundsModel, NestedArgument, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::{GlobalContext, ScopeChain};
+use crate::context::{GenericChain, GlobalContext, ScopeChain};
 use crate::kind::{DictFermentableModelKind, GroupModelKind, ObjectKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, MaybeTraitBound, PathTransform, Pop, PunctuateOne, ToPath, ToType};
+use crate::ext::{Accessory, AsType, CrateBased, CrateExtension, DictionaryType, GenericBoundKey, Join, PathTransform, Pop, PunctuateOne, ToPath, ToType};
 
 pub trait VisitScopeType<'a> where Self: Sized + 'a {
     type Source;
@@ -107,36 +106,6 @@ impl<'a> VisitScopeType<'a> for AddPunctuated<TypeParamBound> {
     }
 }
 
-fn collect_trait_bounds(ty: &Type, ident_path: &Type, bounds: &AddPunctuated<TypeParamBound>, source: &(&ScopeChain, &GlobalContext, Option<QSelf>)) -> Vec<ObjectKind> {
-    let mut has_bound = false;
-    bounds.iter().filter_map(|b| b.maybe_trait_bound().and_then(|TraitBound { path, .. }| {
-        let has = ident_path.eq(ty);
-        if !has_bound && has {
-            has_bound = true;
-        }
-        has.then(|| path.visit_scope_type(source))
-    })).collect()
-}
-
-fn create_generics_chain(ident: &Ident, bound: TypeParam, generics: &Generics, source: &(&ScopeChain, &GlobalContext, Option<QSelf>)) -> (Vec<ObjectKind>, IndexMap<Type, Vec<ObjectKind>>) {
-    let ident_path = Path::from(PathSegment::from(bound.ident.clone())).to_type();
-    let ty = ident.to_type();
-    let bounds = collect_trait_bounds(&ty, &ident_path, &bound.bounds, source);
-    let predicates = generics.where_clause
-        .as_ref()
-        .map(|where_clause|
-            where_clause.predicates
-                .iter()
-                .filter_map(|predicate| match predicate {
-                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) if ty.eq(bounded_ty) =>
-                        Some((bounded_ty.clone(), collect_trait_bounds(&ty, &bounded_ty, bounds, source))),
-                    _ => None
-                })
-                .collect())
-        .unwrap_or_default();
-    (bounds, predicates)
-}
-
 impl<'a> VisitScopeType<'a> for TypePath {
     type Source = (&'a ScopeChain, &'a GlobalContext);
     type Result = ObjectKind;
@@ -150,6 +119,18 @@ impl<'a> VisitScopeType<'a> for TypePath {
         }));
 
         self.path.visit_scope_type(&(scope, context, qself))
+    }
+}
+
+impl<'a> VisitScopeType<'a> for GenericChain {
+    type Source = (&'a ScopeChain, &'a GlobalContext);
+    type Result = IndexMap<ObjectKind, Vec<ObjectKind>>;
+
+    fn visit_scope_type(&self, source: &Self::Source) -> Self::Result {
+        let (scope, context) = source;
+        self.inner.iter().map(|(bounded_ty, bounds)| {
+            (ObjectKind::Type(TypeModelKind::Object(TypeModel::new_default(bounded_ty.clone()))), bounds.iter().map(|bound| bound.visit_scope_type(&(scope, context, None))).collect())
+        }).collect()
     }
 }
 
@@ -228,12 +209,8 @@ impl<'a> VisitScopeType<'a> for Path {
                 if let Some(PathSegment { arguments, .. }) = last_import_seg.segments.last_mut() {
                     *arguments = last_arguments.clone();
                 }
-                if let Some((generics, bound)) = scope.maybe_generic_bound_for_path(&generic_key) {
-                    // let ty = bound.ident.to_type();
-                    // let (ty, chain) = create_generics_chain2(bound, &generics, source);
-                    let (bounds, predicates) = create_generics_chain(ident, bound, &generics, source);
-                    ObjectKind::bounds(GenericBoundsModel::new(ident, bounds, predicates, generics, nested_arguments))
-                    // ObjectKind::bounds(GenericBoundsModel::new(ident, ty, chain, generics, nested_arguments))
+                if let Some((generics, chain)) = scope.maybe_generic_bound_for_path(&generic_key) {
+                    ObjectKind::bounds(GenericBoundsModel::new(ident, chain.visit_scope_type(&(scope, context)), generics, nested_arguments))
                 } else if let Some(import_path) = context.maybe_import_path_ref(scope, &generic_key) {
                     // Can be reevaluated after processing entire scope tree:
                     // Because import path can have multiple aliases and we need the most complete one to use mangling correctly

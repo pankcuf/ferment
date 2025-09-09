@@ -324,6 +324,13 @@ pub fn generic_bounds_dict(dict: &IndexMap<Type, Vec<Path>>) -> Vec<String> {
         .map(format_generic_bounds_pair)
         .collect()
 }
+#[allow(unused)]
+pub fn format_generic_scope_chain(dict: &IndexMap<ObjectKind, Vec<ObjectKind>>) -> String {
+    dict.iter()
+        .map(|(bounded_ty, bounds)| format!("{}: {}", bounded_ty.to_token_stream(), format_obj_vec(bounds)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 pub fn types_dict(dict: &IndexMap<Type, ObjectKind>) -> Vec<String> {
     let mut iter = dict.iter()

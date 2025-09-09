@@ -149,6 +149,15 @@ impl ObjectKind {
         }
     }
 
+    pub fn is_lambda(&self) -> bool {
+        match self {
+            ObjectKind::Type(tyc) |
+            ObjectKind::Item(tyc, _) => tyc.is_lambda(),
+            ObjectKind::Empty => false
+        }
+    }
+
+
     pub fn maybe_trait_or_same_kind(&self, source: &ScopeContext) -> Option<TypeModelKind> {
         match self {
             ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>

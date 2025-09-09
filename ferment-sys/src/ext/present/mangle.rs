@@ -106,15 +106,6 @@ impl Mangle<MangleDefault> for TypeSlice {
         format!("Slice_{}", self.elem.mangle_string(context))
     }
 }
-
-// impl Mangle<MangleDefault> for AddPunctuated<TypeParamBound> {
-//     fn mangle_string(&self, context: MangleDefault) -> String {
-//         self.iter().find_map(|b| match b {
-//             TypeParamBound::Trait(trait_bound) => Some(trait_bound.mangle_string(context)),
-//             _ => None,
-//         }).unwrap_or("Any".to_string())
-//     }
-// }
 impl Mangle<MangleDefault> for TypeTraitObject {
     fn mangle_string(&self, context: MangleDefault) -> String {
         // TODO: need mixins impl to process multiple bounds
@@ -374,36 +365,11 @@ impl Mangle<MangleDefault> for ObjectKind {
 
 impl Mangle<MangleDefault> for GenericBoundsModel {
     fn mangle_string(&self, context: MangleDefault) -> String {
-
         let mut chunks = vec![];
-
-        // chunks.extend(self.bounds.iter().map(|obj| obj.mangle_string(context)));
-        if let Some(b) = self.bounds.first() {
+        if let Some(b) = self.first_bound() {
             chunks.push(b.mangle_string(context));
         }
-        // chunks.extend(self.predicates.iter()
-        //     .filter_map(|(_predicate, objects)| objects.first().map(|obj| obj.mangle_string(context)))
-        // );
-        // chunks.extend(self.predicates.iter()
-        //     .map(|(_predicate, objects)|
-        //         objects.iter()
-        //             .map(|obj| obj.mangle_string(context))
-        //             .collect::<Vec<_>>()
-        //             .join("_")
-        //     )
-        // );
-        //println!("GenericBoundsModel::mangle({}) --> {}", self, chunks.join("_"));
-        println!("GenericBoundModel::Mangle: {}", chunks.join("_"));
         chunks.join("_")
-        // format!("Mixin_{}", chunks.join("_"))
-
-        // format!("{}", self.bounds.iter().map(|b| {
-        //     match b {
-        //         ObjectKind::Type(ty) |
-        //         ObjectKind::Item(ty, _) => ty.ty().mangle_string(context),
-        //         ObjectKind::Empty => panic!("err"),
-        //     }
-        // }).collect::<Vec<_>>().join("_"))
     }
 }
 
