@@ -174,7 +174,7 @@ impl VisitScope for Item {
                         let (_nested_fn_arguments, _inner_fn_args) = add_full_qualified_generics(visitor, generics, &fn_scope, false);
 
                         let generic_chain = create_generics_chain(generics);
-                        visitor.add_generic_chain(scope, generic_chain);
+                        visitor.add_generic_chain(&fn_scope, generic_chain);
 
                     },
                     ImplItem::Type(ImplItemType { ident, ty, generics, .. }) => {
@@ -408,8 +408,6 @@ pub fn create_generics_chain(generics: &Generics) -> GenericChain {
                 .or_default()
                 .extend(bounds);
         },
-        // GenericParam::Const(ConstParam { ty, .. }) =>
-        //     visitor.add_full_qualified_type_match(scope, ty, add_to_parent),
         _ => {}
     });
     // 2) Where clause predicates: `where T: Trait, Vec<U>: Another`
