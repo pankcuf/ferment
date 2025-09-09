@@ -271,7 +271,7 @@ where
 /// # Safety
 pub unsafe fn to_group<Iter, TargetType, FFIType>(iter: Iter, converter: fn(TargetType) -> FFIType) -> *mut FFIType
     where Iter: Iterator<Item=TargetType> {
-    boxed_vec(iter.map(|o| converter(o)).collect())
+    boxed_vec(iter.map(converter).collect())
 }
 
 /// # Safety
