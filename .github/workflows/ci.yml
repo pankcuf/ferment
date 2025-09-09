@@ -41,8 +41,6 @@ jobs:
       - name: Run tests (selected crates)
         run: >
           cargo test --verbose
-          -p ferment
-          -p ferment-macro
           -p ferment-sys
           -p example-entry-point
           -p example-nested

@@ -1,4 +1,4 @@
-#![allow(clippy::declare_interior_mutable_const)]
+#![allow(clippy::declare_interior_mutable_const, clippy::large_enum_variant)]
 mod ast;
 mod builder;
 mod composable;

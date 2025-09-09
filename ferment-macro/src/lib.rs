@@ -68,14 +68,12 @@ use syn::token::Comma;
 ///
 #[proc_macro_attribute]
 pub fn export(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    // input
     let input = TokenStream2::from(input);
     let expanded = quote! {
         #[doc = "@ferment::export"]
         #input
     };
     TokenStream::from(expanded)
-
 }
 
 
@@ -84,43 +82,30 @@ pub fn register(attr: TokenStream, input: TokenStream) -> TokenStream {
     let ty = syn::parse::<Path>(attr).expect("Expected a path");
     let ty_str = quote!(#ty).to_string();
     let input = TokenStream2::from(input);
-
     let expanded = quote! {
         #[doc = concat!("@ferment::register(", #ty_str, ")")]
         #[repr(C)]
         #input
     };
-
     TokenStream::from(expanded)
 }
 
 #[proc_macro_attribute]
 pub fn opaque(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    // let input = parse_macro_input!(input as DeriveInput);
-    // let expanded = quote! {
-    //     #[repr(C)]
-    //     #input
-    // };
-    // input
-    // TokenStream::from(expanded)
-
     let input = TokenStream2::from(input);
     let expanded = quote! {
         #[doc = "@ferment::opaque"]
         #input
     };
     TokenStream::from(expanded)
-
 }
 
 
 #[proc_macro_derive(CompositionContext)]
 pub fn composition_context_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-
     let name = &input.ident;
     let expanded = quote!(impl crate::composable::CompositionContext for #name {});
-
     TokenStream::from(expanded)
 }
 
@@ -214,16 +199,8 @@ pub fn to_string_derive(input: TokenStream) -> TokenStream {
             Fields::Unnamed(fields) => quote! { Self::#ident(..) => format!("{}{}", stringify!(#ident), stringify!(#fields)), },
             Fields::Unit => quote! { Self::#ident => format!("{}", stringify!(#ident)), }
         }
-        // match fields {
-        //     Fields::Named(_) => quote! { Self::#ident { .. } => stringify!(#ident).to_string(), },
-        //     Fields::Unnamed(_) => quote! { Self::#ident(..) => stringify!(#ident).to_string(), },
-        //     Fields::Unit => quote! { Self::#ident => stringify!(#ident).to_string(), }
-        // }
     });
-
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    // impl #impl_generics crate::composer::AttrComposable<SPEC::Attr> for #ident #ty_generics #where_clause {
-
     let expanded = quote! {
         impl #impl_generics std::fmt::Display for #name #ty_generics #where_clause {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -315,7 +292,6 @@ pub fn debug_io(_attr: TokenStream, item: TokenStream) -> TokenStream {
     output.block = parse_quote!(#new_block);
     TokenStream::from(quote! { #output })
 }
-
 
 
 

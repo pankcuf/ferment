@@ -2,6 +2,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
 use ferment_macro::MethodCall;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment::FFIMapConversion"]
 pub enum FFIMapConversionMethod {

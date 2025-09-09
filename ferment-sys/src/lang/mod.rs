@@ -31,6 +31,7 @@ use crate::tree::CrateTree;
 
 
 #[cfg(any(feature = "objc", feature = "java"))]
+#[allow(dead_code)]
 pub trait CrateTreeConsumer {
     fn generate(&self, crate_tree: &CrateTree) -> Result<(), error::Error>;
 }
