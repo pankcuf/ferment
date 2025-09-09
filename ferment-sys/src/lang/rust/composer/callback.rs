@@ -6,7 +6,7 @@ use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, ConversionToComposer, CallbackComposer, VarComposer};
 use crate::context::ScopeContext;
 use crate::kind::{CallbackKind, FieldTypeKind, GenericTypeKind, SpecialType, TypeKind};
-use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, MaybeParenthesizedArgs, MaybeTraitBound, PunctuateOne, Resolve, ToType};
+use crate::ext::{Accessory, FFISpecialTypeResolve, FFIVarResolve, GenericNestedArg, LifetimeProcessor, Mangle, MaybeParenthesizedArgs, MaybeTraitBound, PunctuateOne, Resolve, ToType, WrapIntoRoundBraces};
 use crate::lang::{FromDictionary, RustSpecification};
 use crate::presentable::{Aspect, ScopeContextPresentable};
 use crate::presentation::{ArgPresentation, DictionaryExpr, DictionaryName, InterfacePresentation, Name};
@@ -61,7 +61,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
                                 let maybe_special: Option<SpecialType<RustSpecification>> = ty.maybe_special_type(source);
                                 let ffi_ty = FFIVarResolve::<RustSpecification>::special_or_to_ffi_full_path_type(&ty, source);
                                 (ffi_ty.joined_mut(), DictionaryExpr::IfElse(quote!(#ffi_result.is_null()), quote!(None), match maybe_special {
-                                    Some(SpecialType::Opaque(..)) => DictionaryExpr::some(DictionaryExpr::Clone(DictionaryExpr::deref_ref(&ffi_result).to_token_stream())),
+                                    Some(SpecialType::Opaque(..)) => DictionaryExpr::some(DictionaryExpr::Clone(WrapIntoRoundBraces::wrap(DictionaryExpr::deref_ref(&ffi_result).to_token_stream()))),
                                     _ =>
                                         DictionaryExpr::callback_dtor(DictionaryExpr::casted_ffi_conversion_from_opt(&ffi_ty, &ty, &ffi_result), &ffi_result)
                                 }.to_token_stream()))
