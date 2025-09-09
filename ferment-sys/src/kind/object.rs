@@ -185,7 +185,7 @@ impl ObjectKind {
             ObjectKind::Item(.., ScopeItemKind::Fn(..)) =>
                 source.maybe_parent_trait_or_regular_model_kind(),
             ObjectKind::Type(ref type_model_kind) |
-                 ObjectKind::Item(ref type_model_kind, ..) =>
+            ObjectKind::Item(ref type_model_kind, ..) =>
                 type_model_kind.maybe_trait_model_kind_or_same(source),
             _ => None,
         }

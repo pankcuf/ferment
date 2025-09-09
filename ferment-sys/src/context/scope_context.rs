@@ -101,17 +101,13 @@ impl ScopeContext {
         match &self.scope.parent_object() {
             Some(ObjectKind::Type(ref ty_conversion) | ObjectKind::Item(ref ty_conversion, ..)) => {
                 let full_parent_ty: Type = Resolve::resolve(ty_conversion.as_type(), self);
-                match Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self) {
-                    Some(special) => Some(special.to_type()),
-                    None => match ty_conversion {
-                        TypeModelKind::Trait(model) =>
-                            Some(model.as_type()
-                                .maybe_trait_object(self)
-                                .and_then(|oc| oc.maybe_type_model_kind_ref().map(TypeModelKind::to_type))
-                                .unwrap_or_else(|| ty_conversion.to_type())),
-                        _ => Some(ty_conversion.to_type())
-                    }
-                }
+                Some(Resolve::<SpecialType<SPEC>>::maybe_resolve(&full_parent_ty, self)
+                    .map(|special| special.to_type())
+                    .unwrap_or_else(|| ty_conversion.maybe_trait_model()
+                        .and_then(|model| model.as_type().maybe_trait_object(self)
+                            .and_then(|oc| oc.maybe_type_model_kind_ref()
+                                .map(TypeModelKind::to_type)))
+                        .unwrap_or_else(|| ty_conversion.to_type())))
             },
             _ => None
         }

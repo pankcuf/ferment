@@ -149,6 +149,12 @@ impl TypeModelKind {
                 Some(self.clone()),
         }.unwrap_or_else(|| self.clone())
     }
+    pub(crate) fn maybe_trait_model(&self) -> Option<&TraitModel> {
+        match self {
+            TypeModelKind::Trait(model) => Some(model),
+            _ => None
+        }
+    }
     pub(crate) fn maybe_trait_object_maybe_model_kind(&self, source: &ScopeContext) -> Option<Option<TypeModelKind>> {
         match self {
             TypeModelKind::Trait(model) => model.as_type().maybe_trait_object_maybe_model_kind(source),

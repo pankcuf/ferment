@@ -48,7 +48,6 @@ macro_rules! impl_to_segments {
 }
 
 impl_to_type!(Ident);
-// impl_to_type!(Path);
 impl_to_type!(Type);
 impl_to_type!(TokenStream2);
 impl_to_type!(crate::composable::TraitBoundDecomposition);
