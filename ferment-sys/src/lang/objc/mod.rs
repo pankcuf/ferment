@@ -120,25 +120,23 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
                     GenericComposer::<ObjCSpecification>::new(mixin, ty_context, attrs, self.context())
                 })
                 .flat_map(|composer| composer.borrow().compose(&source)));
-        let custom_conversions = Depunctuated::from_iter(
-            global.custom
-                .inner
-                .iter()
-                .map(|(_scope_chain, _type_chain)| {
-                    quote!()
-                    // CustomComposer::<ObjCFermentate, CrateTree>::new()
-                    // let attrs = expand_attributes(attrs);
-                    // let ty_context = TypeContext::mixin(mixin, prefix, attrs.cfg_attributes());
-                    // GenericComposer::<ObjCFermentate, CrateTree>::new(mixin, attrs, ty_context, self.context())
-                }));
+        // let custom_conversions = Depunctuated::from_iter(
+        //     global.custom
+        //         .inner
+        //         .iter()
+        //         .map(|(_scope_chain, _type_chain)| {
+        //             quote!()
+        //             // CustomComposer::<ObjCFermentate, CrateTree>::new()
+        //             // let attrs = expand_attributes(attrs);
+        //             // let ty_context = TypeContext::mixin(mixin, prefix, attrs.cfg_attributes());
+        //             // GenericComposer::<ObjCFermentate, CrateTree>::new(mixin, attrs, ty_context, self.context())
+        //         }));
                 // .flat_map(|composer| composer.borrow().compose(&source)));
-
-        // println!("CrateTree:: OBJC: {}", reg_conversions.to_token_stream());
 
         ObjCFermentate::TokenStream(quote! {
             #reg_conversions
             #generic_conversions
-            #custom_conversions
+            // #custom_conversions
         })
     }
 }

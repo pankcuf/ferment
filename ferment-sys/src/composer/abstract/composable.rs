@@ -17,7 +17,7 @@ pub trait BasicComposerOwner<SPEC>: Sized + 'static
 /// Provides access to stack information in scope
 pub trait SourceAccessible {
     fn context(&self) -> &ScopeContextLink;
-    fn source_ref(&self) -> Ref<ScopeContext> { self.context().borrow() }
+    fn source_ref(&self) -> Ref<'_, ScopeContext> { self.context().borrow() }
 }
 /// Ferments to specific language representation using stack information in scope
 pub trait SourceFermentable<Fermentate> {

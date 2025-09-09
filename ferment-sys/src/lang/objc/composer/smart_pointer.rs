@@ -57,19 +57,17 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         let root_arg_composer = arg_0_name.field_composer(root_field_type_kind);
         let ctor_arg_composer = arg_0_name.field_composer(arg_field_type_kind);
 
-        let from_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, root_arg_expr.clone())
+        let from_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, arg_ty, root_arg_expr.clone())
             .compose(source);
         let from_root_obj_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, root_ty_ref, root_arg_expr.clone())
             .compose(source);
-        let from_arg_value_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, value_arg_expr)
+        let from_arg_value_conversion = <ObjCSpecification as Specification>::value_ref_expr_from(&arg_0_name, arg_ty, value_arg_expr)
             .compose(source);
-        let to_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_to(&arg_0_name, &arg_ty, self.kind.wrap_arg_to(root_arg_expr))
+        let to_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_to(&arg_0_name, arg_ty, self.kind.wrap_arg_to(root_arg_expr))
             .compose(source);
         let ctor_to_arg_expr = self.root_kind.wrap_alloc::<ObjCSpecification>(
             Expression::new_smth(
-                self.kind.is_once_lock()
-                    .then(|| Expression::Empty)
-                    .unwrap_or_else(|| from_arg_conversion),
+                if self.kind.is_once_lock() { Expression::Empty } else { from_arg_conversion },
                 self.kind.dictionary_type()));
         let generics = <ObjCSpecification as Specification>::Gen::default();
         let signature_aspect = (attrs, lifetimes, generics);

@@ -71,13 +71,9 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 quote!(ffi_ref->#name),
             Self::Name(name) => name
                 .to_token_stream(),
-            Self::ConversionType(expr) => {
-                let expr = expr.compose(source);
-                let presentation = expr.present(source);
-                // println!("OBJC Expr ConversionType: {:?}", expr);
-                // println!("OBJC Expr ConversionType -->: {}", presentation);
-                presentation
-            }
+            Self::ConversionType(expr) =>
+                expr.compose(source)
+                    .present(source),
             Self::Terminated(expr) => {
                 expr.compose(source)
                     .present(source)
@@ -96,7 +92,7 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
                 quote! { #expr.clone() }
             }
             Self::ConversionExpr(aspect, kind, expr) =>
-                Self::ConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source))
+                Self::ConversionExprTokens(aspect.clone(), *kind, expr.present(source))
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Primitive, expr) =>
@@ -182,24 +178,15 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
 
             Self::ConversionExprTokens(.., ConversionExpressionKind::Primitive, _expr) =>
                 quote!(),
-            Self::ConversionExprTokens(.., ConversionExpressionKind::PrimitiveOpt, expr) => {
-                // let field_path =
-                quote!(if (#expr) free(#expr);)
-                // panic!("wrong {}", expr),
-                // Self::InterfacesExpr(InterfacesMethodExpr::DestroyOptPrimitive(expr.to_token_stream()))
-                //     .present(source),
-            }
-            Self::ConversionExprTokens(.., _, expr) =>
+            Self::ConversionExprTokens(.., ConversionExpressionKind::PrimitiveOpt, expr) =>
+                quote!(if (#expr) free(#expr);),
+            Self::ConversionExprTokens(.., expr) =>
                 expr.to_token_stream(),
-                // panic!("wrong {}", expr),
-                // Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionDestroy(FFIConversionDestroyMethod::Destroy, expr.to_token_stream()))
-                //     .present(source),
-
 
             Self::CastConversionExpr(aspect, kind, expr, ffi_ty, ty) => {
                 let expr = expr.present(source);
 
-                Self::CastConversionExprTokens(aspect.clone(), kind.clone(), expr, ffi_ty.clone(), ty.clone())
+                Self::CastConversionExprTokens(aspect.clone(), *kind, expr, ffi_ty.clone(), ty.clone())
                     .present(source)
             },
 

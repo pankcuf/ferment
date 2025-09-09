@@ -20,27 +20,27 @@ pub enum ArgPresentation {
 }
 
 impl ArgPresentation {
-    pub fn nonatomic_readwrite<SPEC>(composer: &FieldComposer<ObjCSpecification>) -> Self {
+    pub fn nonatomic_readwrite(composer: &FieldComposer<ObjCSpecification>) -> Self {
         let FieldComposer { kind, name, .. } = composer;
         ArgPresentation::NonatomicReadwrite {
             ty: kind.to_token_stream(),
             name: name.to_token_stream()
         }
     }
-    pub fn nonatomic_assign<SPEC>(composer: &FieldComposer<ObjCSpecification>) -> Self {
+    pub fn nonatomic_assign(composer: &FieldComposer<ObjCSpecification>) -> Self {
         let FieldComposer { kind, name, .. } = composer;
         ArgPresentation::NonatomicAssign {
             ty: kind.to_token_stream(),
             name: name.to_token_stream()
         }
     }
-    pub fn field_initializer<SPEC>(composer: &FieldComposer<ObjCSpecification>) -> Self {
+    pub fn field_initializer(composer: &FieldComposer<ObjCSpecification>) -> Self {
         ArgPresentation::Initializer {
             field_name: composer.tokenized_name(),
             field_initializer: composer.to_token_stream()
         }
     }
-    pub fn initializer<SPEC>(composer: &FieldComposer<ObjCSpecification>) -> Self {
+    pub fn initializer(composer: &FieldComposer<ObjCSpecification>) -> Self {
         ArgPresentation::Initializer {
             field_name: composer.tokenized_name(),
             field_initializer: composer.to_token_stream()
@@ -139,11 +139,11 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
                 //println!("OBJC ArgKind::BindingArg: {} {}", name, kind);
                 let (ident, ty) = match kind {
                     FieldTypeKind::Type(field_type) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
+                        Some(if *named { name.mangle_ident_default() } else { name.anonymous() }),
                         field_type.resolve(source)
                     ),
                     FieldTypeKind::Var(var) => (
-                        Some((*named).then(|| name.mangle_ident_default()).unwrap_or_else(|| name.anonymous())),
+                        Some(if *named { name.mangle_ident_default() } else { name.anonymous() }),
                             var.clone()
                         ),
                     FieldTypeKind::Conversion(conversion) => (
@@ -165,10 +165,10 @@ impl ScopeContextPresentable for ArgKind<ObjCSpecification> {
             }
 
             ArgKind::AttrExhaustive(attrs) => {
-                ArgPresentation::AttrConversion { conversion: quote!() }
+                ArgPresentation::AttrConversion { conversion: Default::default() }
             },
             ArgKind::CallbackArg(composer) => {
-                ArgPresentation::AttrConversion { conversion: quote!() }
+                ArgPresentation::AttrConversion { conversion: Default::default() }
             }
             ArgKind::AttrExpressionComposer(
                 field_composer,

@@ -4,9 +4,9 @@ use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, Na
 use crate::context::ScopeContext;
 use crate::ext::{AsType, LifetimeProcessor, Mangle, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, SmartPointerPresentableContext, ScopeContextPresentable};
-use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethodExpr};
+use crate::presentation::{DictionaryExpr, InterfacePresentation, InterfacesMethodExpr};
 
 impl SourceComposable for SmartPointerComposer<RustSpecification> {
     type Source = ScopeContext;
@@ -23,7 +23,7 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
         let attrs = self.compose_attributes();
 
         let arg_0_name = <RustSpecification as Specification>::Name::obj();
-        let value_name = <RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Value);
+        let value_name = <RustSpecification as Specification>::Name::value();
 
         let from_body = Expression::<RustSpecification>::dict_expr(DictionaryExpr::from_root(self.root_kind.wrap_from::<RustSpecification, DictionaryExpr>(DictionaryExpr::ffi_ref_prop(&arg_0_name)).present(source)));
         let to_body = Expression::<RustSpecification>::interface_expr(InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(arg_0_name.field_composer(FieldTypeKind::conversion(InterfacesMethodExpr::Boxed(arg_0_name.to_token_stream()))).present(source)).to_token_stream()));
@@ -62,11 +62,7 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
         let to_arg_conversion = <RustSpecification as Specification>::value_ref_expr_to(&arg_0_name, arg_ty, self.kind.wrap_arg_to(root_arg_expr))
             .compose(source);
         let ctor_to_arg_expr = self.root_kind.wrap_alloc::<RustSpecification>(
-            Expression::new_smth(
-                self.kind.is_once_lock()
-                    .then(|| Expression::Empty)
-                    .unwrap_or(from_arg_conversion),
-                self.kind.dictionary_type()));
+            Expression::new_smth(if self.kind.is_once_lock() { Expression::Empty } else { from_arg_conversion }, self.kind.dictionary_type()));
         let signature_aspect = (attrs, lifetimes, generics);
         let bindings = Depunctuated::from_iter([
             self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),

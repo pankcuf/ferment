@@ -123,8 +123,7 @@ impl SourceComposable for VarComposer<ObjCSpecification> {
                             let var_c_type = var_ty.to_type();
                             let ffi_path: Option<FFIFullPath<ObjCSpecification>> = var_c_type.maybe_resolve(source);
                             let var_ty = ffi_path.map(|p| p.to_type()).unwrap_or_else(|| parse_quote!(#var_c_type));
-                            let result = resolve_type_variable(var_ty, source);
-                            result
+                            resolve_type_variable(var_ty, source)
                         }
                     }
                 },

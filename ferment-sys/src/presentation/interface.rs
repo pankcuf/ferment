@@ -134,12 +134,13 @@ fn generics_presentation(generics: &Option<Generics>, lifetimes: &[Lifetime]) ->
                     let where_predicates = where_clause.predicates.iter().map(ToTokens::to_token_stream);
                     quote!(where <#(#where_predicates)*,>)
                 }
-                None => quote!()
+                None => Default::default()
             };
-
-            let generic_bounds = (gens.len() > 0)
-                .then(|| quote!(<#(#gens)*,>))
-                .unwrap_or_default();
+            let generic_bounds = if gens.len() > 0 {
+                quote!(<#(#gens)*,>)
+            } else {
+                Default::default()
+            };
             (generic_bounds, where_clause)
         },
         None => {
@@ -149,8 +150,8 @@ fn generics_presentation(generics: &Option<Generics>, lifetimes: &[Lifetime]) ->
                 colon_token: None,
                 bounds: Default::default(),
             })));
-            let bounds = if lifetimes.is_empty() { quote!() } else { quote!(<#lifetimes>) };
-            (bounds, quote!())
+            let bounds = if lifetimes.is_empty() { Default::default() } else { quote!(<#lifetimes>) };
+            (bounds, Default::default())
         }
     };
     result
@@ -214,7 +215,11 @@ impl ToTokens for InterfacePresentation {
                     colon_token: None,
                     bounds: Default::default(),
                 })));
-                let bounds = (!lifetimes.is_empty()).then(|| quote!(<#lifetimes>)).unwrap_or_default();
+                let bounds = if lifetimes.is_empty() {
+                    Default::default()
+                } else {
+                    quote!(<#lifetimes>)
+                };
                 quote! {
                     #(#attrs)*
                     impl #ffi_type {

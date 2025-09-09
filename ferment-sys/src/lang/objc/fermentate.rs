@@ -84,7 +84,7 @@ impl Display for InterfaceImplementation {
                 f.write_fmt(format_args!("@implementation {objc_name} (Conversions_{c_name})\n"))?;
                 f.write_fmt(format_args!("+ ({objc_name} *)ffi_from:(struct {c_name} *)ffi_ref {{\n"))?;
                 if !from_conversions_statements.is_empty() {
-                    f.write_fmt(format_args!("\t{}\n", from_conversions_statements.to_string()))?;
+                    f.write_fmt(format_args!("\t{}\n", from_conversions_statements))?;
                 }
                 f.write_str("}\n")?;
                 f.write_fmt(format_args!("+ ({objc_name} * _Nullable)ffi_from_opt:(struct {c_name} *)ffi_ref {{\n"))?;
@@ -92,14 +92,14 @@ impl Display for InterfaceImplementation {
                 f.write_str("}\n")?;
                 f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to:({objc_name} *)obj {{\n"))?;
                 if !to_conversions_statements.is_empty() {
-                    f.write_fmt(format_args!("\t{}\n", to_conversions_statements.to_string()))?;
+                    f.write_fmt(format_args!("\t{}\n", to_conversions_statements))?;
                 }
                 f.write_str("}\n")?;
                 f.write_fmt(format_args!("+ (struct {c_name} *)ffi_to_opt:({objc_name} * _Nullable)obj {{\n"))?;
                 f.write_str("\treturn obj ? [self ffi_to:obj] : nil;\n")?;
                 f.write_str("}\n")?;
                 f.write_fmt(format_args!("+ (void)ffi_destroy:(struct {c_name} *)ffi_ref {{\n"))?;
-                f.write_fmt(format_args!("\t{}\n", destroy_body.to_string()))?;
+                f.write_fmt(format_args!("\t{}\n", destroy_body))?;
                 f.write_str("}\n")?;
                 f.write_str("@end")
 
@@ -211,7 +211,7 @@ impl Default for Fermentate {
 }
 
 fn add_fermented_string(acc: String, i: &InterfaceImplementation) -> String {
-    acc.add(format!("{}\n", i.to_string()).as_str())
+    acc.add(format!("{i}\n").as_str())
 }
 
 impl Display for Fermentate {

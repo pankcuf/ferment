@@ -59,7 +59,7 @@ impl<I> InterfaceComposable<<ObjCSpecification as Specification>::Interface> for
                 vars.push(var);
             });
 
-        let interfaces = Depunctuated::from_iter([
+        Depunctuated::from_iter([
             InterfaceImplementation::Default {
                 objc_name: objc_name.clone(),
                 properties
@@ -85,10 +85,7 @@ impl<I> InterfaceComposable<<ObjCSpecification as Specification>::Interface> for
                 to_conversions,
                 property_names,
             }
-        ]);
-
-        // println!("OBJC ITEM => \n{}", format_interface_implementations(&interfaces));
-        interfaces
+        ])
     }
 }
 

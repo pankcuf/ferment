@@ -29,7 +29,7 @@ pub trait TypeModeled {
     fn nested_arguments_mut(&mut self) -> &mut CommaPunctuatedNestedArguments {
         &mut self.type_model_mut().nested_arguments
     }
-    fn nested_arguments_iter_mut(&mut self) -> IterMut<NestedArgument> {
+    fn nested_arguments_iter_mut(&mut self) -> IterMut<'_, NestedArgument> {
         self.nested_arguments_mut().iter_mut()
     }
     fn nested_arguments_ref(&self) -> &CommaPunctuatedNestedArguments {

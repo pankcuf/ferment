@@ -510,16 +510,15 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let keys = DictionaryName::Keys;
                 let values = DictionaryName::Values;
                 let value_is_primitive = value_var.is_primitive();
-                let return_type = value_is_primitive
-                    .then(|| value_var.joined_mut())
-                    .unwrap_or_else(|| value_var.clone());
                 let get_key = quote!(*#ffi_ref.#keys.add(i));
                 let from_key_conversion = ConversionFromComposer::<RustSpecification>::value_pat_tokens(&key, key_var).compose(source).present(source);
                 let from_key_2_conversion = ConversionFromComposer::<RustSpecification>::value_pat_tokens(&get_key, key_var).compose(source).present(source);
                 let get_value = quote!(*#ffi_ref.#values.add(i));
-                let return_value_expr = value_is_primitive
-                    .then(|| InterfacesMethodExpr::Boxed(get_value.to_token_stream()).to_token_stream())
-                    .unwrap_or(get_value);
+                let (return_type, return_value_expr) = if value_is_primitive {
+                    (value_var.joined_mut(), InterfacesMethodExpr::Boxed(get_value.to_token_stream()).to_token_stream())
+                } else {
+                    (value_var.clone(), get_value)
+                };
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::GetValueByKey(aspect.present(source)).mangle_tokens_default(),
@@ -588,14 +587,14 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let value = DictionaryName::Value;
                 let keys = DictionaryName::Keys;
                 let values = DictionaryName::Values;
-                let return_type = key_var.is_primitive().then(|| key_var.joined_mut()).unwrap_or_else(|| key_var.clone());
                 let from_value_conversion = ConversionFromComposer::<RustSpecification>::value_pat_tokens(&value, value_var).compose(source).present(source);
                 let from_value_2_conversion = ConversionFromComposer::<RustSpecification>::value_pat_tokens(quote!(*#ffi_ref.#values.add(i)), value_var).compose(source).present(source);
                 let get_key = quote!(*#ffi_ref.#keys.add(i));
-                let return_key_expr = key_var.is_primitive()
-                    .then(|| InterfacesMethodExpr::Boxed(get_key.to_token_stream()).to_token_stream())
-                    .unwrap_or(get_key);
-
+                let (return_type, return_key_expr) = if key_var.is_primitive() {
+                    (key_var.joined_mut(), InterfacesMethodExpr::Boxed(get_key.to_token_stream()).to_token_stream())
+                } else {
+                    (key_var.clone(), get_key)
+                };
                 BindingPresentation::RegularFunctionWithBody {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::GetKeyByValue(aspect.present(source)).mangle_tokens_default(),

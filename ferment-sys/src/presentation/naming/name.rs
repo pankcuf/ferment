@@ -92,6 +92,15 @@ impl<SPEC> Name<SPEC>
     pub fn obj() -> Self {
         Self::Dictionary(DictionaryName::Obj)
     }
+    pub fn value() -> Self {
+        Self::Dictionary(DictionaryName::Value)
+    }
+    pub fn ok() -> Self {
+        Self::Dictionary(DictionaryName::Ok)
+    }
+    pub fn error() -> Self {
+        Self::Dictionary(DictionaryName::Error)
+    }
     pub fn self_() -> Self {
         Self::Dictionary(DictionaryName::Self_)
     }

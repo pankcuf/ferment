@@ -24,9 +24,9 @@ impl MaybeComposer<ObjCSpecification> for Item {
                 Some(ItemComposerWrapper::r#enum(item, TypeContext::r#enum(&item.ident, prefix, item.attrs.cfg_attributes()), scope_context)),
             (MacroKind::Export, Item::Type(ItemType { attrs, ident, generics, ty, .. })) => Some(match &**ty {
                 Type::BareFn(type_bare_fn) =>
-                    ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path_ref().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &vec![], attrs, scope_context)),
+                    ItemComposerWrapper::Sig(SigComposer::from_type_bare_fn(TypeContext::callback(scope.self_path_ref().crate_named(&scope.crate_ident_as_path()), ident, prefix, type_bare_fn, &attrs.cfg_attributes()), generics, &[], attrs, scope_context)),
                 _ =>
-                    ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(ident, prefix, attrs.cfg_attributes()), attrs, &vec![], generics, &crate::ast::pub_unnamed_field(*ty.clone()).punctuate_one(), scope_context))
+                    ItemComposerWrapper::TypeAlias(TypeAliasComposer::new(TypeContext::r#struct(ident, prefix, attrs.cfg_attributes()), attrs, &[], generics, &crate::ast::pub_unnamed_field(*ty.clone()).punctuate_one(), scope_context))
             }),
             (MacroKind::Export, Item::Fn(item)) =>
                 Some(ItemComposerWrapper::r#fn(item, TypeContext::mod_fn(scope.self_path_ref().crate_named(&crate_ident), prefix, item), scope_context)),

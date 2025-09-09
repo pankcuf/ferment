@@ -6,7 +6,7 @@ use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, Gener
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, Optional, Primitive};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, RustSpecification, Specification};
+use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacePresentation, InterfacesMethod, Name};
 
@@ -63,12 +63,12 @@ impl SourceComposable for ResultComposer<RustSpecification> {
             #destroy_conversion_error;
         };
 
-        let var_ok = ok_is_primitive.then(|| var_ok.joined_mut()).unwrap_or(var_ok);
-        let var_error = error_is_primitive.then(|| var_error.joined_mut()).unwrap_or(var_error);
+        let var_ok = if ok_is_primitive { var_ok.joined_mut() } else { var_ok };
+        let var_error = if error_is_primitive { var_error.joined_mut() } else { var_error };
 
         let field_composers = Depunctuated::from_iter([
-            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Ok), FieldTypeKind::Var(var_ok.clone())),
-            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::dictionary_name(DictionaryName::Error), FieldTypeKind::Var(var_error.clone()))
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::ok(), FieldTypeKind::Var(var_ok.clone())),
+            FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::error(), FieldTypeKind::Var(var_error.clone()))
         ]);
         let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
         let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
