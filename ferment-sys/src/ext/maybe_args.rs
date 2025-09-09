@@ -3,10 +3,6 @@ use syn::{AngleBracketedGenericArguments, ParenthesizedGenericArguments, PathArg
 pub trait MaybeParenthesizedArgs {
     fn maybe_parenthesized_args(&self) -> Option<&ParenthesizedGenericArguments>;
 }
-pub trait MaybeParenthesizedArgsMut {
-    fn maybe_parenthesized_args_mut(&mut self) -> Option<&mut ParenthesizedGenericArguments>;
-}
-
 pub trait MaybeAngleBracketedArgs {
     fn maybe_angle_bracketed_args(&self) -> Option<&AngleBracketedGenericArguments>;
 }
@@ -22,22 +18,9 @@ impl MaybeParenthesizedArgs for PathArguments {
         }
     }
 }
-impl MaybeParenthesizedArgsMut for PathArguments {
-    fn maybe_parenthesized_args_mut(&mut self) -> Option<&mut ParenthesizedGenericArguments> {
-        match self {
-            PathArguments::Parenthesized(args) => Some(args),
-            _ => None
-        }
-    }
-}
 impl MaybeParenthesizedArgs for PathSegment {
     fn maybe_parenthesized_args(&self) -> Option<&ParenthesizedGenericArguments> {
         self.arguments.maybe_parenthesized_args()
-    }
-}
-impl MaybeParenthesizedArgsMut for PathSegment {
-    fn maybe_parenthesized_args_mut(&mut self) -> Option<&mut ParenthesizedGenericArguments> {
-        self.arguments.maybe_parenthesized_args_mut()
     }
 }
 impl MaybeAngleBracketedArgs for PathArguments {

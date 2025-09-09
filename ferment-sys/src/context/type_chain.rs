@@ -8,19 +8,7 @@ use crate::ext::{AsType, Constraints, ContainsSubType, HashMapMergePolicy, Merge
 use crate::formatter::format_types_dict;
 
 #[derive(Copy, Clone)]
-pub struct DefaultScopePolicy;
-#[derive(Copy, Clone)]
 pub struct EnrichScopePolicy;
-#[derive(Copy, Clone)]
-pub struct ExternalModulePolicy;
-
-impl<K, V> MergePolicy<K, V> for DefaultScopePolicy
-where K: Display,
-      V: Display {
-    fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        o.insert(object);
-    }
-}
 
 impl<K, V> MergePolicy<K, V> for EnrichScopePolicy
 where V: ValueReplaceScenario + Debug + Display {
@@ -29,18 +17,7 @@ where V: ValueReplaceScenario + Debug + Display {
             o.insert(object);
         }
     }
-
 }
-impl<K, V> MergePolicy<K, V> for ExternalModulePolicy
-where V: ValueReplaceScenario + Debug + Display {
-    fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        if o.get().should_replace_with(&object) {
-            o.insert(object);
-        }
-    }
-
-}
-
 #[derive(Clone, Default)]
 pub struct TypeChain {
     pub inner: IndexMap<Type, ObjectKind>
