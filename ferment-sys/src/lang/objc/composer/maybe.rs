@@ -11,7 +11,7 @@ impl MaybeComposer<ObjCSpecification> for Item {
     fn maybe_composer(&self, scope: &ScopeChain, scope_context: &ScopeContextLink) -> Option<ItemComposerWrapper<ObjCSpecification>> {
         let macro_type = self.maybe_macro_labeled()?;
         let source = scope_context.borrow();
-        let global = source.context.read().unwrap();
+        let global = source.context.borrow();
         let config = global.config.maybe_objc_config().expect("ObjC config must be present");
         let prefix = config.class_prefix();
         let crate_ident = source.scope.crate_ident_as_path();

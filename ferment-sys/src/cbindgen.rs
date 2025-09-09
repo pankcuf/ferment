@@ -14,7 +14,7 @@ impl crate::writer::Writer {
             }
         };
         Command::new("mkdir")
-            .args(&["-p", "target/include"])
+            .args(["-p", "target/include"])
             .status()?;
         Command::new("cbindgen")
             .args([

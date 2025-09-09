@@ -65,12 +65,12 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
       VarComposer<SPEC>: SourceComposable<Source=ScopeContext, Output: ToType> {
     let TypeBareFn { inputs, output, .. } = type_bare_fn;
     let ffi_result = DictionaryName::FFiResult;
-    let ffi_result_conversion = FFIConversionFromMethodExpr::FfiFrom(ffi_result.to_token_stream());
+    let ffi_result_conversion = FFIConversionFromMethodExpr::Mut(ffi_result.to_token_stream());
 
     let (return_type, ffi_return_type, post_processing) = match output {
         ReturnType::Type(token, field_type) => (
-            ReturnType::Type(token.clone(), Box::new(source.full_type_for(field_type))),
-            ReturnType::Type(token.clone(), Box::new(<Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type())),
+            ReturnType::Type(*token, Box::new(source.full_type_for(field_type))),
+            ReturnType::Type(*token, Box::new(<Type as Resolve<SPEC::Var>>::resolve(field_type, source).to_type())),
             match TypeKind::from(field_type) {
                 TypeKind::Primitive(_) =>
                     DictionaryExpr::simple(&ffi_result),
@@ -97,11 +97,11 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
         .for_each(|bare_fn_arg| {
             let BareFnArg { ty, name, .. } = bare_fn_arg;
             let var_composer = VarComposer::<SPEC>::key_ref_in_composer_scope(ty);
-            let var_ty = var_composer.compose(&source);
+            let var_ty = var_composer.compose(source);
             let conversion = TypeKind::from(ty);
             let ident_name = Name::<SPEC>::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
             arg_names.push(ident_name.to_token_stream());
-            arg_target_types.push(ArgPresentation::no_attr_tokens(&ty));
+            arg_target_types.push(ArgPresentation::no_attr_tokens(ty));
             let mut bare_fn_arg_replacement = bare_fn_arg.clone();
             bare_fn_arg_replacement.ty = var_ty.to_type();
             ffi_args.push(bare_fn_arg_replacement);

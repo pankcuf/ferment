@@ -23,7 +23,7 @@ where SPEC: Specification {
     }
 }
 
-impl<'a, SPEC> SourceComposable for PatTypeComposer<'a, SPEC>
+impl<SPEC> SourceComposable for PatTypeComposer<'_, SPEC>
 where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable,
       SPEC::Name: ToTokens,

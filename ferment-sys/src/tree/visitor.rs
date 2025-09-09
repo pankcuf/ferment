@@ -1,5 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
-use std::sync::{Arc, RwLock};
+use std::rc::Rc;
 use quote::{format_ident, ToTokens};
 use syn::{Attribute, Ident, Item, ItemEnum, ItemFn, ItemImpl, ItemMod, ItemStruct, ItemTrait, ItemType, ItemUse, parse_quote, Type, UseTree, Path};
 use syn::visit::Visit;
@@ -9,7 +10,7 @@ use crate::ext::{CrateExtension, extract_trait_names, MaybeIdent, ItemHelper, Jo
 use crate::tree::{ScopeTreeID, ScopeTreeExportItem};
 
 pub struct Visitor {
-    pub context: Arc<RwLock<GlobalContext>>,
+    pub context: Rc<RefCell<GlobalContext>>,
     pub parent: Path,
     pub inner_visitors: Vec<Visitor>,
     pub tree: ScopeTreeExportItem,
@@ -78,7 +79,7 @@ impl<'ast> Visit<'ast> for Visitor {
 
 impl Visitor {
     /// path: full-qualified Path for file
-    pub fn new(scope: &ScopeChain, attrs: &Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn new(scope: &ScopeChain, attrs: &[Attribute], context: &Rc<RefCell<GlobalContext>>) -> Self {
         Self {
             context: context.clone(),
             parent: scope.to_path(),
@@ -111,33 +112,33 @@ impl Visitor {
     /// Recursively processes Rust use paths to create a mapping
     /// between idents and their fully qualified paths.
     pub(crate) fn fold_import_tree(&mut self, scope: &ScopeChain, use_tree: &UseTree, current_path: Vec<Ident>) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.imports.fold_import_tree(scope, use_tree, current_path);
     }
 
     pub(crate) fn add_full_qualified_trait_match(&mut self, scope: &ScopeChain, item_trait: &ItemTrait, itself: &ObjectKind) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.traits.add_trait(scope, item_trait, itself);
     }
     pub(crate) fn add_generic_chain(&mut self, scope: &ScopeChain, generics: GenericChain) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.generics.extend_in_scope(scope, generics.inner)
     }
 
     pub(crate) fn scope_add_many(&self, types: TypeChain, scope: &ScopeChain) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.scope_mut(scope)
             .add_many(types.inner.into_iter());
     }
     fn add_to_many_scopes(&self, types: TypeChain, scopes: &[&ScopeChain]) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         scopes.iter()
             .for_each(|scope|
                 lock.scope_mut(scope)
                     .add_many(types.inner.clone().into_iter()));
     }
     pub(crate) fn scope_add_one(&self, ty: Type, object: ObjectKind, scope: &ScopeChain) {
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.scope_mut(scope)
             .add_one(ty, object);
     }
@@ -147,13 +148,13 @@ impl Visitor {
     pub(crate) fn add_full_qualified_trait_type_from_macro(&mut self, item_trait_attrs: &[Attribute], scope: &ScopeChain) {
         let trait_names = extract_trait_names(item_trait_attrs);
         trait_names.iter().for_each(|trait_name| self.add_full_qualified_type_match(scope, &trait_name.to_type(), true));
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.traits.add_used_traits(scope, trait_names)
     }
 
     pub(crate) fn create_type_chain<N>(&self, ty: &N, scope: &ScopeChain) -> TypeChain
     where N: UniqueNestedItems<Item = Type> {
-        let context = self.context.read().unwrap();
+        let context = self.context.borrow();
         TypeChain::from(
             ty.unique_nested_items()
                 .into_iter()

@@ -91,7 +91,7 @@ impl<SPEC, Link> LifetimesComposable<SPEC::Lt> for BasicComposer<SPEC, Link>
         self.lifetimes.compose(self.context())
     }
 }
-impl<'a, SPEC, Link> TypeAspect<SPEC::TYC> for BasicComposer<SPEC, Link>
+impl<SPEC, Link> TypeAspect<SPEC::TYC> for BasicComposer<SPEC, Link>
     where Link: SharedAccess,
           SPEC: Specification {
     fn type_context_ref(&self) -> &SPEC::TYC {

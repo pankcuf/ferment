@@ -24,7 +24,7 @@ impl GenericResolver {
     }
 
     pub fn extend_in_scope(&mut self, scope: &ScopeChain, generics: IndexMap<Type, Vec<Path>>) {
-        self.scope_mut(&scope)
+        self.scope_mut(scope)
             .extend(generics);
 
     }

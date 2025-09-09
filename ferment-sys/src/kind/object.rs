@@ -141,7 +141,7 @@ impl ObjectKind {
             _ => true
         }
     }
-    pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
+    pub fn maybe_callback(&self) -> Option<&ParenthesizedGenericArguments> {
         match self {
             ObjectKind::Type(tyc) |
             ObjectKind::Item(tyc, _) => tyc.maybe_callback(),
@@ -212,22 +212,12 @@ impl<SPEC> MaybeLambdaArgs<SPEC> for ObjectKind
 
 impl ValueReplaceScenario for ObjectKind {
     fn should_replace_with(&self, other: &Self) -> bool {
-        // println!("ObjectKind ::: should_replace_with:::: {}: {}", self, other);
         match (self, other) {
             (_, ObjectKind::Item(..)) => true,
-            (ObjectKind::Type(self_ty), ObjectKind::Type(candidate_ty)) => {
-                // let should = !self_ty.is_refined() && candidate_ty.is_refined();
-                let should = !self_ty.is_refined() || candidate_ty.is_bounds();
-                // let should = !self_ty.is_refined() && candidate_ty.is_refined() || self_ty.is_tuple();
-                // println!("MERGE? {} [{}]:\n\t {} [{}]: {}", should, self_ty.is_refined(), self_ty, candidate_ty.is_refined(), candidate_ty);
-                // MERGE? false [true]:
-                //     Bounds(GenericBoundsModel(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: )) [true]: Bounds(GenericBoundComposition(ty: $Ty(DC, []), bounds: Fn (dash_spv_platform :: FFIContext , platform_value :: types :: identifier :: Identifier) -> Result < Option < std :: sync :: Arc < dpp :: data_contract :: DataContract > > , drive_proof_verifier :: error :: ContextProviderError >,Send,Sync, predicates: , nested_args: ))
-                should
-            }
+            (ObjectKind::Type(self_ty), ObjectKind::Type(candidate_ty)) => !self_ty.is_refined() || candidate_ty.is_bounds(),
             _ => false
         }
     }
-
 }
 
 

@@ -33,7 +33,7 @@ pub enum Expression<SPEC>
     Clone(Box<Expression<SPEC>>),
     FromPtrRead(Box<Expression<SPEC>>),
     DerefExpr(Box<Expression<SPEC>>),
-    MapExpression(Box<Expression<SPEC>>, Box<Expression<SPEC>>),
+    MapExpr(Box<Expression<SPEC>>, Box<Expression<SPEC>>),
     MapIntoBox(Box<Expression<SPEC>>),
     FromRawBox(Box<Expression<SPEC>>),
 
@@ -63,7 +63,7 @@ impl<SPEC> Expression<SPEC>
         Self::Clone(self.into())
     }
 
-    pub(crate) fn expression(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
+    pub(crate) fn conversion_expr(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
         Self::ConversionExpr(aspect, kind, expr.into())
     }
     pub(crate) fn expression_from(kind: ConversionExpressionKind, expr: Self) -> Self {
@@ -147,7 +147,7 @@ impl<SPEC> Expression<SPEC>
     }
 
     pub(crate) fn map_o_expr(mapper: Self) -> Self {
-        Self::MapExpression(Expression::DictionaryName(DictionaryName::O).into(), mapper.into())
+        Self::MapExpr(Expression::DictionaryName(DictionaryName::O).into(), mapper.into())
     }
 
     pub(crate) fn from_lambda(expr: Self, args: CommaPunctuated<SPEC::Name>) -> Self {
@@ -198,24 +198,24 @@ impl<SPEC> Expression<SPEC>
 
 
     pub(crate) fn from_complex(expr: Self) -> Self {
-        Self::expression(FFIAspect::From, ConversionExpressionKind::Complex, expr)
+        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::Complex, expr)
     }
 
     pub(crate) fn from_complex_opt(expr: Self) -> Self {
-        Self::expression(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr)
+        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_primitive_opt(expr: Self) -> Self {
-        Self::expression(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
     }
 
     pub(crate) fn from_primitive(expr: Self) -> Self {
-        Self::expression(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
+        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
     }
 
     pub(crate) fn destroy_complex(expr: Self) -> Self {
-        Self::expression(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
+        Self::conversion_expr(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
     }
 
     pub(crate) fn from_complex_tokens<T: ToTokens>(expr: T) -> Self {

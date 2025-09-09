@@ -61,63 +61,63 @@ pub enum InterfacePresentation {
 }
 
 impl InterfacePresentation {
-    pub fn conversion_from_root<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn conversion_from_root<T: ToTokens>(attrs: &[Attribute], types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
         Self::conversion_from(attrs, types, DictionaryExpr::from_root(body), generics, lifetimes)
     }
-    pub fn conversion_to_boxed<T: ToTokens + 'static>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn conversion_to_boxed<T: ToTokens + 'static>(attrs: &[Attribute], types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
         Self::conversion_to(attrs, types, InterfacesMethodExpr::Boxed(body), generics, lifetimes)
     }
-    pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn conversion_to_boxed_self_destructured<T: ToTokens>(attrs: &[Attribute], types: &TypePair, body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
         Self::conversion_to_boxed(attrs, types, DictionaryExpr::self_destruct(body), generics, lifetimes)
     }
-    pub fn conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn conversion_from<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
         InterfacePresentation::ConversionFrom {
-            attrs: attrs.clone(),
+            attrs: attrs.to_owned(),
             types: types.clone(),
-            conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.clone())
+            conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.to_owned())
         }
     }
-    pub fn non_generic_conversion_from<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn non_generic_conversion_from<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, lifetimes: &[Lifetime]) -> Self {
         InterfacePresentation::ConversionFrom {
-            attrs: attrs.clone(),
+            attrs: attrs.to_owned(),
             types: types.clone(),
-            conversions: (method_body.to_token_stream(), None, lifetimes.clone())
+            conversions: (method_body.to_token_stream(), None, lifetimes.to_owned())
         }
     }
-    pub fn conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn conversion_to<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
         InterfacePresentation::ConversionTo {
-            attrs: attrs.clone(),
+            attrs: attrs.to_owned(),
             types: types.clone(),
-            conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.clone())
+            conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.to_owned())
         }
     }
-    pub fn non_generic_conversion_to<T: ToTokens>(attrs: &Vec<Attribute>, types: &TypePair, method_body: T, lifetimes: &Vec<Lifetime>) -> Self {
+    pub fn non_generic_conversion_to<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, lifetimes: &[Lifetime]) -> Self {
         InterfacePresentation::ConversionTo {
-            attrs: attrs.clone(),
+            attrs: attrs.to_owned(),
             types: types.clone(),
-            conversions: (method_body.to_token_stream(), None, lifetimes.clone())
+            conversions: (method_body.to_token_stream(), None, lifetimes.to_owned())
         }
     }
-    pub fn drop<T: ToTokens>(attrs: &Vec<Attribute>, ty: Type, body: T) -> Self {
-        InterfacePresentation::Drop { attrs: attrs.clone(), ty, body: body.to_token_stream() }
+    pub fn drop<T: ToTokens>(attrs: &[Attribute], ty: Type, body: T) -> Self {
+        InterfacePresentation::Drop { attrs: attrs.to_owned(), ty, body: body.to_token_stream() }
     }
 
-    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &Vec<Attribute>, lifetimes: &Vec<Lifetime>, ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, args_conversions: T, result_conversion: U) -> Self {
+    pub fn callback<T: ToTokens, U: ToTokens>(attrs: &[Attribute], lifetimes: &[Lifetime], ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, args_conversions: T, result_conversion: U) -> Self {
         InterfacePresentation::Callback {
-            attrs: attrs.clone(),
+            attrs: attrs.to_owned(),
             ffi_type,
             inputs,
             output,
-            lifetimes: lifetimes.clone(),
+            lifetimes: lifetimes.to_owned(),
             body: DictionaryExpr::callback_caller(args_conversions, result_conversion).to_token_stream(),
         }
     }
-    pub fn send_sync(attrs: &Vec<Attribute>, ffi_type: &Type) -> Self {
-        InterfacePresentation::SendAndSync { attrs: attrs.clone(), ffi_type: ffi_type.clone() }
+    pub fn send_sync(attrs: &[Attribute], ffi_type: &Type) -> Self {
+        InterfacePresentation::SendAndSync { attrs: attrs.to_owned(), ffi_type: ffi_type.clone() }
     }
 }
 
-fn generics_presentation(generics: &Option<Generics>, lifetimes: &Vec<Lifetime>) -> (TokenStream2, TokenStream2) {
+fn generics_presentation(generics: &Option<Generics>, lifetimes: &[Lifetime]) -> (TokenStream2, TokenStream2) {
     let result = match generics {
         Some(generics) => {
             let mut params = CommaPunctuated::from_iter(lifetimes.iter().map(|lt| GenericParam::Lifetime(LifetimeParam {

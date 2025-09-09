@@ -27,10 +27,7 @@ pub enum SmartPointerKind {
 }
 impl SmartPointerKind {
     pub fn is_once_lock(&self) -> bool {
-        match self {
-            Self::OnceLock(_) => true,
-            _ => false
-        }
+        matches!(self, Self::OnceLock(_))
     }
     pub fn dictionary_type(&self) -> DictionaryExpr {
         match self {
@@ -55,10 +52,9 @@ impl SmartPointerKind {
             _ => self.as_type().maybe_first_nested_type_ref()
         }
     }
-    pub fn wrap_alloc<SPEC, T>(&self, expr: SPEC::Expr) -> SPEC::Expr
+    pub fn wrap_alloc<SPEC>(&self, expr: SPEC::Expr) -> SPEC::Expr
     where SPEC: Specification<Expr=Expression<SPEC>>,
-          Expression<SPEC>: ScopeContextPresentable,
-          T: ToTokens {
+          Expression<SPEC>: ScopeContextPresentable {
         match self {
             Self::Rc(_) |
             Self::Arc(_) => SPEC::Expr::new_smth(expr, self.dictionary_type()),

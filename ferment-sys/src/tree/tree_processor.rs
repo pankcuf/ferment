@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::rc::Rc;
 use proc_macro2::Ident;
 use syn::{Attribute, Item, ItemMod};
 use syn::visit::Visit;
@@ -11,7 +12,7 @@ use crate::tree::{CrateTree, ScopeTreeExportItem, Visitor};
 pub struct FileTreeProcessor {
     pub path: PathBuf,
     pub scope: ScopeChain,
-    pub context: Arc<RwLock<GlobalContext>>,
+    pub context: Rc<RefCell<GlobalContext>>,
     pub attrs: Vec<Attribute>
 }
 
@@ -19,21 +20,21 @@ impl FileTreeProcessor {
     #[allow(unused)]
     pub fn build(config: &Config) -> Result<CrateTree, error::Error> {
         let Config { current_crate, external_crates, .. } = config;
-        let context = Arc::new(RwLock::new(GlobalContext::from(config)));
+        let context = Rc::new(RefCell::new(GlobalContext::from(config)));
         print_phase!("PHASE 0: PROCESS CRATES", "{}", config);
         process_crates(external_crates, &context)
             .and_then(|external_crates|
                 current_crate.process(vec![], &context)
                     .and_then(|current_tree| CrateTree::new(current_crate, current_tree, external_crates)))
     }
-    pub fn process_crate_tree(crate_config: &Crate, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
+    pub fn process_crate_tree(crate_config: &Crate, attrs: Vec<Attribute>, context: &Rc<RefCell<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
         let path = crate_config.root_path();
         let scope = ScopeChain::crate_root_with_ident(crate_config.ident(), attrs.clone());
         Self::new(path, scope, attrs, context)
             .process()
             .map(Visitor::into_code_tree)
     }
-    fn new(path: PathBuf, scope: ScopeChain, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Self {
+    fn new(path: PathBuf, scope: ScopeChain, attrs: Vec<Attribute>, context: &Rc<RefCell<GlobalContext>>) -> Self {
         Self { path, scope, context: context.clone(), attrs }
     }
     fn process(self) -> Result<Visitor, error::Error> {
@@ -87,13 +88,13 @@ impl FileTreeProcessor {
         Err(error::Error::ExpansionError("Can't locate module file"))
     }
     fn is_fermented_mod(&self, ident: &Ident) -> bool {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.is_fermented_mod(ident)
     }
 }
 
 #[allow(unused)]
-fn process_crates(crates: &[Crate], context: &Arc<RwLock<GlobalContext>>) -> Result<HashMap<Crate, ScopeTreeExportItem>, error::Error> {
+fn process_crates(crates: &[Crate], context: &Rc<RefCell<GlobalContext>>) -> Result<HashMap<Crate, ScopeTreeExportItem>, error::Error> {
     crates.iter()
         .try_fold(HashMap::new(), |mut acc, crate_config| {
             acc.insert(crate_config.clone(), crate_config.process(vec![], context)?);

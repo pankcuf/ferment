@@ -13,7 +13,7 @@ pub enum FnImplContext<'a, SPEC> where SPEC: Specification {
     TypeImpl { self_ty: &'a Type, aspect: Aspect<SPEC::TYC> },
     TraitImpl { self_ty: &'a Type, trait_ty: &'a Type },
 }
-impl<'a, SPEC> FnImplContext<'a, SPEC> where SPEC: Specification {
+impl<SPEC> FnImplContext<'_, SPEC> where SPEC: Specification {
     pub fn self_ty(&self) -> &Type {
         match self {
             FnImplContext::TypeImpl { self_ty, .. } |

@@ -25,7 +25,7 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
     let Signature { output, inputs, .. } = sig;
     let return_type = match output {
         ReturnType::Default => ReturnType::Default,
-        ReturnType::Type(_, ty) => ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(ty).compose(&source).to_type()))
+        ReturnType::Type(_, ty) => ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(ty).compose(source).to_type()))
     };
     let arguments = CommaPunctuatedArgKinds::from_iter(inputs
         .iter()

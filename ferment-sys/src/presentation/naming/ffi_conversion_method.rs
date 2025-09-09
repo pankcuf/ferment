@@ -16,32 +16,32 @@ impl ToTokens for FFIConversionDestroyMethod {
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment::FFIConversionTo"]
 pub enum FFIConversionToMethod {
-    FfiTo,
-    FfiToConst,
-    FfiToOpt,
+    Mut,
+    Const,
+    Opt,
 }
 impl ToTokens for FFIConversionToMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {
-            FFIConversionToMethod::FfiToConst => quote!(ffi_to_const),
-            FFIConversionToMethod::FfiTo => quote!(ffi_to),
-            FFIConversionToMethod::FfiToOpt => quote!(ffi_to_opt),
+            FFIConversionToMethod::Const => quote!(ffi_to_const),
+            FFIConversionToMethod::Mut => quote!(ffi_to),
+            FFIConversionToMethod::Opt => quote!(ffi_to_opt),
         }.to_tokens(dst)
     }
 }
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment::FFIConversionFrom"]
 pub enum FFIConversionFromMethod {
-    FfiFromConst,
-    FfiFrom,
-    FfiFromOpt,
+    Const,
+    Mut,
+    Opt,
 }
 impl ToTokens for FFIConversionFromMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {
-            FFIConversionFromMethod::FfiFromConst => quote!(ffi_from_const),
-            FFIConversionFromMethod::FfiFrom => quote!(ffi_from),
-            FFIConversionFromMethod::FfiFromOpt => quote!(ffi_from_opt),
+            FFIConversionFromMethod::Const => quote!(ffi_from_const),
+            FFIConversionFromMethod::Mut => quote!(ffi_from),
+            FFIConversionFromMethod::Opt => quote!(ffi_from_opt),
         }.to_tokens(dst)
     }
 }

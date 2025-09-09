@@ -33,7 +33,7 @@ impl VisitScope for Item {
             },
             |
             Item::Mod(..) => {
-                self.add_to_scope(&scope, visitor);
+                self.add_to_scope(scope, visitor);
                 Some(scope.clone())
             },
             _ => None
@@ -217,15 +217,12 @@ fn add_full_qualified_generics(visitor: &mut Visitor, generics: &Generics, scope
             inner_args.push(lifetime.to_token_stream()),
     });
     if let Some(WhereClause { predicates, .. }) = where_clause {
-        predicates.iter().for_each(|pred| match pred {
-            WherePredicate::Type(PredicateType { bounds, .. }) => {
-                bounds.iter().for_each(|bound| {
-                    if let Some(trait_bound) = bound.maybe_trait_bound() {
-                        visitor.add_full_qualified_type_match(scope, &trait_bound.path.to_type(), add_to_parent);
-                    }
-                });
-            },
-            _ => {}
+        predicates.iter().for_each(|pred| if let WherePredicate::Type(PredicateType { bounds, .. }) = pred {
+            bounds.iter().for_each(|bound| {
+                if let Some(trait_bound) = bound.maybe_trait_bound() {
+                    visitor.add_full_qualified_type_match(scope, &trait_bound.path.to_type(), add_to_parent);
+                }
+            });
         });
     }
     (nested_arguments, inner_args)
@@ -241,7 +238,7 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
 
     // 1. Add itself to the scope as <Self, Item(Trait(..))>
     // 2. Add itself to the parent scope as <Ident, Item(Trait(..))>
-    visitor.add_full_qualified_trait_match(&scope, item_trait, &itself);
+    visitor.add_full_qualified_trait_match(scope, item_trait, &itself);
 
     items.iter().for_each(|trait_item|
         match trait_item {
@@ -334,7 +331,7 @@ fn add_full_qualified_signature(visitor: &mut Visitor, sig: &Signature, scope: &
 
 fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope: &ScopeChain) {
     if let Some((_, items)) = &item_mod.content {
-        items.into_iter().for_each(|item| match item {
+        items.iter().for_each(|item| match item {
             Item::Use(node) =>
                 visitor.fold_import_tree(scope, &node.tree, vec![]),
             Item::Mod(..) =>
@@ -344,7 +341,7 @@ fn add_inner_module_conversion(visitor: &mut Visitor, item_mod: &ItemMod, scope:
             Item::Struct(..) |
             Item::Enum(..) |
             Item::Type(..) |
-            Item::Impl(..) => if let Ok(..) = MacroKind::try_from(item) {
+            Item::Impl(..) => if MacroKind::try_from(item).is_ok() {
                 item.add_to_scope(&scope.joined(item), visitor)
             },
             _ => {}
@@ -401,27 +398,19 @@ pub fn create_generics_chain(generics: &Generics) -> GenericChain {
     let Generics { params, where_clause, .. } = generics;
     let mut generics_chain = IndexMap::<Type, Vec<Path>>::new();
     // 1) Bounds in angle brackets: `fn foo<T: Trait, U: A + B>() {}`
-    params.iter().for_each(|gp| match gp {
-        GenericParam::Type(TypeParam { bounds, ident, .. }) => {
-            let bounds = collect_trait_bounds(bounds);
-            generics_chain
-                .entry(ident.to_type())
-                .or_default()
-                .extend(bounds);
-        },
-        _ => {}
+    params.iter().for_each(|gp| if let GenericParam::Type(TypeParam { bounds, ident, .. }) = gp {
+        generics_chain
+            .entry(ident.to_type())
+            .or_default()
+            .extend(collect_trait_bounds(bounds));
     });
     // 2) Where clause predicates: `where T: Trait, Vec<U>: Another`
     if let Some(WhereClause { predicates, .. }) = where_clause {
-        predicates.iter().for_each(|pred| match pred {
-            WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) => {
-                let bounds = collect_trait_bounds(bounds);
-                generics_chain
-                    .entry(bounded_ty.clone())
-                    .or_default()
-                    .extend(bounds)
-            },
-            _ => {}
+        predicates.iter().for_each(|pred| if let WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) = pred {
+            generics_chain
+                .entry(bounded_ty.clone())
+                .or_default()
+                .extend(collect_trait_bounds(bounds))
         });
     }
     // Ensure each generic type parameter appears at least once; add unlimited if no restrictive bound collected

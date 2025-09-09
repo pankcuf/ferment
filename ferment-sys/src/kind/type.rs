@@ -48,10 +48,7 @@ impl ToTokens for TypeKind {
 }
 impl Primitive for TypeKind {
     fn is_primitive(&self) -> bool {
-        match self {
-            TypeKind::Primitive(..) => true,
-            _ => false
-        }
+        matches!(self, TypeKind::Primitive(_))
     }
 }
 impl From<&Box<Type>> for TypeKind {
@@ -93,7 +90,7 @@ impl From<Type> for TypeKind {
                         "FnOnce" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnOnce(ty))),
                         "Fn" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::Fn(ty))),
                         "FnMut" => TypeKind::Generic(GenericTypeKind::Callback(CallbackKind::FnMut(ty))),
-                        _ => segments.iter().find_map(|ff| ff.arguments.maybe_angle_bracketed_args().map(|args| if args.args.iter().any(|arg| if let GenericArgument::Lifetime(_) = arg { false } else { true }) {
+                        _ => segments.iter().find_map(|ff| ff.arguments.maybe_angle_bracketed_args().map(|args| if args.args.iter().any(|arg| !matches!(arg, GenericArgument::Lifetime(_))) {
                             TypeKind::Generic(GenericTypeKind::AnyOther(ty.clone()))
                         } else {
                             TypeKind::Complex(ty.clone())

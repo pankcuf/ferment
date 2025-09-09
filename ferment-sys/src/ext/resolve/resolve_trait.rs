@@ -6,18 +6,17 @@ use crate::ext::{AsType, ToType};
 pub trait ResolveTrait where Self: Sized + ToType {
     fn maybe_trait_object(&self, source: &ScopeContext) -> Option<ObjectKind> {
         let ScopeContext { context, scope} = source;
-        let lock = context.read().unwrap();
+        let lock = context.borrow();
         let ty = self.to_type();
         let mut maybe_trait = lock.resolve_trait_type(&ty);
-        match maybe_trait {
-            Some(ObjectKind::Type(model) | ObjectKind::Item(model, _)) => if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
+        if let Some(ObjectKind::Type(model) | ObjectKind::Item(model, _)) = maybe_trait {
+            if let Some(trait_scope) = lock.actual_scope_for_type(model.as_type(), scope) {
                 if let Some(search_key) = ScopeSearchKey::maybe_from(parse_quote!(Self)) {
                     if let Some(obj) = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key, trait_scope) {
                         maybe_trait = Some(obj);
                     }
                 }
-            },
-            _ => {}
+            }
         }
         maybe_trait.cloned()
     }

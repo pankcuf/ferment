@@ -29,8 +29,7 @@ impl Config {
     }
     pub(crate) fn contains_fermented_crate(&self, ident: &Ident) -> bool {
         self.external_crates.iter()
-            .find(|c| c.ident().eq(ident))
-            .is_some()
+            .any(|c| c.ident().eq(ident))
     }
 
     pub(crate) fn is_current_crate(&self, crate_name: &Ident) -> bool {

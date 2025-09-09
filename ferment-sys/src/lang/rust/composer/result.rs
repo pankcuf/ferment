@@ -49,7 +49,7 @@ impl SourceComposable for ResultComposer<RustSpecification> {
         let from_conversion_error = Expression::map_o_expr(from_conversion_expr_error).present(source);
         let to_conversion_error = Expression::map_o_expr(to_conversion_expr_error).present(source);
         let destroy_conversion_error = destroy_conversion_expr_error.present(source);
-        let fold_method = error_is_optional.then_some(InterfacesMethod::FoldToResultPreferOk).unwrap_or(InterfacesMethod::FoldToResult);
+        let fold_method = if error_is_optional { InterfacesMethod::FoldToResultPreferOk } else { InterfacesMethod::FoldToResult };
         let from_body = quote! {
             let ffi_ref = &*ffi;
             ferment::#fold_method(ffi_ref.ok, #from_conversion_ok, ffi_ref.error, #from_conversion_error)

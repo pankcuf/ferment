@@ -45,8 +45,8 @@ impl SourceComposable for SliceComposer<RustSpecification> {
         ]);
 
         let interfaces = Depunctuated::from_iter([
-            InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &vec![]),
-            InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &vec![]),
+            InterfacePresentation::non_generic_conversion_from(&attrs, &types, from_body, &[]),
+            InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &[]),
             InterfacePresentation::drop(&attrs, ffi_name.to_type(), drop_body)
 
         ]);

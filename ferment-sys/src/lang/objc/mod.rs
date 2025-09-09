@@ -108,9 +108,7 @@ impl SourceFermentable<ObjCFermentate> for CrateTree {
         let source = self.source_ref();
         let reg_conversions = Depunctuated::from_iter(crates.iter().map(SourceFermentable::<ObjCFermentate>::ferment));
         let _generic_imports = SemiPunctuated::from_iter(imported.iter().cloned());
-        let global = source.context
-            .read()
-            .unwrap();
+        let global = source.context.borrow();
         let config = global.config.maybe_objc_config().expect("Expected ObjC config");
         let prefix = config.class_prefix();
         let generic_conversions = Depunctuated::from_iter(

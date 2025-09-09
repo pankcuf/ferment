@@ -19,7 +19,7 @@ pub fn format_imported_set(dict: &HashSet<ItemUse>) -> String {
 }
 
 #[allow(unused)]
-pub fn format_scope_refinement(dict: &Vec<(ScopeChain, IndexMap<Type, ObjectKind>)>) -> String {
+pub fn format_scope_refinement(dict: &[(ScopeChain, IndexMap<Type, ObjectKind>)]) -> String {
     let mut iter = dict.iter()
         .map(|(scope, types)|
             format!("\t{}: \n\t\t{}", format_token_stream(scope.self_path_ref()), types.iter().map(scope_type_conversion_pair).collect::<Vec<_>>()
@@ -62,7 +62,7 @@ pub fn format_unique_attrs(dict: &HashSet<Option<Attribute>>) -> String {
         .join("\n\t")
 }
 
-pub fn format_attrs(dict: &Vec<Attribute>) -> String {
+pub fn format_attrs(dict: &[Attribute]) -> String {
     dict.iter()
         .map(|item| item.to_token_stream().to_string())
         .collect::<Vec<_>>()
@@ -132,10 +132,10 @@ fn format_ident_path_pair(pair: (&Path, &Path)) -> String {
     format!("\t{}: {}", format_token_stream(pair.0), format_token_stream(pair.1))
 }
 
-pub fn format_path_vec(vec: &Vec<Path>) -> String {
+pub fn format_path_vec(vec: &[Path]) -> String {
     vec.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(",")
 }
-pub fn format_obj_vec(vec: &Vec<ObjectKind>) -> String {
+pub fn format_obj_vec(vec: &[ObjectKind]) -> String {
     vec.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(",")
 }
 
@@ -307,10 +307,6 @@ pub fn format_token_stream<TT: ToTokens>(token_stream: TT) -> String {
 
     formatted_string
 }
-
-
-
-/// Helpers
 
 pub fn imports_dict(dict: &IndexMap<Path, Path>) -> Vec<String> {
     dict.iter()

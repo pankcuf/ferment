@@ -10,7 +10,7 @@ pub trait Constraints {
 
 impl<T, P> Constraints for Punctuated<T, P> where T: Constraints {
     fn has_self(&self) -> bool {
-        self.iter().find(|p| p.has_self()).is_some()
+        self.iter().any(|p| p.has_self())
     }
 }
 
@@ -174,7 +174,7 @@ impl Constraints for Type {
             Type::Reference(TypeReference { elem, .. }) |
             Type::Slice(TypeSlice { elem, .. }) => elem.has_self(),
             Type::BareFn(TypeBareFn { inputs, output, .. }) =>
-                inputs.iter().find(|BareFnArg { ty, .. }| ty.has_self()).is_some() || output.has_self(),
+                inputs.iter().any(|BareFnArg { ty, .. }| ty.has_self()) || output.has_self(),
             Type::ImplTrait(TypeImplTrait { bounds, .. }) |
             Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.has_self(),
             Type::Path(TypePath { qself, path }) => path.has_self() || qself.as_ref().map(Constraints::has_self).unwrap_or_default(),

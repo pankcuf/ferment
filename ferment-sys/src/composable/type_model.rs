@@ -5,7 +5,7 @@ use syn::{Generics, Lifetime, Path, TraitBound, Type, TypePtr, TypeReference, Ty
 use crate::composable::{NestedArgument, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeChain;
-use crate::ext::{AsType, refine_ty_with_import_path, RefineMut, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor, ArgsTransform, MaybeTraitBound};
+use crate::ext::{AsType, refine_ty_with_import_path, RefineWithNestedArgs, ToPath, ToType, LifetimeProcessor, ArgsTransform, MaybeTraitBound};
 
 #[derive(Clone)]
 pub struct TypeModel {
@@ -21,15 +21,6 @@ impl TypeModeled for TypeModel {
 
     fn type_model_ref(&self) -> &TypeModel {
         self
-    }
-}
-
-impl RefineMut for TypeModel {
-
-    type Refinement = CommaPunctuatedNestedArguments;
-
-    fn refine_with(&mut self, refined: Self::Refinement) {
-        self.ty.refine_with(refined);
     }
 }
 

@@ -5,7 +5,7 @@ use quote::ToTokens;
 use proc_macro2::TokenStream as TokenStream2;
 use crate::ast::CommaPunctuated;
 pub use crate::composable::{GenericBoundsModel, TypeModel};
-use crate::composable::{TraitModel, TypeModeled};
+use crate::composable::{NestedArgument, TraitModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::kind::dict_type_model::DictTypeModelKind;
@@ -103,43 +103,23 @@ impl TypeModelKind {
 
 
     pub fn is_unknown(&self) -> bool {
-        match self {
-            TypeModelKind::Unknown(..) => true,
-            _ => false
-        }
+        matches!(self, Self::Unknown(_))
     }
     pub fn is_dictionary_opaque(&self) -> bool {
-        match self {
-            TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)) => true,
-            _ => false
-        }
+        matches!(self, Self::Dictionary(DictTypeModelKind::NonPrimitiveOpaque(..)))
     }
     pub fn is_imported(&self) -> bool {
-        match self {
-            TypeModelKind::Imported(..) => true,
-            _ => false
-        }
+        matches!(self, Self::Imported(..))
     }
     pub fn is_bounds(&self) -> bool {
-        match self {
-            TypeModelKind::Bounds(..) => true,
-            _ => false
-        }
+        matches!(self, Self::Bounds(..))
     }
     pub fn is_lambda(&self) -> bool {
-        match self {
-            TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(..)) => true,
-            _ => false
-        }
+        matches!(self, Self::Dictionary(DictTypeModelKind::LambdaFn(..)))
     }
     pub fn is_optional(&self) -> bool {
-        match self {
-            TypeModelKind::Optional(..) => true,
-            _ => false
-        }
+        matches!(self, Self::Optional(..))
     }
-
-
 
     pub(crate) fn maybe_trait_object_maybe_model_kind_or_same(&self, source: &ScopeContext) -> TypeModelKind {
         match self {
@@ -174,15 +154,10 @@ impl TypeModelKind {
         match self {
             TypeModelKind::Imported(..) |
             TypeModelKind::Unknown(..) => false,
-            other => {
-                !other.nested_arguments_ref()
-                    .iter()
-                    .find(|arg| arg.is_refined())
-                    .is_some()
-            },
+            other => !other.nested_arguments_ref().iter().any(NestedArgument::is_refined),
         }
     }
-    pub fn maybe_callback<'a>(&'a self) -> Option<&'a ParenthesizedGenericArguments> {
+    pub fn maybe_callback(&self) -> Option<&ParenthesizedGenericArguments> {
         if let TypeModelKind::FnPointer(ty, ..) | TypeModelKind::Dictionary(DictTypeModelKind::LambdaFn(ty)) = self {
             if let Type::Path(TypePath { path: Path { segments, .. }, .. }) = ty.as_type() {
                 if let Some(PathSegment { arguments, ident, ..}) = segments.last() {

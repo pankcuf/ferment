@@ -16,7 +16,12 @@ pub struct VTableComposer<SPEC>
 
 impl<SPEC> VTableComposer<SPEC>
 where SPEC: Specification {
-    pub fn from_trait_path(ty_context: SPEC::TYC, attrs: &Vec<Attribute>, vtable_method_composers: Vec<SigComposerLink<SPEC>>, context: ScopeContextLink) -> ComposerLink<Self> {
+    pub fn from_trait_path(
+        ty_context: SPEC::TYC,
+        attrs: &[Attribute],
+        vtable_method_composers: Vec<SigComposerLink<SPEC>>,
+        context: ScopeContextLink
+    ) -> ComposerLink<Self> {
         let root = Rc::new(RefCell::new(Self {
             base: BasicComposer::from(
                 DocComposer::from(&ty_context),
@@ -32,6 +37,5 @@ where SPEC: Specification {
             composer.base.link(&root);
         }
         root
-
     }
 }

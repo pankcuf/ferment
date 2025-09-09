@@ -36,14 +36,14 @@ impl<SPEC> SigComposer<SPEC>
     pub fn with_context(
         ty_context: SPEC::TYC,
         generics: &Generics,
-        lifetimes: &Vec<Lifetime>,
-        attrs: &Vec<Attribute>,
+        lifetimes: &[Lifetime],
+        attrs: &[Attribute],
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::new(
             ty_context,
-            Some(generics.clone()),
-            lifetimes.clone(),
+            Some(generics.to_owned()),
+            lifetimes.to_owned(),
             AttrsModel::from(attrs),
             context)
     }
@@ -56,15 +56,15 @@ impl<SPEC> SigComposer<SPEC>
         Self::with_context(
             ty_context,
             generics,
-            &vec![],
+            &[],
             attrs,
             context)
     }
     pub fn from_type_bare_fn(
         ty_context: SPEC::TYC,
         generics: &Generics,
-        lifetimes: &Vec<Lifetime>,
-        attrs: &Vec<Attribute>,
+        lifetimes: &[Lifetime],
+        attrs: &[Attribute],
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         Self::with_context(
@@ -85,7 +85,7 @@ impl<SPEC> SigComposer<SPEC>
         Self::with_context(
             ty_context,
             &sig.generics,
-            &vec![],
+            &[],
             sig.maybe_attrs().unwrap_or(&vec![]),
             context
         )
@@ -96,7 +96,7 @@ impl<SPEC> SigComposer<SPEC>
         context: &ScopeContextLink
     ) -> ComposerLink<Self> {
         let TraitItemFn { sig, attrs, .. } = trait_item_method;
-        Self::with_context(ty_context, &sig.generics, &vec![], attrs, context)
+        Self::with_context(ty_context, &sig.generics, &[], attrs, context)
     }
 }
 

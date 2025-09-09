@@ -89,7 +89,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                         .map(|_| SPEC::Expr::cast_destroy(field_path, ConversionExpressionKind::Complex, ffi_type, full_type)),
                 TypeModelKind::Optional(..) =>
                     full_type.maybe_first_nested_type()
-                        .map(|target_ty| SPEC::Expr::cast_destroy(field_path, full_type.is_primitive().then_some(ConversionExpressionKind::PrimitiveOpt).unwrap_or(ConversionExpressionKind::ComplexOpt), ffi_type, target_ty)),
+                        .map(|target_ty| SPEC::Expr::cast_destroy(field_path, if full_type.is_primitive() { ConversionExpressionKind::PrimitiveOpt } else { ConversionExpressionKind::ComplexOpt }, ffi_type, target_ty)),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Str(TypeModel { ty: ref full_ty, .. }))) =>
                     Some(SPEC::Expr::destroy_string(field_path, quote!(&#full_ty))),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::String(TypeModel { ty: ref full_ty, .. }))) =>

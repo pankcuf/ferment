@@ -29,7 +29,7 @@ impl<SPEC, I> EnumVariantComposer<SPEC, I>
 
     pub fn new(
         ty_context: SPEC::TYC,
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         fields: &CommaPunctuatedFields,
         context: &ScopeContextLink,
     ) -> ComposerLink<Self>

@@ -56,11 +56,11 @@ impl<'a> VisitScopeType<'a> for Type {
             },
             Type::ImplTrait(TypeImplTrait { impl_token, bounds }) => {
                 let (bounds, nested_arguments) = bounds.visit_scope_type(source);
-                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::ImplTrait(TypeImplTrait { impl_token: impl_token.clone(), bounds }), nested_arguments))
+                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::ImplTrait(TypeImplTrait { impl_token: *impl_token, bounds }), nested_arguments))
             }
             Type::TraitObject(TypeTraitObject { dyn_token, bounds }) => {
                 let (bounds, nested_arguments) = bounds.visit_scope_type(source);
-                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::TraitObject(TypeTraitObject { dyn_token: dyn_token.clone(), bounds }), nested_arguments))
+                ObjectKind::model_type(TypeModelKind::Unknown, TypeModel::new_nested(Type::TraitObject(TypeTraitObject { dyn_token: *dyn_token, bounds }), nested_arguments))
             },
             Type::Array(TypeArray { elem, .. }) =>
                 ObjectKind::model_type(TypeModelKind::Array, TypeModel::new_nested_ref(self, NestedArgument::Object(elem.visit_scope_type(source)).punctuate_one())),

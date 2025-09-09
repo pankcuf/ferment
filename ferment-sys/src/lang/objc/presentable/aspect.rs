@@ -17,14 +17,14 @@ impl Aspect<TypeContext> {
     pub fn alloc_field_name(&self) -> TokenStream2 {
         match self {
             Aspect::Target(_) => DictionaryName::Obj.to_token_stream(),
-            Aspect::FFI(_) => DictionaryName::FfiRef.to_token_stream(),
+            Aspect::Ffi(_) => DictionaryName::FfiRef.to_token_stream(),
             Aspect::RawTarget(_) => DictionaryName::Obj.to_token_stream(),
         }
     }
     pub fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Aspect::Target(context) => context.attrs(),
-            Aspect::FFI(context) => context.attrs(),
+            Aspect::Ffi(context) => context.attrs(),
             Aspect::RawTarget(context) => context.attrs(),
         }
     }
@@ -46,7 +46,7 @@ impl Aspect<TypeContext> {
                     return #name;
                 }
             }
-            Aspect::FFI(_context) | Aspect::RawTarget(_context) => {
+            Aspect::Ffi(_context) | Aspect::RawTarget(_context) => {
                 let field_allocators = fields.content.iter().map(|f| {
                     let arg_presentation = f.present(source);
                     quote!(#name->#arg_presentation;)
@@ -75,7 +75,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                 Resolve::<Type>::resolve(ident, source)
                     .joined_ident(variant_ident),
             Aspect::Target(TypeContext::Fn { path, .. }) |
-            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::Impl(..), .. }) |
+            Aspect::Ffi(TypeContext::Fn { path, sig_context: FnSignatureContext::Impl(..), .. }) |
             Aspect::RawTarget(TypeContext::Fn { path, .. } | TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
                 path.to_type(),
             Aspect::Target(TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
@@ -88,33 +88,33 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
             Aspect::Target(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) |
             Aspect::RawTarget(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
                 model.to_type(),
-            Aspect::FFI(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
+            Aspect::Ffi(TypeContext::Mixin { mixin_kind: MixinKind::Generic(kind), .. }) =>
                 kind.ty()
                     .cloned()
                     .unwrap()
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
+            Aspect::Ffi(TypeContext::Mixin { mixin_kind: MixinKind::Bounds(model), .. }) =>
                 model.mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Enum { ident , .. } | TypeContext::Struct { ident , .. } | TypeContext::Fn { sig_context: FnSignatureContext::ModFn(ItemFn { sig: Signature { ident, .. }, .. }) | FnSignatureContext::Bare(ident, _), .. }) =>
+            Aspect::Ffi(TypeContext::Enum { ident , .. } | TypeContext::Struct { ident , .. } | TypeContext::Fn { sig_context: FnSignatureContext::ModFn(ItemFn { sig: Signature { ident, .. }, .. }) | FnSignatureContext::Bare(ident, _), .. }) =>
                 Resolve::<Type>::resolve(ident, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
+            Aspect::Ffi(TypeContext::Trait { path , .. } | TypeContext::Impl { path , .. }) =>
                 Resolve::<Type>::resolve(path, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
+            Aspect::Ffi(TypeContext::EnumVariant { ident, variant_ident, .. }) =>
                 Resolve::<Type>::resolve(ident, source)
                     .mangle_ident_default()
                     .to_type()
                     .joined_ident(variant_ident),
-            Aspect::FFI(TypeContext::Fn { sig_context: FnSignatureContext::TraitInner(_, self_ty, _), .. }) =>
+            Aspect::Ffi(TypeContext::Fn { sig_context: FnSignatureContext::TraitInner(_, self_ty, _), .. }) =>
                 Resolve::<Type>::resolve(self_ty, source)
                     .mangle_ident_default()
                     .to_type(),
-            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitImpl(_, self_ty, trait_ty), .. }) =>
+            Aspect::Ffi(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitImpl(_, self_ty, trait_ty), .. }) =>
                 Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source)
                     .map(|full_trait_ty| {
@@ -122,7 +122,7 @@ impl ScopeContextPresentable for Aspect<TypeContext> {
                         let type_path: TypePath = parse_quote!(<#self_ty as #full_trait_ty>);
                         Type::Path(type_path.joined(&path.segments.last().unwrap().ident))
                     }).unwrap_or_else(|| path.to_type()),
-            Aspect::FFI(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) => {
+            Aspect::Ffi(TypeContext::Fn { path, sig_context: FnSignatureContext::TraitAsType(_, self_ty, trait_ty), .. }) => {
                 let self_ty = Resolve::<Type>::resolve(self_ty, source);
                 let trait_ty = Resolve::<Type>::resolve(trait_ty, source)
                     .maybe_trait_ty(source);

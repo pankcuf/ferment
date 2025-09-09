@@ -11,8 +11,9 @@ use crate::lang::{FromDictionary, NameComposable, Specification};
 use crate::presentation::{DictionaryExpr, DictionaryName};
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum Name<SPEC> where SPEC: Specification {
+    #[default]
     Empty,
     Expr(Expr),
     UnnamedArg(usize),
@@ -56,12 +57,6 @@ impl<SPEC> FromDictionary for Name<SPEC>
     }
 }
 
-impl<SPEC> Default for Name<SPEC>
-    where SPEC: Specification {
-    fn default() -> Self {
-        Name::Empty
-    }
-}
 impl<SPEC> ToType for Name<SPEC>
     where SPEC: Specification,
           Self: ToTokens {

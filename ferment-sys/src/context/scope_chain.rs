@@ -61,8 +61,8 @@ impl ScopeChain {
     pub fn r#fn(info: ScopeInfo, parent: ScopeChain) -> Self {
         Self::Fn { info, parent: parent.into() }
     }
-    pub fn func(self_scope: Scope, attrs: &Vec<Attribute>, crate_ident: &Ident, parent: &ScopeChain) -> Self {
-        Self::r#fn(ScopeInfo::new(attrs.clone(), crate_ident.clone(), self_scope), parent.clone())
+    pub fn func(self_scope: Scope, attrs: &[Attribute], crate_ident: &Ident, parent: &ScopeChain) -> Self {
+        Self::r#fn(ScopeInfo::new(attrs.to_owned(), crate_ident.clone(), self_scope), parent.clone())
     }
 
     pub fn obj_scope_priority(&self) -> u8 {
@@ -84,15 +84,15 @@ impl PartialEq<Self> for ScopeChain {
                 ScopeChain::Impl { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
             (ScopeChain::CrateRoot { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
                 ScopeChain::CrateRoot { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
-            (ScopeChain::Mod { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
-                ScopeChain::Mod { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Trait { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
-                ScopeChain::Trait { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Fn { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
-                ScopeChain::Fn { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) |
-            (ScopeChain::Object { info: ScopeInfo { crate_ident, self_scope, ..}, .. },
-                ScopeChain::Object { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, ..}, .. }) =>
-                self_scope.eq(&other_self_scope) && crate_ident.eq(other_crate_ident),
+            (ScopeChain::Mod { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
+                ScopeChain::Mod { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
+            (ScopeChain::Trait { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
+                ScopeChain::Trait { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
+            (ScopeChain::Fn { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
+                ScopeChain::Fn { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) |
+            (ScopeChain::Object { info: ScopeInfo { crate_ident, self_scope, .. }, .. },
+                ScopeChain::Object { info: ScopeInfo { crate_ident: other_crate_ident, self_scope: other_self_scope, .. }, .. }) =>
+                self_scope.eq(other_self_scope) && crate_ident.eq(other_crate_ident),
             _ => false
         }
     }
@@ -305,7 +305,7 @@ impl ScopeChain {
             ScopeChain::Trait { parent, .. } |
             ScopeChain::Fn { parent, .. } |
             ScopeChain::Object { parent, .. } |
-            ScopeChain::Impl { parent, .. } => other.eq(&parent),
+            ScopeChain::Impl { parent, .. } => other.eq(parent),
         }
     }
 

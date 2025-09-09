@@ -1,6 +1,6 @@
 [package]
 name = "ferment"
-version = "0.2.12"
+version = "0.2.13"
 edition = "2021"
 license = "MIT"
 description = "Traits for FFI conversions and some helper methods"

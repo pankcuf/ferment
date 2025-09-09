@@ -25,12 +25,11 @@ impl ScopeInfo {
         Self::new(vec![], crate_ident, self_scope)
     }
     pub fn fmt_export_type(&self) -> String {
-        self.attrs.is_labeled_for_opaque_export()
-            .then(|| "Opaque")
-            .or_else(|| self.attrs.is_labeled_for_export()
-                .then(|| "Fermented"))
-            .or_else(|| self.attrs.is_labeled_for_opaque_export().then(|| "Opaque"))
-            .unwrap_or("Unknown").to_string()
+        self.attrs.is_labeled_for_opaque_export().then_some("Opaque")
+            .or_else(|| self.attrs.is_labeled_for_export().then_some("Fermented"))
+            .or_else(|| self.attrs.is_labeled_for_opaque_export().then_some("Opaque"))
+            .unwrap_or("Unknown")
+            .to_string()
     }
     pub fn self_path(&self) -> &Path {
         &self.self_scope.self_scope

@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::collections::HashSet;
-use std::sync::{Arc, RwLock};
+use std::rc::Rc;
 use indexmap::IndexMap;
 use syn::{Attribute, Item, ItemMod, ItemUse};
 use crate::context::{GlobalContext, ScopeChain, ScopeContext, ScopeContextLink};
@@ -51,13 +52,13 @@ impl ScopeTreeExportItem {
             ScopeTreeExportItem::Tree(ctx, ..) => ctx.borrow().scope.clone(),
         }
     }
-    pub fn tree_with_context_and_exports(context: ScopeContextLink, attrs: &Vec<Attribute>) -> Self {
-        Self::Tree(context, HashSet::default(), IndexMap::default(), attrs.clone())
+    pub fn tree_with_context_and_exports(context: ScopeContextLink, attrs: &[Attribute]) -> Self {
+        Self::Tree(context, HashSet::default(), IndexMap::default(), attrs.to_owned())
     }
-    pub fn tree_with_context(scope: &ScopeChain, context: Arc<RwLock<GlobalContext>>, attrs: &Vec<Attribute>) -> Self {
+    pub fn tree_with_context(scope: &ScopeChain, context: Rc<RefCell<GlobalContext>>, attrs: &[Attribute]) -> Self {
         Self::tree_with_context_and_exports(ScopeContext::cell_with(scope.clone(), context), attrs)
     }
-    pub fn item_with_context(scope: &ScopeChain, item: &Item, context: Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn item_with_context(scope: &ScopeChain, item: &Item, context: Rc<RefCell<GlobalContext>>) -> Self {
         Self::Item(ScopeContext::cell_with(scope.clone(), context), item.clone())
     }
     pub fn add_item(&mut self, item: Item, scope: ScopeChain) {
@@ -76,7 +77,7 @@ impl ScopeTreeExportItem {
         }
     }
 
-    fn add_items(&mut self, items: &Vec<Item>, scope: &ScopeChain) {
+    fn add_items(&mut self, items: &[Item], scope: &ScopeChain) {
         items.iter().for_each(|item|
             match item {
                 Item::Mod(item_mod) =>

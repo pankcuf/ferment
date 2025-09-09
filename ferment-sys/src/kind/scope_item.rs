@@ -27,7 +27,7 @@ impl Debug for ScopeItemKind {
             ScopeItemKind::Item(item, scope) =>
                 f.write_fmt(format_args!("Item({}, {})", format_token_stream(item.maybe_ident()), scope.to_token_stream())),
             ScopeItemKind::Fn(Signature { ident, .. }, scope) =>
-                f.write_fmt(format_args!("Fn({}, {})", format_token_stream(&ident), scope.to_token_stream())),
+                f.write_fmt(format_args!("Fn({}, {})", format_token_stream(ident), scope.to_token_stream())),
         }
     }
 }

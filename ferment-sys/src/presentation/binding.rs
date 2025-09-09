@@ -157,7 +157,7 @@ pub fn present_function<T: ToTokens, N: ToTokens>(
     body: TokenStream2) -> TokenStream2 {
     let signature = match generics {
         None => {
-            let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter_map(|lt| lt.ident.ne("static").then(|| lt.to_token_stream())));
+            let comma_lifetimes = CommaPunctuated::from_iter(lifetimes.iter().filter(|lt| lt.ident.ne("static")).map(ToTokens::to_token_stream));
             if comma_lifetimes.is_empty() {
                 quote!(#name(#args) #output)
             } else {

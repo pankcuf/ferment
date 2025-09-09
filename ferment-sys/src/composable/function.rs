@@ -35,11 +35,7 @@ impl Debug for FnSignatureContext {
 impl FnSignatureContext {
     #[allow(unused)]
     pub fn is_trait_fn(&self) -> bool {
-        match self {
-            FnSignatureContext::TraitImpl(..) => true,
-            FnSignatureContext::TraitAsType(..) => true,
-            _ => false
-        }
+        matches!(self, FnSignatureContext::TraitImpl(..) | FnSignatureContext::TraitAsType(..))
     }
 
     pub fn maybe_signature(&self) -> Option<&Signature> {
@@ -49,7 +45,7 @@ impl FnSignatureContext {
             FnSignatureContext::TraitImpl(sig, ..) |
             FnSignatureContext::TraitAsType(sig, ..) |
             FnSignatureContext::TraitInner(sig, ..) => Some(sig),
-            FnSignatureContext::Bare(.., _) => None
+            FnSignatureContext::Bare(..) => None
         }
     }
 

@@ -8,19 +8,14 @@ impl AttrsModel {
         Self { attrs }
     }
 
-    pub fn from(attrs: &Vec<Attribute>) -> Self {
-        Self::new(attrs.clone())
+    pub fn from(attrs: &[Attribute]) -> Self {
+        Self::new(attrs.to_owned())
     }
 }
 
+#[derive(Default)]
 pub struct GenModel {
     pub generics: Option<Generics>,
-}
-
-impl Default for GenModel {
-    fn default() -> Self {
-        Self { generics: None }
-    }
 }
 
 impl From<&Option<Generics>> for GenModel {
@@ -39,15 +34,11 @@ impl GenModel {
     }
 }
 
+#[derive(Default)]
 pub struct LifetimesModel {
     pub lifetimes: Vec<Lifetime>,
 }
 
-impl Default for LifetimesModel {
-    fn default() -> Self {
-        Self { lifetimes: vec![] }
-    }
-}
 impl LifetimesModel {
     pub fn new(lifetimes: Vec<Lifetime>) -> Self {
         Self { lifetimes }

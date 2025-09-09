@@ -64,7 +64,7 @@ impl std::fmt::Debug for ScopeTreeID {
             Self::Ident(ident) =>
                 f.write_str(format!("{ident}").as_str()),
             Self::Impl(ty, path, generics) =>
-                f.write_str(format!("Impl({}, {}, {})", ty.to_token_stream(), path.to_token_stream(), generics.to_token_stream().to_string()).as_str())
+                f.write_str(format!("Impl({}, {}, {})", ty.to_token_stream(), path.to_token_stream(), generics.to_token_stream()).as_str())
         }
     }
 }

@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Formatter;
 use indexmap::IndexMap;
 use proc_macro2::Ident;
-use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type, TypePath};
-use crate::{print_phase, Config};
+use syn::{parse_quote, Attribute, Item, ItemTrait, Path, PathSegment, Type};
+use crate::Config;
 use crate::composable::{TraitModelPart1, TypeModel, TypeModeled};
 use crate::composer::CommaPunctuatedNestedArguments;
-use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeRefinement, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
+use crate::context::{CustomResolver, GenericResolver, ImportResolver, ScopeChain, ScopeResolver, ScopeSearchKey, TraitsResolver, TypeChain};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, MixinKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
-use crate::ext::{AsType, GenericCollector, GenericBoundKey, RefineInScope, RefineMut, RefineUnrefined, ResolveAttrs, Split, ToPath, ToType, TypeCollector, Unrefined};
-use crate::formatter::{format_global_context, format_mixin_kinds};
+use crate::ext::{AsType, GenericBoundKey, RefineInScope, Split, ToPath, ToType};
+use crate::formatter::format_global_context;
 
 #[derive(Clone)]
 pub struct GlobalContext {
@@ -166,7 +166,7 @@ impl GlobalContext {
                         .or_else(|| match &**parent {
                             ScopeChain::CrateRoot { .. } |
                             ScopeChain::Mod { ..} =>
-                                self.maybe_local_scope_object_ref_by_key(ty, &parent),
+                                self.maybe_local_scope_object_ref_by_key(ty, parent),
                             _ => None,
                         }),
         })
@@ -185,7 +185,7 @@ impl GlobalContext {
                         .or_else(|| match &**parent {
                             ScopeChain::CrateRoot { .. } |
                             ScopeChain::Mod { ..} =>
-                                self.maybe_object_ref_by_search_key_in_scope(search_key, &parent),
+                                self.maybe_object_ref_by_search_key_in_scope(search_key, parent),
                             _ => None,
                         }),
         })
@@ -207,7 +207,7 @@ impl GlobalContext {
     pub fn maybe_object_ref_by_tree_key<'a>(&'a self, ty: &'a Type, scope: &'a ScopeChain) -> Option<&'a ObjectKind> {
          match scope {
              ScopeChain::Mod { .. } | ScopeChain::CrateRoot { .. } =>
-                 self.maybe_local_scope_object_ref_by_key(ty, &scope),
+                 self.maybe_local_scope_object_ref_by_key(ty, scope),
              ScopeChain::Fn { parent, .. } =>
                  self.maybe_fn_object_ref_by_tree_key(scope, parent, ty),
              ScopeChain::Trait { parent, .. } |
@@ -342,7 +342,7 @@ impl GlobalContext {
                     TypeModelKind::Optional(TypeModel { nested_arguments, .. }) => {
                         let is_custom = self.maybe_custom_type(tyc.as_type());
                         let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
-                        let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
+                        let all_of_them_are_non_fermentable = num_of_fermentable == 0 && !nested_arguments.is_empty();
                         (!all_of_them_are_non_fermentable || is_custom.is_some() || nested_arguments.is_empty())
                             .then_some(tyc)
                     },
@@ -354,18 +354,15 @@ impl GlobalContext {
         }).collect::<Vec<_>>().len()
     }
 
-    fn should_skip_from_expanding(&self, object: &ObjectKind) -> bool {
+    pub(crate) fn should_skip_from_expanding(&self, object: &ObjectKind) -> bool {
         let skip = match object.maybe_type_model_kind_ref() {
             Some(conversion) => {
                 let maybe_custom = self.maybe_custom_type(conversion.as_type());
                 let nested_arguments = conversion.nested_arguments_ref();
                 let num_of_fermentable = self.num_of_nested_exposable_types_for_generic(nested_arguments);
-                let all_of_them_are_non_fermentable = num_of_fermentable == 0 && nested_arguments.len() != 0;
+                let all_of_them_are_non_fermentable = num_of_fermentable == 0 && !nested_arguments.is_empty();
                 let maybe_lambda = conversion.is_lambda();
-                let skip = all_of_them_are_non_fermentable && maybe_custom.is_none() && !maybe_lambda;
-                // let skip = self.num_of_nested_fermentable_types_for_generic(nested_args) == 0;
-                //println!("SKIP ({} ({}/{}/{})): {}", skip, maybe_custom.is_some(), num_of_fermentable, nested_arguments.len(), kind);
-                skip
+                all_of_them_are_non_fermentable && maybe_custom.is_none() && !maybe_lambda
             }
             None => false
         };
@@ -374,77 +371,8 @@ impl GlobalContext {
 
 }
 
-impl RefineMut for GlobalContext {
-    type Refinement = ScopeRefinement;
-    fn refine_with(&mut self, refined: Self::Refinement) {
-        self.scope_register.refine_with(refined);
-        let mut refined_mixins = IndexMap::<MixinKind, HashSet<Option<Attribute>>>::new();
-        self.scope_register.inner.iter()
-            .for_each(|(scope, type_chain)| {
-                let scope_level_attrs = scope.resolve_attrs();
-                type_chain.inner.iter().for_each(|(_conversion, object)| {
-                    let object_attrs = object.resolve_attrs();
-                    let mut all_attrs: HashSet<Option<Attribute>> = HashSet::from_iter(object_attrs);
-                    all_attrs.extend(scope_level_attrs.clone());
-                    if all_attrs.is_empty() {
-                        all_attrs.insert(None);
-                    }
 
-                    if let Some(ty) = object.maybe_type() {
-                        ty.find_generics()
-                            .iter()
-                            .filter(|ty| self.maybe_custom_type(ty).is_none() && !self.should_skip_from_expanding(object))
-                            .for_each(|_ty| if let Some(kind) = object.maybe_generic_type_kind() {
-                                refined_mixins
-                                    .entry(MixinKind::Generic(kind))
-                                    .or_insert_with(HashSet::new)
-                                    .extend(all_attrs.clone());
-                            });
-                    }
 
-                    if let Some(TypeModelKind::Bounds(bounds)) = object.maybe_type_model_kind_ref() {
-                        let mut container = HashSet::<Type>::new();
-                        bounds.collect_compositions()
-                            .into_iter()
-                            .for_each(|field_type| field_type.collect_to(&mut container));
-                        container
-                            .iter()
-                            .for_each(|_ty| refined_mixins.entry(MixinKind::bounds(bounds)).or_insert_with(HashSet::new).extend(all_attrs.clone()));
-                    }
-                })
-            });
-        print_phase!("PHASE 3: GENERICS TO EXPAND", "\t{}", format_mixin_kinds(&refined_mixins));
-        self.refined_mixins = refined_mixins;
-
-        self.generics.inner.iter_mut()
-            .for_each(|(scope, generic_chain)| generic_chain.values_mut()
-                .for_each(|bounds| bounds.iter_mut()
-                    .for_each(|bound| if let Some(Type::Path(TypePath { path, .. })) = self.scope_register.scope_key_type_for_path(bound, scope) {
-                        *bound = path;
-                    })));
-    }
-}
-
-impl Unrefined for GlobalContext {
-    type Unrefinement = ScopeRefinement;
-    fn unrefined(&self) -> Self::Unrefinement {
-        let mut scope_updates = vec![];
-        self.scope_register.inner.iter()
-            .for_each(|(scope, type_chain)| {
-                let scope_types_to_refine = type_chain.inner.iter()
-                    .filter_map(|(holder, object)|
-                        self.maybe_refined_object(scope, object)
-                            .map(|object_to_refine| (holder.clone(), object_to_refine)))
-                    .collect::<HashMap<_, _>>();
-                if !scope_types_to_refine.is_empty() {
-                    scope_updates.push((scope.clone(), scope_types_to_refine));
-                }
-            });
-        scope_updates
-    }
-}
-
-impl RefineUnrefined for GlobalContext {}
 
 /// Scope
 impl GlobalContext {
@@ -469,7 +397,7 @@ impl GlobalContext {
         self.scope_register.maybe_object_ref_by_key_in_scope(search_key, scope)
 
     }
-    fn maybe_object_ref_by_search_value<'a>(&'a self, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
+    fn maybe_object_ref_by_search_value(&self, search_key: ScopeSearchKey) -> Option<&ObjectKind> {
         self.scope_register.maybe_object_ref_by_value(search_key)
     }
 }

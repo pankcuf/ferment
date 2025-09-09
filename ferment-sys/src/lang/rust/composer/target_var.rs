@@ -6,7 +6,7 @@ use crate::ext::ToType;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentation::FFIVariable;
 
-impl<'a> SourceComposable for TargetVarComposer<RustSpecification> {
+impl SourceComposable for TargetVarComposer<RustSpecification> {
     type Source = ScopeContext;
     type Output = <RustSpecification as Specification>::Var;
 

@@ -38,7 +38,7 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
         let aspect = Aspect::raw_struct_ident(root_ty_ref.mangle_ident_default());
 
         let root_var = <RustSpecification as Specification>::value_var(root_ty_ref).compose(source);
-        let ctor_arg_var = <RustSpecification as Specification>::value_var(&arg_ty).compose(source);
+        let ctor_arg_var = <RustSpecification as Specification>::value_var(arg_ty).compose(source);
         let ctor_arg_type = ctor_arg_var.to_type();
 
         let root_field_type_kind = FieldTypeKind::Var(root_var);
@@ -53,19 +53,19 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
         let root_arg_composer = arg_0_name.field_composer(root_field_type_kind);
         let ctor_arg_composer = arg_0_name.field_composer(arg_field_type_kind);
 
-        let from_arg_conversion = <RustSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, root_arg_expr.clone())
+        let from_arg_conversion = <RustSpecification as Specification>::value_ref_expr_from(&arg_0_name, arg_ty, root_arg_expr.clone())
             .compose(source);
         let from_root_obj_conversion = <RustSpecification as Specification>::value_ref_expr_from(&arg_0_name, root_ty_ref, root_arg_expr.clone())
             .compose(source);
-        let from_arg_value_conversion = <RustSpecification as Specification>::value_ref_expr_from(&arg_0_name, &arg_ty, value_arg_expr)
+        let from_arg_value_conversion = <RustSpecification as Specification>::value_ref_expr_from(&arg_0_name, arg_ty, value_arg_expr)
             .compose(source);
-        let to_arg_conversion = <RustSpecification as Specification>::value_ref_expr_to(&arg_0_name, &arg_ty, self.kind.wrap_arg_to(root_arg_expr))
+        let to_arg_conversion = <RustSpecification as Specification>::value_ref_expr_to(&arg_0_name, arg_ty, self.kind.wrap_arg_to(root_arg_expr))
             .compose(source);
-        let ctor_to_arg_expr = self.root_kind.wrap_alloc::<RustSpecification, DictionaryExpr>(
+        let ctor_to_arg_expr = self.root_kind.wrap_alloc::<RustSpecification>(
             Expression::new_smth(
                 self.kind.is_once_lock()
                     .then(|| Expression::Empty)
-                    .unwrap_or_else(|| from_arg_conversion),
+                    .unwrap_or(from_arg_conversion),
                 self.kind.dictionary_type()));
         let signature_aspect = (attrs, lifetimes, generics);
         let bindings = Depunctuated::from_iter([

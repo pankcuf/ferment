@@ -64,6 +64,7 @@ pub unsafe fn unbox_any<T: ?Sized>(any: *mut T) {
         let _ = Box::from_raw(any);
     }
 }
+/// # Safety
 pub unsafe fn unbox_any_opt<T: ?Sized>(any: *mut T) {
     if !any.is_null() {
         let _ = Box::from_raw(any);
@@ -385,7 +386,7 @@ pub unsafe fn fold_to_result_prefer_ok<T, E, T2, E2>(
         Err(error_converter(error))
     }
 }
-/// # Safety-
+/// # Safety
 pub unsafe fn to_result<T, E, T2, E2>(
     result: Result<T2, E2>,
     ok_converter: impl Fn(T2) -> *mut T,

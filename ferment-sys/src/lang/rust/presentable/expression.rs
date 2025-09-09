@@ -61,7 +61,7 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::DerefExpr(expr) =>
                 Self::DictionaryExpr(DictionaryExpr::Deref(expr.present(source)))
                     .present(source),
-            Self::MapExpression(expr, mapper) =>
+            Self::MapExpr(expr, mapper) =>
                 Self::DictionaryExpr(DictionaryExpr::Mapper(expr.present(source), mapper.present(source)))
                     .present(source),
             Self::MapIntoBox(expr) =>
@@ -124,11 +124,11 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             },
 
             Self::CastConversionExpr(aspect, kind, expr, target_type, ffi_type) =>
-                Self::CastConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source), target_type.clone(), ffi_type.clone())
+                Self::CastConversionExprTokens(aspect.clone(), *kind, expr.present(source), target_type.clone(), ffi_type.clone())
                     .present(source),
 
             Self::ConversionExpr(aspect, kind, expr) =>
-                Self::ConversionExprTokens(aspect.clone(), kind.clone(), expr.present(source))
+                Self::ConversionExprTokens(aspect.clone(), *kind, expr.present(source))
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr) =>
@@ -151,10 +151,10 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFrom, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::Mut, expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromOpt, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::Opt, expr.to_token_stream()))
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr) =>
@@ -184,10 +184,10 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                     .present(source),
 
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::FfiTo, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::Mut, expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::FfiToOpt, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionTo(FFIConversionToMethod::Opt, expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::ToComplexGroup(expr.to_token_stream()))
@@ -244,25 +244,25 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::Complex, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceFrom;
-                let method = FFIConversionFromMethod::FfiFrom;
+                let method = FFIConversionFromMethod::Mut;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceFrom;
-                let method = FFIConversionFromMethod::FfiFromOpt;
+                let method = FFIConversionFromMethod::Opt;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::Complex, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceTo;
-                let method = FFIConversionToMethod::FfiTo;
+                let method = FFIConversionToMethod::Mut;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr, ffi_ty, ty) => {
                 let package = DictionaryName::Package;
                 let interface = DictionaryName::InterfaceTo;
-                let method = FFIConversionToMethod::FfiToOpt;
+                let method = FFIConversionToMethod::Opt;
                 quote!(<#ffi_ty as #package::#interface<#ty>>::#method(#expr))
             }
             Self::CastConversionExprTokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr, ..) =>

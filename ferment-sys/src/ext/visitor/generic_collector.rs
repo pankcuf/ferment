@@ -29,7 +29,7 @@ impl GenericCollector for Signature {}
 
 impl GenericCollector for Type {
     fn collect_to(&self, generics: &mut HashSet<Type>) {
-        let result = match self {
+        match self {
             Type::Path(TypePath { path, .. }) => {
                 path.collect_to(generics);
                 if path.segments
@@ -58,8 +58,7 @@ impl GenericCollector for Type {
                 elem.collect_to(generics);
             },
             _ => {}
-        };
-        result
+        }
     }
 }
 impl GenericCollector for Path {
@@ -81,7 +80,9 @@ impl GenericCollector for AddPunctuated<TypeParamBound> {
 
 impl GenericCollector for TypeParamBound {
     fn collect_to(&self, generics: &mut HashSet<Type>) {
-        self.maybe_trait_bound().map(|trait_bound| trait_bound.collect_to(generics));
+        if let Some(trait_bound) = self.maybe_trait_bound() {
+            trait_bound.collect_to(generics)
+        }
     }
 }
 

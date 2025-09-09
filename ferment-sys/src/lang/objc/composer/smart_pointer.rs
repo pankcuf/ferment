@@ -8,7 +8,7 @@ use crate::lang::{FromDictionary, Specification};
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCSpecification;
 use crate::presentable::{Expression, SmartPointerPresentableContext};
-use crate::presentation::{DictionaryExpr, DictionaryName};
+use crate::presentation::DictionaryName;
 
 impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
     type Source = ScopeContext;
@@ -65,7 +65,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
             .compose(source);
         let to_arg_conversion = <ObjCSpecification as Specification>::value_ref_expr_to(&arg_0_name, &arg_ty, self.kind.wrap_arg_to(root_arg_expr))
             .compose(source);
-        let ctor_to_arg_expr = self.root_kind.wrap_alloc::<ObjCSpecification, DictionaryExpr>(
+        let ctor_to_arg_expr = self.root_kind.wrap_alloc::<ObjCSpecification>(
             Expression::new_smth(
                 self.kind.is_once_lock()
                     .then(|| Expression::Empty)

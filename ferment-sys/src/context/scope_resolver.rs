@@ -1,10 +1,9 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use syn::{Path, Type};
 use crate::context::{ScopeChain, ScopeSearchKey, TypeChain};
 use crate::kind::ObjectKind;
-use crate::ext::{LifetimeProcessor, RefineMut};
+use crate::ext::LifetimeProcessor;
 use crate::formatter::types_dict;
 
 pub type ScopeRefinement = Vec<(ScopeChain, HashMap<Type, ObjectKind>)>;
@@ -34,19 +33,13 @@ impl ScopeResolver {
 
     pub(crate) fn maybe_scope(&self, path: &Path) -> Option<&ScopeChain> {
         self.inner.keys()
-            .find_map(|scope_chain| path.eq(scope_chain.self_path_ref()).then_some(scope_chain))
+            .find(|scope_chain| path.eq(scope_chain.self_path_ref()))
     }
     pub(crate) fn maybe_first_obj_scope(&self, path: &Path) -> Option<&ScopeChain> {
         let mut scopes = self.inner.keys()
             .filter(|scope_chain| path.eq(scope_chain.self_path_ref()))
             .collect::<Vec<_>>();
-        scopes.sort_by(|c1, c2| if c1.obj_scope_priority() == c2.obj_scope_priority() {
-            Ordering::Equal
-        } else if c1.obj_scope_priority() < c2.obj_scope_priority() {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        });
+        scopes.sort_by_key(|c2| std::cmp::Reverse(c2.obj_scope_priority()));
         scopes.first().cloned()
     }
     pub fn type_chain_mut(&mut self, scope: &ScopeChain) -> &mut TypeChain {
@@ -60,7 +53,7 @@ impl ScopeResolver {
                     chain.get(ty)
                         .or_else(|| chain.get(&ty.lifetimes_cleaned()))))
     }
-    pub fn maybe_object_ref_by_value<'a>(&'a self, search_key: ScopeSearchKey) -> Option<&'a ObjectKind> {
+    pub fn maybe_object_ref_by_value(&self, search_key: ScopeSearchKey) -> Option<&ObjectKind> {
         self.inner.values()
             .find_map(|chain|
                 search_key.find(|ty|
@@ -77,14 +70,3 @@ impl ScopeResolver {
     }
 }
 
-impl RefineMut for ScopeResolver {
-    type Refinement = ScopeRefinement;
-
-    fn refine_with(&mut self, refined: Self::Refinement) {
-        refined.into_iter()
-            .for_each(|(scope, updates)|
-                self.type_chain_mut(&scope)
-                    .add_many(updates.into_iter())
-            );
-    }
-}

@@ -70,12 +70,12 @@ impl CustomResolver {
             Type::Path(TypePath { path, .. }) => {
                 replace_segments(path)
             },
-            Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.iter_mut().for_each(|bound| {
-                bound.maybe_trait_bound_mut().map(|TraitBound { path, .. }| replace_segments(path));
+            Type::TraitObject(TypeTraitObject { bounds, .. }) => bounds.iter_mut().for_each(|bound| if let Some(TraitBound { path, .. }) = bound.maybe_trait_bound_mut() {
+                replace_segments(path)
             }),
             _ => {}
         }
-        replaced.then(|| custom_type)
+        replaced.then_some(custom_type)
     }
 
 }

@@ -114,7 +114,7 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                             let (expr_kind, ffi_type) = match FFISpecialTypeResolve::<SPEC>::maybe_special_type(&nested_ty, source) {
                                 Some(SpecialType::Custom(custom_ty)) => (ConversionExpressionKind::ComplexOpt, custom_ty),
                                 Some(SpecialType::Opaque(opaque_ty)) => (ConversionExpressionKind::PrimitiveOpt, opaque_ty),
-                                _ => (nested_ty_kind.is_primitive().then_some(ConversionExpressionKind::PrimitiveOpt).unwrap_or(ConversionExpressionKind::ComplexOpt), ffi_type)
+                                _ => (if nested_ty_kind.is_primitive() { ConversionExpressionKind::PrimitiveOpt } else { ConversionExpressionKind::ComplexOpt }, ffi_type)
                             };
                             Expression::cast_to(field_path, expr_kind, ffi_type, nested_ty)
                         }

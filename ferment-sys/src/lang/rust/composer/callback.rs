@@ -91,7 +91,7 @@ impl SourceComposable for CallbackComposer<RustSpecification> {
             .for_each(|(index, ty)| {
                 let name = Name::UnnamedArg(index);
                 lifetimes.extend(ty.unique_lifetimes());
-                args.push(ArgPresentation::inherited_field(&vec![], name.mangle_ident_default(), ty.clone()));
+                args.push(ArgPresentation::inherited_field(&[], name.mangle_ident_default(), ty.clone()));
                 ffi_args.push(bare_fn_arg(VarComposer::<RustSpecification>::value(ty).compose(source).to_type()));
                 arg_to_conversions.push(ConversionToComposer::<RustSpecification>::value(name, ty).compose(source).present(source));
             });

@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::fmt::Formatter;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 use syn::{Attribute, Item, ItemType, parse_quote, Path, TraitBound, Type, TypeBareFn, TypePath, TypeTraitObject, ItemTrait};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composable::TraitModelPart1;
@@ -17,7 +16,7 @@ pub type ScopeContextLink = ComposerLink<ScopeContext>;
 #[derive(Clone)]
 pub struct ScopeContext {
     pub scope: ScopeChain,
-    pub context: Arc<RwLock<GlobalContext>>
+    pub context: Rc<RefCell<GlobalContext>>
 }
 
 impl std::fmt::Debug for ScopeContext {
@@ -40,29 +39,29 @@ impl ScopeContext {
         print_phase!(message, "{}", self);
     }
     pub fn is_from_current_crate(&self) -> bool {
-        let context = self.context.read().unwrap();
+        let context = self.context.borrow();
         context.config.current_crate.ident().eq(self.scope.crate_ident_ref())
     }
-    pub fn with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Self {
+    pub fn with(scope: ScopeChain, context: Rc<RefCell<GlobalContext>>) -> Self {
         Self { scope, context }
     }
-    pub fn cell_with(scope: ScopeChain, context: Arc<RwLock<GlobalContext>>) -> Rc<RefCell<Self>> {
+    pub fn cell_with(scope: ScopeChain, context: Rc<RefCell<GlobalContext>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self::with(scope, context)))
     }
     pub fn add_custom_conversion(&self, scope: ScopeChain, custom_type: Type, ffi_type: Type) {
         // Here we don't know about types in pass 1, we can only use imports
-        let mut lock = self.context.write().unwrap();
+        let mut lock = self.context.borrow_mut();
         lock.custom.add_conversion(custom_type, ObjectKind::unknown_type(ffi_type), scope);
     }
 
     pub fn maybe_custom_conversion(&self, ty: &Type) -> Option<Type> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.custom.maybe_type(ty)
     }
 
     pub fn maybe_fn_sig(&self, full_ty: &Type) -> Option<TypeBareFn> {
         let scope_item = match full_ty {
-            Type::Path(TypePath { path, .. }) => self.maybe_scope_item_obj_first(&path),
+            Type::Path(TypePath { path, .. }) => self.maybe_scope_item_obj_first(path),
             _ => None,
         };
         match scope_item {
@@ -84,7 +83,7 @@ impl ScopeContext {
         match &self.scope.parent_object() {
             Some(ObjectKind::Type(ref ty_model_kind) | ObjectKind::Item(ref ty_model_kind, ..)) => {
                 self.scope.parent_scope().map(|parent_scope| {
-                    let context = self.context.read().unwrap();
+                    let context = self.context.borrow();
                     context.maybe_scope_ref_obj_first(parent_scope.self_path_ref())
                         .and_then(|parent_obj_scope| context.maybe_object_ref_by_tree_key(ty_model_kind.as_type(), parent_obj_scope)
                             .and_then(ObjectKind::maybe_type))
@@ -139,7 +138,7 @@ impl ScopeContext {
     }
 
     pub fn maybe_scope_item_obj_first(&self, path: &Path) -> Option<ScopeItemKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.maybe_scope_item_ref_obj_first(path).cloned()
     }
     pub fn maybe_opaque_object<SPEC>(&self, ty: &Type) -> Option<Type>
@@ -177,25 +176,25 @@ impl ScopeContext {
     }
 
     pub fn maybe_object_by_key(&self, ty: &Type) -> Option<ObjectKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         let result = lock.maybe_object_ref_by_tree_key(ty, &self.scope).cloned();
         result
     }
 
     pub fn maybe_object_ref_by_key_in_scope(&self, search_key: &ScopeSearchKey, scope: &ScopeChain) -> Option<ObjectKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         let result = lock.scope_register.maybe_object_ref_by_key_in_scope(search_key.clone(), scope);
         result.cloned()
     }
 
     pub fn maybe_object_ref_by_value(&self, search_key: &ScopeSearchKey) -> Option<ObjectKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         let result = lock.scope_register.maybe_object_ref_by_value(search_key.clone());
         result.cloned()
     }
 
     pub fn maybe_object_by_value(&self, ty: &Type) -> Option<ObjectKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         let result = lock.maybe_object_ref_by_value(ty).cloned();
         result
     }
@@ -213,12 +212,12 @@ impl ScopeContext {
     }
 
     pub fn maybe_type_model_kind(&self, ty: &Type) -> Option<TypeModelKind> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.maybe_type_model_kind_ref_by_key(ty, &self.scope).cloned()
     }
 
     pub fn full_type_for(&self, ty: &Type) -> Type {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         let full_ty = lock.maybe_object_ref_by_tree_key(ty, &self.scope)
             .and_then(ObjectKind::maybe_type)
             .unwrap_or_else(|| ty.clone());
@@ -227,7 +226,7 @@ impl ScopeContext {
 
 
     pub fn scope_type_for_path(&self, path: &Path) -> Option<Type> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.scope_register.scope_key_type_for_path(path, &self.scope)
     }
 
@@ -239,12 +238,12 @@ impl ScopeContext {
     }
 
     pub fn maybe_trait_scope_pair(&self, trait_name: &Type) -> Option<(TraitModelPart1, ScopeChain)> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.maybe_trait_scope_pair(trait_name, &self.scope)
     }
 
     pub fn maybe_item_trait(&self, trait_path: &Path) -> Option<ItemTrait> {
-        let lock = self.context.read().unwrap();
+        let lock = self.context.borrow();
         lock.maybe_item_trait(trait_path)
     }
 }

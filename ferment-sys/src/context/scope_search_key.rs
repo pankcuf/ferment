@@ -106,16 +106,10 @@ impl ScopeSearchKey {
         self.maybe_ref().is_some()
     }
     pub fn is_mut_ref(&self) -> bool {
-        match self {
-            ScopeSearchKey::Type(Type::Reference(TypeReference { mutability: Some(_), .. }), ..) => true,
-            _ => false
-        }
+        matches!(self, ScopeSearchKey::Type(Type::Reference(TypeReference { mutability: Some(_), .. }), ..))
     }
     pub fn is_dyn(&self) -> bool {
-        match self {
-            ScopeSearchKey::Type(Type::TraitObject(TypeTraitObject { .. }), ..) => true,
-            _ => false
-        }
+        matches!(self, ScopeSearchKey::Type(Type::TraitObject(TypeTraitObject { .. }), ..))
     }
 }
 

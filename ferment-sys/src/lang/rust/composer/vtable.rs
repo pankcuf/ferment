@@ -93,7 +93,7 @@ impl SourceComposable for VTableComposer<RustSpecification> {
                 });
             });
         let name = Name::<RustSpecification>::TraitImplVtable(ffi_aspect.mangle_ident_default(), trait_ty.mangle_ident_default());
-        let full_trait_path: FFIFullPath<RustSpecification> = trait_ty.resolve(&source);
+        let full_trait_path: FFIFullPath<RustSpecification> = trait_ty.resolve(source);
         let full_trait_type = full_trait_path.to_type();
         let mut fq_trait_vtable = full_trait_type.to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);

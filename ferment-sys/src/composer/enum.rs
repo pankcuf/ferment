@@ -41,7 +41,7 @@ impl<SPEC> EnumComposer<SPEC>
             .iter()
             .map(|Variant { attrs, ident: variant_name, fields, discriminant, .. }| {
                 let ty_context = ty_context.join_variant(target_name.clone(), variant_name.clone(), attrs.cfg_attributes());
-                let ffi_aspect = Aspect::FFI(ty_context.clone());
+                let ffi_aspect = Aspect::Ffi(ty_context.clone());
                 let (variant_composer, fields_context): (VariantComposerRef<SPEC>, CommaPunctuatedArgKinds<SPEC>) = match discriminant {
                     Some((_, expr)) => (
                         SeqKind::unit_fields,

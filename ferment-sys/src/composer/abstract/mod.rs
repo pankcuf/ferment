@@ -28,25 +28,13 @@ pub use self::var_composable::*;
 pub trait MaybeMacroLabeled {
     fn maybe_macro_labeled(&self) -> Option<MacroKind>;
     fn is_labeled_for_export(&self) -> bool {
-        if let Some(MacroKind::Export) = self.maybe_macro_labeled() {
-            true
-        } else {
-            false
-        }
+        matches!(self.maybe_macro_labeled(), Some(MacroKind::Export))
     }
     fn is_labeled_for_opaque_export(&self) -> bool {
-        if let Some(MacroKind::Opaque) = self.maybe_macro_labeled() {
-            true
-        } else {
-            false
-        }
+        matches!(self.maybe_macro_labeled(), Some(MacroKind::Opaque))
     }
     fn is_labeled_for_register(&self) -> bool {
-        if let Some(MacroKind::Register(_)) = self.maybe_macro_labeled() {
-            true
-        } else {
-            false
-        }
+        matches!(self.maybe_macro_labeled(), Some(MacroKind::Register(_)))
     }
 
 }

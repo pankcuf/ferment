@@ -7,6 +7,7 @@ use crate::ast::Depunctuated;
 use crate::composer::SourceAccessible;
 use crate::context::ScopeContextLink;
 use crate::ext::RefineUnrefined;
+// use crate::ext::refine;
 use crate::tree::ScopeTree;
 use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTreeExportItem};
 
@@ -45,7 +46,10 @@ impl CrateTree {
                 // current_tree.print_scope_tree_with_message("PHASE 2: CRATE TREE CONTEXT");
                 let global_context = current_tree.scope_context.borrow().context.clone();
                 print_phase!("PHASE 3: CRATE TREE REFINEMENT", "");
-                global_context.write().unwrap().refine();
+                {
+                    let mut context = global_context.borrow_mut();
+                    context.refine();
+                }
                 let generics_tree = create_generics_scope_tree(&current_tree.scope, global_context);
                 current_tree.print_scope_tree_with_message("PHASE 3: CRATE TREE REFINED CONTEXT");
                 let directives = quote!(#[allow(clippy::let_and_return, clippy::suspicious_else_formatting, clippy::redundant_field_names, dead_code, non_camel_case_types, non_snake_case, non_upper_case_globals, redundant_semicolons, unreachable_patterns, unused_braces, unused_imports, unused_parens, unused_qualifications, unused_unsafe, unused_variables)]);

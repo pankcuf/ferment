@@ -1,6 +1,7 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, RwLock};
+use std::rc::Rc;
 use indexmap::IndexMap;
 use proc_macro2::Ident;
 use quote::format_ident;
@@ -41,7 +42,7 @@ impl SourceAccessible for ScopeTree {
 
 
 #[allow(unused)]
-pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Arc<RwLock<GlobalContext>>) -> ScopeTree {
+pub fn create_generics_scope_tree(root_scope_chain: &ScopeChain, global_context: Rc<RefCell<GlobalContext>>) -> ScopeTree {
     let rename =  root_scope_chain.crate_ident();
     let generics_scope_ident = format_ident!("generics");
     let generics_scope_chain = ScopeChain::r#mod(

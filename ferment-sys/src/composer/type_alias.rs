@@ -26,8 +26,8 @@ impl<SPEC, I> TypeAliasComposer<SPEC, I>
           ItemComposer<SPEC, I>: NameKindComposable {
     pub(crate) fn new(
         ty_context: SPEC::TYC,
-        attrs: &Vec<Attribute>,
-        lifetimes: &Vec<Lifetime>,
+        attrs: &[Attribute],
+        lifetimes: &[Lifetime],
         generics: &Generics,
         fields: &CommaPunctuatedFields,
         context: &ScopeContextLink,
@@ -36,7 +36,7 @@ impl<SPEC, I> TypeAliasComposer<SPEC, I>
             composer: ItemComposer::new::<Self>(
                 ty_context,
                 AttrsModel::from(attrs),
-                lifetimes.clone(),
+                lifetimes.to_owned(),
                 Some(generics.clone()),
                 fields,
                 context)

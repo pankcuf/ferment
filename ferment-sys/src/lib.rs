@@ -1,3 +1,4 @@
+#![allow(clippy::declare_interior_mutable_const)]
 mod ast;
 mod builder;
 mod composable;

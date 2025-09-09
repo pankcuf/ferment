@@ -34,9 +34,8 @@ impl GenericNestedArg for Type {
             Type::Path(type_path) => {
                 let mut vec = Vec::<&Type>::new();
                 if let Some(PathSegment { arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }), .. }) = type_path.path.segments.last() {
-                    args.iter().for_each(|arg| match arg {
-                        GenericArgument::Type(ty) => vec.push(ty),
-                        _ => {}
+                    args.iter().for_each(|arg| if let GenericArgument::Type(ty) = arg {
+                        vec.push(ty);
                     });
                 }
                 vec

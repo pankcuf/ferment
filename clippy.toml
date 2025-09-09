@@ -1,0 +1,11 @@
+# Minimal Clippy configuration for the workspace.
+
+# Set MSRV if you want Clippy to respect older language features.
+# Uncomment and adjust if needed:
+# msrv = "1.75.0"
+
+# Loosen thresholds a bit to reduce noise on complex codegen/AST code.
+cognitive-complexity-threshold = 40
+too-many-arguments-threshold = 12
+type-complexity-threshold = 350
+

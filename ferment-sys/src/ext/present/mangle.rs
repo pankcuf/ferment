@@ -165,9 +165,9 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
         if let Type::Path(type_path) = &*self.elem {
             let mangled_type_path = type_path.mangle_string(context);
             if is_map || is_result {
-                format!("{mangled_type_path}_arr_{}", self.len.to_token_stream().to_string())
+                format!("{mangled_type_path}_arr_{}", self.len.to_token_stream())
             } else {
-                format!("{mangled_type_path}_{}", self.len.to_token_stream().to_string())
+                format!("{mangled_type_path}_{}", self.len.to_token_stream())
             }
         } else {
             String::default()
@@ -279,7 +279,7 @@ impl Mangle<MangleDefault> for Lifetime {
 
 impl Mangle<MangleDefault> for PreciseCapture {
     fn mangle_string(&self, context: MangleDefault) -> String {
-        self.params.iter().map(|p| p.mangle_string(context.clone())).collect::<Vec<_>>().join("_")
+        self.params.iter().map(|p| p.mangle_string(context)).collect::<Vec<_>>().join("_")
     }
 }
 impl Mangle<MangleDefault> for CapturedParam {

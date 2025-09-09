@@ -6,9 +6,6 @@ pub trait ItemHelper {
 
 impl ItemHelper for Item {
     fn is_mod(&self) -> bool {
-        match self {
-            Item::Mod(_) => true,
-            _ => false,
-        }
+        matches!(self, Item::Mod(_))
     }
 }

@@ -226,7 +226,7 @@ pub fn merge_attributes(attrs: &HashSet<Option<Attribute>>) -> CommaPunctuated<M
                     parsed.iter().for_each(|meta| all_conditions.extend(CfgMacroType::from_meta(meta)))
                 }
                 meta =>
-                    all_conditions.extend(CfgMacroType::from_meta(&meta))
+                    all_conditions.extend(CfgMacroType::from_meta(meta))
             }
             _ => {}
         });

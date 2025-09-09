@@ -20,7 +20,7 @@ impl Aspect<TypeContext> {
                     #aspect_presentation #fields_presentation
                 }
             }
-            Aspect::FFI(_context) | Aspect::RawTarget(_context) => {
+            Aspect::Ffi(_context) | Aspect::RawTarget(_context) => {
                 let fields_presentation = TokenTree::Group(Group::new(I::delimiter(), fields.content.present(source).to_token_stream()));
                 quote! {
                     #aspect_presentation #fields_presentation

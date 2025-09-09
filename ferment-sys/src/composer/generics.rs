@@ -42,7 +42,7 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
         SPEC::Gen::from_generics(self.generics.generics.as_ref().map(|generics| {
             let mut g = generics.clone();
             let update_bound = |type_path: &Type, bounds: &mut AddPunctuated<TypeParamBound>| {
-                let lock = context.context.read().unwrap();
+                let lock = context.context.borrow();
                 if let Some(refined_bounds) = lock.generics.maybe_generic_bounds(&context.scope, type_path) {
                     bounds.iter_mut()
                         .zip(refined_bounds)
@@ -51,16 +51,12 @@ impl<SPEC, Link> SourceComposable for GenericsComposer<SPEC, Link>
                         });
                 }
             };
-            g.params.iter_mut().for_each(|gp| match gp {
-                GenericParam::Type(TypeParam { ident, bounds, .. }) =>
-                    update_bound(&ident.to_type(), bounds),
-                _ => {},
+            g.params.iter_mut().for_each(|gp| if let GenericParam::Type(TypeParam { ident, bounds, .. }) = gp {
+                update_bound(&ident.to_type(), bounds)
             });
             if let Some(ref mut wh) = g.where_clause {
-                wh.predicates.iter_mut().for_each(|wp| match wp {
-                    WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) =>
-                        update_bound(&bounded_ty, bounds),
-                    _ => {}
+                wh.predicates.iter_mut().for_each(|wp| if let WherePredicate::Type(PredicateType { bounded_ty, bounds, .. }) = wp {
+                    update_bound(bounded_ty, bounds)
                 })
             }
             g

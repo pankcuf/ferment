@@ -22,7 +22,7 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
             Self::DictionaryExpr(expr) =>
                 expr.to_token_stream(),
             Self::InterfacesExpr(expr) => expr.to_token_stream(),
-            Self::MapExpression(presentable, mapper) =>
+            Self::MapExpr(presentable, mapper) =>
                 DictionaryExpr::mapper(presentable.present(source), mapper.present(source)).to_token_stream(),
             Self::DestroyString(presentable, _path) => {
                 let expr = presentable.present(source);
@@ -127,11 +127,11 @@ impl ScopeContextPresentable for Expression<ObjCSpecification> {
 
                 //[DSArr_u8_96 ffi_from:ffi_ref->o_0];
 
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFrom, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::Mut, expr.to_token_stream()))
                     .present(source)
             },
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr) =>
-                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::FfiFromOpt, expr.to_token_stream()))
+                Self::InterfacesExpr(InterfacesMethodExpr::FFIConversionFrom(FFIConversionFromMethod::Opt, expr.to_token_stream()))
                     .present(source),
             Self::ConversionExprTokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr) =>
                 Self::InterfacesExpr(InterfacesMethodExpr::FromComplexGroup(expr.to_token_stream()))

@@ -106,11 +106,11 @@ impl RustFermentate {
     pub fn mod_with(attrs: Vec<Attribute>, name: TokenStream2, imports: SemiPunctuated<ItemUse>, conversions: Depunctuated<RustFermentate>) -> Self {
         Self::Mod { attrs, name, imports, conversions }
     }
-    pub fn types(attrs: &Vec<Attribute>, conversions: Depunctuated<RustFermentate>) -> Self {
-        Self::mod_with(attrs.clone(), quote!(types), SemiPunctuated::new(), conversions)
+    pub fn types(attrs: &[Attribute], conversions: Depunctuated<RustFermentate>) -> Self {
+        Self::mod_with(attrs.to_owned(), quote!(types), SemiPunctuated::new(), conversions)
     }
-    pub fn generics(attrs: &Vec<Attribute>, imports: SemiPunctuated<ItemUse>, conversions: Depunctuated<RustFermentate>) -> Self {
-        Self::mod_with(attrs.clone(), quote!(generics), imports, conversions)
+    pub fn generics(attrs: &[Attribute], imports: SemiPunctuated<ItemUse>, conversions: Depunctuated<RustFermentate>) -> Self {
+        Self::mod_with(attrs.to_owned(), quote!(generics), imports, conversions)
     }
 }
 

@@ -6,9 +6,10 @@ mod presentation;
 mod tree;
 mod writer;
 
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::rc::Rc;
 use cargo_metadata::{MetadataCommand, Package, Target};
 use proc_macro2::Ident;
 use quote::format_ident;
@@ -42,7 +43,7 @@ impl Crate {
         self.root_path.join("lib.rs")
     }
 
-    pub fn process(&self, attrs: Vec<Attribute>, context: &Arc<RwLock<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
+    pub fn process(&self, attrs: Vec<Attribute>, context: &Rc<RefCell<GlobalContext>>) -> Result<ScopeTreeExportItem, error::Error> {
         FileTreeProcessor::process_crate_tree(self, attrs, context)
     }
 }

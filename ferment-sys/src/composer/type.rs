@@ -5,7 +5,7 @@ use crate::shared::SharedAccess;
 #[allow(dead_code)]
 pub enum FFIAspect {
     Target,
-    FFI,
+    Ffi,
 }
 
 pub struct TypeComposer<Link, TYC>

@@ -103,7 +103,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                         )
                     } else {
                         (
-                            Expression::from_primitive(Expression::<RustSpecification>::FfiRefWithName(arg_0_name.clone()).into()),
+                            Expression::from_primitive(Expression::<RustSpecification>::FfiRefWithName(arg_0_name.clone())),
                             Some(Expression::ffi_to_primitive_tokens(to_expr)),
                             Expression::destroy_primitive_tokens(DictionaryExpr::self_prop(&arg_0_name))
                         )
@@ -116,7 +116,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
                 ),
                 TypeModelKind::Dictionary(DictTypeModelKind::NonPrimitiveFermentable(kind)) => match kind {
                     DictFermentableModelKind::SmartPointer(SmartPointerModelKind::Box(..)) => (
-                        Expression::from_complex_opt(Expression::FfiRefWithName(arg_0_name.clone()).into()),
+                        Expression::from_complex_opt(Expression::FfiRefWithName(arg_0_name.clone())),
                         Some(Expression::ffi_to_complex_opt_tokens(to_expr)),
                         Expression::destroy_complex_opt_tokens(DictionaryExpr::self_prop(&arg_0_name))
                     ),

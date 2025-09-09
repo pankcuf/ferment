@@ -21,7 +21,7 @@ pub trait Accessory: ToTokens {
 #[macro_export]
 macro_rules! impl_accessory {
     ($ty:ty) => {
-        impl crate::ext::Accessory for $ty {
+        impl $crate::ext::Accessory for $ty {
             fn joined_mut(&self) -> Self {
                 parse_quote!(*mut #self)
             }

@@ -46,7 +46,7 @@ impl<SPEC> ItemComposerWrapper<SPEC>
     pub fn r#enum(item_enum: &ItemEnum, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
         ItemComposerWrapper::<SPEC>::Enum(EnumComposer::<SPEC>::new(item_enum, ty_context, context))
     }
-    pub fn variant(fields: &Fields, ty_context: SPEC::TYC, attrs: &Vec<Attribute>, context: &ScopeContextLink) -> Self {
+    pub fn variant(fields: &Fields, ty_context: SPEC::TYC, attrs: &[Attribute], context: &ScopeContextLink) -> Self {
         match fields {
             Fields::Unit =>
                 ItemComposerWrapper::EnumVariantUnit(EnumVariantComposer::<SPEC, Void>::new(ty_context, attrs, &Punctuated::new(), context)),
@@ -60,11 +60,11 @@ impl<SPEC> ItemComposerWrapper<SPEC>
         let ItemStruct { attrs, fields: ref f, generics, .. } = item_struct;
         match f {
             Fields::Unnamed(ref fields) =>
-                ItemComposerWrapper::StructUnnamed(StructComposer::<SPEC, Paren>::new(ty_context, attrs, &vec![], generics, &fields.unnamed, context)),
+                ItemComposerWrapper::StructUnnamed(StructComposer::<SPEC, Paren>::new(ty_context, attrs, &[], generics, &fields.unnamed, context)),
             Fields::Named(ref fields) =>
-                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &vec![], generics, &fields.named, context)),
+                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &[], generics, &fields.named, context)),
             Fields::Unit =>
-                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &vec![], generics, &Punctuated::new(), context)),
+                ItemComposerWrapper::StructNamed(StructComposer::<SPEC, Brace>::new(ty_context, attrs, &[], generics, &Punctuated::new(), context)),
         }
     }
     pub fn opaque_struct(item_struct: &ItemStruct, ty_context: SPEC::TYC, context: &ScopeContextLink) -> Self {
@@ -84,10 +84,10 @@ impl<SPEC> ItemComposerWrapper<SPEC>
     }
 
     pub fn callback(item_type: &ItemType, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Self {
-        Self::Sig(SigComposer::from_type_bare_fn(ty_context, &item_type.generics, &vec![], &item_type.attrs, scope_context))
+        Self::Sig(SigComposer::from_type_bare_fn(ty_context, &item_type.generics, &[], &item_type.attrs, scope_context))
     }
     pub fn type_alias(item_type: &ItemType, ty_context: SPEC::TYC, scope_context: &ScopeContextLink) -> Self {
-        Self::TypeAlias(TypeAliasComposer::new(ty_context, &item_type.attrs, &vec![], &item_type.generics, &crate::ast::pub_unnamed_field(*item_type.ty.clone()).punctuate_one(), scope_context))
+        Self::TypeAlias(TypeAliasComposer::new(ty_context, &item_type.attrs, &[], &item_type.generics, &crate::ast::pub_unnamed_field(*item_type.ty.clone()).punctuate_one(), scope_context))
     }
 
     pub fn compose_aspect(&self, aspect: FFIAspect) -> SeqKind<SPEC> {

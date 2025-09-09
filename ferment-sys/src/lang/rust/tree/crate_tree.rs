@@ -12,8 +12,7 @@ impl SourceFermentable<RustFermentate> for CrateTree {
         let generic_imports = SemiPunctuated::from_iter(imported.iter().cloned());
         let generic_conversions = Depunctuated::from_iter(
             source.context
-                .read()
-                .unwrap()
+                .borrow()
                 .refined_mixins
                 .iter()
                 .filter_map(|mixin_context| GenericComposer::<RustSpecification>::mixin(mixin_context, self.context()))

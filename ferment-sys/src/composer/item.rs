@@ -154,7 +154,7 @@ impl<SPEC, I> BindingComposable<SPEC> for ItemComposer<SPEC, I>
         self.bindings_composer
             .as_ref()
             .map(|c| c.compose(&source))
-            .unwrap_or_else(|| Depunctuated::new())
+            .unwrap_or_default()
     }
 }
 
