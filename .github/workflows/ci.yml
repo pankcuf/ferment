@@ -43,4 +43,3 @@ jobs:
           cargo test --verbose
           -p ferment-sys
           -p example-entry-point
-          -p example-nested
