@@ -7,7 +7,7 @@ use syn::{Attribute, Generics, parse_quote, Path, Type, PathSegment};
 use crate::composable::CfgAttributes;
 use crate::context::{GenericChain, Scope, ScopeInfo};
 use crate::kind::{ObjectKind, TypeModel};
-use crate::ext::{CRATE, ResolveAttrs, ToPath, ToType, Join, GenericBoundKey, PathTransform, CrateBased};
+use crate::ext::{CRATE, ResolveAttrs, ToPath, ToType, Join, GenericBoundKey, CrateBased};
 use crate::formatter::{format_attrs, format_token_stream};
 
 
@@ -233,12 +233,9 @@ impl ScopeChain {
     }
 
     pub fn joined_path(&self, ident: &Ident) -> Path {
-        let scope = self.self_path_ref();
-        let mut full_fn_path = scope.joined(ident);
-        if scope.is_crate_based() {
-            full_fn_path.replace_first_with(&self.crate_ident_ref().to_path())
-        }
-        full_fn_path
+        self.self_path_ref()
+            .joined(ident)
+            .crate_named(&self.crate_ident_as_path())
     }
 
     pub fn self_path_ref(&self) -> &Path {

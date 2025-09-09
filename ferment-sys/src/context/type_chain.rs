@@ -69,12 +69,10 @@ impl TypeChain {
     }
     pub fn get_by_path(&self, path: &Path) -> Option<Type> {
         self.inner.iter()
-            .find_map(|(other, full_type)| {
-                if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
-                    full_type.maybe_type()
-                } else {
-                    None
-                }
+            .find_map(|(other, full_type)| if path.to_token_stream().to_string().eq(other.to_token_stream().to_string().as_str()) {
+                full_type.maybe_type()
+            } else {
+                None
             })
     }
     pub fn add_one(&mut self, holder: Type, object: ObjectKind) {

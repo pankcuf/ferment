@@ -9,13 +9,13 @@ pub trait MergePolicy<K, V>: Clone + Copy + Sized {
     fn apply(&self, o: OccupiedEntry<K, V>, object: V);
 }
 
-#[derive(Copy, Clone)]
-pub struct DefaultMergePolicy;
-impl<K, V> MergePolicy<K, V> for DefaultMergePolicy {
-    fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
-        o.insert(object);
-    }
-}
+// #[derive(Copy, Clone)]
+// pub struct DefaultMergePolicy;
+// impl<K, V> MergePolicy<K, V> for DefaultMergePolicy {
+//     fn apply(&self, mut o: OccupiedEntry<K, V>, object: V) {
+//         o.insert(object);
+//     }
+// }
 
 pub trait ValueReplaceScenario: Debug + Display {
     fn should_replace_with(&self, other: &Self) -> bool;

@@ -1,6 +1,6 @@
 mod r#abstract;
 mod args_transform;
-mod collection;
+// mod collection;
 mod constraints;
 mod generic_bound_key;
 mod maybe_attrs;
@@ -36,11 +36,11 @@ pub use self::visitor::*;
 pub trait CrateBased {
     fn is_crate_based(&self) -> bool;
     fn crate_named(&self, crate_name: &Self) -> Self where Self: Sized + Clone + PathTransform {
-        if self.is_crate_based() {
-            self.replaced_first_with(crate_name)
-        } else {
-            self.clone()
+        let mut replaced = self.clone();
+        if replaced.is_crate_based() {
+            replaced.replace_first_with(crate_name);
         }
+        replaced
     }
 
 }

@@ -15,19 +15,16 @@ impl ReexportSeek {
         match self {
             ReexportSeek::Absolute => if let Some(PathSegment { ident, .. }) = import_path.segments.first() {
                 match (ident.to_string().as_str(), chunk) {
-                    (CRATE, Some(chunk_ref)) =>
-                        merge_reexport_chunks(Colon2Punctuated::from_iter(import_path.replaced_first_with(&crate_name.to_path())
-                            .segments
-                            .into_iter()
-                            .skip(scope_path.segments.len()))
-                                                  .to_path(), chunk_ref),
-                    (CRATE, None) =>
-                        Colon2Punctuated::from_iter(import_path.segments
-                            .replaced_first_with(&crate_name.to_segments())
-                            .iter()
-                            .skip(scope_path.segments.len())
-                            .cloned())
-                            .to_path(),
+                    (CRATE, Some(chunk_ref)) => {
+                        let mut replaced = import_path.clone();
+                        replaced.replace_first_with(&crate_name.to_path());
+                        merge_reexport_chunks(Colon2Punctuated::from_iter(replaced.segments.into_iter().skip(scope_path.segments.len())).to_path(), chunk_ref)
+                    },
+                    (CRATE, None) => {
+                        let mut replaced = import_path.to_segments();
+                        replaced.replace_first_with(&crate_name.to_segments());
+                        Colon2Punctuated::from_iter(replaced.into_iter().skip(scope_path.segments.len())).to_path()
+                    },
                     (SELF, _) =>
                         Colon2Punctuated::from_iter(import_path.segments
                             .iter()
