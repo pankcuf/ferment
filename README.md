@@ -1,19 +1,19 @@
 # ferment
 Syntax-tree morphing tool for FFI (work in progress)
 
-Allows to generate an FFI-compliant equivalent for rust types (structures, enums, types, functions).
+Generates FFI-compliant equivalents for Rust items (structs, enums, type aliases, functions) and for traits (vtable + trait objects, with per-implementor shims).
 
 The project is a rust-workspace consisting several crates:
 1. `ferment`: A traits that provide conversion methods from/to FFI-compatible types and some helper functions and structures
 2. `ferment-sys`: a tool for morphing FFI-compatible syntax trees that uses the power of the `syn` crate.
-3. `ferment-macro`: a procedural macro that just catch target code as syn-based item.
+3. `ferment-macro`: a procedural macro that captures target code as a syn item.
 4. `ferment-example`: provides example of usage.
 
 A procedural macro consists of 2 macros:
 
 1. `export` - for structures / enums / functions / types
 2. `register` - for custom-defined conversions
-3. `opaque` - for opaque pointers (deprecated: now every object considered as opaque by default)
+3. `opaque` - deprecated (objects are considered opaque by default)
 
 **Usage**
 
@@ -46,12 +46,15 @@ fn main() {
         ])
         .with_languages(vec![
             #[cfg(feature = "objc")]
-            ferment_sys::Lang::ObjC(ferment_sys::ObjC::new(ferment_sys::XCodeConfig {
-                class_prefix: "DS".to_string(),
-                framework_name: "DSExampleNested".to_string(),
-                header_name: SELF_NAME.to_string()
-            }
-            )),
+            ferment_sys::Lang::ObjC(
+                ferment_sys::ObjC::new(
+                    ferment_sys::XCodeConfig::new(
+                        "DS",                 // class prefix
+                        "DSExampleNested",    // framework name
+                        SELF_NAME              // header (module) name
+                    )
+                )
+            ),
         ])
         .generate() {
         Ok(_) => println!("[ferment] [ok]: {SELF_NAME}"),
@@ -78,9 +81,9 @@ pub enum ChainType {
     DevNet(DevnetType)
 }
 ```
-This will expose bindings for trait methods for particular types
+This exposes vtable + trait object and per-implementor shims so you can call trait methods through FFI.
 
-For the structure labeled with `ferment_macro::export`
+For a structure labeled with `ferment_macro::export`
 
 ```rust
 #[derive(Clone)]
@@ -172,7 +175,7 @@ pub unsafe extern "C" fn LLMQSnapshot_destroy(ffi: *mut LLMQSnapshot) {
 
 ```
 
-For the function labeled with `export`
+For a function labeled with `export`
 
 ```rust
 #[ferment_macro::export]
@@ -255,9 +258,10 @@ struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObjec
 void ChainType_as_IHaveChainSettings_TraitObject_destroy(struct IHaveChainSettings_TraitObject obj);
 
 ```
-Current limitations:
-- We should mark all structures that involved into export with the macro definition
-- There is some difficulty with handling type aliases. Therefore, if possible, they should be avoided. Because, in order to guarantee that it can be processed, one has to wrap it in an unnamed struct. Which is, for most cases, less efficient than using the type it uses directly. That is, `pub type KeyID = u32` becomes `pub struct KeyID_FFI(u32)` There will be a support at some point.
+Current limitations (high level):
+- Mark all structures/traits/functions involved in export with the macro.
+- Type aliases: supported with caveats; prefer exporting the underlying type directly when possible. Complex aliasing across crates and re-exports is not fully resolved yet.
+- Path nuances: partially- and fully-qualified paths are supported in many cases, but there are edge cases under active work (see ROADMAP / TODO).
 
 **Generic mangling rules**
 
@@ -271,7 +275,7 @@ Examples for translated names:
 - `BTreeMap<HashID, BTreeMap<HashID, Vec<u32>>>` -> `std_collections_Map_keys_crate_HashID_values_std_collections_Map_keys_crate_HashID_values_Vec_u32`
 - etc
 
-Then macro implements the necessary conversions for these structures. Example for `BTreeMap<HashID, Vec<HashID>>`:
+Then the macro implements the necessary conversions for these structures. Example for `BTreeMap<HashID, Vec<HashID>>`:
 ```rust
 #[repr(C)]
 #[derive(Clone)]
