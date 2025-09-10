@@ -1,6 +1,6 @@
 [package]
 name = "example-entry-point"
-version = "0.1.4"
+version = "0.2.14"
 edition = "2021"
 build = "build.rs"
 publish = false
