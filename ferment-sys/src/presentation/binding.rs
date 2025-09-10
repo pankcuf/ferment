@@ -3,7 +3,7 @@ use quote::{format_ident, quote, ToTokens};
 use syn::{Attribute, BareFnArg, Generics, parse_quote, ReturnType, Type, Visibility};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs, SignatureAspect};
-use crate::ext::{Accessory, ArgsTransform, Pop, PunctuateOne, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, ArgsTransform, Mangle, Pop, PunctuateOne, Terminated, ToPath, ToType};
 use crate::lang::RustSpecification;
 use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
@@ -135,6 +135,27 @@ pub enum BindingPresentation {
     Any {
         attrs: Vec<Attribute>,
         body: TokenStream2
+    }
+}
+
+impl BindingPresentation {
+    fn regular_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, return_type: ReturnType, body: T) -> Self {
+        Self::RegularFunctionWithBody {
+            aspect: aspect.clone(),
+            name: name.mangle_tokens_default(),
+            arguments,
+            return_type,
+            body: body.to_token_stream(),
+        }
+    }
+    pub fn regular_non_void_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, return_type: Type, body: T) -> Self {
+        Self::regular_fn_with_body(aspect, name, arguments, ReturnType::Type(Default::default(), return_type.into()), body)
+    }
+    pub fn regular_void_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, body: T) -> Self {
+        Self::regular_fn_with_body(aspect, name, arguments, ReturnType::Default, body)
+    }
+    pub fn ctor_with_body<T: ToTokens + 'static>(aspect: &SignatureAspect<RustSpecification>, ty: Type, arguments: CommaPunctuatedArgs, return_type: Type, body_to_be_boxed: T) -> Self {
+        Self::regular_fn_with_body(aspect, Name::<RustSpecification>::Constructor(ty), arguments, ReturnType::Type(Default::default(), Box::new(return_type)), InterfacesMethodExpr::Boxed(body_to_be_boxed))
     }
 }
 

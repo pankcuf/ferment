@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use syn::{parse_quote, BareFnArg, GenericArgument, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeSlice, TypeTraitObject, TypeTuple};
+use syn::{BareFnArg, GenericArgument, Path, PathArguments, PathSegment, QSelf, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeSlice, TypeTraitObject, TypeTuple};
 use syn::punctuated::Punctuated;
 use syn::token::PathSep;
 use crate::ast::{AddPunctuated, Colon2Punctuated, CommaPunctuated};
@@ -296,15 +296,17 @@ impl<'a> VisitScopeType<'a> for Path {
                                 Some(parent) => parent.self_path_ref().segments.joined(self),
                             });
                             ObjectKind::unknown_model_type_path(qself, self.leading_colon, segments, nested_arguments)
-                        } else if let Some(QSelf { ty, .. }) = qself {
+                        } else if let Some(QSelf { .. }) = qself {
+                            // For qualified paths like `<Self::Item as Trait>::Assoc`, ensure the trait path
+                            // is fully resolved and replace the first segment accordingly, then rebuild via handler.
                             let obj_parent_scope = obj_scope.parent_scope();
                             let tt = context.maybe_scope_import_path_ref(scope, &generic_key)
                                 .or_else(|| context.maybe_scope_import_path_ref(obj_scope, &generic_key))
                                 .or_else(|| obj_parent_scope.and_then(|parent_scope| context.maybe_scope_import_path_ref(parent_scope, &generic_key)))
                                 .cloned()
                                 .unwrap_or_else(|| obj_parent_scope.unwrap_or(scope).self_path_ref().joined(&generic_key));
-                            let ty: Type = parse_quote!(<#ty as #tt>);
-                            scope.obj_root_model_composer()(TypeModel::new_nested(if len > 0 { ty.joined(&segments.crate_less()) } else { ty }, nested_arguments))
+                            segments.replace_first_with(&tt.segments);
+                            scope.obj_root_model_composer()(handle_type_path_model(qself, self.leading_colon, segments, nested_arguments))
                         } else {
                             ObjectKind::unknown_model_type_path(qself, self.leading_colon, segments, nested_arguments)
                         }

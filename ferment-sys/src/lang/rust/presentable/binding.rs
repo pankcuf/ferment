@@ -453,37 +453,36 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 let ffi = DictionaryName::Ffi;
                 let values = DictionaryName::Values;
                 let index = DictionaryName::Index;
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::GetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
+                BindingPresentation::regular_non_void_fn_with_body(
+                    signature_aspect,
+                    Name::<RustSpecification>::GetValueAtIndex(aspect.present(source)),
+                    CommaPunctuatedArgs::from_iter([
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *const #arr_type)),
                         ArgPresentation::no_attr_tokens(quote!(#index: usize))
                     ]),
-                    return_type: ReturnType::Type(Default::default(), Box::new(nested_type.clone())),
-                    body: Expr::Call(ExprCall {
+                    nested_type.clone(),
+                    Expr::Call(ExprCall {
                         attrs: vec![],
                         func: Box::new(Expr::Verbatim(quote!(*(*#ffi).#values.add))),
                         paren_token: Default::default(),
                         args: Expr::Verbatim(index.to_token_stream()).punctuate_one(),
-                    }).to_token_stream(),
-                }
+                    })
+                )
             },
             Self::ArraySetAtIndex(aspect, signature_aspect, map_type, nested_type) => {
                 let ffi = DictionaryName::Ffi;
                 let value = DictionaryName::Value;
                 let values = DictionaryName::Values;
                 let index = DictionaryName::Index;
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::SetValueAtIndex(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
+                BindingPresentation::regular_void_fn_with_body(
+                    signature_aspect,
+                    Name::<RustSpecification>::SetValueAtIndex(aspect.present(source)),
+                    CommaPunctuatedArgs::from_iter([
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
                         ArgPresentation::no_attr_tokens(quote!(#index: usize)),
                         ArgPresentation::no_attr_tokens(quote!(#value: #nested_type)),
                     ]),
-                    return_type: ReturnType::Default,
-                    body: Expr::Assign(ExprAssign {
+                    Expr::Assign(ExprAssign {
                         attrs: vec![],
                         left: Box::new(Expr::Call(ExprCall {
                             attrs: vec![],
@@ -493,8 +492,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                         })),
                         eq_token: Default::default(),
                         right: Box::new(Expr::Verbatim(value.to_token_stream())),
-                    }).to_token_stream(),
-                }
+                    })
+                )
             },
             Self::ValueByKey(aspect, signature_aspect, map_type, key_var, value_var) => {
                 let ffi = DictionaryName::Ffi;
@@ -512,15 +511,15 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 } else {
                     (value_var.clone(), get_value)
                 };
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::GetValueByKey(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
+                BindingPresentation::regular_non_void_fn_with_body(
+                    signature_aspect,
+                    Name::<RustSpecification>::GetValueByKey(aspect.present(source)),
+                    CommaPunctuatedArgs::from_iter([
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
                         ArgPresentation::no_attr_tokens(quote!(#key: #key_var))
                     ]),
-                    return_type: ReturnType::Type(Default::default(), Box::new(return_type)),
-                    body: quote! {
+                    return_type,
+                    quote! {
                         let #ffi_ref = &*#ffi;
                         let key = #from_key_conversion;
                         for i in 0..#ffi_ref.count {
@@ -529,8 +528,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                             }
                         }
                         std::ptr::null_mut()
-                    }
-                }
+                    })
             }
             Self::SetValueForKey(aspect, signature_aspect, map_type, key_type, value_type, _) => {
                 let ffi = DictionaryName::Ffi;
@@ -549,16 +547,15 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     .unwrap_or_default();
 
 
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::SetValueForKey(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
+                BindingPresentation::regular_void_fn_with_body(
+                    signature_aspect,
+                    Name::<RustSpecification>::SetValueForKey(aspect.present(source)),
+                    CommaPunctuatedArgs::from_iter([
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
                         ArgPresentation::no_attr_tokens(quote!(#key: #key_type)),
                         ArgPresentation::no_attr_tokens(quote!(#value: #value_type)),
                     ]),
-                    return_type: ReturnType::Default,
-                    body: quote! {
+                    quote! {
                         let #ffi_ref = &*#ffi;
                         let target_key = #from_key_conversion;
                         for i in 0..#ffi_ref.count {
@@ -571,8 +568,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                                 break;
                             }
                         }
-                    },
-                }
+                    })
             },
             Self::KeyByValue(aspect, signature_aspect, map_type, key_var, value_var) => {
                 let ffi = DictionaryName::Ffi;
@@ -588,25 +584,22 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                 } else {
                     (key_var.clone(), get_key)
                 };
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::GetKeyByValue(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(#value: #value_var))
-                    ]),
-                    return_type: ReturnType::Type(Default::default(), Box::new(return_type)),
-                    body: quote! {
-                        let #ffi_ref = &*#ffi;
-                        let key = #from_value_conversion;
-                        for i in 0..#ffi_ref.count {
-                            if key == #from_value_2_conversion {
-                                return #return_key_expr;
-                            }
+                let name = Name::<RustSpecification>::GetKeyByValue(aspect.present(source));
+                let args = CommaPunctuatedArgs::from_iter([
+                    ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
+                    ArgPresentation::no_attr_tokens(quote!(#value: #value_var))
+                ]);
+                let body = quote! {
+                    let #ffi_ref = &*#ffi;
+                    let key = #from_value_conversion;
+                    for i in 0..#ffi_ref.count {
+                        if key == #from_value_2_conversion {
+                            return #return_key_expr;
                         }
-                        std::ptr::null_mut()
-                    },
-                }
+                    }
+                    std::ptr::null_mut()
+                };
+                BindingPresentation::regular_non_void_fn_with_body(signature_aspect, name, args, return_type, body)
             }
             Self::SetKeyForValue(aspect, signature_aspect, map_type, key_var, value_var, _) => {
                 let ffi = DictionaryName::Ffi;
@@ -623,55 +616,47 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     .compose(source)
                     .map(|expr| DictionaryExpr::IfNotNull(old_value.to_token_stream(), expr.present(source).terminated()).to_token_stream())
                     .unwrap_or_default();
-
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::SetKeyForValue(aspect.present(source)).mangle_tokens_default(),
-                    arguments: CommaPunctuatedArgs::from_iter([
-                        ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
-                        ArgPresentation::no_attr_tokens(quote!(#key: #key_var)),
-                        ArgPresentation::no_attr_tokens(quote!(#value: #value_var)),
-                    ]),
-                    return_type: ReturnType::Default,
-                    body: quote! {
-                        let #ffi_ref = &*#ffi;
-                        let target_key = #from_value_conversion;
-                        for i in 0..#ffi_ref.count {
-                            let candidate_key = #from_value_2_conversion;
-                            if candidate_key.eq(&target_key) {
-                                let #new_value = (*#ffi).#keys.add(i);
-                                let #old_value = *#new_value;
-                                #destroy_key
-                                *#new_value = #key;
-                                break;
-                            }
+                let name = Name::<RustSpecification>::SetKeyForValue(aspect.present(source));
+                let args = CommaPunctuatedArgs::from_iter([
+                    ArgPresentation::no_attr_tokens(quote!(#ffi: *mut #map_type)),
+                    ArgPresentation::no_attr_tokens(quote!(#key: #key_var)),
+                    ArgPresentation::no_attr_tokens(quote!(#value: #value_var)),
+                ]);
+                let body = quote! {
+                    let #ffi_ref = &*#ffi;
+                    let target_key = #from_value_conversion;
+                    for i in 0..#ffi_ref.count {
+                        let candidate_key = #from_value_2_conversion;
+                        if candidate_key.eq(&target_key) {
+                            let #new_value = (*#ffi).#keys.add(i);
+                            let #old_value = *#new_value;
+                            #destroy_key
+                            *#new_value = #key;
+                            break;
                         }
-                    },
-                }
+                    }
+                };
+                BindingPresentation::regular_void_fn_with_body(signature_aspect, name, args, body)
             }
             Self::ResultOk(signature_aspect, result_type, ok_type) => {
                 let ok = DictionaryName::Ok;
                 let error = DictionaryName::Error;
                 let null = DictionaryExpr::NullMut;
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Ok)).mangle_tokens_default(),
-                    arguments: ArgPresentation::no_attr_tokens(quote!(#ok: #ok_type)).punctuate_one(),
-                    return_type: ReturnType::Type(Default::default(), Box::new(result_type.joined_mut())),
-                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok, #error: #null })).to_token_stream(),
-                }
+                let ty = parse_quote!(#result_type::Ok);
+                let args = ArgPresentation::no_attr_tokens(quote!(#ok: #ok_type)).punctuate_one();
+                let return_type = result_type.joined_mut();
+                let body = DictionaryExpr::type_destruct(result_type, quote!(#ok, #error: #null));
+                BindingPresentation::ctor_with_body(signature_aspect, ty, args, return_type, body)
             }
             Self::ResultError(signature_aspect, result_type, error_type) => {
                 let ok = DictionaryName::Ok;
                 let error = DictionaryName::Error;
                 let null = DictionaryExpr::NullMut;
-                BindingPresentation::RegularFunctionWithBody {
-                    aspect: signature_aspect.clone(),
-                    name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Error)).mangle_tokens_default(),
-                    arguments: ArgPresentation::no_attr_tokens(quote!(#error: #error_type)).punctuate_one(),
-                    return_type: ReturnType::Type(Default::default(), Box::new(result_type.joined_mut())),
-                    body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok: #null, #error })).to_token_stream(),
-                }
+                let ty = parse_quote!(#result_type::Error);
+                let args = ArgPresentation::no_attr_tokens(quote!(#error: #error_type)).punctuate_one();
+                let return_type = result_type.joined_mut();
+                let body = DictionaryExpr::type_destruct(result_type, quote!(#ok: #null, #error));
+                BindingPresentation::ctor_with_body(signature_aspect, ty, args, return_type, body)
             }
         }
     }

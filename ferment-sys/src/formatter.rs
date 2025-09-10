@@ -369,6 +369,7 @@ fn traits_dict(dict: &IndexMap<Ident, TraitModelPart1>) -> Vec<String> {
 }
 
 
+#[allow(unused)]
 fn nested_scope_dict<K, K2, V2, F: Fn(&K, &IndexMap<K2, V2>) -> String>(dict: &IndexMap<K, IndexMap<K2, V2>>, mapper: F) -> Vec<String> {
     let mut iter = dict.iter()
         .map(|(key, value)| mapper(key, value))
@@ -378,8 +379,14 @@ fn nested_scope_dict<K, K2, V2, F: Fn(&K, &IndexMap<K2, V2>) -> String>(dict: &I
 }
 
 fn format_scope_dict<K2, V2, F: Fn(&IndexMap<K2, V2>) -> Vec<String>>(dict: &IndexMap<ScopeChain, IndexMap<K2, V2>>, mapper: F) -> Vec<String>  {
-    nested_scope_dict(dict, |scope, sub_dict|
-        format!("\t{}:\n\t\t{}", scope.fmt_short(), mapper(sub_dict).join("\n\t\t")))
+    let mut iter = dict.iter()
+        .filter_map(|(scope, sub_dict)| {
+            let lines = mapper(sub_dict);
+            (!lines.is_empty()).then(|| format!("\t{}:\n\t\t{}", scope.fmt_short(), lines.join("\n\t\t")))
+        })
+        .collect::<Vec<String>>();
+    iter.sort();
+    iter
 }
 
 pub fn scope_imports_dict(dict: &IndexMap<ScopeChain, IndexMap<Path, Path>>) -> Vec<String> {
@@ -417,14 +424,46 @@ fn format_complex_obj(vec: Vec<Vec<String>>) -> String {
 }
 
 pub fn format_global_context(context: &GlobalContext) -> String {
-    format_complex_obj(vec![
-        vec!["-- types:".to_string(), context.scope_register.to_string()],
-        vec!["-- traits:".to_string()], scope_traits_dict(&context.traits.inner),
-        vec!["-- traits_impl:".to_string()], traits_impl_dict(&context.traits.used_traits_dictionary),
-        vec!["-- custom:".to_string(), context.custom.to_string()],
-        vec!["-- imports:".to_string()], scope_imports_dict(&context.imports.inner),
-        vec!["-- generics:".to_string()], scope_generics_dict(&context.generics.inner),
-    ])
+    let mut sections: Vec<Vec<String>> = Vec::new();
+
+    // Types: always include
+    sections.push(vec!["-- types:".to_string(), context.scope_register.to_string()]);
+
+    // Traits: include only if non-empty
+    let traits = scope_traits_dict(&context.traits.inner);
+    if !traits.is_empty() {
+        sections.push(vec!["-- traits:".to_string()]);
+        sections.push(traits);
+    }
+
+    // Traits impl: include only if non-empty
+    let impls = traits_impl_dict(&context.traits.used_traits_dictionary);
+    if !impls.is_empty() {
+        sections.push(vec!["-- traits_impl:".to_string()]);
+        sections.push(impls);
+    }
+
+    // Custom: include only if non-empty
+    let custom_str = context.custom.to_string();
+    if !custom_str.trim().is_empty() {
+        sections.push(vec!["-- custom:".to_string(), custom_str]);
+    }
+
+    // Imports: include only if non-empty
+    let imports = scope_imports_dict(&context.imports.inner);
+    if !imports.is_empty() {
+        sections.push(vec!["-- imports:".to_string()]);
+        sections.push(imports);
+    }
+
+    // Generics: include only if non-empty (and per-scope filtered above)
+    let generics = scope_generics_dict(&context.generics.inner);
+    if !generics.is_empty() {
+        sections.push(vec!["-- generics:".to_string()]);
+        sections.push(generics);
+    }
+
+    format_complex_obj(sections)
 }
 
 #[allow(unused)]
@@ -490,4 +529,3 @@ macro_rules! print_phase {
         println!("########################################################################################################################\n");
     }
 }
-

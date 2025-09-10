@@ -6,7 +6,7 @@ use crate::context::ScopeContext;
 use crate::ext::{LifetimeProcessor, Mangle, Terminated, ToPath, WrapIntoCurlyBraces, WrapIntoRoundBraces};
 use crate::lang::RustSpecification;
 use crate::presentable::{ScopeContextPresentable, SeqKind};
-use crate::presentation::{present_struct, DictionaryName, InterfacesMethodExpr};
+use crate::presentation::{present_struct, DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 
 impl ScopeContextPresentable for SeqKind<RustSpecification> {
     type Presentation = TokenStream2;
@@ -30,12 +30,9 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
                 quote!(<#self_ty as #trait_ty>::#fn_ident(#presentation))
             },
             SeqKind::FromNamedFields(((aspect, ..), fields)) |
-            SeqKind::ToNamedFields(((aspect, ..), fields)) => {
-                let name = aspect.present(source);
-                let cleaned_name = name.lifetimes_cleaned();
-                let presentation = fields.present(source);
-                quote!(#cleaned_name { #presentation })
-            },
+            SeqKind::ToNamedFields(((aspect, ..), fields)) =>
+                DictionaryExpr::type_destruct(aspect.present(source).lifetimes_cleaned(), fields.present(source))
+                    .to_token_stream(),
             SeqKind::TypeAliasFromConversion((_, fields)) => {
                 fields.present(source)
                     .to_token_stream()

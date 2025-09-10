@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display, Formatter};
 use indexmap::IndexMap;
 use indexmap::map::OccupiedEntry;
 use quote::ToTokens;
-use syn::{parse_quote, Generics, Path, Type};
+use syn::{parse_quote, Generics, Path, Type, TypePath, Path as SynPath};
 use crate::kind::ObjectKind;
 use crate::ext::{AsType, Constraints, ContainsSubType, HashMapMergePolicy, MergePolicy, ValueReplaceScenario};
 use crate::formatter::format_types_dict;
@@ -65,7 +65,22 @@ impl TypeChain {
         Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.has_no_self()))
     }
     pub fn excluding_self_and_bounds(&self, generics: &Generics) -> Self {
-        Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.has_no_self() && generics.contains_sub_type(th)))
+        // Keep only entries that do NOT reference method-level generic params
+        // and do not involve `Self`.
+        Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.has_no_self() && !generics.contains_sub_type(th)))
+    }
+
+    pub fn only_self_associated(&self) -> Self {
+        // Keep entries that involve `Self` but are not the plain `Self` type itself,
+        // e.g., `Self::Item`, `<Self::Item as Trait>::Assoc`.
+        fn is_plain_self(ty: &Type) -> bool {
+            match ty {
+                Type::Path(TypePath { qself: None, path: SynPath { leading_colon: None, segments }, .. })
+                    if segments.len() == 1 => segments.first().map(|s| s.ident == "Self").unwrap_or(false),
+                _ => false,
+            }
+        }
+        Self::from(self.inner.clone().into_iter().filter(|(th, _)| th.has_self() && !is_plain_self(th)))
     }
     pub fn get_by_path(&self, path: &Path) -> Option<Type> {
         self.inner.iter()
@@ -82,4 +97,3 @@ impl TypeChain {
         self.inner.extend_with_policy(types, EnrichScopePolicy);
     }
 }
-

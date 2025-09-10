@@ -36,7 +36,7 @@ impl SourceComposable for SliceComposer<RustSpecification> {
             let ffi_ref = &*ffi;
             ferment::from_group(ffi_ref.#count_name, ffi_ref.#arg_0_name, #from_conversion_value)
         };
-        let to_body = InterfacesMethodExpr::Boxed(quote!(Self { #count_name: obj.len(), #arg_0_name: ferment::to_group(obj.into_iter(), #to_conversion_value) }));
+        let to_body = InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(quote!(#count_name: obj.len(), #arg_0_name: ferment::to_group(obj.into_iter(), #to_conversion_value))));
         let drop_body = quote!(ferment::unbox_group(self.#arg_0_name, self.#count_name, #destroy_conversion_value););
 
         let field_composers = Depunctuated::from_iter([

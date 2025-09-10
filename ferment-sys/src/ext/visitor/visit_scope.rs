@@ -158,20 +158,51 @@ impl VisitScope for Item {
                         visitor.add_full_qualified_type_match(&fn_scope, self_ty, false);
                         visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                         if let ReturnType::Type(_, ty) = output {
-                            visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(&**ty, scope), true);
+                            // Return type: add to fn scope; add filtered sets to impl and its parent
+                            let fn_chain = visitor.create_type_chain(&**ty, &fn_scope);
+                            visitor.scope_add_many(fn_chain, &fn_scope);
+
+                            let full_in_impl = visitor.create_type_chain(&**ty, scope);
+                            let impl_self_assoc = full_in_impl.only_self_associated();
+                            let impl_non_method_generics = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+                            let parent_type_chain = impl_non_method_generics.clone();
+
+                            if !impl_self_assoc.inner.is_empty() {
+                                visitor.scope_add_many(impl_self_assoc, scope);
+                            }
+                            visitor.scope_add_many(impl_non_method_generics, scope);
+                            if let Some(parent_scope) = scope.parent_scope() {
+                                visitor.scope_add_many(parent_type_chain, parent_scope);
+                            }
                         }
                         inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
+                            // Record full chain in fn scope
                             let type_chain = visitor.create_type_chain(&**ty, &fn_scope);
                             visitor.scope_add_many(type_chain, &fn_scope);
-                            let parent_type_chain = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+
+                            // For impl scope: include non-method-generics and also Self-associated paths
+                            let full_in_impl = visitor.create_type_chain(&**ty, scope);
+                            let impl_self_assoc = full_in_impl.only_self_associated();
+                            let impl_non_method_generics = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+
+                            // Parent of impl: keep only non-method-generics
+                            let parent_type_chain = impl_non_method_generics.clone();
+
+                            // Add to impl scope
+                            if !impl_self_assoc.inner.is_empty() {
+                                visitor.scope_add_many(impl_self_assoc, scope);
+                            }
+                            visitor.scope_add_many(impl_non_method_generics, scope);
+
+                            // Propagate to parent appropriately
                             if let Some(parent_scope) = scope.parent_scope() {
-                                visitor.scope_add_many(parent_type_chain.clone(), scope);
                                 visitor.scope_add_many(parent_type_chain, parent_scope);
-                            } else {
-                                visitor.scope_add_many(parent_type_chain, scope);
                             }
                         });
                         let (_nested_fn_arguments, _inner_fn_args) = add_full_qualified_generics(visitor, generics, &fn_scope, false);
+                        // Also add method generic bounds (e.g., V: Into<...>) to the trait scope itself,
+                        // so trait-level composition can resolve those paths. Do not propagate to parent.
+                        let _ = add_full_qualified_generics(visitor, generics, scope, false);
 
                         let generic_chain = create_generics_chain(generics);
                         visitor.add_generic_chain(&fn_scope, generic_chain);
@@ -253,19 +284,47 @@ fn add_full_qualified_trait(visitor: &mut Visitor, item_trait: &ItemTrait, scope
                 visitor.add_full_qualified_type_match(&fn_scope, &trait_type, false);
                 visitor.add_full_qualified_type_match(scope, &parse_quote!(Self::#ident), true);
                 if let ReturnType::Type(_, ty) = output {
-                    visitor.add_full_qualified_type_chain(&fn_scope, visitor.create_type_chain(&**ty, scope), true);
+                    // Return type: add to fn scope; add filtered sets to trait and its parent
+                    let mut fn_chain = visitor.create_type_chain(&**ty, &fn_scope);
+                    let full_in_trait = visitor.create_type_chain(&**ty, scope);
+                    let trait_self_assoc = full_in_trait.only_self_associated();
+                    let trait_non_method_generics = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+                    let parent_type_chain = trait_non_method_generics.clone();
+
+                    fn_chain.add_self(scope.self_object());
+                    visitor.scope_add_many(fn_chain, &fn_scope);
+                    visitor.scope_add_many(trait_non_method_generics, scope);
+                    if !trait_self_assoc.inner.is_empty() {
+                        visitor.scope_add_many(trait_self_assoc, scope);
+                    }
+                    if let Some(parent_scope) = scope.parent_scope() {
+                        visitor.scope_add_many(parent_type_chain, parent_scope);
+                    }
                 }
                 inputs.iter().for_each(|arg| if let FnArg::Typed(PatType { ty, .. }) = arg {
                     let mut type_chain = visitor.create_type_chain(&**ty, &fn_scope);
-                    let parent_type_chain = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+                    // For trait scope: include non-method-generics and also Self-associated paths
+                    let full_in_trait = visitor.create_type_chain(&**ty, scope);
+                    let trait_self_assoc = full_in_trait.only_self_associated();
+                    let trait_non_method_generics = visitor.create_type_chain(&**ty, scope).excluding_self_and_bounds(generics);
+
+                    // For parent of trait: keep only non-method-generics, exclude Self-associated
+                    let parent_type_chain = trait_non_method_generics.clone();
+
                     type_chain.add_self(scope.self_object());
                     visitor.scope_add_many(type_chain, &fn_scope);
-                    visitor.scope_add_many(parent_type_chain.clone(), scope);
+                    // Add both non-method-generic and Self-associated entries to trait scope
+                    visitor.scope_add_many(trait_non_method_generics.clone(), scope);
+                    if !trait_self_assoc.inner.is_empty() {
+                        visitor.scope_add_many(trait_self_assoc, scope);
+                    }
                     if let Some(parent_scope) = scope.parent_scope() {
                         visitor.scope_add_many(parent_type_chain, parent_scope);
                     }
                 });
                 let (_nested_arguments, _inner_args) = add_full_qualified_generics(visitor, generics, &fn_scope, false);
+                // Also include method generic bounds at trait scope for composition; not to parent
+                let _ = add_full_qualified_generics(visitor, generics, scope, false);
 
                 let generic_chain = create_generics_chain(generics);
                 visitor.add_generic_chain(&fn_scope, generic_chain);

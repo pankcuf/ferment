@@ -1,4 +1,3 @@
-use quote::ToTokens;
 use syn::parse_quote;
 use crate::composable::TypeModel;
 use crate::composer::{SourceComposable, VarComposer};
@@ -27,8 +26,7 @@ impl SourceComposable for VarComposer<RustSpecification> {
             .and_then(ObjectKind::maybe_type)
             .unwrap_or_else(|| search_key.to_type());
         let maybe_special = Resolve::<SpecialType<RustSpecification>>::maybe_resolve(&full_ty, source);
-        println!("VarComposer {}", full_ty.to_token_stream());
-        let result = match maybe_special {
+        match maybe_special {
             Some(special) => match maybe_obj {
                 Some(ObjectKind::Item(_, ScopeItemKind::Fn(..))) =>
                     ptr_composer(source.maybe_to_fn_type().unwrap_or_else(|| search_key.to_type())),
@@ -139,9 +137,6 @@ impl SourceComposable for VarComposer<RustSpecification> {
                     _ => search_key.resolve(source)
                 }
             }
-        };
-        println!("VarComposer ==> {}", result.to_token_stream());
-
-        result
+        }
     }
 }

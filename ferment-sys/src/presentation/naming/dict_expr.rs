@@ -11,7 +11,7 @@ pub enum DictionaryExpr {
     Simple(TokenStream2),
     DictionaryName(DictionaryName),
     Depunctuated(Depunctuated<TokenStream2>),
-    SelfDestructuring(TokenStream2),
+    TypeDestructuring(TokenStream2, TokenStream2),
     BoxedSelfDestructuring(TokenStream2),
     ObjIntoIter,
     FfiDeref,
@@ -90,7 +90,10 @@ impl DictionaryExpr {
         Self::DerefRef(name.to_token_stream())
     }
     pub fn self_destruct<T: ToTokens>(name: T) -> Self {
-        Self::SelfDestructuring(name.to_token_stream())
+        Self::TypeDestructuring(quote!(Self), name.to_token_stream())
+    }
+    pub fn type_destruct<T: ToTokens, U: ToTokens>(ty: T, name: U) -> Self {
+        Self::TypeDestructuring(ty.to_token_stream(), name.to_token_stream())
     }
     pub fn callback_caller<T: ToTokens, U: ToTokens>(conversion: T, result: U) -> Self {
         Self::CallbackCaller(conversion.to_token_stream(), result.to_token_stream())
@@ -302,8 +305,8 @@ impl ToTokens for DictionaryExpr {
             Self::SelfAsTrait(self_ty, acc) =>
                 quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 
-            Self::SelfDestructuring(content) =>
-                quote!(Self { #content }).to_tokens(tokens),
+            Self::TypeDestructuring(ty, content) =>
+                quote!(#ty { #content }).to_tokens(tokens),
             Self::TryIntoUnwrap(expr) => {
                 expr.to_tokens(tokens);
                 quote!(.try_into().unwrap()).to_tokens(tokens)

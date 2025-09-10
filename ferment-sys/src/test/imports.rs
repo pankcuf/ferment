@@ -50,3 +50,18 @@ fn fold_import_tree_rename_and_ignore_underscore() {
     let after_len = resolver.maybe_scope_imports(&scope).map(|m| m.len()).unwrap_or_default();
     assert_eq!(after_len, before_len);
 }
+
+#[test]
+fn fold_import_tree_glob_is_ignored() {
+    let scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+    let mut resolver = ImportResolver::default();
+    // Prime with one import so map exists
+    resolver.fold_import_tree(&scope, &parse_quote!(foo::Bar), Vec::<Ident>::new());
+    let before_len = resolver.maybe_scope_imports(&scope).map(|m| m.len()).unwrap_or_default();
+
+    // use foo::*; should be ignored by resolver
+    let glob: UseTree = parse_quote!(foo::*);
+    resolver.fold_import_tree(&scope, &glob, Vec::<Ident>::new());
+    let after_len = resolver.maybe_scope_imports(&scope).map(|m| m.len()).unwrap_or_default();
+    assert_eq!(after_len, before_len);
+}

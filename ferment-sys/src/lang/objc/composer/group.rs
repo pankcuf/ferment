@@ -9,7 +9,6 @@ use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
-use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{ArgKind, ConversionAspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
 
 impl SourceComposable for GroupComposer<ObjCSpecification> {
@@ -137,7 +136,6 @@ impl SourceComposable for GroupComposer<ObjCSpecification> {
             // },
             InterfaceImplementation::MacroCall(quote! { FFIGroupConversion(#c_name, #arg_var, #from_value, #to_values, #destroy_value); })
         ]);
-        println!("OBJC GROUP => \n{}", format_interface_implementations(&interfaces));
 
         Some(GenericComposerInfo::<ObjCSpecification>::default(
             self.target_type_aspect(),

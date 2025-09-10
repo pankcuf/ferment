@@ -1,5 +1,5 @@
 use quote::quote;
-use crate::ast::Depunctuated;
+use crate::ast::{CommaPunctuatedTokens, Depunctuated};
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, ArrayComposer, NameKind};
 use crate::context::ScopeContext;
@@ -35,9 +35,9 @@ impl SourceComposable for ArrayComposer<RustSpecification> {
             let ffi_ref = &*ffi;
             TryFrom::<Vec<#nested_ty>>::try_from(#Package::from_group(ffi_ref.#count_name, ffi_ref.#arg_0_name, #from_conversion_value)).unwrap()
         };
-        let arg_0_conversion = InterfacesMethodExpr::ToGroup(quote!(obj.into_iter(), #to_conversion_value));
-        let to_body = InterfacesMethodExpr::Boxed(quote!(Self { #count_name: obj.len(), #arg_0_name: #arg_0_conversion }));
-        let drop_body = InterfacesMethodExpr::UnboxGroup(quote!(self.#arg_0_name, self.#count_name, #destroy_conversion_value));
+        let arg_0_conversion = InterfacesMethodExpr::ToGroup(CommaPunctuatedTokens::from_iter([quote!(obj.into_iter()), to_conversion_value]));
+        let to_body = InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(CommaPunctuatedTokens::from_iter([quote!(#count_name: obj.len()), quote!(#arg_0_name: #arg_0_conversion)])));
+        let drop_body = InterfacesMethodExpr::UnboxGroup(CommaPunctuatedTokens::from_iter([quote!(self.#arg_0_name), quote!(self.#count_name), destroy_conversion_value]));
         let arr_var = var_value.joined_mut();
         let field_composers = Depunctuated::from_iter([
             FieldComposer::<RustSpecification>::named_no_attrs(count_name, FieldTypeKind::type_count()),
