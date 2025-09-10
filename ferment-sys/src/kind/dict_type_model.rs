@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display, Formatter};
 use syn::Type;
 use crate::composable::{TypeModel, TypeModeled};
-use crate::kind::DictFermentableModelKind;
+use crate::kind::{DictFermentableModelKind, SmartPointerModelKind};
 use crate::ext::AsType;
 
 #[derive(Clone)]
@@ -10,6 +10,12 @@ pub enum DictTypeModelKind {
     LambdaFn(TypeModel),
     NonPrimitiveFermentable(DictFermentableModelKind),
     NonPrimitiveOpaque(TypeModel),
+}
+
+impl DictTypeModelKind {
+    pub fn smart_pointer(kind: SmartPointerModelKind) -> Self {
+        Self::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(kind))
+    }
 }
 
 impl<'a> AsType<'a> for DictTypeModelKind {

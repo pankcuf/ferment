@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse_quote, Type, TypeReference};
 use crate::composable::TypeModel;
 use crate::composer::SourceComposable;
-use crate::context::{ScopeContext, ScopeSearch};
+use crate::context::{ScopeContext, ScopeSearch, ScopeSearchKey};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
 use crate::ext::{ExpressionComposable, FFISpecialTypeResolve, GenericNestedArg, Primitive, Resolve, ToType};
 use crate::lang::Specification;
@@ -109,16 +109,16 @@ where SPEC: Specification<Expr=Expression<SPEC>>,
                     Some(SPEC::Expr::destroy_complex(field_path)),
                 TypeModelKind::Slice(TypeModel { ref ty, .. }) =>
                     ty.maybe_first_nested_type_ref()
-                        .and_then(|first_nested_ty| destroy_other::<SPEC, _>(search_key, ffi_type, parse_quote!(Vec<#first_nested_ty>), field_path)),
+                        .and_then(|first_nested_ty| destroy_other::<SPEC>(search_key, ffi_type, parse_quote!(Vec<#first_nested_ty>), field_path)),
                 _ =>
-                    destroy_other::<SPEC, _>(search_key, ffi_type, full_type, field_path)
+                    destroy_other::<SPEC>(search_key, ffi_type, full_type, field_path)
             }
         }
     }
 }
 
 
-fn destroy_other<SPEC, T: ToType>(ty: &T, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
+fn destroy_other<SPEC>(ty: &ScopeSearchKey, ffi_type: Type, target_ty: Type, field_path: SPEC::Expr) -> Option<SPEC::Expr>
 where SPEC: Specification<Expr=Expression<SPEC>>,
       SPEC::Expr: ScopeContextPresentable {
     match TypeKind::from(ty.to_type()) {

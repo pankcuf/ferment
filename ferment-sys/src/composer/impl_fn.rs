@@ -1,6 +1,6 @@
 use quote::ToTokens;
 use syn::{FnArg, Path, Receiver, ReturnType, Signature};
-use syn::token::Semi;
+use syn::token::{RArrow, Semi};
 use crate::ast::CommaPunctuatedTokens;
 use crate::composer::{CommaPunctuatedArgKinds, ConversionFromComposer, ConversionToComposer, FnImplContext, NameKind, SignatureAspect, SourceComposable, VarComposer};
 use crate::composer::pat_type::PatTypeComposer;
@@ -36,7 +36,7 @@ where SPEC: Specification<Name=Name<SPEC>, Expr=Expression<SPEC>>,
             SPEC::Expr::simple(Semi::default())
         ),
         ReturnType::Type(_, return_ty) => (
-            ReturnType::Type(Default::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(return_ty).compose(source).to_type())),
+            ReturnType::Type(RArrow::default(), Box::new(VarComposer::<SPEC>::key_ref_in_composer_scope(return_ty).compose(source).to_type())),
             ConversionToComposer::<SPEC>::key_in_composer_scope(Name::obj(), return_ty).compose(source)
         )
     };

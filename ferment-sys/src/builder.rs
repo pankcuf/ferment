@@ -14,7 +14,7 @@ pub struct Builder {
 impl Builder {
     pub fn new(current_crate: Crate) -> Builder {
         env_logger::init();
-        Builder { config: Config::new(DEFAULT_FERMENTATE_MOD, current_crate, cbindgen::Config::default()) }
+        Builder { config: Config::new(DEFAULT_FERMENTATE_MOD, current_crate, Default::default()) }
     }
     #[allow(unused)]
     pub fn with_crate_name(crate_name: &str) -> Builder {
@@ -87,11 +87,15 @@ impl Builder {
     /// ```no_run
     /// # extern crate ferment_sys;
     /// use ferment_sys::{Crate, Ferment, Lang};
+    /// #[cfg(feature = "objc")]
+    /// use ferment_sys::{ObjC, XCodeConfig};
+    /// #[cfg(feature = "java")]
+    /// use ferment_sys::Java;
     /// let mut languages = vec![];
     /// #[cfg(feature = "objc")]
-    /// languages.push(Lang::ObjC(ferment::ObjC::new("DS", "Fermented")));
+    /// languages.push(Lang::ObjC(ObjC::new(XCodeConfig::new("DS", "Fermented", "Fermented"))));
     /// #[cfg(feature = "java")]
-    /// languages.push(Lang::Java(ferment::Java::new("Fermented")));
+    /// languages.push(Lang::Java(Java::new("Fermented")));
     /// Ferment::with_crate_name("your_crate_name")
     ///     .with_default_mod_name()
     ///     .with_crates(vec![])
@@ -112,4 +116,3 @@ impl Builder {
             .write_all()
     }
 }
-

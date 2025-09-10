@@ -2,13 +2,12 @@ use quote::ToTokens;
 use crate::ast::Depunctuated;
 use crate::composer::{AttrComposable, GenericComposerInfo, NameKind, SmartPointerComposer, SourceComposable, TypeAspect};
 use crate::context::ScopeContext;
-use crate::ext::{AsType, LifetimeProcessor, ToType};
+use crate::ext::{AsType, LifetimeProcessor, PunctuateOne, ToType};
 use crate::kind::FieldTypeKind;
-use crate::lang::{FromDictionary, Specification};
+use crate::lang::Specification;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::ObjCSpecification;
 use crate::presentable::{Expression, SmartPointerPresentableContext};
-use crate::presentation::DictionaryName;
 
 impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
     type Source = ScopeContext;
@@ -26,7 +25,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         // let attrs = ;
 
         let arg_0_name = <ObjCSpecification as Specification>::Name::obj();
-        let value_name = <ObjCSpecification as Specification>::Name::dictionary_name(DictionaryName::Value);
+        let value_name = <ObjCSpecification as Specification>::Name::value();
 
         // let from_body = Expression::<ObjCSpecification>::dict_expr(DictionaryExpr::from_root(self.root_kind.wrap_from::<ObjCSpecification, DictionaryExpr>(DictionaryExpr::ffi_ref_prop(&arg_0_name)).present(source)));
         // let to_body = Expression::<ObjCSpecification>::interface_expr(InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(arg_0_name.field_composer(FieldTypeKind::kind(InterfacesMethodExpr::Boxed(arg_0_name.to_token_stream()))).present(source)).to_token_stream()));
@@ -69,8 +68,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
             Expression::new_smth(
                 if self.kind.is_once_lock() { Expression::Empty } else { from_arg_conversion },
                 self.kind.dictionary_type()));
-        let generics = <ObjCSpecification as Specification>::Gen::default();
-        let signature_aspect = (attrs, lifetimes, generics);
+        let signature_aspect = (attrs, lifetimes, Default::default());
         let bindings = Depunctuated::from_iter([
             self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Ctor(ctor_arg_composer, ctor_to_arg_expr)),
             self.kind.binding_presentable(&aspect, &signature_aspect, SmartPointerPresentableContext::Dtor(NameKind::Named)),
@@ -80,7 +78,7 @@ impl SourceComposable for SmartPointerComposer<ObjCSpecification> {
         Some(GenericComposerInfo::<ObjCSpecification>::default_with_bindings(
             aspect,
             &signature_aspect.0,
-            Depunctuated::from_iter([root_field_composer]),
+            root_field_composer.punctuate_one(),
             interfaces,
             bindings
         ))

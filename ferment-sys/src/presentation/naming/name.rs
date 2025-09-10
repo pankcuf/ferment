@@ -113,6 +113,12 @@ impl<SPEC> Name<SPEC>
     pub fn count() -> Self {
         Self::Dictionary(DictionaryName::Count)
     }
+    pub fn caller() -> Self {
+        Self::Dictionary(DictionaryName::Caller)
+    }
+    pub fn destructor() -> Self {
+        Self::Dictionary(DictionaryName::Destructor)
+    }
     pub fn ctor(ty: &Type) -> Self {
         Self::Constructor(ty.clone())
     }

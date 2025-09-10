@@ -41,5 +41,43 @@ jobs:
       - name: Run tests (selected crates)
         run: >
           cargo test --verbose
+          -p ferment
+          -p ferment-macro
           -p ferment-sys
-          -p example-entry-point
+
+  coverage:
+    name: Coverage (macOS)
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain (with llvm-tools)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      - name: Prepare coverage directory
+        run: mkdir -p coverage
+
+      - name: Generate coverage (core crates)
+        run: >
+          cargo llvm-cov
+          -p ferment
+          -p ferment-macro
+          -p ferment-sys
+          --lcov --output-path coverage/lcov.info
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov.info
+          path: coverage/lcov.info

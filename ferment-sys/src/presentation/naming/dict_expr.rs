@@ -3,7 +3,7 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::Pat;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::presentation::{ArgPresentation, DictionaryName, InterfacesMethodExpr};
+use crate::presentation::{ArgPresentation, DictionaryName, FFIConversionFromMethod, InterfacesMethodExpr};
 
 #[allow(unused)]
 #[derive(Clone, Debug)]
@@ -11,7 +11,7 @@ pub enum DictionaryExpr {
     Simple(TokenStream2),
     DictionaryName(DictionaryName),
     Depunctuated(Depunctuated<TokenStream2>),
-    SelfDestructuring(TokenStream2),
+    TypeDestructuring(TokenStream2, TokenStream2),
     BoxedSelfDestructuring(TokenStream2),
     ObjIntoIter,
     FfiDeref,
@@ -61,8 +61,7 @@ pub enum DictionaryExpr {
     TryIntoUnwrap(TokenStream2),
     CallbackCaller(TokenStream2, TokenStream2),
     CallbackDestructor(TokenStream2, TokenStream2),
-    CastedFFIConversionFrom(TokenStream2, TokenStream2, TokenStream2),
-    CastedFFIConversionFromOpt(TokenStream2, TokenStream2, TokenStream2),
+    CastedFFIConversion(DictionaryName, TokenStream2, TokenStream2, TokenStream2, TokenStream2),
     Clone(TokenStream2),
     FromPtrRead(TokenStream2),
     FromArc(TokenStream2),
@@ -91,7 +90,10 @@ impl DictionaryExpr {
         Self::DerefRef(name.to_token_stream())
     }
     pub fn self_destruct<T: ToTokens>(name: T) -> Self {
-        Self::SelfDestructuring(name.to_token_stream())
+        Self::TypeDestructuring(quote!(Self), name.to_token_stream())
+    }
+    pub fn type_destruct<T: ToTokens, U: ToTokens>(ty: T, name: U) -> Self {
+        Self::TypeDestructuring(ty.to_token_stream(), name.to_token_stream())
     }
     pub fn callback_caller<T: ToTokens, U: ToTokens>(conversion: T, result: U) -> Self {
         Self::CallbackCaller(conversion.to_token_stream(), result.to_token_stream())
@@ -100,11 +102,14 @@ impl DictionaryExpr {
         Self::CallbackDestructor(conversion.to_token_stream(), result.to_token_stream())
     }
     
+    pub fn casted_ffi_conversion<M: ToTokens, T: ToTokens, U: ToTokens, V: ToTokens>(interface: DictionaryName, method: M, ffi_ty: T, ty: U, field_expr: V) -> Self {
+        Self::CastedFFIConversion(interface, method.to_token_stream(), ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
+    }
     pub fn casted_ffi_conversion_from<T: ToTokens, U: ToTokens, V: ToTokens>(ffi_ty: T, ty: U, field_expr: V) -> Self {
-        Self::CastedFFIConversionFrom(ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
+        Self::CastedFFIConversion(DictionaryName::InterfaceFrom, FFIConversionFromMethod::Mut.to_token_stream(), ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
     }
     pub fn casted_ffi_conversion_from_opt<T: ToTokens, U: ToTokens, V: ToTokens>(ffi_ty: T, ty: U, field_expr: V) -> Self {
-        Self::CastedFFIConversionFromOpt(ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
+        Self::CastedFFIConversion(DictionaryName::InterfaceFrom, FFIConversionFromMethod::Opt.to_token_stream(), ffi_ty.to_token_stream(), ty.to_token_stream(), field_expr.to_token_stream())
     }
 
     pub fn some<T: ToTokens>(body: T) -> Self {
@@ -300,8 +305,8 @@ impl ToTokens for DictionaryExpr {
             Self::SelfAsTrait(self_ty, acc) =>
                 quote!(*((*self_).object as *#acc #self_ty)).to_tokens(tokens),
 
-            Self::SelfDestructuring(content) =>
-                quote!(Self { #content }).to_tokens(tokens),
+            Self::TypeDestructuring(ty, content) =>
+                quote!(#ty { #content }).to_tokens(tokens),
             Self::TryIntoUnwrap(expr) => {
                 expr.to_tokens(tokens);
                 quote!(.try_into().unwrap()).to_tokens(tokens)
@@ -316,10 +321,8 @@ impl ToTokens for DictionaryExpr {
                     (self.destructor)(#ffi_result);
                     result
                 ).to_tokens(tokens),
-            Self::CastedFFIConversionFrom(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from(#expr)).to_tokens(tokens),
-            Self::CastedFFIConversionFromOpt(ffi_type, target_type, expr) =>
-                quote!(<#ffi_type as ferment::FFIConversionFrom<#target_type>>::ffi_from_opt(#expr)).to_tokens(tokens),
+            Self::CastedFFIConversion(interface, method, ffi_type, target_type, expr) =>
+                quote!(<#ffi_type as ferment::#interface<#target_type>>::#method(#expr)).to_tokens(tokens),
             Self::BoxedSelfDestructuring(expr) =>
                 InterfacesMethodExpr::Boxed(DictionaryExpr::self_destruct(expr)).to_tokens(tokens),
             Self::IfElse(condition, true_expr, false_expr) =>

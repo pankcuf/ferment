@@ -10,7 +10,7 @@ impl ToTokens for Name<RustSpecification> {
         match self {
             Name::_Phantom(..) |
             Name::Empty =>
-                TokenStream2::default(),
+                Default::default(),
             Name::UnnamedStructFieldsComp(Type::Ptr(_), _) =>
                 DictionaryName::Obj.to_token_stream(),
             Name::Index(index) | Name::UnnamedStructFieldsComp(_, index) =>

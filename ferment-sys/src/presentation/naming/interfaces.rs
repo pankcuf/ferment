@@ -1,7 +1,7 @@
 use quote::{quote, TokenStreamExt, ToTokens};
 use syn::__private::TokenStream2;
 use ferment_macro::MethodCall;
-use crate::presentation::{FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod};
+use crate::presentation::{DictionaryName, FFIConversionDestroyMethod, FFIConversionFromMethod, FFIConversionToMethod};
 
 #[derive(Clone, Debug, MethodCall)]
 #[namespace = "ferment"]
@@ -54,6 +54,14 @@ pub enum InterfacesMethod {
     FoldToResultPreferOk,
     ToResult,
 }
+
+impl InterfacesMethod {
+    pub fn full_path(&self) -> TokenStream2 {
+        let package = DictionaryName::Package;
+        quote!(#package::#self)
+    }
+}
+
 impl ToTokens for InterfacesMethod {
     fn to_tokens(&self, dst: &mut TokenStream2) {
         match self {

@@ -1,10 +1,9 @@
 use proc_macro2::{Ident, TokenStream as TokenStream2};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Attribute, BareFnArg, Generics, parse_quote, ReturnType, Type, Visibility};
-use syn::token::{Pub, RArrow};
 use crate::ast::{CommaPunctuated, CommaPunctuatedTokens, Depunctuated};
 use crate::composer::{CommaPunctuatedArgs, SemiPunctuatedArgs, SignatureAspect};
-use crate::ext::{Accessory, ArgsTransform, Pop, PunctuateOne, Terminated, ToPath, ToType};
+use crate::ext::{Accessory, ArgsTransform, Mangle, Pop, PunctuateOne, Terminated, ToPath, ToType};
 use crate::lang::RustSpecification;
 use crate::presentation::{ArgPresentation, DictionaryName, InterfacePresentation, InterfacesMethodExpr, Name};
 
@@ -139,6 +138,27 @@ pub enum BindingPresentation {
     }
 }
 
+impl BindingPresentation {
+    fn regular_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, return_type: ReturnType, body: T) -> Self {
+        Self::RegularFunctionWithBody {
+            aspect: aspect.clone(),
+            name: name.mangle_tokens_default(),
+            arguments,
+            return_type,
+            body: body.to_token_stream(),
+        }
+    }
+    pub fn regular_non_void_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, return_type: Type, body: T) -> Self {
+        Self::regular_fn_with_body(aspect, name, arguments, ReturnType::Type(Default::default(), return_type.into()), body)
+    }
+    pub fn regular_void_fn_with_body<T: ToTokens>(aspect: &SignatureAspect<RustSpecification>, name: Name<RustSpecification>, arguments: CommaPunctuatedArgs, body: T) -> Self {
+        Self::regular_fn_with_body(aspect, name, arguments, ReturnType::Default, body)
+    }
+    pub fn ctor_with_body<T: ToTokens + 'static>(aspect: &SignatureAspect<RustSpecification>, ty: Type, arguments: CommaPunctuatedArgs, return_type: Type, body_to_be_boxed: T) -> Self {
+        Self::regular_fn_with_body(aspect, Name::<RustSpecification>::Constructor(ty), arguments, ReturnType::Type(Default::default(), Box::new(return_type)), InterfacesMethodExpr::Boxed(body_to_be_boxed))
+    }
+}
+
 pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     aspect: &SignatureAspect<RustSpecification>,
     name: U,
@@ -146,7 +166,7 @@ pub fn present_pub_function<T: ToTokens, U: ToTokens>(
     output: ReturnType,
     body: TokenStream2
 ) -> TokenStream2 {
-    present_function(Visibility::Public(Pub::default()), aspect, name, args, output, body)
+    present_function(Visibility::Public(Default::default()), aspect, name, args, output, body)
 }
 pub fn present_function<T: ToTokens, N: ToTokens>(
     acc: Visibility,
@@ -185,7 +205,7 @@ pub fn present_signature<A: ToTokens, S: ToTokens>(acc: A, signature: S) -> Toke
 }
 
 pub fn present_struct<Name: ToTokens, Impl: ToTokens>(
-    ident: Name,
+    name: Name,
     attrs: &Vec<Attribute>,
     implementation: Impl
 ) -> TokenStream2 {
@@ -193,7 +213,7 @@ pub fn present_struct<Name: ToTokens, Impl: ToTokens>(
         #[repr(C)]
         #[derive(Clone)]
         #(#attrs)*
-        pub struct #ident #implementation
+        pub struct #name #implementation
     }
 }
 
@@ -209,7 +229,7 @@ impl ToTokens for BindingPresentation {
                     aspect,
                     name,
                     ctor_arguments.clone(),
-                    ReturnType::Type(RArrow::default(), ty.joined_mut().into()),
+                    ReturnType::Type(Default::default(), ty.joined_mut().into()),
                     InterfacesMethodExpr::Boxed(quote!(#ffi_path #body_presentation)).to_token_stream())
             },
             Self::VariantConstructor { aspect, name, ty, ctor_arguments, body_presentation} => {
@@ -218,7 +238,7 @@ impl ToTokens for BindingPresentation {
                     aspect,
                     name,
                     ctor_arguments.clone(),
-                    ReturnType::Type(RArrow::default(), variant_path.popped().to_type().joined_mut().into()),
+                    ReturnType::Type(Default::default(), variant_path.popped().to_type().joined_mut().into()),
                     InterfacesMethodExpr::Boxed(quote!(#variant_path #body_presentation)).to_token_stream())
             },
             Self::Destructor { aspect, name, var } =>
@@ -234,7 +254,7 @@ impl ToTokens for BindingPresentation {
                     aspect,
                     name,
                     quote!(obj: #item_var).punctuate_one(),
-                    ReturnType::Type(RArrow::default(), trait_type.to_type().into()),
+                    ReturnType::Type(Default::default(), trait_type.to_type().into()),
                     quote!(#trait_type {
                         object: obj as *const (),
                         vtable: &#vtable_name
@@ -256,7 +276,7 @@ impl ToTokens for BindingPresentation {
                     aspect,
                     name,
                     quote!(obj: #obj_var).punctuate_one(),
-                    ReturnType::Type(RArrow::default(), field_type.clone().into()),
+                    ReturnType::Type(Default::default(), field_type.clone().into()),
                     quote!((*obj).#field_name)
                 ),
             Self::Setter { name, field_name, obj_var, field_type, aspect } |
@@ -342,10 +362,14 @@ impl ToTokens for BindingPresentation {
                 ),
             Self::Callback { aspect: (attrs, ..), name, ffi_args, result, conversion } => {
                 let result_impl = match result {
-                    ReturnType::Default => TokenStream2::default(),
-                    ReturnType::Type(_, ref ty) => quote! { #result, destructor: unsafe extern "C" fn(result: #ty) }
+                    ReturnType::Default => Default::default(),
+                    ReturnType::Type(_, ref ty) => {
+                        let dtor_signature = present_signature(TokenStream2::default(), quote!((result: #ty)));
+                        quote! { #result, destructor: #dtor_signature }
+                    }
                 };
-                let implementation = quote! {{ caller: unsafe extern "C" fn(#ffi_args) #result_impl, }};
+                let caller_signature = present_signature(TokenStream2::default(), quote!((#ffi_args) #result_impl));
+                let implementation = quote!({ caller: #caller_signature, });
                 let definition = present_struct(name, attrs, implementation);
                 quote! {
                     #definition

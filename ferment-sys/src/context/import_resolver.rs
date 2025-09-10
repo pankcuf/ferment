@@ -19,8 +19,7 @@ impl ImportResolver {
                 current_path.push(ident.clone());
                 self.fold_import_tree(scope, tree, current_path);
             },
-            UseTree::Name(UseName { ident, .. }) |
-            UseTree::Rename(UseRename { rename: ident, .. }) => {
+            UseTree::Name(UseName { ident, .. }) => {
                 if ident != "_" {
                     current_path.push(ident.clone());
                     let path = Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) };
@@ -28,6 +27,17 @@ impl ImportResolver {
                         .entry(scope.clone())
                         .or_default()
                         .insert(ident.to_path(), path);
+                }
+            }
+            UseTree::Rename(UseRename { ident, rename, .. }) => {
+                if rename != "_" {
+                    // Build path using original ident, but store under alias (rename)
+                    current_path.push(ident.clone());
+                    let path = Path { leading_colon: None, segments: Punctuated::from_iter(current_path.into_iter().map(PathSegment::from)) };
+                    self.inner
+                        .entry(scope.clone())
+                        .or_default()
+                        .insert(rename.to_path(), path);
                 }
             }
             UseTree::Group(UseGroup { items, .. }) =>

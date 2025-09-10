@@ -24,7 +24,7 @@ impl ArgPresentation {
         Self::Arm(Arm { attrs: attrs.to_owned(), pat, guard: None, fat_arrow_token: Default::default(), body: Box::new(Expr::Verbatim(body)), comma: None })
     }
     pub fn attr_less_arm(pat: Pat, body: TokenStream2) -> Self {
-        Self::Arm(Arm { attrs: vec![], pat, guard: None, fat_arrow_token: Default::default(), body: Box::new(Expr::Verbatim(body)), comma: None })
+        Self::arm(&[], pat, body)
     }
     pub fn attr_tokens<T: ToTokens>(attrs: &[Attribute], tokens: T) -> Self {
         Self::AttrTokens(attrs.to_owned(), tokens.to_token_stream())

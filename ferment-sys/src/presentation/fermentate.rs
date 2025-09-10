@@ -28,23 +28,6 @@ impl Default for Fermentate {
     }
 }
 
-// impl ToTokens for Fermentate {
-//     fn to_tokens(&self, tokens: &mut TokenStream2) {
-//         match self {
-//             Fermentate::Empty => {}
-//             Fermentate::Rust(fermentate) => fermentate.to_tokens(tokens),
-//             #[cfg(feature = "objc")]
-//             Fermentate::ObjC(fermentate) => fermentate.to_tokens(tokens)
-//         }
-//     }
-// }
-// impl ScopeContextPresentable for Fermentate {
-//     type Presentation = TokenStream2;
-//
-//     fn present(&self, _source: &ScopeContext) -> Self::Presentation {
-//         self.to_token_stream()
-//     }
-// }
 /// A result of fermentation
 #[derive(Clone, Debug)]
 #[allow(unused)]

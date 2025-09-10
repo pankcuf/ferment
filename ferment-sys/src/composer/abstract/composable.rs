@@ -1,9 +1,11 @@
 use std::cell::Ref;
 use std::fmt::Debug;
 use quote::ToTokens;
+use syn::__private::TokenStream2;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{BasicComposerLink, ComposerLinkRef, CommaArgComposers, FieldsOwnedSequenceComposerLink};
 use crate::context::{ScopeContext, ScopeContextLink};
+use crate::ext::{WrapIntoCurlyBraces, WrapIntoRoundBraces};
 use crate::lang::Specification;
 use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ScopeContextPresentable, SeqKind};
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
@@ -80,6 +82,14 @@ pub enum NameKind {
     Named,
     Unnamed,
     Unit
+}
+impl NameKind {
+    pub fn wrap<T: ToTokens>(&self, expr: T) -> TokenStream2 {
+        match self {
+            NameKind::Unnamed => WrapIntoRoundBraces::wrap(expr),
+            _ => WrapIntoCurlyBraces::wrap(expr)
+        }
+    }
 }
 pub trait NameKindComposable {
     fn compose_name_kind(&self) -> NameKind;

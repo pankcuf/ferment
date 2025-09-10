@@ -1,7 +1,7 @@
 use quote::{quote, ToTokens};
 use syn::{parse_quote, AngleBracketedGenericArguments, GenericArgument, Path, PathArguments, PathSegment, Type, TypePath};
 use crate::ast::Depunctuated;
-use crate::composer::{ArrayComposer, AspectPresentable, AttrComposable, FFIAspect, GenericComposerInfo, SourceComposable, TypeAspect, VarComposer};
+use crate::composer::{ArrayComposer, AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, TypeAspect, VarComposer};
 use crate::context::ScopeContext;
 use crate::kind::{FieldTypeKind, GenericTypeKind, TypeKind};
 use crate::ext::{Accessory, FFIVarResolve, GenericNestedArg};
@@ -10,7 +10,7 @@ use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
 use crate::lang::objc::formatter::format_interface_implementations;
-use crate::presentable::{ArgKind, ConversionExpressionKind, Expression, ScopeContextPresentable};
+use crate::presentable::{ArgKind, ConversionAspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
 
 impl SourceComposable for ArrayComposer<ObjCSpecification> {
     type Source = ScopeContext;
@@ -31,18 +31,18 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
                 let kind = ConversionExpressionKind::PrimitiveGroup;
                 (
                     <ObjCSpecification as Specification>::Var::direct(objc_primitive(arg_0_target_path).to_token_stream()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_drop(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_from(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_to(kind), quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
             TypeKind::Complex(arg_0_target_ty) => {
                 let kind = ConversionExpressionKind::ComplexGroup;
                 (
                     <ObjCSpecification as Specification>::Var::mut_ptr(FFIVarResolve::<ObjCSpecification>::special_or_to_ffi_full_path_type(arg_0_target_ty, source).to_token_stream()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_drop(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_from(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_to(kind), quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
             TypeKind::Generic(GenericTypeKind::Optional(Type::Path(TypePath { path: Path { segments, .. }, .. }))) => {
@@ -61,18 +61,18 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
                 };
                 (
                     arg_ty,
-                    Expression::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::CastConversionExprTokens(ConversionAspect::kind_drop(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::CastConversionExprTokens(ConversionAspect::kind_from(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::CastConversionExprTokens(ConversionAspect::kind_to(kind), quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             },
             TypeKind::Generic(arg_0_generic_path_conversion) => {
                 let kind = ConversionExpressionKind::ComplexGroup;
                 (
                     VarComposer::<ObjCSpecification>::value(arg_0_generic_path_conversion.ty()?).compose(source),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::Drop, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::From, kind, from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
-                    Expression::<ObjCSpecification>::CastConversionExprTokens(FFIAspect::To, kind, quote!(obj.values), ffi_type.clone(), target_type.clone())
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_drop(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_from(kind), from_args.to_token_stream(), ffi_type.clone(), target_type.clone()),
+                    Expression::<ObjCSpecification>::CastConversionExprTokens(ConversionAspect::kind_to(kind), quote!(obj.values), ffi_type.clone(), target_type.clone())
                 )
             }
         };

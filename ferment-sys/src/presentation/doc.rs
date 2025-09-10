@@ -9,7 +9,6 @@ pub enum DocPresentation {
     #[default]
     Empty,
     Default(TokenStream2),
-    DefaultT(TokenStream2),
     Direct(TokenStream2),
     Safety(TokenStream2),
 }
@@ -27,7 +26,6 @@ impl ToTokens for DocPresentation {
             Self::Empty => quote!(),
             Self::Direct(target_name) => quote!(#target_name),
             Self::Default(target_name) => default_doc(target_name),
-            Self::DefaultT(target_name) => default_doc(target_name),
             Self::Safety(target_name) => {
                 let doc = default_doc(target_name);
                 quote! {

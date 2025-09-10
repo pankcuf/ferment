@@ -1,6 +1,6 @@
 [package]
 name = "example-traits"
-version = "0.1.0"
+version = "0.2.14"
 edition = "2021"
 #build = "build.backup"
 authors.workspace = true

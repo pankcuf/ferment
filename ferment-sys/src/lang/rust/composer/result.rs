@@ -71,7 +71,7 @@ impl SourceComposable for ResultComposer<RustSpecification> {
             FieldComposer::named_no_attrs(<RustSpecification as Specification>::Name::error(), FieldTypeKind::Var(var_error.clone()))
         ]);
         let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
-        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let signature_context = (attrs.clone(), Default::default(), Default::default());
         let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
         let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
         let ok_context = (signature_context.clone(), ffi_type.clone(), var_ok);

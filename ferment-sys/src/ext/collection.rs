@@ -50,7 +50,7 @@ where K: Eq + Hash + Display,
       V: ValueReplaceScenario + Display {
     fn scope_items(&self) -> IndexMap<K, V> {
         // TODO: Implement this if need
-        IndexMap::default()
+        Default::default()
     }
 }
 
@@ -62,7 +62,7 @@ where K: Eq + Hash + Display + Debug,
             GenericArgument::Type(ty) => ty.scope_items(),
             GenericArgument::Constraint(constraint) => constraint.scope_items(),
             GenericArgument::Const(expr) => expr.scope_items(),
-            _ => IndexMap::default(),
+            _ => Default::default(),
         }
     }
 }
@@ -93,7 +93,7 @@ where K: Eq + Hash + Display + Debug,
         match self {
             PathArguments::AngleBracketed(args) => args.scope_items(),
             PathArguments::Parenthesized(args) => args.scope_items(),
-            PathArguments::None => IndexMap::default()
+            PathArguments::None => Default::default()
         }
     }
 }
@@ -120,7 +120,7 @@ where K: Eq + Hash + Display + Debug,
     fn scope_items(&self) -> IndexMap<K, V> {
         match self {
             ReturnType::Type(_, ty) => ty.scope_items(),
-            ReturnType::Default => IndexMap::default()
+            ReturnType::Default => Default::default()
         }
     }
 }

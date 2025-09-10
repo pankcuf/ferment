@@ -18,7 +18,7 @@ impl SourceComposable for SmartPointerComposer<RustSpecification> {
 
         let ffi_name = root_ty_ref.mangle_tokens_default();
         let lifetimes = arg_ty.unique_lifetimes();
-        let generics = <RustSpecification as Specification>::Gen::default();
+        let generics = Default::default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
 

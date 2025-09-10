@@ -4,7 +4,6 @@ use quote::ToTokens;
 use syn::{Attribute, AttrStyle, Item, Lit, Meta, MetaList, parse_quote, Expr, ExprLit, MacroDelimiter, Type};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::token::Paren;
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::MaybeMacroLabeled;
 use crate::ext::MaybeAttrs;
@@ -92,21 +91,21 @@ impl CfgMacroType {
             CfgMacroType::Not(cond) => {
                 Meta::List(MetaList {
                     path: syn::Path::from(syn::Ident::new("not", proc_macro2::Span::call_site())),
-                    delimiter: MacroDelimiter::Paren(Paren::default()),
+                    delimiter: MacroDelimiter::Paren(Default::default()),
                     tokens: cond.to_meta().to_token_stream(),
                 })
             }
             CfgMacroType::Any(conds) => {
                 Meta::List(MetaList {
                     path: syn::Path::from(syn::Ident::new("any", proc_macro2::Span::call_site())),
-                    delimiter: MacroDelimiter::Paren(Paren::default()),
+                    delimiter: MacroDelimiter::Paren(Default::default()),
                     tokens: Depunctuated::from_iter(conds.iter().map(|c| c.to_meta())).to_token_stream(),
                 })
             }
             CfgMacroType::All(conds) => {
                 Meta::List(MetaList {
                     path: syn::Path::from(syn::Ident::new("all", proc_macro2::Span::call_site())),
-                    delimiter: MacroDelimiter::Paren(Paren::default()),
+                    delimiter: MacroDelimiter::Paren(Default::default()),
                     tokens: Depunctuated::from_iter(conds.iter().map(|c| c.to_meta())).to_token_stream(),
                 })
             }

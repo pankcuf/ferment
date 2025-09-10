@@ -99,7 +99,7 @@ impl<SPEC> EnumComposer<SPEC>
 impl<SPEC> DocsComposable for EnumComposer<SPEC>
     where SPEC: Specification {
     fn compose_docs(&self) -> DocPresentation {
-        DocPresentation::DefaultT(self.base.doc.compose(self.context()))
+        DocPresentation::Default(self.base.doc.compose(self.context()))
     }
 }
 impl<SPEC> FFIObjectComposable for EnumComposer<SPEC>

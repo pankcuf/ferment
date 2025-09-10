@@ -30,12 +30,6 @@ impl std::fmt::Debug for ScopeTreeExportItem {
                     .field("attrs", attrs)
                     .finish()
         }
-        // match self {
-        //     ScopeTreeExportItem::Item(_, item) =>
-        //         f.write_str(&format!("ScopeTreeExportItem::Item({})", item.ident_string())),
-        //     ScopeTreeExportItem::Tree(context, imported, exported) =>
-        //         f.write_str(&format!("ScopeTreeExportItem::Tree(\n\t{})", format_tree_exported_dict(exported)))
-        // }
     }
 }
 

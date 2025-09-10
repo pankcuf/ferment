@@ -1,4 +1,5 @@
-use syn::{Generics, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
+use proc_macro2::Ident;
+use syn::{Generics, GenericParam, Path, ReturnType, TraitBound, Type, TypeArray, TypeBareFn, TypeGroup, TypeImplTrait, TypeParam, TypeParamBound, TypeParen, TypePath, TypePtr, TypeReference, TypeSlice, TypeTraitObject, TypeTuple};
 use crate::ast::AddPunctuated;
 use crate::ext::{MaybeTraitBound, ToType};
 
@@ -7,18 +8,18 @@ pub trait ContainsSubType {
 }
 
 impl ContainsSubType for Generics {
-    fn contains_sub_type(&self, _sub_type: &Type) -> bool {
-        false
-        // match sub_type {
-        //     Type::Array(TypeArray { elem, .. }) |
-        //     Type::Group(TypeGroup { elem , .. }) |
-        //     Type::Paren(TypeParen { elem, .. }) |
-        //     Type::Ptr(TypePtr { elem, .. }) |
-        //     Type::Reference(TypeReference { elem, .. }) |
-        //     Type::Slice(TypeSlice { elem, .. }) =>
-        //         elem.contains_sub_type(sub_type),
-        //     _ => false
-        // }
+    fn contains_sub_type(&self, sub_type: &Type) -> bool {
+        // Returns true if `sub_type` is exactly one of the type parameters declared
+        // in these generics (e.g., `T`, `U`). Does not match composed types such as
+        // `Vec<T>` or `Into<U>` — those should be considered for propagation.
+        let params: Vec<Ident> = self.params.iter().filter_map(|p| if let GenericParam::Type(TypeParam { ident, .. }) = p { Some(ident.clone()) } else { None }).collect();
+        match sub_type {
+            Type::Path(TypePath { qself: None, path: Path { leading_colon: None, segments }, .. }) if segments.len() == 1 => {
+                let ident = &segments.first().unwrap().ident;
+                params.iter().any(|p| ident.eq(p))
+            }
+            _ => false,
+        }
     }
 }
 
