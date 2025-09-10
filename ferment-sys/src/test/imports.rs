@@ -2,6 +2,7 @@ use quote::ToTokens;
 use syn::{parse_quote, UseTree};
 use proc_macro2::Ident;
 use crate::context::{ImportResolver, ScopeChain};
+use crate::ext::VisitScope;
 
 #[test]
 fn fold_import_tree_simple_and_group() {
@@ -64,4 +65,70 @@ fn fold_import_tree_glob_is_ignored() {
     resolver.fold_import_tree(&scope, &glob, Vec::<Ident>::new());
     let after_len = resolver.maybe_scope_imports(&scope).map(|m| m.len()).unwrap_or_default();
     assert_eq!(after_len, before_len);
+}
+
+#[test]
+fn imported_alias_used_in_struct_field_records_imported_kind() {
+    use syn::Item;
+    use crate::tree::Visitor;
+    use crate::context::GlobalContext;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    // Setup context and module scope
+    let ctx: Rc<RefCell<GlobalContext>> = Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
+        "fermented",
+        crate::lang::rust::Crate::current_with_name("my_crate"),
+        cbindgen::Config::default(),
+    ))));
+    let scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+    let mut visitor = Visitor::new(&scope, &[], &ctx);
+
+    // use pkg::Type as Renamed;
+    let renamed_use: UseTree = parse_quote!(pkg::Type as Renamed);
+    visitor.fold_import_tree(&scope, &renamed_use, Vec::<Ident>::new());
+
+    // struct S { f: Renamed }
+    let s: Item = parse_quote!(struct S { f: Renamed });
+    let _ = s.join_scope(&scope, &mut visitor);
+
+    // Validate that Renamed is recorded as an Imported model kind
+    let context = ctx.borrow();
+    let chain = context.scope_register.get(&scope).expect("module scope chain present");
+    let key: syn::Type = parse_quote!(Renamed);
+    let obj = chain.get(&key).expect("Renamed present in scope register");
+    let tyc = obj.maybe_type_model_kind_ref().expect("type model kind");
+    assert!(tyc.is_imported(), "expected imported kind, got: {}", tyc);
+}
+
+#[test]
+fn imported_alias_used_in_fn_arg_records_in_module_scope() {
+    use syn::Item;
+    use crate::tree::Visitor;
+    use crate::context::GlobalContext;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    // Setup context and module scope
+    let ctx: Rc<RefCell<GlobalContext>> = Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
+        "fermented",
+        crate::lang::rust::Crate::current_with_name("my_crate"),
+        cbindgen::Config::default(),
+    ))));
+    let scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+    let mut visitor = Visitor::new(&scope, &[], &ctx);
+
+    // use pkg::Type as Renamed;
+    let renamed_use: UseTree = parse_quote!(pkg::Type as Renamed);
+    visitor.fold_import_tree(&scope, &renamed_use, Vec::<Ident>::new());
+
+    // fn f(arg: Renamed) {}
+    let f: Item = parse_quote!(fn f(arg: Renamed) {});
+    let _ = f.join_scope(&scope, &mut visitor);
+
+    // Validate Renamed recorded in module scope
+    let context = ctx.borrow();
+    let chain = context.scope_register.get(&scope).expect("module scope chain present");
+    let key: syn::Type = parse_quote!(Renamed);
+    let obj = chain.get(&key).expect("Renamed present in scope register");
+    let tyc = obj.maybe_type_model_kind_ref().expect("type model kind");
+    assert!(tyc.is_imported());
 }
