@@ -1,4 +1,9 @@
 # ferment
+
+[![CI](https://github.com/pankcuf/ferment/actions/workflows/ci.yml/badge.svg)](https://github.com/pankcuf/ferment/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Coverage](https://img.shields.io/badge/coverage-llvm--cov-informational)](#coverage)
+
 Syntax-tree morphing tool for FFI (work in progress)
 
 Generates FFI-compliant equivalents for Rust items (structs, enums, type aliases, functions) and for traits (vtable + trait objects, with per-implementor shims).
@@ -258,6 +263,43 @@ struct IHaveChainSettings_TraitObject ChainType_as_IHaveChainSettings_TraitObjec
 void ChainType_as_IHaveChainSettings_TraitObject_destroy(struct IHaveChainSettings_TraitObject obj);
 
 ```
+
+## Testing
+
+Run all tests locally:
+
+```
+cargo test --workspace --all-features
+```
+
+Run tests for a specific crate:
+
+```
+cargo test -p ferment-sys --all-features
+```
+
+## Coverage
+
+This workspace uses `cargo-llvm-cov` for coverage (CI publishes an lcov artifact).
+
+Install the tool locally (or use the installer action in CI):
+
+```
+cargo install cargo-llvm-cov
+```
+
+Generate coverage for the core crates and open an HTML report:
+
+```
+cargo llvm-cov -p ferment -p ferment-macro -p ferment-sys --html
+open target/llvm-cov/html/index.html
+```
+
+Export lcov (same format CI uploads as an artifact):
+
+```
+cargo llvm-cov -p ferment -p ferment-macro -p ferment-sys --lcov --output-path coverage/lcov.info
+```
 Current limitations (high level):
 - Mark all structures/traits/functions involved in export with the macro.
 - Type aliases: supported with caveats; prefer exporting the underlying type directly when possible. Complex aliasing across crates and re-exports is not fully resolved yet.
@@ -351,6 +393,8 @@ pub mod generics {
 **[TODO](https://github.com/pankcuf/ferment/blob/master/TODO.md)**
 
 **[CHANGELOG](https://github.com/pankcuf/ferment/blob/master/CHANGELOG.md)**
+
+**[PROJECT_PLAN](https://github.com/pankcuf/ferment/blob/master/docs/PROJECT_PLAN.md)**
 
 **Memory Cleanup Responsibility**
 Assuming we have the following structures and method:
