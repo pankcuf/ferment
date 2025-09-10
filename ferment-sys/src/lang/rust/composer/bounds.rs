@@ -1,5 +1,5 @@
 use syn::{Lifetime, Type};
-use crate::ast::{CommaParenWrapped, CommaPunctuated, Depunctuated, SemiPunctuated};
+use crate::ast::{CommaParenWrapped, CommaPunctuatedTokens, Depunctuated, SemiPunctuatedTokens};
 use crate::composable::FieldComposer;
 use crate::composer::{AspectPresentable, AttrComposable, BoundsComposer, GenericComposerInfo, SourceComposable};
 use crate::context::ScopeContext;
@@ -21,9 +21,9 @@ impl SourceComposable for BoundsComposer<RustSpecification> {
         let ffi_name = self.model.mangle_ident_default();
         let types = (self.present_ffi_aspect(), self.present_target_aspect());
         let attrs = self.compose_attributes();
-        let mut from_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut to_conversions = CommaPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
-        let mut destroy_conversions = SemiPunctuated::<<<RustSpecification as Specification>::Expr as ScopeContextPresentable>::Presentation>::new();
+        let mut from_conversions = CommaPunctuatedTokens::new();
+        let mut to_conversions = CommaPunctuatedTokens::new();
+        let mut destroy_conversions = SemiPunctuatedTokens::new();
         let mut field_composers = Depunctuated::new();
         self.model
             .chain

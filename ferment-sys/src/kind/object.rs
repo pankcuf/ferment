@@ -9,7 +9,7 @@ use crate::composable::{NestedArgument, TraitDecompositionPart1, TraitModel, Typ
 use crate::composer::CommaPunctuatedNestedArguments;
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GenericBoundsModel, GenericTypeKind, GroupModelKind, ScopeItemKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario, handle_type_path_model};
+use crate::ext::{AsType, collect_bounds, MaybeLambdaArgs, ResolveAttrs, ToType, ValueReplaceScenario, handle_type_path_model, PunctuateOne};
 use crate::lang::{NameComposable, Specification};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -296,7 +296,7 @@ impl TryFrom<(&Item, &Path)> for ObjectKind {
             Item::Type(ItemType { ident, generics, ty, .. }) =>
                 Ok(match &**ty {
                     Type::BareFn(..) =>
-                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic_ident(ident, generics.clone(), CommaPunctuatedNestedArguments::from_iter([NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics)))])), item_kind),
+                        ObjectKind::new_fn_pointer_item(TypeModel::new_generic_ident(ident, generics.clone(), NestedArgument::Object(ObjectKind::fn_model_type(TypeModel::new_generic_non_nested(*ty.clone(), generics))).punctuate_one()), item_kind),
                     _ =>
                         ObjectKind::new_generic_non_nested_obj_item(ident.to_type(), generics, item_kind)
                 }),

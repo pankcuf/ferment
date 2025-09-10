@@ -1,7 +1,6 @@
 use quote::{quote, ToTokens};
 use syn::{parse_quote, Expr, ExprAssign, ExprCall, ReturnType, Visibility};
-use syn::token::RArrow;
-use crate::composer::{NameKind, SourceComposable, CommaPunctuatedArgs, ConversionDropComposer, ConversionFromComposer};
+use crate::composer::{SourceComposable, CommaPunctuatedArgs, ConversionDropComposer, ConversionFromComposer};
 use crate::context::ScopeContext;
 use crate::kind::SmartPointerKind;
 use crate::ext::{Accessory, Mangle, Primitive, PunctuateOne, Terminated, ToPath, ToType, WrapIntoCurlyBraces, WrapIntoRoundBraces};
@@ -21,10 +20,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty,
                     ctor_arguments: args.present(source),
-                    body_presentation: match name_kind {
-                        NameKind::Unnamed => WrapIntoRoundBraces::wrap(body.present(source)),
-                        _ => WrapIntoCurlyBraces::wrap(body.present(source))
-                    }
+                    body_presentation: name_kind.wrap(body.present(source))
                 }
             },
             Self::VariantConstructor(aspect, signature_aspect, name_kind, args, body) => {
@@ -34,10 +30,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty,
                     ctor_arguments: args.present(source),
-                    body_presentation: match name_kind {
-                        NameKind::Unnamed => WrapIntoRoundBraces::wrap(body.present(source)),
-                        _ => WrapIntoCurlyBraces::wrap(body.present(source))
-                    }
+                    body_presentation: name_kind.wrap(body.present(source))
                 }
             },
             Self::Destructor(aspect, signature_aspect) => {
@@ -100,7 +93,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty,
-                    ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source)]),
+                    ctor_arguments: ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source).punctuate_one(),
                     body_presentation: WrapIntoCurlyBraces::wrap(ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source))
                 }
             },
@@ -120,8 +113,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.lock().unwrap();
@@ -158,7 +151,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty: ty.clone(),
-                    ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source)]),
+                    ctor_arguments: ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source).punctuate_one(),
                     body_presentation: WrapIntoCurlyBraces::wrap(body)
                 }
             },
@@ -178,8 +171,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.read().unwrap();
@@ -235,8 +228,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.get().unwrap();
@@ -272,7 +265,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty: ty.clone(),
-                    ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source)]),
+                    ctor_arguments: ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source).punctuate_one(),
                     body_presentation: WrapIntoCurlyBraces::wrap(body)
                 }
             },
@@ -292,8 +285,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.get();
@@ -329,7 +322,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty,
-                    ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source)]),
+                    ctor_arguments: ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source).punctuate_one(),
                     body_presentation: WrapIntoCurlyBraces::wrap(body)
                 }
             },
@@ -349,8 +342,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = lock.borrow();
@@ -389,7 +382,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::ctor(&ty).mangle_tokens_default(),
                     ty,
-                    ctor_arguments: CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source)]),
+                    ctor_arguments: ArgKind::inherited_named_by_ref(ctor_arg_composer).present(source).punctuate_one(),
                     body_presentation: WrapIntoCurlyBraces::wrap(ArgKind::DefaultFieldByValueConversion(ctor_arg_composer.clone(), <RustSpecification as Specification>::Expr::boxed(from_arg_conversion.clone())).present(source))
                 }
             },
@@ -409,8 +402,8 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     body: present_pub_function(
                         signature_aspect,
                         Name::<RustSpecification>::Read(aspect.present(source)).mangle_tokens_default(),
-                        CommaPunctuatedArgs::from_iter([ArgKind::inherited_named_by_ref(arg_field_composer).present(source)]),
-                        ReturnType::Type(RArrow::default(), arg_type.clone().into()),
+                        ArgKind::inherited_named_by_ref(arg_field_composer).present(source).punctuate_one(),
+                        ReturnType::Type(Default::default(), arg_type.clone().into()),
                         quote!(
                             let lock = #from_root_conversion;
                             let obj = &*lock.get();
@@ -467,7 +460,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *const #arr_type)),
                         ArgPresentation::no_attr_tokens(quote!(#index: usize))
                     ]),
-                    return_type: ReturnType::Type(RArrow::default(), Box::new(nested_type.clone())),
+                    return_type: ReturnType::Type(Default::default(), Box::new(nested_type.clone())),
                     body: Expr::Call(ExprCall {
                         attrs: vec![],
                         func: Box::new(Expr::Verbatim(quote!(*(*#ffi).#values.add))),
@@ -526,7 +519,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
                         ArgPresentation::no_attr_tokens(quote!(#key: #key_var))
                     ]),
-                    return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
+                    return_type: ReturnType::Type(Default::default(), Box::new(return_type)),
                     body: quote! {
                         let #ffi_ref = &*#ffi;
                         let key = #from_key_conversion;
@@ -602,7 +595,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                         ArgPresentation::no_attr_tokens(quote!(#ffi: *const #map_type)),
                         ArgPresentation::no_attr_tokens(quote!(#value: #value_var))
                     ]),
-                    return_type: ReturnType::Type(RArrow::default(), Box::new(return_type)),
+                    return_type: ReturnType::Type(Default::default(), Box::new(return_type)),
                     body: quote! {
                         let #ffi_ref = &*#ffi;
                         let key = #from_value_conversion;
@@ -664,7 +657,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Ok)).mangle_tokens_default(),
                     arguments: ArgPresentation::no_attr_tokens(quote!(#ok: #ok_type)).punctuate_one(),
-                    return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
+                    return_type: ReturnType::Type(Default::default(), Box::new(result_type.joined_mut())),
                     body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok, #error: #null })).to_token_stream(),
                 }
             }
@@ -676,7 +669,7 @@ impl ScopeContextPresentable for BindingPresentableContext<RustSpecification> {
                     aspect: signature_aspect.clone(),
                     name: Name::<RustSpecification>::Constructor(parse_quote!(#result_type::Error)).mangle_tokens_default(),
                     arguments: ArgPresentation::no_attr_tokens(quote!(#error: #error_type)).punctuate_one(),
-                    return_type: ReturnType::Type(RArrow::default(), Box::new(result_type.joined_mut())),
+                    return_type: ReturnType::Type(Default::default(), Box::new(result_type.joined_mut())),
                     body: InterfacesMethodExpr::Boxed(quote!(#result_type { #ok: #null, #error })).to_token_stream(),
                 }
             }

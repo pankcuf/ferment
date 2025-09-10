@@ -170,7 +170,7 @@ impl Mangle<((bool, bool), usize)> for TypeArray {
                 format!("{mangled_type_path}_{}", self.len.to_token_stream())
             }
         } else {
-            String::default()
+            Default::default()
         }
     }
 }

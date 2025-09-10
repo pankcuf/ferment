@@ -62,9 +62,9 @@ impl std::fmt::Debug for ScopeTreeID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ident(ident) =>
-                f.write_str(format!("{ident}").as_str()),
+                f.write_fmt(format_args!("{ident}")),
             Self::Impl(ty, path, generics) =>
-                f.write_str(format!("Impl({}, {}, {})", ty.to_token_stream(), path.to_token_stream(), generics.to_token_stream()).as_str())
+                f.write_fmt(format_args!("Impl({}, {}, {})", ty.to_token_stream(), path.to_token_stream(), generics.to_token_stream()))
         }
     }
 }
@@ -81,7 +81,7 @@ impl ScopeTreeID {
     }
 
     pub fn create_child_scope(&self, scope: &ScopeChain, attrs: Vec<Attribute>) -> ScopeChain {
-        match &self {
+        match self {
             Self::Ident(ident) =>
                 ScopeChain::r#mod(ScopeInfo::new(attrs, scope.crate_ident_ref().clone(), Scope::empty(scope.self_path_ref().joined(ident))), scope.clone()),
             Self::Impl(..) =>

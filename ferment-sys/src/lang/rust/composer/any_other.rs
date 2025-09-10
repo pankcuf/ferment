@@ -4,7 +4,7 @@ use crate::ast::{CommaPunctuated, Depunctuated, SemiPunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, GenericComposerInfo, SourceComposable, VarComposer, AnyOtherComposer};
 use crate::context::ScopeContext;
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, FieldTypeKind, GenericTypeKind, ObjectKind, SmartPointerModelKind, TypeKind, TypeModelKind};
-use crate::ext::{ArgsTransform, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, ToPath, ToType};
+use crate::ext::{ArgsTransform, GenericNestedArg, LifetimeProcessor, Mangle, MaybeLambdaArgs, PunctuateOne, ToPath, ToType};
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, InterfacePresentation};
@@ -196,9 +196,7 @@ impl SourceComposable for AnyOtherComposer<RustSpecification> {
             let to_body = CommaPunctuated::from_iter(expr_to_iter).present(source);
             interfaces.push(InterfacePresentation::conversion_to_boxed_self_destructured(&attrs, &types, to_body, &None, &lifetimes));
         }
-        let field_composers = Depunctuated::from_iter([
-            arg_0_name.field_composer(FieldTypeKind::Type(ffi_var))
-        ]);
+        let field_composers = arg_0_name.field_composer(FieldTypeKind::Type(ffi_var)).punctuate_one();
         let expr_destroy_iterator = [
             destroy_conversion.present(source)
         ];

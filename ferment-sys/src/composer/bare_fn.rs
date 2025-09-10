@@ -98,14 +98,13 @@ where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
             let BareFnArg { ty, name, .. } = bare_fn_arg;
             let var_composer = VarComposer::<SPEC>::key_ref_in_composer_scope(ty);
             let var_ty = var_composer.compose(source);
-            let conversion = TypeKind::from(ty);
             let ident_name = Name::<SPEC>::Optional(name.as_ref().map(|(ident, ..)| ident.clone()));
             arg_names.push(ident_name.to_token_stream());
             arg_target_types.push(ArgPresentation::no_attr_tokens(ty));
             let mut bare_fn_arg_replacement = bare_fn_arg.clone();
             bare_fn_arg_replacement.ty = var_ty.to_type();
             ffi_args.push(bare_fn_arg_replacement);
-            arg_to_conversions.push(match &conversion {
+            arg_to_conversions.push(match TypeKind::from(ty) {
                 TypeKind::Primitive(..) =>
                     Expression::<SPEC>::simple(&ident_name),
                 TypeKind::Generic(GenericTypeKind::Optional(ty)) if ty.is_primitive() =>

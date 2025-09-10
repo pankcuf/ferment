@@ -18,7 +18,7 @@ impl ScopeContextPresentable for SeqKind<RustSpecification> {
             SeqKind::ToStub(..) |
             SeqKind::DropStub(..) |
             SeqKind::StubStruct(..) =>
-                TokenStream2::default(),
+                Default::default(),
             SeqKind::FromUnnamedFields(((aspect, ..), fields)) |
             SeqKind::ToUnnamedFields(((aspect, ..), fields)) => {
                 let name = aspect.present(source);

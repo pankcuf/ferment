@@ -7,7 +7,6 @@ use crate::ast::Depunctuated;
 use crate::composer::SourceAccessible;
 use crate::context::ScopeContextLink;
 use crate::ext::RefineUnrefined;
-// use crate::ext::refine;
 use crate::tree::ScopeTree;
 use crate::tree::{create_crate_root_scope_tree, create_generics_scope_tree, ScopeTreeExportItem};
 

@@ -5,33 +5,6 @@ use crate::context::{GlobalContext, Scope, ScopeChain, ScopeInfo};
 use crate::ext::{AsType, CrateBased, DictionaryType, Join, LifetimeProcessor, Pop, ReexportSeek, RefineMut, ToPath};
 use crate::kind::{DictFermentableModelKind, DictTypeModelKind, GroupModelKind, ObjectKind, ScopeItemKind, SmartPointerModelKind, TypeModelKind};
 
-fn create_mod_chain(path: &Path) -> ScopeChain {
-    let segments = &path.segments;
-    let crate_ident = &segments.first().expect("Mod path should have at least one segment").ident;
-    let self_scope = Scope::empty(path.clone());
-    let parent_chunks = path.popped();
-    let parent = if parent_chunks.segments.len() > 1 {
-        create_mod_chain(&parent_chunks)
-    } else {
-        ScopeChain::root(ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(parent_chunks)))
-    };
-    let info = ScopeInfo::attr_less(crate_ident.clone(), self_scope);
-    if segments.len() == 1 {
-        ScopeChain::root(info)
-    } else {
-        ScopeChain::r#mod(info, parent)
-    }
-}
-
-fn refined_import(import_path: &Path, alias: &Path, source: &GlobalContext) -> Option<Path> {
-    match (import_path.segments.last(), alias.segments.last()) {
-        (Some(PathSegment { ident: import_ident, .. }), Some(PathSegment { ident: alias_ident, .. })) if import_ident == alias_ident =>
-            ReexportSeek::Absolute.maybe_reexport(import_path, source),
-        _ => None
-    }
-}
-
-#[allow(unused)]
 pub trait RefineInScope {
     fn refine_in_scope(&mut self, scope: &ScopeChain, source: &GlobalContext) -> bool;
 }
@@ -220,6 +193,32 @@ impl RefineInScope for NestedArgument {
     }
 }
 
+fn create_mod_chain(path: &Path) -> ScopeChain {
+    let segments = &path.segments;
+    let crate_ident = &segments.first().expect("Mod path should have at least one segment").ident;
+    let self_scope = Scope::empty(path.clone());
+    let parent_chunks = path.popped();
+    let parent = if parent_chunks.segments.len() > 1 {
+        create_mod_chain(&parent_chunks)
+    } else {
+        ScopeChain::root(ScopeInfo::attr_less(crate_ident.clone(), Scope::empty(parent_chunks)))
+    };
+    let info = ScopeInfo::attr_less(crate_ident.clone(), self_scope);
+    if segments.len() == 1 {
+        ScopeChain::root(info)
+    } else {
+        ScopeChain::r#mod(info, parent)
+    }
+}
+
+fn refined_import(import_path: &Path, alias: &Path, source: &GlobalContext) -> Option<Path> {
+    match (import_path.segments.last(), alias.segments.last()) {
+        (Some(PathSegment { ident, .. }), Some(PathSegment { ident: alias_ident, .. })) if ident == alias_ident =>
+            ReexportSeek::Absolute.maybe_reexport(import_path, source),
+        _ => None
+    }
+}
+
 // Unknown: There are 2 cases:
 // 1. it's from non-fermented crate
 // 2. it's not full scope:
@@ -261,7 +260,7 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
         } else if ident.is_lambda_fn()  {
             refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
             Some(DictTypeModelKind::LambdaFn(model.clone()))
-        } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into" | "Sized") || ident.is_special_std_trait() || ident.is_map() || ident.is_special_generic(){
+        } else if matches!(ident.to_string().as_str(), "FromIterator" | "From" | "Into") || ident.is_special_std_trait() || ident.is_map() || ident.is_special_generic(){
             refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
             Some(DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::Other(model.clone())))
         } else if ident.is_box() {
@@ -283,7 +282,7 @@ fn maybe_dict_type_model_kind(crate_named_import_path: &Path, model: &mut TypeMo
                 _ => None
             }.map(|smart_ptr_model| {
                 refine_ty_with_import_path(model.ty_mut(), crate_named_import_path);
-                DictTypeModelKind::NonPrimitiveFermentable(DictFermentableModelKind::SmartPointer(smart_ptr_model))
+                DictTypeModelKind::smart_pointer(smart_ptr_model)
             })
         }
     })

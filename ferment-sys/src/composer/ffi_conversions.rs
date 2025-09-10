@@ -6,7 +6,7 @@ use crate::presentable::{SeqKind, InterfaceKind};
 use crate::shared::SharedAccess;
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum FFIAspect {
     From,
     To,

@@ -3,19 +3,19 @@ use quote::ToTokens;
 use syn::__private::TokenStream2;
 use syn::Type;
 use crate::ast::CommaPunctuated;
-use crate::composer::{FFIAspect, FieldTypeLocalContext};
+use crate::composer::FieldTypeLocalContext;
 use crate::ext::{Conversion, ExpressionComposable, ToType};
 use crate::lang::Specification;
-use crate::presentable::{ConversionExpressionKind, ScopeContextPresentable};
+use crate::presentable::{ConversionAspect, ConversionExpressionKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, DictionaryName, InterfacesMethodExpr};
 #[derive(Clone, Debug)]
 pub enum Expression<SPEC>
     where SPEC: Specification<Expr=Self>,
           Self: ScopeContextPresentable {
-    ConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<SPEC>>),
-    ConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2),
-    CastConversionExpr(FFIAspect, ConversionExpressionKind, Box<Expression<SPEC>>, /*ffi*/Type, /*target*/Type),
-    CastConversionExprTokens(FFIAspect, ConversionExpressionKind, TokenStream2, /*ffi*/Type, /*target*/Type),
+    ConversionExpr(ConversionAspect, Box<Expression<SPEC>>),
+    ConversionExprTokens(ConversionAspect, TokenStream2),
+    CastConversionExpr(ConversionAspect, Box<Expression<SPEC>>, /*ffi*/Type, /*target*/Type),
+    CastConversionExprTokens(ConversionAspect, TokenStream2, /*ffi*/Type, /*target*/Type),
 
     Empty,
     Simple(TokenStream2),
@@ -63,17 +63,17 @@ impl<SPEC> Expression<SPEC>
         Self::Clone(self.into())
     }
 
-    pub(crate) fn conversion_expr(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(aspect, kind, expr.into())
+    pub(crate) fn conversion_expr(aspect: ConversionAspect, expr: Self) -> Self {
+        Self::ConversionExpr(aspect, expr.into())
     }
     pub(crate) fn expression_from(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(FFIAspect::From, kind, expr.into())
+        Self::ConversionExpr(ConversionAspect::kind_from(kind), expr.into())
     }
     pub(crate) fn expression_to(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(FFIAspect::To, kind, expr.into())
+        Self::ConversionExpr(ConversionAspect::kind_to(kind), expr.into())
     }
     pub(crate) fn expression_drop(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(FFIAspect::Drop, kind, expr.into())
+        Self::ConversionExpr(ConversionAspect::kind_drop(kind), expr.into())
     }
 
     pub(crate) fn mut_ref(expr: Self) -> Self {
@@ -83,8 +83,8 @@ impl<SPEC> Expression<SPEC>
         Self::AsRef(expr.into())
     }
 
-    fn tokens<T: ToTokens>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: T) -> Self {
-        Self::ConversionExprTokens(aspect, kind, expr.to_token_stream())
+    fn tokens<T: ToTokens>(aspect: ConversionAspect, expr: T) -> Self {
+        Self::ConversionExprTokens(aspect, expr.to_token_stream())
     }
 
     pub(crate) fn dict_expr(expr: DictionaryExpr) -> Self {
@@ -198,128 +198,128 @@ impl<SPEC> Expression<SPEC>
 
 
     pub(crate) fn from_complex(expr: Self) -> Self {
-        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::Complex, expr)
+        Self::conversion_expr(ConversionAspect::complex_from(), expr)
     }
 
     pub(crate) fn from_complex_opt(expr: Self) -> Self {
-        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr)
+        Self::conversion_expr(ConversionAspect::complex_from_opt(), expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_primitive_opt(expr: Self) -> Self {
-        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::conversion_expr(ConversionAspect::primitive_from_opt(), expr)
     }
 
     pub(crate) fn from_primitive(expr: Self) -> Self {
-        Self::conversion_expr(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
+        Self::conversion_expr(ConversionAspect::primitive_from(), expr)
     }
 
     pub(crate) fn destroy_complex(expr: Self) -> Self {
-        Self::conversion_expr(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
+        Self::conversion_expr(ConversionAspect::complex_drop(), expr)
     }
 
     pub(crate) fn from_complex_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::Complex, expr)
+        Self::tokens(ConversionAspect::complex_from(), expr)
     }
 
     pub(crate) fn from_complex_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexOpt, expr)
+        Self::tokens(ConversionAspect::complex_from_opt(), expr)
     }
 
     pub(crate) fn from_primitive_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::Primitive, expr)
+        Self::tokens(ConversionAspect::primitive_from(), expr)
     }
     pub(crate) fn from_primitive_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::tokens(ConversionAspect::primitive_from_opt(), expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveGroup, expr)
+        Self::tokens(ConversionAspect::primitive_group_from(), expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::PrimitiveOptGroup, expr)
+        Self::tokens(ConversionAspect::primitive_group_opt_from(), expr)
     }
     #[allow(unused)]
     pub(crate) fn from_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueOptGroup, expr)
+        Self::tokens(ConversionAspect::opaque_group_opt_from(), expr)
     }
     #[allow(unused)]
     pub(crate) fn from_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::OpaqueGroup, expr)
+        Self::tokens(ConversionAspect::opaque_group_from(), expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexGroup, expr)
+        Self::tokens(ConversionAspect::complex_group_from(), expr)
     }
 
     #[allow(unused)]
     pub(crate) fn from_complex_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::From, ConversionExpressionKind::ComplexOptGroup, expr)
+        Self::tokens(ConversionAspect::complex_group_opt_from(), expr)
     }
 
 
 
     pub(crate) fn ffi_to_primitive_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::Primitive, expr)
+        Self::tokens(ConversionAspect::primitive_to(), expr)
     }
     pub(crate) fn ffi_to_complex_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::Complex, expr)
+        Self::tokens(ConversionAspect::complex_to(), expr)
     }
     pub(crate) fn ffi_to_complex_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexOpt, expr)
+        Self::tokens(ConversionAspect::complex_to_opt(), expr)
     }
     pub(crate) fn ffi_to_primitive_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::tokens(ConversionAspect::primitive_to_opt(), expr)
     }
     #[allow(unused)]
     pub(crate) fn ffi_to_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveGroup, expr)
+        Self::tokens(ConversionAspect::primitive_group_to(), expr)
     }
     #[allow(unused)]
     pub(crate) fn ffi_to_primitive_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::PrimitiveOptGroup, expr)
+        Self::tokens(ConversionAspect::primitive_group_opt_to(), expr)
     }
     #[allow(unused)]
     pub(crate) fn ffi_to_opaque_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueOptGroup, expr)
+        Self::tokens(ConversionAspect::opaque_group_opt_to(), expr)
     }
     #[allow(unused)]
     pub(crate) fn ffi_to_opaque_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::OpaqueGroup, expr)
+        Self::tokens(ConversionAspect::opaque_group_to(), expr)
     }
     #[allow(unused)]
     pub(crate) fn ffi_to_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexGroup, expr)
+        Self::tokens(ConversionAspect::complex_group_to(), expr)
     }
 
 
     #[allow(unused)]
     pub(crate) fn ffi_to_complex_opt_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::To, ConversionExpressionKind::ComplexOptGroup, expr)
+        Self::tokens(ConversionAspect::complex_group_opt_to(), expr)
     }
     pub(crate) fn destroy_primitive_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveOpt, expr)
+        Self::tokens(ConversionAspect::primitive_opt_drop(), expr)
     }
     pub(crate) fn destroy_complex_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::Complex, expr)
+        Self::tokens(ConversionAspect::complex_drop(), expr)
     }
     pub(crate) fn destroy_primitive_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::Primitive, expr)
+        Self::tokens(ConversionAspect::primitive_drop(), expr)
     }
     pub(crate) fn destroy_complex_opt_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexOpt, expr)
+        Self::tokens(ConversionAspect::complex_opt_drop(), expr)
     }
     #[allow(unused)]
     pub(crate) fn destroy_primitive_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::PrimitiveGroup, expr)
+        Self::tokens(ConversionAspect::primitive_group_drop(), expr)
     }
     #[allow(unused)]
     pub(crate) fn destroy_complex_group_tokens<T: ToTokens>(expr: T) -> Self {
-        Self::tokens(FFIAspect::Drop, ConversionExpressionKind::ComplexGroup, expr)
+        Self::tokens(ConversionAspect::complex_group_drop(), expr)
     }
     #[allow(unused)]
     pub(crate) fn destroy_string_group_tokens<T: ToTokens>(expr: T) -> Self {
@@ -327,17 +327,17 @@ impl<SPEC> Expression<SPEC>
     }
 
     #[allow(unused)]
-    fn cast_expression<T: ToType, U: ToType>(aspect: FFIAspect, kind: ConversionExpressionKind, expr: Self, ffi_ty: T, target_ty: U) -> Self {
-        Self::CastConversionExpr(aspect, kind, expr.into(), ffi_ty.to_type(), target_ty.to_type())
+    fn cast_expression<T: ToType, U: ToType>(aspect: ConversionAspect, expr: Self, ffi_ty: T, target_ty: U) -> Self {
+        Self::CastConversionExpr(aspect, expr.into(), ffi_ty.to_type(), target_ty.to_type())
     }
     pub(crate) fn cast_from<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
-        Self::cast_expression(FFIAspect::From, kind, expr, ffi_type, target_type)
+        Self::cast_expression(ConversionAspect::kind_from(kind), expr, ffi_type, target_type)
     }
     pub(crate) fn cast_to<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
-        Self::cast_expression(FFIAspect::To, kind, expr, ffi_type, target_type)
+        Self::cast_expression(ConversionAspect::kind_to(kind), expr, ffi_type, target_type)
     }
     pub(crate) fn cast_destroy<T: ToType, U: ToType>(expr: Self, kind: ConversionExpressionKind, ffi_type: T, target_type: U) -> Self {
-        Self::cast_expression(FFIAspect::Drop, kind, expr, ffi_type, target_type)
+        Self::cast_expression(ConversionAspect::kind_drop(kind), expr, ffi_type, target_type)
     }
 
     pub(crate) fn named<T: ToTokens>(name: T, expr: Self) -> Self {

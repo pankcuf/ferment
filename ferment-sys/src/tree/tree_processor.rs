@@ -51,9 +51,9 @@ impl FileTreeProcessor {
     fn to_inner_visitors(&self, items: Vec<Item>) -> Vec<Visitor> {
         let mut visitors = vec![];
         for item in items {
-            if let Item::Mod(ItemMod { ident: mod_name, attrs, content, .. }) = item {
-                if !self.is_fermented_mod(&mod_name) && content.is_none() {
-                    if let Ok(visitor) = self.process_module(&mod_name, attrs) {
+            if let Item::Mod(ItemMod { ident, attrs, content: None, .. }) = item {
+                if !self.is_fermented_mod(&ident) {
+                    if let Ok(visitor) = self.process_module(&ident, attrs) {
                         visitors.push(visitor);
                     }
                 }

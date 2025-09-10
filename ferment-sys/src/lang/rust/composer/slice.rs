@@ -51,7 +51,7 @@ impl SourceComposable for SliceComposer<RustSpecification> {
 
         ]);
         let aspect = Aspect::raw_struct_ident(ty.mangle_ident_default());
-        let signature_context = (attrs.clone(), <RustSpecification as Specification>::Lt::default(), <RustSpecification as Specification>::Gen::default());
+        let signature_context = (attrs.clone(), Default::default(), Default::default());
         let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
         let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
         let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
