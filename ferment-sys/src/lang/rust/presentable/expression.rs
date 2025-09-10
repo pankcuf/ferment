@@ -119,14 +119,6 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 InterfacesMethodExpr::UnboxGroup(CommaPunctuated::from_iter([expr.present(source), InterfacesMethod::UnboxString.full_path()]))
                     .to_token_stream(),
 
-            Self::CastConversionExpr(aspect, expr, target_type, ffi_type) =>
-                Self::CastConversionExprTokens(*aspect, expr.present(source), target_type.to_owned(), ffi_type.to_owned())
-                    .present(source),
-
-            Self::ConversionExpr(aspect, expr) =>
-                Self::ConversionExprTokens(*aspect, expr.present(source))
-                    .present(source),
-
             Self::ConversionExprTokens(ConversionAspect { aspect: FFIAspect::From, kind: ConversionExpressionKind::PrimitiveOpt }, expr) =>
                 InterfacesMethodExpr::FromOptPrimitive(expr.to_token_stream())
                     .to_token_stream(),
@@ -220,6 +212,14 @@ impl ScopeContextPresentable for Expression<RustSpecification> {
                 InterfacesMethodExpr::UnboxAny(expr.to_token_stream()).to_token_stream(),
             Self::CastConversionExprTokens(ConversionAspect { aspect: FFIAspect::Drop, kind: ConversionExpressionKind::ComplexOpt }, expr, ..) =>
                 InterfacesMethodExpr::UnboxAnyOpt(expr.to_token_stream()).to_token_stream(),
+
+            Self::CastConversionExpr(aspect, expr, target_type, ffi_type) =>
+                Self::CastConversionExprTokens(*aspect, expr.present(source), target_type.to_owned(), ffi_type.to_owned())
+                    .present(source),
+
+            Self::ConversionExpr(aspect, expr) =>
+                Self::ConversionExprTokens(*aspect, expr.present(source))
+                    .present(source),
 
             Self::CastConversionExprTokens(aspect, expr, ..) =>
                 Self::ConversionExprTokens(*aspect, expr.to_owned())

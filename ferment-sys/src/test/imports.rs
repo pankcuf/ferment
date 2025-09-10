@@ -2,7 +2,7 @@ use quote::ToTokens;
 use syn::{parse_quote, UseTree};
 use proc_macro2::Ident;
 use crate::context::{ImportResolver, ScopeChain};
-use crate::ext::VisitScope;
+use crate::ext::{VisitScope, Join};
 
 #[test]
 fn fold_import_tree_simple_and_group() {
@@ -131,4 +131,89 @@ fn imported_alias_used_in_fn_arg_records_in_module_scope() {
     let obj = chain.get(&key).expect("Renamed present in scope register");
     let tyc = obj.maybe_type_model_kind_ref().expect("type model kind");
     assert!(tyc.is_imported());
+}
+
+#[test]
+fn trait_method_return_alias_imported_in_trait_and_parent() {
+    use syn::Item;
+    use crate::tree::Visitor;
+    use crate::context::GlobalContext;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    // Setup context and module scope
+    let ctx: Rc<RefCell<GlobalContext>> = Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
+        "fermented",
+        crate::lang::rust::Crate::current_with_name("my_crate"),
+        cbindgen::Config::default(),
+    ))));
+    let mod_scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+    let mut visitor = Visitor::new(&mod_scope, &[], &ctx);
+
+    // use pkg::Type as Renamed;
+    let renamed_use: UseTree = parse_quote!(pkg::Type as Renamed);
+    visitor.fold_import_tree(&mod_scope, &renamed_use, Vec::<Ident>::new());
+
+    // trait T { fn r(&self) -> Renamed; }
+    let tr: Item = parse_quote!(trait T { fn r(&self) -> Renamed; });
+    let trait_scope = tr.join_scope(&mod_scope, &mut visitor).expect("joined trait scope");
+
+    // Find method fn scope
+    let method = match tr { Item::Trait(tt) => tt.items.into_iter().find_map(|it| if let syn::TraitItem::Fn(f) = it { Some(f) } else { None }).unwrap(), _ => unreachable!() };
+    let fn_scope = trait_scope.joined(&method);
+
+    let context = ctx.borrow();
+    let key: syn::Type = parse_quote!(Renamed);
+    // Present in fn scope
+    let fn_chain = context.scope_register.get(&fn_scope).expect("fn scope");
+    assert!(fn_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    // Present in trait scope (non-Self, non-generic propagation)
+    let tr_chain = context.scope_register.get(&trait_scope).expect("trait scope");
+    assert!(tr_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    // Present in parent (module) scope as well
+    if let Some(parent) = trait_scope.parent_scope() {
+        let parent_chain = context.scope_register.get(parent).expect("parent scope");
+        assert!(parent_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    }
+}
+
+#[test]
+fn impl_method_return_alias_imported_in_impl_and_parent() {
+    use syn::Item;
+    use crate::tree::Visitor;
+    use crate::context::GlobalContext;
+    use std::rc::Rc;
+    use std::cell::RefCell;
+    let ctx: Rc<RefCell<GlobalContext>> = Rc::new(RefCell::new(GlobalContext::with_config(crate::Config::new(
+        "fermented",
+        crate::lang::rust::Crate::current_with_name("my_crate"),
+        cbindgen::Config::default(),
+    ))));
+    let mod_scope = ScopeChain::crate_root_with_ident(parse_quote!(my_crate), vec![]);
+    let mut visitor = Visitor::new(&mod_scope, &[], &ctx);
+
+    // use pkg::Type as Renamed;
+    let renamed_use: UseTree = parse_quote!(pkg::Type as Renamed);
+    visitor.fold_import_tree(&mod_scope, &renamed_use, Vec::<Ident>::new());
+
+    // struct S; impl S { fn r(&self) -> Renamed { unimplemented!() } }
+    let s_decl: Item = parse_quote!(struct S;);
+    let _ = s_decl.join_scope(&mod_scope, &mut visitor);
+    let impl_item: Item = parse_quote!(impl S { fn r(&self) -> Renamed { unimplemented!() } });
+    let impl_scope = impl_item.join_scope(&mod_scope, &mut visitor).expect("impl scope");
+    let method = match impl_item { Item::Impl(ii) => ii.items.into_iter().find_map(|it| if let syn::ImplItem::Fn(f) = it { Some(f) } else { None }).unwrap(), _ => unreachable!() };
+    let fn_scope = impl_scope.joined(&method);
+
+    let context = ctx.borrow();
+    let key: syn::Type = parse_quote!(Renamed);
+    // Present in fn scope
+    let fn_chain = context.scope_register.get(&fn_scope).expect("fn scope");
+    assert!(fn_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    // Present in impl scope
+    let imp_chain = context.scope_register.get(&impl_scope).expect("impl scope");
+    assert!(imp_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    // Present in parent (module) scope (non-method generics propagation)
+    if let Some(parent) = impl_scope.parent_scope() {
+        let parent_chain = context.scope_register.get(parent).expect("parent scope");
+        assert!(parent_chain.get(&key).unwrap().maybe_type_model_kind_ref().unwrap().is_imported());
+    }
 }

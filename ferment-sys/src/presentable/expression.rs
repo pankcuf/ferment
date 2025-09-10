@@ -67,13 +67,13 @@ impl<SPEC> Expression<SPEC>
         Self::ConversionExpr(aspect, expr.into())
     }
     pub(crate) fn expression_from(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(ConversionAspect::kind_from(kind), expr.into())
+        Self::conversion_expr(ConversionAspect::kind_from(kind), expr)
     }
     pub(crate) fn expression_to(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(ConversionAspect::kind_to(kind), expr.into())
+        Self::conversion_expr(ConversionAspect::kind_to(kind), expr)
     }
     pub(crate) fn expression_drop(kind: ConversionExpressionKind, expr: Self) -> Self {
-        Self::ConversionExpr(ConversionAspect::kind_drop(kind), expr.into())
+        Self::conversion_expr(ConversionAspect::kind_drop(kind), expr)
     }
 
     pub(crate) fn mut_ref(expr: Self) -> Self {
