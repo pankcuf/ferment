@@ -9,7 +9,6 @@ use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
-use crate::lang::objc::formatter::format_interface_implementations;
 use crate::presentable::{ArgKind, ConversionAspect, ConversionExpressionKind, Expression, ScopeContextPresentable};
 
 impl SourceComposable for ArrayComposer<ObjCSpecification> {
