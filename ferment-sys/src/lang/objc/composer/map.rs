@@ -10,7 +10,6 @@ use crate::lang::Specification;
 use crate::lang::objc::ObjCSpecification;
 use crate::lang::objc::composer::var::objc_primitive;
 use crate::lang::objc::fermentate::InterfaceImplementation;
-use crate::lang::objc::formatter::format_interface_implementations;
 use crate::lang::objc::presentable::TypeContext;
 use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
 use crate::presentation::FFIVariable;
@@ -218,7 +217,6 @@ impl SourceComposable for MapComposer<ObjCSpecification> {
                 ]),
             }
         ]);
-        println!("OBJC MAP => \n{}", format_interface_implementations(&interfaces));
         Some(GenericComposerInfo::<ObjCSpecification>::default(
             aspect,
             &attrs,

@@ -141,7 +141,6 @@ impl SourceComposable for ArrayComposer<ObjCSpecification> {
             // },
             InterfaceImplementation::MacroCall(quote! { FFIGroupConversion(#c_name, #arg_var, #from_value, #to_values, #destroy_value); })
         ]);
-        println!("OBJC Array => \n{}", format_interface_implementations(&interfaces));
 
         Some(GenericComposerInfo::<ObjCSpecification>::default(
             self.target_type_aspect(),
