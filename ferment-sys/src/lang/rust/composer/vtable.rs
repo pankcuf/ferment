@@ -5,7 +5,9 @@ use syn::token::{Const, RArrow, Semi};
 use crate::ast::{CommaPunctuated, Depunctuated};
 use crate::composer::{AspectPresentable, AttrComposable, ConversionFromComposer, SourceAccessible, SourceComposable, ConversionToComposer, TypeAspect, VarComposer, VTableComposer};
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, ExpressionComposable, Mangle, Resolve, ToPath, ToType};
+use crate::ext::{ExpressionComposable, Mangle, Resolve, ToPath, ToType};
+#[cfg(feature = "accessors")]
+use crate::ext::Accessory;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{ScopeContextPresentable, TypeContext};
 use crate::presentation::{ArgPresentation, BindingPresentation, DictionaryExpr, FFIFullPath, Name};
@@ -98,27 +100,31 @@ impl SourceComposable for VTableComposer<RustSpecification> {
         let mut fq_trait_vtable = full_trait_type.to_path();
         fq_trait_vtable.segments.last_mut().unwrap().ident = format_ident!("{}_VTable", fq_trait_vtable.segments.last().unwrap().ident);
         let attrs = self.compose_attributes();
+        #[cfg(feature = "accessors")]
+        let bindings = Depunctuated::from_iter([
+            BindingPresentation::ObjAsTrait {
+                aspect: (attrs.clone(), vec![], None),
+                item_var: target_type.joined_const(),
+                trait_type: full_trait_type.to_token_stream(),
+                name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()),
+                vtable_name: name.to_token_stream(),
+            },
+            BindingPresentation::ObjAsTraitDestructor {
+                aspect: (attrs.clone(), vec![], None),
+                item_type: target_type.to_token_stream(),
+                trait_type: full_trait_type.to_token_stream(),
+                name: Name::<RustSpecification>::TraitDestructor(target_type, full_trait_type),
+            }
+        ]);
+        #[cfg(not(feature = "accessors"))]
+        let bindings = Default::default();
         BindingPresentation::StaticVTable {
-            attrs: attrs.clone(),
+            attrs,
             name: name.to_token_stream(),
             fq_trait_vtable: fq_trait_vtable.to_token_stream(),
             methods_declarations,
             methods_implementations,
-            bindings: Depunctuated::from_iter([
-                BindingPresentation::ObjAsTrait {
-                    aspect: (attrs.clone(), vec![], None),
-                    item_var: target_type.joined_const(),
-                    trait_type: full_trait_type.to_token_stream(),
-                    name: Name::<RustSpecification>::TraitFn(target_type.clone(), full_trait_type.clone()),
-                    vtable_name: name.to_token_stream(),
-                },
-                BindingPresentation::ObjAsTraitDestructor {
-                    aspect: (attrs.clone(), vec![], None),
-                    item_type: target_type.to_token_stream(),
-                    trait_type: full_trait_type.to_token_stream(),
-                    name: Name::<RustSpecification>::TraitDestructor(target_type, full_trait_type),
-                }
-            ])
+            bindings
         }
     }
 }

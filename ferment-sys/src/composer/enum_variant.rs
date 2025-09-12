@@ -6,10 +6,14 @@ use syn::Attribute;
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::{DelimiterTrait, Void};
 use crate::composable::{AttrsModel, FieldComposer};
-use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgKindPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldPathConversionResolveSpec, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, LinkedContextComposer, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, FFIInterfaceMethodSpec, AspectSeqKindComposer, ArgKindPairs, FieldNameSpec, FieldComposerProducer, FieldSpec, ArgKindProducerByRef, AspectArgSourceComposer, ItemAspectsSpec, ToStruct, FromStruct, LifetimesComposable};
+use crate::composer::{constants, AttrComposable, CommaPunctuatedFields, ComposerLink, ConversionSeqKindComposer, DropSeqKindComposer, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldPathConversionResolveSpec, FieldPathResolver, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, LinkedContextComposer, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, PresentableExprComposerRef, TypeAspect, FFIInterfaceMethodSpec, AspectSeqKindComposer, FieldNameSpec, FieldComposerProducer, FieldSpec, ArgKindProducerByRef, ItemAspectsSpec, ToStruct, FromStruct, LifetimesComposable};
+#[cfg(feature = "accessors")]
+use crate::composer::{ArgKindPair, ArgKindPairs, AspectArgSourceComposer, AspectSharedComposerLink, BindingComposer, CtorSpec, FFIBindingsSpec, MaybeFFIBindingsComposerLink, OwnerAspectSequence, PresentableArgKindPairComposerRef, SourceAccessible};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ArgKind, Aspect, Expression, ScopeContextPresentable, SeqKind};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 use crate::presentation::Name;
 
 pub type UnitVariantComposer<SPEC> = EnumVariantComposer<SPEC, Void>;
@@ -27,6 +31,7 @@ impl<SPEC, I> EnumVariantComposer<SPEC, I>
           I: DelimiterTrait + ?Sized,
           ItemComposer<SPEC, I>: NameKindComposable {
 
+    #[cfg(feature = "accessors")]
     pub fn new(
         ty_context: SPEC::TYC,
         attrs: &[Attribute],
@@ -35,6 +40,25 @@ impl<SPEC, I> EnumVariantComposer<SPEC, I>
     ) -> ComposerLink<Self>
         where Self: ItemComposerSpec<SPEC>
         + CtorSpec<SPEC, ItemComposerLink<SPEC, I>, ArgKindPairs<SPEC>>
+        + FFIFieldsSpec<SPEC, ItemComposerLink<SPEC, I>>
+        + FFIConversionsSpec<SPEC, ItemComposerLink<SPEC, I>> {
+        Rc::new(RefCell::new(Self {
+            composer: ItemComposer::new::<Self>(
+                ty_context,
+                AttrsModel::from(attrs),
+                vec![],
+                None,
+                fields,
+                context) }))
+    }
+    #[cfg(not(feature = "accessors"))]
+    pub fn new(
+        ty_context: SPEC::TYC,
+        attrs: &[Attribute],
+        fields: &CommaPunctuatedFields,
+        context: &ScopeContextLink,
+    ) -> ComposerLink<Self>
+        where Self: ItemComposerSpec<SPEC>
         + FFIFieldsSpec<SPEC, ItemComposerLink<SPEC, I>>
         + FFIConversionsSpec<SPEC, ItemComposerLink<SPEC, I>> {
         Rc::new(RefCell::new(Self {
@@ -99,6 +123,8 @@ impl<SPEC, T, I> FFIConversionsSpec<SPEC, ComposerLink<T>> for EnumVariantCompos
         )
     );
 }
+
+#[cfg(feature = "accessors")]
 impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for NamedVariantComposer<SPEC>
     where T: AttrComposable<SPEC::Attr>
             + GenericsComposable<SPEC::Gen>
@@ -119,6 +145,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for NamedVariantCompos
     const ITER: AspectArgSourceComposer<SPEC, Iter> =
         constants::args_composer_iterator_root();
 }
+#[cfg(feature = "accessors")]
 impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for UnnamedVariantComposer<SPEC>
     where T: AttrComposable<SPEC::Attr>
             + LifetimesComposable<SPEC::Lt>
@@ -140,6 +167,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for UnnamedVariantComp
         constants::args_composer_iterator_root();
 }
 
+#[cfg(feature = "accessors")]
 impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for EnumVariantComposer<SPEC, I>
     where T: AttrComposable<SPEC::Attr>
     + LifetimesComposable<SPEC::Lt>
@@ -158,6 +186,7 @@ impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for EnumVari
 }
 
 
+#[cfg(feature = "accessors")]
 impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for UnitVariantComposer<SPEC>
     where T: AttrComposable<SPEC::Attr>
             + LifetimesComposable<SPEC::Lt>

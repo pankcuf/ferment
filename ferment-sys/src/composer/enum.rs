@@ -3,13 +3,19 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use quote::ToTokens;
 use ferment_macro::ComposerBase;
-use crate::ast::{CommaPunctuated, Depunctuated};
+use crate::ast::CommaPunctuated;
+#[cfg(feature = "accessors")]
+use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, CfgAttributes, FieldComposer, GenModel, LifetimesModel};
-use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, BindingComposable, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArgKinds, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
+use crate::composer::{r#abstract::LinkedContextComposer, AttrComposable, BasicComposer, BasicComposerOwner, CommaPunctuatedArgKinds, DocComposer, SourceComposable, ComposerLink, DocsComposable, FFIObjectComposable, GenericsComposable, ItemComposerWrapper, Linkable, AspectCommaPunctuatedArgKinds, SourceAccessible, TypeAspect, VariantComposable, VariantComposerRef, SeqKindComposerLink, BasicComposerLink, NameKindComposable, NameKind, LifetimesComposable};
+#[cfg(feature = "accessors")]
+use crate::composer::BindingComposable;
 use crate::context::ScopeContextLink;
 use crate::ext::PunctuateOne;
 use crate::lang::{LangAttrSpecification, Specification};
-use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{Aspect, NameTreeContext, ArgKind, ScopeContextPresentable, SeqKind, Expression};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 use crate::presentation::{DocPresentation, FFIObjectPresentation, Name};
 
 #[derive(ComposerBase)]
@@ -112,6 +118,7 @@ impl<SPEC> FFIObjectComposable for EnumComposer<SPEC>
     }
 }
 
+#[cfg(feature = "accessors")]
 impl<SPEC> BindingComposable<SPEC> for EnumComposer<SPEC>
     where SPEC: Specification<Expr=Expression<SPEC>, Name=Name<SPEC>>,
           SPEC::Expr: ScopeContextPresentable,

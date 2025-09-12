@@ -3,11 +3,15 @@ use syn::{Attribute, Fields, FieldsNamed, FieldsUnnamed, ItemEnum, ItemFn, ItemI
 use syn::punctuated::Punctuated;
 use syn::token::{Brace, Paren};
 use crate::ast::Void;
-use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, FFIBindingsComposer, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposer, TypeAliasComposerLink};
+use crate::composer::{AttrComposable, EnumComposer, EnumComposerLink, EnumVariantComposer, EnumVariantComposerLink, FFIAspect, ImplComposer, ImplComposerLink, OpaqueStructComposer, OpaqueStructComposerLink, SigComposer, SigComposerLink, StructComposer, StructComposerLink, TraitComposer, TraitComposerLink, TypeAliasComposer, TypeAliasComposerLink};
+#[cfg(feature = "accessors")]
+use crate::composer::FFIBindingsComposer;
 use crate::context::{ScopeChain, ScopeContextLink};
 use crate::ext::PunctuateOne;
 use crate::lang::Specification;
-use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind, Expression};
+use crate::presentable::{ScopeContextPresentable, SeqKind, Expression};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 use crate::presentation::Name;
 
 #[allow(unused)]
@@ -107,6 +111,7 @@ impl<SPEC> ItemComposerWrapper<SPEC>
             _ => SeqKind::Empty
         }
     }
+    #[cfg(feature = "accessors")]
     pub fn compose_ctor(&self) -> Option<BindingPresentableContext<SPEC>> {
         match self {
             ItemComposerWrapper::EnumVariantNamed(composer) =>

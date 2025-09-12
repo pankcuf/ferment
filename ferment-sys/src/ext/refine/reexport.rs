@@ -83,14 +83,12 @@ impl ReexportSeek {
         // Early deepening for pure-glob cases (e.g., aa::AtBb): derive from original parent if possible
         if let Some(last) = path.segments.last().cloned() {
             let parent = path.popped();
-            if !parent.segments.is_empty() && is_uppercase_ident(&last.ident) {
-                if source.maybe_globs_scope_ref(&parent).is_some() {
-                    reexport_dbg!("[reexport] early-deepen: parent={} last={} (glob detected)", parent.to_token_stream(), last.ident.to_string());
-                    if let Some(derived) = derive_path_via_globs(&parent, &last, source) {
-                        let finalized = finalize_to_leaf(derived, &last);
-                        reexport_dbg!("[reexport] early-deepen -> {}", finalized.to_token_stream());
-                        return Some(finalized);
-                    }
+            if !parent.segments.is_empty() && is_uppercase_ident(&last.ident) && source.maybe_globs_scope_ref(&parent).is_some() {
+                reexport_dbg!("[reexport] early-deepen: parent={} last={} (glob detected)", parent.to_token_stream(), last.ident.to_string());
+                if let Some(derived) = derive_path_via_globs(&parent, &last, source) {
+                    let finalized = finalize_to_leaf(derived, &last);
+                    reexport_dbg!("[reexport] early-deepen -> {}", finalized.to_token_stream());
+                    return Some(finalized);
                 }
             }
         }
@@ -115,6 +113,7 @@ impl ReexportSeek {
         }
 
         reexport_dbg!("[reexport] candidates: [{}]", candidates.iter().map(|p| p.to_token_stream().to_string()).collect::<Vec<_>>().join(", "));
+        // No descendant alias scan here; prefer real object definitions over shallow aliases only as a fallback below.
         if let Some(best) = candidates.iter().find(|p| source.maybe_scope_item_ref_obj_first(p).is_some()).cloned() {
             let finalized = canonicalize_to_leaf(best, target.as_ref(), source);
             reexport_dbg!("[reexport] select: by-object -> {}", finalized.to_token_stream());
@@ -122,15 +121,22 @@ impl ReexportSeek {
         }
         if let Some(t) = target.as_ref() {
             let pref = at_module_name_of(t);
-            if let Some(best) = candidates.iter().find(|p| p.segments.iter().any(|s| s.ident.to_string()==pref)).cloned() {
+            if let Some(best) = candidates.iter().find(|p| p.segments.iter().any(|s| s.ident.eq(&pref))).cloned() {
                 // Already deep; just ensure leaf symbol
                 let finalized = finalize_to_leaf(best, t);
                 reexport_dbg!("[reexport] select: by-atmod -> {}", finalized.to_token_stream());
                 return Some(finalized);
             }
         }
-        let finalized = canonicalize_to_leaf(alias_mapped, target.as_ref(), source);
+        let finalized = canonicalize_to_leaf(alias_mapped.clone(), target.as_ref(), source);
         reexport_dbg!("[reexport] select: fallback -> {}", finalized.to_token_stream());
+        if let Some(t) = target.as_ref() {
+            // Absolute last resort: scan all known scopes for a defined object named `t` and pick the deepest path
+            if let Some(mapped) = find_defined_object_path(t, source) {
+                reexport_dbg!("[reexport] select: fallback-by-defined -> {}", mapped.to_token_stream());
+                return Some(mapped);
+            }
+        }
         Some(finalized)
     }
 }
@@ -153,17 +159,17 @@ fn at_module_name_of(target: &PathSegment) -> String {
     if snake.starts_with("at_") { snake } else { format!("at_{}", snake) }
 }
 
-fn is_lowercase_ident(ident: &proc_macro2::Ident) -> bool {
-    ident.to_string().chars().next().map(|c| c.is_lowercase()).unwrap_or(false)
+fn is_lowercase_ident(ident: &Ident) -> bool {
+    ident.to_string().chars().next().map(|c| c.is_lowercase()).unwrap_or_default()
 }
 
 fn finalize_to_leaf(p: Path, target: &PathSegment) -> Path {
     // If already ends with target, done
-    if p.segments.last().map(|s| s.ident == target.ident).unwrap_or(false) {
+    if p.segments.last().map(|s| s.ident == target.ident).unwrap_or_default() {
         return p;
     }
     let at_mod = at_module_name_of(target);
-    let last_is_at_mod = p.segments.last().map(|s| s.ident.to_string() == at_mod).unwrap_or(false);
+    let last_is_at_mod = p.segments.last().map(|s| s.ident.eq(&at_mod)).unwrap_or_default();
     if last_is_at_mod {
         // Append the leaf symbol
         return p.joined(&target.ident.to_path());
@@ -173,7 +179,7 @@ fn finalize_to_leaf(p: Path, target: &PathSegment) -> Path {
         if is_lowercase_ident(&last.ident) {
             // If previous is at_mod, replace last with target; else append target
             let mut replaced = p.clone();
-            let prev_is_at_mod = p.segments.iter().rev().nth(1).map(|s| s.ident.to_string() == at_mod).unwrap_or(false);
+            let prev_is_at_mod = p.segments.iter().rev().nth(1).map(|s| s.ident.eq(&at_mod)).unwrap_or_default();
             if prev_is_at_mod {
                 // replace last with target
                 replaced.segments.pop();
@@ -444,4 +450,18 @@ fn merge_reexport_chunks(mut base: Path, extension: &Path) -> Path {
     result_segments.extend(ext_segments);
     base.segments = result_segments.into_iter().cloned().collect();
     base
+}
+
+// Find a scope where the leaf symbol is actually defined; return the most specific path.
+fn find_defined_object_path(target: &PathSegment, source: &GlobalContext) -> Option<Path> {
+    let mut best: Option<(usize, Path)> = None;
+    for scope in source.scope_register.inner.keys() {
+        let scope_path = scope.self_path_ref();
+        let candidate = scope_path.joined(&target.ident.to_path());
+        if source.maybe_scope_item_ref_obj_first(&candidate).is_some() {
+            let depth = candidate.segments.len();
+            match &best { Some((best_depth, _)) if *best_depth >= depth => {}, _ => best = Some((depth, candidate)) }
+        }
+    }
+    best.map(|(_, p)| p)
 }

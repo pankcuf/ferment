@@ -1,6 +1,9 @@
 mod fermented;
 pub mod aa;
 pub mod zz;
+pub mod blockdata;
+
+pub use crate::blockdata::script::{self, ScriptBuf};
 
 extern crate ferment_macro;
 

@@ -69,24 +69,19 @@ impl RefineInScope for TypeModelKind {
             TypeModelKind::Dictionary(DictTypeModelKind::Primitive(..)) => false,
             TypeModelKind::Imported(ty_model, import_path) => {
                 let crate_name = scope.crate_ident_as_path();
-                let mut crate_named_import_path = import_path.crate_named(&crate_name);
+                let crate_named_import_path = import_path.crate_named(&crate_name);
                 let mut model = ty_model.clone();
-                let mut nested_args_refined = false;
-                println!("[INFO] (Import) Refine Unknown import: {}   {} in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_mid());
+                println!("[INFO] (Import) Refine Unknown import: {} ({}) in {}", model.as_type().to_token_stream(), import_path.to_token_stream(), scope.fmt_mid());
 
-                if !crate_named_import_path.refine_in_scope(scope, source) {
-                    // Refine nested arguments first
-                    model.nested_arguments_iter_mut()
-                        .for_each(|nested_arg| if nested_arg.refine_in_scope(scope, source) {
-                            nested_args_refined = true;
-                        });
-                }
+                // Always refine nested arguments first and apply them into the model type
+                let _nested_refined = refine_nested_arguments(&mut model, scope, source);
+
                 // Prefer resolving potential reexports (handles glob and multi-hop) up front.
                 let resolved_import_path = ReexportSeek::Absolute
                     .maybe_reexport(&crate_named_import_path, source)
                     .unwrap_or_else(|| crate_named_import_path.clone());
                 model.refine(&resolved_import_path);
-
+                println!("resolved_import_path: {}", resolved_import_path.to_token_stream());
                 if let Some(dictionary_type) = maybe_dict_type_model_kind(&crate_named_import_path, &mut model) {
                     //println!("[INFO] (Import) Dictionary item found: {}", dictionary_type);
                     *self = TypeModelKind::Dictionary(dictionary_type);
@@ -94,28 +89,38 @@ impl RefineInScope for TypeModelKind {
                 } else {
 
                     let scope_path = model.lifetimes_cleaned().pointer_less();
-                    // Try direct resolution, then relative/neighbor search, then absolute reexport.
+                    // Try direct resolution, then descendant search under nearest existing ancestor, then absolute reexport.
                     if let Some(found_item) = source.maybe_scope_item_ref_obj_first(&resolved_import_path)
                         .or_else(|| {
-                            // Heuristic: if `X::AtAa` doesn’t exist as an item under `X`, scan descendant modules
-                            // of `X` for `AtAa` (catches `pub use submod::*` reexports).
-                            let parent = resolved_import_path.popped();
-                            source.maybe_scope_ref(&parent).and_then(|parent_scope| {
-                                let parent_path = parent_scope.self_path_ref();
-                                if let Some(last_seg) = resolved_import_path.segments.last() {
-                                    source.scope_register.inner.keys()
-                                        .find_map(|scope_chain| {
-                                            let scope_path = scope_chain.self_path_ref();
-                                            if parent_path.segments.len() <= scope_path.segments.len()
-                                                && scope_path.segments.iter().zip(parent_path.segments.iter()).all(|(a, b)| a.ident == b.ident) {
-                                                // Avoid duplicating when scope_path already ends with the ident.
-                                                let already_matches_last = scope_path.segments.last().map(|s| s.ident == last_seg.ident).unwrap_or_default();
-                                                let candidate = if already_matches_last { scope_path.clone() } else { scope_path.joined(&last_seg.ident.to_path()) };
-                                                source.maybe_scope_item_ref_obj_first(&candidate)
-                                            } else { None }
-                                        })
-                                } else { None }
-                            })
+                            // Find the nearest existing ancestor scope and scan its descendants for a matching leaf
+                            let mut anc = resolved_import_path.popped();
+                            println!("Find the nearest existing ancestor: {}", anc.to_token_stream());
+                            let last_seg = resolved_import_path.segments.last().cloned();
+                            while !anc.segments.is_empty() {
+                                if let Some(ancestor_scope) = source.maybe_scope_ref(&anc) {
+                                    println!("Ancestor scope found: {}", ancestor_scope.fmt_short());
+                                    if let Some(last_seg) = last_seg.as_ref() {
+                                        let ancestor_path = ancestor_scope.self_path_ref();
+                                        println!("Ancestor path found: {}", ancestor_path.to_token_stream());
+                                        if let Some(found) = source.scope_register.inner.keys()
+                                            .find_map(|scope_chain| {
+                                                let scope_path = scope_chain.self_path_ref();
+                                                if ancestor_path.segments.len() <= scope_path.segments.len()
+                                                    && scope_path.segments.iter().zip(ancestor_path.segments.iter()).all(|(a, b)| a.ident == b.ident) {
+                                                    let already_matches_last = scope_path.segments.last().map(|s| s.ident == last_seg.ident).unwrap_or_default();
+                                                    let candidate = if already_matches_last { scope_path.clone() } else { scope_path.joined(&last_seg.ident.to_path()) };
+                                                    source.maybe_scope_item_ref_obj_first(&candidate)
+                                                } else { None }
+                                            }) {
+                                            println!("Found the nearest existing ancestor: {found:?}");
+                                            return Some(found);
+                                        }
+                                    }
+                                    break;
+                                }
+                                anc = anc.popped();
+                            }
+                            None
                         })
                         .or_else(|| determine_scope_item(&mut model, scope_path, scope, source))
                         .or_else(|| {
@@ -124,7 +129,7 @@ impl RefineInScope for TypeModelKind {
                                 .maybe_reexport(&resolved_import_path, source)
                                 .and_then(|reexport| source.maybe_scope_item_ref_obj_first(&reexport))
                         }) {
-                        //println!("[INFO] (Import) Scope item found: {}", found_item);
+                        println!("[INFO] (Import) Scope item found: {}", found_item);
                         // Build the full item path without duplicating the last segment.
                         // If the original type had generic arguments on the last segment,
                         // copy those arguments onto the discovered item's last segment.
@@ -139,10 +144,12 @@ impl RefineInScope for TypeModelKind {
                             //println!("[INFO] (Import) Scope item refined: {}", updated);
                             *self = updated;
                         }
+                        println!("[WARN] (Import) REFINED (MAYBE): {}", self.as_type().to_token_stream());
                     } else if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&resolved_import_path, source) {
                         // As a last resort, if reexport path is found but not present as an item in the scope register
                         // (e.g., via glob reexports), refine the model to that absolute path and treat it as an object.
                         refine_ty_with_import_path(model.ty_mut(), &reexport);
+                        println!("[WARN] (Import) LAST RESORT: {}", reexport.to_token_stream());
                         *self = TypeModelKind::Object(model);
                     } else {
                         println!("[WARN] (Import) Unknown import: {}", model.as_type().to_token_stream());
@@ -218,8 +225,11 @@ impl RefineInScope for TypeModelKind {
             TypeModelKind::Object(model) |
             TypeModelKind::Optional(model) |
             TypeModelKind::TraitType(model) |
-            TypeModelKind::Trait(TraitModel { ty: model, ..}) =>
-                refine_nested_arguments(model, scope, source),
+            TypeModelKind::Trait(TraitModel { ty: model, ..}) => {
+                let mut changed = refine_model_path_via_reexport(model, source);
+                if refine_nested_arguments(model, scope, source) { changed = true; }
+                changed
+            },
             TypeModelKind::Array(model) |
             TypeModelKind::Slice(model) |
             TypeModelKind::Tuple(model) =>
@@ -351,6 +361,7 @@ fn determine_scope_item<'a>(new_ty_to_replace: &mut TypeModel, ty_path: Path, sc
     // - It's reexported somewhere?
     //     - It's child scope?
     //     - It's neighbour scope?
+    println!("determine_scope_item: {} /// {} in {}", new_ty_to_replace.ty.to_token_stream(), ty_path.to_token_stream(), scope.fmt_short());
     match scope {
         ScopeChain::CrateRoot { info, .. } |
         ScopeChain::Mod { info, .. } => {
@@ -498,6 +509,17 @@ fn refine_nested_arguments(model: &mut TypeModel, scope: &ScopeChain, source: &G
         model.refine_with(model.nested_arguments());
     }
     refined
+}
+
+fn refine_model_path_via_reexport(model: &mut TypeModel, source: &GlobalContext) -> bool {
+    let path = model.lifetimes_cleaned().pointer_less();
+    if let Some(reexport) = ReexportSeek::Absolute.maybe_reexport(&path, source) {
+        if reexport.to_token_stream().to_string() != path.to_token_stream().to_string() {
+            refine_ty_with_import_path(model.ty_mut(), &reexport);
+            return true;
+        }
+    }
+    false
 }
 
 fn refine_nested_ty(new_ty_model: &mut TypeModel, scope: &ScopeChain, source: &GlobalContext) -> bool {

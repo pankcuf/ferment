@@ -8,7 +8,9 @@ use crate::composable::{AttrsModel, FieldComposer};
 use crate::composer::*;
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ArgKind, Aspect, Expression, ScopeContextPresentable, SeqKind};
+#[cfg(feature = "accessors")]
+use crate::composer::BindingPresentableContext;
 use crate::presentation::Name;
 
 
@@ -53,6 +55,7 @@ impl<SPEC, T, I> FFIObjectSpec<SPEC, ComposerLink<T>> for TypeAliasComposer<SPEC
             SeqKind::fields_from));
 }
 
+#[cfg(feature = "accessors")]
 impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for TypeAliasComposer<SPEC, I>
     where SPEC: Specification,
           T: AttrComposable<SPEC::Attr>
@@ -70,7 +73,7 @@ impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for TypeAlia
         Some(ffi_bindings_composer::<SPEC, T, Self, Iter>());
 }
 
-
+#[cfg(feature = "accessors")]
 impl<SPEC, T, I, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for TypeAliasComposer<SPEC, I>
     where T: AttrComposable<SPEC::Attr>
             + LifetimesComposable<SPEC::Lt>

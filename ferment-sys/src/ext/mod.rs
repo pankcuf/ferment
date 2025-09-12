@@ -69,11 +69,19 @@ impl CrateExtension for Colon2Punctuated<PathSegment> {
     }
 
     fn ident_less(&self) -> Self {
-        self.iter().take(self.len() - 1).cloned().collect()
+        if self.is_empty() {
+            Colon2Punctuated::new()
+        } else {
+            self.iter().take(self.len() - 1).cloned().collect()
+        }
     }
 
     fn crate_and_ident_less(&self) -> Self {
-        self.iter().take(self.len() - 1).skip(1).cloned().collect()
+        if self.len() > 1 {
+            self.iter().take(self.len() - 1).skip(1).cloned().collect()
+        } else {
+            Colon2Punctuated::new()
+        }
     }
 }
 impl CrateExtension for Path {

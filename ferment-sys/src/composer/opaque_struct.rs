@@ -5,10 +5,14 @@ use syn::{Attribute, Generics, Lifetime};
 use syn::token::{Brace, Comma, Paren, Semi};
 use crate::ast::DelimiterTrait;
 use crate::composable::{AttrsModel, FieldComposer};
-use crate::composer::{constants, AspectSharedComposerLink, AttrComposable, BindingComposer, CommaPunctuatedFields, ComposerLink, PresentableArgKindPairComposerRef, ConversionSeqKindComposer, CtorSpec, DropSeqKindComposer, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldsComposerRef, FieldsContext, FieldsConversionComposable, GenericsComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, OwnerAspectSequence, ArgKindPair, PresentableExprComposerRef, SourceAccessible, TypeAspect, ArgKindPairs, FieldSpec, ArgKindProducerByRef, FieldNameSpec, FieldComposerProducer, AspectArgSourceComposer, ItemAspectsSpec, FFIInterfaceMethodSpec, FromStub, FieldPathConversionResolveSpec, FieldPathResolver, AspectSeqKindComposer, ToStub, DropStub, LifetimesComposable};
+use crate::composer::{CommaPunctuatedFields, ComposerLink, ConversionSeqKindComposer, DropSeqKindComposer, FFIConversionsSpec, FFIFieldsSpec, FFIObjectSpec, FieldsComposerRef, FieldsConversionComposable, ItemComposer, ItemComposerExprSpec, ItemComposerLink, ItemComposerSpec, MaybeFFIComposerLink, MaybeSequenceOutputComposerLink, NameKindComposable, PresentableExprComposerRef, FieldSpec, ArgKindProducerByRef, FieldNameSpec, FieldComposerProducer, ItemAspectsSpec, FFIInterfaceMethodSpec, FromStub, FieldPathConversionResolveSpec, FieldPathResolver, AspectSeqKindComposer, ToStub, DropStub};
+#[cfg(feature = "accessors")]
+use crate::composer::{ArgKindPair, ArgKindPairs, AspectArgSourceComposer, AspectSharedComposerLink, AttrComposable, BindingComposer, constants, CtorSpec, FFIBindingsSpec, FieldsContext, GenericsComposable, LifetimesComposable, MaybeFFIBindingsComposerLink, OwnerAspectSequence, PresentableArgKindPairComposerRef, SourceAccessible, TypeAspect};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ArgKind, Expression, ScopeContextPresentable, SeqKind};
+#[cfg(feature = "accessors")]
+use crate::presentable::{Aspect, BindingPresentableContext};
 use crate::presentation::Name;
 
 pub struct OpaqueStructComposer<SPEC, I>
@@ -17,6 +21,36 @@ pub struct OpaqueStructComposer<SPEC, I>
     pub composer: ItemComposerLink<SPEC, I>
 }
 
+#[cfg(not(feature = "accessors"))]
+impl<SPEC, I> OpaqueStructComposer<SPEC, I>
+    where I: DelimiterTrait + ?Sized,
+          SPEC: Specification<Expr=Expression<SPEC>>,
+          SPEC::Expr: ScopeContextPresentable,
+          ItemComposer<SPEC, I>: NameKindComposable,
+          Self: ItemComposerSpec<SPEC>
+          + FFIFieldsSpec<SPEC, ItemComposerLink<SPEC, I>>
+          + FieldSpec<SPEC>
+          + FFIConversionsSpec<SPEC, ItemComposerLink<SPEC, I>> {
+    pub fn new(
+        ty_context: SPEC::TYC,
+        attrs: &[Attribute],
+        lifetimes: &[Lifetime],
+        generics: &Generics,
+        fields: &CommaPunctuatedFields,
+        context: &ScopeContextLink,
+    ) -> ComposerLink<Self> {
+        Rc::new(RefCell::new(Self {
+            composer: ItemComposer::new::<Self>(
+                ty_context,
+                AttrsModel::from(attrs),
+                lifetimes.to_owned(),
+                Some(generics.clone()),
+                fields,
+                context)
+        }))
+    }
+}
+#[cfg(feature = "accessors")]
 impl<SPEC, I> OpaqueStructComposer<SPEC, I>
     where I: DelimiterTrait + ?Sized,
           SPEC: Specification<Expr=Expression<SPEC>>,
@@ -62,6 +96,7 @@ where T: 'static,
 }
 
 
+#[cfg(feature = "accessors")]
 impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructComposer<SPEC, Paren>
     where T: AttrComposable<SPEC::Attr>
             + LifetimesComposable<SPEC::Lt>
@@ -82,6 +117,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructCompos
     const ITER: AspectArgSourceComposer<SPEC, Iter> =
         constants::args_composer_iterator_root();
 }
+#[cfg(feature = "accessors")]
 impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructComposer<SPEC, Brace>
     where SPEC: Specification + 'static,
           T: AttrComposable<SPEC::Attr>
@@ -103,6 +139,7 @@ impl<SPEC, T, Iter> CtorSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructCompos
         constants::args_composer_iterator_root();
 }
 
+#[cfg(feature = "accessors")]
 impl<SPEC, T, I, Iter> FFIBindingsSpec<SPEC, ComposerLink<T>, Iter> for OpaqueStructComposer<SPEC, I>
     where T: AttrComposable<SPEC::Attr>
             + GenericsComposable<SPEC::Gen>

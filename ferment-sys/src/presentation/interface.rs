@@ -71,39 +71,62 @@ impl InterfacePresentation {
         Self::conversion_to_boxed(attrs, types, DictionaryExpr::self_destruct(body), generics, lifetimes)
     }
     pub fn conversion_from<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
-        InterfacePresentation::ConversionFrom {
+        Self::ConversionFrom {
             attrs: attrs.to_owned(),
             types: types.clone(),
             conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.to_owned())
         }
     }
     pub fn non_generic_conversion_from<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, lifetimes: &[Lifetime]) -> Self {
-        InterfacePresentation::ConversionFrom {
+        Self::ConversionFrom {
             attrs: attrs.to_owned(),
             types: types.clone(),
             conversions: (method_body.to_token_stream(), None, lifetimes.to_owned())
         }
     }
     pub fn conversion_to<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, generics: &Option<Generics>, lifetimes: &[Lifetime]) -> Self {
-        InterfacePresentation::ConversionTo {
+        Self::ConversionTo {
             attrs: attrs.to_owned(),
             types: types.clone(),
             conversions: (method_body.to_token_stream(), generics.clone(), lifetimes.to_owned())
         }
     }
     pub fn non_generic_conversion_to<T: ToTokens>(attrs: &[Attribute], types: &TypePair, method_body: T, lifetimes: &[Lifetime]) -> Self {
-        InterfacePresentation::ConversionTo {
+        Self::ConversionTo {
             attrs: attrs.to_owned(),
             types: types.clone(),
             conversions: (method_body.to_token_stream(), None, lifetimes.to_owned())
         }
     }
     pub fn drop<T: ToTokens>(attrs: &[Attribute], ty: Type, body: T) -> Self {
-        InterfacePresentation::Drop { attrs: attrs.to_owned(), ty, body: body.to_token_stream() }
+        let tokens = body.to_token_stream();
+        // Skip expansion if drop body is effectively a no-op
+        // Examples considered no-op: "", "{ }", "let ffi_ref = self;" (with any whitespace/braces/semicolons)
+        let mut s = tokens.to_string();
+        // Fast path: empty or whitespace only
+        if s.trim().is_empty() {
+            return InterfacePresentation::Empty;
+        }
+        // Normalize: drop whitespace
+        s.retain(|c| !c.is_whitespace());
+        // Strip outer braces repeatedly
+        loop {
+            if s.starts_with('{') && s.ends_with('}') && s.len() >= 2 {
+                s = s[1..s.len()-1].to_string();
+            } else { break; }
+        }
+        // Strip trailing semicolons
+        while s.ends_with(';') { s.pop(); }
+        // Now check for trivial self-binding no-op
+        if s.is_empty() || s == "letffi_ref=self" {
+            Self::Empty
+        } else {
+            Self::Drop { attrs: attrs.to_owned(), ty, body: tokens }
+        }
     }
 
     pub fn callback<T: ToTokens, U: ToTokens>(attrs: &[Attribute], lifetimes: &[Lifetime], ffi_type: Type, inputs: CommaPunctuatedArgs, output: ReturnType, args_conversions: T, result_conversion: U) -> Self {
-        InterfacePresentation::Callback {
+        Self::Callback {
             attrs: attrs.to_owned(),
             ffi_type,
             inputs,
@@ -113,7 +136,7 @@ impl InterfacePresentation {
         }
     }
     pub fn send_sync(attrs: &[Attribute], ffi_type: &Type) -> Self {
-        InterfacePresentation::SendAndSync { attrs: attrs.to_owned(), ffi_type: ffi_type.clone() }
+        Self::SendAndSync { attrs: attrs.to_owned(), ffi_type: ffi_type.clone() }
     }
 }
 

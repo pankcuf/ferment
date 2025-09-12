@@ -9,7 +9,7 @@ use quote::ToTokens;
 use syn::{Path, TraitBound, Type, TypePath, TypeReference, TypeTraitObject};
 use crate::composable::TraitModel;
 use crate::context::{ScopeContext, ScopeSearchKey};
-use crate::ext::{AsType, CrateExtension, DictionaryType, Join, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, MaybeTraitBound, ToPath, ToType, CRATE};
+use crate::ext::{AsType, CrateExtension, DictionaryType, Join, Mangle, MaybeAngleBracketedArgs, MaybeGenericType, MaybeTraitBound, ToPath, ToType, Colon2Punctuated, CRATE};
 use crate::kind::{GenericTypeKind, ObjectKind, SpecialType, TypeModelKind};
 use crate::lang::Specification;
 use crate::presentation::{FFIFullDictionaryPath, FFIFullPath};
@@ -185,6 +185,11 @@ impl Resolve<Type> for Path {
 impl<SPEC> Resolve<FFIFullPath<SPEC>> for Path
 where SPEC: Specification {
     fn maybe_resolve(&self, source: &ScopeContext) -> Option<FFIFullPath<SPEC>> {
+        // Resolve runs after refinement; do not follow reexports here.
+        // Use the path as-is, assuming refinement canonicalized it already.
+        if self.segments.is_empty() {
+            return None;
+        }
         let segments = &self.segments;
         let first_segment = segments.first()?;
         let last_segment = segments.last()?;
@@ -199,7 +204,7 @@ where SPEC: Specification {
             last_ident.eq("Map") && first_ident.eq("serde_json") || last_ident.is_lambda_fn() {
             Some(FFIFullPath::generic(self.mangle_ident_default().to_path()))
         } else if last_ident.is_optional() || last_ident.is_box() || last_ident.is_cow() {
-            last_segment.maybe_angle_bracketed_args()
+            self.segments.last()?.maybe_angle_bracketed_args()
                 .and_then(MaybeGenericType::maybe_generic_type)
                 .and_then(|ty| ty.maybe_resolve(source))
         } else if last_ident.is_smart_ptr() {
@@ -215,7 +220,7 @@ where SPEC: Specification {
             };
             maybe_crate_ident_replacement(&chunk.first()?.ident, source)
                 .map(|crate_ident| {
-                    let crate_local_segments = chunk.crate_and_ident_less();
+                    let crate_local_segments = if chunk.len() > 1 { chunk.crate_and_ident_less() } else { Colon2Punctuated::new() };
                     FFIFullPath::r#type(crate_ident.clone(), if crate_local_segments.is_empty() {
                         crate_ident.to_path().joined(last_ident).mangle_ident_default().to_path()
                     } else {
@@ -223,11 +228,11 @@ where SPEC: Specification {
                     })
                 })
                 .or_else(|| {
-                    let segments = chunk.ident_less();
-                    Some(FFIFullPath::external(if segments.is_empty() {
+                    let prefix = if chunk.is_empty() { Colon2Punctuated::new() } else { chunk.ident_less() };
+                    Some(FFIFullPath::external(if prefix.is_empty() {
                         last_ident.to_path()
                     } else {
-                        segments.joined(last_ident).to_path()
+                        prefix.joined(last_ident).to_path()
                     }))
                 })
         }
@@ -253,4 +258,3 @@ fn maybe_crate_ident_replacement<'a>(ident: &'a Ident, source: &'a ScopeContext)
             None
     }
 }
-

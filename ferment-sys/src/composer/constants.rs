@@ -2,10 +2,14 @@ use std::clone::Clone;
 use syn::Field;
 use crate::ast::CommaPunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{ArgComposers, AspectSharedComposerLink, AttrComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, CtorSpec, FFIBindingsComposer, FFIBindingsComposerLink, FFIComposer, FFIComposerLink, ArgProducerByRef, FieldPathConversionResolveSpec, FieldPathResolver, FieldsContext, FieldsSequenceMixer, GenericsComposable, ItemComposerExprSpec, ItemComposerSpec, OwnedArgComposers, MethodComposer, NameKindComposable, OwnerAspectSequenceSpec, ArgKindPair, PresentableExprComposerRef, RootSequenceComposer, SequenceComposer, SequenceSharedComposerLink, SourceAccessible, SourceComposerByRef, TypeAspect, IterativeComposer, ItemAspectsSpec, LifetimesComposable};
+use crate::composer::{ArgComposers, AspectSharedComposerLink, AttrComposable, CommaArgComposers, CommaPunctuatedFields, FFIComposer, FFIComposerLink, ArgProducerByRef, FieldPathConversionResolveSpec, FieldPathResolver, FieldsContext, FieldsSequenceMixer, GenericsComposable, ItemComposerExprSpec, ItemComposerSpec, OwnedArgComposers, NameKindComposable, PresentableExprComposerRef, RootSequenceComposer, SequenceComposer, SequenceSharedComposerLink, SourceComposerByRef, TypeAspect, IterativeComposer, ItemAspectsSpec, LifetimesComposable};
+#[cfg(feature = "accessors")]
+use crate::composer::{ArgKindPair, ComposerLink, CtorSpec, FFIBindingsComposer, FFIBindingsComposerLink, MethodComposer, OwnerAspectSequenceSpec, SourceAccessible};
 use crate::composer::r#abstract::SequenceMixer;
 use crate::lang::Specification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, InterfaceKind};
+use crate::presentable::{ArgKind, Aspect, InterfaceKind};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 
 pub(crate) const fn args_composer_iterator_root<SPEC, CTX, Item, OUT>()
     -> SourceComposerByRef<OwnedArgComposers<SPEC, CTX>, ArgProducerByRef<SPEC, Item>, (CTX, OUT)>
@@ -123,6 +127,7 @@ pub(crate) const fn ffi_conversions_composer2<SPEC, T, C>(
     )
 }
 
+#[cfg(feature = "accessors")]
 pub(crate) const fn ffi_bindings_composer<SPEC, T, C, Iter>()
     -> FFIBindingsComposerLink<SPEC, T, Iter>
     where SPEC: Specification,
@@ -145,6 +150,7 @@ pub(crate) const fn ffi_bindings_composer<SPEC, T, C, Iter>()
     )
 }
 #[allow(unused)]
+#[cfg(feature = "accessors")]
 pub(crate) const fn ffi_bindings_composer2<SPEC, T, C, Iter>()
     -> FFIBindingsComposerLink<SPEC, T, Iter>
     where SPEC: Specification,

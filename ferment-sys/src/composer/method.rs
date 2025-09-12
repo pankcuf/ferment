@@ -15,6 +15,7 @@ pub struct MethodComposer<SPEC, Link, LinkCtx, CTX>
     context: SharedComposer<Link, LinkCtx>,
     seq_iterator_item: BindingComposer<SPEC, CTX>
 }
+#[cfg(feature = "accessors")]
 impl<SPEC, Link, LinkCtx, CTX> MethodComposer<SPEC, Link, LinkCtx, CTX>
     where
         Link: SharedAccess,

@@ -1,6 +1,8 @@
 use quote::quote;
 use crate::ast::{CommaPunctuated, Depunctuated};
-use crate::composer::{AspectPresentable, AttrComposable, BindingComposable, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, SourceAccessible, SourceFermentable, TypeAspect, NameKindComposable, LifetimesComposable, EnumComposer};
+use crate::composer::{AspectPresentable, AttrComposable, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, ItemComposerWrapper, SourceAccessible, SourceFermentable, TypeAspect, NameKindComposable, LifetimesComposable, EnumComposer};
+#[cfg(feature = "accessors")]
+use crate::composer::BindingComposable;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::{TypeContext, ArgKind, ScopeContextPresentable};
 use crate::presentation::{DictionaryExpr, InterfacePresentation, RustFermentate};
@@ -50,13 +52,16 @@ impl InterfaceComposable<<RustSpecification as Specification>::Interface> for En
 
 impl SourceFermentable<RustFermentate> for EnumComposer<RustSpecification> {
     fn ferment(&self) -> RustFermentate {
-        let bindings = self.compose_bindings();
+        #[cfg(feature = "accessors")]
+        let bindings = self.compose_bindings().present(&self.source_ref());
+        #[cfg(not(feature = "accessors"))]
+        let bindings = Default::default();
         RustFermentate::Item {
             attrs: self.compose_attributes(),
             comment: self.compose_docs(),
             ffi_presentation: self.compose_object(),
             conversions: self.compose_interfaces(),
-            bindings: bindings.present(&self.source_ref()),
+            bindings,
             traits: Depunctuated::new()
         }
     }

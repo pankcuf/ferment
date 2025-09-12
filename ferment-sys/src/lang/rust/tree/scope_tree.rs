@@ -27,7 +27,7 @@ impl SourceFermentable<RustFermentate> for ScopeTree {
             return RustFermentate::Empty;
         }
 
-        let fermentate = Depunctuated::from_iter(children.into_iter());
+        let fermentate = Depunctuated::from_iter(children);
 
         let source = self.source_ref();
         let ctx = source.context.borrow();

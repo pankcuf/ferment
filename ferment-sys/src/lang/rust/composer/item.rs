@@ -1,6 +1,8 @@
 use std::clone::Clone;
 use crate::ast::{DelimiterTrait, Depunctuated};
-use crate::composer::{AspectPresentable, AttrComposable, BindingComposable, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect, LifetimesComposable, ItemComposer};
+use crate::composer::{AspectPresentable, AttrComposable, DocsComposable, FFIAspect, FFIObjectComposable, GenericsComposable, InterfaceComposable, NameKindComposable, SourceAccessible, SourceFermentable, TypeAspect, LifetimesComposable, ItemComposer};
+#[cfg(feature = "accessors")]
+use crate::composer::BindingComposable;
 use crate::lang::{RustSpecification, Specification};
 use crate::presentable::ScopeContextPresentable;
 use crate::presentation::{InterfacePresentation, RustFermentate};
@@ -48,7 +50,10 @@ impl<I> SourceFermentable<RustFermentate> for ItemComposer<RustSpecification, I>
             comment,
             ffi_presentation: self.compose_object(),
             conversions,
+            #[cfg(feature = "accessors")]
             bindings: self.compose_bindings().present(&self.source_ref()),
+            #[cfg(not(feature = "accessors"))]
+            bindings: Default::default(),
             traits: Depunctuated::new()
         }
     }

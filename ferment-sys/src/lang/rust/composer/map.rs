@@ -1,12 +1,18 @@
 use quote::quote;
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VarComposer, MapComposer, NameKind};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, VarComposer, MapComposer};
+#[cfg(feature = "accessors")]
+use crate::composer::NameKind;
 use crate::context::ScopeContext;
-use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle, ToType};
+use crate::ext::{Accessory, GenericNestedArg, LifetimeProcessor, Mangle};
+#[cfg(feature = "accessors")]
+use crate::ext::ToType;
 use crate::kind::FieldTypeKind;
 use crate::lang::RustSpecification;
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+#[cfg(feature = "accessors")]
+use crate::presentable::{ArgKind, BindingPresentableContext};
 use crate::presentation::{InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl SourceComposable for MapComposer<RustSpecification> {
@@ -59,11 +65,29 @@ impl SourceComposable for MapComposer<RustSpecification> {
         ]);
         let aspect = Aspect::raw_struct_ident(self.ty.mangle_ident_default());
         let attrs = self.compose_attributes();
-        let signature_context = (attrs.clone(), Default::default(), Default::default());
-        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
-        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
-        let get_context = (aspect.clone(), signature_context, ffi_type.clone(), var_key.to_type(), var_value.to_type());
 
+
+        let bindings = {
+            #[cfg(feature = "accessors")]
+            {
+                let signature_context = (attrs.clone(), Default::default(), Default::default());
+                let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+                let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+                let get_context = (aspect.clone(), signature_context, ffi_type.clone(), var_key.to_type(), var_value.to_type());
+                Depunctuated::from_iter([
+                    BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
+                    BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                    // BindingPresentableContext::<RustSpecification>::key_by_value(get_context.clone()),
+                    // BindingPresentableContext::<RustSpecification>::set_key_for_value(get_context.clone(), key_type.clone()),
+                    BindingPresentableContext::<RustSpecification>::value_by_key(get_context.clone()),
+                    BindingPresentableContext::<RustSpecification>::set_value_for_key(get_context, value_type.clone())
+                ])
+            }
+            #[cfg(not(feature = "accessors"))]
+            {
+                Default::default()
+            }
+        };
         Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
             aspect,
             &attrs,
@@ -73,15 +97,7 @@ impl SourceComposable for MapComposer<RustSpecification> {
                 InterfacePresentation::non_generic_conversion_to(&attrs, &types, to_body, &lifetimes),
                 InterfacePresentation::drop(&attrs, ffi_type, drop_body)
             ]),
-            Depunctuated::from_iter([
-                BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
-                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
-                // BindingPresentableContext::<RustSpecification>::key_by_value(get_context.clone()),
-                // BindingPresentableContext::<RustSpecification>::set_key_for_value(get_context.clone(), key_type.clone()),
-                BindingPresentableContext::<RustSpecification>::value_by_key(get_context.clone()),
-                BindingPresentableContext::<RustSpecification>::set_value_for_key(get_context, value_type.clone())
-            ])
-
+            bindings
         ))
     }
 }

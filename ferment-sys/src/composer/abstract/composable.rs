@@ -7,7 +7,9 @@ use crate::composer::{BasicComposerLink, ComposerLinkRef, CommaArgComposers, Fie
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::ext::{WrapIntoCurlyBraces, WrapIntoRoundBraces};
 use crate::lang::Specification;
-use crate::presentable::{Aspect, BindingPresentableContext, NameTreeContext, ScopeContextPresentable, SeqKind};
+use crate::presentable::{Aspect, NameTreeContext, ScopeContextPresentable, SeqKind};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
 
 /// Composer common interfaces
@@ -121,6 +123,7 @@ pub trait InterfaceComposable<T> where T: ToTokens {
 pub trait FFIObjectComposable {
     fn compose_object(&self) -> FFIObjectPresentation;
 }
+#[cfg(feature = "accessors")]
 pub trait BindingComposable<SPEC>
     where SPEC: Specification {
     fn compose_bindings(&self) -> Depunctuated<BindingPresentableContext<SPEC>>;

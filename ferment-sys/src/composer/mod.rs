@@ -13,6 +13,7 @@ mod conversion_to;
 mod doc;
 mod r#enum;
 mod enum_variant;
+#[cfg(feature = "accessors")]
 mod ffi_bindings;
 mod ffi_conversions;
 mod generic;
@@ -73,6 +74,7 @@ pub use self::conversion_drop::*;
 pub use self::doc::*;
 pub use self::r#enum::*;
 pub use self::enum_variant::*;
+#[cfg(feature = "accessors")]
 pub use self::ffi_bindings::*;
 pub use self::ffi_conversions::*;
 pub use self::conversion_from::*;
@@ -85,6 +87,7 @@ pub use self::item::*;
 pub use self::item_wrapper::*;
 pub use self::lifetimes::*;
 pub use self::map::*;
+#[cfg(feature = "accessors")]
 pub use self::method::*;
 pub use self::mod_fn::*;
 pub use self::opaque_struct::*;
@@ -134,6 +137,7 @@ pub type MaybeSequenceOutputComposer<SPEC, L> = Option<SeqKindComposer<SPEC, L>>
 pub type MaybeSequenceOutputComposerLink<SPEC, T> = Option<SeqKindComposer<SPEC, ComposerLink<T>>>;
 pub type SeqKindComposerLink<SPEC, T> = SeqKindComposer<SPEC, ComposerLink<T>>;
 pub type VariantComposerRef<SPEC> = ComposerByRef<AspectCommaPunctuatedArgKinds<SPEC>, SeqKind<SPEC>>;
+#[cfg(feature = "accessors")]
 pub type PresentableArgKindPairComposerRef<SPEC> = ArgProducerByRef<SPEC, ArgKindPair<SPEC>>;
 pub type FieldsComposerRef<SPEC> = ComposerByRef<CommaPunctuatedFields, CommaArgComposers<SPEC>>;
 pub type PresentableExprComposerRef<SPEC> = ComposerByRef<FieldTypeLocalContext<SPEC>, <SPEC as Specification>::Expr>;
@@ -169,6 +173,7 @@ pub type BindingAccessorContext<SPEC> = (
 pub type FieldTypeLocalContext<SPEC> = (<SPEC as Specification>::Name, Conversion<SPEC>);
 pub type ArgKindPair<SPEC> = (ArgKind<SPEC>, ArgKind<SPEC>);
 pub type TypePair = (Type, Type);
+#[cfg(feature = "accessors")]
 pub type ArgKindPairs<SPEC> = Vec<ArgKindPair<SPEC>>;
 pub type CommaPunctuatedArgs = CommaPunctuated<ArgPresentation>;
 pub type SemiPunctuatedArgs = SemiPunctuated<ArgPresentation>;
@@ -225,6 +230,8 @@ pub type FieldsOwnedSequenceComposer<SPEC, Link> = ArgsSequenceComposer<
     AspectCommaPunctuatedArgKinds<SPEC>,
     SeqKind<SPEC>,
 >;
+
+#[cfg(feature = "accessors")]
 pub type CtorSequenceComposer<SPEC, Link, Iter> = ArgsSequenceComposer<
     SPEC,
     Link,

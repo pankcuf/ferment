@@ -12,6 +12,8 @@ objc = []
 cbindgen = []
 cbindgen_only = []
 java = []
+# wheter bindings (constructors, destructors, getters, setters etc.) shouuld be generated
+accessors = []
 
 [dependencies]
 ferment-macro.workspace = true

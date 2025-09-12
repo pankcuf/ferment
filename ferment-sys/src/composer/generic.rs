@@ -3,7 +3,9 @@ use std::rc::Rc;
 use syn::{Attribute, Type, TypeTuple};
 use crate::ast::Depunctuated;
 use crate::composable::{FieldComposer, GenericBoundsModel};
-use crate::composer::{AnyOtherComposer, ArrayComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, GroupComposer, MapComposer, PresentableArgKindComposerRef, ResultComposer, SliceComposer, SmartPointerComposer, TupleComposer, NameKind};
+use crate::composer::{AnyOtherComposer, ArrayComposer, BoundsComposer, CallbackComposer, SourceComposable, ComposerLink, GroupComposer, MapComposer, PresentableArgKindComposerRef, ResultComposer, SliceComposer, SmartPointerComposer, TupleComposer};
+#[cfg(feature = "accessors")]
+use crate::composer::NameKind;
 use crate::context::{ScopeContext, ScopeContextLink};
 use crate::kind::{CallbackKind, GenericTypeKind, MixinKind, SmartPointerKind, TypeKind};
 use crate::ext::{AsType, GenericNestedArg};
@@ -46,17 +48,25 @@ impl<SPEC> GenericComposerInfo<SPEC>
         field_composers: Depunctuated<FieldComposer<SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>
     ) -> Self {
-        let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
-        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::callback_ctor_pair)));
+        let bindings = {
+            #[cfg(feature = "accessors")]
+            {
+                let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
+                let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::callback_ctor_pair)));
+                Depunctuated::from_iter([
+                    BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                    BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+                ])
+            }
+            #[cfg(not(feature = "accessors"))]
+            Default::default()
+        };
         Self::new(
             ffi_name,
             attrs.clone(),
             field_composers,
             interfaces,
-            Depunctuated::from_iter([
-                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
-                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
-            ]),
+            bindings,
             ArgKind::callback_arg
         )
     }
@@ -66,17 +76,25 @@ impl<SPEC> GenericComposerInfo<SPEC>
         field_composers: Depunctuated<FieldComposer<SPEC>>,
         interfaces: Depunctuated<SPEC::Interface>,
     ) -> Self {
-        let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
-        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+        let bindings = {
+            #[cfg(feature = "accessors")]
+            {
+                let dtor_context = (ffi_name.clone(), (attrs.clone(), SPEC::Lt::default(), SPEC::Gen::default()), NameKind::Named);
+                let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+                Depunctuated::from_iter([
+                    BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
+                    BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
+                ])
+            }
+            #[cfg(not(feature = "accessors"))]
+            Default::default()
+        };
         Self::new(
             ffi_name,
             attrs.clone(),
             field_composers,
             interfaces,
-            Depunctuated::from_iter([
-                BindingPresentableContext::<SPEC>::ctor::<Vec<_>>(ctor_context),
-                BindingPresentableContext::<SPEC>::dtor((dtor_context, Default::default()))
-            ]),
+            bindings,
             ArgKind::public_named_ready
         )
     }
@@ -140,8 +158,8 @@ where SPEC: Specification {
     pub fn map(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
         Self::Map(MapComposer::new(ty, type_context, attrs, scope_context))
     }
-    pub fn smart_ptr(root_kind: &SmartPointerKind, smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
-        Self::SmartPointer(SmartPointerComposer::new(root_kind, smart_pointer_kind, type_context, attrs, scope_context))
+    pub fn smart_ptr(root_kind: &SmartPointerKind, #[cfg(feature = "accessors")] smart_pointer_kind: SmartPointerKind, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
+        Self::SmartPointer(SmartPointerComposer::new(root_kind, #[cfg(feature = "accessors")] smart_pointer_kind, type_context, attrs, scope_context))
     }
     pub fn any_other(ty: &Type, type_context: SPEC::TYC, attrs: Vec<Attribute>, scope_context: &ScopeContextLink) -> GenericComposerWrapper<SPEC> {
         Self::AnyOther(AnyOtherComposer::new(ty, type_context, attrs, scope_context))
@@ -224,11 +242,15 @@ impl<SPEC> GenericComposer<SPEC>
                 SmartPointerKind::Mutex(..) |
                 SmartPointerKind::OnceLock(..) |
                 SmartPointerKind::RwLock(..) =>
-                    GenericComposerWrapper::smart_ptr(root_kind, root_kind.clone(), ty_context, attrs, scope_context),
+                    GenericComposerWrapper::smart_ptr(root_kind, #[cfg(feature = "accessors")] root_kind.clone(), ty_context, attrs, scope_context),
                 SmartPointerKind::Rc(ty) |
                 SmartPointerKind::Arc(ty) => match TypeKind::from(ty.maybe_first_nested_type_ref()?) {
+                    #[cfg(feature = "accessors")]
                     TypeKind::Generic(GenericTypeKind::SmartPointer(smart_pointer_kind)) =>
-                        GenericComposerWrapper::smart_ptr(root_kind, smart_pointer_kind, ty_context, attrs, scope_context),
+                        GenericComposerWrapper::smart_ptr(root_kind, #[cfg(feature = "accessors")] smart_pointer_kind, ty_context, attrs, scope_context),
+                    #[cfg(not(feature = "accessors"))]
+                    TypeKind::Generic(GenericTypeKind::SmartPointer(_)) =>
+                        GenericComposerWrapper::smart_ptr(root_kind, ty_context, attrs, scope_context),
                     _ =>
                         GenericComposerWrapper::any_other(root_kind.as_type(), ty_context, attrs, scope_context),
                 },

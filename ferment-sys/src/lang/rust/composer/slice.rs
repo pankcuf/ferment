@@ -2,12 +2,16 @@ use quote::quote;
 use syn::{parse_quote, TypeSlice};
 use crate::ast::Depunctuated;
 use crate::composable::FieldComposer;
-use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, SliceComposer, NameKind};
+use crate::composer::{AspectPresentable, AttrComposable, SourceComposable, GenericComposerInfo, VarComposer, ConversionFromComposer, ConversionToComposer, ConversionDropComposer, SliceComposer};
+#[cfg(feature = "accessors")]
+use crate::composer::NameKind;
 use crate::context::ScopeContext;
 use crate::ext::{Accessory, Mangle, ToType};
 use crate::kind::FieldTypeKind;
 use crate::lang::{RustSpecification, Specification};
-use crate::presentable::{ArgKind, Aspect, BindingPresentableContext, Expression, ScopeContextPresentable};
+use crate::presentable::{Aspect, Expression, ScopeContextPresentable};
+#[cfg(feature = "accessors")]
+use crate::presentable::{ArgKind, BindingPresentableContext};
 use crate::presentation::{DictionaryExpr, InterfacePresentation, InterfacesMethodExpr, Name};
 
 impl SourceComposable for SliceComposer<RustSpecification> {
@@ -51,21 +55,29 @@ impl SourceComposable for SliceComposer<RustSpecification> {
 
         ]);
         let aspect = Aspect::raw_struct_ident(ty.mangle_ident_default());
-        let signature_context = (attrs.clone(), Default::default(), Default::default());
-        let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
-        let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
-        let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
+        let bindings = {
+            #[cfg(feature = "accessors")]
+            {
+                let signature_context = (attrs.clone(), Default::default(), Default::default());
+                let dtor_context = (aspect.clone(), signature_context.clone(), NameKind::Named);
+                let ctor_context = (dtor_context.clone(), Vec::from_iter(field_composers.iter().map(ArgKind::named_ready_struct_ctor_pair)));
+                let get_at_index_context = (aspect.clone(), signature_context, ffi_type.clone(), var_value.to_type());
+                Depunctuated::from_iter([
+                    BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
+                    BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
+                    BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone()),
+                    BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context)
+                ])
+            }
+            #[cfg(not(feature = "accessors"))]
+            Default::default()
+        };
         Some(GenericComposerInfo::<RustSpecification>::default_with_bindings(
             aspect,
             &attrs,
             field_composers,
             interfaces,
-            Depunctuated::from_iter([
-                BindingPresentableContext::<RustSpecification>::ctor::<Vec<_>>(ctor_context),
-                BindingPresentableContext::<RustSpecification>::dtor((dtor_context, Default::default())),
-                BindingPresentableContext::<RustSpecification>::get_at_index(get_at_index_context.clone()),
-                BindingPresentableContext::<RustSpecification>::set_at_index(get_at_index_context)
-            ])
+            bindings
         ))
     }
 }

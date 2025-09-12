@@ -5,12 +5,18 @@ use quote::ToTokens;
 use syn::{Generics, Lifetime};
 use syn::token::{Brace, Paren};
 use ferment_macro::ComposerBase;
-use crate::ast::{DelimiterTrait, Depunctuated, Void};
+use crate::ast::{DelimiterTrait, Void};
+#[cfg(feature = "accessors")]
+use crate::ast::Depunctuated;
 use crate::composable::{AttrsModel, GenModel, LifetimesModel};
-use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, BindingComposable, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocComposer, DocsComposable, FFIAspect, FFIBindingsSpec, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, ItemComposerSpec, Linkable, MaybeFFIBindingsComposerLink, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable, ArgKindPairs};
+use crate::composer::{BasicComposer, BasicComposerLink, BasicComposerOwner, CommaArgComposers, CommaPunctuatedFields, ComposerLink, DocComposer, DocsComposable, FFIAspect, FFIConversionsSpec, FFIFieldsSpec, FFIObjectComposable, FFIObjectSpec, FieldsContext, FieldsConversionComposable, FieldsOwnedSequenceComposerLink, ItemComposerSpec, Linkable, MaybeFFIComposerLink, NameKind, NameKindComposable, SeqKindComposerLink, SourceAccessible, SourceComposable};
+#[cfg(feature = "accessors")]
+use crate::composer::{ArgKindPairs, BindingComposable, FFIBindingsSpec, MaybeFFIBindingsComposerLink};
 use crate::context::ScopeContextLink;
 use crate::lang::Specification;
-use crate::presentable::{BindingPresentableContext, ScopeContextPresentable, SeqKind};
+use crate::presentable::{ScopeContextPresentable, SeqKind};
+#[cfg(feature = "accessors")]
+use crate::presentable::BindingPresentableContext;
 use crate::presentation::{DocPresentation, FFIObjectPresentation};
 
 
@@ -25,6 +31,7 @@ pub struct ItemComposer<SPEC, I>
 
     pub ffi_object_composer: Option<SeqKindComposerLink<SPEC, Self>>,
     pub ffi_conversions_composer: MaybeFFIComposerLink<SPEC, Self>,
+    #[cfg(feature = "accessors")]
     pub bindings_composer: MaybeFFIBindingsComposerLink<SPEC, Self, ArgKindPairs<SPEC>>,
 }
 
@@ -33,6 +40,33 @@ impl<SPEC, I> ItemComposer<SPEC, I>
     where SPEC: Specification,
           I: DelimiterTrait + ?Sized {
 
+    #[cfg(not(feature = "accessors"))]
+    pub(crate) fn new<C>(
+        ty_context: SPEC::TYC,
+        attrs: AttrsModel,
+        lifetimes: Vec<Lifetime>,
+        generics: Option<Generics>,
+        fields: &CommaPunctuatedFields,
+        context: &ScopeContextLink
+    ) -> ComposerLink<Self>
+        where C: FFIFieldsSpec<SPEC, ComposerLink<Self>>
+        + FFIObjectSpec<SPEC, ComposerLink<Self>>
+        + FFIConversionsSpec<SPEC, ComposerLink<Self>>
+        + ItemComposerSpec<SPEC> {
+        let root = Rc::new(RefCell::new(Self {
+            base: BasicComposer::from(DocComposer::from(&ty_context), attrs, ty_context, GenModel::new(generics), LifetimesModel::new(lifetimes), Rc::clone(context)),
+            fields_from_composer: <C as FFIFieldsSpec<SPEC, ComposerLink<Self>>>::FROM,
+            fields_to_composer: <C as FFIFieldsSpec<SPEC, ComposerLink<Self>>>::TO,
+            ffi_conversions_composer: <C as FFIConversionsSpec<SPEC, ComposerLink<Self>>>::COMPOSER,
+            ffi_object_composer: <C as FFIObjectSpec<SPEC, ComposerLink<Self>>>::COMPOSER,
+            field_composers: C::FIELD_COMPOSERS(fields),
+        }));
+        {
+            root.borrow_mut().setup_composers(&root);
+        }
+        root
+    }
+    #[cfg(feature = "accessors")]
     pub(crate) fn new<C>(
         ty_context: SPEC::TYC,
         attrs: AttrsModel,
@@ -65,6 +99,7 @@ impl<SPEC, I> ItemComposer<SPEC, I>
         self.base.link(root);
         self.fields_from_composer.link(root);
         self.fields_to_composer.link(root);
+        #[cfg(feature = "accessors")]
         if let Some(ref mut composer) = self.bindings_composer {
             composer.link(root);
         }
@@ -146,6 +181,7 @@ impl<SPEC, I> FFIObjectComposable for ItemComposer<SPEC, I>
     }
 }
 
+#[cfg(feature = "accessors")]
 impl<SPEC, I> BindingComposable<SPEC> for ItemComposer<SPEC, I>
     where SPEC: Specification,
           I: DelimiterTrait + ?Sized {
